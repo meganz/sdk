@@ -11,9 +11,43 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <type_traits>
 
 namespace
 {
+void createLocalTree(const fs::path& parentPath, const std::vector<sdk_test::NodeInfo>& nodes);
+
+void createLocalEntry(const fs::path& parentPath, const sdk_test::NodeInfo& node)
+{
+    std::visit(
+        [&](const auto& nodeInfo)
+        {
+            using NodeInfoType = std::decay_t<decltype(nodeInfo)>;
+            if constexpr (std::is_same_v<NodeInfoType, sdk_test::FileNodeInfo>)
+            {
+                const fs::path filePath = parentPath / nodeInfo.name;
+                const auto fileSize = nodeInfo.size > 0 ? nodeInfo.size : 1u;
+                ASSERT_NO_THROW(sdk_test::createFile(filePath, fileSize));
+            }
+            else
+            {
+                const fs::path dirPath = parentPath / nodeInfo.name;
+                ASSERT_TRUE(fs::create_directory(dirPath))
+                    << "Unable to create directory " << dirPath.string();
+                createLocalTree(dirPath, nodeInfo.childs);
+            }
+        },
+        node);
+}
+
+void createLocalTree(const fs::path& parentPath, const std::vector<sdk_test::NodeInfo>& nodes)
+{
+    for (const auto& node: nodes)
+    {
+        createLocalEntry(parentPath, node);
+    }
+}
+
 class PitagCommandObserver
 {
 public:
@@ -171,6 +205,45 @@ TEST_F(SdkTestPitag, PitagCapturedForUploadWithFolderController)
     const auto waitTimeout =
         std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
     ASSERT_TRUE(observer.waitForValue("F.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForBatchFolderUpload)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    const std::string localFolderName = getFilePrefix() + "pitag_batch_folder";
+    const fs::path localFolderPath = fs::current_path() / localFolderName;
+    sdk_test::LocalTempDir localFolder(localFolderPath);
+
+    const std::vector<sdk_test::NodeInfo> localStructure{
+        sdk_test::DirNodeInfo("nested")
+            .addChild(sdk_test::DirNodeInfo("inner").addChild(
+                sdk_test::FileNodeInfo("inner_file.bin").setSize(8)))
+            .addChild(sdk_test::FileNodeInfo("nested_file.bin").setSize(12)),
+        sdk_test::FileNodeInfo("root_file_a.bin").setSize(10),
+        sdk_test::FileNodeInfo("root_file_b.bin").setSize(14)};
+    ASSERT_NO_FATAL_FAILURE(createLocalTree(localFolderPath, localStructure));
+
+    PitagCommandObserver observer;
+    TransferTracker tracker(megaApi[0].get());
+    megaApi[0]->startUpload(localFolderPath.u8string().c_str(),
+                            rootNode.get(),
+                            localFolderName.c_str(),
+                            MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr,
+                            false,
+                            false,
+                            nullptr,
+                            &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("U.FD.", waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
