@@ -10259,39 +10259,34 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
     return transfer;
 }
 
-void MegaApiImpl::startUpload(bool startFirst,
-                              const char* localPath,
+void MegaApiImpl::startUpload(const std::string localPath,
                               MegaNode* parent,
-                              const char* fileName,
-                              const char* targetUser,
-                              int64_t mtime,
-                              int folderTransferTag,
-                              bool isBackup,
-                              const char* appData,
-                              bool isSourceFileTemporary,
-                              bool forceNewUpload,
-                              FileSystemType fsType,
                               CancelToken cancelToken,
-                              MegaTransferListener* listener,
-                              PitagTrigger pitagTrigger,
-                              PitagTarget pitagTarget)
+                              const MegaUploadOptionsPrivate& options,
+                              MegaTransferListener* listener)
 {
     LocalPath path;
-    if (localPath)
+    if (!localPath.empty())
     {
-        path = LocalPath::fromAbsolutePath(localPath);
+        path = LocalPath::fromAbsolutePath(localPath.c_str());
     }
-    MegaTransferPrivate* transfer = createUploadTransfer(startFirst,
+
+    const char* fileName =
+        options.mPublicOptions.fileName.empty() ? nullptr : options.mPublicOptions.fileName.c_str();
+    FileSystemType fsType = options.mFsType;
+    const PitagTrigger pitagTrigger =
+        Pitag::pitagTriggerFromChar(options.mPublicOptions.pitagTrigger);
+    MegaTransferPrivate* transfer = createUploadTransfer(options.mPublicOptions.startFirst,
                                                          path,
                                                          parent,
                                                          fileName,
-                                                         targetUser,
-                                                         mtime,
-                                                         folderTransferTag,
-                                                         isBackup,
-                                                         appData,
-                                                         isSourceFileTemporary,
-                                                         forceNewUpload,
+                                                         nullptr,
+                                                         options.mPublicOptions.mtime,
+                                                         options.mFolderTransferTag,
+                                                         options.mIsBackup,
+                                                         options.mPublicOptions.appData,
+                                                         options.mPublicOptions.isSourceTemporary,
+                                                         options.mForceNewUpload,
                                                          fsType,
                                                          cancelToken,
                                                          listener);
@@ -10301,7 +10296,7 @@ void MegaApiImpl::startUpload(bool startFirst,
     const Pitag pitag{PitagPurpose::Upload,
                       pitagTrigger,
                       nodeType,
-                      pitagTarget,
+                      options.mPitagTarget,
                       PitagImportSource::NotApplicable};
     transfer->setPitag(pitag);
     transferQueue.push(transfer);
@@ -10521,22 +10516,24 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
         Pitag pitag{t->getPitag()};
-        this->startUpload(true,
-                          t->getPath(),
-                          parent,
-                          t->getFileName(),
-                          nullptr,
-                          t->getTime(),
-                          0,
-                          t->isBackupTransfer(),
-                          t->getAppData(),
-                          t->isSourceFileTemporary(),
-                          t->isForceNewUpload(),
-                          client->fsaccess->getlocalfstype(t->getLocalPath()),
-                          t->accessCancelToken(),
-                          listener,
-                          pitag.trigger,
-                          pitag.target);
+        MegaUploadOptionsPrivate options;
+        if (const char* fileName = t->getFileName())
+        {
+            options.mPublicOptions.fileName = fileName;
+        }
+        options.mPublicOptions.mtime = t->getTime();
+        options.mPublicOptions.appData = t->getAppData();
+        options.mPublicOptions.isSourceTemporary = t->isSourceFileTemporary();
+        options.mPublicOptions.startFirst = true;
+        options.mPublicOptions.pitagTrigger = static_cast<char>(pitag.trigger);
+        options.mIsBackup = t->isBackupTransfer();
+        options.mForceNewUpload = t->isForceNewUpload();
+        options.mFsType = client->fsaccess->getlocalfstype(t->getLocalPath());
+        options.mPitagTarget = pitag.target;
+
+        const char* transferPath = t->getPath();
+        const std::string normalizedPath = transferPath ? transferPath : "";
+        this->startUpload(normalizedPath, parent, t->accessCancelToken(), options, listener);
 
         delete parent;
     }
@@ -32062,23 +32059,19 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         const PitagTarget pitagTarget =
                             inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
 
-                        megaApi->startUpload(
-                            false,
-                            childPath.toPath(false).c_str(),
-                            parent,
-                            nullptr,
-                            nullptr,
-                            -1,
-                            folderTransferTag,
-                            true,
-                            nullptr,
-                            false,
-                            false,
-                            fsType,
-                            CancelToken(),
-                            this,
-                            PitagTrigger::NotApplicable, // ask what is best for this case
-                            pitagTarget);
+                        MegaApiImpl::MegaUploadOptionsPrivate uploadOptions;
+                        uploadOptions.mPublicOptions.mtime = -1;
+                        uploadOptions.mFolderTransferTag = folderTransferTag;
+                        uploadOptions.mIsBackup = true;
+                        uploadOptions.mFsType = fsType;
+                        uploadOptions.mPitagTarget = pitagTarget;
+
+                        const std::string childPathStr = childPath.toPath(false);
+                        megaApi->startUpload(childPathStr,
+                                             parent,
+                                             CancelToken(),
+                                             uploadOptions,
+                                             this);
                     }
                     else
                     {
@@ -35640,23 +35633,17 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
 
             FileSystemType fsType = httpctx->server->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(httpctx->tmpFileName));
-            httpctx->megaApi->startUpload(
-                false,
-                httpctx->tmpFileName.c_str(),
-                newParentNode,
-                newname.c_str(),
-                nullptr,
-                -1,
-                0,
-                true,
-                nullptr,
-                false,
-                false,
-                fsType,
-                CancelToken(),
-                httpctx,
-                PitagTrigger::NotApplicable,
-                PitagTarget::NotApplicable); // to do, check correct pitags
+            MegaApiImpl::MegaUploadOptionsPrivate uploadOptions;
+            uploadOptions.mPublicOptions.fileName = newname;
+            uploadOptions.mPublicOptions.mtime = -1;
+            uploadOptions.mIsBackup = true;
+            uploadOptions.mFsType = fsType;
+
+            httpctx->megaApi->startUpload(httpctx->tmpFileName,
+                                          newParentNode,
+                                          CancelToken(),
+                                          uploadOptions,
+                                          httpctx);
 
             delete node;
             delete baseNode;
@@ -38413,23 +38400,17 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
 
                 FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName));
-                ftpdatactx->megaApi->startUpload(
-                    false,
-                    ftpdatactx->tmpFileName.c_str(),
-                    newParentNode.get(),
-                    fds->newNameToUpload.c_str(),
-                    nullptr,
-                    -1,
-                    0,
-                    true,
-                    nullptr,
-                    false,
-                    false,
-                    fsType,
-                    CancelToken(),
-                    fds->controlftpctx,
-                    PitagTrigger::NotApplicable,
-                    PitagTarget::NotApplicable); // to do, check correct pitags
+                MegaApiImpl::MegaUploadOptionsPrivate uploadOptions;
+                uploadOptions.mPublicOptions.fileName = fds->newNameToUpload;
+                uploadOptions.mPublicOptions.mtime = -1;
+                uploadOptions.mIsBackup = true;
+                uploadOptions.mFsType = fsType;
+
+                ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName,
+                                                 newParentNode.get(),
+                                                 CancelToken(),
+                                                 uploadOptions,
+                                                 fds->controlftpctx);
 
                 ftpdatactx->controlRespondedElsewhere = true;
             }
