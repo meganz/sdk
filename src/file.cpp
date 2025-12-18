@@ -127,13 +127,23 @@ bool File::serialize(string *d) const
     bool pathSerializedAsLocalPath = true;
     d->append(reinterpret_cast<const char*>(&pathSerializedAsLocalPath), sizeof(bool));
 
-    d->append("\0\0\0\0\0\0", 7);
+    bool hasPitag = mPitag.has_value();
+    d->append(reinterpret_cast<const char*>(&hasPitag), sizeof(bool));
+
+    d->append("\0\0\0\0\0", 6);
 
     if (hasChatAuth)
     {
         ll = (unsigned short) strlen(chatauth);
         d->append((char*)&ll, sizeof(ll));
         d->append(chatauth, ll);
+    }
+
+    if (hasPitag)
+    {
+        ll = (unsigned short)mPitag->toString().size();
+        d->append((char*)&ll, sizeof(ll));
+        d->append(mPitag->toString().data(), ll);
     }
 
     return true;
@@ -167,45 +177,45 @@ File *File::unserialize(string *d)
 
     // read name
     unsigned short namelen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(namelen);
     if (ptr + namelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - name too long";
         return NULL;
     }
+    ptr += sizeof(namelen);
     const char *name = ptr;
     ptr += namelen;
 
     // read localname
     unsigned short localnamelen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(localnamelen);
     if (ptr + localnamelen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - localname too long";
         return NULL;
     }
+    ptr += sizeof(localnamelen);
     const char *localname = ptr;
     ptr += localnamelen;
 
     // read targetuser
     unsigned short targetuserlen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(targetuserlen);
     if (ptr + targetuserlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - targetuser too long";
         return NULL;
     }
+    ptr += sizeof(targetuserlen);
     const char *targetuser = ptr;
     ptr += targetuserlen;
 
     // read private auth
     unsigned short privauthlen = MemAccess::get<unsigned short>(ptr);
-    ptr += sizeof(privauthlen);
     if (ptr + privauthlen + sizeof(unsigned short) > end)
     {
         LOG_err << "File unserialization failed - private auth too long";
         return NULL;
     }
+    ptr += sizeof(privauthlen);
     const char *privauth = ptr;
     ptr += privauthlen;
 
@@ -289,13 +299,16 @@ File *File::unserialize(string *d)
             LocalPath::fromPlatformEncodedAbsolute(std::string(localname, localnamelen)));
     }
 
-    if (memcmp(ptr, "\0\0\0\0\0\0", 7))
+    char hasPitag = MemAccess::get<char>(ptr);
+    ptr += sizeof(char);
+
+    if (memcmp(ptr, "\0\0\0\0\0", 6))
     {
         LOG_err << "File unserialization failed - invalid version";
         delete file;
         return NULL;
     }
-    ptr += 7;
+    ptr += 6;
 
     if (hasChatAuth)
     {
@@ -322,6 +335,28 @@ File *File::unserialize(string *d)
             delete file;
             return NULL;
         }
+    }
+
+    if (hasPitag)
+    {
+        unsigned short pitagLength = MemAccess::get<unsigned short>(ptr);
+        if (ptr + sizeof(unsigned short) + pitagLength > end)
+        {
+            LOG_err << "File unserialization failed - pitag too long";
+            return nullptr;
+        }
+
+        ptr += sizeof(pitagLength);
+        const char* pitag = ptr;
+        auto pitagOpt{Pitag::fromString(std::string(pitag, pitagLength))};
+        if (!pitagOpt.has_value())
+        {
+            LOG_err << "File unserialization failed - incorrect pitag";
+            return nullptr;
+        }
+
+        file->setPitag(pitagOpt.value());
+        ptr += pitagLength;
     }
 
     d->erase(0, static_cast<size_t>(ptr - d->data()));
@@ -393,7 +428,8 @@ void File::sendPutnodesOfUpload(MegaClient* client,
                                 NodeHandle ovHandle,
                                 CommandPutNodes::Completion&& completion,
                                 const m_time_t* overrideMtime,
-                                bool canChangeVault)
+                                bool canChangeVault,
+                                std::optional<Pitag> pitag)
 {
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
@@ -464,16 +500,15 @@ void File::sendPutnodesOfUpload(MegaClient* client,
             }
         }
 
-        const bool inIncomingShare = parentNode && parentNode->matchesOrHasAncestorMatching(
-                                                       [](const Node& node)
-                                                       {
-                                                           return node.inshare != nullptr;
-                                                       });
-
-        Pitag pitag;
-        pitag.purpose = PitagPurpose::Upload;
-        pitag.nodeType = PitagNodeType::File;
-        pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+        if (pitag.has_value() && pitag->target == PitagTarget::NotApplicable)
+        {
+            const bool inIncomingShare = parentNode && parentNode->matchesOrHasAncestorMatching(
+                                                           [](const Node& node)
+                                                           {
+                                                               return node.inshare != nullptr;
+                                                           });
+            pitag->target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+        }
 
         client->queueCommand(new CommandPutNodes(client,
                                                  th,

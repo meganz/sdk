@@ -52,6 +52,7 @@ void checkFiles(const mega::File& exp, const mega::File& act)
     ASSERT_EQ(std::string{exp.chatauth}, std::string{act.chatauth});
     ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
     ASSERT_EQ(exp.targetuser, act.targetuser);
+    ASSERT_EQ(exp.getPitag()->toString(), act.getPitag()->toString());
     ASSERT_EQ(nullptr, act.transfer);
     if (static_cast<const mega::FileFingerprint&>(exp).isvalid ||
         static_cast<const mega::FileFingerprint&>(act).isvalid)
@@ -82,6 +83,12 @@ TEST(File, serialize_unserialize)
     file.transfer = new mega::Transfer{client.get(), mega::GET}; // owned by client
     file.transfer->files.push_back(&file);
     file.file_it = file.transfer->files.begin();
+    Pitag pitag{PitagPurpose::Upload,
+                PitagTrigger::Camera,
+                PitagNodeType::File,
+                PitagTarget::CloudDrive,
+                PitagImportSource::FolderLink};
+    file.setPitag(pitag);
 
     std::string d;
     file.serialize(&d);
