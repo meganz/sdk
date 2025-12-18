@@ -9978,10 +9978,36 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             quickResult.has_value())
         {
             // Fingerprints fully match or differ in more than mtime (type, size, CRC)
-            if (auto fsCloudEqualRes = std::get<0>(*quickResult);
-                fsCloudEqualRes == NODE_COMP_EQUAL)
+            auto fsCloudEqualRes = std::get<0>(*quickResult);
+            auto mismatch = std::get<3>(*quickResult);
+            if (fsCloudEqualRes == NODE_COMP_EQUAL)
             {
                 return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+            }
+            else if (fsCloudEqualRes == NODE_COMP_DIFFERS_FP &&
+                     mismatch == FingerprintMismatch::CrcOnly)
+            {
+                const auto& cloudFp = row.cloudNode->fingerprint;
+                const auto& localFp = row.fsNode->fingerprint;
+                FingerprintCrc legacyCrc{};
+                const bool computeSucceeded = computeLegacyBuggySparseCrc(syncs.mClient,
+                                                                          row.fsNode->localname,
+                                                                          localFp.size,
+                                                                          legacyCrc);
+
+                if (computeSucceeded && areCrcEqual(legacyCrc, cloudFp.crc))
+                {
+                    LOG_warn
+                        << "CXF case, CRC mismatch due to buggy CRC of cloud Node. We first need "
+                           "to create syncnode, and in next iteration in CSF CRC will be "
+                           "detected as buggy and fingerprint from cloud node will be updated";
+                    return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+                }
+                else
+                {
+                    LOG_warn << "CXF case, CRC mismatch.";
+                    return resolve_userIntervention(row, fullPath);
+                }
             }
             else
             {
