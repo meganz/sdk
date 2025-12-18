@@ -10156,26 +10156,23 @@ void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listen
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
-                                                       const LocalPath& localPath,
+MegaTransferPrivate* MegaApiImpl::createUploadTransfer(const LocalPath& localPath,
                                                        MegaNode* parent,
-                                                       const char* fileName,
-                                                       const char* targetUser,
-                                                       int64_t mtime,
-                                                       int folderTransferTag,
-                                                       bool isBackup,
-                                                       const char* appData,
-                                                       bool isSourceFileTemporary,
-                                                       bool forceNewUpload,
-                                                       FileSystemType fsType,
+                                                       const MegaUploadOptionsPrivate& options,
                                                        CancelToken cancelToken,
                                                        MegaTransferListener* listener,
                                                        const FileFingerprint* preFingerprintedFile)
 {
+    FileSystemType fsType = options.mFsType;
     if (fsType == FS_UNKNOWN)
     {
         fsType = fsAccess->getlocalfstype(localPath);
     }
+    const char* fileName =
+        options.mPublicOptions.fileName.empty() ? nullptr : options.mPublicOptions.fileName.c_str();
+    const char* targetUser = options.mTargetUser.empty() ? nullptr : options.mTargetUser.c_str();
+    const int64_t mtime = options.mPublicOptions.mtime;
+    const int folderTransferTag = options.mFolderTransferTag;
 
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if (!localPath.empty())
@@ -10194,11 +10191,11 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
     }
 
     transfer->setMaxRetries(maxRetries);
-    transfer->setAppData(appData);
-    transfer->setSourceFileTemporary(isSourceFileTemporary);
-    transfer->setStartFirst(startFirst);
+    transfer->setAppData(options.mPublicOptions.appData);
+    transfer->setSourceFileTemporary(options.mPublicOptions.isSourceTemporary);
+    transfer->setStartFirst(options.mPublicOptions.startFirst);
     transfer->setCancelToken(cancelToken);
-    transfer->setBackupTransfer(isBackup);
+    transfer->setBackupTransfer(options.mIsBackup);
 
     if (fileName || transfer->getFileName())
     {
@@ -10255,7 +10252,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
-    transfer->setForceNewUpload(forceNewUpload);
+    transfer->setForceNewUpload(options.mForceNewUpload);
     return transfer;
 }
 
@@ -10271,25 +10268,10 @@ void MegaApiImpl::startUpload(const std::string localPath,
         path = LocalPath::fromAbsolutePath(localPath.c_str());
     }
 
-    const char* fileName =
-        options.mPublicOptions.fileName.empty() ? nullptr : options.mPublicOptions.fileName.c_str();
-    FileSystemType fsType = options.mFsType;
     const PitagTrigger pitagTrigger =
         Pitag::pitagTriggerFromChar(options.mPublicOptions.pitagTrigger);
-    MegaTransferPrivate* transfer = createUploadTransfer(options.mPublicOptions.startFirst,
-                                                         path,
-                                                         parent,
-                                                         fileName,
-                                                         nullptr,
-                                                         options.mPublicOptions.mtime,
-                                                         options.mFolderTransferTag,
-                                                         options.mIsBackup,
-                                                         options.mPublicOptions.appData,
-                                                         options.mPublicOptions.isSourceTemporary,
-                                                         options.mForceNewUpload,
-                                                         fsType,
-                                                         cancelToken,
-                                                         listener);
+    MegaTransferPrivate* transfer =
+        createUploadTransfer(path, parent, options, cancelToken, listener);
 
     const auto nodeType =
         (transfer->fingerprint_filetype == FILENODE) ? PitagNodeType::File : PitagNodeType::Folder;
@@ -10311,20 +10293,15 @@ void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFile
         path = LocalPath::fromAbsolutePath(localPath);
     }
 
-    MegaTransferPrivate* transfer = createUploadTransfer(true,
-                                                         path,
-                                                         nullptr,
-                                                         nullptr,
-                                                         MegaClient::SUPPORT_USER_HANDLE.c_str(),
-                                                         MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                         0,
-                                                         false,
-                                                         nullptr,
-                                                         isSourceFileTemporary,
-                                                         false,
-                                                         fsType,
-                                                         CancelToken(),
-                                                         listener);
+    MegaUploadOptionsPrivate options;
+    options.mPublicOptions.startFirst = true;
+    options.mPublicOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    options.mPublicOptions.isSourceTemporary = isSourceFileTemporary;
+    options.mFsType = fsType;
+    options.mTargetUser = MegaClient::SUPPORT_USER_HANDLE;
+
+    MegaTransferPrivate* transfer =
+        createUploadTransfer(path, nullptr, options, CancelToken(), listener);
 
     transferQueue.push(transfer);
     waiter->notify();
@@ -19351,10 +19328,16 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
-                // This bool below is a bit tricky: for example, this would be true for uploadForSupport: targetUser param on createUploadTransfer is populated with MegaClient::SUPPORT_USER_HANDLE (length = 11),
-                // and that param is used to populate transfer->parentPath (i.e.: it's not really a path, but a handle). At the same time, parentHandle is undef. So "uploadToInbox" would be true here.
-                // Later, when creating the MegaFilePut object, the cusertarget constructor param will have the value of inboxTarget (see below), so MegaFilePut::targetuser will have the value of MegaClient::SUPPORT_USER_HANDLE.
-                // This comparison (File::targetuser != MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for support.
+                // This bool below is a bit tricky: for example, this would be true for
+                // uploadForSupport: the MegaUploadOptionsPrivate::mTargetUser is populated with
+                // MegaClient::SUPPORT_USER_HANDLE (length = 11), and that value is used to populate
+                // transfer->parentPath (i.e.: it's not really a path, but a handle). At the same
+                // time, parentHandle is undef. So "uploadToInbox" would be true here. Later, when
+                // creating the MegaFilePut object, the cusertarget constructor param will have the
+                // value of inboxTarget (see below), so MegaFilePut::targetuser will have the value
+                // of MegaClient::SUPPORT_USER_HANDLE. This comparison (File::targetuser !=
+                // MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for
+                // support.
                 auto inboxTarget = transfer->getInboxTarget();
 
                 if (wLocalPath.empty() || !fileName || !(*fileName) ||
@@ -31314,19 +31297,16 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 {
     for (const auto& localpath : tree.files)
     {
+        MegaApiImpl::MegaUploadOptionsPrivate subOptions;
+        subOptions.mPublicOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+        subOptions.mFolderTransferTag = tag;
+        subOptions.mPublicOptions.appData = transfer->getAppData();
+        subOptions.mFsType = tree.fsType;
+
         MegaTransferPrivate* subTransfer =
-            megaApi->createUploadTransfer(false,
-                                          localpath.lp,
+            megaApi->createUploadTransfer(localpath.lp,
                                           tree.megaNode.get(),
-                                          nullptr,
-                                          (const char*)NULL,
-                                          MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                          tag,
-                                          false,
-                                          transfer->getAppData(),
-                                          false,
-                                          false,
-                                          tree.fsType,
+                                          subOptions,
                                           transfer->accessCancelToken(),
                                           this,
                                           &localpath.fp);

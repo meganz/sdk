@@ -3991,6 +3991,7 @@ class MegaApiImpl : public MegaApp
             bool mForceNewUpload = false;
             FileSystemType mFsType = FS_UNKNOWN;
             PitagTarget mPitagTarget = PitagTarget::NotApplicable;
+            std::string mTargetUser;
         };
 
         void startUpload(const std::string localPath,
@@ -4000,18 +4001,9 @@ class MegaApiImpl : public MegaApp
                          MegaTransferListener* listener);
 
         MegaTransferPrivate*
-            createUploadTransfer(bool startFirst,
-                                 const LocalPath& localPath,
+            createUploadTransfer(const LocalPath& localPath,
                                  MegaNode* parent,
-                                 const char* fileName,
-                                 const char* targetUser,
-                                 int64_t mtime,
-                                 int folderTransferTag,
-                                 bool isBackup,
-                                 const char* appData,
-                                 bool isSourceFileTemporary,
-                                 bool forceNewUpload,
-                                 FileSystemType fsType,
+                                 const MegaUploadOptionsPrivate& options,
                                  CancelToken cancelToken,
                                  MegaTransferListener* listener,
                                  const FileFingerprint* preFingerprintedFile = nullptr);
