@@ -6,6 +6,7 @@
 /app/src/main/jniLibs/
 /app/src/main/libs/
 /app/src/main/java/nz/mega/sdk/
+/app/src/main/jni/build-dir
 
 ### Android Studio files ###
 *.iml
