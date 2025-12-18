@@ -2455,6 +2455,84 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     }
 }
 
+[[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
+                                              const unsigned lane,
+                                              const unsigned block) noexcept
+{
+    const auto sizeU64 = static_cast<std::uint64_t>(size);
+    const auto clampMax = sizeU64 - LEGACY_CRC_WINDOW_BYTES;
+
+    const std::uint32_t sz32 = static_cast<std::uint32_t>(sizeU64);
+    const std::uint32_t idx32 =
+        static_cast<std::uint32_t>(lane * LEGACY_CRC_BLOCKS_PER_LANE + block); // 0..127
+
+    const std::uint32_t numer = static_cast<std::uint32_t>(
+        (sz32 - static_cast<std::uint32_t>(LEGACY_CRC_WINDOW_BYTES)) * idx32); // wraps
+    const std::uint32_t off32 = LEGACY_SPARSE_DENOM ? (numer / LEGACY_SPARSE_DENOM) : 0;
+
+    const auto off64 = static_cast<std::uint64_t>(off32);
+    return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrc(MegaClient& mc,
+                                               const LocalPath& path,
+                                               const m_off_t expectedSize,
+                                               std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut)
+{
+    if (expectedSize <= static_cast<m_off_t>(LEGACY_CRC_WINDOW_BYTES) ||
+        static_cast<std::uint64_t>(expectedSize) <= LEGACY_OVERFLOW_MIN_SIZE)
+    {
+        return false;
+    }
+
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+    {
+        return false;
+    }
+
+    // Only proceed if the file still matches what the sync thread decided to act on.
+    if (fa->size != expectedSize)
+    {
+        return false;
+    }
+
+    if (!fa->openf(FSLogging::logOnError))
+    {
+        return false;
+    }
+
+    std::array<byte, LEGACY_CRC_WINDOW_BYTES> block{};
+    std::int32_t crcval = 0;
+
+    for (unsigned lane = 0; lane < LEGACY_CRC_LANES; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < LEGACY_CRC_BLOCKS_PER_LANE; ++j)
+        {
+            const auto offset = legacySparseOffset32Bug(expectedSize, lane, j);
+            if (!fa->frawread(block.data(),
+                              static_cast<unsigned long>(block.size()),
+                              offset,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            crc32.add(block.data(), static_cast<unsigned>(block.size()));
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = static_cast<std::int32_t>(htonl(static_cast<std::uint32_t>(crcval)));
+    }
+
+    fa->closef();
+    return true;
+}
+
 bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs)
 {
     return std::memcmp(lhs.data(), rhs.data(), sizeof(lhs)) == 0;

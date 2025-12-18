@@ -611,10 +611,36 @@ struct FileAccess;
 struct InputStreamAccess;
 class SymmCipher;
 
-static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
+/*******************\
+*     CRC UTILS     *
+\*******************/
+constexpr std::uint64_t LEGACY_CRC_WINDOW_BYTES = 64; // 4 * sizeof(FileFingerprint::crc)
+constexpr unsigned LEGACY_CRC_LANES = 4;
+constexpr unsigned LEGACY_CRC_BLOCKS_PER_LANE = 32;
+constexpr std::uint32_t LEGACY_SPARSE_DENOM =
+    static_cast<std::uint32_t>(LEGACY_CRC_LANES * LEGACY_CRC_BLOCKS_PER_LANE - 1); // 127
+
+// The old buggy 32-bit computation could only overflow once (size - windowBytes) * idx crosses
+// 2^32.
+constexpr std::uint64_t LEGACY_OVERFLOW_MIN_SIZE =
+    (static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) / LEGACY_SPARSE_DENOM) +
+    LEGACY_CRC_WINDOW_BYTES;
+
+[[nodiscard]] bool computeLegacyBuggySparseCrc(MegaClient& mc,
+                                               const LocalPath& path,
+                                               const m_off_t expectedSize,
+                                               std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut);
+
+[[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
+                                              const unsigned lane,
+                                              const unsigned block) noexcept;
 
 bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs);
 
+/*******************\
+*   METAMAC UTILS   *
+\*******************/
+static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
 std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
                                          FileAccess& ifAccess,
                                          const int64_t iv,
