@@ -580,15 +580,14 @@ void clientUpload(MegaClient& mc,
             const auto& localFp = upload->fingerprint();
 
             if (cloudFp.isvalid && localFp.isvalid && cloudFp.size == localFp.size &&
-                cloudFp.mtime == localFp.mtime &&
-                memcmp(cloudFp.crc.data(), localFp.crc.data(), sizeof(cloudFp.crc)) != 0)
+                cloudFp.mtime == localFp.mtime && !areCrcEqual(cloudFp.crc, localFp.crc))
             {
                 std::array<std::int32_t, LEGACY_CRC_LANES> legacyCrc{};
                 if (computeLegacyBuggySparseCrc(mc,
                                                 upload->getLocalname(),
                                                 localFp.size,
                                                 legacyCrc) &&
-                    memcmp(legacyCrc.data(), cloudFp.crc.data(), sizeof(cloudFp.crc)) == 0)
+                    areCrcEqual(cloudFp.crc, legacyCrc))
                 {
                     if (auto immediateResult =
                             mc.updateNodeFingerprint(node, localFp, std::move(crcCompletion));
@@ -602,6 +601,11 @@ void clientUpload(MegaClient& mc,
                     LOG_warn << "clientUpload: UpdateCRC immediate error. Falling back to full "
                                 "upload transfer / Cloning node";
                     upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
+                }
+                else
+                {
+                    LOG_warn << "clientUpload: computeLegacyBuggySparseCrc failed. Falling back to "
+                                "full upload transfer / Cloning node";
                 }
             }
         }
@@ -707,7 +711,7 @@ std::optional<FsCloudComparisonResult> quickFingerprintComparison(const CloudNod
             return FingerprintMismatch::Other;
         }
 
-        const bool crcEqual = memcmp(a.crc.data(), b.crc.data(), sizeof(a.crc)) == 0;
+        const bool crcEqual = areCrcEqual(a.crc, b.crc);
         const bool sameMtime = a.mtime == b.mtime;
 
         if (crcEqual)

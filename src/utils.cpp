@@ -2455,6 +2455,11 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     }
 }
 
+bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs)
+{
+    return std::memcmp(lhs.data(), rhs.data(), sizeof(lhs)) == 0;
+}
+
 std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
                                          FileAccess& ifAccess,
                                          const int64_t iv,
