@@ -156,21 +156,19 @@ TEST_F(SdkTestPitag, PitagCapturedForRegularUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[0].get());
-    megaApi[0]->startUpload(localPathUtf8.c_str(),
-                            rootNode.get(),
-                            remoteName.c_str(),
-                            MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr,
-                            false,
-                            false,
-                            nullptr,
-                            &tracker);
+    MegaApi::MegaUploadOptions options;
+    options.fileName = remoteName;
+    options.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    options.pitagTrigger = MegaApi::PITAG_TRIGGER_CAMERA;
+
+    megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, &options, &tracker);
 
     ASSERT_EQ(API_OK, tracker.waitForResult());
 
     const auto waitTimeout =
         std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
-    ASSERT_TRUE(observer.waitForValue("U.fD.", waitTimeout))
+    const std::string expected = std::string{"U"} + options.pitagTrigger + "fD.";
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
@@ -230,14 +228,14 @@ TEST_F(SdkTestPitag, PitagCapturedForBatchFolderUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[0].get());
-    megaApi[0]->startUpload(localFolderPath.u8string().c_str(),
+    MegaApi::MegaUploadOptions folderOptions;
+    folderOptions.fileName = localFolderName;
+    folderOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+    megaApi[0]->startUpload(localFolderPath.u8string(),
                             rootNode.get(),
-                            localFolderName.c_str(),
-                            MegaApi::INVALID_CUSTOM_MOD_TIME,
                             nullptr,
-                            false,
-                            false,
-                            nullptr,
+                            &folderOptions,
                             &tracker);
     ASSERT_EQ(API_OK, tracker.waitForResult());
 
@@ -288,20 +286,17 @@ TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[1].get());
-    megaApi[1]->startUpload(localPathUtf8.c_str(),
-                            incomingNode.get(),
-                            nullptr,
-                            MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr,
-                            false,
-                            false,
-                            nullptr,
-                            &tracker);
+    MegaApi::MegaUploadOptions shareOptions;
+    shareOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    shareOptions.pitagTrigger = MegaApi::PITAG_TRIGGER_SCANNER;
+
+    megaApi[1]->startUpload(localPathUtf8, incomingNode.get(), nullptr, &shareOptions, &tracker);
     ASSERT_EQ(API_OK, tracker.waitForResult());
 
     constexpr auto timeout = 3s; // short timeout, it has to be available
     const auto waitTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(timeout);
-    ASSERT_TRUE(observer.waitForValue("U.fi.", waitTimeout))
+    const std::string expected = std::string{"U"} + shareOptions.pitagTrigger + "fi.";
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
