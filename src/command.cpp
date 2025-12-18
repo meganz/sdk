@@ -402,17 +402,5 @@ void Command::closeobject()
 {
     jsonWriter.closeobject();
 }
-
-std::string Pitag::toString() const
-{
-    std::string pitagString;
-    pitagString += getEnumValue(purpose);
-    pitagString += getEnumValue(trigger);
-    pitagString += getEnumValue(nodeType);
-    pitagString += getEnumValue(target);
-    pitagString += getEnumValue(importSource);
-    return pitagString;
-}
-
 } // namespace
 

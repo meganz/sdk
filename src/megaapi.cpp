@@ -3739,16 +3739,42 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData,  bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startUpload(startFirst, localPath, parent, fileName, NULL /*targetUser*/, mtime,
-                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
-                       false /*forceNewUpload*/, FS_UNKNOWN, convertToCancelToken(cancelToken), listener);
+    pImpl->startUpload(startFirst,
+                       localPath,
+                       parent,
+                       fileName,
+                       NULL /*targetUser*/,
+                       mtime,
+                       0 /*folderTransferTag*/,
+                       false /*isBackup*/,
+                       appData,
+                       isSourceTemporary,
+                       false /*forceNewUpload*/,
+                       FS_UNKNOWN,
+                       convertToCancelToken(cancelToken),
+                       listener,
+                       PitagTrigger::NotApplicable,
+                       PitagTarget::NotApplicable);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(true /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
-                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
-                       true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
+    pImpl->startUpload(true /*startFirst*/,
+                       localPath,
+                       parent,
+                       fileName,
+                       NULL /*targetUser*/,
+                       INVALID_CUSTOM_MOD_TIME /*mtime*/,
+                       0 /*folderTransferTag*/,
+                       false /*isBackup*/,
+                       appData,
+                       isSourceTemporary,
+                       true /*forceNewUpload*/,
+                       FS_UNKNOWN,
+                       CancelToken(),
+                       listener,
+                       PitagTrigger::NotApplicable,
+                       PitagTarget::NotApplicable);
 }
 
 void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener)

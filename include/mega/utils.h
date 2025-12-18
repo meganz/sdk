@@ -1780,19 +1780,6 @@ storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
  */
 std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
 
-/**
- * @brief Returns a copy of the underlying type and value of an enum
- *
- * Note: static_assert approach decided vs SFINAE to enable more friendly error message
- * and assuming very low likelihood of overloading a getEnumValue function
- */
-template<typename E>
-std::underlying_type_t<E> getEnumValue(E e)
-{
-    static_assert(std::is_enum_v<E>, "E must be an enum");
-    return static_cast<std::underlying_type_t<E>>(e);
-}
-
 } // namespace mega
 
 #endif // MEGA_UTILS_H
