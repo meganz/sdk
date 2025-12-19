@@ -2343,7 +2343,7 @@ class MegaUser
          */
         virtual int64_t getTimestamp();
 
-        enum
+        enum : uint64_t
         {
             CHANGE_TYPE_AUTHRING                    = 0x01,
             CHANGE_TYPE_LSTINT                      = 0x02,
@@ -14079,10 +14079,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
-         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was
+         * USER_ATTR_DEVICE_NAMES
          *
-         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
-         * is obtained for the active account
+         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the
+         * attribute is obtained for the active account
          * @param type Attribute type
          *
          * Valid values are:
@@ -14155,7 +14156,8 @@ class MegaApi
          * Get last read notification (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Get last actioned banner (private)
-         *
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52 (private, encrypted)
+         * Get the epoch time (in seconds) used as the recent actions history clear timestamp.
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -23726,7 +23728,8 @@ class MegaApi
          * @brief Delete a user attribute of the current user, for testing
          * This method is for developer use only and it requires to be logged-in into an
          * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
-         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by
+         * Webclient).
          *
          * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -23786,6 +23789,8 @@ class MegaApi
          * Delete name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52
+         * Delete the timestamp for recent actions history clearing (private, encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */

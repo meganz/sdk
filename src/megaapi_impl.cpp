@@ -16540,6 +16540,8 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
             MegaTimeStamp time = formatRecentClearTimestamp(&records);
             if (MegaClient::isValidMegaTimeStamp(time))
             {
+                std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, false));
+                request->setMegaStringMap(stringMap.get());
                 request->setNumber(time);
             }
             else

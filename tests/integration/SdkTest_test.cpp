@@ -9955,7 +9955,8 @@ TEST_F(SdkTest, SdkRecentsTest)
     };
 
     m_time_t now = m_time();
-    int& recentClearTimeUpdatedCount = mApi[1].recentClearTimeUpdatedCount = 0;
+    int& recentClearTimeUpdatedCount0 = mApi[0].recentClearTimeUpdatedCount = 0;
+    int& recentClearTimeUpdatedCount1 = mApi[1].recentClearTimeUpdatedCount = 0;
 
     LOG_debug << "# SdkRecentsTest: Clear recent actions up to now";
     setClearRecentsUpTo(now, API_OK);
@@ -9966,16 +9967,18 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     // wait for 2 update, 1 is for SC action packet, 1 is for automatically fetching
     ASSERT_TRUE(WaitFor(
-        [&recentClearTimeUpdatedCount]()
+        [&recentClearTimeUpdatedCount1]()
         {
-            return recentClearTimeUpdatedCount == 2;
+            return recentClearTimeUpdatedCount1 == 2;
         },
         10 * 1000));
     LOG_debug
         << "# SdkRecentsTest: the second account fetched the attribute automatically after clear";
     getRecentActionBuckets(1, 1, 10, false, API_OK, expectedEmpty);
     verifyClearRecentsUpTo(1, now);
-    EXPECT_EQ(recentClearTimeUpdatedCount, 2);
+    // only 1 SC action packet
+    EXPECT_EQ(recentClearTimeUpdatedCount0, 1);
+    EXPECT_EQ(recentClearTimeUpdatedCount1, 2);
 
     updloadFile(filename1, "update after clear");
 

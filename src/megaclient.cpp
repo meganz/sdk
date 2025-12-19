@@ -7506,7 +7506,6 @@ void MegaClient::sc_userattr(JSON& json)
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
                                     case ATTR_SYNC_DESIRED_STATE:
-                                    case ATTR_RECENT_CLEAR_TIMESTAMP:
                                     {
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
                                             mKeyManager.generation())
@@ -7568,13 +7567,18 @@ void MegaClient::sc_userattr(JSON& json)
                                 u->setAttributeExpired(type);
                             }
                         }
-
-                        if (!fetchingnodes)
+                        // mCurrentSeqtagSeen is true if the next command response
+                        // st matches with the current AP st. So, it is true if we
+                        // are the account and session setting the attribute, using
+                        // a V3 request, false in any other case.
+                        if (!fetchingnodes && !mCurrentSeqtagSeen)
                         {
                             // silently fetch-upon-update these critical attributes
                             if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS ||
-                                type == ATTR_STORAGE_STATE)
+                                type == ATTR_STORAGE_STATE || type == ATTR_RECENT_CLEAR_TIMESTAMP)
                             {
+                                LOG_debug << User::attr2string(type)
+                                          << " has changed externally. Fetching...";
                                 getua(u, type, 0);
                             }
                         }
