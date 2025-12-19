@@ -158,6 +158,8 @@ pipeline {
                                         BUILD_ARCHS = "arm64-v8a"
                                         ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
                                         ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                        NDK_ROOT = "/home/jenkins/android-ndk/"
+                                        VCPKG_ROOT="/opt/vcpkg"
                                     }
                                     steps{
                                         dir("examples/android/ExampleApp") {
@@ -168,27 +170,11 @@ pipeline {
                                             sh "./gradlew --no-daemon --max-workers=1 clean"
 
                                             dir("app/src/main/jni/"){
-                                                sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
-                                                sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
+                                                sh "sed -i 's#JOBS=.*#JOBS=1#' cmake.sh"
                                                 sh "rm -rf ../java/nz/mega/sdk"
+                                                sh "rm -rf build-dir"
                                                 //Build SDK and libs
-                                                sh "bash -x ./build.sh all"
-                                                script {
-                                                    if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
-                                                        sh "rm curl/crashlytics.h.ready"
-                                                        sh "tar -czf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
-                                                        withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
-                                                            sh """
-                                                                jf rt upload \
-                                                                    --url ${REPO_URL} \
-                                                                    --access-token \${MEGASDK_ARTIFACTORY_TOKEN} \
-                                                                    3rdparty-sdk-android-example.tar.gz \
-                                                                    third-party-sources-sdk/
-                                                            """
-                                                        }
-                                                        sh "rm 3rdparty-sdk-android-example.tar.gz"
-                                                    }
-                                                }
+                                                sh "bash -x ./cmake.sh"
                                             }
                                             //Build Example App
                                             sh "./gradlew --no-daemon --max-workers=2 build"
@@ -282,7 +268,7 @@ pipeline {
                                     environment{
                                         BUILD_ARCHS = "arm64-v8a"
                                         ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                                        ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                        ANDROID_NDK_HOME = "/home/jenkins/android-ndk/"
                                         DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
                                         ANDROID_WEBRTC="/home/jenkins/android-webrtc"
                                         USE_PREBUILT_SDK = false
