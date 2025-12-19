@@ -12,7 +12,6 @@ if [ -z "${NDK_ROOT}" ] || [ ! -f "${NDK_ROOT}/ndk-build" ]; then
 fi
 
 export ANDROID_NDK_HOME=${NDK_ROOT}
-export CHAT_SDK_DIR=../../../../../../../../../megachat/sdk
 export SDK_DIR=../../../../../../../
 
 if [[ "$OSTYPE" == "darwin"* ]]; then
@@ -60,29 +59,24 @@ echo "-- ANDROID_NDK_HOME: ${ANDROID_NDK_HOME}"
 
 for ABI in ${BUILD_ARCHS}; do
 
-    BUILD_DIR=build-dir/chat/${ABI}
+    BUILD_DIR=build-dir/${ABI}
     LIB_OUTPUT_DIR=../jniLibs/${ABI}
     mkdir -p "${LIB_OUTPUT_DIR}"
 
-    echo "* Configuring MEGA Chat SDK - ${ABI}"
+    echo "* Configuring MEGA SDK - ${ABI}"
 
-    cmake -S ${CHAT_SDK_DIR} --preset mega-android \
+    cmake -S ${SDK_DIR} --preset mega-android \
         -B ${BUILD_DIR} \
-        -DSDK_DIR=${SDK_DIR} \
         -DVCPKG_ROOT=${VCPKG_ROOT} \
         -DCMAKE_BUILD_TYPE=RelWithDebInfo \
         -DANDROID_PLATFORM=${ANDROID_API_LEVEL} \
         -DANDROID_ABI=${ABI} &>>${LOG_FILE}
 
-    echo "* Building MEGA Chat SDK - ${ABI}"
+    echo "* Building MEGA SDK - ${ABI}"
     cmake --build "${BUILD_DIR}" -j "${JOBS}" &>>${LOG_FILE}
 
     cp -fv ${BUILD_DIR}/bindings/java/libmega.so ${LIB_OUTPUT_DIR} &>>${LOG_FILE}
     cp -fv ${BUILD_DIR}/bindings/java/nz/mega/sdk/*.java ../java/nz/mega/sdk &>>${LOG_FILE}
-
-# TODO delete this block
-#    mkdir -p megachat/webrtc
-#    cp -fv `find ${BUILD_DIR} -name "libwebrtc.jar"` megachat/webrtc/ &>> ${LOG_FILE}
 
     ${STRIP_TOOL} "../jniLibs/${ABI}/libmega.so" &>> ${LOG_FILE}
 
