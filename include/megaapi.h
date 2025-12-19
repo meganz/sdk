@@ -2379,7 +2379,7 @@ class MegaUser
             CHANGE_CC_PREFS = 0x80000000,
         };
 
-        static constexpr uint64_t CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000;
+        static constexpr uint64_t CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000ULL;
 
         /**
          * @brief Returns true if this user has an specific change
