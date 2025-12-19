@@ -9854,15 +9854,19 @@ TEST_F(SdkTest, SdkRecentsTest)
     // Delays are added to ensure ordering in recent actions
     LOG_debug << "# SdkRecentsTest: uploading file " << filename1;
     updloadFile(filename1, "");
+    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp1;
     updloadFile(filename1bkp1, "");
+    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: uploading file " << filename1bkp2;
     updloadFile(filename1bkp2, "");
+    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: updating file " << filename1;
     updloadFile(filename1, "update");
+    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: Marking file " << filename1 << " as sensitive";
     std::unique_ptr<MegaNode> f1node(megaApi[0]->getNodeByPath(("/" + filename1).c_str()));
@@ -9872,6 +9876,7 @@ TEST_F(SdkTest, SdkRecentsTest)
 
     LOG_debug << "# SdkRecentsTest: uploading file " << filename2;
     updloadFile(filename2, "");
+    WaitMillisec(1000);
 
     LOG_debug << "# SdkRecentsTest: updating file " << filename2;
     updloadFile(filename2, "update");
