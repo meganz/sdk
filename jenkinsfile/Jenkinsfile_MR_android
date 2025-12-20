@@ -46,8 +46,6 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
-        UPLOAD_THIRD_PARTY_SOURCES = ' '
-        UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = ' '
         THIRD_PARTY_SOURCES_ANDROID_PATH = "sdk/src/main/jni"
         THIRD_PARTY_SOURCES_EXAMPLE_PATH = "examples/android/ExampleApp/app/src/main/jni"
     }
@@ -77,11 +75,7 @@ pipeline {
                             steps {
                                 script{
                                     BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
-                                    UPLOAD_THIRD_PARTY_SOURCES = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_android" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
-                                    UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_example" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                                     println BUILD_OPTIONS
-                                    println UPLOAD_THIRD_PARTY_SOURCES
-                                    println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                                 }
                             }
                         }
@@ -171,10 +165,8 @@ pipeline {
 
                                             dir("app/src/main/jni/"){
                                                 sh "sed -i 's#JOBS=.*#JOBS=1#' cmake.sh"
-                                                sh "rm -rf ../java/nz/mega/sdk"
-                                                sh "mkdir -p ../java/nz/mega/sdk"
                                                 sh "rm -rf build-dir"
-                                                sh "bash -x ./cmake.sh"
+                                                sh "bash ./cmake.sh"
                                             }
                                             //Build Example App
                                             sh "./gradlew --no-daemon --max-workers=2 build"
@@ -265,9 +257,8 @@ pipeline {
                                             }
                                             sh "rm -rf ../java/nz/mega/sdk"
                                             sh "mkdir -p ../java/nz/mega/sdk"
-                                            sh "rm -rf build-dir"
                                             sh "sed -i 's#JOBS=.*#JOBS=3#' cmake.sh"
-                                            sh "bash -x ./cmake.sh"
+                                            sh "bash ./cmake.sh"
                                         }
                                         sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
                                         script {
