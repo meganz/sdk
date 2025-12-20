@@ -165,7 +165,7 @@ pipeline {
 
                                             dir("app/src/main/jni/"){
                                                 sh "sed -i 's#JOBS=.*#JOBS=1#' cmake.sh"
-                                                sh "rm -rf build-dir"
+                                                sh "mkdir -p ../java/nz/mega/sdk"
                                                 sh "bash ./cmake.sh"
                                             }
                                             //Build Example App
@@ -255,7 +255,6 @@ pipeline {
                                             script{
                                                 env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                             }
-                                            sh "rm -rf ../java/nz/mega/sdk"
                                             sh "mkdir -p ../java/nz/mega/sdk"
                                             sh "sed -i 's#JOBS=.*#JOBS=3#' cmake.sh"
                                             sh "bash ./cmake.sh"
