@@ -16,7 +16,6 @@
  * program.
  */
 
-#include "gmock/gmock.h"
 #include "megafs.h"
 
 #include <gmock/gmock.h>
