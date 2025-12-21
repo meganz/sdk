@@ -930,7 +930,7 @@ TEST(Utils, NaturalSortingUnicode)
         "11.txt",   "cafe.txt",    "Cafe.txt",   "cáfe.txt", "file1.txt", "file2.txt", "file11.txt",
         "test.txt", "अमन.txt.txt", "一.txt",     "中文.txt", "中文1.txt",
     };
-    auto comp = [](const std::string& a, const std::string b)
+    auto comp = [](const std::string& a, const std::string& b)
     {
         return naturalsorting_compare(a.c_str(), b.c_str()) < 0;
     };
