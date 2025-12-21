@@ -3688,7 +3688,7 @@ int naturalsorting_compare(const char* i, const char* j)
     return naturalsorting_compare(icu::StringPiece{i}, icu::StringPiece{j});
 }
 
-int naturalsorting_compare(const char* i, size_t iSize, const char* j, size_t jSize)
+int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize)
 {
     return naturalsorting_compare(icu::StringPiece{i, static_cast<int32_t>(iSize)},
                                   icu::StringPiece{j, static_cast<int32_t>(jSize)});

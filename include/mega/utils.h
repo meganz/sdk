@@ -1360,7 +1360,7 @@ int naturalsorting_compare(const char* i, const char* j);
  *
  * @returns 0 if i == j, negative if i < j, otherwise positive
  */
-int naturalsorting_compare(const char* i, size_t iSize, const char* j, size_t jSize);
+int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize);
 
 /**
  * @class NaturalSortingComparator

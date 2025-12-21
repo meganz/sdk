@@ -138,9 +138,9 @@ static int
     sqlite_naturalsorting_compare(void*, int size1, const void* data1, int size2, const void* data2)
 {
     return naturalsorting_compare(static_cast<const char*>(data1),
-                                  static_cast<size_t>(size1),
+                                  size1,
                                   static_cast<const char*>(data2),
-                                  static_cast<size_t>(size2));
+                                  size2);
 }
 
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)
