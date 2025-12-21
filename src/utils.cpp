@@ -3630,10 +3630,12 @@ SplitResult split(const std::string& value, char delimiter)
 // the web client collator instance Intl.Collator('co', {numeric: true}).
 // For reference, see the Google V8 engine function JSCollator::New in commit 3b9350b6fc0.
 // Use English locale on all platforms: such as avoid en_US_POSIX default locale on iOS
-static icu::Collator* createCollator()
+using CollatorPtr = std::unique_ptr<icu::Collator>;
+
+static CollatorPtr createCollator()
 {
     UErrorCode ec = U_ZERO_ERROR;
-    auto collator = icu::Collator::createInstance(icu::Locale::getEnglish(), ec);
+    CollatorPtr collator{icu::Collator::createInstance(icu::Locale::getEnglish(), ec)};
     if (U_FAILURE(ec))
     {
         LOG_err << "ICU::collator fail to createInstance: " << ec;
@@ -3659,7 +3661,7 @@ static int naturalsorting_compare(icu::StringPiece i, icu::StringPiece j)
                   "UCollationResult not expected");
 
     // Thread local for multithread safety and performance
-    const static thread_local std::unique_ptr<icu::Collator> collator{createCollator()};
+    const static thread_local CollatorPtr collator{createCollator()};
     if (!collator)
     {
         assert(false && "No collator");
