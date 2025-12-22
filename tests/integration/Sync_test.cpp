@@ -8764,12 +8764,56 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
         client->setupSync_mainthread((root / ldir3).u8string(), rdir3, false, true);
     ASSERT_NE(backupId3, UNDEF) << "Invalid BackupId";
     fs::create_directories(root / ldir3 / "e");
-    createNameFile(root / ldir3, "n0");
+
+    constexpr auto transferTimeout{30s};
+
+    auto createFileAndWaitForUploadOf =
+        [&](const fs::path& path, const std::string& name, std::chrono::seconds timeout)
+    {
+        std::promise<void> p;
+        auto f = p.get_future();
+        std::atomic_bool done{false};
+
+        auto filePath = path / name;
+        client->onTransferCompleted = [&p, &done, filePath](Transfer* t)
+        {
+            if (!t || t->type != direction_t::PUT)
+            {
+                LOG_debug << "Unexpected transfer";
+                return;
+            }
+
+            if (t->localfilename.toPath(false) != filePath.u8string())
+            {
+                LOG_debug << "Unexpected transfer name (Transfer: "
+                          << t->localfilename.toPath(false)
+                          << "   Expected: " << filePath.u8string() << ")";
+                return;
+            }
+
+            if (done.exchange(true))
+            {
+                LOG_err << "Promise has been already resolved";
+                return;
+            }
+
+            p.set_value();
+        };
+
+        EXPECT_TRUE(createFile(filePath, name));
+        auto status = f.wait_for(timeout);
+        client->onTransferCompleted = nullptr;
+        return status == std::future_status::ready;
+    };
+
+    std::string fileNameTest3{"n0"};
+
+    ASSERT_TRUE(createFileAndWaitForUploadOf(root / ldir3, fileNameTest3, transferTimeout));
     waitonsyncs(TIMEOUT, client);
 
     LocalPath sPath1;
     LocalPath tPath1;
-    client->createHardLink(root / ldir3 / "n0", root / ldir3 / "e" / "n5", sPath1, tPath1);
+    client->createHardLink(root / ldir3 / fileNameTest3, root / ldir3 / "e" / "n5", sPath1, tPath1);
 
     waitonsyncs(TIMEOUT, client);
     ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
@@ -8789,12 +8833,13 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
         client->setupSync_mainthread((root / ldir4).u8string(), rdir4, false, true);
     ASSERT_NE(backupId4, UNDEF) << "Invalid BackupId";
     fs::create_directories(root / ldir4 / "e");
-    createNameFile(root / ldir4, "n0");
+    std::string fileNameTest4{"n0"};
+    ASSERT_TRUE(createFileAndWaitForUploadOf(root / ldir4, fileNameTest4, transferTimeout));
     waitonsyncs(TIMEOUT, client);
 
     LocalPath sPath2;
     LocalPath tPath2;
-    client->createHardLink(root / ldir4 / "n0", root / ldir4 / "e" / "n5", sPath2, tPath2);
+    client->createHardLink(root / ldir4 / fileNameTest4, root / ldir4 / "e" / "n5", sPath2, tPath2);
 
     waitonsyncs(TIMEOUT, client);
     ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
