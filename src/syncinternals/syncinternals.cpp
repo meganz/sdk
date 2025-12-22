@@ -463,7 +463,6 @@ void clientUpload(MegaClient& mc,
             }
             LOG_warn << "clientUpload: UpdateMtime immediate error. Falling back to full upload "
                         "transfer / Cloning node";
-            upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
         }
         else
         {
@@ -471,7 +470,6 @@ void clientUpload(MegaClient& mc,
                      << (!parent ? "Parent Node not found" : "Cloud Node not found")
                      << ". Falling back to full upload transfer / Cloning node";
             assert(false);
-            upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
         }
     }
     else if (attributeOnlyUpdate == SyncTransfer_inClient::AttributeOnlyUpdate::CrcOnly)
@@ -487,13 +485,15 @@ void clientUpload(MegaClient& mc,
             if (cloudFp.isvalid && localFp.isvalid && cloudFp.size == localFp.size &&
                 cloudFp.mtime == localFp.mtime && !areCrcEqual(cloudFp.crc, localFp.crc))
             {
-                std::array<std::int32_t, LEGACY_CRC_LANES> legacyCrc{};
-                if (computeLegacyBuggySparseCrc(mc,
-                                                upload->getLocalname(),
-                                                localFp.size,
-                                                legacyCrc) &&
-                    areCrcEqual(cloudFp.crc, legacyCrc))
+                if (const auto crcMismatchWasDueTo32bitOverflow =
+                        compareLegacyBuggySparseCrc(mc,
+                                                    upload->getLocalname(),
+                                                    localFp.size,
+                                                    cloudFp.crc);
+                    crcMismatchWasDueTo32bitOverflow)
                 {
+                    LOG_debug << "clientUpload: CRC mismatch explained by legacy 32-bit overflow. "
+                                 "Updating fingerprint";
                     if (auto immediateResult =
                             mc.updateNodeFingerprint(node, localFp, std::move(crcCompletion));
                         immediateResult == API_OK)
@@ -504,13 +504,12 @@ void clientUpload(MegaClient& mc,
                     }
 
                     LOG_warn << "clientUpload: UpdateCRC immediate error. Falling back to full "
-                                "upload transfer / Cloning node";
-                    upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
+                                "upload transfer / cloning node";
                 }
                 else
                 {
-                    LOG_warn << "clientUpload: computeLegacyBuggySparseCrc failed. Falling back to "
-                                "full upload transfer / Cloning node";
+                    LOG_warn << "clientUpload: CRC mismatch not explained by legacy 32-bit "
+                                "overflow (FA/IA). Falling back to full upload";
                 }
             }
         }
@@ -519,17 +518,46 @@ void clientUpload(MegaClient& mc,
             LOG_warn << "clientUpload: "
                      << (!parent ? "Parent Node not found" : "Cloud Node not found")
                      << ". Falling back to full upload transfer / Cloning node";
-            upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
         }
-
-        // If we didn't early-return, proceed with the normal clone/full-upload path.
-        upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
     }
 
+    // If we didn't early-return, proceed with the normal clone/full-upload path.
+    upload->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
     assert(!upload->macComputation);
 
     const auto macState = initCloneCandidateMacComputation(mc, *upload);
     processCloneMacResult(mc, committer, upload, vo, queueFirst, ovHandleIfShortcut, macState);
+}
+
+bool compareLegacyBuggySparseCrc(MegaClient& mc,
+                                 const LocalPath& path,
+                                 const m_off_t expectedSize,
+                                 const FingerprintCrc& compareToCrc)
+{
+    static const std::string logPre{"compareLegacyBuggySparseCrc result: "};
+
+    FingerprintCrc legacyCrc{};
+    if (const bool matchLegacyFA =
+            computeLegacyBuggySparseCrcFA(mc, path, expectedSize, legacyCrc) &&
+            areCrcEqual(legacyCrc, compareToCrc);
+        matchLegacyFA)
+    {
+        LOG_verbose << logPre << "matched by FA";
+        return true;
+    }
+
+    legacyCrc.fill(0);
+    if (const bool matchLegacyIA =
+            computeLegacyBuggySparseCrcIA(mc, path, expectedSize, legacyCrc) &&
+            areCrcEqual(legacyCrc, compareToCrc);
+        matchLegacyIA)
+    {
+        LOG_verbose << logPre << "matched by IA";
+        return true;
+    }
+
+    LOG_verbose << logPre << "unmatched";
+    return false;
 }
 
 /******************\

@@ -2474,10 +2474,10 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
 }
 
-[[nodiscard]] bool computeLegacyBuggySparseCrc(MegaClient& mc,
-                                               const LocalPath& path,
-                                               const m_off_t expectedSize,
-                                               std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut)
+[[nodiscard]] bool computeLegacyBuggySparseCrcFA(MegaClient& mc,
+                                                 const LocalPath& path,
+                                                 const m_off_t expectedSize,
+                                                 std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut)
 {
     if (expectedSize <= static_cast<m_off_t>(LEGACY_CRC_WINDOW_BYTES) ||
         static_cast<std::uint64_t>(expectedSize) <= LEGACY_OVERFLOW_MIN_SIZE)
@@ -2527,6 +2527,75 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
 
         crc32.get(reinterpret_cast<byte*>(&crcval));
         crcOut[lane] = static_cast<std::int32_t>(htonl(static_cast<std::uint32_t>(crcval)));
+    }
+
+    fa->closef();
+    return true;
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrcIA(MegaClient& mc,
+                                                 const LocalPath& path,
+                                                 const m_off_t expectedSize,
+                                                 std::array<std::int32_t, 4>& crcOut)
+{
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+        return false;
+    if (fa->size != expectedSize)
+        return false;
+    if (!fa->openf(FSLogging::logOnError))
+        return false;
+
+    std::array<byte, 64> block{};
+    std::int32_t crcval = 0;
+
+    m_off_t current = 0; // logical "current" used by the IA algorithm
+    m_off_t stream = 0; // actual forward-only position (UnixStreamAccess::mOffset)
+
+    for (unsigned lane = 0; lane < 4; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < 32; ++j)
+        {
+            const m_off_t offset = legacySparseOffset32Bug(expectedSize, lane, j);
+
+            // forward-only skip based on (offset - current)
+            for (m_off_t fullstep = offset - current; fullstep > 0;)
+            {
+                const unsigned step = fullstep > UINT_MAX ? UINT_MAX : (unsigned)fullstep;
+                stream += (m_off_t)step; // what is->read(nullptr, step) does
+                fullstep -= (m_off_t)step;
+            }
+
+            // IA updates current to offset even if it went backwards
+            current += (offset - current); // current = offset
+
+            // read happens at STREAM position, not at "current"
+            if (stream < 0 || stream + (m_off_t)block.size() > expectedSize)
+            {
+                fa->closef();
+                return false;
+            }
+
+            if (!fa->frawread(block.data(),
+                              (unsigned long)block.size(),
+                              stream,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            stream += (m_off_t)block.size();
+            current += (m_off_t)block.size();
+
+            crc32.add(block.data(), (unsigned)block.size());
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = (std::int32_t)htonl((std::uint32_t)crcval);
     }
 
     fa->closef();

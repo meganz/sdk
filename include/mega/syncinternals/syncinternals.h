@@ -483,6 +483,18 @@ void clientUpload(MegaClient& mc,
                   const bool queueFirst,
                   const NodeHandle ovHandleIfShortcut);
 
+/**
+ * @brief Compares a local file's CRC with a legacy buggy sparse CRC.
+ *
+ * @param expectedSize The expected size of the local file.
+ * @param compareToCrc The CRC to compare the local file's CRC with.
+ * @return True if the local file's CRC matches the legacy buggy sparse CRC, false otherwise.
+ */
+bool compareLegacyBuggySparseCrc(MegaClient& mc,
+                                 const LocalPath& path,
+                                 const m_off_t expectedSize,
+                                 const FingerprintCrc& compareToCrc);
+
 /******************\
 *  SYNC DOWNLOADS  *
 \******************/

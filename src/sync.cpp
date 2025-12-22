@@ -9989,13 +9989,12 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             {
                 const auto& cloudFp = row.cloudNode->fingerprint;
                 const auto& localFp = row.fsNode->fingerprint;
-                FingerprintCrc legacyCrc{};
-                const bool computeSucceeded = computeLegacyBuggySparseCrc(syncs.mClient,
-                                                                          row.fsNode->localname,
-                                                                          localFp.size,
-                                                                          legacyCrc);
-
-                if (computeSucceeded && areCrcEqual(legacyCrc, cloudFp.crc))
+                if (const auto crcMismatchWasDueTo32bitOverflow =
+                        compareLegacyBuggySparseCrc(syncs.mClient,
+                                                    fullPath.localPath,
+                                                    localFp.size,
+                                                    cloudFp.crc);
+                    crcMismatchWasDueTo32bitOverflow)
                 {
                     LOG_warn
                         << "CXF case, CRC mismatch due to buggy CRC of cloud Node. We first need "

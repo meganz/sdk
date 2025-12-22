@@ -626,10 +626,17 @@ constexpr std::uint64_t LEGACY_OVERFLOW_MIN_SIZE =
     (static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) / LEGACY_SPARSE_DENOM) +
     LEGACY_CRC_WINDOW_BYTES;
 
-[[nodiscard]] bool computeLegacyBuggySparseCrc(MegaClient& mc,
-                                               const LocalPath& path,
-                                               const m_off_t expectedSize,
-                                               std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut);
+[[nodiscard]] bool
+    computeLegacyBuggySparseCrcFA(MegaClient& mc,
+                                  const LocalPath& path,
+                                  const m_off_t expectedSize,
+                                  std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut);
+
+[[nodiscard]] bool
+    computeLegacyBuggySparseCrcIA(MegaClient& mc,
+                                  const LocalPath& path,
+                                  const m_off_t expectedSize,
+                                  std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut);
 
 [[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
                                               const unsigned lane,
