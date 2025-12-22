@@ -18703,7 +18703,7 @@ std::shared_ptr<Node> MegaClient::getOrCreateSyncdebrisFolder()
     pitag.nodeType = PitagNodeType::Folder;
 
     const auto parentNodeHandle =
-        syncDebrisNode ? syncDebrisNode->nodeHandle() : binNode->nodeHandle();
+        foundDebrisNode ? syncDebrisNode->nodeHandle() : binNode->nodeHandle();
 
     queueCommand(new CommandPutNodes(
         this,
