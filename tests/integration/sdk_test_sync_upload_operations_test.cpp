@@ -824,9 +824,9 @@ TEST_F(SdkTestSyncUploadsOperations, MultimediaFileUpload)
     static const std::string logPre = getLogPrefix();
     LOG_verbose << logPre << "Upload a multimedia file in a sync";
 
-    // Get file in the sync path to be uploaded by the sync.
-    ASSERT_TRUE(getFileFromArtifactory("test-data/" + VIDEO_FILE,
-                                       fs::absolute(getLocalTmpDir() / VIDEO_FILE)));
+    // Get the file first and move it later to ensure that it is fully uploaded at once.
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + VIDEO_FILE, VIDEO_FILE));
+    fs::rename(VIDEO_FILE, getLocalTmpDir() / VIDEO_FILE);
 
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 
