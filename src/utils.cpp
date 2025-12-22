@@ -3968,4 +3968,182 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
     return std::nullopt;
 }
 
+template<typename E>
+constexpr std::underlying_type_t<E> getEnumValue(E e)
+{
+    static_assert(std::is_enum_v<E>, "E must be an enum");
+    return static_cast<std::underlying_type_t<E>>(e);
+}
+
+PitagPurpose pitagPurposeFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagPurpose::Unknown;
+        case 'U':
+            return PitagPurpose::Upload;
+        case 'F':
+            return PitagPurpose::CreateFolder;
+        case 'I':
+            return PitagPurpose::Import;
+        case 'C':
+            return PitagPurpose::Copy;
+        case 'S':
+            return PitagPurpose::Sync;
+        case 'B':
+            return PitagPurpose::Backup;
+        case 'P':
+            return PitagPurpose::Password;
+        case 'f':
+            return PitagPurpose::Fuse;
+        case 'H':
+            return PitagPurpose::Helpdesk;
+        default:
+            return PitagPurpose::Unknown;
+    }
+}
+
+PitagTrigger pitagTriggerFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagTrigger::NotApplicable;
+        case 'p':
+            return PitagTrigger::Picker;
+        case 'd':
+            return PitagTrigger::DragAndDrop;
+        case 'c':
+            return PitagTrigger::Camera;
+        case 's':
+            return PitagTrigger::Scanner;
+        case 'a':
+            return PitagTrigger::SyncAlgorithm;
+        default:
+            return PitagTrigger::NotApplicable;
+    }
+}
+
+PitagNodeType pitagNodeTypeFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagNodeType::NotApplicable;
+        case 'F':
+            return PitagNodeType::Folder;
+        case 'f':
+            return PitagNodeType::File;
+        default:
+            return PitagNodeType::NotApplicable;
+    }
+}
+
+PitagTarget pitagTargetFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagTarget::NotApplicable;
+        case 'D':
+            return PitagTarget::CloudDrive;
+        case 'c':
+            return PitagTarget::Chat1To1;
+        case 'C':
+            return PitagTarget::ChatGroup;
+        case 's':
+            return PitagTarget::NoteToSelf;
+        case 'i':
+            return PitagTarget::IncomingShare;
+        default:
+            return PitagTarget::NotApplicable;
+    }
+}
+
+PitagImportSource pitagImportSourceFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagImportSource::NotApplicable;
+        case 'F':
+            return PitagImportSource::FolderLink;
+        case 'f':
+            return PitagImportSource::FileLink;
+        case 'A':
+            return PitagImportSource::AlbumLink;
+        case 'D':
+            return PitagImportSource::CloudDrive;
+        case 'c':
+            return PitagImportSource::Chat1To1;
+        case 'C':
+            return PitagImportSource::ChatGroup;
+        case 's':
+            return PitagImportSource::NoteToSelf;
+        case 'i':
+            return PitagImportSource::IncomingShare;
+        default:
+            return PitagImportSource::NotApplicable;
+    }
+}
+
+std::string pitagToString(const Pitag& pitag)
+{
+    std::string pitagString;
+    pitagString += getEnumValue(pitag.purpose);
+    pitagString += getEnumValue(pitag.trigger);
+    pitagString += getEnumValue(pitag.nodeType);
+    pitagString += getEnumValue(pitag.target);
+    pitagString += getEnumValue(pitag.importSource);
+    return pitagString;
+}
+
+MEGA_API std::optional<Pitag> pitagFromString(const std::string& pitagString)
+{
+    if (pitagString.size() != 5)
+    {
+        return std::nullopt;
+    }
+
+    Pitag pitag;
+    pitag.purpose = pitagPurposeFromChar(pitagString[0]);
+    pitag.trigger = pitagTriggerFromChar(pitagString[1]);
+    pitag.nodeType = pitagNodeTypeFromChar(pitagString[2]);
+    pitag.target = pitagTargetFromChar(pitagString[3]);
+    pitag.importSource = pitagImportSourceFromChar(pitagString[4]);
+
+    if (pitag.purpose == PitagPurpose::Unknown &&
+        pitagString[0] != getEnumValue(PitagPurpose::Unknown))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.trigger == PitagTrigger::NotApplicable &&
+        pitagString[1] != getEnumValue(PitagTrigger::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.nodeType == PitagNodeType::NotApplicable &&
+        pitagString[2] != getEnumValue(PitagNodeType::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.target == PitagTarget::NotApplicable &&
+        pitagString[3] != getEnumValue(PitagTarget::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.importSource == PitagImportSource::NotApplicable &&
+        pitagString[4] != getEnumValue(PitagImportSource::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    return pitag;
+}
+
 } // namespace mega

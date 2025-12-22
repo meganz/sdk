@@ -1780,6 +1780,14 @@ storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
  */
 std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
 
+PitagPurpose pitagPurposeFromChar(char c);
+PitagTrigger pitagTriggerFromChar(char c);
+PitagNodeType pitagNodeTypeFromChar(char c);
+PitagTarget pitagTargetFromChar(char c);
+PitagImportSource pitagImportSourceFromChar(char c);
+std::string pitagToString(const Pitag& pitag);
+std::optional<Pitag> pitagFromString(const std::string& pitagString);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

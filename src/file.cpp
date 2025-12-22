@@ -141,9 +141,10 @@ bool File::serialize(string *d) const
 
     if (hasPitag)
     {
-        ll = (unsigned short)mPitag->toString().size();
+        const auto pitagStr = pitagToString(*mPitag);
+        ll = static_cast<unsigned short>(pitagStr.size());
         d->append((char*)&ll, sizeof(ll));
-        d->append(mPitag->toString().data(), ll);
+        d->append(pitagStr.data(), ll);
     }
 
     return true;
@@ -348,7 +349,7 @@ File *File::unserialize(string *d)
 
         ptr += sizeof(pitagLength);
         const char* pitag = ptr;
-        auto pitagOpt{Pitag::fromString(std::string(pitag, pitagLength))};
+        auto pitagOpt{pitagFromString(std::string(pitag, pitagLength))};
         if (!pitagOpt.has_value())
         {
             LOG_err << "File unserialization failed - incorrect pitag";

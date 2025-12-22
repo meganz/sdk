@@ -1117,7 +1117,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
 
     if (pitag)
     {
-        arg("p", pitag->toString().c_str());
+        const auto pitagStr = pitagToString(*pitag);
+        arg("p", pitagStr.c_str());
     }
 
     if (cauth)
