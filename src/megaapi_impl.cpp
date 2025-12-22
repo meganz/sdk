@@ -18982,19 +18982,6 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
     }
 
     LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
-    transfer->setState(MegaTransfer::STATE_QUEUED);
-    transferMap[nextTag] = transfer;
-    transfer->setTag(nextTag);
-    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
-    transfer->setStartTime(Waiter::ds);
-    transfer->setUpdateTime(Waiter::ds);
-    fireOnTransferStart(transfer);
-    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-    transfer->setSpeed(0);
-    transfer->setMeanSpeed(0);
-    transfer->setState(MegaTransfer::STATE_COMPLETING);
-    fireOnTransferUpdate(transfer);
-
     const auto immediateErrCode = client->updateNodeMtime(
         node,
         newMtime,
@@ -19034,6 +19021,18 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
         return false;
     }
 
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    fireOnTransferStart(transfer);
+    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETING);
+    fireOnTransferUpdate(transfer);
     return true;
 }
 
