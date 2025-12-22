@@ -98,6 +98,9 @@
 #include <sstream>
 #include <string>
 #include <vector>
+#if __cplusplus >= 202002L
+#include <filesystem>
+#endif
 
 // define MEGA_QT_LOGGING to support QString
 #ifdef MEGA_QT_LOGGING
@@ -537,8 +540,17 @@ public:
         return *this;
     }
 
-    template <typename T, typename = typename std::enable_if<!std::is_scalar<T>::value>::type>
-    SimpleLogger& operator<<(const T& obj)
+    template<typename T>
+    typename std::enable_if<!std::is_scalar<T>::value
+#if defined(__cpp_char8_t) || __cplusplus >= 202002L
+                                && !std::is_same<T, std::u8string>::value
+#endif
+#if __cplusplus >= 202002L
+                                && !std::is_same<T, std::filesystem::path>::value
+#endif
+                            ,
+                            SimpleLogger&>::type
+        operator<<(const T& obj)
     {
 #ifdef ENABLE_LOG_PERFORMANCE
         logValue(obj);
@@ -555,6 +567,33 @@ public:
         logValue(s.toUtf8().constData());
 #else
         ostr << s.toUtf8().constData();
+#endif
+        return *this;
+    }
+#endif
+
+#if defined(__cpp_char8_t) || __cplusplus >= 202002L
+    // Overload for std::u8string (char8_t string) - convert to std::string for streaming
+    // Available when char8_t is supported
+    SimpleLogger& operator<<(const std::u8string& s)
+    {
+#ifdef ENABLE_LOG_PERFORMANCE
+        logValue(std::string(reinterpret_cast<const char*>(s.data()), s.size()));
+#else
+        ostr << std::string(reinterpret_cast<const char*>(s.data()), s.size());
+#endif
+        return *this;
+    }
+#endif
+
+#if __cplusplus >= 202002L
+    // Overload for std::filesystem::path - convert to std::string for streaming
+    SimpleLogger& operator<<(const std::filesystem::path& p)
+    {
+#ifdef ENABLE_LOG_PERFORMANCE
+        logValue(p.string());
+#else
+        ostr << p.string();
 #endif
         return *this;
     }

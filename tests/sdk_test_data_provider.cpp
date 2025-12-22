@@ -76,7 +76,7 @@ bool getFileFromURL(const std::string& url, const fs::path& dstPath)
     std::ofstream ofs(dstPath, std::ios::binary | std::ios::out);
     if (!ofs)
     {
-        LOG_err << "Error opening file for writing:" << dstPath.u8string();
+        LOG_err << "Error opening file for writing:" << path_u8string(dstPath);
         return false;
     }
 
@@ -95,11 +95,11 @@ bool getFileFromURL(const std::string& url, const fs::path& dstPath)
     ofs.close();
     if (!ofs)
     {
-        LOG_verbose << "Error closing file:" << dstPath.u8string();
+        LOG_verbose << "Error closing file:" << path_u8string(dstPath);
         return false;
     }
 
-    LOG_verbose << "File " << dstPath.u8string() << " downloaded successfully";
+    LOG_verbose << "File " << path_u8string(dstPath) << " downloaded successfully";
     return true;
 }
 }

@@ -111,7 +111,7 @@ public:
         const auto starter = [&filePath, this](auto* transferListener)
         {
             const std::string fileName{getFilePrefix() + ".txt"};
-            megaApi[0]->startUpload(filePath.u8string().c_str(),
+            megaApi[0]->startUpload(path_u8string(filePath).c_str(),
                                     std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
                                     nullptr /*fileName*/,
                                     MegaApi::INVALID_CUSTOM_MOD_TIME,

@@ -43,16 +43,16 @@ class FileRangeTree
             IteratorType(iterator)
         {}
 
-        // Return a reference to our value, not our node.
-        auto& operator*() const
+        // Return a reference to our value, preserving constness from the underlying iterator.
+        decltype(auto) operator*() const
         {
             return IteratorType::operator*().mValue;
         }
 
         // Return a pointer to our value, not our node.
-        auto* operator->() const
+        auto operator->() const -> decltype(std::addressof(IteratorType::operator*().mValue))
         {
-            return &operator*();
+            return std::addressof(IteratorType::operator*().mValue);
         }
 
         IteratorAdapter& operator++()

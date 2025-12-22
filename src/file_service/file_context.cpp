@@ -280,7 +280,7 @@ void FileContext::cancel()
     }();
 
     // Cancel any downloads in progress.
-    for (auto& [_, context]: ranges)
+    for (const auto& [_, context]: ranges)
     {
         if (context)
             context->cancel();
@@ -1720,7 +1720,7 @@ void FileContext::fetchBarrier(FileFetchBarrierCallback callback)
     }; // fetched
 
     // Make sure fetched is called when each fetch has completed.
-    for (auto& entry: mRanges)
+    for (const auto& entry: mRanges)
     {
         if (entry.second)
             entry.second->queue(fetched);

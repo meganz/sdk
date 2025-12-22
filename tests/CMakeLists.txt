@@ -1,3 +1,8 @@
+# Build ALL tests (unit + integration) as C++20 without touching SDK (which stays on C++17)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
 # Common interface target for test tools
 add_library(test_tools STATIC)
 add_library(MEGA::test_tools ALIAS test_tools)

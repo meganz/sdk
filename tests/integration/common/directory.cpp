@@ -9,7 +9,7 @@ namespace testing
 {
 
 Directory::Directory(const std::string& name, const Path& parentPath):
-    mPath(parentPath.path() / fs::u8path(name))
+    mPath(parentPath.path() / u8path_compat(name))
 {
     fs::create_directories(mPath.path());
 }

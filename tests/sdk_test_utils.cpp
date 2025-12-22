@@ -165,8 +165,8 @@ std::error_code LocalTempFile::move(const fs::path& newPath)
     }
     else
     {
-        LOG_err << "Failed to move file from " << mFilePath.u8string() << " to "
-                << newPath.u8string() << ". Error: " << ec.message();
+        LOG_err << "Failed to move file from " << path_u8string(mFilePath) << " to "
+                << path_u8string(newPath) << ". Error: " << ec.message();
     }
     return ec;
 }

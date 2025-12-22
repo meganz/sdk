@@ -29,41 +29,59 @@
 
 namespace mega {
 
-    enum { RAIDPARTS = 6 };
-    enum { EFFECTIVE_RAIDPARTS = 5 }; // A file is divided by 5 parts plus parity part (to assemble the other parts if one of them is missing)
-    enum { RAIDSECTOR = 16 };
-    enum { RAIDLINE = (EFFECTIVE_RAIDPARTS * RAIDSECTOR) };
+enum
+{
+    RAIDPARTS = 6
+};
 
+enum
+{
+    EFFECTIVE_RAIDPARTS = 5 // A file is divided by 5 parts plus parity part (to assemble the other
+                            // parts if one of them is missing)
+};
 
-    // Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct streaming.
-    // For non-raid files, supplies the received buffer back to the same connection for writing to file (having decrypted and mac'd it),
-    // effectively the same way it worked before raid.
-    // For raid files, collects up enough input buffers until it can combine them to make a piece of the output file.
-    // Once a piece of the output is reconstructed the caller can access it with getAsyncOutputBufferPointer().
-    // Once that piece is no longer needed, call bufferWriteCompleted to indicate that it can be deallocated.
-    class MEGA_API RaidBufferManager
+enum
+{
+    RAIDSECTOR = 16
+};
+
+static constexpr int RAIDLINE =
+    static_cast<int>(EFFECTIVE_RAIDPARTS) * static_cast<int>(RAIDSECTOR);
+
+// Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct
+// streaming. For non-raid files, supplies the received buffer back to the same connection for
+// writing to file (having decrypted and mac'd it), effectively the same way it worked before raid.
+// For raid files, collects up enough input buffers until it can combine them to make a piece of the
+// output file. Once a piece of the output is reconstructed the caller can access it with
+// getAsyncOutputBufferPointer(). Once that piece is no longer needed, call bufferWriteCompleted to
+// indicate that it can be deallocated.
+class MEGA_API RaidBufferManager
+{
+public:
+    struct FilePiece
     {
-    public:
+        m_off_t pos;
+        HttpReq::http_buf_t buf; // owned here
+        chunkmac_map chunkmacs;
 
-        struct FilePiece {
-            m_off_t pos;
-            HttpReq::http_buf_t buf;  // owned here
-            chunkmac_map chunkmacs;
+        std::condition_variable finalizedCV;
+        bool finalized = false;
 
-            std::condition_variable finalizedCV;
-            bool finalized = false;
+        FilePiece();
+        FilePiece(m_off_t p, size_t len); // makes a buffer of the specified size (with extra space
+                                          // for SymmCipher::ctr_crypt padding)
+        FilePiece(m_off_t p, HttpReq::http_buf_t* b); // takes ownership of the buffer
+        void swap(FilePiece& other);
 
-            FilePiece();
-            FilePiece(m_off_t p, size_t len);    // makes a buffer of the specified size (with extra space for SymmCipher::ctr_crypt padding)
-            FilePiece(m_off_t p, HttpReq::http_buf_t* b); // takes ownership of the buffer
-            void swap(FilePiece& other);
+        // decrypt & mac
+        bool finalize(bool parallel,
+                      m_off_t filesize,
+                      int64_t ctriv,
+                      SymmCipher* cipher,
+                      chunkmac_map* source_chunkmacs);
+    };
 
-            // decrypt & mac
-            bool finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs);
-
-        };
-
-        // Min last request chunk (to avoid small chunks to be requested)
+    // Min last request chunk (to avoid small chunks to be requested)
 #if defined(__ANDROID__) || defined(USE_IOS)
         static constexpr size_t MIN_LAST_CHUNK = 512 * 1024;
 #else
@@ -223,34 +241,42 @@ namespace mega {
         virtual m_off_t calcOutputChunkPos(m_off_t acquiredpos) = 0;
 
         friend class DebugTestHook;
-    };
+};
 
+class MEGA_API TransferBufferManager: public RaidBufferManager
+{
+public:
+    // call this before starting a transfer. Extracts the vector content
+    void setIsRaid(Transfer* transfer,
+                   const std::vector<std::string>& tempUrls,
+                   m_off_t resumepos,
+                   m_off_t maxDownloadRequestSize,
+                   bool isNewRaid = ISNEWRAID_DEFVALUE);
 
-    class MEGA_API TransferBufferManager : public RaidBufferManager
-    {
-    public:
-        // call this before starting a transfer. Extracts the vector content
-        void setIsRaid(Transfer* transfer, const std::vector<std::string> &tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize, bool isNewRaid = ISNEWRAID_DEFVALUE);
+    // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise,
+    // uses the full file position in the Transfer object, as it used to prior to raid.
+    m_off_t& transferPos(unsigned connectionNum) override;
 
-        // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
-        m_off_t& transferPos(unsigned connectionNum) override;
+    // Get the file position to upload/download to on the specified connection
+    std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum,
+                                                      m_off_t maxDownloadRequestSize,
+                                                      unsigned connectionCount,
+                                                      bool& newBufferSupplied,
+                                                      bool& pauseConnectionForRaid,
+                                                      m_off_t uploadspeed);
 
-        // Get the file position to upload/download to on the specified connection
-        std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newBufferSupplied, bool& pauseConnectionForRaid, m_off_t uploadspeed);
+    TransferBufferManager();
 
-        TransferBufferManager();
+private:
+    Transfer* transfer;
 
-    private:
+    // decrypt and mac downloaded chunk
+    void finalize(FilePiece& r) override;
+    m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
+    void bufferWriteCompletedAction(FilePiece& r) override;
 
-        Transfer* transfer;
-
-        // decrypt and mac downloaded chunk
-        void finalize(FilePiece& r) override;
-        m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
-        void bufferWriteCompletedAction(FilePiece& r) override;
-
-        friend class DebugTestHook;
-    };
+    friend class DebugTestHook;
+};
 
     class MEGA_API DirectReadBufferManager : public RaidBufferManager
     {

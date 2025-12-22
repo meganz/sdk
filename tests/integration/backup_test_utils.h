@@ -43,7 +43,8 @@ public:
     void createBackupSync()
     {
         ASSERT_EQ(mBackupID, INVALID_HANDLE) << "There is already a backup/sync created.";
-        mBackupID = backupFolder(megaApi[0].get(), getLocalFolderPath().u8string(), mBackupName);
+        mBackupID =
+            backupFolder(megaApi[0].get(), path_u8string(getLocalFolderPath()), mBackupName);
         ASSERT_NE(mBackupID, INVALID_HANDLE) << "Cannot create Backup sync. Invalid Backup ID";
     }
 

@@ -78,7 +78,7 @@ const fs::path& SdkTestSyncNodesOperations::getLocalTmpDir() const
 
 std::string SdkTestSyncNodesOperations::getLocalTmpDirU8string() const
 {
-    return getLocalTmpDir().u8string();
+    return path_u8string(getLocalTmpDir());
 }
 
 std::unique_ptr<MegaSync> SdkTestSyncNodesOperations::getSync() const
