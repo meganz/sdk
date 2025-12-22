@@ -10925,6 +10925,11 @@ class MegaApi
             JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
         };
 
+        /**
+         * @brief PITAG trigger codes exposed at API level.
+         *
+         * Maps 1:1 with PitagTrigger in types.h.
+         */
         enum : char
         {
             PITAG_TRIGGER_NOT_APPLICABLE = '.',
