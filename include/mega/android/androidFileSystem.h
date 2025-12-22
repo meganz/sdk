@@ -66,7 +66,7 @@ public:
     // this FileWrapper shouldn't be used after call this method
     bool deleteEmptyFolder();
     // Rename an element. It is kept at same folder
-    bool rename(const std::string& newName, bool overwrite);
+    bool rename(const std::string& parentPath, const std::string& newName, bool overwrite);
 
     // Returns true if it's a folder
     bool isFolder();
@@ -133,7 +133,7 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
-    static constexpr char RENAME_OVERRIDE[] = "renameOverride";
+    static constexpr char RENAME_OVERRIDE[] = "renameOverwrite";
     static constexpr char CREATE_NESTED_PATH[] = "createNestedPath";
 
     void setUriData(const URIData& uriData);

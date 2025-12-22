@@ -543,7 +543,9 @@ bool AndroidFileWrapper::deleteEmptyFolder()
     return env->CallBooleanMethod(mJavaObject->mObj, methodID);
 }
 
-bool AndroidFileWrapper::rename(const std::string& newName, bool overwrite)
+bool AndroidFileWrapper::rename(const std::string& parentPath,
+                                const std::string& newName,
+                                bool overwrite)
 {
     if (!exists())
     {
@@ -552,10 +554,10 @@ bool AndroidFileWrapper::rename(const std::string& newName, bool overwrite)
 
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
-    jmethodID methodID = env->GetMethodID(
-        fileWrapper,
-        RENAME_OVERRIDE,
-        "(Ljava/lang/String;Z)Lmega/privacy/android/data/filewrapper/FileWrapper;");
+    jmethodID methodID = env->GetMethodID(fileWrapper,
+                                          RENAME_OVERRIDE,
+                                          "(Ljava/lang/String;Ljava/lang/String;Z)Lmega/privacy/"
+                                          "android/data/filewrapper/FileWrapper;");
     if (!methodID)
     {
         env->ExceptionDescribe();
@@ -564,10 +566,12 @@ bool AndroidFileWrapper::rename(const std::string& newName, bool overwrite)
         return false;
     }
 
+    jstring jPathName = env->NewStringUTF(parentPath.c_str());
     jstring jnewName = env->NewStringUTF(newName.c_str());
     jobject temporalObject =
-        env->CallObjectMethod(mJavaObject->mObj, methodID, jnewName, overwrite);
+        env->CallObjectMethod(mJavaObject->mObj, methodID, jPathName, jnewName, overwrite);
     env->DeleteLocalRef(jnewName);
+    env->DeleteLocalRef(jPathName);
     if (temporalObject != nullptr)
     {
         env->DeleteGlobalRef(mJavaObject->mObj);
@@ -1334,7 +1338,8 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
 
         if (oldname.parentPath() == newname.parentPath())
         {
-            return oldNameWrapper->rename(newname.leafName().toPath(false), overwrite);
+            auto parentPath = newname.parentPath().toPath(false);
+            return oldNameWrapper->rename(parentPath, newname.leafName().toPath(false), overwrite);
         }
         else
         {
