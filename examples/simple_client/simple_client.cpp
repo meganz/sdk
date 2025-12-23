@@ -75,20 +75,9 @@ public:
 
                 std::cout << "***** Uploading the image MEGA.png" << std::endl;
 
-                api->startUpload("MEGA.png",
-                                 root /*parent*/
-                                 ,
-                                 nullptr /*filename*/
-                                 ,
-                                 0 /*mtime*/
-                                 ,
-                                 nullptr /*appData*/
-                                 ,
-                                 false /*isSourceTemporary*/
-                                 ,
-                                 false /*startFirst*/
-                                 ,
-                                 nullptr); /*cancelToken*/
+                MegaApi::MegaUploadOptions uploadOptions;
+                uploadOptions.mtime = 0;
+                api->startUpload(std::string{"MEGA.png"}, root, nullptr, &uploadOptions, nullptr);
 
                 delete root;
 

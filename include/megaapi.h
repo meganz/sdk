@@ -16500,7 +16500,11 @@ class MegaApi
          * than the file to be uploaded, this function will try to update it's mtime instead of
          * starting a new file upload. If setting the mtime fails, the transfer will fail with
          * API_EWRITE.
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
         /**
@@ -16579,6 +16583,10 @@ class MegaApi
          * safe cancellation). App retains ownership and must keep it alive as described above.
          * @param options Optional upload customization parameters.
          * @param listener Optional MegaTransferListener to track this transfer.
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUpload(const std::string& localPath,
                          MegaNode* parent,

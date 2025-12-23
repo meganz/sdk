@@ -4179,15 +4179,12 @@ TEST_F(SdkTest, SdkTestTransfers)
         if (fs::exists(p) && !fs::remove(p)) { return fs::path{}; }
         if (!fs::create_directory(p))        { return fs::path{}; }
 
-        megaApi[0]->startUpload(path_u8string(p).c_str(),
-                                std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                                nullptr /*fileName*/,
-                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                nullptr /*appData*/,
-                                false /*isSourceTemporary*/,
-                                false /*startFirst*/,
-                                nullptr /*cancelToken*/,
-                                uploadListener1);
+        MegaApi::MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+        auto root = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+        const auto localPath = p.string();
+        megaApi[0]->startUpload(localPath, root.get(), nullptr, &uploadOptions, uploadListener1);
         return p;
     };
     auto uploadListener1 = std::make_shared<TransferTracker>(megaApi[0].get());
@@ -4204,15 +4201,9 @@ TEST_F(SdkTest, SdkTestTransfers)
     string filename1 = UPFILE;
     ASSERT_TRUE(createFile(filename1)) << "Couldn't create " << filename1;
     TransferTracker ttc(megaApi[0].get());
-    megaApi[0]->startUpload(filename1.c_str(),
-                            rootnode,
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false   /*isSourceTemporary*/,
-                            false   /*startFirst*/,
-                            nullptr /*cancelToken*/,
-                            &ttc);
+    MegaApi::MegaUploadOptions cancelOptions;
+    cancelOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(filename1, rootnode, nullptr, &cancelOptions, &ttc);
 
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
     ASSERT_EQ(API_EINCOMPLETE, ttc.waitForResult());
@@ -4234,15 +4225,13 @@ TEST_F(SdkTest, SdkTestTransfers)
     // --- Upload a file (part 1) ---
     TransferTracker tt(megaApi[0].get());
     mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
-    megaApi[0]->startUpload(filename1.c_str(),
+    MegaApi::MegaUploadOptions uploadOptions2;
+    uploadOptions2.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(filename1,
                             rootnode,
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false   /*isSourceTemporary*/,
-                            false   /*startFirst*/,
-                            nullptr /*cancelToken*/,
-                            &tt);   /*MegaTransferListener*/
+                            nullptr,
+                            &uploadOptions2,
+                            &tt); /*MegaTransferListener*/
 
     // do not wait yet for completion
 
@@ -12059,15 +12048,11 @@ TEST_F(SdkTest, DISABLED_invalidFileNames)
     }
 
     TransferTracker uploadListener(megaApi[0].get());
-    megaApi[0]->startUpload(path_u8string(uploadPath).c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
-                            &uploadListener);
+    MegaApi::MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto root = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    const auto uploadLocalPath = uploadPath.string();
+    megaApi[0]->startUpload(uploadLocalPath, root.get(), nullptr, &uploadOptions, &uploadListener);
 
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
 
@@ -12314,14 +12299,14 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     auto uploadListener1 = std::make_shared<TransferTracker>(megaApi[0].get());
     uploadListener1->selfDeleteOnFinalCallback = uploadListener1;
 
-    megaApi[0]->startUpload(path_u8string(p).c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+    MegaApi::MegaUploadOptions folderUploadOptions;
+    folderUploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto rootForFolder = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    const auto folderLocalPath = p.string();
+    megaApi[0]->startUpload(folderLocalPath,
+                            rootForFolder.get(),
+                            nullptr,
+                            &folderUploadOptions,
                             uploadListener1.get());
 
     ASSERT_EQ(uploadListener1->waitForResult(), API_EEXIST);
@@ -12345,14 +12330,14 @@ TEST_F(SdkTest, RecursiveUploadWithLogout)
     auto uploadListener = std::make_shared<TransferTracker>(megaApi[0].get());
     uploadListener->selfDeleteOnFinalCallback = uploadListener;
 
-    megaApi[0]->startUpload(path_u8string(p).c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+    MegaApi::MegaUploadOptions uploadOptions3;
+    uploadOptions3.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto rootForLogout = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    const auto logoutLocalPath = p.string();
+    megaApi[0]->startUpload(logoutLocalPath,
+                            rootForLogout.get(),
+                            nullptr,
+                            &uploadOptions3,
                             uploadListener.get());
     WaitMillisec(500);
 
@@ -12401,14 +12386,14 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
 
     // upload all of those
     TransferTracker uploadListener(megaApi[0].get());
-    megaApi[0]->startUpload(path_u8string(uploadpath).c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+    MegaApi::MegaUploadOptions bulkUploadOptions;
+    bulkUploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto rootNode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    const auto uploadFolderPath = uploadpath.string();
+    megaApi[0]->startUpload(uploadFolderPath,
+                            rootNode.get(),
+                            nullptr,
+                            &bulkUploadOptions,
                             &uploadListener);
 
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
@@ -12941,14 +12926,14 @@ TEST_F(SdkTest, SyncResumptionAfterFetchNodes)
 
     // transfer the folder and its subfolders
     TransferTracker uploadListener(megaApi[0].get());
-    megaApi[0]->startUpload(path_u8string(basePath).c_str(),
-                            std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()).get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+    MegaApi::MegaUploadOptions syncUploadOptions;
+    syncUploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto syncRoot = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode());
+    const auto basePathStr = basePath.string();
+    megaApi[0]->startUpload(basePathStr,
+                            syncRoot.get(),
+                            nullptr,
+                            &syncUploadOptions,
                             &uploadListener);
 
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
@@ -14406,14 +14391,13 @@ TEST_F(SdkTest, SdkTargetOverwriteTest)
     fs::path fp = fs::current_path() / fileName;
 
     TransferTracker tt(megaApi[1].get());
-    megaApi[1]->startUpload(path_u8string(fp).c_str(),
+    MegaApi::MegaUploadOptions shareUploadOptions;
+    shareUploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    const auto filePath = fp.string();
+    megaApi[1]->startUpload(filePath,
                             n1.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+                            nullptr,
+                            &shareUploadOptions,
                             &tt); /*MegaTransferListener*/
 
     // --- Pause transfer, revoke out-share permissions for secondary account and resume transfer ---
@@ -18178,14 +18162,12 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     megaApi[0]->setMaxUploadSpeed(2000000);
     onTransferUpdate_progress = 0;
     TransferTracker ut(megaApi[0].get());
-    megaApi[0]->startUpload(UPFILE.c_str(),
+    MegaApi::MegaUploadOptions resumeUploadOptions;
+    resumeUploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(std::string{UPFILE},
                             rootnode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+                            nullptr,
+                            &resumeUploadOptions,
                             &ut /*listener*/);
 
     second_timer timer;
@@ -18437,14 +18419,12 @@ TEST_F(SdkTest, SdkTestUploads)
         mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
         const auto& uploadStartTime = std::chrono::system_clock::now();
         TransferTracker ut(megaApi[0].get());
-        megaApi[0]->startUpload(UPFILE.c_str(),
+        MegaApi::MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(std::string{UPFILE},
                                 rootnode.get(),
-                                nullptr /*fileName*/,
-                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                nullptr /*appData*/,
-                                false /*isSourceTemporary*/,
-                                false /*startFirst*/,
-                                nullptr /*cancelToken*/,
+                                nullptr,
+                                &uploadOptions,
                                 &ut /*listener*/);
 
         unsigned int transfer_timeout_in_seconds = 180;
@@ -18559,14 +18539,14 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     // Upload the file
     fs::path uploadPath = fs::current_path() / filename;
     TransferTracker uploadListener(megaApi[0].get());
-    megaApi[0]->startUpload(path_u8string(uploadPath).c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+    MegaApi::MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto rootUpload = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    const auto uploadFilePath = uploadPath.string();
+    megaApi[0]->startUpload(uploadFilePath,
+                            rootUpload.get(),
+                            nullptr,
+                            &uploadOptions,
                             &uploadListener);
 
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
@@ -18676,14 +18656,14 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
 
     // Upload the folder
     TransferTracker uploadListener(megaApi[0].get());
-    megaApi[0]->startUpload(path_u8string(folderpath).c_str(),
-                            std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
+    MegaApi::MegaUploadOptions folderUploadOpts;
+    folderUploadOpts.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto rootForFolderPerms = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    const auto folderUploadPath = folderpath.string();
+    megaApi[0]->startUpload(folderUploadPath,
+                            rootForFolderPerms.get(),
+                            nullptr,
+                            &folderUploadOpts,
                             &uploadListener);
     ASSERT_EQ(API_OK, uploadListener.waitForResult());
     std::unique_ptr<MegaNode> nimported(megaApi[0]->getNodeByHandle(uploadListener.resultNodeHandle));
@@ -21717,15 +21697,12 @@ TEST_F(SdkTest, SdkRemoveTempFilesUponUploadTransfers)
     auto uploadFile = [&](MegaNode* n, const fs::path& filePath, bool cancelTransfer = false)
     {
         TransferTracker uploadListener(megaApi[accIdx].get());
-        megaApi[accIdx]->startUpload(path_u8string(filePath).c_str(),
-                                     n,
-                                     nullptr /*fileName*/,
-                                     ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                     nullptr /*appData*/,
-                                     true /*isSourceTemporary*/,
-                                     false /*startFirst*/,
-                                     nullptr /*cancelToken*/,
-                                     &uploadListener);
+        MegaApi::MegaUploadOptions tempFileOptions;
+        tempFileOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+        tempFileOptions.isSourceTemporary = true;
+
+        const auto localPath = filePath.string();
+        megaApi[accIdx]->startUpload(localPath, n, nullptr, &tempFileOptions, &uploadListener);
 
         if (cancelTransfer)
         {
@@ -22085,15 +22062,9 @@ TEST_F(SdkTest, FailsWhenThumbnailIsTooLarge)
     // Upload the file to the cloud so we have a node to play with.
     TransferTracker tracker(&client);
 
-    client.startUpload("content",
-                       root.get(),
-                       nullptr,
-                       MegaApi::INVALID_CUSTOM_MOD_TIME,
-                       nullptr,
-                       false,
-                       false,
-                       nullptr,
-                       &tracker);
+    MegaApi::MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    client.startUpload(std::string{"content"}, root.get(), nullptr, &uploadOptions, &tracker);
 
     // Wait for the upload to complete.
     ASSERT_EQ(tracker.waitForResult(), API_OK) << "Couldn't upload file to cloud";
@@ -22955,14 +22926,14 @@ TEST_F(SdkTest, SdkTransferCopyRemote)
         megaApi[0]->addListener(&mockGlobalListener);
 
         mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
-        megaApi[0]->startUpload(path_u8string(filePath).c_str(),
+        MegaApi::MegaUploadOptions uploadOpts;
+        uploadOpts.fileName = uploadName;
+        uploadOpts.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+        const auto uploadLocalPath = filePath.string();
+        megaApi[0]->startUpload(uploadLocalPath,
                                 folderNode.get(),
-                                uploadName,
-                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                nullptr /*appData*/,
-                                false /*isSourceTemporary*/,
-                                false /*startFirst*/,
-                                nullptr /*cancelToken*/,
+                                nullptr,
+                                &uploadOpts,
                                 nullptr); /*MegaTransferListener*/
 
         // --- Get dbid and tag of first transfer since started listening ---

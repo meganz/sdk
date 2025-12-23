@@ -232,7 +232,7 @@ TEST_F(SdkTestPitag, PitagCapturedForBatchFolderUpload)
     folderOptions.fileName = localFolderName;
     folderOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
 
-    megaApi[0]->startUpload(localFolderPath.u8string(),
+    megaApi[0]->startUpload(localFolderPath.string(),
                             rootNode.get(),
                             nullptr,
                             &folderOptions,
