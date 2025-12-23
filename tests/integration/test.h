@@ -690,6 +690,10 @@ struct StandardClient : public MegaApp
     void nodes_updated(sharedNode_vector* nodes, int numNodes) override;
     bool waitForNodesUpdated(unsigned numSeconds);
     void syncupdate_stateconfig(const SyncConfig& config) override;
+    void syncupdate_treestate(const SyncConfig& config,
+                              const LocalPath& localPath,
+                              treestate_t treeState,
+                              nodetype_t type) override;
 
     std::atomic<bool> received_user_alerts{false};
     std::condition_variable user_alerts_updated_cv;
@@ -713,6 +717,8 @@ struct StandardClient : public MegaApp
     void removeOnUserUpdateLamda();
 
     SynchronizedFunction<void(const SyncConfig&)> mOnSyncStateConfig;
+    SynchronizedFunction<void(const SyncConfig&, const LocalPath&, treestate_t, nodetype_t)>
+        mOnSyncTreeState;
 
     void syncupdate_scanning(bool b) override;
 
