@@ -40,9 +40,8 @@ protected:
 
     void addContactsAndVerifyCredential(unsigned apiIndexA, unsigned apiIndexB);
 
-    std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
-                                                                  const char* name,
-                                                                  MegaNode* parent);
+    [[nodiscard]] std::pair<MegaHandle, std::unique_ptr<MegaNode>>
+        createFolder(unsigned int apiIndex, const char* name, MegaNode* parent);
 };
 
 #endif // SDK_TEST_SHARE_H
