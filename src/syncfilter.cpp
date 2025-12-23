@@ -324,42 +324,6 @@ bool DefaultFilterChain::create(const LocalPath& targetPath, bool appendName, Fi
                               0);
 }
 
-void DefaultFilterChain::excludedNames(const string_vector& names, FileSystemAccess& fsAccess)
-{
-    lock_guard<mutex> guard(mLock);
-
-    mExcludedNames.clear();
-
-    // Translate UTF8 paths into cloud format.
-    for (auto& name : normalize(names))
-    {
-        LOG_debug << "Legacy excluded name: " << name;
-
-        mExcludedNames.emplace_back(name);
-        fsAccess.unescapefsincompatible(&mExcludedNames.back());
-    }
-    LOG_debug << "Legacy excluded names will be converted to .megaignore for pre-existing syncs that don't have .megaignore yet";
-}
-
-void DefaultFilterChain::excludedPaths(const string_vector& paths)
-{
-    lock_guard<mutex> guard(mLock);
-
-    mExcludedPaths.clear();
-
-    // Translate UTF8 paths to local format.
-    for (auto& path : normalize(paths))
-    {
-        LocalPath localPath = LocalPath::fromAbsolutePath(path);
-
-        LOG_debug << "Legacy excluded path: " << localPath;
-
-        mExcludedPaths.emplace_back(std::move(localPath));
-    }
-
-    LOG_debug << "Legacy excluded paths will be converted to .megaignore for pre-existing syncs that don't have .megaignore yet";
-}
-
 void DefaultFilterChain::excludePath(const string &path)
 {
     lock_guard<mutex> guard(mLock);
