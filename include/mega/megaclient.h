@@ -2416,7 +2416,7 @@ public:
     /**
      * @brief Get the daily SyncDebris folder name for a given timestamp.
      *
-     * @param timestamp to generate daily SyncDebris folder name from
+     * @param timestamp to generate daily SyncDebris folder name
      * @return String that contains the daily SyncDebris folder name
      */
     std::string getDailyDebrisName(const m_time_t& ts) const;
