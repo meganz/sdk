@@ -417,8 +417,8 @@ void PosixFileAccess::asyncopfinished(sigval sigev_value)
 void PosixFileAccess::asyncsysopen([[maybe_unused]] AsyncIOContext *context)
 {
 #ifdef HAVE_AIO_RT
-    context->failed = !fopen(context->openPath, context->access & AsyncIOContext::ACCESS_READ,
-                             context->access & AsyncIOContext::ACCESS_WRITE, FSLogging::logOnError);
+    const auto flag = AsyncIOContext::toOpenFlag(context->access);
+    context->failed = !fopen(context->openPath, flag, FSLogging::logOnError);
     if (context->failed)
     {
         LOG_err << "Failed to fopen('" << context->openPath << "'): error " << errorcode << ": " << PosixFileSystemAccess::getErrorMessage(errorcode);
@@ -665,8 +665,7 @@ int PosixFileAccess::stealFileDescriptor()
 }
 
 bool PosixFileAccess::fopen(const LocalPath& f,
-                            bool read,
-                            bool write,
+                            OpenFlag flag,
                             FSLogging fsl,
                             DirAccess* iteratingDir,
                             bool,
@@ -687,6 +686,8 @@ bool PosixFileAccess::fopen(const LocalPath& f,
 
     AdjustBasePathResult fstr = adjustBasePath(f);
 
+    const bool read = openRead(flag);
+    const bool write = openWrite(flag);
 #ifdef __MACH__
     if (!write)
     {

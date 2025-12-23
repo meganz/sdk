@@ -189,8 +189,7 @@ class MEGA_API AndroidFileAccess: public FileAccess
 {
 public:
     bool fopen(const LocalPath&,
-               bool read,
-               bool write,
+               OpenFlag flag,
                FSLogging,
                DirAccess* iteratingDir = nullptr,
                bool ignoreAttributes = false,

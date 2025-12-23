@@ -745,7 +745,7 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
 
 bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
 {
-    if (!fa->fopen(filename, true, false, FSLogging::logOnError))
+    if (!fa->fopen(filename, OPEN_RDONLY, FSLogging::logOnError))
     {
         LOG_err << "could not open local file for mediainfo";
         return false;

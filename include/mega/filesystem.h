@@ -362,6 +362,23 @@ private:
 #endif
 };
 
+enum OpenFlag
+{
+    OPEN_RDONLY = 0x0000,
+    OPEN_WRONLY = 0x0001,
+    OPEN_RDWR = 0x0002,
+    OPEN_ACCMODE = 0x0003, /* mask for above modes */
+};
+
+constexpr bool openRead(OpenFlag flag)
+{
+    return (flag & OPEN_ACCMODE) != OPEN_WRONLY;
+}
+
+constexpr bool openWrite(OpenFlag flag)
+{
+    return (flag & OPEN_ACCMODE) != OPEN_RDONLY;
+}
 
 struct MEGA_API AsyncIOContext
 {
@@ -377,7 +394,7 @@ struct MEGA_API AsyncIOContext
 
     virtual ~AsyncIOContext();
     virtual void finish();
-
+    static OpenFlag toOpenFlag(int access);
     // results
     asyncfscallback userCallback = nullptr;
     void *userData = nullptr;
@@ -425,7 +442,6 @@ private:
     static bool isFileNotFound(int error);
 };
 
-
 // generic host file/directory access interface
 struct MEGA_API FileAccess
 {
@@ -463,11 +479,13 @@ struct MEGA_API FileAccess
     // blocking mode: open for reading, writing or reading and writing.
     // This one really does open the file, and openf(), closef() will have no effect
     // If iteratingDir is supplied, this fopen() call must be for the directory entry being iterated by dopen()/dnext()
-    virtual bool fopen(const LocalPath&, bool read, bool write, FSLogging,
-                DirAccess* iteratingDir = nullptr,
-                bool ignoreAttributes = false,
-                bool skipcasecheck = false,
-                LocalPath* actualLeafNameIfDifferent = nullptr) = 0;
+    virtual bool fopen(const LocalPath&,
+                       OpenFlag flag,
+                       FSLogging,
+                       DirAccess* iteratingDir = nullptr,
+                       bool ignoreAttributes = false,
+                       bool skipcasecheck = false,
+                       LocalPath* actualLeafNameIfDifferent = nullptr) = 0;
 
     // nonblocking open: Only prepares for opening.  Actually stats the file/folder, getting mtime, size, type.
     // Call openf() afterwards to actually open it if required.  For folders, returns false with type==FOLDERNODE.
@@ -478,7 +496,7 @@ struct MEGA_API FileAccess
     // calls regular fopen. Windows overrides with FILE_SHARE_DELETE.
     virtual bool fopenForMacRead(const LocalPath& path, FSLogging fsl)
     {
-        return fopen(path, true, false, fsl);
+        return fopen(path, OpenFlag::OPEN_RDONLY, fsl);
     }
 
     // check if a local path is a folder

@@ -824,8 +824,7 @@ std::optional<string_type> AndroidPlatformURIHelper::getURI(const string_type& u
 }
 
 bool AndroidFileAccess::fopen(const LocalPath& f,
-                              bool,
-                              bool write,
+                              OpenFlag flag,
                               FSLogging,
                               DirAccess*,
                               bool,
@@ -836,6 +835,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     retry = false;
     assert(!mFileWrapper);
 
+    const bool write = openWrite(flag);
     mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(f, write, false);
     if (!mFileWrapper)
     {
@@ -1624,7 +1624,7 @@ ScanResult AndroidFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
         AndroidFileAccess fAccess(nullptr);
         fAccess.updatelocalname(newpath, true);
-        bool validOpen = fAccess.fopen(newpath, false, false, FSLogging::logOnError);
+        bool validOpen = fAccess.fopen(newpath, OPEN_RDONLY, FSLogging::logOnError);
 
         // Only fingerprint the file if we could actually open it.
         if (!validOpen)
@@ -1749,8 +1749,8 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
 
     unique_ptr<FileAccess> oldFile{newfileaccess()};
     unique_ptr<FileAccess> newFile{newfileaccess()};
-    if (oldFile->fopen(oldname, true, false, FSLogging::logOnError) &&
-        newFile->fopen(newname, true, true, FSLogging::logOnError))
+    if (oldFile->fopen(oldname, OPEN_RDONLY, FSLogging::logOnError) &&
+        newFile->fopen(newname, OPEN_RDWR, FSLogging::logOnError))
     {
         constexpr uint32_t BUFFER_SIZE{16384};
         unsigned char buffer[BUFFER_SIZE];

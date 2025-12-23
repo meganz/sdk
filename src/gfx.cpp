@@ -394,7 +394,7 @@ bool GfxProc::savefa(const LocalPath& localfilepath,
 
     auto f = client->fsaccess->newfileaccess();
     client->fsaccess->unlinklocal(localdstpath);
-    if (!f->fopen(localdstpath, false, true, FSLogging::logOnError))
+    if (!f->fopen(localdstpath, OPEN_WRONLY, FSLogging::logOnError))
     {
         return false;
     }

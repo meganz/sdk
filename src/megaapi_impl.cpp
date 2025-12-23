@@ -1280,7 +1280,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
     auto localfilename = LocalPath::fromAbsolutePath(inputFilepath);
 
-    if (fain->fopen(localfilename, true, false, FSLogging::logOnError) || fain->type != FILENODE)
+    if (fain->fopen(localfilename, OPEN_RDONLY, FSLogging::logOnError) || fain->type != FILENODE)
     {
         if (*length == -1)
         {
@@ -1311,7 +1311,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
                 auto localencryptedfilename = LocalPath::fromAbsolutePath(outputFilepath);
 
                 std::unique_ptr<FileAccess> faout(api->fsAccess->newfileaccess());
-                if (faout->fopen(localencryptedfilename, false, true, FSLogging::logOnError))
+                if (faout->fopen(localencryptedfilename, OPEN_WRONLY, FSLogging::logOnError))
                 {
                     SymmCipher cipher;
                     cipher.setkey(filekey);
@@ -8081,8 +8081,7 @@ Error MegaApiImpl::createLocalFolder_unlocked(LocalPath& localPath,
     // (unless collision resolution is Overwrite, in which case open insensitive case (merge
     // folders))
     bool opened = da->fopen(localPath,
-                            true,
-                            false,
+                            OPEN_RDONLY,
                             FSLogging::logOnError,
                             nullptr,
                             false,
@@ -10229,7 +10228,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(const LocalPath& localPat
         assert(fingerprintingFsAccess); // somehow ::init() wasn't evaluated
         auto fa = fingerprintingFsAccess->newfileaccess();
 
-        if (localPath.empty() || !fa->fopen(localPath, true, false, FSLogging::logOnError))
+        if (localPath.empty() || !fa->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         {
             transfer->fingerprint_error = API_EREAD;
         }
@@ -13292,7 +13291,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
+    if (!fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -13445,7 +13444,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
+    if (!fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -15200,8 +15199,8 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         auto localPath = LocalPath::fromAbsolutePath(filePath);
         fsAccess->unlinklocal(localPath);
 
-        bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
-                    && f->fwrite((const byte*)data, len, 0);
+        bool success = f->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError) &&
+                       f->fwrite((const byte*)data, len, 0);
 
         f.reset();
 
@@ -15596,7 +15595,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte* data, m_off_t size)
             auto localPath = LocalPath::fromAbsolutePath(filePath);
 
             fsAccess->unlinklocal(localPath);
-            if (!f->fopen(localPath, false, true, FSLogging::logOnError))
+            if (!f->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 e = API_EWRITE;
             }
@@ -16298,8 +16297,8 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
 
                 fsAccess->unlinklocal(localPath);
 
-                bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
-                            && f->fwrite((const byte*)data, len, 0);
+                bool success = f->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError) &&
+                               f->fwrite((const byte*)data, len, 0);
 
                 f.reset();
 
@@ -19227,11 +19226,12 @@ CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, con
 {
     auto fa = fsaccess->newfileaccess();
     auto fap = fa.get();
-    auto faGetter = [fap, &fileLocalPath]() {
-        return fap->fopen(fileLocalPath,
-                          true/*read*/,
-                          false/*write*/,
-                          FSLogging::logExceptFileNotFound) && fap->type == FILENODE ? fap : nullptr;
+    auto faGetter = [fap, &fileLocalPath]()
+    {
+        return fap->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                       fap->type == FILENODE ?
+                   fap :
+                   nullptr;
     };
     return CollisionChecker::check(std::move(faGetter), fileNode, option);
 }
@@ -19780,10 +19780,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     // collision check if hasn't been checked yet
                     auto fa = fsAccess->newfileaccess();
-                    if (fa
-                        && (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
-                        && fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound)
-                        && fa->type == FILENODE)
+                    if (fa &&
+                        (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) &&
+                        fa->fopen(wLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                        fa->type == FILENODE)
                     {
                         auto fap = fa.get();
                         if (node)
@@ -22019,7 +22019,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     auto localpath = LocalPath::fromAbsolutePath(file);
 
                     auto f = fsAccess->newfileaccess();
-                    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
+                    if (!f->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
@@ -22335,7 +22335,7 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
     std::unique_ptr<string> attributedata(new string);
     std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
+    if (!f->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
     {
         return API_EREAD;
     }
@@ -31155,7 +31155,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(childPath, true, false, FSLogging::logOnError))
+            if (fa->fopen(childPath, OPEN_RDONLY, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
@@ -32074,7 +32074,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if (fa->fopen(childPath, true, false, FSLogging::logOnError))
+                if (fa->fopen(childPath, OPEN_RDONLY, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
@@ -32887,7 +32887,8 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
         if (folderExists)
         {
             auto fa = fsaccess->newfileaccess();
-            if (fa && fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
+            if (fa && fa->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                fa->type == FILENODE)
             {
                 decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
             }
@@ -34587,7 +34588,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             LocalPath localPath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
             httpctx->server->fsAccess->unlinklocal(localPath);
-            if (!httpctx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
+            if (!httpctx->tmpFileAccess->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
                 return 0;
@@ -35662,7 +35663,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 auto tmpFileNamePath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
                 httpctx->server->fsAccess->unlinklocal(tmpFileNamePath);
-                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true, FSLogging::logOnError))
+                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath,
+                                                   OPEN_WRONLY,
+                                                   FSLogging::logOnError))
                 {
                     returnHttpCode(httpctx, 500);
                     delete node;
@@ -38400,7 +38403,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             LocalPath localPath = LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName);
             fds->fsAccess->unlinklocal(localPath);
 
-            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
+            if (!ftpdatactx->tmpFileAccess->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections

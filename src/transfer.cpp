@@ -861,7 +861,8 @@ void Transfer::complete(TransferDbCommitter& committer)
             }
         }
 
-        if (!fixedfingerprint && success && fa->fopen(localfilename, true, false, FSLogging::logOnError))
+        if (!fixedfingerprint && success &&
+            fa->fopen(localfilename, OPEN_RDONLY, FSLogging::logOnError))
         {
             fingerprint.genfingerprint(fa.get());
             bool sameFingerprint = (fingerprint == *(FileFingerprint*)this);

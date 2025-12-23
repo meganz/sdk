@@ -312,7 +312,7 @@ bool DefaultFilterChain::create(const LocalPath& targetPath, bool appendName, Fi
     auto fileAccess = fsAccess.newfileaccess(false);
 
     // Try and open the file for writing.
-    if (!fileAccess->fopen(filePath, false, true, FSLogging::logOnError))
+    if (!fileAccess->fopen(filePath, OPEN_WRONLY, FSLogging::logOnError))
         return false;
 
     // Generate the ignore file's content (including BOM).
@@ -494,8 +494,8 @@ FilterLoadResult FilterChain::load(FileSystemAccess& fsAccess, const LocalPath& 
     auto fileAccess = fsAccess.newfileaccess(false);
 
     // Open the ignore file for reading.
-    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError)
-        || fileAccess->type != FILENODE)
+    if (!fileAccess->fopen(path, OPEN_RDONLY, FSLogging::logOnError) ||
+        fileAccess->type != FILENODE)
     {
         // Couldn't open the file. Assume it's been deleted.
         LOG_info << "Could not load exclusions, file open failed at " << path;
