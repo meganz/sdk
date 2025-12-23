@@ -107,6 +107,7 @@ struct AccountDetails;
 struct AchievementsDetails;
 struct AttrMap;
 class BackoffTimer;
+struct BannerDetails;
 class Command;
 class CommandPubKeyRequest;
 struct BusinessPlan;

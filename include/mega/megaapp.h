@@ -22,6 +22,8 @@
 #ifndef MEGA_APP_H
 #define MEGA_APP_H 1
 
+#include "mega/banner.h"
+
 #include <mega/account.h>
 #include <mega/types.h>
 
@@ -467,9 +469,7 @@ struct MEGA_API MegaApp
 
     virtual void getbanners_result(error) { }
 
-    virtual void getbanners_result(
-        vector<tuple<int, string, string, string, string, string, string>>&& /*banners*/)
-    {}
+    virtual void getbanners_result(vector<BannerDetails>) {}
 
     virtual void dismissbanner_result(error) { }
 

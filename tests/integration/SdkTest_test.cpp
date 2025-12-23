@@ -10429,8 +10429,32 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST GetBanners___";
 
-    auto err = synchronousGetBanners(0);
+    auto rt = asyncGetBanners(0);
+    auto err = rt->waitForResult();
     ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
+    if (err == API_ENOENT)
+    {
+        return;
+    }
+
+    auto banners = rt->request->getMegaBannerList();
+    ASSERT_TRUE(banners);
+    EXPECT_TRUE(banners->size() > 0);
+
+    for (int n = 0; n < banners->size(); ++n)
+    {
+        auto banner = banners->get(n);
+        EXPECT_TRUE(banner->getId() > 0);
+        EXPECT_TRUE(banner->getTitle() != nullptr);
+        EXPECT_TRUE(banner->getDescription() != nullptr);
+        EXPECT_TRUE(banner->getImage() != nullptr);
+        EXPECT_TRUE(banner->getUrl() != nullptr);
+        EXPECT_TRUE(banner->getBackgroundImage() != nullptr);
+        EXPECT_TRUE(banner->getImageLocation() != nullptr);
+        // TODO: check the value after the API server upgrade the `gban` to v2.
+        // EXPECT_TRUE(banner->getVariant() >= 0);
+        // EXPECT_TRUE(banner->getButton() != nullptr);
+    }
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)

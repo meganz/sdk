@@ -102,6 +102,7 @@ set(SDKLIB_HEADERS
     include/mega/log_level.h
     include/mega/log_level_forward.h
     include/mega/overloaded.h
+    include/mega/banner.h
 
     # megaapi_impl related headers
     include/impl/share.h
