@@ -1246,6 +1246,7 @@ MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const char* inputFilepath)
 {
 #ifdef USE_MEDIAINFO
+    std::lock_guard<std::recursive_timed_mutex> g(api->sdkMutex);
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
