@@ -1630,6 +1630,24 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
         mOnSyncStateConfig(config);
 }
 
+void StandardClient::syncupdate_treestate(const SyncConfig& config,
+                                          const LocalPath& localPath,
+                                          treestate_t treeState,
+                                          nodetype_t type)
+{
+    onCallback();
+
+    if (logcb)
+    {
+        lock_guard<mutex> g(om);
+
+        out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId);
+    }
+
+    if (mOnSyncTreeState)
+        mOnSyncTreeState(config, localPath, treeState, type);
+}
+
 void StandardClient::useralerts_updated(UserAlert::Base** /*alerts*/, int numAlerts)
 {
     if (logcb)
@@ -8793,19 +8811,14 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
         std::atomic_bool done{false};
 
         auto filePath = path / name;
-        client->onTransferCompleted = [&p, &done, filePath](Transfer* t)
+        client->mOnSyncTreeState = [&p, &done, filePath](const SyncConfig&,
+                                                         const LocalPath& localPath,
+                                                         treestate_t treeState,
+                                                         nodetype_t)
         {
-            if (!t || t->type != direction_t::PUT)
+            if (localPath.toPath(false) != path_u8string(filePath) ||
+                treeState != treestate_t::TREESTATE_SYNCED)
             {
-                LOG_debug << "Unexpected transfer";
-                return;
-            }
-
-            if (t->localfilename.toPath(false) != path_u8string(filePath))
-            {
-                LOG_debug << "Unexpected transfer name (Transfer: "
-                          << t->localfilename.toPath(false)
-                          << "   Expected: " << path_u8string(filePath) << ")";
                 return;
             }
 
@@ -8820,7 +8833,7 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
 
         EXPECT_TRUE(createFile(filePath, name));
         auto status = f.wait_for(timeout);
-        client->onTransferCompleted = nullptr;
+        client->mOnSyncTreeState = nullptr;
         return status == std::future_status::ready;
     };
 
