@@ -128,25 +128,6 @@ pipeline {
                                         ])
                                     }
                                 }
-
-                                stage('Download prebuilt third-party-sources for example'){
-                                    steps {
-                                        dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
-                                            withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
-                                                sh """
-                                                    jf rt download \
-                                                        --url ${REPO_URL} \
-                                                        --access-token \${MEGASDK_ARTIFACTORY_TOKEN} \
-                                                        third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz \
-                                                        .
-                                                """
-                                            }
-                                            sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
-                                            sh "rm 3rdparty-sdk-android-example.tar.gz"
-                                        }
-                                    }
-                                }
-
                                 stage('Build SDK and exampleApp'){
                                     environment{
                                         BUILD_ARCHS = "arm64-v8a"
