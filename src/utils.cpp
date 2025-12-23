@@ -3968,13 +3968,6 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
     return std::nullopt;
 }
 
-template<typename E>
-constexpr std::underlying_type_t<E> getEnumValue(E e)
-{
-    static_assert(std::is_enum_v<E>, "E must be an enum");
-    return static_cast<std::underlying_type_t<E>>(e);
-}
-
 PitagPurpose pitagPurposeFromChar(char c)
 {
     switch (c)
