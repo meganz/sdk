@@ -7526,6 +7526,10 @@ void MegaClient::sc_userattr(JSON& json)
                                     case ATTR_DEVICE_NAMES:
                                     case ATTR_JSON_SYNC_CONFIG_DATA:
                                     case ATTR_SYNC_DESIRED_STATE:
+                                    case ATTR_PUSH_SETTINGS:
+                                    case ATTR_DISABLE_VERSIONS:
+                                    case ATTR_STORAGE_STATE:
+                                    case ATTR_RECENT_CLEAR_TIMESTAMP:
                                     {
                                         if ((type == ATTR_AUTHRING || type == ATTR_AUTHCU255) &&
                                             mKeyManager.generation())
@@ -7564,14 +7568,16 @@ void MegaClient::sc_userattr(JSON& json)
                                         break;
                                     }
                                     default:
-                                        LOG_debug << User::attr2string(type) << " has changed externally (skip fetching)";
+                                        LOG_debug << User::attr2string(type) << " has changed"
+                                                  << (!mCurrentSeqtagSeen ? " externally. " : ". ")
+                                                  << "(skip fetching)";
                                         break;
                                 }
                             }
                             else
                             {
                                 LOG_info << "User attribute already up to date: " << User::attr2string(type);
-                                return;
+                                continue;
                             }
                         }
                         else
@@ -7585,16 +7591,6 @@ void MegaClient::sc_userattr(JSON& json)
                                 string emptyStr;
                                 u->setAttribute(type, emptyStr, emptyStr);
                                 u->setAttributeExpired(type);
-                            }
-                        }
-
-                        if (!fetchingnodes)
-                        {
-                            // silently fetch-upon-update these critical attributes
-                            if (type == ATTR_DISABLE_VERSIONS || type == ATTR_PUSH_SETTINGS ||
-                                type == ATTR_STORAGE_STATE)
-                            {
-                                getua(u, type, 0);
                             }
                         }
                     }

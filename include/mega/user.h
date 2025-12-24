@@ -96,6 +96,7 @@ struct MEGA_API User : public Cacheable
         bool lastReadNotification : 1; // ID of last read notification
         bool lastActionedBanner : 1; // ID of last actioner banner
         bool enableTestSurveys: 1; // list of handles for enabled test surveys
+        bool recentClearTimestamp: 1; // timestamp of clearing recent action history
     } changed;
 
     // user's public key

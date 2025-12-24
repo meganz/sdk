@@ -535,6 +535,8 @@ public:
         bool contactRequestUpdated{false};
         bool accountUpdated;
         bool nodeUpdated; // flag to check specific updates for a node (upon onNodesUpdate)
+        int recentClearTimeUpdatedCount =
+            0; // number of clear recent history updates (upon UserUpdate)
 
         // A map to store custom functions to be called inside callbacks
         std::map<MegaHandle, std::weak_ptr<std::function<void()>>> customCallbackCheck;
@@ -1280,6 +1282,8 @@ public:
                                bool checkCredentials = true,
                                const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
     void releaseMegaApi(unsigned int apiIndex);
+    //
+    void loginSameAccountsForTest(unsigned copyIndex);
 
     void inviteTestAccount(const unsigned invitorIndex, const unsigned inviteIndex, const string &message);
     void inviteContact(unsigned apiIndex, const string &email, const string& message, const int action);

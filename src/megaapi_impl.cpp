@@ -2535,6 +2535,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
     }
+    if (user->changed.recentClearTimestamp)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP;
+    }
     // Don't need to notify about user->changed.enableTestSurveys
 }
 
@@ -8612,6 +8616,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_PWM_BASE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
+        case ATTR_RECENT_CLEAR_TIMESTAMP:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
         case ATTR_DEV_OPT:
@@ -16510,6 +16515,23 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
 
             return;
         }   // end of get+set
+
+        if (request->getParamType() == MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP)
+        {
+            MegaTimeStamp time = formatRecentClearTimestamp(&records);
+            if (MegaClient::isValidMegaTimeStamp(time))
+            {
+                std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, false));
+                request->setMegaStringMap(stringMap.get());
+                request->setNumber(time);
+            }
+            else
+            {
+                e = API_EINTERNAL;
+            }
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            return;
+        }
 
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
@@ -26408,6 +26430,10 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
         m_time_t since = m_time() - days * 86400;
 
+        MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
+
+        since = std::max(since, sinceClearHistory);
+
         recentactions_vector v;
         if (withExcludeSensitives)
         {
@@ -26427,6 +26453,71 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP);
+    request->setNumber(until);
+
+    request->performRequest = [this, request]()
+    {
+        MegaTimeStamp time = request->getNumber();
+        if (!MegaClient::isValidMegaTimeStamp(time))
+        {
+            return API_EARGS;
+        }
+        MegaStringMapPrivate stringMap;
+        string key = "t";
+        auto b64 = Base64Str<sizeof(time)>(reinterpret_cast<void*>(&time));
+        stringMap.set(key.c_str(), (Base64::btoa(b64.chars)).c_str());
+        request->setMegaStringMap(&stringMap);
+
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaTimeStamp MegaApiImpl::getRecentClearTimestamp()
+{
+    mega::User* user = client->finduser(client->me);
+    if (user == nullptr)
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+
+    const UserAttribute* attr = user->getAttribute(ATTR_RECENT_CLEAR_TIMESTAMP);
+    if (attr == nullptr || attr->value().empty())
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+
+    std::unique_ptr<string_map> records{tlv::containerToRecords(attr->value(), client->key)};
+    if (!records || records->empty())
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+    return formatRecentClearTimestamp(records.get());
+}
+
+MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(string_map* records)
+{
+    MegaTimeStamp recentClearTimestamp = MEGA_INVALID_TIMESTAMP;
+    auto it = records->find("t");
+    if (it == records->end())
+    {
+        return recentClearTimestamp;
+    }
+    string value = Base64::atob(it->second);
+    if (value.size() != sizeof(recentClearTimestamp))
+    {
+        return recentClearTimestamp;
+    }
+    memcpy(&recentClearTimestamp, value.data(), sizeof(recentClearTimestamp));
+    return recentClearTimestamp;
 }
 
 #ifdef ENABLE_CHAT

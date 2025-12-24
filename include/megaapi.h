@@ -2343,7 +2343,7 @@ class MegaUser
          */
         virtual int64_t getTimestamp();
 
-        enum
+        enum : uint64_t
         {
             CHANGE_TYPE_AUTHRING                    = 0x01,
             CHANGE_TYPE_LSTINT                      = 0x02,
@@ -2376,7 +2376,8 @@ class MegaUser
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
             CHANGE_APPS_PREFS                       = 0x40000000,
-            CHANGE_CC_PREFS                         = 0x80000000,
+            CHANGE_CC_PREFS = 0x80000000,
+            CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000ULL,
         };
 
         /**
@@ -2484,6 +2485,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
          * Check if content consumption prefs have changed
+         *
+         * - MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000
+         * Check if the timestamp for clearing recent actions history has changed
          *
          * @return true if this user has an specific change
          */
@@ -5537,6 +5541,8 @@ class MegaRequest
          * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          * - MegaApi::fetchAds - Returns a bitmap flag used to communicate with the API
          * - MegaApi::queryAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::clearRecentActionHistory - Returns the epoch time in seconds to set as the
+         * recent action history clear timestamp
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -10682,6 +10688,8 @@ class MegaApi
             USER_ATTR_S4 = 49, // private - non-encrypted - char array
             USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
             USER_ATTR_DEV_OPT = 51, // private - encrypted - byte array
+            USER_ATTR_RECENT_CLEAR_TIMESTAMP =
+                52, // private - encrypted - byte array - non-versioned
         };
 
         enum {
@@ -14071,10 +14079,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
-         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was
+         * USER_ATTR_DEVICE_NAMES
          *
-         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
-         * is obtained for the active account
+         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the
+         * attribute is obtained for the active account
          * @param type Attribute type
          *
          * Valid values are:
@@ -14147,7 +14156,8 @@ class MegaApi
          * Get last read notification (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Get last actioned banner (private)
-         *
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52 (private, encrypted)
+         * Get the epoch time (in seconds) used as the recent actions history clear timestamp.
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -19639,6 +19649,28 @@ class MegaApi
                                    MegaRequestListener* listener = NULL);
 
         /**
+         * @brief Clear the account’s recent actions history up to a given timestamp.
+         *
+         * This method clears the recent actions history on the account by setting a
+         * “recent clear” timestamp. All actions that occurred at or before the given
+         * timestamp are considered cleared.
+         *
+         * The associated request type for this operation is
+         * MegaRequest::TYPE_SET_ATTR_USER.
+         *
+         * Valid data available in the MegaRequest object received in callbacks:
+         * - MegaRequest::getParamType - Returns the user attribute type
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
+         * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
+         * actions history clear timestamp.
+         *
+         * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+         * @param listener  Optional MegaRequestListener to track this request.
+         */
+
+        void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
          * @param node The parent node of the tree to explore
          * @param processor MegaTreeProcessor that will receive callbacks for every node in the tree
@@ -23677,7 +23709,8 @@ class MegaApi
          * @brief Delete a user attribute of the current user, for testing
          * This method is for developer use only and it requires to be logged-in into an
          * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
-         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by
+         * Webclient).
          *
          * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -23737,6 +23770,8 @@ class MegaApi
          * Delete name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52
+         * Delete the timestamp for recent actions history clearing (private, encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */
