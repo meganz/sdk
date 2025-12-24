@@ -27,26 +27,32 @@ namespace
 
 #ifdef HAVE_LIBUV
 /**
- * @brief SdkTest.HttpServer
- *
- * Test for HTTP server, which should consist of:
- * - start HTTP server from a thread
- * - stop HTTP server from a different thread, to allow TSAN to report any data races
+ * Test for HTTP server using port 0, which also consist of:
+ * - start two HTTP servers from a thread and no ports conflicting
+ * - stop HTTP servers from a different thread, to allow TSAN to report any data races
  */
-TEST_F(SdkTest, HttpServer)
+TEST_F(SdkTest, HttpServerCanUsePort0)
 {
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1, false));
+    CASE_info << "started";
 
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2, false));
+
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
+    ASSERT_TRUE(megaApi[1]->httpServerStart(true, 0));
     ASSERT_TRUE(megaApi[0]->httpServerIsRunning());
+    ASSERT_TRUE(megaApi[1]->httpServerIsRunning());
 
     std::async(std::launch::async,
-               [&api = megaApi[0]]()
+               [&api = megaApi]()
                {
-                   api->httpServerStop();
+                   api[0]->httpServerStop();
+                   api[1]->httpServerStop();
                })
         .get();
+
+    CASE_info << "finished";
 }
+
 #endif
 
 }

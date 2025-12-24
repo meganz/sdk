@@ -11193,13 +11193,12 @@ void MegaApiImpl::httpServerStop()
 
 int MegaApiImpl::httpServerIsRunning()
 {
-    bool result = false;
     SdkMutexGuard g(sdkMutex);
     if (httpServer)
     {
-        result = httpServer->getPort() != 0;
+        return httpServer->getPort();
     }
-    return result;
+    return 0;
 }
 
 char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
@@ -11546,13 +11545,12 @@ void MegaApiImpl::ftpServerStop()
 
 int MegaApiImpl::ftpServerIsRunning()
 {
-    bool result = false;
     SdkMutexGuard g(sdkMutex);
     if (ftpServer)
     {
-        result = ftpServer->getPort() != 0;
+        return ftpServer->getPort();
     }
-    return result;
+    return 0;
 }
 
 char *MegaApiImpl::ftpServerGetLocalLink(MegaNode *node)
@@ -33230,7 +33228,7 @@ bool MegaTCPServer::start(int newPort, bool newLocalOnly)
     if (!started)
         port = 0;
 
-    LOG_verbose << "MegaTCPServer::start. port = " << newPort << ", returning " << started;
+    LOG_verbose << "MegaTCPServer::start. port = " << port << ", returning " << started;
     return started;
 }
 
@@ -33271,6 +33269,37 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
     return rv;
 }
 #endif
+
+static std::optional<int> getBoundPort(uv_tcp_t* server)
+{
+    assert(server);
+
+    struct sockaddr_storage bound_addr;
+    int addr_len = sizeof(bound_addr);
+    if (uv_tcp_getsockname(server, reinterpret_cast<struct sockaddr*>(&bound_addr), &addr_len))
+    {
+        return std::nullopt;
+    }
+
+    int port = 0;
+    if (bound_addr.ss_family == AF_INET)
+    {
+        const auto addrin = reinterpret_cast<struct sockaddr_in*>(&bound_addr);
+        port = ntohs(addrin->sin_port);
+    }
+    else if (bound_addr.ss_family == AF_INET6)
+    {
+        const auto addrin6 = reinterpret_cast<struct sockaddr_in6*>(&bound_addr);
+        port = ntohs(addrin6->sin6_port);
+    }
+    else
+    {
+        // Doesn't support others
+        assert(false);
+    }
+
+    return port;
+}
 
 void MegaTCPServer::run()
 {
@@ -33342,10 +33371,9 @@ void MegaTCPServer::run()
     }
 #endif
 
-    if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
-        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
+    auto cleanOnError = [this](const char* action)
     {
-        LOG_err << "TCP failed to bind/listen port = " << port;
+        LOG_err << "TCP failed to " << action << " = " << port;
 
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
@@ -33357,6 +33385,28 @@ void MegaTCPServer::run()
         {
             LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
         }
+    };
+
+    if (uv_tcp_bind(&server, (const struct sockaddr*)&address, 0))
+    {
+        cleanOnError("bind port");
+        return;
+    }
+
+    // Update port to bound port if request port is 0
+    if (port == 0)
+    {
+        port = getBoundPort(&server).value_or(0);
+        if (port == 0) // still zero?
+        {
+            cleanOnError("get bound port");
+            return;
+        }
+    }
+
+    if (uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
+    {
+        cleanOnError("listen port");
         return;
     }
 
