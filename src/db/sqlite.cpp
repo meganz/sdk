@@ -137,10 +137,10 @@ SqliteDbTable *SqliteDbAccess::open(PrnGen &rng, FileSystemAccess &fsAccess, con
 static int
     sqlite_naturalsorting_compare(void*, int size1, const void* data1, int size2, const void* data2)
 {
-    // We need to ensure that the strings to compare are null terminated
-    std::string s1{static_cast<const char*>(data1), static_cast<size_t>(size1)};
-    std::string s2{static_cast<const char*>(data2), static_cast<size_t>(size2)};
-    return naturalsorting_compare(s1.c_str(), s2.c_str());
+    return naturalsorting_compare(static_cast<const char*>(data1),
+                                  size1,
+                                  static_cast<const char*>(data2),
+                                  size2);
 }
 
 DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAccess, const string &name, const int flags, DBErrorCallback dBErrorCallBack)

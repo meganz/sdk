@@ -1136,13 +1136,6 @@ string connDirectionToStr(direction_t directionType);
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
 
-enum class CharType : uint8_t
-{
-    CSYMBOL = 0,
-    CDIGIT = 1,
-    CALPHA = 2,
-};
-
 // Wrapper functions for std::isspace and std::isdigit
 // Not considering EOF values
 
@@ -1161,29 +1154,6 @@ bool is_space(unsigned int ch);
  * @return true if the character is a digit (0-9), otherwise returns false.
  */
 bool is_digit(unsigned int ch);
-
-/**
- * @brief Checks if a character is a symbol.
- *
- * Note: this function is only valid for monobyte characters.
- *
- * @param ch The character to check
- * @return true if the character is a symbol, otherwise returns false
- */
-bool is_symbol(unsigned int ch);
-
-/**
- * @brief Determines the type of a given character.
- *
- * Valid values returned by this function are:
- * - CharType::CSYMBOL if the character is a symbol
- * - CharType::CDIGIT if the character is a digit
- * - CharType::CALPHA if the character is alphabetic
- *
- * @param ch The character to be classified
- * @return CharType representing the type of the character
- */
-CharType getCharType(const unsigned int ch);
 
 template<typename Container = std::set<std::string>>
 Container splitString(const string& str, char delimiter)
@@ -1432,23 +1402,30 @@ SplitResult split(const char* begin, const std::size_t size, char delimiter);
 SplitResult split(const std::string& value, char delimiter);
 
 /**
- * @brief Sorts input char strings using natural sorting ignoring case
+ * @brief Compares two utf8 strings using natural sorting
  *
- * This function is only valid for comparing monobyte characters.
- * The default natural ascending order implemented by this function is:
- * Symbols < Numbers < Alphabetic_characters(# < 1 < a).
+ * This function uses icu collator
  *
- * Valid values returned by this function are:
- *  - if i == j returns 0
- *  - if i goes first returns a number greater than 0 (>=1)
- *  - if j goes first returns a number smaller than 0 (<=1)
+ * @param i Pointer to a null-terminated utf-8 string.
+ * @param j Pointer to a null-terminated utf-8 string.
  *
- * @param i Pointer to the first null-terminated string.
- * @param j Pointer to the second null-terminated string.
- *
- * @returns the order between 2 characters
+ * @returns 0 if i == j, negative if i < j, otherwise positive
  */
-int naturalsorting_compare(const char* i, const char* j);
+[[nodiscard]] int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @brief Compares two utf8 strings using natural sorting
+ *
+ * This function uses icu collator
+ *
+ * @param i Pointer to a utf-8 string.
+ * @param iSize Size of the first utf-8 string.
+ * @param j Pointer to a utf-8 string.
+ * @param jSize Size of the second utf-8 string.
+ *
+ * @returns 0 if i == j, negative if i < j, otherwise positive
+ */
+[[nodiscard]] int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize);
 
 /**
  * @class NaturalSortingComparator

@@ -1,17 +1,19 @@
 {
-    "$schema" : "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
-    "name" : "sdklib",
-    "homepage" : "https://github.com/meganz/sdk",
-    "features" :
-    {
-        "use-openssl":
-        {
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "sdklib",
+    "homepage": "https://github.com/meganz/sdk",
+    "features": {
+        "use-openssl": {
             "description": "OpenSSL library",
-            "dependencies": [ "openssl" ]
+            "dependencies": [
+                "openssl"
+            ]
         },
         "use-mediainfo": {
             "description": "MediaInfo library",
-            "dependencies": [ "libmediainfo" ]
+            "dependencies": [
+                "libmediainfo"
+            ]
         },
         "use-freeimage": {
             "description": "FreeImage library",
@@ -29,21 +31,32 @@
                 {
                     "name": "ffmpeg",
                     "default-features": false,
-                    "features": ["avcodec", "avformat", "swresample", "swscale"]
+                    "features": [
+                        "avcodec",
+                        "avformat",
+                        "swresample",
+                        "swscale"
+                    ]
                 }
             ]
         },
         "use-libuv": {
             "description": "libuv library",
-            "dependencies": [ "libuv" ]
+            "dependencies": [
+                "libuv"
+            ]
         },
         "use-pdfium": {
             "description": "pdfium library",
-            "dependencies": [ "pdfium" ]
+            "dependencies": [
+                "pdfium"
+            ]
         },
         "use-readline": {
             "description": "Readline library",
-            "dependencies": [ "readline" ]
+            "dependencies": [
+                "readline"
+            ]
         },
         "sdk-tests": {
             "description": "gtests library for the integration and unit tests",

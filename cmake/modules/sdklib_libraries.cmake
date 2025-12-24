@@ -77,8 +77,8 @@ macro(load_sdklib_libraries)
             set(HAVE_PDFIUM 1)
         endif()
 
-        find_package(ICU COMPONENTS uc data REQUIRED)
-        target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
+        find_package(ICU COMPONENTS i18n uc data REQUIRED)
+        target_link_libraries(SDKlib PRIVATE ICU::i18n ICU::uc ICU::data)
 
         if(USE_READLINE)
             find_package(Readline-unix REQUIRED)
