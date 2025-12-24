@@ -5288,6 +5288,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                    u->removeAttribute(ATTR_STORAGE_STATE);
                 }
 
                 if (!s4.empty() && !s4Version.empty())
@@ -5331,16 +5332,10 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     u->removeAttribute(ATTR_DEV_OPT);
                 }
 
-                if (rcts.size() && rctsVersion.size())
-                {
-                    changes |= u->updateAttributeIfDifferentVersion(ATTR_RECENT_CLEAR_TIMESTAMP,
-                                                                    rcts,
-                                                                    rctsVersion);
-                }
-                else
-                {
-                    u->removeAttribute(ATTR_RECENT_CLEAR_TIMESTAMP);
-                }
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               rcts,
+                                                               rctsVersion,
+                                                               ATTR_RECENT_CLEAR_TIMESTAMP);
 
                 if (changes)
                 {
