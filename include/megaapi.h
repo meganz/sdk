@@ -98,6 +98,7 @@ class MegaTimeZoneDetails;
 class MegaPushNotificationSettings;
 class MegaBackgroundMediaUpload;
 class MegaCancelToken;
+class MegaUploadOptions;
 class MegaApi;
 class MegaSemaphore;
 class MegaScheduledMeeting;
@@ -122,6 +123,51 @@ class MegaNodeTree;
 class MegaCompleteUploadData;
 class MegaNotificationList;
 class MegaCancelSubscriptionReasonList;
+
+/**
+ * @brief Optional parameters to customize an upload.
+ */
+class MegaUploadOptions
+{
+public:
+    MegaUploadOptions() = default;
+    static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+    static constexpr char PITAG_TRIGGER_NOT_APPLICABLE = '.';
+
+    /**
+     * Custom file or folder name in MEGA.
+     * If empty, the name is taken from the local path.
+     */
+    std::string fileName;
+
+    /**
+     * Custom modification time for files (seconds since epoch).
+     * Use MegaApi::INVALID_CUSTOM_MOD_TIME to keep the local mtime.
+     */
+    int64_t mtime = INVALID_CUSTOM_MOD_TIME;
+
+    /**
+     * Custom app data associated with the transfer.
+     * Accessible via MegaTransfer::getAppData().
+     */
+    const char* appData = nullptr;
+
+    /**
+     * If true, the SDK deletes the local file when the upload finishes.
+     * Intended for temporary files only.
+     */
+    bool isSourceTemporary = false;
+
+    /**
+     * If true, the upload is put on top of the upload queue.
+     */
+    bool startFirst = false;
+
+    /**
+     * One-byte upload trigger tag (see PITAG_TRIGGER_*).
+     */
+    char pitagTrigger = PITAG_TRIGGER_NOT_APPLICABLE;
+};
 
 #if defined(SWIG)
     #define MEGA_DEPRECATED
@@ -10932,7 +10978,7 @@ class MegaApi
          */
         enum : char
         {
-            PITAG_TRIGGER_NOT_APPLICABLE = '.',
+            PITAG_TRIGGER_NOT_APPLICABLE = MegaUploadOptions::PITAG_TRIGGER_NOT_APPLICABLE,
             PITAG_TRIGGER_PICKER = 'p',
             PITAG_TRIGGER_DRAG_AND_DROP = 'd',
             PITAG_TRIGGER_CAMERA = 'c',
@@ -10943,44 +10989,8 @@ class MegaApi
         /**
          * @brief Optional parameters to customize an upload.
          */
-        struct MegaUploadOptions
-        {
-            /**
-             * Custom file or folder name in MEGA.
-             * If empty, the name is taken from the local path.
-             */
-            std::string fileName;
-
-            /**
-             * Custom modification time for files (seconds since epoch).
-             * Use MegaApi::INVALID_CUSTOM_MOD_TIME to keep the local mtime.
-             */
-            int64_t mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
-
-            /**
-             * Custom app data associated with the transfer.
-             * Accessible via MegaTransfer::getAppData().
-             */
-            const char* appData = nullptr;
-
-            /**
-             * If true, the SDK deletes the local file when the upload finishes.
-             * Intended for temporary files only.
-             */
-            bool isSourceTemporary = false;
-
-            /**
-             * If true, the upload is put on top of the upload queue.
-             */
-            bool startFirst = false;
-
-            /**
-             * One-byte upload trigger tag (see PITAG_TRIGGER_*).
-             */
-            char pitagTrigger = PITAG_TRIGGER_NOT_APPLICABLE;
-        };
-
-        static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+        static constexpr int64_t INVALID_CUSTOM_MOD_TIME =
+            MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
 

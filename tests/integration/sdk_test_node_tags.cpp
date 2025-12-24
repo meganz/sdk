@@ -781,7 +781,7 @@ auto SdkTestNodeTagsCommon::uploadFile(MegaApi& client,
 {
     TransferTracker tracker(&client);
 
-    MegaApi::MegaUploadOptions uploadOptions;
+    MegaUploadOptions uploadOptions;
     uploadOptions.fileName = path.filename().string();
     uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
 

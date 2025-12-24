@@ -156,7 +156,7 @@ TEST_F(SdkTestPitag, PitagCapturedForRegularUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[0].get());
-    MegaApi::MegaUploadOptions options;
+    MegaUploadOptions options;
     options.fileName = remoteName;
     options.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
     options.pitagTrigger = MegaApi::PITAG_TRIGGER_CAMERA;
@@ -228,7 +228,7 @@ TEST_F(SdkTestPitag, PitagCapturedForBatchFolderUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[0].get());
-    MegaApi::MegaUploadOptions folderOptions;
+    MegaUploadOptions folderOptions;
     folderOptions.fileName = localFolderName;
     folderOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
 
@@ -286,7 +286,7 @@ TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[1].get());
-    MegaApi::MegaUploadOptions shareOptions;
+    MegaUploadOptions shareOptions;
     shareOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
     shareOptions.pitagTrigger = MegaApi::PITAG_TRIGGER_SCANNER;
 

@@ -1116,7 +1116,7 @@ public:
                       MegaCancelToken* cancelToken)
     {
         TransferTracker tt(megaApi[apiIndex].get());
-        MegaApi::MegaUploadOptions uploadOptions;
+        MegaUploadOptions uploadOptions;
         if (fileName)
         {
             uploadOptions.fileName = fileName;
@@ -1146,7 +1146,7 @@ public:
                                                              MegaCancelToken* cancelToken)
     {
         TransferTracker tt(megaApi[apiIndex].get());
-        MegaApi::MegaUploadOptions uploadOptions;
+        MegaUploadOptions uploadOptions;
         if (fileName)
         {
             uploadOptions.fileName = fileName;

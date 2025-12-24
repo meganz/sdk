@@ -1377,7 +1377,7 @@ TEST_F(SdkTestSyncUploadsOperations, PreComputedMacForCloneCandidatesNonBlocking
     auto uploadToCloud = [&](const fs::path& filePath, const int timeoutSeconds = 60)
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        MegaApi::MegaUploadOptions uploadOptions;
+        MegaUploadOptions uploadOptions;
         uploadOptions.mtime = m_time(nullptr) - 86400;
 
         const auto localPath = path_u8string(filePath);
@@ -1559,7 +1559,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnLocalDelete)
     // Upload to cloud with old mtime
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        MegaApi::MegaUploadOptions uploadOptions;
+        MegaUploadOptions uploadOptions;
         uploadOptions.mtime = m_time(nullptr) - 86400;
 
         const auto tempLocalPath = path_u8string(tempFile->getPath());
@@ -1646,7 +1646,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
     // Upload to cloud with old mtime
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        MegaApi::MegaUploadOptions uploadOptions;
+        MegaUploadOptions uploadOptions;
         uploadOptions.mtime = m_time(nullptr) - 86400;
 
         const auto tempLocalPath = path_u8string(tempFile->getPath());

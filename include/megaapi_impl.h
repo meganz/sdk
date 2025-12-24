@@ -3985,7 +3985,7 @@ class MegaApiImpl : public MegaApp
 
         struct MegaUploadOptionsPrivate
         {
-            MegaApi::MegaUploadOptions mPublicOptions;
+            MegaUploadOptions mPublicOptions;
             int mFolderTransferTag = 0;
             bool mIsBackup = false;
             bool mForceNewUpload = false;

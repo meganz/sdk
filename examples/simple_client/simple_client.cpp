@@ -75,7 +75,7 @@ public:
 
                 std::cout << "***** Uploading the image MEGA.png" << std::endl;
 
-                MegaApi::MegaUploadOptions uploadOptions;
+                MegaUploadOptions uploadOptions;
                 uploadOptions.mtime = 0;
                 api->startUpload(std::string{"MEGA.png"}, root, nullptr, &uploadOptions, nullptr);
 

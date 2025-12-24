@@ -413,7 +413,7 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
         uploadParent = fallbackParent.get();
     }
 
-    MegaApi::MegaUploadOptions uploadOptions;
+    MegaUploadOptions uploadOptions;
     if (fileName)
     {
         uploadOptions.fileName = fileName;
