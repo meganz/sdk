@@ -4333,6 +4333,8 @@ public:
                                            unsigned maxnodes,
                                            bool* optExcludeSensitives,
                                            MegaRequestListener* listener = NULL);
+        MegaTimeStamp getRecentClearTimestamp();
+        MegaTimeStamp formatRecentClearTimestamp(string_map* records);
 
     public:
         void getRecentActionsAsync(unsigned days,
@@ -4342,6 +4344,8 @@ public:
                                    unsigned maxnodes,
                                    bool excludeSensitives,
                                    MegaRequestListener* listener = NULL);
+
+        void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
         MegaNodeList* search(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
 

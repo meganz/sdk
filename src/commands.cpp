@@ -4426,6 +4426,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     string s4, s4Version;
     string s4container, s4containerVersion;
     string devOpt, devOptVersion;
+    string rcts, rctsVersion;
 
     bool uspw = false;
     string userStorageLevel, versionUserStorageLevel;
@@ -4838,6 +4839,12 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("s4c"):
         {
             parseUserAttribute(json, s4container, s4containerVersion);
+            break;
+        }
+
+        case makeNameid("*!rcts"):
+        {
+            parseUserAttribute(json, rcts, rctsVersion);
             break;
         }
 
@@ -5294,6 +5301,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 else
                 {
                     LOG_debug << "[CommandGetUserData] userStorageLevel is empty";
+                    u->removeAttribute(ATTR_STORAGE_STATE);
                 }
 
                 if (!s4.empty() && !s4Version.empty())
@@ -5336,6 +5344,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 {
                     u->removeAttribute(ATTR_DEV_OPT);
                 }
+
+                changes |= updatePrivateEncryptedUserAttribute(u,
+                                                               rcts,
+                                                               rctsVersion,
+                                                               ATTR_RECENT_CLEAR_TIMESTAMP);
 
                 if (changes)
                 {

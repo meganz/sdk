@@ -174,9 +174,6 @@ public:
     // Whether this backup is monitoring or mirroring.
     SyncBackupState mBackupState;
 
-    // Prevent applying old settings dialog based exclusion when creating .megaignore, for newer syncs.  We set this true for new syncs or after upgrade.
-    bool mLegacyExclusionsIneligigble = true;
-
     // If the database exists then its running/suspended. Not serialized.
     bool mDatabaseExists = false;
 
@@ -1582,7 +1579,6 @@ public:
 
     string exportSyncConfigs(const SyncConfigVector configs) const;
     string exportSyncConfigs() const;
-    error createMegaignoreFromLegacyExclusions(const LocalPath& targetPath);
 
     void importSyncConfigs(const char* data, std::function<void(error)> completion);
 
@@ -1811,7 +1807,6 @@ public:
 
     // These rules are used to generate ignore files for newly added syncs.
     DefaultFilterChain mNewSyncFilterChain;
-    DefaultFilterChain mLegacyUpgradeFilterChain;
 
     // todo: move relevant code to this class later
     // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
@@ -2081,7 +2076,8 @@ private:
     // Check if the sync described by config contains an ignore file.
     bool hasIgnoreFile(const SyncConfig& config);
 
-    void confirmOrCreateDefaultMegaignore(bool transitionToMegaignore, unique_ptr<DefaultFilterChain>& resultIfDfc, unique_ptr<string_vector>& resultIfMegaignoreDefault);
+    void confirmOrCreateDefaultMegaignore(unique_ptr<DefaultFilterChain>& resultIfDfc,
+                                          unique_ptr<string_vector>& resultIfMegaignoreDefault);
 
     /**
      * @brief Handles how to deal with a sync whose remote root node has been moved or renamed

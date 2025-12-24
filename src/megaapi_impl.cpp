@@ -2535,6 +2535,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
     }
+    if (user->changed.recentClearTimestamp)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP;
+    }
     // Don't need to notify about user->changed.enableTestSurveys
 }
 
@@ -8612,6 +8616,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_PWM_BASE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
+        case ATTR_RECENT_CLEAR_TIMESTAMP:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
         case ATTR_DEV_OPT:
@@ -10686,48 +10691,29 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::setLegacyExcludedNames(vector<string> *excludedNames)
+void MegaApiImpl::setLegacyExcludedNames(vector<string>*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.excludedNames(
-      excludedNames ? *excludedNames : string_vector(), *client->fsaccess);
+    return;
 }
 
-void MegaApiImpl::setLegacyExcludedPaths(vector<string> *excludedPaths)
+void MegaApiImpl::setLegacyExcludedPaths(vector<string>*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.excludedPaths(
-      excludedPaths ? *excludedPaths : string_vector());
+    return;
 }
 
-void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.lowerLimit(limit);
+    return;
 }
 
-void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.upperLimit(limit);
+    return;
 }
 
-MegaError* MegaApiImpl::exportLegacyExclusionRules(const char* absolutePath)
+MegaError* MegaApiImpl::exportLegacyExclusionRules(const char*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    if (!absolutePath || !*absolutePath)
-    {
-        return new MegaErrorPrivate(API_EARGS);
-    }
-
-    auto lp = LocalPath::fromAbsolutePath(absolutePath);
-    auto result = client->syncs.createMegaignoreFromLegacyExclusions(lp);
-    return new MegaErrorPrivate(result);
+    return new MegaErrorPrivate(API_EINTERNAL);
 }
 
 long long MegaApiImpl::getNumLocalNodes()
@@ -16529,6 +16515,23 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
 
             return;
         }   // end of get+set
+
+        if (request->getParamType() == MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP)
+        {
+            MegaTimeStamp time = formatRecentClearTimestamp(&records);
+            if (MegaClient::isValidMegaTimeStamp(time))
+            {
+                std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, false));
+                request->setMegaStringMap(stringMap.get());
+                request->setNumber(time);
+            }
+            else
+            {
+                e = API_EINTERNAL;
+            }
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            return;
+        }
 
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
@@ -23920,67 +23923,13 @@ void MegaApiImpl::copySyncDataToCache(const char*,
     waiter->notify();
 }
 
-void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener* listener)
+void MegaApiImpl::copyCachedStatus(int, int, int, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS, listener);
-
-    if (blockStatus < 0) blockStatus = 999;
-    if (storageStatus < 0) storageStatus = 999;
-    if (businessStatus < 0) businessStatus = 999;
-    request->setNumber(storageStatus + 1000 * blockStatus + 1000000 * businessStatus);
-
-    request->performRequest = [this, request]()
-        {
-            auto number = request->getNumber();
-            int businessStatusValue = static_cast<int>(number / 1000000);
-            number = number % 1000000;
-            int blockedStatusValue =  static_cast<int>(number / 1000);
-            int storageStatusValue = static_cast<int>(number % 1000);
-
-            using CType = CacheableStatus::Type;
-            auto loadAndPersist = [this](CType type, int value) -> error
-            {
-                if (value == 999)
-                {
-                    LOG_verbose << "Ignoring not valid status in migration: " << CacheableStatus::typeToStr(type) << " = " << value;
-                    return API_OK; //received invalid value: not to be used
-                }
-
-                if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
-                {
-                    LOG_verbose << "Ignoring already present status in migration: " << CacheableStatus::typeToStr(type) << " = " << value
-                                << " existing = " << oldValue;
-                    return API_OK;
-                }
-
-                client->mCachedStatus.loadCachedStatus(type, value);
-                return API_OK;
-            };
-
-            error e = API_OK;
-            auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-            subE = loadAndPersist(CType::STATUS_BUSINESS, businessStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-            subE = loadAndPersist(CType::STATUS_BLOCKED, blockedStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-
-            if (!e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            }
-            return e;
-        };
-
+    request->performRequest = []()
+    {
+        return API_EINTERNAL;
+    };
     requestQueue.push(request);
     waiter->notify();
 }
@@ -26481,6 +26430,10 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
         m_time_t since = m_time() - days * 86400;
 
+        MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
+
+        since = std::max(since, sinceClearHistory);
+
         recentactions_vector v;
         if (withExcludeSensitives)
         {
@@ -26500,6 +26453,71 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP);
+    request->setNumber(until);
+
+    request->performRequest = [this, request]()
+    {
+        MegaTimeStamp time = request->getNumber();
+        if (!MegaClient::isValidMegaTimeStamp(time))
+        {
+            return API_EARGS;
+        }
+        MegaStringMapPrivate stringMap;
+        string key = "t";
+        auto b64 = Base64Str<sizeof(time)>(reinterpret_cast<void*>(&time));
+        stringMap.set(key.c_str(), (Base64::btoa(b64.chars)).c_str());
+        request->setMegaStringMap(&stringMap);
+
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaTimeStamp MegaApiImpl::getRecentClearTimestamp()
+{
+    mega::User* user = client->finduser(client->me);
+    if (user == nullptr)
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+
+    const UserAttribute* attr = user->getAttribute(ATTR_RECENT_CLEAR_TIMESTAMP);
+    if (attr == nullptr || attr->value().empty())
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+
+    std::unique_ptr<string_map> records{tlv::containerToRecords(attr->value(), client->key)};
+    if (!records || records->empty())
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+    return formatRecentClearTimestamp(records.get());
+}
+
+MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(string_map* records)
+{
+    MegaTimeStamp recentClearTimestamp = MEGA_INVALID_TIMESTAMP;
+    auto it = records->find("t");
+    if (it == records->end())
+    {
+        return recentClearTimestamp;
+    }
+    string value = Base64::atob(it->second);
+    if (value.size() != sizeof(recentClearTimestamp))
+    {
+        return recentClearTimestamp;
+    }
+    memcpy(&recentClearTimestamp, value.data(), sizeof(recentClearTimestamp));
+    return recentClearTimestamp;
 }
 
 #ifdef ENABLE_CHAT

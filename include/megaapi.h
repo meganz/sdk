@@ -2343,7 +2343,7 @@ class MegaUser
          */
         virtual int64_t getTimestamp();
 
-        enum
+        enum : uint64_t
         {
             CHANGE_TYPE_AUTHRING                    = 0x01,
             CHANGE_TYPE_LSTINT                      = 0x02,
@@ -2376,7 +2376,8 @@ class MegaUser
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
             CHANGE_APPS_PREFS                       = 0x40000000,
-            CHANGE_CC_PREFS                         = 0x80000000,
+            CHANGE_CC_PREFS = 0x80000000,
+            CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000ULL,
         };
 
         /**
@@ -2484,6 +2485,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
          * Check if content consumption prefs have changed
+         *
+         * - MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000
+         * Check if the timestamp for clearing recent actions history has changed
          *
          * @return true if this user has an specific change
          */
@@ -5537,6 +5541,8 @@ class MegaRequest
          * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          * - MegaApi::fetchAds - Returns a bitmap flag used to communicate with the API
          * - MegaApi::queryAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::clearRecentActionHistory - Returns the epoch time in seconds to set as the
+         * recent action history clear timestamp
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -10682,6 +10688,8 @@ class MegaApi
             USER_ATTR_S4 = 49, // private - non-encrypted - char array
             USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
             USER_ATTR_DEV_OPT = 51, // private - encrypted - byte array
+            USER_ATTR_RECENT_CLEAR_TIMESTAMP =
+                52, // private - encrypted - byte array - non-versioned
         };
 
         enum {
@@ -14071,10 +14079,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
-         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was
+         * USER_ATTR_DEVICE_NAMES
          *
-         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
-         * is obtained for the active account
+         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the
+         * attribute is obtained for the active account
          * @param type Attribute type
          *
          * Valid values are:
@@ -14147,7 +14156,8 @@ class MegaApi
          * Get last read notification (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Get last actioned banner (private)
-         *
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52 (private, encrypted)
+         * Get the epoch time (in seconds) used as the recent actions history clear timestamp.
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -17541,22 +17551,11 @@ class MegaApi
         MEGA_DEPRECATED
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from some account status cached in Apps into SDK cached values.
-         * This should be called before fetching nodes and copySyncDataToCache.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_CACHED_STATUS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumber - Returns storageStatus+1000*blockStatus+1000000*businessStatus
-         *
-         * @param storageStatus storage status. Pass 999 if not valid
-         * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
-         * @param businessStatus business status. Pass 999 if not valid
-         * @param listener MegaRequestListener to track this request
-         *
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
         /**
@@ -17702,75 +17701,33 @@ class MegaApi
         bool isSyncing();
 
         /**
-         * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Wildcards (* and ?) are allowed
-         *
-         * @param List of excluded file names
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed in future updates
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
-        void setLegacyExcludedNames(std::vector<std::string> *excludedNames);
+        MEGA_DEPRECATED
+        void setLegacyExcludedNames(std::vector<std::string>* excludedNames);
 
         /**
-         * @brief Inform the SDK of the exclusion paths used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Wildcards (* and ?) are allowed
-         *
-         * @param List of excluded paths
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed in future updates
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
-        void setLegacyExcludedPaths(std::vector<std::string> *excludedPaths);
+        MEGA_DEPRECATED
+        void setLegacyExcludedPaths(std::vector<std::string>* excludedPaths);
 
         /**
-         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Files with a size lower than this limit won't be synchronized
-         * To disable the limit, you can set it to 0
-         *
-         * If both limits are enabled and the lower one is greater than the upper one,
-         * only files between both limits will be excluded
-         *
-         * @param limit Lower limit for synchronized files
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Files with a size greater than this limit won't be synchronized
-         * To disable the limit, you can set it to 0
-         *
-         * If both limits are enabled and the lower one is greater than the upper one,
-         * only files between both limits will be excluded
-         *
-         * @param limit Upper limit for synchronized files
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Create a .megaignore file using legacy exclusion rules.
-         *
-         * Absolute paths included in the legacy rules will only be included
-         * if they are contained in the absolute path passed to the function.
-         *
-         * Ex:
-         * 1. Legacy excluded path: "/home/user/someSync/folder1*"
-         * 2. Param absolutePath: "/home/user/someSync"
-         * 3. Path "folder1*" will be included in the .megaignore created at "someSync".
-         *
-         * Possible return values for this function are:
-         * - MegaError::API_OK if the megaignore file was successfuly written.
-         * - MegaError::API_EARGS if absolutePath is empty or invalid.
-         * - MegaError::API_EACCESS if there was a problem writing the megaignore file.
-         * - MegaError::API_EEXIST if the megaignore file already exists.
-         *
-         * The caller takes ownership of the returned value.
-         *
-         * @param absolutePath Absolute path where the .megaignore file is going to be created.
-         * @return MegaError::API_OK if the file was created, otherwise it returns an error.
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         MegaError* exportLegacyExclusionRules(const char* absolutePath);
 
         /**
@@ -19690,6 +19647,28 @@ class MegaApi
                                    unsigned maxnodes,
                                    bool excludeSensitives,
                                    MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Clear the account’s recent actions history up to a given timestamp.
+         *
+         * This method clears the recent actions history on the account by setting a
+         * “recent clear” timestamp. All actions that occurred at or before the given
+         * timestamp are considered cleared.
+         *
+         * The associated request type for this operation is
+         * MegaRequest::TYPE_SET_ATTR_USER.
+         *
+         * Valid data available in the MegaRequest object received in callbacks:
+         * - MegaRequest::getParamType - Returns the user attribute type
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
+         * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
+         * actions history clear timestamp.
+         *
+         * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+         * @param listener  Optional MegaRequestListener to track this request.
+         */
+
+        void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
@@ -23730,7 +23709,8 @@ class MegaApi
          * @brief Delete a user attribute of the current user, for testing
          * This method is for developer use only and it requires to be logged-in into an
          * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
-         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by
+         * Webclient).
          *
          * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -23790,6 +23770,8 @@ class MegaApi
          * Delete name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52
+         * Delete the timestamp for recent actions history clearing (private, encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */

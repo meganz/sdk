@@ -434,6 +434,16 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %ignore mega::MegaHashSignature;
 %ignore mega::SynchronousRequestListener;
 %ignore mega::SynchronousTransferListener;
+%ignore mega::MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP;
+
+%extend mega::MegaUser {
+  %proxycode %{
+  /*
+  * Manually injected constants resolved the uint64_t overflow issue.
+  */
+  public final static long CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000L;
+  %}
+}
 
 %newobject mega::MegaError::copy;
 %newobject mega::MegaRequest::copy;

@@ -4285,6 +4285,11 @@ void MegaApi::getRecentActionsAsync(unsigned days,
     pImpl->getRecentActionsAsync(days, maxnodes, excludeSensitives, listener);
 }
 
+void MegaApi::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
+{
+    pImpl->clearRecentActionHistory(until, listener);
+}
+
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     return pImpl->processMegaTree(n, processor, recursive);
