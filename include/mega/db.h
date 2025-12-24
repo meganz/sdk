@@ -323,6 +323,7 @@ struct MEGA_API DbAccess
     static const int DB_VERSION;
     static const int LAST_DB_VERSION_WITHOUT_NOD;
     static const int LAST_DB_VERSION_WITHOUT_SRW;
+    static const int LAST_DB_VERSION_WITHOUT_VFINGERPRINT;
 
     DbAccess();
 
