@@ -3626,14 +3626,14 @@ SplitResult split(const std::string& value, char delimiter)
     return split(value.data(), value.size(), delimiter);
 }
 
+using CollatorPtr = std::unique_ptr<icu::Collator>;
+
 // Set up a collator for numeric (natural) sorting, so it behaves the same as
 // the web client collator instance Intl.Collator('co', {numeric: true}).
 // For reference, see the Google V8 engine function JSCollator::New in commit 3b9350b6fc0.
 // Use English locale on all platforms: such as avoid en_US_POSIX default locale on iOS.
 // UCOL_CASE_FIRST is decided by English locale which is UCOL_LOWER_FIRST
-using CollatorPtr = std::unique_ptr<icu::Collator>;
-
-static CollatorPtr createCollator()
+[[nodiscard]] static CollatorPtr createCollator()
 {
     UErrorCode ec = U_ZERO_ERROR;
     CollatorPtr collator{icu::Collator::createInstance(icu::Locale::getEnglish(), ec)};

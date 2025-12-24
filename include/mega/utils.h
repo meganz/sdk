@@ -1346,7 +1346,7 @@ SplitResult split(const std::string& value, char delimiter);
  *
  * @returns 0 if i == j, negative if i < j, otherwise positive
  */
-int naturalsorting_compare(const char* i, const char* j);
+[[nodiscard]] int naturalsorting_compare(const char* i, const char* j);
 
 /**
  * @brief Compares two utf8 strings using natural sorting
@@ -1360,7 +1360,7 @@ int naturalsorting_compare(const char* i, const char* j);
  *
  * @returns 0 if i == j, negative if i < j, otherwise positive
  */
-int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize);
+[[nodiscard]] int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize);
 
 /**
  * @class NaturalSortingComparator
