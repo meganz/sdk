@@ -1177,11 +1177,15 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
-                // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
-                // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
-                // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new
+                // SRW version. However, if there are db files from a previous SRW version (i.e.,
+                // the user downgraded from SRW to NO SRW and then upgraded again to SRW) we need
+                // to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this
+                // purpose. A similar case happens if user is upgrading from No Fingerprint virtual
+                // column in Nodes table to a newer version with this column.
                 int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
-                if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
+                    DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
                 {
                     dbFlags |= DB_OPEN_FLAG_RECYCLE;
                 }
@@ -5642,11 +5646,17 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
 
                     // Note, we opened dbaccess in thread-safe mode
 
-                    // If the user is upgrading from NO SRW to SRW, we rename the DB files to the new SRW version.
-                    // However, if there are db files from a previous SRW version (i.e., the user downgraded from SRW to NO SRW and then upgraded again to SRW)
-                    // we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is used for this purpose.
+                    // If the user is upgrading from NO SRW to SRW, we rename the DB files to the
+                    // new SRW version. However, if there are db files from a previous SRW version
+                    // (i.e., the user downgraded from SRW to NO SRW and then upgraded again to
+                    // SRW) we need to remove the SRW db files. The flag DB_OPEN_FLAG_RECYCLE is
+                    // used for this purpose. A similar case happens if user is upgrading from No
+                    // Fingerprint virtual column in Nodes table to a newer version with this
+                    // column.
                     int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
-                    if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW)
+                    if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
+                        DbAccess::LEGACY_DB_VERSION ==
+                            DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
                     {
                         dbFlags |= DB_OPEN_FLAG_RECYCLE;
                     }
