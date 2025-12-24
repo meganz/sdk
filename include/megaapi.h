@@ -17541,22 +17541,11 @@ class MegaApi
         MEGA_DEPRECATED
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from some account status cached in Apps into SDK cached values.
-         * This should be called before fetching nodes and copySyncDataToCache.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_CACHED_STATUS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumber - Returns storageStatus+1000*blockStatus+1000000*businessStatus
-         *
-         * @param storageStatus storage status. Pass 999 if not valid
-         * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
-         * @param businessStatus business status. Pass 999 if not valid
-         * @param listener MegaRequestListener to track this request
-         *
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
         /**
@@ -17702,75 +17691,33 @@ class MegaApi
         bool isSyncing();
 
         /**
-         * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Wildcards (* and ?) are allowed
-         *
-         * @param List of excluded file names
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed in future updates
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
-        void setLegacyExcludedNames(std::vector<std::string> *excludedNames);
+        MEGA_DEPRECATED
+        void setLegacyExcludedNames(std::vector<std::string>* excludedNames);
 
         /**
-         * @brief Inform the SDK of the exclusion paths used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Wildcards (* and ?) are allowed
-         *
-         * @param List of excluded paths
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed in future updates
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
-        void setLegacyExcludedPaths(std::vector<std::string> *excludedPaths);
+        MEGA_DEPRECATED
+        void setLegacyExcludedPaths(std::vector<std::string>* excludedPaths);
 
         /**
-         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Files with a size lower than this limit won't be synchronized
-         * To disable the limit, you can set it to 0
-         *
-         * If both limits are enabled and the lower one is greater than the upper one,
-         * only files between both limits will be excluded
-         *
-         * @param limit Lower limit for synchronized files
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Files with a size greater than this limit won't be synchronized
-         * To disable the limit, you can set it to 0
-         *
-         * If both limits are enabled and the lower one is greater than the upper one,
-         * only files between both limits will be excluded
-         *
-         * @param limit Upper limit for synchronized files
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Create a .megaignore file using legacy exclusion rules.
-         *
-         * Absolute paths included in the legacy rules will only be included
-         * if they are contained in the absolute path passed to the function.
-         *
-         * Ex:
-         * 1. Legacy excluded path: "/home/user/someSync/folder1*"
-         * 2. Param absolutePath: "/home/user/someSync"
-         * 3. Path "folder1*" will be included in the .megaignore created at "someSync".
-         *
-         * Possible return values for this function are:
-         * - MegaError::API_OK if the megaignore file was successfuly written.
-         * - MegaError::API_EARGS if absolutePath is empty or invalid.
-         * - MegaError::API_EACCESS if there was a problem writing the megaignore file.
-         * - MegaError::API_EEXIST if the megaignore file already exists.
-         *
-         * The caller takes ownership of the returned value.
-         *
-         * @param absolutePath Absolute path where the .megaignore file is going to be created.
-         * @return MegaError::API_OK if the file was created, otherwise it returns an error.
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         MegaError* exportLegacyExclusionRules(const char* absolutePath);
 
         /**

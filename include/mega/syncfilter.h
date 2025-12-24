@@ -64,14 +64,6 @@ public:
     // Returns false otherwise.
     bool create(const LocalPath& targetPath, bool appendName, FileSystemAccess& fsAccess, bool setSyncIgnoreFileFlag);
 
-    // Specify what names should be excluded.
-    //
-    // Wildcard patterns are valid.
-    void excludedNames(const string_vector& names, FileSystemAccess& fsAccess);
-
-    // Specify what paths should be excluded.
-    void excludedPaths(const string_vector& paths);
-
     // Specify that a given path should be excluded.
     void excludePath(const string& path);
 
