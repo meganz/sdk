@@ -2,13 +2,14 @@ apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
 android {
-    compileSdkVersion 36
-    buildToolsVersion '36.0.0'
- 
+    compileSdk 36
+
+    namespace 'nz.mega.android.bindingsample'
+
     defaultConfig {
         applicationId "nz.mega.android.bindingsample"
-        minSdkVersion 28
-        targetSdkVersion 36
+        minSdk 28
+        targetSdk 36
         versionCode 1
         versionName "1.0"
     }
@@ -18,8 +19,8 @@ android {
             srcDirs += '../../../../bindings/java/nz/mega/sdk'
             exclude '**/MegaApiSwing.java'
         }
-        jni.srcDirs = [] //disable automatic ndk-build
-        jniLibs.srcDir 'src/main/jniLibs' // This is not necessary unless you have precompiled libraries in your project.
+        jni.srcDirs = []
+        jniLibs.srcDir 'src/main/jniLibs'
     }
 
     buildTypes {
@@ -37,8 +38,6 @@ android {
     kotlinOptions {
         jvmTarget = "21"
     }
-
-    namespace 'nz.mega.android.bindingsample'
 }
 
 kotlin {
