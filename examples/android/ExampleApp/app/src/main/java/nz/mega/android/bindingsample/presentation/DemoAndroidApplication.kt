@@ -23,6 +23,7 @@ package nz.mega.android.bindingsample.presentation
 import android.app.Application
 import android.content.pm.PackageInfo
 import android.content.pm.PackageManager.NameNotFoundException
+import nz.mega.android.bindingsample.data.SdkRepository
 import nz.mega.android.bindingsample.util.AndroidLogger
 import nz.mega.sdk.MegaApiAndroid
 
@@ -40,6 +41,10 @@ class DemoAndroidApplication : Application() {
 
         MegaApiAndroid.addLoggerObject(AndroidLogger())
         MegaApiAndroid.setLogLevel(MegaApiAndroid.LOG_LEVEL_MAX)
+
+        // Initialize SdkRepository with MegaApi instance
+        val api = getMegaApi()
+        SdkRepository.initialize(api)
     }
 
     fun getMegaApi(): MegaApiAndroid {
