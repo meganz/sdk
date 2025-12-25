@@ -1,6 +1,6 @@
 /**
  * MainActivityViewModel.kt
- * ViewModel for MainActivity2 to manage login state and business logic
+ * ViewModel for MainActivity to manage login state and business logic
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *

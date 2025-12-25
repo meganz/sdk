@@ -32,7 +32,6 @@ import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
 import nz.mega.android.bindingsample.BrowserListAdapter
-import nz.mega.android.bindingsample.MainActivityOld
 import nz.mega.android.bindingsample.R
 import nz.mega.sdk.MegaApiAndroid
 import nz.mega.sdk.MegaApiJava
@@ -175,7 +174,7 @@ class NavigationActivity : Activity(), OnItemClickListener, MegaRequestListenerI
         if (request.type == MegaRequest.TYPE_LOGOUT) {
             if (e.errorCode == MegaError.API_OK) {
                 Toast.makeText(this, resources.getString(R.string.logout_success), Toast.LENGTH_LONG).show()
-                val intent = Intent(this, MainActivityOld::class.java)
+                val intent = Intent(this, MainActivity::class.java)
                 intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
                 startActivity(intent)
                 finish()

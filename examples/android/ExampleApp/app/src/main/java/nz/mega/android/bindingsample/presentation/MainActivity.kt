@@ -1,5 +1,5 @@
 /**
- * MainActivity2.kt
+ * MainActivity.kt
  * Initial activity of the demo app
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
@@ -37,7 +37,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
-class MainActivity2 : ComponentActivity() {
+class MainActivity : ComponentActivity() {
 
     private val viewModel: MainActivityViewModel by viewModels()
 
@@ -49,14 +49,14 @@ class MainActivity2 : ComponentActivity() {
             // Handle navigation when login is successful
             LaunchedEffect(uiState) {
                 if (uiState is LoginUiState.Success) {
-                    val intent = Intent(this@MainActivity2, NavigationActivity::class.java)
+                    val intent = Intent(this@MainActivity, NavigationActivity::class.java)
                     intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
                     startActivity(intent)
                     finish()
                 }
             }
 
-            MainActivity2Theme {
+            MainActivityTheme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
                 ) { paddingValues ->
@@ -89,7 +89,7 @@ class MainActivity2 : ComponentActivity() {
 
 
 @Composable
-fun MainActivity2Theme(content: @Composable () -> Unit) {
+fun MainActivityTheme(content: @Composable () -> Unit) {
     MaterialTheme {
         content()
     }
