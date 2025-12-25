@@ -25,6 +25,7 @@
         android:layout_height="wrap_content"
         android:hint="@string/email_text"
         android:imeOptions="actionNext"
+        android:text="rsh+21@mega.co.nz"
         android:layout_gravity="center" />		
     
     <EditText
