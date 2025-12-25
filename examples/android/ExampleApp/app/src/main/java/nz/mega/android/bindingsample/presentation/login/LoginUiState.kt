@@ -20,8 +20,6 @@
  */
 package nz.mega.android.bindingsample.presentation.login
 
-const val DEFAULT_EMAIL = "rsh+21@mega.co.nz"
-
 /**
  * Sealed interface representing different states of the login UI.
  * Each state represents a specific phase of the login process.
@@ -35,7 +33,7 @@ sealed interface LoginUiState {
      * Form fields are visible and editable.
      */
     data class Initial(
-        override val email: String = DEFAULT_EMAIL,
+        override val email: String = "",
         override val password: String = "",
         val emailError: String? = null,
         val passwordError: String? = null

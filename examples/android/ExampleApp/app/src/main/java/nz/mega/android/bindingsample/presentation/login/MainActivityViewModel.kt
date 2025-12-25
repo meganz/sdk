@@ -256,7 +256,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     fun resetState() {
         _uiState.value = LoginUiState.Initial(
-            email = DEFAULT_EMAIL,
+            email = "",
             password = "",
             emailError = null,
             passwordError = null
