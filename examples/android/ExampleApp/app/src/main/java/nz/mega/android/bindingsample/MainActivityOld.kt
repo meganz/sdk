@@ -32,6 +32,8 @@ import android.widget.EditText
 import android.widget.ProgressBar
 import android.widget.TextView
 import android.widget.Toast
+import nz.mega.android.bindingsample.presentation.DemoAndroidApplication
+import nz.mega.android.bindingsample.presentation.NavigationActivity
 import nz.mega.sdk.MegaApiAndroid
 import nz.mega.sdk.MegaApiJava
 import nz.mega.sdk.MegaError

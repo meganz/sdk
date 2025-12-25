@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample
+package nz.mega.android.bindingsample.presentation
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -36,7 +36,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 
 class MainActivity2 : ComponentActivity() {
-    
+
     private val viewModel: MainActivityViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -59,7 +59,6 @@ class MainActivity2 : ComponentActivity() {
                             password = uiState.password,
                             emailError = uiState.emailError,
                             passwordError = uiState.passwordError,
-                            titleText = uiState.titleText,
                             showProgressBar = uiState.showProgressBar,
                             showFormFields = uiState.showFormFields,
                             onEmailChange = { viewModel.updateEmail(it) },

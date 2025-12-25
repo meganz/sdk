@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample
+package nz.mega.android.bindingsample.presentation
 
 import android.app.Activity
 import android.content.Intent
@@ -31,6 +31,9 @@ import android.widget.AdapterView.OnItemClickListener
 import android.widget.ListView
 import android.widget.TextView
 import android.widget.Toast
+import nz.mega.android.bindingsample.BrowserListAdapter
+import nz.mega.android.bindingsample.MainActivityOld
+import nz.mega.android.bindingsample.R
 import nz.mega.sdk.MegaApiAndroid
 import nz.mega.sdk.MegaApiJava
 import nz.mega.sdk.MegaError

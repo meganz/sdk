@@ -1,6 +1,11 @@
+package nz.mega.android.bindingsample.util
+
+import android.util.Log
+import nz.mega.sdk.MegaLoggerInterface
+
 /**
- * LoginUiState.kt
- * UI state data class for login screen
+ * AndroidLogger.kt
+ * Class for managing logs
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -18,16 +23,8 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample
-
-data class LoginUiState(
-    val email: String = "rsh+21@mega.co.nz",
-    val password: String = "",
-    val titleText: String = "",
-    val showProgressBar: Boolean = false,
-    val showFormFields: Boolean = true,
-    val emailError: String? = null,
-    val passwordError: String? = null,
-    val isLoading: Boolean = false
-)
-
+class AndroidLogger : MegaLoggerInterface {
+    override fun log(time: String, logLevel: Int, source: String, message: String) {
+        Log.d("AndroidLogger", "$source: $message")
+    }
+}

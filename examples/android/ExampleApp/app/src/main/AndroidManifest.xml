@@ -5,7 +5,7 @@
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
     <application
-        android:name="DemoAndroidApplication"
+        android:name=".presentation.DemoAndroidApplication"
         android:allowBackup="false"
         android:icon="@drawable/ic_launcher"
         android:extractNativeLibs="true"
@@ -16,7 +16,7 @@
         </activity>
 
         <activity
-            android:name="nz.mega.android.bindingsample.MainActivity2"
+            android:name="nz.mega.android.bindingsample.presentation.MainActivity2"
             android:exported="true">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -26,7 +26,7 @@
         </activity>
 
         <activity
-            android:name="nz.mega.android.bindingsample.NavigationActivity"
+            android:name="nz.mega.android.bindingsample.presentation.NavigationActivity"
             android:launchMode="singleTop"
             android:configChanges="orientation|screenSize"
             android:windowSoftInputMode="stateHidden" >

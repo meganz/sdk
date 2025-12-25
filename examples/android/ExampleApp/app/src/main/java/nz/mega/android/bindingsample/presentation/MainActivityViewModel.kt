@@ -18,27 +18,29 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample
+package nz.mega.android.bindingsample.presentation
 
 import android.app.Application
+import android.util.Patterns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import nz.mega.android.bindingsample.R
+import nz.mega.sdk.MegaApiAndroid
 
 class MainActivityViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow(LoginUiState())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
-    private var megaApi: nz.mega.sdk.MegaApiAndroid? = null
+    private var megaApi: MegaApiAndroid? = null
 
     init {
         val app = application as? DemoAndroidApplication
         megaApi = app?.getMegaApi()
-        updateTitleText(getApplication<Application>().getString(R.string.login_text))
     }
 
     fun updateEmail(email: String) {
@@ -53,10 +55,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
             password = password,
             passwordError = null
         )
-    }
-
-    fun updateTitleText(text: String) {
-        _uiState.value = _uiState.value.copy(titleText = text)
     }
 
     fun setShowProgressBar(show: Boolean) {
@@ -75,7 +73,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         val context = getApplication<Application>()
         return when {
             email.isEmpty() -> context.getString(R.string.error_enter_email)
-            !android.util.Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
+            !Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
                 context.getString(R.string.error_invalid_email)
             else -> null
         }
@@ -116,7 +114,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = currentState.copy(
             showFormFields = false,
             isLoading = true,
-            titleText = getApplication<Application>().getString(R.string.logging_in)
         )
 
         // Perform login
@@ -144,7 +141,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = _uiState.value.copy(
             showFormFields = true,
             isLoading = false,
-            titleText = context.getString(R.string.login_text)
         )
     }
 
@@ -156,7 +152,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     fun handleFetchNodesStart() {
         val context = getApplication<Application>()
         _uiState.value = _uiState.value.copy(
-            titleText = context.getString(R.string.fetching_nodes),
             showProgressBar = true
         )
     }
@@ -175,7 +170,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
                 showFormFields = true,
                 isLoading = false,
                 showProgressBar = false,
-                titleText = context.getString(R.string.login_text)
             )
         }
     }
@@ -185,7 +179,6 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         _uiState.value = LoginUiState(
             email = "rsh+21@mega.co.nz",
             password = "",
-            titleText = context.getString(R.string.login_text),
             showProgressBar = false,
             showFormFields = true
         )

@@ -18,13 +18,12 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample
+package nz.mega.android.bindingsample.presentation
 
 import android.app.Application
 import android.content.pm.PackageInfo
-import android.content.pm.PackageManager
 import android.content.pm.PackageManager.NameNotFoundException
-import android.util.Log
+import nz.mega.android.bindingsample.util.AndroidLogger
 import nz.mega.sdk.MegaApiAndroid
 
 class DemoAndroidApplication : Application() {
