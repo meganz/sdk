@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample.presentation
+package nz.mega.android.bindingsample.presentation.login
 
 import android.content.Intent
 import android.os.Bundle
@@ -36,6 +36,7 @@ import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import nz.mega.android.bindingsample.presentation.browswer.NavigationActivity
 
 class MainActivity : ComponentActivity() {
 

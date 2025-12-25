@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample.presentation
+package nz.mega.android.bindingsample.presentation.browswer
 
 import android.app.Application
 import android.content.Context
@@ -63,7 +63,7 @@ class NavigationViewModel(application: Application) : AndroidViewModel(applicati
 
                 val children = SdkRepository.getChildren(parentNode)
                 val parentName = if (parentNode.type == MegaNode.TYPE_ROOT) {
-                    getApplication<Application>().getString(nz.mega.android.bindingsample.R.string.cloud_drive)
+                    getApplication<Application>().getString(R.string.cloud_drive)
                 } else {
                     parentNode.name
                 }

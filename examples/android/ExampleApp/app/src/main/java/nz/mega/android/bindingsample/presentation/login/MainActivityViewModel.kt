@@ -1,3 +1,21 @@
+package nz.mega.android.bindingsample.presentation.login
+
+import android.app.Application
+import android.util.Log
+import android.util.Patterns
+import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
+import nz.mega.android.bindingsample.DemoAndroidApplication
+import nz.mega.android.bindingsample.R
+import nz.mega.android.bindingsample.data.FetchNodesResult
+import nz.mega.android.bindingsample.data.LoginResult
+import nz.mega.android.bindingsample.data.SdkRepository
+import nz.mega.sdk.MegaApiAndroid
+
 /**
  * MainActivityViewModel.kt
  * ViewModel for MainActivity to manage login state and business logic
@@ -18,23 +36,6 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample.presentation
-
-import android.app.Application
-import android.util.Log
-import android.util.Patterns
-import androidx.lifecycle.AndroidViewModel
-import androidx.lifecycle.viewModelScope
-import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
-import kotlinx.coroutines.launch
-import nz.mega.android.bindingsample.R
-import nz.mega.android.bindingsample.data.FetchNodesResult
-import nz.mega.android.bindingsample.data.LoginResult
-import nz.mega.android.bindingsample.data.SdkRepository
-import nz.mega.sdk.MegaApiAndroid
-
 class MainActivityViewModel(application: Application) : AndroidViewModel(application) {
 
     private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Initial())
@@ -211,7 +212,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
             email = email,
             progress = 0.0f
         )
-        
+
         // Start fetching nodes
         viewModelScope.launch {
             SdkRepository.fetchNodes().collect { result ->
@@ -262,5 +263,3 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         )
     }
 }
-
-

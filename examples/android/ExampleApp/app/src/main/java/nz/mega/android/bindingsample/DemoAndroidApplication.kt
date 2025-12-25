@@ -1,3 +1,12 @@
+package nz.mega.android.bindingsample
+
+import android.app.Application
+import android.content.pm.PackageInfo
+import android.content.pm.PackageManager
+import nz.mega.android.bindingsample.data.SdkRepository
+import nz.mega.android.bindingsample.logger.AndroidLogger
+import nz.mega.sdk.MegaApiAndroid
+
 /**
  * DemoAndroidApplication.kt
  * Application class
@@ -18,22 +27,13 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample.presentation
-
-import android.app.Application
-import android.content.pm.PackageInfo
-import android.content.pm.PackageManager.NameNotFoundException
-import nz.mega.android.bindingsample.data.SdkRepository
-import nz.mega.android.bindingsample.util.AndroidLogger
-import nz.mega.sdk.MegaApiAndroid
-
 class DemoAndroidApplication : Application() {
 
     private var megaApi: MegaApiAndroid? = null
 
     companion object {
         const val APP_KEY = "l4cmkI7B"
-        const val USER_AGENT = "MEGA Androd Simple Demo SDK"
+        const val USER_AGENT = "MEGA Android Simple Demo SDK"
     }
 
     override fun onCreate() {
@@ -55,7 +55,7 @@ class DemoAndroidApplication : Application() {
             try {
                 val p: PackageInfo = m.getPackageInfo(s, 0)
                 path = p.applicationInfo?.dataDir?.let { "$it/" }
-            } catch (e: NameNotFoundException) {
+            } catch (e: PackageManager.NameNotFoundException) {
                 e.printStackTrace()
             }
 
@@ -65,4 +65,3 @@ class DemoAndroidApplication : Application() {
         return megaApi!!
     }
 }
-

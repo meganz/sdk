@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample.presentation
+package nz.mega.android.bindingsample.presentation.browswer
 
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize

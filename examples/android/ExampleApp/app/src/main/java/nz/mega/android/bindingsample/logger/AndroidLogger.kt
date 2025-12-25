@@ -1,4 +1,4 @@
-package nz.mega.android.bindingsample.util
+package nz.mega.android.bindingsample.logger
 
 import android.util.Log
 import nz.mega.sdk.MegaLoggerInterface

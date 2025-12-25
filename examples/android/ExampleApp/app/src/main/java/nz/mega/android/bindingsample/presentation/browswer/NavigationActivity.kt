@@ -18,7 +18,7 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample.presentation
+package nz.mega.android.bindingsample.presentation.browswer
 
 import android.content.Intent
 import android.os.Bundle
@@ -30,9 +30,9 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.activity.compose.BackHandler
-import nz.mega.android.bindingsample.R
+import androidx.compose.material3.MaterialTheme
+import nz.mega.android.bindingsample.presentation.login.MainActivity
 import nz.mega.sdk.MegaApiAndroid
-import nz.mega.sdk.MegaNode
 
 class NavigationActivity : ComponentActivity() {
 
@@ -109,7 +109,7 @@ class NavigationActivity : ComponentActivity() {
 
 @Composable
 fun NavigationActivityTheme(content: @Composable () -> Unit) {
-    androidx.compose.material3.MaterialTheme {
+    MaterialTheme {
         content()
     }
 }
