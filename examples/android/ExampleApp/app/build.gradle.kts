@@ -1,6 +1,7 @@
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
+    alias(libs.plugins.compose.compiler)
 }
 
 android {
@@ -40,6 +41,10 @@ android {
     kotlinOptions {
         jvmTarget = "21"
     }
+
+    buildFeatures {
+        compose = true
+    }
 }
 
 kotlin {
@@ -51,5 +56,21 @@ dependencies {
     implementation(libs.appcompat)
     implementation(libs.exifinterface)
     implementation(libs.jetbrains.annotations)
+
+    // Compose BOM
+    implementation(platform(libs.compose.bom))
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.activity)
+
+    // ViewModel
+    implementation(libs.lifecycle.viewmodel.ktx)
+    implementation(libs.lifecycle.viewmodel.compose)
+    implementation(libs.lifecycle.runtime.ktx)
+    implementation(libs.lifecycle.runtime.compose)
+
+    // Debug tooling
+    debugImplementation(libs.compose.ui.tooling)
 }
 

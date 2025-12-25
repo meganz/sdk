@@ -1,6 +1,6 @@
 /**
- * MainActivity.kt
- * Initial activity of the demo app
+ * MainActivityOld.kt
+ * Initial activity of the demo app (legacy version)
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -39,7 +39,7 @@ import nz.mega.sdk.MegaRequest
 import nz.mega.sdk.MegaRequestListenerInterface
 import java.util.Locale
 
-class MainActivity : Activity(), OnClickListener, MegaRequestListenerInterface {
+class MainActivityOld : Activity(), OnClickListener, MegaRequestListenerInterface {
 
     private lateinit var title: TextView
     private lateinit var loginText: EditText
@@ -227,7 +227,7 @@ class MainActivity : Activity(), OnClickListener, MegaRequestListenerInterface {
 
     companion object {
         fun log(message: String) {
-            MegaApiAndroid.log(MegaApiAndroid.LOG_LEVEL_INFO, message, "MainActivity")
+            MegaApiAndroid.log(MegaApiAndroid.LOG_LEVEL_INFO, message, "MainActivityOld")
         }
     }
 }
