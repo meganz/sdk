@@ -236,6 +236,18 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
                         }
                         _uiState.value = LoginUiState.Success(email = email)
                     }
+                    is FetchNodesResult.Error -> {
+                        val currentState = _uiState.value
+                        val email = when (currentState) {
+                            is LoginUiState.FetchingNodes -> currentState.email
+                            else -> ""
+                        }
+                        _uiState.value = LoginUiState.Error(
+                            email = email,
+                            password = "",
+                            errorMessage = result.errorMessage
+                        )
+                    }
                 }
             }
         }

@@ -25,9 +25,11 @@ import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.withContext
 import nz.mega.sdk.MegaApiAndroid
 import nz.mega.sdk.MegaApiJava
 import nz.mega.sdk.MegaError
+import nz.mega.sdk.MegaNode
 import nz.mega.sdk.MegaRequest
 import nz.mega.sdk.MegaRequestListenerInterface
 
@@ -64,9 +66,15 @@ sealed interface FetchNodesResult {
     data class Progressing(val progressValue: Float) : FetchNodesResult
 
     /**
-     * Fetch nodes operation completed
+     * Fetch nodes operation completed successfully
      */
     data object Completed : FetchNodesResult
+
+    /**
+     * Fetch nodes operation failed
+     * @param errorMessage Error message describing the failure
+     */
+    data class Error(val errorMessage: String) : FetchNodesResult
 }
 
 
@@ -75,6 +83,7 @@ sealed interface FetchNodesResult {
  * This abstracts the SDK implementation details from the ViewModel layer.
  */
 object SdkRepository {
+    @Volatile
     private var megaApi: MegaApiAndroid? = null
 
     /**
@@ -178,6 +187,9 @@ object SdkRepository {
                 if (request.type == MegaRequest.TYPE_FETCH_NODES) {
                     if (e.errorCode == MegaError.API_OK) {
                         trySend(FetchNodesResult.Completed)
+                    } else {
+                        val errorMessage = e.errorString ?: "Failed to fetch nodes"
+                        trySend(FetchNodesResult.Error(errorMessage))
                     }
                     close()
                 }
@@ -198,4 +210,56 @@ object SdkRepository {
             // Cleanup if needed
         }
     }.flowOn(Dispatchers.IO)
+
+    /**
+     * Helper function to execute SDK operations on IO dispatcher.
+     * Ensures the API is initialized before executing the operation.
+     */
+    private suspend fun <T> executeOnIo(operation: (MegaApiAndroid) -> T): T? = withContext(Dispatchers.IO) {
+        val api = megaApi ?: return@withContext null
+        operation(api)
+    }
+
+    /**
+     * Get a node by its handle.
+     * @param handle The handle of the node to retrieve
+     * @return The MegaNode if found, null if not found or if API is not initialized
+     *
+     * This method runs on a worker thread (IO dispatcher) to avoid blocking the main thread.
+     */
+    suspend fun getNodeByHandle(handle: Long): MegaNode? = executeOnIo { api ->
+        api.getNodeByHandle(handle)
+    }
+
+    /**
+     * Get the root node of the MEGA account.
+     * @return The root MegaNode, or null if not available or if API is not initialized
+     *
+     * This method runs on a worker thread (IO dispatcher) to avoid blocking the main thread.
+     */
+    suspend fun getRootNode(): MegaNode? = executeOnIo { api ->
+        api.getRootNode()
+    }
+
+    /**
+     * Get the children of a node.
+     * @param node The parent node
+     * @return List of child MegaNodes, or null if the node is null, not available, or if API is not initialized
+     *
+     * This method runs on a worker thread (IO dispatcher) to avoid blocking the main thread.
+     */
+    suspend fun getChildren(node: MegaNode?): ArrayList<MegaNode>? = executeOnIo { api ->
+        node?.let { api.getChildren(it) }
+    }
+
+    /**
+     * Get the parent node of a given node.
+     * @param node The child node
+     * @return The parent MegaNode, or null if the node is root, null, or if API is not initialized
+     *
+     * This method runs on a worker thread (IO dispatcher) to avoid blocking the main thread.
+     */
+    suspend fun getParentNode(node: MegaNode?): MegaNode? = executeOnIo { api ->
+        node?.let { api.getParentNode(it) }
+    }
 }

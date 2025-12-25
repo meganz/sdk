@@ -69,9 +69,9 @@ class NavigationActivity : Activity(), OnItemClickListener, MegaRequestListenerI
             parentHandle = savedInstanceState.getLong("parentHandle")
         }
 
-        var parentNode = megaApi?.getNodeByHandle(parentHandle)
+        var parentNode = megaApi.getNodeByHandle(parentHandle)
         if (parentNode == null) {
-            parentNode = megaApi?.getRootNode()
+            parentNode = megaApi.getRootNode()
             title = getString(R.string.cloud_drive)
         } else {
             title = parentNode.name
