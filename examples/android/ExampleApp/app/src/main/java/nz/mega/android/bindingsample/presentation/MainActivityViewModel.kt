@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import nz.mega.android.bindingsample.R
+import nz.mega.android.bindingsample.data.FetchNodesResult
 import nz.mega.android.bindingsample.data.LoginResult
 import nz.mega.android.bindingsample.data.SdkRepository
 import nz.mega.sdk.MegaApiAndroid
@@ -148,7 +149,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         return emailError == null && passwordError == null
     }
 
-    fun onLoginClick(onLoginSuccess: () -> Unit = {}) {
+    fun onLoginClick() {
         if (!validateForm()) {
             return
         }
@@ -178,12 +179,12 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         // Perform login
         viewModelScope.launch {
             SdkRepository.login(email, password).collect { result ->
-                when {
-                    result is LoginResult.LoginSuccess -> {
+                when (result) {
+                    is LoginResult.LoginSuccess -> {
                         handleLoginSuccess()
                     }
 
-                    result is LoginResult.LoginFailure -> {
+                    is LoginResult.LoginFailure -> {
                         handleLoginError(result.errorMessage, email, password)
                     }
                 }
@@ -201,47 +202,42 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun handleLoginSuccess() {
-        val currentState = _uiState.value
-        val email = when (currentState) {
+        val email = when (val currentState = _uiState.value) {
             is LoginUiState.LoggingIn -> currentState.email
             else -> ""
         }
         // Transition to FetchingNodes state
-        _uiState.value = LoginUiState.FetchingNodes(email = email)
-    }
-
-    fun handleFetchNodesStart() {
-        val currentState = _uiState.value
-        val email = when (currentState) {
-            is LoginUiState.LoggingIn -> currentState.email
-            is LoginUiState.FetchingNodes -> currentState.email
-            else -> ""
-        }
-        _uiState.value = LoginUiState.FetchingNodes(email = email)
-    }
-
-    fun handleFetchNodesProgress(progress: Int) {
-        // Update progress if needed
-        // The progress bar visibility is already handled by the FetchingNodes state
-    }
-
-    fun handleFetchNodesComplete(success: Boolean) {
-        val currentState = _uiState.value
-        val email = when (currentState) {
-            is LoginUiState.FetchingNodes -> currentState.email
-            else -> ""
-        }
-
-        if (success) {
-            _uiState.value = LoginUiState.Success(email = email)
-        } else {
-            // If fetching nodes failed, go back to Initial state
-            _uiState.value = LoginUiState.Initial(
-                email = email,
-                password = "",
-                emailError = null,
-                passwordError = null
-            )
+        _uiState.value = LoginUiState.FetchingNodes(
+            email = email,
+            progress = 0.0f
+        )
+        
+        // Start fetching nodes
+        viewModelScope.launch {
+            SdkRepository.fetchNodes().collect { result ->
+                when (result) {
+                    is FetchNodesResult.Started -> {
+                        val currentState = _uiState.value
+                        if (currentState is LoginUiState.FetchingNodes) {
+                            _uiState.value = currentState.copy(progress = 0.0f)
+                        }
+                    }
+                    is FetchNodesResult.Progressing -> {
+                        val currentState = _uiState.value
+                        if (currentState is LoginUiState.FetchingNodes) {
+                            _uiState.value = currentState.copy(progress = result.progressValue)
+                        }
+                    }
+                    is FetchNodesResult.Completed -> {
+                        val currentState = _uiState.value
+                        val email = when (currentState) {
+                            is LoginUiState.FetchingNodes -> currentState.email
+                            else -> ""
+                        }
+                        _uiState.value = LoginUiState.Success(email = email)
+                    }
+                }
+            }
         }
     }
 

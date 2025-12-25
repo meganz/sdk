@@ -27,13 +27,16 @@ const val DEFAULT_EMAIL = "rsh+21@mega.co.nz"
  * Each state represents a specific phase of the login process.
  */
 sealed interface LoginUiState {
+    val email: String?
+    val password: String?
+
     /**
      * Initial state - user can input credentials.
      * Form fields are visible and editable.
      */
     data class Initial(
-        val email: String = DEFAULT_EMAIL,
-        val password: String = "",
+        override val email: String = DEFAULT_EMAIL,
+        override val password: String = "",
         val emailError: String? = null,
         val passwordError: String? = null
     ) : LoginUiState
@@ -43,16 +46,19 @@ sealed interface LoginUiState {
      * Form fields are hidden, loading indicator is shown.
      */
     data class LoggingIn(
-        val email: String,
-        val password: String
+        override val email: String,
+        override val password: String
     ) : LoginUiState
 
     /**
      * Fetching nodes state - nodes are being fetched after successful login.
      * Progress bar is visible.
+     * @param progress Progress value between 0.0f and 1.0f
      */
     data class FetchingNodes(
-        val email: String
+        override val email: String = "",
+        override val password: String = "",
+        val progress: Float = 0.0f
     ) : LoginUiState
 
     /**
@@ -60,8 +66,8 @@ sealed interface LoginUiState {
      * Form fields are visible with error message displayed.
      */
     data class Error(
-        val email: String,
-        val password: String,
+        override val email: String = "",
+        override val password: String = "",
         val errorMessage: String
     ) : LoginUiState
 
@@ -70,7 +76,8 @@ sealed interface LoginUiState {
      * Navigation should be triggered from the Composable.
      */
     data class Success(
-        val email: String
+        override val email: String = "",
+        override val password: String = "",
     ) : LoginUiState
 }
 

@@ -20,6 +20,8 @@
  */
 package nz.mega.android.bindingsample.presentation
 
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxSize
@@ -31,6 +33,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -124,8 +127,22 @@ fun LoginScreen(
             }
 
             is LoginUiState.FetchingNodes -> {
-                // ProgressBar equivalent
+                // Animated progress bar showing actual progress
+                val animatedProgress by animateFloatAsState(
+                    targetValue = uiState.progress,
+                    animationSpec = tween(durationMillis = 300),
+                    label = "progress_animation"
+                )
+                
+                Text(
+                    text = stringResource(R.string.logging_in),
+                    fontSize = 28.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+                
                 LinearProgressIndicator(
+                    progress = { animatedProgress },
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(top = 10.dp)
@@ -207,7 +224,10 @@ fun LoginScreenPreview() {
 fun LoginScreenLoadingPreview() {
     MaterialTheme {
         LoginScreen(
-            uiState = LoginUiState.FetchingNodes(email = "test@example.com")
+            uiState = LoginUiState.FetchingNodes(
+                email = "test@example.com",
+                progress = 0.5f
+            )
         )
     }
 }
