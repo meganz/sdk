@@ -77,6 +77,22 @@ sealed interface FetchNodesResult {
     data class Error(val errorMessage: String) : FetchNodesResult
 }
 
+/**
+ * Sealed interface for logout operation results
+ */
+sealed interface LogoutResult {
+    /**
+     * Logout successful result
+     */
+    data object LogoutSuccess : LogoutResult
+
+    /**
+     * Logout failure result
+     * @param errorMessage Error message describing the failure
+     */
+    data class LogoutFailure(val errorMessage: String) : LogoutResult
+}
+
 
 /**
  * Singleton repository class that provides a clean interface to MEGA SDK operations.
@@ -262,4 +278,55 @@ object SdkRepository {
     suspend fun getParentNode(node: MegaNode?): MegaNode? = executeOnIo { api ->
         node?.let { api.getParentNode(it) }
     }
+
+    /**
+     * Logout from MEGA account
+     * @return Flow of LogoutResult (LogoutSuccess or LogoutFailure)
+     *
+     * This method ensures all SDK operations run on a worker thread (IO dispatcher)
+     * to avoid blocking the main thread.
+     */
+    fun logout(): Flow<LogoutResult> = callbackFlow {
+        val api = megaApi ?: run {
+            trySend(LogoutResult.LogoutFailure("MegaApi not initialized"))
+            close()
+            return@callbackFlow
+        }
+
+        val listener = object : MegaRequestListenerInterface {
+            override fun onRequestStart(api: MegaApiJava, request: MegaRequest) {
+                // Logout started - no action needed
+            }
+
+            override fun onRequestUpdate(api: MegaApiJava, request: MegaRequest) {
+                // Logout doesn't have progress updates
+            }
+
+            override fun onRequestFinish(api: MegaApiJava, request: MegaRequest, e: MegaError) {
+                if (request.type == MegaRequest.TYPE_LOGOUT) {
+                    if (e.errorCode == MegaError.API_OK) {
+                        trySend(LogoutResult.LogoutSuccess)
+                    } else {
+                        val errorMessage = e.errorString ?: "Logout failed"
+                        trySend(LogoutResult.LogoutFailure(errorMessage))
+                    }
+                    close()
+                }
+            }
+
+            override fun onRequestTemporaryError(
+                api: MegaApiJava,
+                request: MegaRequest,
+                e: MegaError
+            ) {
+                // Handle temporary errors if needed
+            }
+        }
+
+        api.logout(listener)
+
+        awaitClose {
+            // Cleanup if needed
+        }
+    }.flowOn(Dispatchers.IO)
 }
