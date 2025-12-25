@@ -20,9 +20,11 @@
  */
 package nz.mega.android.bindingsample.data
 
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.channels.awaitClose
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
+import kotlinx.coroutines.flow.flowOn
 import nz.mega.sdk.MegaApiAndroid
 import nz.mega.sdk.MegaApiJava
 import nz.mega.sdk.MegaError
@@ -32,39 +34,41 @@ import nz.mega.sdk.MegaRequestListenerInterface
 /**
  * Sealed interface for login operation results
  */
-sealed interface LoginResult
+sealed interface LoginResult {
+    /**
+     * Login successful result
+     */
+    data object LoginSuccess : LoginResult
 
-/**
- * Login successful result
- */
-data object LoginSuccess : LoginResult
+    /**
+     * Login failure result
+     * @param errorMessage Error message describing the failure
+     */
+    data class LoginFailure(val errorMessage: String) : LoginResult
+}
 
-/**
- * Login failure result
- * @param errorMessage Error message describing the failure
- */
-data class LoginFailure(val errorMessage: String) : LoginResult
 
 /**
  * Sealed interface for fetch nodes operation results
  */
-sealed interface FetchNodesResult
+sealed interface FetchNodesResult {
+    /**
+     * Fetch nodes operation started
+     */
+    data object Started : FetchNodesResult
 
-/**
- * Fetch nodes operation started
- */
-data object Started : FetchNodesResult
+    /**
+     * Fetch nodes operation in progress
+     * @param progressValue Progress value between 0.0 and 1.0
+     */
+    data class Progressing(val progressValue: Float) : FetchNodesResult
 
-/**
- * Fetch nodes operation in progress
- * @param progressValue Progress value between 0.0 and 1.0
- */
-data class Progressing(val progressValue: Float) : FetchNodesResult
+    /**
+     * Fetch nodes operation completed
+     */
+    data object Completed : FetchNodesResult
+}
 
-/**
- * Fetch nodes operation completed
- */
-data object Completed : FetchNodesResult
 
 /**
  * Singleton repository class that provides a clean interface to MEGA SDK operations.
@@ -86,10 +90,13 @@ object SdkRepository {
      * @param email User email address
      * @param password User password
      * @return Flow of LoginResult (LoginSuccess or LoginFailure)
+     *
+     * This method ensures all SDK operations run on a worker thread (IO dispatcher)
+     * to avoid blocking the main thread.
      */
     fun login(email: String, password: String): Flow<LoginResult> = callbackFlow {
         val api = megaApi ?: run {
-            trySend(LoginFailure("MegaApi not initialized"))
+            trySend(LoginResult.LoginFailure("MegaApi not initialized"))
             close()
             return@callbackFlow
         }
@@ -106,34 +113,41 @@ object SdkRepository {
             override fun onRequestFinish(api: MegaApiJava, request: MegaRequest, e: MegaError) {
                 if (request.type == MegaRequest.TYPE_LOGIN) {
                     if (e.errorCode == MegaError.API_OK) {
-                        trySend(LoginSuccess)
+                        trySend(LoginResult.LoginSuccess)
                     } else {
                         val errorMessage = if (e.errorCode == MegaError.API_ENOENT) {
                             "Incorrect email or password"
                         } else {
                             e.errorString ?: "Login failed"
                         }
-                        trySend(LoginFailure(errorMessage))
+                        trySend(LoginResult.LoginFailure(errorMessage))
                     }
                     close()
                 }
             }
 
-            override fun onRequestTemporaryError(api: MegaApiJava, request: MegaRequest, e: MegaError) {
+            override fun onRequestTemporaryError(
+                api: MegaApiJava,
+                request: MegaRequest,
+                e: MegaError
+            ) {
                 // Handle temporary errors if needed
             }
         }
 
         api.login(email, password, listener)
-        
+
         awaitClose {
             // Cleanup if needed
         }
-    }
+    }.flowOn(Dispatchers.IO)
 
     /**
      * Fetch nodes from MEGA account
      * @return Flow of FetchNodesResult (Started, Progressing, or Completed)
+     *
+     * This method ensures all SDK operations run on a worker thread (IO dispatcher)
+     * to avoid blocking the main thread.
      */
     fun fetchNodes(): Flow<FetchNodesResult> = callbackFlow {
         val api = megaApi ?: run {
@@ -144,17 +158,18 @@ object SdkRepository {
         val listener = object : MegaRequestListenerInterface {
             override fun onRequestStart(api: MegaApiJava, request: MegaRequest) {
                 if (request.type == MegaRequest.TYPE_FETCH_NODES) {
-                    trySend(Started)
+                    trySend(FetchNodesResult.Started)
                 }
             }
 
             override fun onRequestUpdate(api: MegaApiJava, request: MegaRequest) {
                 if (request.type == MegaRequest.TYPE_FETCH_NODES) {
                     if (request.totalBytes > 0) {
-                        var progressValue = request.transferredBytes.toFloat() / request.totalBytes.toFloat()
+                        var progressValue =
+                            request.transferredBytes.toFloat() / request.totalBytes.toFloat()
                         // Clamp progress between 0.0 and 1.0
                         progressValue = progressValue.coerceIn(0.0f, 1.0f)
-                        trySend(Progressing(progressValue))
+                        trySend(FetchNodesResult.Progressing(progressValue))
                     }
                 }
             }
@@ -162,21 +177,25 @@ object SdkRepository {
             override fun onRequestFinish(api: MegaApiJava, request: MegaRequest, e: MegaError) {
                 if (request.type == MegaRequest.TYPE_FETCH_NODES) {
                     if (e.errorCode == MegaError.API_OK) {
-                        trySend(Completed)
+                        trySend(FetchNodesResult.Completed)
                     }
                     close()
                 }
             }
 
-            override fun onRequestTemporaryError(api: MegaApiJava, request: MegaRequest, e: MegaError) {
+            override fun onRequestTemporaryError(
+                api: MegaApiJava,
+                request: MegaRequest,
+                e: MegaError
+            ) {
                 // Handle temporary errors if needed
             }
         }
 
         api.fetchNodes(listener)
-        
+
         awaitClose {
             // Cleanup if needed
         }
-    }
+    }.flowOn(Dispatchers.IO)
 }

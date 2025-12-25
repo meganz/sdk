@@ -20,6 +20,7 @@
  */
 package nz.mega.android.bindingsample.presentation
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -30,6 +31,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
@@ -44,6 +46,16 @@ class MainActivity2 : ComponentActivity() {
         setContent {
             val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+            // Handle navigation when login is successful
+            LaunchedEffect(uiState) {
+                if (uiState is LoginUiState.Success) {
+                    val intent = Intent(this@MainActivity2, NavigationActivity::class.java)
+                    intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
+                    startActivity(intent)
+                    finish()
+                }
+            }
+
             MainActivity2Theme {
                 Scaffold(
                     modifier = Modifier.fillMaxSize()
@@ -54,19 +66,20 @@ class MainActivity2 : ComponentActivity() {
                             .padding(paddingValues),
                         contentAlignment = Alignment.Center
                     ) {
-                        LoginScreen(
-                            email = uiState.email,
-                            password = uiState.password,
-                            emailError = uiState.emailError,
-                            passwordError = uiState.passwordError,
-                            showProgressBar = uiState.showProgressBar,
-                            showFormFields = uiState.showFormFields,
-                            onEmailChange = { viewModel.updateEmail(it) },
-                            onPasswordChange = { viewModel.updatePassword(it) },
-                            onLoginClick = { email, password ->
-                                viewModel.onLoginClick()
+                        when (uiState) {
+                            is LoginUiState.Success -> {
+                                // Navigation is handled by LaunchedEffect above
+                                // This state should not be displayed
                             }
-                        )
+                            else -> {
+                                LoginScreen(
+                                    uiState = uiState,
+                                    onEmailChange = { viewModel.updateEmail(it) },
+                                    onPasswordChange = { viewModel.updatePassword(it) },
+                                    onLoginClick = { viewModel.onLoginClick() }
+                                )
+                            }
+                        }
                     }
                 }
             }

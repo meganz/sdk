@@ -21,6 +21,7 @@
 package nz.mega.android.bindingsample.presentation
 
 import android.app.Application
+import android.util.Log
 import android.util.Patterns
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -29,11 +30,13 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import nz.mega.android.bindingsample.R
+import nz.mega.android.bindingsample.data.LoginResult
+import nz.mega.android.bindingsample.data.SdkRepository
 import nz.mega.sdk.MegaApiAndroid
 
 class MainActivityViewModel(application: Application) : AndroidViewModel(application) {
 
-    private val _uiState = MutableStateFlow(LoginUiState())
+    private val _uiState = MutableStateFlow<LoginUiState>(LoginUiState.Initial())
     val uiState: StateFlow<LoginUiState> = _uiState.asStateFlow()
 
     private var megaApi: MegaApiAndroid? = null
@@ -44,29 +47,53 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
     }
 
     fun updateEmail(email: String) {
-        _uiState.value = _uiState.value.copy(
-            email = email,
-            emailError = null
-        )
+        val currentState = _uiState.value
+        when (currentState) {
+            is LoginUiState.Initial -> {
+                _uiState.value = currentState.copy(
+                    email = email,
+                    emailError = null
+                )
+            }
+
+            is LoginUiState.Error -> {
+                _uiState.value = LoginUiState.Initial(
+                    email = email,
+                    password = currentState.password,
+                    emailError = null,
+                    passwordError = null
+                )
+            }
+
+            else -> {
+                // Ignore updates in other states
+            }
+        }
     }
 
     fun updatePassword(password: String) {
-        _uiState.value = _uiState.value.copy(
-            password = password,
-            passwordError = null
-        )
-    }
+        val currentState = _uiState.value
+        when (currentState) {
+            is LoginUiState.Initial -> {
+                _uiState.value = currentState.copy(
+                    password = password,
+                    passwordError = null
+                )
+            }
 
-    fun setShowProgressBar(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showProgressBar = show)
-    }
+            is LoginUiState.Error -> {
+                _uiState.value = LoginUiState.Initial(
+                    email = currentState.email,
+                    password = password,
+                    emailError = null,
+                    passwordError = null
+                )
+            }
 
-    fun setShowFormFields(show: Boolean) {
-        _uiState.value = _uiState.value.copy(showFormFields = show)
-    }
-
-    fun setLoading(loading: Boolean) {
-        _uiState.value = _uiState.value.copy(isLoading = loading)
+            else -> {
+                // Ignore updates in other states
+            }
+        }
     }
 
     fun validateEmail(email: String): String? {
@@ -75,6 +102,7 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
             email.isEmpty() -> context.getString(R.string.error_enter_email)
             !Patterns.EMAIL_ADDRESS.matcher(email).matches() ->
                 context.getString(R.string.error_invalid_email)
+
             else -> null
         }
     }
@@ -90,10 +118,29 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
 
     fun validateForm(): Boolean {
         val currentState = _uiState.value
-        val emailError = validateEmail(currentState.email)
-        val passwordError = validatePassword(currentState.password)
+        val email: String
+        val password: String
 
-        _uiState.value = currentState.copy(
+        when (currentState) {
+            is LoginUiState.Initial -> {
+                email = currentState.email
+                password = currentState.password
+            }
+
+            is LoginUiState.Error -> {
+                email = currentState.email
+                password = currentState.password
+            }
+
+            else -> return false
+        }
+
+        val emailError = validateEmail(email)
+        val passwordError = validatePassword(password)
+
+        _uiState.value = LoginUiState.Initial(
+            email = email,
+            password = password,
             emailError = emailError,
             passwordError = passwordError
         )
@@ -107,81 +154,105 @@ class MainActivityViewModel(application: Application) : AndroidViewModel(applica
         }
 
         val currentState = _uiState.value
-        val email = currentState.email.lowercase().trim()
-        val password = currentState.password
+        val email: String
+        val password: String
 
-        // Update UI state for loading
-        _uiState.value = currentState.copy(
-            showFormFields = false,
-            isLoading = true,
+        when (currentState) {
+            is LoginUiState.Initial -> {
+                email = currentState.email.lowercase().trim()
+                password = currentState.password
+            }
+
+            else -> {
+                Log.e("MainActivityViewModel", "incorrect state after clicking login")
+                return
+            }
+        }
+
+        // Update UI state to LoggingIn
+        _uiState.value = LoginUiState.LoggingIn(
+            email = email,
+            password = password
         )
 
         // Perform login
         viewModelScope.launch {
-            megaApi?.let { api ->
-                // Note: This is a placeholder. The actual login logic should be
-                // implemented based on your MegaApi integration requirements.
-                // You may need to use callbacks or suspend functions depending on
-                // how your MegaApi is structured.
-                try {
-                    // Example: api.login(email, password, listener)
-                    // For now, this is a placeholder structure
-                } catch (e: Exception) {
-                    // Handle error
-                    handleLoginError(e.message ?: "Login failed")
+            SdkRepository.login(email, password).collect { result ->
+                when {
+                    result is LoginResult.LoginSuccess -> {
+                        handleLoginSuccess()
+                    }
+
+                    result is LoginResult.LoginFailure -> {
+                        handleLoginError(result.errorMessage, email, password)
+                    }
                 }
-            } ?: run {
-                handleLoginError("MegaApi not available")
             }
         }
     }
 
-    private fun handleLoginError(errorMessage: String) {
-        val context = getApplication<Application>()
-        _uiState.value = _uiState.value.copy(
-            showFormFields = true,
-            isLoading = false,
+
+    private fun handleLoginError(errorMessage: String, email: String, password: String) {
+        _uiState.value = LoginUiState.Error(
+            email = email,
+            password = password,
+            errorMessage = errorMessage
         )
     }
 
     fun handleLoginSuccess() {
-        // This will be called when login is successful
-        // Navigation should be handled by the Activity/Composable
+        val currentState = _uiState.value
+        val email = when (currentState) {
+            is LoginUiState.LoggingIn -> currentState.email
+            else -> ""
+        }
+        // Transition to FetchingNodes state
+        _uiState.value = LoginUiState.FetchingNodes(email = email)
     }
 
     fun handleFetchNodesStart() {
-        val context = getApplication<Application>()
-        _uiState.value = _uiState.value.copy(
-            showProgressBar = true
-        )
+        val currentState = _uiState.value
+        val email = when (currentState) {
+            is LoginUiState.LoggingIn -> currentState.email
+            is LoginUiState.FetchingNodes -> currentState.email
+            else -> ""
+        }
+        _uiState.value = LoginUiState.FetchingNodes(email = email)
     }
 
     fun handleFetchNodesProgress(progress: Int) {
         // Update progress if needed
-        // The progress bar visibility is already handled
+        // The progress bar visibility is already handled by the FetchingNodes state
     }
 
     fun handleFetchNodesComplete(success: Boolean) {
-        val context = getApplication<Application>()
+        val currentState = _uiState.value
+        val email = when (currentState) {
+            is LoginUiState.FetchingNodes -> currentState.email
+            else -> ""
+        }
+
         if (success) {
-            handleLoginSuccess()
+            _uiState.value = LoginUiState.Success(email = email)
         } else {
-            _uiState.value = _uiState.value.copy(
-                showFormFields = true,
-                isLoading = false,
-                showProgressBar = false,
+            // If fetching nodes failed, go back to Initial state
+            _uiState.value = LoginUiState.Initial(
+                email = email,
+                password = "",
+                emailError = null,
+                passwordError = null
             )
         }
     }
 
     fun resetState() {
-        val context = getApplication<Application>()
-        _uiState.value = LoginUiState(
-            email = "rsh+21@mega.co.nz",
+        _uiState.value = LoginUiState.Initial(
+            email = DEFAULT_EMAIL,
             password = "",
-            showProgressBar = false,
-            showFormFields = true
+            emailError = null,
+            passwordError = null
         )
     }
 }
+
 

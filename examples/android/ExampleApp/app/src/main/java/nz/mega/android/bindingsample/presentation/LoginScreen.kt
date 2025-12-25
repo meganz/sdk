@@ -46,17 +46,11 @@ import nz.mega.android.bindingsample.R
 
 @Composable
 fun LoginScreen(
-    email: String = "rsh+21@mega.co.nz",
-    password: String = "",
-    emailError: String? = null,
-    passwordError: String? = null,
-    showProgressBar: Boolean = false,
-    showFormFields: Boolean = true,
+    uiState: LoginUiState,
     onEmailChange: (String) -> Unit = {},
     onPasswordChange: (String) -> Unit = {},
-    onLoginClick: (String, String) -> Unit = { _, _ -> }
+    onLoginClick: () -> Unit = {}
 ) {
-
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -67,68 +61,133 @@ fun LoginScreen(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-        // Title TextView equivalent
-        Text(
-            text = stringResource(R.string.logging_in),
-            fontSize = 28.sp,
-            textAlign = TextAlign.Center,
-            modifier = Modifier.padding(bottom = 16.dp)
-        )
+        when (uiState) {
+            is LoginUiState.Initial -> {
+                Text(
+                    text = stringResource(R.string.login_text),
+                    fontSize = 28.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
 
-        if (showFormFields) {
-            // Email EditText equivalent
-            OutlinedTextField(
-                value = email,
-                onValueChange = onEmailChange,
-                label = { Text(stringResource(R.string.email_text)) },
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Email,
-                    imeAction = ImeAction.Next
-                ),
-                singleLine = true,
-                isError = emailError != null,
-                supportingText = emailError?.let { { Text(it) } },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
+                // Email EditText equivalent
+                OutlinedTextField(
+                    value = uiState.email,
+                    onValueChange = onEmailChange,
+                    label = { Text(stringResource(R.string.email_text)) },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    singleLine = true,
+                    isError = uiState.emailError != null,
+                    supportingText = uiState.emailError?.let { { Text(it) } },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
 
-            // Password EditText equivalent
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                label = { Text(stringResource(R.string.password_text)) },
-                visualTransformation = PasswordVisualTransformation(),
-                keyboardOptions = KeyboardOptions(
-                    keyboardType = KeyboardType.Password,
-                    imeAction = ImeAction.Done
-                ),
-                singleLine = true,
-                isError = passwordError != null,
-                supportingText = passwordError?.let { { Text(it) } },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 8.dp)
-            )
+                // Password EditText equivalent
+                OutlinedTextField(
+                    value = uiState.password,
+                    onValueChange = onPasswordChange,
+                    label = { Text(stringResource(R.string.password_text)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    singleLine = true,
+                    isError = uiState.passwordError != null,
+                    supportingText = uiState.passwordError?.let { { Text(it) } },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
 
-            // Login Button equivalent
-            Button(
-                onClick = {
-                    onLoginClick(email.lowercase().trim(), password)
-                },
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(stringResource(R.string.login_text))
+                // Login Button equivalent
+                Button(
+                    onClick = onLoginClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.login_text))
+                }
             }
-        }
 
-        // ProgressBar equivalent
-        if (showProgressBar) {
-            LinearProgressIndicator(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(top = 10.dp)
-            )
+            is LoginUiState.LoggingIn -> {
+                Text(
+                    text = stringResource(R.string.logging_in),
+                    fontSize = 28.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(bottom = 16.dp)
+                )
+            }
+
+            is LoginUiState.FetchingNodes -> {
+                // ProgressBar equivalent
+                LinearProgressIndicator(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 10.dp)
+                )
+            }
+
+            is LoginUiState.Error -> {
+                // Display general error message
+                Text(
+                    text = uiState.errorMessage,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 14.sp,
+                    textAlign = TextAlign.Center,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+
+                // Email EditText equivalent
+                OutlinedTextField(
+                    value = uiState.email,
+                    onValueChange = onEmailChange,
+                    label = { Text(stringResource(R.string.email_text)) },
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Email,
+                        imeAction = ImeAction.Next
+                    ),
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+
+                // Password EditText equivalent
+                OutlinedTextField(
+                    value = uiState.password,
+                    onValueChange = onPasswordChange,
+                    label = { Text(stringResource(R.string.password_text)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    keyboardOptions = KeyboardOptions(
+                        keyboardType = KeyboardType.Password,
+                        imeAction = ImeAction.Done
+                    ),
+                    singleLine = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 8.dp)
+                )
+
+                // Login Button equivalent
+                Button(
+                    onClick = onLoginClick,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.login_text))
+                }
+            }
+
+            is LoginUiState.Success -> {
+                // This state should not be displayed as navigation happens immediately
+                // But we can show a success message or loading indicator as fallback
+            }
         }
     }
 }
@@ -137,7 +196,9 @@ fun LoginScreen(
 @Composable
 fun LoginScreenPreview() {
     MaterialTheme {
-        LoginScreen()
+        LoginScreen(
+            uiState = LoginUiState.Initial()
+        )
     }
 }
 
@@ -146,8 +207,7 @@ fun LoginScreenPreview() {
 fun LoginScreenLoadingPreview() {
     MaterialTheme {
         LoginScreen(
-            showProgressBar = false,
-            showFormFields = false
+            uiState = LoginUiState.FetchingNodes(email = "test@example.com")
         )
     }
 }
