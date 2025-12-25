@@ -37,7 +37,7 @@ ln -s /path/to/ndk ${HOME}/android-java
 ```
 
 ### Run the build script
-Open a terminal in the path `examples/android/ExampleApp/app/src/main/jni/` and run `./build.sh all` to build the required libraries and the SDK. You can also run `./build.sh clean` to clean previous executions.
+Open a terminal in the path `examples/android/ExampleApp/app/src/main/jni/` and run `bash cmake.sh` to build the required libraries and the SDK. You can also run `rm -fr build-dir` to clean previous executions.
 
 **IMPORTANT:** Wait for the `"Task finished OK"` message at the end to ensure everything went well. If you want a more verbose output to inspect the output looking for build errors, change the `LOG_FILE` variable in the `build.sh` script from `/dev/null` to `/dev/stdout` or to a file like `/tmp/build.log`
 
