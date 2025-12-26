@@ -21,12 +21,15 @@
 
 #import "MEGAUploadOptions.h"
 #import "MEGASdk.h"
+#import "megaapi.h"
+
+using namespace mega;
 
 @implementation MEGAUploadOptions
 
 - (instancetype)init {
     return [self initWithFileName:nil
-                            mtime:INVALID_CUSTOM_MOD_TIME
+                            mtime:MegaApi::INVALID_CUSTOM_MOD_TIME
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
@@ -35,7 +38,7 @@
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName {
     return [self initWithFileName:fileName
-                            mtime:INVALID_CUSTOM_MOD_TIME
+                            mtime:MegaApi::INVALID_CUSTOM_MOD_TIME
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO

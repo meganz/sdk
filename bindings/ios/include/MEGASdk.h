@@ -307,18 +307,13 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @brief Upload trigger tag values
  */
 typedef NS_ENUM(char, MEGAPitagTrigger) {
-    MEGAPitagTriggerNotApplicable NS_SWIFT_NAME(notApplicable) = '.',
-    MEGAPitagTriggerPicker NS_SWIFT_NAME(picker) = 'p',
-    MEGAPitagTriggerDragAndDrop NS_SWIFT_NAME(dragAndDrop) = 'd',
-    MEGAPitagTriggerCamera NS_SWIFT_NAME(camera) = 'c',
-    MEGAPitagTriggerScanner NS_SWIFT_NAME(scanner) = 's',
-    MEGAPitagTriggerSyncAlgorithm NS_SWIFT_NAME(syncAlgorithm) = 'a'
+    MEGAPitagTriggerNotApplicable = '.',
+    MEGAPitagTriggerPicker = 'p',
+    MEGAPitagTriggerDragAndDrop = 'd',
+    MEGAPitagTriggerCamera = 'c',
+    MEGAPitagTriggerScanner = 's',
+    MEGAPitagTriggerSyncAlgorithm = 'a'
 };
-
-/**
- * @brief Sentinel value to indicate that the local modification time should be used.
- */
-static const int64_t INVALID_CUSTOM_MOD_TIME = -1;
 
 /**
  * @brief Allows to control a MEGA account or a public folder.
