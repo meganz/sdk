@@ -16591,7 +16591,8 @@ class MegaApi
          * @param cancelToken MegaCancelToken used to cancel the upload process safely (required for
          * safe cancellation). App retains ownership and must keep it alive as described above.
          * @param options Optional upload customization parameters.
-         * @param listener Optional MegaTransferListener to track this transfer.
+         * @param listener Optional MegaTransferListener to track this transfer. The app retains the
+         * ownership of the object. It can be deleted after the call returns.
          * @note In case we find a node in cloud drive with the same content but a different mtime
          * than the file to be uploaded, this function will try to update it's mtime instead of
          * starting a new file upload. If setting the mtime fails, the transfer will fail with
