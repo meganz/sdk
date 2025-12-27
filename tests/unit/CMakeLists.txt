@@ -48,6 +48,7 @@ target_sources(test_unit
     utils_test.cpp
     utils_optional_test.cpp
     pwm_file_parser_test.cpp
+    ScStreaming_test.cpp
     pwm_import_validation.cpp
     LRUCache_test.cpp
     totp_test.cpp

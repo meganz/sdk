@@ -2074,6 +2074,8 @@ MegaClient::MegaClient(MegaApp* a,
     scsn.clear();
     cachedscsn = UNDEF;
 
+    resetScStreamingState();
+
     // initialize useragent
     useragent = u;
 
@@ -3244,6 +3246,32 @@ void MegaClient::exec()
                     break;
                 }
 
+                if (pendingsc->mChunked)
+                {
+                    if (pendingsc->bufpos > 0)
+                    {
+                        size_t consumed = processScStreamingChunk(pendingsc->data());
+                        if (consumed)
+                        {
+                            pendingsc->purge(consumed);
+                        }
+                        processQueuedActionPackets();
+                        applyPendingScSnIfReady();
+                    }
+
+                    pendingsc.reset();
+                    if (mScSplitterError)
+                    {
+                        btsc.backoff();
+                    }
+                    else
+                    {
+                        btsc.reset();
+                    }
+                    resetScStreamingState();
+                    break;
+                }
+
                 if (*pendingsc->in.c_str() == '{')
                 {
                     insca = false;
@@ -3386,6 +3414,18 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
+                if (pendingsc->mChunked && pendingsc->bufpos > pendingsc->notifiedbufpos)
+                {
+                    size_t consumed = processScStreamingChunk(pendingsc->data());
+                    if (consumed)
+                    {
+                        pendingsc->purge(consumed);
+                    }
+                    processQueuedActionPackets();
+                    applyPendingScSnIfReady();
+                    pendingsc->notifiedbufpos = pendingsc->bufpos;
+                }
+
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
                     LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
@@ -3440,6 +3480,9 @@ void MegaClient::exec()
             {
                 pendingsc.reset(new HttpReq());
                 pendingsc->setLogName(clientname + "sc ");
+                pendingsc->mChunked = !isClientType(ClientType::VPN); // allow chunked SC streaming (fallback to non-chunked for VPN)
+                resetScStreamingState();
+                initScStreaming();
                 if (mPendingCatchUps && !mReceivingCatchUp)
                 {
                     scnotifyurl.clear();
@@ -5921,6 +5964,571 @@ bool MegaClient::procsc()
     }
 }
 
+void MegaClient::resetScStreamingState()
+{
+    mScJsonFilters.clear();
+    mScPendingActionPackets.clear();
+    mScPendingSn.clear();
+    mScSplitterError = false;
+    mScSeqtagPaused = false;
+    mScStreamingActive = false;
+    mScLastAPDeletedNode.reset();
+    mScJsonSplitter.clear();
+
+    // Reset outstanding mode state
+    resetScCurrentAP();
+}
+
+void MegaClient::initScStreaming()
+{
+    mScJsonSplitter.clear();
+    mScJsonFilters.clear();
+    mScPendingActionPackets.clear();
+    mScPendingSn.clear();
+    mScSplitterError = false;
+    mScSeqtagPaused = false;
+    mScStreamingActive = true;
+    resetScCurrentAP();
+
+    // notify URL
+    mScJsonFilters.emplace("{\"w", [this](JSON* json) {
+        return json->storeobject(&scnotifyurl);
+    });
+
+    // ir flag
+    mScJsonFilters.emplace("{\"ir", [this](JSON* json) {
+        insca_notlast = json->getint() == 1;
+        return true;
+    });
+
+    // sn element (defer apply until APs done)
+    mScJsonFilters.emplace("{\"sn", [this](JSON* json) {
+        return handleScSn(json);
+    });
+
+    // parsing error marker
+    mScJsonFilters.emplace("E", [this](JSON*) {
+        mScSplitterError = true;
+        return false;
+    });
+
+    if (mScDeepStreamingEnabled)
+    {
+        // Deep streaming: process nodes inside actionpackets
+        initScDeepStreaming();
+    }
+    else
+    {
+        // Basic mode: buffer entire actionpacket
+        mScJsonFilters.emplace("{[a{", [this](JSON* json) {
+            string ap;
+            if (!json->storeobject(&ap))
+            {
+                return false;
+            }
+            mScPendingActionPackets.push_back(std::move(ap));
+            return processQueuedActionPackets();
+        });
+    }
+}
+
+size_t MegaClient::processScStreamingChunk(const char* chunk)
+{
+    if (!mScStreamingActive)
+    {
+        initScStreaming();
+    }
+
+    m_off_t consumed = mScJsonSplitter.processChunk(&mScJsonFilters, chunk);
+
+    if (mScJsonSplitter.hasFailed())
+    {
+        mScSplitterError = true;
+        LOG_err << "SC streaming: JSON parsing failed";
+    }
+
+    return static_cast<size_t>(consumed);
+}
+
+bool MegaClient::processQueuedActionPackets()
+{
+    while (!mScPendingActionPackets.empty() && !mScSeqtagPaused)
+    {
+        auto ap = mScPendingActionPackets.front();
+        if (!processActionPacketString(ap))
+        {
+            return false;
+        }
+        mScPendingActionPackets.erase(mScPendingActionPackets.begin());
+    }
+
+    if (!mScSeqtagPaused)
+    {
+        applyPendingScSnIfReady();
+    }
+
+    return true;
+}
+
+bool MegaClient::processActionPacketString(const std::string& apstring)
+{
+    JSON saved = jsonsc;
+    JSON jsonap;
+    jsonap.begin(apstring.c_str());
+    jsonsc = jsonap;
+
+    bool ok = true;
+    bool moveOperation = false;
+    nameid name = 0;
+
+    const char* actionpacketStart = jsonsc.pos;
+    if (jsonsc.enterobject())
+    {
+        if (!sc_checkActionPacket(mScLastAPDeletedNode.get()))
+        {
+            mScSeqtagPaused = true;
+            ok = false;
+        }
+    }
+    jsonsc.pos = actionpacketStart;
+
+    if (ok && jsonsc.enterobject())
+    {
+        if (jsonsc.getnameid() == makeNameid("a"))
+        {
+            if (!statecurrent)
+            {
+                fnstats.actionPackets++;
+            }
+
+            name = jsonsc.getnameidvalue();
+
+            // only process server-client request if not marked as self-originating
+            if (fetchingnodes || !Utils::startswith(jsonsc.pos, "\"i\":\"") ||
+                memcmp(jsonsc.pos + 5, sessionid, sizeof sessionid) ||
+                jsonsc.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+                name == 't')
+            {
+#ifdef ENABLE_CHAT
+                bool readingPublicChat = false;
+#endif
+                switch (name)
+                {
+                    case name_id::u:
+                        sc_updatenode();
+                        break;
+
+                    case makeNameid("t"):
+                    {
+                        if (!loggedIntoFolder())
+                            useralerts.beginNotingSharedNodes();
+                        handle originatingUser = sc_newnodes();
+                        mergenewshares(1);
+                        if (!loggedIntoFolder())
+                            useralerts.convertNotedSharedNodes(true, originatingUser);
+                    }
+                    break;
+
+                    case name_id::d:
+                        mScLastAPDeletedNode = sc_deltree(moveOperation);
+                        break;
+
+                    case makeNameid("s"):
+                    case makeNameid("s2"):
+                        if (sc_shares())
+                        {
+                            int creqtag = reqtag;
+                            reqtag = 0;
+                            mergenewshares(1);
+                            reqtag = creqtag;
+                        }
+                        break;
+
+                    case name_id::c:
+                        sc_contacts();
+                        break;
+
+                    case makeNameid("fa"):
+                        sc_fileattr();
+                        break;
+
+                    case makeNameid("ua"):
+                        sc_userattr();
+                        break;
+
+                    case name_id::psts:
+                    case name_id::psts_v2:
+                    case makeNameid("ftr"):
+                        if (sc_upgrade(name))
+                        {
+                            app->account_updated();
+                            abortbackoff(true);
+                        }
+                        break;
+
+                    case name_id::pses:
+                        sc_paymentreminder();
+                        break;
+
+                    case name_id::ipc:
+                        sc_ipc();
+                        break;
+
+                    case makeNameid("opc"):
+                        sc_opc();
+                        break;
+
+                    case name_id::upci:
+                        sc_upc(true);
+                        break;
+
+                    case name_id::upco:
+                        sc_upc(false);
+                        break;
+
+                    case makeNameid("ph"):
+                        sc_ph();
+                        break;
+
+                    case makeNameid("se"):
+                        sc_se();
+                        break;
+#ifdef ENABLE_CHAT
+                    case makeNameid("mcpc"):
+                    {
+                        readingPublicChat = true;
+                    } // fall-through
+                    case makeNameid("mcc"):
+                        sc_chatupdate(readingPublicChat);
+                        break;
+
+                    case makeNameid("mcfpc"): // fall-through
+                    case makeNameid("mcfc"):
+                        sc_chatflags();
+                        break;
+
+                    case makeNameid("mcpna"): // fall-through
+                    case makeNameid("mcna"):
+                        sc_chatnode();
+                        break;
+
+                    case name_id::mcsmp:
+                        sc_scheduledmeetings();
+                        break;
+
+                    case name_id::mcsmr:
+                        sc_delscheduledmeeting();
+                        break;
+#endif
+                    case makeNameid("uac"):
+                        sc_uac();
+                        break;
+
+                    case makeNameid("la"):
+                        sc_la();
+                        break;
+
+                    case makeNameid("ub"):
+                        sc_ub();
+                        break;
+
+                    case makeNameid("sqac"):
+                        sc_sqac();
+                        break;
+
+                    case makeNameid("asp"):
+                        sc_asp();
+                        break;
+
+                    case makeNameid("ass"):
+                        sc_ass();
+                        break;
+
+                    case makeNameid("asr"):
+                        sc_asr();
+                        break;
+                    case makeNameid("aep"):
+                        sc_aep();
+                        break;
+
+                    case makeNameid("aer"):
+                        sc_aer();
+                        break;
+                    case makeNameid("pk"):
+                        sc_pk();
+                        break;
+
+                    case makeNameid("uec"):
+                        sc_uec();
+                        break;
+
+                    case makeNameid("cce"):
+                        sc_cce();
+                        break;
+                }
+            }
+        }
+
+        jsonsc.leaveobject();
+
+        if (!moveOperation)
+        {
+            mScLastAPDeletedNode.reset();
+        }
+    }
+
+    jsonsc = saved;
+    return ok;
+}
+
+bool MegaClient::handleScSn(JSON* json)
+{
+    return json->storeobject(&mScPendingSn);
+}
+
+// Deep SC streaming implementation: process nodes inside actionpackets
+void MegaClient::initScDeepStreaming()
+{
+    LOG_debug << "SC streaming: Deep streaming (node-level) enabled";
+
+    // AP action type ("a" field) - first thing we see in an AP
+    mScJsonFilters.emplace("{[a{\"a", [this](JSON* json) {
+        return handleScAPAction(json);
+    });
+
+    // For 't' type APs: stream each node in t.f array
+    // Path: root { → a array [a → AP object { → t object {t → f array [f → node object {
+    mScJsonFilters.emplace("{[a{{t[f{", [this](JSON* json) {
+        return handleScAPNode(json);
+    });
+
+    // Originating user ("ou" field)
+    mScJsonFilters.emplace("{[a{\"ou", [this](JSON* json) {
+        return handleScAPOriginatingUser(json);
+    });
+
+    // Session id ("i" field)
+    mScJsonFilters.emplace("{[a{\"i", [this](JSON* json) {
+        return handleScAPSessionId(json);
+    });
+
+    // AP object end - finalize current AP
+    // Note: When inner filters (like {[a{"a, {[a{"i) have consumed fields,
+    // this callback receives only the REMAINING content, not the full object.
+    // For non-'t' type APs, we need to reconstruct the AP and queue it for processing.
+    mScJsonFilters.emplace("{[a{", [this](JSON* json) {
+        // For non-node APs (u, d, s, etc.), we need to collect remaining content
+        // and build a complete AP object for processing
+        if (!mScCurrentAPHasNodes && mScCurrentAPAction)
+        {
+            // Reconstruct the AP: {"a":"X", ...remaining fields...}
+            string ap = "{\"a\":\"";
+            ap += (char)mScCurrentAPAction;
+            ap += "\"";
+
+            // Check if remaining content starts with comma or quote
+            // If it starts with quote, we need to add comma first
+            if (*json->pos && *json->pos != ',' && *json->pos != '}')
+            {
+                ap += ',';
+            }
+
+            // Append remaining fields until closing brace
+            while (*json->pos)
+            {
+                if (*json->pos == '}')
+                {
+                    json->pos++;
+                    break;
+                }
+                ap += *json->pos++;
+            }
+            ap += "}";
+
+            mScPendingActionPackets.push_back(std::move(ap));
+        }
+        else
+        {
+            // For 't' type APs, nodes were already processed via deep streaming
+            // Just skip remaining fields
+            while (*json->pos)
+            {
+                if (*json->pos == ',')
+                {
+                    json->pos++;
+                }
+                else if (*json->pos == '}')
+                {
+                    json->pos++;
+                    break;
+                }
+                else if (*json->pos == '"')
+                {
+                    json->getnameid();
+                    json->storeobject(nullptr);
+                }
+                else
+                {
+                    json->storeobject(nullptr);
+                }
+            }
+        }
+
+        // Finalize current AP
+        bool result = handleScAPEnd();
+        resetScCurrentAP();
+        return result && processQueuedActionPackets();
+    });
+}
+
+void MegaClient::resetScCurrentAP()
+{
+    mScCurrentAPAction = 0;
+    mScCurrentAPSessionId.clear();
+    mScCurrentAPOriginatingUser = UNDEF;
+    mScCurrentAPHasNodes = false;
+    mScNodesProcessed = 0;
+}
+
+bool MegaClient::handleScAPAction(JSON* json)
+{
+    string actionStr;
+    if (!json->storeobject(&actionStr))
+    {
+        return false;
+    }
+
+    // Convert action string to nameid for known types
+    if (actionStr == "t")
+    {
+        mScCurrentAPAction = 't';
+        mScCurrentAPHasNodes = true;
+        LOG_debug << "SC deep streaming: Processing 't' actionpacket (new/updated nodes)";
+
+        // Prepare for new nodes
+        if (!loggedIntoFolder())
+        {
+            useralerts.beginNotingSharedNodes();
+        }
+    }
+    else if (actionStr == "u")
+    {
+        mScCurrentAPAction = 'u';
+    }
+    else if (actionStr == "d")
+    {
+        mScCurrentAPAction = 'd';
+    }
+    else if (actionStr == "s" || actionStr == "s2")
+    {
+        mScCurrentAPAction = 's';
+    }
+    else
+    {
+        // Unknown type - will be processed via basic mode
+        mScCurrentAPAction = 0;
+    }
+
+    return true;
+}
+
+bool MegaClient::handleScAPNode(JSON* json)
+{
+    // This is called for each node in a 't' type AP's t.f array
+    // Process node immediately (streaming) - no need to buffer entire AP
+
+    if (!mScCurrentAPHasNodes)
+    {
+        LOG_warn << "SC deep streaming: Unexpected node outside node-containing AP";
+        return json->storeobject(nullptr);  // Skip
+    }
+
+    // Read the node using existing readnode function
+    // notify=1 to ensure the node is visible to the application
+    NodeManager::MissingParentNodes missingParentNodes;
+    handle previousHandleForAlert = UNDEF;
+
+    int result = readnode(json,
+                          1,  // notify=1: make node visible to app
+                          PUTNODES_APP,
+                          nullptr,
+                          false,
+                          true,
+                          missingParentNodes,
+                          previousHandleForAlert,
+                          nullptr);
+
+    if (result != 1)
+    {
+        LOG_err << "SC deep streaming: Failed to read node";
+        return false;
+    }
+
+    mScNodesProcessed++;
+
+    if (mScNodesProcessed % 1000 == 0)
+    {
+        LOG_debug << "SC deep streaming: Processed " << mScNodesProcessed << " nodes";
+    }
+
+    return json->leaveobject();
+}
+
+bool MegaClient::handleScAPOriginatingUser(JSON* json)
+{
+    mScCurrentAPOriginatingUser = json->gethandle(MegaClient::USERHANDLE);
+    return true;
+}
+
+bool MegaClient::handleScAPSessionId(JSON* json)
+{
+    return json->storeobject(&mScCurrentAPSessionId);
+}
+
+bool MegaClient::handleScAPEnd()
+{
+    if (mScCurrentAPHasNodes)
+    {
+        // Finalize 't' type AP with nodes
+        LOG_debug << "SC deep streaming: Completed actionpacket with " << mScNodesProcessed << " nodes";
+
+        // Merge new shares
+        mergenewshares(1);
+
+        // Handle user alerts for shared nodes
+        if (!loggedIntoFolder())
+        {
+            useralerts.convertNotedSharedNodes(true, mScCurrentAPOriginatingUser);
+        }
+    }
+
+    return true;
+}
+
+void MegaClient::applyPendingScSnIfReady()
+{
+    if (!mScPendingSn.empty() && mScPendingActionPackets.empty() && !mScSeqtagPaused)
+    {
+        handle h = UNDEF;
+        if (Base64::atob(mScPendingSn.c_str(), (byte*)&h, static_cast<int>(sizeof h)) == static_cast<int>(sizeof h))
+        {
+            scsn.setScsn(h);
+        }
+        // At this point no CurrentSeqtag should be seen. mCurrentSeqtagSeen is set true
+        // when action package is processed and the seq tag matches with mCurrentSeqtag
+        assert(!mCurrentSeqtagSeen);
+        notifypurge();
+        if (sctable)
+        {
+            LOG_debug << "DB transaction COMMIT (sessionid: " << string(sessionid, sizeof(sessionid)) << ")";
+            sctable->commit();
+            sctable->begin();
+            app->notify_dbcommit();
+        }
+        mScPendingSn.clear();
+    }
+}
+
 size_t MegaClient::procreqstat()
 {
     // reqstat packet format:
@@ -6615,6 +7223,15 @@ error MegaClient::smsverificationcheck(const std::string &verificationCode)
 // Action Packets to be processed, so we let the pending command responses to be processed.
 bool MegaClient::sc_checkSequenceTag(const string& tag)
 {
+    auto resumeStreaming = [this]()
+    {
+        if (mScStreamingActive && mScSeqtagPaused)
+        {
+            mScSeqtagPaused = false;
+            processQueuedActionPackets();
+        }
+    };
+
     if (tag.empty())
     {
         if (!mCurrentSeqtag.empty() && mCurrentSeqtagSeen)
@@ -6634,6 +7251,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
             LOG_debug << "updated seqtag: " << mLastReceivedScSeqTag;
             mLastReceivedScSeqTag.clear();
         }
+        resumeStreaming();
         return true;
     }
     else
@@ -6678,6 +7296,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                                 << " matched with the next command response.";
                     // there may be more than one, process until a different one arrives
                     mCurrentSeqtagSeen = true;
+                    resumeStreaming();
                     return true;
                 }
                 else if (mCurrentSeqtagSeen)
@@ -6694,6 +7313,7 @@ bool MegaClient::sc_checkSequenceTag(const string& tag)
                     LOG_verbose << clientname << "current st tag " << mCurrentSeqtag;
                     LOG_verbose << clientname << "st tag " << tag << " catching up";
                     assert(tag.size() < mCurrentSeqtag.size() || (tag.size() == mCurrentSeqtag.size() && tag < mCurrentSeqtag));
+                    resumeStreaming();
                     return true;
                 }
             }

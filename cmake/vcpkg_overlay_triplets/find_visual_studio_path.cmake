@@ -1,8 +1,8 @@
 function(find_visual_studio_path)
     set(VISUAL_STUDIO_PATHS
-        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise"
-        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Professional"
-        "C:\\Program Files\\Microsoft Visual Studio\\2022\\Community"
+        "D:\\Program Files\\Microsoft Visual Studio\\2022\\Enterprise"
+        "D:\\Program Files\\Microsoft Visual Studio\\2022\\Professional"
+        "D:\\Program Files\\Microsoft Visual Studio\\2022\\Community"
     )
 
     set(VISUAL_STUDIO_FOUND FALSE)

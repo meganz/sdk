@@ -2093,6 +2093,24 @@ public:
     bool insca;
     bool insca_notlast;
 
+    // SC streaming helpers (chunked actionpacket parsing)
+    JSONSplitter mScJsonSplitter;
+    std::map<std::string, std::function<bool(JSON*)>> mScJsonFilters;
+    std::vector<std::string> mScPendingActionPackets;
+    std::shared_ptr<Node> mScLastAPDeletedNode;
+    std::string mScPendingSn;
+    bool mScSplitterError = false;
+    bool mScSeqtagPaused = false;
+    bool mScStreamingActive = false;
+
+    // Deep SC streaming: stream inside actionpackets (e.g., t.f nodes)
+    bool mScDeepStreamingEnabled = true;  // Enable node-level streaming within APs
+    nameid mScCurrentAPAction = 0;        // Current AP action type ('t', 'u', 'd', etc.)
+    std::string mScCurrentAPSessionId;    // Current AP session id ("i" field)
+    handle mScCurrentAPOriginatingUser = UNDEF;  // Current AP originating user ("ou" field)
+    bool mScCurrentAPHasNodes = false;    // Current AP contains nodes (t.f array)
+    size_t mScNodesProcessed = 0;         // Count of nodes processed in current AP
+
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
 
@@ -2475,6 +2493,22 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc();
+    void initScStreaming();
+    size_t processScStreamingChunk(const char* chunk);
+    void resetScStreamingState();
+    bool processQueuedActionPackets();
+    bool processActionPacketString(const std::string& apstring);
+    void applyPendingScSnIfReady();
+    bool handleScSn(JSON* json);
+
+    // Deep SC streaming: process inside actionpackets (node-level)
+    void initScDeepStreaming();
+    void resetScCurrentAP();
+    bool handleScAPAction(JSON* json);
+    bool handleScAPNode(JSON* json);
+    bool handleScAPOriginatingUser(JSON* json);
+    bool handleScAPSessionId(JSON* json);
+    bool handleScAPEnd();
     size_t procreqstat();
 
     // API warnings
