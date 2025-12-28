@@ -33,7 +33,6 @@ target_sources(test_integration
     DisableBackupSync_test.cpp
     SdkTestTransferMaxSpeeds_test.cpp
     sdk_test_file_path.cpp
-    sdk_test_http_server.cpp
     sdk_test_node_tags.cpp
     sdk_test_node_tags.h
     sdk_test_network.cpp
@@ -56,6 +55,12 @@ target_sources(test_integration
     passwordManager/SdkTestPasswordManagerPassFolderCRUD_test.cpp
     passwordManager/SdkTestPasswordManagerPassNodeCRUD_test.cpp
     passwordManager/SdkTestPasswordManagerCreditCardNodeCRUD_test.cpp
+)
+
+target_sources_conditional(test_integration
+    FLAG USE_LIBUV
+    PRIVATE
+    sdk_test_http_server.cpp
 )
 
 target_sources_conditional(test_integration

@@ -25,7 +25,6 @@
 namespace
 {
 
-#ifdef HAVE_LIBUV
 /**
  * Test for HTTP server using port 0, which also consist of:
  * - start two HTTP servers from a thread and no ports conflicting
@@ -52,7 +51,4 @@ TEST_F(SdkTest, HttpServerCanUsePort0)
 
     CASE_info << "finished";
 }
-
-#endif
-
 }
