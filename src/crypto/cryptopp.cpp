@@ -425,6 +425,10 @@ bool SymmCipher::gcm_encrypt(const byte* data,
     std::string err;
     if (!data || !datasize)                     {err = "Invalid plain text";}
     if (!iv || !ivlen)                          {err = "Invalid IV";}
+    if (!taglen)
+    {
+        err = "Invalid taglen";
+    }
     if (!err.empty())
     {
         LOG_err << "Failed AES-GCM encryption with additional authenticated data: " <<  err;
@@ -507,6 +511,10 @@ bool SymmCipher::gcm_decrypt(const byte* data,
     if (!data || !datalen)                      {err = "Invalid data";}
     if (!tag || !taglen)                        {err = "Invalid tag";}
     if (!iv || !ivlen)                          {err = "Invalid IV";}
+    if (!result || !resultSize)
+    {
+        err = "Invalid result";
+    }
     if (!err.empty())
     {
         LOG_err << "Failed AES-GCM decryption with additional authenticated data: " <<  err;
