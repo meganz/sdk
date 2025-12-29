@@ -401,7 +401,7 @@ bool SymmCipher::gcm_encrypt_add(const byte* data, const size_t datasize, const 
                                  const size_t additionalDatalen, const byte* iv, const size_t ivlen,
                                  const size_t taglen, std::string& result, const size_t expectedSize)
 {
-    if (!additionalData || !additionalData)
+    if (!additionalData || !additionalDatalen)
     {
         LOG_err << "Failed AES-GCM encryption with additional authenticated data. Invalid additional data";
         return false;
@@ -473,7 +473,13 @@ bool SymmCipher::gcm_decrypt(const string *data, const byte *iv, unsigned ivlen,
     try
     {
         auto& aesgcm_d = prepareCipher(mAesgcm_d, iv, static_cast<size_t>(ivlen));
-        StringSource ss(*data, true, new AuthenticatedDecryptionFilter(aesgcm_d, new StringSink(*result), taglen));
+        StringSource ss(
+            *data,
+            true,
+            new AuthenticatedDecryptionFilter(aesgcm_d,
+                                              new StringSink(*result),
+                                              AuthenticatedDecryptionFilter::DEFAULT_FLAGS,
+                                              static_cast<int>(taglen)));
     }
     catch (CryptoPP::Exception const& e)
     {

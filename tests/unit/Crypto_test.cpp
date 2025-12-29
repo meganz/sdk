@@ -469,24 +469,29 @@ TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKey)
     cipher.setkey(internalKey.data());
 
     const std::string plain = "Chat message with Paco";
-    std::string cipherText, recovered;
 
-    const auto iv = randomBytes(12); // 96-bit nonce
-    const auto tagLen = 16u;
+    auto testFunc = [&cipher, &internalKey, &plain](unsigned int tagLen)
+    {
+        std::string cipherText, recovered;
 
-    ASSERT_TRUE(cipher.gcm_encrypt(&plain,
-                                   iv.data(),
-                                   static_cast<unsigned>(iv.size()),
-                                   tagLen,
-                                   &cipherText));
+        const auto iv = randomBytes(12); // 96-bit nonce
 
-    ASSERT_TRUE(cipher.gcm_decrypt(&cipherText,
-                                   iv.data(),
-                                   static_cast<unsigned>(iv.size()),
-                                   tagLen,
-                                   &recovered));
+        ASSERT_TRUE(cipher.gcm_encrypt(&plain,
+                                       iv.data(),
+                                       static_cast<unsigned>(iv.size()),
+                                       tagLen,
+                                       &cipherText));
 
-    EXPECT_EQ(plain, recovered);
+        ASSERT_TRUE(cipher.gcm_decrypt(&cipherText,
+                                       iv.data(),
+                                       static_cast<unsigned>(iv.size()),
+                                       tagLen,
+                                       &recovered));
+        EXPECT_EQ(plain, recovered);
+    };
+
+    testFunc(16);
+    testFunc(12);
 }
 
 TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKeyWithAAD)
@@ -518,6 +523,7 @@ TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKeyWithAAD)
     const byte* tagPtr = ctPtr + ctLen;
 
     std::vector<byte> recoveredBuf(plain.size());
+
     ASSERT_TRUE(cipher.gcm_decrypt_add(ctPtr,
                                        ctLen,
                                        aad,
