@@ -132,10 +132,11 @@ void DbTable::checkCommitter(DBTableTransactionCommitter*)
     assert(mTransactionCommitter);
 }
 
-const int DbAccess::LEGACY_DB_VERSION = 13;
+const int DbAccess::LEGACY_DB_VERSION = 14;
 const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
 const int DbAccess::LAST_DB_VERSION_WITHOUT_NOD = 12;
 const int DbAccess::LAST_DB_VERSION_WITHOUT_SRW = 13;
+const int DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT = 14;
 
 DbAccess::DbAccess()
 {
