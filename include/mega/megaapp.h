@@ -469,7 +469,7 @@ struct MEGA_API MegaApp
 
     virtual void getbanners_result(error) { }
 
-    virtual void getbanners_result(vector<BannerDetails>) {}
+    virtual void getbanners_result(vector<BannerDetails>&&) {}
 
     virtual void dismissbanner_result(error) { }
 
