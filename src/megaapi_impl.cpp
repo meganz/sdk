@@ -33270,7 +33270,8 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 }
 #endif
 
-static std::optional<int> getBoundPort(uv_tcp_t* server)
+// return 0 on error, otherwise a port number (positive)
+static int getBoundPort(uv_tcp_t* server)
 {
     assert(server);
 
@@ -33278,7 +33279,8 @@ static std::optional<int> getBoundPort(uv_tcp_t* server)
     int addr_len = sizeof(bound_addr);
     if (uv_tcp_getsockname(server, reinterpret_cast<struct sockaddr*>(&bound_addr), &addr_len))
     {
-        return std::nullopt;
+        // error
+        return 0;
     }
 
     int port = 0;
@@ -33396,7 +33398,7 @@ void MegaTCPServer::run()
     // Update port to bound port if request port is 0
     if (port == 0)
     {
-        port = getBoundPort(&server).value_or(0);
+        port = getBoundPort(&server);
         if (port == 0) // still zero?
         {
             cleanOnError("get bound port");
