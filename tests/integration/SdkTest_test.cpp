@@ -17959,7 +17959,7 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     const auto createFileWithSize = [&](const std::string& filename, const size_t fileSize)
     {
         deleteFile(filename);
-        std::ofstream file(fs::u8path(filename), ios::out);
+        std::ofstream file(u8path_compat(filename), ios::out);
         ASSERT_TRUE(file) << "Couldn't create " << filename;
         
         const std::string lineStr = "Test data for " + filename + " ";
@@ -17990,7 +17990,7 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     const std::string file2 = "parallel_upload_2.txt";
     //const size_t size1 = 8000000;  // 8MB
     //const size_t size2 = 12000000; // 12MB
-    const size_t size1 = 16000000;  // 16MB
+    const size_t size1 = 160000000;  // 160MB
     const size_t size2 = 900000; // 900 KB
 
     ASSERT_NO_FATAL_FAILURE(createFileWithSize(file1, size1));

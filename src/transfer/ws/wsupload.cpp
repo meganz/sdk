@@ -26,6 +26,7 @@
 #include "mega/megaclient.h"
 #include "mega/transfer.h"
 #include "mega/types.h"
+#include "mega/utils.h"
 #include "meganet.h"
 
 // Phase 1: keep prototype's WS + threads. Phase 3: move into CurlHttpIO reactor.
@@ -122,6 +123,8 @@ enum class FailReason : std::uint8_t
 // ---------- WsUploadFile (uses SDK File/FileAccess) ----------
 class WsUploadFile
 {
+    class ActiveIOGuard;
+
 public:
     static constexpr std::int32_t RETRYINTERVAL{60 * 10}; // ds
 
@@ -169,9 +172,22 @@ public:
     {
         if (mFAOpened)
             return true;
+        if (!mFA)
+        {
+            markFailed();
+            return false;
+        }
+
+        FileAccess* const faRaw = mFA.get();
+        std::unique_lock<std::mutex> io(mReadMutex);
+
         engineMutex.unlock();
-        const auto ok = mFA->openf(FSLogging::logOnError); // does sysopen() if needed
+        const bool ok = faRaw->openf(FSLogging::logOnError); // does sysopen() if needed
+        io.unlock(); // do not re-lock engine while holding the I/O mutex (lock ordering)
         engineMutex.lock();
+
+        if (mFA.get() != faRaw)
+            return false;
         mFAOpened = ok;
         if (!ok)
             markFailed();
@@ -180,11 +196,10 @@ public:
 
     void closeFA()
     {
+        std::lock_guard<std::mutex> io(mReadMutex);
         if (mFA && mFAOpened)
-        {
             mFA->closef();
-            mFAOpened = false;
-        }
+        mFAOpened = false;
         mFA = nullptr;
     }
 
@@ -194,6 +209,7 @@ public:
         LOG_debug << "[WsUploadFile::readData] BEGIN [buf=" << (void*)buf << "] [pos=" << pos
                   << "] [len=" << len << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
+        ActiveIOGuard io(*this);
         // open on first use
         if (!mFA)
         {
@@ -235,51 +251,57 @@ public:
             return false;
         }
 
+        bool okRead = false;
+        bool didReopen = false;
+        bool reok = false;
+
+        FileAccess* faRaw = nullptr;
+        std::unique_lock<std::mutex> ioLock(mReadMutex);
+        faRaw = mFA.get();
         engineMutex.unlock();
-        auto okRead = false;
         {
-            std::lock_guard<std::mutex> io(mReadMutex);
             // Some platforms declare frawread(pos) as unsigned — cast explicitly to avoid
             // -Wconversion
-            okRead = mFA->frawread(reinterpret_cast<byte*>(buf),
-                                   static_cast<unsigned>(len),
-                                   pos,
-                                   /*caller_opened=*/true,
-                                   FSLogging::logOnError);
+            if (faRaw)
+            {
+                okRead = faRaw->frawread(reinterpret_cast<byte*>(buf),
+                                         static_cast<unsigned>(len),
+                                         pos,
+                                         /*caller_opened=*/true,
+                                         FSLogging::logOnError);
+            }
+
+            if (!okRead && faRaw)
+            {
+                // optional one-shot recover: reopen + retry once
+                LOG_debug << "[WsUploadFile::readData] !okRead -> reopen + retry once [localname="
+                          << mFile->getLocalname() << "] [this = " << this
+                          << "] [thread_id=" << std::this_thread::get_id() << "]";
+                faRaw->closef();
+                reok = faRaw->openf(FSLogging::logOnError);
+                didReopen = true;
+                if (reok)
+                {
+                    okRead = faRaw->frawread(reinterpret_cast<byte*>(buf),
+                                             static_cast<unsigned>(len),
+                                             pos,
+                                             /*caller_opened=*/true,
+                                             FSLogging::logOnError);
+                }
+            }
         }
+        ioLock.unlock(); // do not re-lock engine while holding the I/O mutex (lock ordering)
         LOG_debug << "[WsUploadFile::readData] okRead=" << okRead
                   << " [localname=" << mFile->getLocalname() << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
         engineMutex.lock();
 
-        if (!okRead)
+        if (didReopen && mFA.get() == faRaw)
         {
-            // optional one-shot recover: reopen + retry once
-            LOG_debug << "[WsUploadFile::readData] !okRead -> reopen + retry once [localname="
-                      << mFile->getLocalname() << "] [this = " << this
-                      << "] [thread_id=" << std::this_thread::get_id() << "]";
-            mFA->closef();
-            const bool reok = mFA->openf(FSLogging::logOnError);
             LOG_debug << "[WsUploadFile::readData] reok=" << reok
                       << " [localname=" << mFile->getLocalname() << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             mFAOpened = reok;
-            if (reok)
-            {
-                LOG_debug << "[WsUploadFile::readData] reok -> reread [localname="
-                          << mFile->getLocalname() << "] [this = " << this
-                          << "] [thread_id=" << std::this_thread::get_id() << "]";
-                engineMutex.unlock();
-                {
-                    std::lock_guard<std::mutex> io(mReadMutex);
-                    okRead = mFA->frawread(reinterpret_cast<byte*>(buf),
-                                           static_cast<unsigned>(len),
-                                           pos,
-                                           /*caller_opened=*/true,
-                                           FSLogging::logOnError);
-                }
-                engineMutex.lock();
-            }
         }
 
         if (!okRead)
@@ -294,6 +316,12 @@ public:
                   << " [localname=" << mFile->getLocalname() << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
         return okRead;
+    }
+
+    void waitForNoIO() const
+    {
+        while (mActiveIO.load(std::memory_order_acquire) != 0)
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
     }
 
     // server-confirmed progression
@@ -451,6 +479,24 @@ private:
         return t.files.empty() ? nullptr : *t.files.begin();
     }
 
+    class ActiveIOGuard
+    {
+    public:
+        explicit ActiveIOGuard(WsUploadFile& f):
+            mFile(f)
+        {
+            mFile.mActiveIO.fetch_add(1, std::memory_order_acq_rel);
+        }
+
+        ~ActiveIOGuard()
+        {
+            mFile.mActiveIO.fetch_sub(1, std::memory_order_acq_rel);
+        }
+
+    private:
+        WsUploadFile& mFile;
+    };
+
     void markFailed()
     {
         mUploadFailedTime = SteadyTime::ds();
@@ -463,6 +509,7 @@ private:
     std::unique_ptr<FileAccess> mFA{}; // open on first read
     bool mFAOpened{false};
     std::mutex mReadMutex; // needed for Android because of lseek64+read
+    std::atomic<unsigned> mActiveIO{0};
 
     std::uint32_t mFileNo{0};
 
@@ -529,10 +576,33 @@ struct WsBuf
 
 struct ChunkFingerprintMacUpdate
 {
-    // Phase 5: integrate SDK crypto (chunkmacs)
-    ChunkFingerprintMacUpdate(WsUploadFile&, m_off_t, const char*, int) {}
+    Transfer* t{nullptr};
+    m_off_t pos{0};
+    chunkmac_map macs;
 
-    void apply(m_off_t /*pos*/) {}
+    ChunkFingerprintMacUpdate() = default;
+
+    ChunkFingerprintMacUpdate(Transfer& tr, const m_off_t p):
+        t(&tr),
+        pos(p)
+    {}
+
+    ChunkFingerprintMacUpdate(Transfer& tr, const m_off_t p, chunkmac_map&& m):
+        t(&tr),
+        pos(p),
+        macs(std::move(m))
+    {}
+
+    void apply(const m_off_t confirmedPos)
+    {
+        if (!t)
+            return;
+        if (confirmedPos != pos)
+            return;
+        if (macs.size())
+            t->chunkmacs.finishedUploadChunks(macs);
+        t = nullptr;
+    }
 };
 
 // ---------- WebSocket connection (per thread) ----------
@@ -609,10 +679,24 @@ struct WsPoolThread
 
     explicit WsPoolThread(WsPool* pool); // defined after WsPool
 
+    void join()
+    {
+        if (!t.joinable())
+            return;
+        if (t.get_id() == std::this_thread::get_id())
+        {
+            LOG_warn << "[WsPoolThread::join] refusing to join self; detaching [this = " << this
+                     << "]";
+            t.detach();
+            return;
+        }
+        t.join();
+    }
+
     ~WsPoolThread()
     {
         LOG_debug << "[WsPoolThread::~WsPoolThread] BEGIN -> t.join() [this = " << this << "]";
-        t.join();
+        join();
         LOG_debug << "[WsPoolThread::~WsPoolThread] END [this = " << this << "]";
     }
 };
@@ -734,27 +818,11 @@ struct WsPool
     WsUploadFile* findFile(std::uint32_t fileno, class UploadEngine::Impl& impl);
     bool nextChunk(WsChunk& chunk, class UploadEngine::Impl& impl);
 
-    void retryChunk(const WsChunk& chunk)
-    {
-        mToResend.push_back(chunk);
-    }
+    void retryChunk(const WsChunk& chunk);
 
     void retryChunksOnTheWire(WsConn* ws);
 
-    void applyInFlight(const std::uint32_t fileno)
-    {
-        for (auto& conn: mConns)
-        {
-            for (int j = static_cast<int>(conn->mChunksInFlight.size()); j--;)
-            {
-                if (conn->mChunksInFlight[j].first.fileno == fileno)
-                {
-                    conn->mChunksInFlight.erase(conn->mChunksInFlight.begin() + j);
-                    mNumChunksInFlight--;
-                }
-            }
-        }
-    }
+    void applyInFlight(const std::uint32_t fileno);
 
     bool sendChunk(WsConn* ws, class UploadEngine::Impl& impl);
 };
@@ -894,6 +962,23 @@ public:
         if (uploadThread.joinable())
             uploadThread.join();
 
+        // Join pool worker threads before member destruction (uploadMutex must remain valid).
+        for (auto& p: poolMgr.mPools)
+        {
+            if (!p)
+                continue;
+            for (auto& th: p->mActiveThreads)
+            {
+                if (th)
+                    th->join();
+            }
+            for (auto& th: p->mExitingThreads)
+            {
+                if (th)
+                    th->join();
+            }
+        }
+
         LOG_debug << "[UploadEngine::Impl::~Impl] END";
     }
 
@@ -916,7 +1001,7 @@ public:
 
         if (fileList.size() == 1)
             nextIt = fileList.begin();
-        ++queueVersion;
+        bumpQueueVersion();
     }
 
     void reposition(Transfer& t, Transfer* before)
@@ -953,7 +1038,7 @@ public:
                     if (*lit == itb->second.get())
                     {
                         fileList.insert(lit, f);
-                        ++queueVersion;
+                        bumpQueueVersion();
                         return;
                     }
                 }
@@ -961,7 +1046,7 @@ public:
         }
 
         fileList.push_back(f);
-        ++queueVersion;
+        bumpQueueVersion();
     }
 
     void pause(Transfer& t)
@@ -984,30 +1069,74 @@ public:
 
     void remove(Transfer& t)
     {
-        std::lock_guard<std::mutex> g(uploadMutex);
-        auto it = files.find(&t);
-        if (it == files.end())
-            return;
-
-        auto* f = it->second.get();
-        if (!f)
-            return;
-
-        for (auto lit = fileList.begin(); lit != fileList.end(); ++lit)
+        std::unique_ptr<WsUploadFile> removed;
         {
-            if (*lit == f)
+            std::lock_guard<std::mutex> g(uploadMutex);
+            auto it = files.find(&t);
+            if (it == files.end())
+                return;
+
+            removed = std::move(it->second);
+            auto* f = removed.get();
+            if (!f)
+                return;
+
+            LOG_debug << "Removing transfer from queue: " << f->fileno();
+
+            poolMgr.mActiveFiles.erase(f);
+            for (auto& poolPtr: poolMgr.mPools)
             {
-                if (nextIt == lit)
-                    ++nextIt;
-                fileList.erase(lit);
-                break;
+                if (!poolPtr)
+                    continue;
+                WsPool& pool = *poolPtr;
+                if (pool.mUploadingFile == f)
+                {
+                    pool.mUploadingFile = nullptr;
+                    pool.mUFTQversion = queueVersion;
+                }
+                for (WsConn* conn: pool.mConns)
+                {
+                    if (!conn)
+                        continue;
+                    for (auto cit = conn->mChunksInFlight.begin();
+                         cit != conn->mChunksInFlight.end();)
+                    {
+                        if (cit->first.fileno == f->fileno())
+                        {
+                            if (pool.mNumChunksInFlight > 0)
+                                --pool.mNumChunksInFlight;
+                            cit = conn->mChunksInFlight.erase(cit);
+                        }
+                        else
+                        {
+                            ++cit;
+                        }
+                    }
+                }
             }
+
+            for (auto lit = fileList.begin(); lit != fileList.end(); ++lit)
+            {
+                if (*lit == f)
+                {
+                    if (nextIt == lit)
+                        ++nextIt;
+                    fileList.erase(lit);
+                    break;
+                }
+            }
+
+            if (nextIt == fileList.end())
+                nextIt = fileList.begin();
+
+            inQueue.erase(f);
+            fileByNo.erase(f->fileno());
+            files.erase(it);
+            bumpQueueVersion();
         }
 
-        inQueue.erase(f);
-        fileByNo.erase(f->fileno());
-        files.erase(it);
-        ++queueVersion;
+        if (removed)
+            removed->waitForNoIO();
     }
 
     bool isUploading(Transfer& t) const
@@ -1175,6 +1304,16 @@ public:
     bool paused{false};
 
 private:
+    void bumpQueueVersion()
+    {
+        ++queueVersion;
+        for (auto& pool: poolMgr.mPools)
+        {
+            if (pool && pool->mUploadingFile && inQueue.count(pool->mUploadingFile))
+                pool->mUFTQversion = queueVersion;
+        }
+    }
+
     template<class F>
     void withFile(Transfer& t, F&& fn)
     {
@@ -1236,13 +1375,13 @@ bool WsConn::connectWS()
     // Share CurlHttpIO settings but don't attach to its multi
     if (auto* cio = dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio))
     {
-        LOG_debug << "[WsConn::connectWS] configureWsEasy [curl=" << (void*)curl << "] [this = " << this << "]";
-        cio->configureWsEasy(curl, false);
+        LOG_debug << "[WsConn::connectWS] configureWsEasy [curl=" << (void*)curl << "] [this = " <<
+this << "]"; cio->configureWsEasy(curl, false);
     }
     else
     {
-        LOG_warn << "[WsConn::connectWS] dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio) failed, return false [curl=" << (void*)curl << "] [this = " << this << "]";
-        return false;
+        LOG_warn << "[WsConn::connectWS] dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio)
+failed, return false [curl=" << (void*)curl << "] [this = " << this << "]"; return false;
     }
 
     readyState = ReadyState::CONNECTING;
@@ -1521,16 +1660,22 @@ void WsConn::onmessage(const char* msg, const int len)
         LOG_debug << "[WsConn::onmessage] response->event >= 0 -> chunk.pos = -1 [this = " << this
                   << "]";
         chunk.pos = -1;
-        for (int i = 0; i < static_cast<int>(mChunksInFlight.size()); ++i)
+        const bool shouldApply =
+            response->event == 1 || response->event == 2 || response->event == 7;
         {
-            if (mChunksInFlight[i].first.pos == response->chunkpos &&
-                mChunksInFlight[i].first.fileno == response->fileno)
+            std::lock_guard<std::mutex> g(mPool->mImpl->uploadMutex);
+            for (int i = 0; i < static_cast<int>(mChunksInFlight.size()); ++i)
             {
-                chunk = mChunksInFlight[i].first;
-                // Phase 5: mChunksInFlight[i].second.apply(chunk.pos);
-                mChunksInFlight.erase(mChunksInFlight.begin() + i);
-                mPool->mNumChunksInFlight--;
-                break;
+                if (mChunksInFlight[i].first.pos == response->chunkpos &&
+                    mChunksInFlight[i].first.fileno == response->fileno)
+                {
+                    chunk = mChunksInFlight[i].first;
+                    if (shouldApply)
+                        mChunksInFlight[i].second.apply(chunk.pos);
+                    mChunksInFlight.erase(mChunksInFlight.begin() + i);
+                    mPool->mNumChunksInFlight--;
+                    break;
+                }
             }
         }
         if (chunk.pos < 0)
@@ -1562,14 +1707,12 @@ void WsConn::onmessage(const char* msg, const int len)
                 uf->onServerConfirmedBytes(chunk.len);
                 if (mPool->mImpl->mCb.onProgress && uf->progressReportDue(SteadyTime::ds()))
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
-                if (uf->bytesConfirmed() >= uf->size())
+                if (uf->bytesConfirmed() > uf->size())
                 {
-                    // server confirmed last chunk (or more) rather than completing upload:
-                    LOG_debug
+                    LOG_warn
                         << "[WsConn::onmessage] uf->bytesConfirmed(=" << uf->bytesConfirmed()
-                        << ") >= uf->size(=" << uf->size()
-                        << ") -> server confirmed last chunk (or more) rather than completing "
-                           "upload -> uf->uploadFailed(FailReason::StateLost) [this = "
+                        << ") > uf->size(=" << uf->size()
+                        << ") -> server confirmed beyond expected size, failing upload [this = "
                         << this << "]";
                     uf->uploadFailed(FailReason::StateLost);
                     break;
@@ -1600,8 +1743,24 @@ void WsConn::onmessage(const char* msg, const int len)
 
         case 2: // already on server (after reconnect)
             LOG_debug << "[WsConn::onmessage] response->event == 2 already on server (after "
-                         "reconnect) -> break [this = "
-                      << this << "]";
+                         "reconnect) [pos="
+                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
+                      << "] [this = " << this << "]";
+            if (chunk.len)
+            {
+                uf->onServerConfirmedBytes(chunk.len);
+                if (mPool->mImpl->mCb.onProgress && uf->progressReportDue(SteadyTime::ds()))
+                    mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
+                if (uf->bytesConfirmed() > uf->size())
+                {
+                    LOG_warn << "[WsConn::onmessage] bytesConfirmed=" << uf->bytesConfirmed()
+                             << " > uf->size()=" << uf->size()
+                             << " -> uf->uploadFailed(StateLost) [this = " << this << "]";
+                    uf->uploadFailed(FailReason::StateLost);
+                    break;
+                }
+            }
+            mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
         case 3: // CRC failed
@@ -1899,12 +2058,36 @@ void WsPool::retryChunksOnTheWire(WsConn* ws)
 {
     LOG_debug << "WsUpload: WS to " << mUrl << " lost; rescheduling " << ws->mChunksInFlight.size()
               << " in-flight chunks";
+    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
     for (auto& p: ws->mChunksInFlight)
     {
         mToResend.push_back(p.first);
     }
     mNumChunksInFlight -= static_cast<int>(ws->mChunksInFlight.size());
     ws->mChunksInFlight.clear();
+}
+
+void WsPool::retryChunk(const WsChunk& chunk)
+{
+    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+    mToResend.push_back(chunk);
+}
+
+void WsPool::applyInFlight(const std::uint32_t fileno)
+{
+    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+    for (auto& conn: mConns)
+    {
+        for (int j = static_cast<int>(conn->mChunksInFlight.size()); j--;)
+        {
+            if (conn->mChunksInFlight[j].first.fileno == fileno)
+            {
+                conn->mChunksInFlight[j].second.apply(conn->mChunksInFlight[j].first.pos);
+                conn->mChunksInFlight.erase(conn->mChunksInFlight.begin() + j);
+                mNumChunksInFlight--;
+            }
+        }
+    }
 }
 
 bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl)
@@ -1934,20 +2117,69 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl)
     }
 
     WsUploadFile* uf = findFile(chunk.fileno, impl);
-    if (uf && !uf->aborted() &&
-        (chunk.len == 0 || uf->readData(tlsBuf.get(), chunk.pos, chunk.len, impl.uploadMutex)))
+    const bool okRead =
+        uf && !uf->aborted() &&
+        (chunk.len == 0 || uf->readData(tlsBuf.get(), chunk.pos, chunk.len, impl.uploadMutex));
+    if (okRead)
     {
+        uf = findFile(chunk.fileno, impl);
+        if (!uf)
+            return false;
+        if (!uf->inPool() || uf->aborted())
+        {
+            LOG_debug << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
+                         "[pos="
+                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+            return false;
+        }
+        if (uf->paused())
+        {
+            LOG_debug << "[WsPool::sendChunk] requeue chunk after read (paused) [pos=" << chunk.pos
+                      << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+            mToResend.push_back(chunk);
+            return false;
+        }
+
+        ChunkFingerprintMacUpdate update(uf->transfer(), chunk.pos);
+        if (chunk.len)
+        {
+            const unsigned pad =
+                static_cast<unsigned>((-(int)chunk.len) & (SymmCipher::BLOCKSIZE - 1));
+            if (pad)
+                std::memset(tlsBuf.get() + chunk.len, 0, pad);
+
+            thread_local std::unique_ptr<SymmCipher> tlsCipher;
+            if (!tlsCipher)
+                tlsCipher.reset(new SymmCipher(uf->transfer().transferkey.data()));
+            else
+                tlsCipher->setkey(uf->transfer().transferkey.data());
+
+            chunkmac_map macs;
+            macs.ctr_encrypt(chunk.pos,
+                             tlsCipher.get(),
+                             reinterpret_cast<byte*>(tlsBuf.get()),
+                             static_cast<unsigned>(chunk.len),
+                             chunk.pos,
+                             uf->transfer().ctriv,
+                             false);
+            update = ChunkFingerprintMacUpdate(uf->transfer(), chunk.pos, std::move(macs));
+        }
         LOG_debug << "[WsPool::sendChunk] uf->readData(tlsBuf.get(), chunk.pos, chunk.len, "
                      "impl.uploadMutex) -> emplace mChunksInFlight, sendChunkData && return true "
                      "[mNumChunksInFlight="
                   << mNumChunksInFlight << "] [this = " << this << "]";
-        ws->mChunksInFlight.emplace_back(
-            chunk,
-            ChunkFingerprintMacUpdate(*uf, chunk.pos, tlsBuf.get(), chunk.len));
+        ws->mChunksInFlight.emplace_back(chunk, std::move(update));
         ws->sendChunkData(chunk.fileno, chunk.pos, tlsBuf.get(), chunk.len);
 
         ++mNumChunksInFlight;
         return true;
+    }
+    uf = findFile(chunk.fileno, impl);
+    if (uf && chunk.len && uf->paused() && uf->inPool())
+    {
+        LOG_debug << "[WsPool::sendChunk] requeue chunk (paused while reading/opening) [pos="
+                  << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+        mToResend.push_back(chunk);
     }
     LOG_debug
         << "[WsPool::sendChunk] !uf->aborted() && (chunk.len == 0 || uf->readData(tlsBuf.get(), "

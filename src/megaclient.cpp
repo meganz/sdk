@@ -2209,7 +2209,7 @@ void MegaClient::installWsEngineCallbacks()
     cb.onProgress = [this](Transfer& t, const m_off_t confirmed)
     {
         wsPostTransferUpdate(&t,
-                             [&confirmed](Transfer& t, TransferDbCommitter&)
+                             [confirmed](Transfer& t, TransferDbCommitter&)
                              {
                                  LOG_debug << "[MegaClient::wsPostTransferUpdate] onProgress -> "
                                               "t.setProgresscompleted(confirmed="
@@ -2232,15 +2232,76 @@ void MegaClient::installWsEngineCallbacks()
                              });
     };
 
-    cb.onComplete = [this](Transfer& t, const char* /*payload*/, const int /*len*/)
+    cb.onComplete = [this](Transfer& t, const char* payload, const int len)
     {
-        LOG_debug << "[MegaClient::installWsEngineCallbacks] onComplete -> no putnodes yet, just "
-                     "surface a final tick -> app->transfer_update(&t) [t.localfilename = "
-                  << t.localfilename << "]";
-        // Phase 2: no putnodes yet; just surface a final tick
-        app->transfer_update(&t);
-        // Phase 5 will integrate MAC/putnodes; for now just tick.
-        wsPostTransferUpdate(&t, [](Transfer&, TransferDbCommitter&) {});
+        std::string payloadCopy;
+        if (payload && len > 0)
+            payloadCopy.assign(payload, payload + len);
+
+        wsPostToClientThread(
+            [tPtr = &t,
+             type = t.type,
+             th = t.uploadhandle,
+             payloadCopy = std::move(payloadCopy),
+             len](MegaClient& c, TransferDbCommitter& committer) mutable
+            {
+                if (!tPtr)
+                    return;
+
+                const auto& transfers = c.multi_transfers[type];
+                const auto it = transfers.find(tPtr);
+                if (it == transfers.end() || !(tPtr->uploadhandle == th))
+                    return;
+
+                Transfer& tt = *tPtr;
+
+                if (len != UPLOADTOKENLEN ||
+                    payloadCopy.size() != static_cast<size_t>(UPLOADTOKENLEN))
+                {
+                    LOG_warn << "[MegaClient::installWsEngineCallbacks] onComplete -> "
+                                "missing/invalid upload token (len="
+                             << len << ") [t.localfilename = " << tt.localfilename << "]";
+                    tt.state = TRANSFERSTATE_RETRYING;
+                    if (c.app)
+                        c.app->transfer_update(tPtr);
+                    return;
+                }
+
+                tt.ultoken.reset(new UploadToken);
+                memcpy(tt.ultoken->data(), payloadCopy.data(), UPLOADTOKENLEN);
+
+                memcpy(&tt.filekey.key, tt.transferkey.data(), SymmCipher::KEYLENGTH);
+                tt.filekey.iv_u64 = static_cast<uint64_t>(tt.ctriv);
+                tt.filekey.crc_u64 =
+                    static_cast<uint64_t>(tt.chunkmacs.macsmac(tt.transfercipher()));
+                SymmCipher::xorblock(tt.filekey.iv_bytes.data(), tt.filekey.key.data());
+
+                const m_off_t previous = tt.progresscompleted;
+                tt.setProgresscompleted(tt.size);
+                tt.state = TRANSFERSTATE_COMPLETING;
+                if (tt.progresscompleted != previous)
+                {
+                    const m_off_t diff = tt.progresscompleted - previous;
+                    c.httpio->updateuploadspeed(std::max<m_off_t>(diff, 0));
+                }
+
+                c.transfercacheadd(&tt, &committer);
+                if (c.app)
+                    c.app->transfer_update(tPtr);
+                if (c.wsEngine())
+                    c.wsEngine()->remove(tt);
+
+                const WsVerifyResult verifyResult = c.wsVerifyUploadUnchanged(tt, committer);
+                if (verifyResult == WsVerifyResult::TransientError)
+                {
+                    c.wsScheduleVerifyUpload(tt);
+                    return;
+                }
+                if (verifyResult == WsVerifyResult::Failed)
+                    return;
+
+                c.wsFinalizeUploadCompletion(tt);
+            });
     };
 
     m_wsEngine->setCallbacks(std::move(cb));
@@ -2258,14 +2319,196 @@ void MegaClient::wsPostToClientThread(std::function<void(MegaClient&, TransferDb
 void MegaClient::wsPostTransferUpdate(Transfer* t,
                                       std::function<void(Transfer&, TransferDbCommitter&)>&& f)
 {
+    const direction_t type = t ? t->type : PUT;
+    const UploadHandle th = t ? t->uploadhandle : UploadHandle();
+
     wsPostToClientThread(
-        [this, t, f = std::move(f)](MegaClient& c, TransferDbCommitter& committer) mutable
+        [t, type, th, f = std::move(f)](MegaClient& c, TransferDbCommitter& committer) mutable
         {
             if (!t)
-                return; // light guard; Transfer lifetime is managed elsewhere
-            f(*t, committer); // mutate on client thread
-            c.app->transfer_update(t); // and notify app on client thread
+                return;
+
+            const auto& transfers = c.multi_transfers[type];
+            const auto it = transfers.find(t);
+            if (it == transfers.end())
+                return;
+
+            if (!(t->uploadhandle == th))
+                return;
+
+            f(*t, committer);
+            if (c.app)
+                c.app->transfer_update(t);
         });
+}
+
+void MegaClient::wsDrainClientActions(dstime maxExecTimeDs)
+{
+    CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
+    const dstime ctr_start = waiter->ds;
+    size_t ctr_N = 0;
+    TransferDbCommitter committer(tctable);
+    for (;;)
+    {
+        std::function<void(MegaClient&, TransferDbCommitter&)> f;
+        {
+            std::lock_guard<std::mutex> g(mWsClientActionsMutex);
+            if (mWsClientActions.empty())
+                break;
+            f = std::move(mWsClientActions.front());
+            mWsClientActions.pop_front();
+        }
+        f(*this, committer);
+        ++ctr_N;
+        waiter->bumpds();
+        if (maxExecTimeDs > 0 && ctr_start + maxExecTimeDs < waiter->ds)
+            break;
+    }
+
+    size_t n = 0;
+    {
+        std::lock_guard<std::mutex> g(mWsClientActionsMutex);
+        n = mWsClientActions.size();
+    }
+    if (n)
+    {
+        LOG_debug << "Processed " << ctr_N << " WS requests in " << (waiter->ds - ctr_start)
+                  << "ms, " << n << " WS requests outstanding";
+    }
+}
+
+MegaClient::WsVerifyPending::WsVerifyPending(PrnGen& rng, Transfer& t):
+    transfer(&t),
+    type(t.type),
+    uploadHandle(t.uploadhandle),
+    retryTimer(rng)
+{}
+
+MegaClient::WsVerifyResult MegaClient::wsVerifyUploadUnchanged(Transfer& t,
+                                                               TransferDbCommitter& committer)
+{
+    static constexpr std::string_view fingerprintIssue = "[Fingerprint Issue] ";
+    for (file_list::iterator it = t.files.begin(); it != t.files.end();)
+    {
+        File* f = *it;
+        const LocalPath localpath = f->getLocalname();
+
+        LOG_debug << "Verifying upload: " << localpath.toPath(false);
+
+        auto fa = fsaccess->newfileaccess();
+        const bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
+        if (!isOpen && fsaccess->transient_error)
+        {
+            LOG_warn << "Retrying upload completion due to a transient error";
+            return WsVerifyResult::TransientError;
+        }
+
+        const bool isNotOpenAndIsNotSyncxfer = (!f->syncxfer && !isOpen);
+        const bool fingerprintChanged = isOpen && f->genfingerprint(fa.get());
+
+        if (isNotOpenAndIsNotSyncxfer || fingerprintChanged)
+        {
+            if (isNotOpenAndIsNotSyncxfer)
+            {
+                LOG_warn << "Deletion detected after upload";
+            }
+            else
+            {
+                LOG_warn << fingerprintIssue
+                         << "Modification detected after upload! Path: " << localpath.toPath(false)
+                         << ". Transfer fingerprint: " << t.fingerprintDebugString()
+                         << ". FA fingerprint: " << f->fingerprintDebugString();
+            }
+
+            ++it; // removeTransferFile will erase current entry
+            t.removeTransferFile(API_EREAD, f, &committer);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (t.files.empty())
+    {
+        t.failed(API_EREAD, committer);
+        return WsVerifyResult::Failed;
+    }
+
+    return WsVerifyResult::Ok;
+}
+
+void MegaClient::wsFinalizeUploadCompletion(Transfer& t)
+{
+    if (!gfxdisabled)
+        t.addAnyMissingMediaFileAttributes(nullptr, t.localfilename);
+    checkfacompletion(t.uploadhandle, &t, true);
+}
+
+void MegaClient::wsScheduleVerifyUpload(Transfer& t)
+{
+    for (auto& pending: mWsVerifyPending)
+    {
+        if (pending && pending->transfer == &t)
+        {
+            pending->type = t.type;
+            pending->uploadHandle = t.uploadhandle;
+            pending->retryTimer.backoff(11);
+            waiter->notify();
+            return;
+        }
+    }
+
+    auto pending = std::make_unique<WsVerifyPending>(rng, t);
+    pending->retryTimer.backoff(11);
+    mWsVerifyPending.emplace_back(std::move(pending));
+    waiter->notify();
+}
+
+void MegaClient::wsProcessVerifyUploads()
+{
+    if (mWsVerifyPending.empty())
+        return;
+
+    TransferDbCommitter committer(tctable);
+    for (auto it = mWsVerifyPending.begin(); it != mWsVerifyPending.end();)
+    {
+        WsVerifyPending& pending = *(*it);
+        Transfer* t = pending.transfer;
+        if (!t)
+        {
+            it = mWsVerifyPending.erase(it);
+            continue;
+        }
+
+        const auto& transfers = multi_transfers[pending.type];
+        const auto trit = transfers.find(t);
+        if (trit == transfers.end() || !(t->uploadhandle == pending.uploadHandle))
+        {
+            it = mWsVerifyPending.erase(it);
+            continue;
+        }
+
+        if (!pending.retryTimer.armed())
+        {
+            ++it;
+            continue;
+        }
+
+        const WsVerifyResult result = wsVerifyUploadUnchanged(*t, committer);
+        if (result == WsVerifyResult::TransientError)
+        {
+            pending.retryTimer.backoff(11);
+            ++it;
+            continue;
+        }
+
+        it = mWsVerifyPending.erase(it);
+        if (result == WsVerifyResult::Ok)
+        {
+            wsFinalizeUploadCompletion(*t);
+        }
+    }
 }
 
 bool MegaClient::wsCanStartAnotherFile() const
@@ -2281,6 +2524,19 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
     // Idempotent WS preflight: mirror the non-network work done by the legacy path
     // at openfinished, without TransferSlot/HttpReq:
     //
+    // 0) Ensure transfer key/CTR IV exist (WS preflight can run before dispatchTransfers()).
+    if (SymmCipher::isZeroKey(t.transferkey.data(), SymmCipher::KEYLENGTH))
+    {
+        byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
+        rng.genblock(keyctriv, sizeof keyctriv);
+        memcpy(t.transferkey.data(), keyctriv, SymmCipher::KEYLENGTH);
+        t.ctriv = static_cast<int64_t>(
+            MemAccess::get<uint64_t>((const char*)keyctriv + SymmCipher::KEYLENGTH));
+        LOG_debug << "[MegaClient::prepareUploadForWs] generated transferkey/ctriv [t.localfilename"
+                     " = "
+                  << t.localfilename << "]";
+    }
+
     // 1) Ensure localfilename is prepared
     if (t.localfilename.empty())
     {
@@ -2450,6 +2706,12 @@ void MegaClient::exec()
     WAIT_CLASS::bumpds();
 
     DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingcs);
+
+#ifdef MEGA_USE_WSUPLOAD
+    // Drain WS actions early so completions/failures don't wait for later exec work.
+    // Keep the budget small to avoid starving the main state machine.
+    wsDrainClientActions(1);
+#endif
 
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
@@ -3782,39 +4044,8 @@ void MegaClient::exec()
         }
 
 #ifdef MEGA_USE_WSUPLOAD
-        // Process WS client-thread actions (Phase 3.0)
-        {
-            CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
-            dstime ctr_start = waiter->ds;
-            size_t ctr_N = 0;
-            TransferDbCommitter committer(tctable);
-            for (;;)
-            {
-                std::function<void(MegaClient&, TransferDbCommitter&)> f;
-                {
-                    std::lock_guard<std::mutex> g(mWsClientActionsMutex);
-                    if (mWsClientActions.empty())
-                        break;
-                    f = std::move(mWsClientActions.front());
-                    mWsClientActions.pop_front();
-                }
-                f(*this, committer);
-                ++ctr_N;
-                waiter->bumpds();
-                if (ctr_start + 5 < waiter->ds)
-                    break;
-            }
-            size_t n = 0;
-            {
-                std::lock_guard<std::mutex> g(mWsClientActionsMutex);
-                n = mWsClientActions.size();
-            }
-            if (n)
-            {
-                LOG_debug << "Processed " << ctr_N << " WS requests in " << (waiter->ds - ctr_start)
-                          << "ms, " << n << " WS requests outstanding";
-            }
-        }
+        wsDrainClientActions();
+        wsProcessVerifyUploads();
 #endif
 
 #ifdef ENABLE_SYNC
@@ -4778,7 +5009,7 @@ void MegaClient::dispatchTransfers()
                     // ToDo: should we move this code elsewhere?
                 }
 #endif
-                TransferSlot *ts = nullptr;
+                TransferSlot* ts = nullptr;
 
                 if (!nexttransfer->slot)
                 {
@@ -5151,6 +5382,18 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadComp
             LOG_debug << "Pending file attributes for upload - " << th <<  " : " << numUnresolvedFA;
             return;
         }
+    }
+
+    else if (uploadCompleted && t)
+    {
+        if (t->transfers_it != multi_transfers[t->type].end())
+        {
+            multi_transfers[t->type].erase(t->transfers_it);
+            t->transfers_it = multi_transfers[t->type].end();
+        }
+
+        delete t->slot;
+        t->slot = NULL;
     }
 
     if (!t) return;

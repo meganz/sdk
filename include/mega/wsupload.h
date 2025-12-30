@@ -1,15 +1,17 @@
 #pragma once
 
-#include <memory>
-#include <functional>
 #include "types.h"
+
+#include <functional>
+#include <memory>
 
 namespace mega
 {
 
 class MegaClient;
 struct Transfer;
-//class File;
+
+// class File;
 
 namespace ws
 {

@@ -522,11 +522,37 @@ struct DynamicMessageNotification
 
 class MEGA_API MegaClient
 {
+#ifdef MEGA_USE_WSUPLOAD
     std::unique_ptr<ws::UploadEngine> m_wsEngine;
 
     // WS client-thread actions (processed in MegaClient::exec()).
     std::mutex mWsClientActionsMutex;
     std::deque<std::function<void(MegaClient&, TransferDbCommitter&)>> mWsClientActions;
+    enum class WsVerifyResult
+    {
+        Ok,
+        TransientError,
+        Failed
+    };
+
+    struct WsVerifyPending
+    {
+        Transfer* transfer{nullptr};
+        direction_t type{PUT};
+        UploadHandle uploadHandle{};
+        BackoffTimer retryTimer;
+
+        WsVerifyPending(PrnGen& rng, Transfer& t);
+    };
+
+    std::deque<std::unique_ptr<WsVerifyPending>> mWsVerifyPending;
+
+    WsVerifyResult wsVerifyUploadUnchanged(Transfer& t, TransferDbCommitter& committer);
+    void wsFinalizeUploadCompletion(Transfer& t);
+    void wsScheduleVerifyUpload(Transfer& t);
+    void wsDrainClientActions(dstime maxExecTimeDs = 5);
+    void wsProcessVerifyUploads();
+#endif
 
 public:
     // own identity
@@ -580,6 +606,7 @@ public:
         return mProFlexi;
     }
 
+#ifdef MEGA_USE_WSUPLOAD
     ws::UploadEngine* wsEngine() const
     {
         return m_wsEngine.get();
@@ -595,7 +622,7 @@ public:
     // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.
     void wsPostTransferUpdate(Transfer* t,
                               std::function<void(Transfer&, TransferDbCommitter&)>&& f);
-
+#endif
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
