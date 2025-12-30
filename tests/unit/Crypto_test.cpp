@@ -470,7 +470,7 @@ TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKey)
 
     const std::string plain = "Chat message with Paco";
 
-    auto testFunc = [&cipher, &internalKey, &plain](unsigned int tagLen)
+    auto testFunc = [&cipher, &plain](unsigned int tagLen)
     {
         std::string cipherText, recovered;
 
