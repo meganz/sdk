@@ -25,7 +25,7 @@
 
 namespace mega
 {
-struct MEGA_API BannerDetails
+struct BannerDetails
 {
     int id = 0;
     std::string title;
@@ -34,7 +34,7 @@ struct MEGA_API BannerDetails
     std::string url;
     std::string backgroundImage;
     std::string imageLocation;
-    int variant = -1;
+    int variant = 0;
     std::string button;
 };
 } // namespace
