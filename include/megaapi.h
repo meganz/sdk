@@ -20492,11 +20492,12 @@ class MegaApi
          * inside the folder is returned.
          *
          * It's important to know that the HTTP proxy server has several configuration options
-         * that can restrict the nodes that will be served and the connections that will be accepted.
+         * that can restrict the nodes that will be served and the connections that will be
+         * accepted.
          *
          * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-         * (see MegaApi::httpServerSetRestrictedMode)
+         * - The restricted mode of the server is set to
+         * MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS (see MegaApi::httpServerSetRestrictedMode)
          *
          * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
          * - File nodes are allowed to be served (see MegaApi::httpServerEnableFileServer)
@@ -20504,8 +20505,10 @@ class MegaApi
          *
          * The HTTP server will only stream a node if it's allowed by all configuration options.
          *
-         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
-         * @param port Port in which the server must accept connections
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network
+         * interfaces
+         * @param port Port in which the server must accept connections. A free port is selected if
+         * it is 0.
          * @param useTLS Use TLS (default false).
          * If the SDK compilation does not support TLS,
          * enabling this flag will cause the function to return false.
@@ -20894,16 +20897,19 @@ class MegaApi
          * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
          *
          * It's important to know that the FTP server has several configuration options
-         * that can restrict the nodes that will be served and the connections that will be accepted.
+         * that can restrict the nodes that will be served and the connections that will be
+         * accepted.
          *
          * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-         * (see MegaApi::ftpServerSetRestrictedMode)
+         * - The restricted mode of the server is set to
+         * MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS (see MegaApi::ftpServerSetRestrictedMode)
          *
          * The FTP server will only stream a node if it's allowed by all configuration options.
          *
-         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
-         * @param port Port in which the server must accept connections
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network
+         * interfaces
+         * @param port Port in which the server must accept connections. A free port is selected if
+         * it is 0.
          * @param dataportBegin Initial port for FTP data channel
          * @param dataPortEnd Final port for FTP data channel (included)
          * @param useTLS Use TLS (default false)
