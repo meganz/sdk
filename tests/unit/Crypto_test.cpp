@@ -469,24 +469,29 @@ TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKey)
     cipher.setkey(internalKey.data());
 
     const std::string plain = "Chat message with Paco";
-    std::string cipherText, recovered;
 
-    const auto iv = randomBytes(12); // 96-bit nonce
-    const auto tagLen = 16u;
+    auto testFunc = [&cipher, &plain](unsigned int tagLen)
+    {
+        std::string cipherText, recovered;
 
-    ASSERT_TRUE(cipher.gcm_encrypt(&plain,
-                                   iv.data(),
-                                   static_cast<unsigned>(iv.size()),
-                                   tagLen,
-                                   &cipherText));
+        const auto iv = randomBytes(12); // 96-bit nonce
 
-    ASSERT_TRUE(cipher.gcm_decrypt(&cipherText,
-                                   iv.data(),
-                                   static_cast<unsigned>(iv.size()),
-                                   tagLen,
-                                   &recovered));
+        ASSERT_TRUE(cipher.gcm_encrypt(&plain,
+                                       iv.data(),
+                                       static_cast<unsigned>(iv.size()),
+                                       tagLen,
+                                       &cipherText));
 
-    EXPECT_EQ(plain, recovered);
+        ASSERT_TRUE(cipher.gcm_decrypt(&cipherText,
+                                       iv.data(),
+                                       static_cast<unsigned>(iv.size()),
+                                       tagLen,
+                                       &recovered));
+        EXPECT_EQ(plain, recovered);
+    };
+
+    testFunc(16);
+    testFunc(12);
 }
 
 TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKeyWithAAD)
@@ -531,6 +536,245 @@ TEST(Crypto, SymmCipher_GcmEncryptDecryptReuseKeyWithAAD)
 
     std::string recovered(recoveredBuf.begin(), recoveredBuf.end());
     EXPECT_EQ(plain, recovered);
+}
+
+TEST(Crypto, SymmCipher_GcmEncryptReuseKeyWithAAD_ReturnFalse)
+{
+    SymmCipher cipher;
+
+    const auto key = randomBytes(SymmCipher::KEYLENGTH);
+    cipher.setkey(key.data());
+
+    const std::string plain = "Test Encryption Return false";
+    constexpr byte aad[] = {1, 2, 3, 4};
+
+    const auto iv = randomBytes(12); // 96-bit nonce
+    constexpr auto tagLen = 16u;
+    std::string cipherText;
+
+    // data is null
+    EXPECT_FALSE(cipher.gcm_encrypt_add(nullptr,
+                                        plain.size(),
+                                        aad,
+                                        sizeof(aad),
+                                        iv.data(),
+                                        iv.size(),
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+    // data size is 0
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        0,
+                                        aad,
+                                        sizeof(aad),
+                                        iv.data(),
+                                        iv.size(),
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+    // AAD is null
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        plain.size(),
+                                        nullptr,
+                                        sizeof(aad),
+                                        iv.data(),
+                                        iv.size(),
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+    // AAD size is 0
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        plain.size(),
+                                        aad,
+                                        0,
+                                        iv.data(),
+                                        iv.size(),
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+    // iv is null
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        plain.size(),
+                                        aad,
+                                        sizeof(aad),
+                                        nullptr,
+                                        iv.size(),
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+    // iv size is 0
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        plain.size(),
+                                        aad,
+                                        sizeof(aad),
+                                        iv.data(),
+                                        0,
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+    // tag length is 0
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        plain.size(),
+                                        aad,
+                                        sizeof(aad),
+                                        iv.data(),
+                                        iv.size(),
+                                        0,
+                                        cipherText,
+                                        /*expectedSize =*/0));
+
+    // expected size is not equal to cipher text size
+    EXPECT_FALSE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                        plain.size(),
+                                        aad,
+                                        sizeof(aad),
+                                        iv.data(),
+                                        iv.size(),
+                                        tagLen,
+                                        cipherText,
+                                        /*expectedSize =*/1));
+}
+
+TEST(Crypto, SymmCipher_GcmDecryptReuseKeyWithAAD_ReturnFalse)
+{
+    SymmCipher cipher;
+
+    const auto key = randomBytes(SymmCipher::KEYLENGTH);
+    cipher.setkey(key.data());
+
+    const std::string plain = "Test Decryption Return false";
+    constexpr byte aad[] = {1, 2, 3, 4};
+
+    const auto iv = randomBytes(12); // 96-bit nonce
+    constexpr auto tagLen = 16u;
+
+    std::string cipherText;
+    std::vector<byte> recoveredBuf(plain.size());
+
+    ASSERT_TRUE(cipher.gcm_encrypt_add(reinterpret_cast<const byte*>(plain.data()),
+                                       plain.size(),
+                                       aad,
+                                       sizeof(aad),
+                                       iv.data(),
+                                       iv.size(),
+                                       tagLen,
+                                       cipherText,
+                                       /*expectedSize =*/0));
+
+    const auto ctLen = cipherText.size() - tagLen;
+    const byte* ctPtr = reinterpret_cast<const byte*>(cipherText.data());
+    const byte* tagPtr = ctPtr + ctLen;
+
+    // data is null
+    EXPECT_FALSE(cipher.gcm_decrypt_add(nullptr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // data size is 0
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        0,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // AAD is null
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        nullptr,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // AAD size is 0
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        0,
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // tag is null
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        nullptr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // tag size is 0
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        0,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // iv is null
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        nullptr,
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // iv size is 0
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        0,
+                                        recoveredBuf.data(),
+                                        recoveredBuf.size()));
+    // result buf is null
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        nullptr,
+                                        recoveredBuf.size()));
+    // result buf size is 0
+    EXPECT_FALSE(cipher.gcm_decrypt_add(ctPtr,
+                                        ctLen,
+                                        aad,
+                                        sizeof(aad),
+                                        tagPtr,
+                                        tagLen,
+                                        iv.data(),
+                                        iv.size(),
+                                        recoveredBuf.data(),
+                                        0));
 }
 
 TEST(Crypto, SymmCipher_KeyRotationBreaksOldCipher)
