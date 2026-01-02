@@ -193,9 +193,6 @@ pipeline {
                         MEGA_PWD2 = credentials('MEGA_PWD_DEFAULT')
                         BUILD_DIR = "build_dir"
                     }
-                    options{
-                        timeout(time: 300, unit: 'MINUTES')
-                    }
                     steps{
                         script {
                             def lockLabel = ''
