@@ -38606,10 +38606,11 @@ MegaFTPDataContext::MegaFTPDataContext()
     node = NULL;
     rangeWritten = 0;
     rangeStart = 0;
+    rangeEnd = 0;
     tmpFileAccess = NULL;
     tmpFileSize = 0;
-    this->controlRespondedElsewhere = false;
-    this->controlResponseCode = 426;
+    controlRespondedElsewhere = false;
+    controlResponseCode = 426;
 }
 
 MegaFTPDataContext::~MegaFTPDataContext()
