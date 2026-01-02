@@ -19292,7 +19292,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 LOG_debug << "Folder transfer is cancelled, skipping remaining subtransfers: " << auxQueue.size();
                 recursiveTransfer->setTransfersTotalCount(recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
 
-                auxQueue.clear();
+                // Remove remaining transfers in recursiveTransfer's custom queue
+                while (MegaTransferPrivate* childtransfer = auxQueue.pop())
+                {
+                    delete childtransfer;
+                }
+                assert(auxQueue.empty());
                 // let the pop'd transfer notify the parent, we may be completely finished
                 // otherwise the folder completes when transfers already established in the SDK core finish
             }
