@@ -38,29 +38,29 @@ void runTest(const std::string& testName, std::function<void()> testFunction) {
 void testOriginalActionPacketParser() {
     std::cout << "\n--- Original ActionPacketParser Test ---" << std::endl;
     
-    // 模拟网络字节流（多个actionpackets拼接，包含大字段t）
+    // Simulate network byte stream (multiple actionpackets concatenated, containing large field t)
     const char* mockNetworkData = 
         "{\"f\":[{\"nodeId\":\"123\",\"name\":\"file1\"},{\"nodeId\":\"456\",\"name\""  
         ":\"file2\"}]}\n{\"f\":[{\"nodeId\":\"456\",\"name\":\"file3\"}" 
         "]}\n{\"f\":[{\"nodeId\":\"789\",\"name\":\"file4\"}]}\n" 
         "{\"id\":4,\"f\"";
 
-    // Packet执行回调函数（模拟业务逻辑）
+    // Packet execution callback function (simulate business logic)
     int packetCount = 0;
     ActionPacketParser parser('\n');
     parser.setLargeFieldPath("t");
     parser.setPacketExecCallback([&packetCount](const std::unordered_map<std::string, std::string>& packetData) {
         packetCount++;
-        std::cout << "===== 执行完整ActionPacket =====" << std::endl;
+        std::cout << "===== Execute Complete ActionPacket =====" << std::endl;
         for (const auto& [key, value] : packetData) {
             std::cout << "Key: " << key << ", Value: " << value << std::endl;
         }
         std::cout << "================================" << std::endl;
     });
 
-    // 模拟网络字节流输入（分批输入，模拟流式接收）
+    // Simulate network byte stream input (batch input, simulate streaming reception)
     size_t dataLen = strlen(mockNetworkData);
-    size_t batchSize = 20; // 分批输入，模拟网络逐段传输
+    size_t batchSize = 20; // Batch input, simulate network segment transmission
     for (size_t i = 0; i < dataLen; i += batchSize) {
         size_t currentBatchLen = std::min(batchSize, dataLen - i);
         parser.feed(mockNetworkData + i, currentBatchLen);
@@ -122,7 +122,7 @@ void testSingleCharInput() {
         packetCount++;
     });
     
-    // 逐个字符输入
+    // Character by character input
     size_t dataLen = strlen(mockNetworkData);
     for (size_t i = 0; i < dataLen; i++) {
         parser.feed(mockNetworkData + i, 1);
@@ -139,11 +139,11 @@ void testEmptyDataInput() {
     
     ActionPacketParser parser('\n');
     
-    // 测试空指针和零长度输入
+    // Test null pointer and zero-length input
     parser.feed(nullptr, 0);
     parser.feed("", 0);
     
-    // 没有抛出异常即为通过
+    // Test passes if no exception is thrown
     std::cout << "Empty Data Input Test Passed" << std::endl;
 }
 
@@ -162,15 +162,15 @@ void testPartialDataInput() {
     
     // Input only partial data (ensure no complete packet)
     size_t dataLen = strlen(mockNetworkData);
-    size_t partialLen = 10; // 只输入前10个字符，不足以形成完整的packet
+    size_t partialLen = 10; // Input only first 10 characters, insufficient for complete packet
     parser.feed(mockNetworkData, partialLen);
     
-    // 应该没有完整的packet解析出来
+    // Should not parse any complete packet
     if (packetCount != 0) {
         throw std::runtime_error("Partial Data Input Test Failed: Expected 0 packets, parsed " + std::to_string(packetCount));
     }
     
-    // 输入剩余数据
+    // Input remaining data
     parser.feed(mockNetworkData + partialLen, dataLen - partialLen);
     
     if (packetCount != 2) {
@@ -191,11 +191,11 @@ void testInvalidJson() {
         packetCount++;
     });
     
-    // 输入无效JSON数据
+    // Input invalid JSON data
     size_t dataLen = strlen(invalidJsonData);
     parser.feed(invalidJsonData, dataLen);
     
-    // 应该能够处理部分有效数据
+    // Should be able to handle partially valid data
     std::cout << "Invalid JSON Test: Parsed " << packetCount << " valid packets" << std::endl;
 }
 
@@ -259,6 +259,9 @@ void testDifferentLargeField() {
     parser.setLargeFieldPath("items");
     parser.setPacketExecCallback([&packetCount, &largeFieldProcessed](const std::unordered_map<std::string, std::string>& packetData) {
         packetCount++;
+        for (const auto &item: packetData) {
+            std::cout << item.first << ": " << item.second << std::endl;
+        }
         if (packetData.find("items") != packetData.end()) {
             largeFieldProcessed = true;
         }
@@ -382,7 +385,7 @@ void testLargeFFieldPerformance() {
         packetCount++;
     });
     
-    // 测量处理时间
+    // Measure processing time
     auto start = std::chrono::high_resolution_clock::now();
     
     size_t dataLen = largeTData.size();
@@ -429,40 +432,40 @@ void testDeepNestedJson() {
 void testTResponseParsing() {
     std::cout << "\n--- 't' Response Parsing Tests ---" << std::endl;
     
-    // 统计变量
+    // Statistical variables
     int totalFNodes = 0;
     std::vector<std::string> extractedFNodes;
     int packetsParsed = 0;
     
-    // 创建解析器实例，设置大字段为't'
+    // Create parser instance, set large field to 't'
     ActionPacketParser parser('\n');
     parser.setLargeFieldPath("t");
     
-    // 设置packet执行回调
+    // Set packet execution callback
     parser.setPacketExecCallback([&](const std::unordered_map<std::string, std::string>& packet) {
         packetsParsed++;
         std::cout << "Packet " << packetsParsed << " completed parsing\n";
     });
     
-    // 添加目标节点配置
+    // Add target node configuration
     parser.addTargetNode(TargetNodeConfig("t", true));
-    // 设置目标节点回调（实时输出）
+    // Set target node callback (real-time output)
     parser.setTargetNodeCallback([&](const std::string& fNode) {
         totalFNodes++;
         extractedFNodes.push_back(fNode);
         //std::cout << "✓ Extracted 'f' node " << totalFNodes << ": " << fNode << "\n";
     });
     
-    // 测试辅助：检查回调是否被正确设置
+    // Test helper: Check if callback is properly set
     std::cout << "Callback registered successfully\n";
     
-    // 测试1: 基本的't' response解析
+    // Test 1: Basic 't' response parsing
     std::cout << "\n=== Test 1: Basic 't' Response Parsing ===\n";
-    // 简化测试数据，更容易调试
+    // Simplify test data for easier debugging
     std::string tResponse = 
         "{\"id\":1,\"t\":[{\"h\":\"123\",\"p\":\"456\",\"t\":1,\"a\":\"file1.txt\",\"k\":\"key1\"}]}\n";
     
-    // 模拟流式输入（逐字符）
+    // Simulate streaming input (character by character)
     for (char c : tResponse) {
         parser.feed(&c, 1);
     }
@@ -474,17 +477,17 @@ void testTResponseParsing() {
     }
     std::cout << "✅ Test 1 Passed\n";
     
-    // 重置统计变量
+    // Reset statistical variables
     totalFNodes = 0;
     extractedFNodes.clear();
     packetsParsed = 0;
-    // 重置解析器状态，确保Test 2不受Test 1影响
+    // Reset parser state to ensure Test 2 is not affected by Test 1
     parser.resetParserState();
     
-    // 测试2: 大文件't' response解析（模拟大量'f'节点）
+    // Test 2: Large file 't' response parsing (simulate many 'f' nodes)
     std::cout << "\n=== Test 2: Large 't' Response Parsing ===\n";
     
-    // 构建包含100个'f'节点的't' response
+    // Build 't' response containing 100 'f' nodes
     std::string largeTResponse = "{\"id\":2,\"t\":[";
     for (int i = 0; i < 100; i++) {
         if (i > 0) largeTResponse += ",";
@@ -495,7 +498,7 @@ void testTResponseParsing() {
     
     auto start = std::chrono::high_resolution_clock::now();
     
-    // 模拟流式输入（更大的块）
+    // Simulate streaming input (larger chunks)
     size_t chunkSize = 32;
     for (size_t i = 0; i < largeTResponse.size(); i += chunkSize) {
         size_t len = std::min(chunkSize, largeTResponse.size() - i);
@@ -515,7 +518,7 @@ void testTResponseParsing() {
     std::cout << "✅ Test 2 Passed\n";
 }
 
-// 主函数
+// Main function
 int main() {
     std::cout << "==========================================" << std::endl;
     std::cout << "ActionPacketParser Comprehensive Test Suite" << std::endl;

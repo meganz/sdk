@@ -151,7 +151,7 @@ void ActionPacketParser::processJsonChar(char c) {
                 }
                 
                 if (!jsonPath_.empty()) {
-                    jsonPath_.pop_back(); // 退出当前对象
+                    jsonPath_.pop_back(); // Exit current object
                 }
                 if (nestedLevel_ == 0) {
                     currentState_ = JsonParseState::Complete;
@@ -168,7 +168,7 @@ void ActionPacketParser::processJsonChar(char c) {
                     packetData_[currentKey] += c;
                 }
                 
-                // 如果当前有键，将键添加到路径中
+                // If there is a current key, add it to the path
                 if (!currentKey_.empty()) {
                     jsonPath_.push_back(currentKey_);
                     currentKey_.clear();
@@ -185,7 +185,7 @@ void ActionPacketParser::processJsonChar(char c) {
                 }
                 
                 currentState_ = JsonParseState::InArray;
-                // 如果当前有键，将键添加到路径中
+                // If there is a current key, add it to the path
                 if (!currentKey_.empty()) {
                     jsonPath_.push_back(currentKey_);
                     currentKey_.clear();
@@ -223,11 +223,6 @@ void ActionPacketParser::processJsonChar(char c) {
                 currentKey_ += c;
                 break;
             }
-
-            // if it's not escape character, append character to current key
-            if (currentState_ != JsonParseState::EscapeChar) {
-                currentKey_ += c;
-            }
             
             // if it's not escape character, append character to current key
             if (c == '"' && currentState_ != JsonParseState::EscapeChar) {
@@ -235,68 +230,68 @@ void ActionPacketParser::processJsonChar(char c) {
                 currentState_ = JsonParseState::InValue;
                 currentValue_.clear();
                 
-                // 构建当前路径（包括刚刚解析的键）
+                // Build current path (including the key just parsed)
                 std::string currentPath = buildCurrentPath();
                 if (!currentPath.empty()) {
                     currentPath += ".";
                 }
                 currentPath += currentKey_;
                 
-                // 检查是否为大字段（根据配置的大字段路径）
+                // Check if it's a large field (based on configured large field path)
                 isParsingLargeField_ = matchTargetPath(jsonPath_, largeFieldPath_) || 
                                      (largeFieldPath_ == currentKey_ && jsonPath_.empty());
                 
-                // 如果是大字段，保存键名
+                // If it's a large field, save the key name
                 if (isParsingLargeField_) {
                     largeFieldKey_ = currentKey_;
-                    // 初始化大字段缓冲区
+                    // Initialize large field buffer
                     largeFieldBuffer_.clear();
                 }
                 
                 break;
             }
             
-            // 将字符添加到键名
+            // Add character to key name
             currentKey_ += c;
             
             break;
         }
 
         case JsonParseState::InValue: {
-            // 检查是否正在解析目标节点
+            // Check if parsing target node
             if (isParsingTargetNode_) {
-                // 添加字符到目标节点缓冲区
+                // Add character to target node buffer
                 targetNodeBuffer_ += c;
             }
 
-            // 如果是大字段，将所有字符添加到缓冲区
+            // If it's a large field, add all characters to buffer
             if (isParsingLargeField_) {
                 largeFieldBuffer_ += c;
             }
             
-            // 处理数组开始
+            // Handle array start
             if (c == '[') {
                 nestedLevel_++;
                 currentState_ = JsonParseState::InArray;
-                // 构建当前完整路径
+                // Build current complete path
                 std::string currentPath = buildCurrentPath();
                 if (!currentKey_.empty()) {
-                    // 保存键名
+                    // Save key name
                     std::string key = currentKey_;
                     
-                    // 如果不是大字段，保存键值对
+                    // If not a large field, save key-value pair
                     if (!isParsingLargeField_) {
-                        // 数组值以'['开头
+                        // Array value starts with '['
                         packetData_[key] = "[";
                     }
                     
                     currentPath += (currentPath.empty() ? "" : ".") + key;
-                    // 将键添加到路径中
+                    // Add key to path
                     jsonPath_.push_back(key);
                     currentKey_.clear();
                 }
                 
-                // 检查是否匹配任何目标节点路径
+                // Check if matches any target node path
                 for (const auto& config : targetNodes_) {
                     if (currentPath == config.path) {
                         currentTargetPath_ = config.path;
@@ -304,29 +299,29 @@ void ActionPacketParser::processJsonChar(char c) {
                     }
                 }
             }
-            // 处理对象开始
+            // Handle object start
             else if (c == '{') {
                 nestedLevel_++;
                 currentState_ = JsonParseState::InObject;
-                // 构建当前完整路径
+                // Build current complete path
                 std::string currentPath = buildCurrentPath();
                 if (!currentKey_.empty()) {
-                    // 保存键名
+                    // Save key name
                     std::string key = currentKey_;
                     
-                    // 如果不是大字段，保存键值对
+                    // If not a large field, save key-value pair
                     if (!isParsingLargeField_) {
-                        // 对象值以'{'开头
+                        // Object value starts with '{'
                         packetData_[key] = "{";
                     }
                     
                     currentPath += (currentPath.empty() ? "" : ".") + key;
-                    // 将键添加到路径中
+                    // Add key to path
                     jsonPath_.push_back(key);
                     currentKey_.clear();
                 }
                 
-                // 检查是否匹配任何目标节点路径
+                // Check if matches any target node path
                 for (const auto& config : targetNodes_) {
                     if (currentPath == config.path) {
                         currentTargetPath_ = config.path;
@@ -334,14 +329,14 @@ void ActionPacketParser::processJsonChar(char c) {
                     }
                 }
             }
-            // 处理值结束（逗号或右大括号）
+            // Handle value end (comma or closing brace)
             else if (c == ',' || c == '}') {
-                // 保存当前值
+                // Save current value
                 if (!currentKey_.empty()) {
                     packetData_[currentKey_] = currentValue_;
                 }
                 
-                // 处理对象结束
+                // Handle object end
                 if (c == '}') {
                     nestedLevel_--;
                     if (!jsonPath_.empty()) {
@@ -352,24 +347,24 @@ void ActionPacketParser::processJsonChar(char c) {
                         break;
                     }
                 }
-                // 只有在不是Complete状态时才切换回对象状态
+                // Switch back to object state only if not in Complete state
                 if (currentState_ != JsonParseState::Complete) {
                     currentState_ = JsonParseState::InObject;
                 }
             }
-            // 处理字符串开始
+            // Handle string start
             else if (c == '"') {
                 currentState_ = JsonParseState::InString;
             }
-            // 处理数字值
+            // Handle numeric value
             else if (std::isdigit(c)) {
                 currentValue_ += c;
             }
-            // 处理空格等空白字符（跳过）
+            // Handle whitespace characters (skip)
             else if (std::isspace(c)) {
-                // 跳过
+                // Skip
             }
-            // 其他字符添加到当前值
+            // Add other characters to current value
             else {
                 currentValue_ += c;
             }
@@ -377,19 +372,19 @@ void ActionPacketParser::processJsonChar(char c) {
         }
 
         case JsonParseState::InString: {
-            // 检查是否正在解析目标节点
+            // Check if parsing target node
             if (isParsingTargetNode_) {
-                // 添加所有字符（包括转义字符）到目标节点缓冲区
+                // Add all characters (including escape characters) to target node buffer
                 targetNodeBuffer_ += c;
             }
             
-            // 如果是大字段，将所有字符添加到缓冲区
+            // If it's a large field, add all characters to buffer
             if (isParsingLargeField_) {
                 largeFieldBuffer_ += c;
             }
             
             if (c == '"' && currentState_ != JsonParseState::EscapeChar) {
-                // 字符串值解析完成
+                // String value parsing complete
                 if (!isParsingLargeField_) {
                     packetData_[currentKey_] = currentValue_;
                 }
@@ -403,16 +398,16 @@ void ActionPacketParser::processJsonChar(char c) {
         }
 
         case JsonParseState::EscapeChar: {
-            // 对于目标节点，添加所有转义字符到缓冲区
+            // For target nodes, add all escape characters to buffer
             if (isParsingTargetNode_) {
                 targetNodeBuffer_ += c;
             }
             
-            // 如果是大字段，将所有字符添加到缓冲区
+            // If it's a large field, add all characters to buffer
             if (isParsingLargeField_) {
                 largeFieldBuffer_ += c;
             } else {
-                // 非大字段，正常处理转义字符
+                // Not a large field, handle escape characters normally
                 if (currentKey_.empty()) {
                     currentState_ = JsonParseState::InKey;
                     currentKey_ += c;
@@ -425,17 +420,17 @@ void ActionPacketParser::processJsonChar(char c) {
         }
 
         case JsonParseState::InArray: {
-            // 大字段数组内容增量缓冲
+            // Incremental buffering for large field array content
             if (isParsingLargeField_) {
                 largeFieldBuffer_ += c;
             }
-            // 如果不是大字段，将字符追加到当前路径对应的值
+            // If not a large field, append character to current path value
             else if (!jsonPath_.empty()) {
                 std::string currentKey = jsonPath_.back();
                 packetData_[currentKey] += c;
             }
 
-            // 检查当前路径是否匹配任何目标节点
+            // Check if current path matches any target node
             std::string currentPath = buildCurrentPath();
             if (currentTargetPath_.empty()) {
                 for (const auto& config : targetNodes_) {
@@ -446,52 +441,52 @@ void ActionPacketParser::processJsonChar(char c) {
                 }
             }
 
-            // 目标节点处理
+            // Target node processing
             if (!currentTargetPath_.empty()) {
                 if (isParsingTargetNode_) {
-                    // 添加字符到目标节点缓冲区
+                    // Add character to target node buffer
                     targetNodeBuffer_ += c;
                     
-                    // 跟踪目标节点嵌套层级
+                    // Track target node nesting level
                     if (c == '{') {
                         targetNodeNestedLevel_++;
                     } else if (c == '}') {
                         targetNodeNestedLevel_--;
-                        // 检查目标节点是否完整（嵌套层级回到0）
+                        // Check if target node is complete (nesting level returns to 0)
                         if (targetNodeNestedLevel_ == 0) {
-                            // 触发目标节点回调
+                            // Trigger target node callback
                             if (targetNodeCallback_) {
                                 targetNodeCallback_(targetNodeBuffer_);
                             }
-                            // 重置目标节点解析状态，但保持currentTargetPath_以继续处理其他节点
+                            // Reset target node parsing state but keep currentTargetPath_ to continue processing other nodes
                             isParsingTargetNode_ = false;
                             targetNodeBuffer_.clear();
                             targetNodeNestedLevel_ = 0;
                         }
                     }
                 } else if (c == '{') {
-                    // 开始解析新的目标节点
+                    // Start parsing new target node
                     isParsingTargetNode_ = true;
                     targetNodeBuffer_ = "{";
                     targetNodeNestedLevel_ = 1;
                 }
             }
 
-            // 处理数组结束
+            // Handle array end
             if (c == ']') {
                 nestedLevel_--;
                 //cout<<nestedLevel_<<endl;
                 if (!jsonPath_.empty()) {
-                    jsonPath_.pop_back(); // 退出当前数组
+                    jsonPath_.pop_back(); // Exit current array
                 }
                 
                 if (isParsingLargeField_) {
-                    // 大字段数组结束，将其内容保存到packetData中
+                    // Large field array ends, save its content to packetData
                     packetData_[largeFieldKey_] = largeFieldBuffer_;
                     largeFieldBuffer_.clear();
                     isParsingLargeField_ = false;
                     currentTargetPath_.clear();
-                    // 数组结束后回到对象状态
+                    // Return to object state after array ends
                     currentState_ = JsonParseState::InObject;
                 } else if (nestedLevel_ == 0) {
                     currentState_ = JsonParseState::Complete;
@@ -499,20 +494,20 @@ void ActionPacketParser::processJsonChar(char c) {
                     currentState_ = JsonParseState::InObject;
                 }
             }
-            // 处理数组内的对象开始
+            // Handle object start within array
             else if (c == '{') {
                 nestedLevel_++;
             } else if (c == '}') {
                 nestedLevel_--;
                 //cout<<nestedLevel_<<endl;
             }
-            // 处理数组内的数组开始
+            // Handle array start within array
             else if (c == '[') {
                 nestedLevel_++;
             } 
-            // 跳过空白字符
+            // Skip whitespace characters
             else if (std::isspace(c)) {
-                // 跳过
+                // Skip
             }
             break;
         }
@@ -522,9 +517,9 @@ void ActionPacketParser::processJsonChar(char c) {
     }
 }
 
-// 执行完整的packet（触发回调）
+// Execute complete packet (trigger callback)
 void ActionPacketParser::executePacket() {
-    // 如果正在解析大字段，将缓冲区内容添加到packetData_
+    // If parsing large field, add buffer content to packetData_
     if (isParsingLargeField_ && !largeFieldBuffer_.empty()) {
         packetData_[largeFieldKey_] = largeFieldBuffer_;
     }
@@ -532,14 +527,14 @@ void ActionPacketParser::executePacket() {
     if (execCallback_) {
         execCallback_(packetData_);
     }
-    // 清空packet缓冲区
+    // Clear packet buffer
     packetBuffer_.clear();
     isPacketComplete_ = false;
 }
 
-// 重置解析状态（用于下一个packet）
+// Reset parsing state (for next packet)
 void ActionPacketParser::resetParserState() {
-    // 重置状态
+    // Reset state
     currentState_ = JsonParseState::Start;
     nestedLevel_ = 0;
     isParsingLargeField_ = false;

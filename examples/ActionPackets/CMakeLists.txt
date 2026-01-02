@@ -27,11 +27,11 @@ target_link_libraries(testActionPacketParser PRIVATE ActionPacketParser)
 if(MSVC)
     # Microsoft Visual Studio
     target_compile_options(ActionPacketParser PRIVATE /W4 /WX)
-    target_compile_options(testActionPacketParser PRIVATE /W4 /WX /wd4100) # 禁用未使用参数警告
+    target_compile_options(testActionPacketParser PRIVATE /W4 /WX /wd4100) # Disable unused parameter warning
 else()
     # GCC/Clang
     target_compile_options(ActionPacketParser PRIVATE -Wall -Wextra -Wpedantic -Werror)
-    target_compile_options(testActionPacketParser PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter) # 禁用未使用参数警告
+    target_compile_options(testActionPacketParser PRIVATE -Wall -Wextra -Wpedantic -Werror -Wno-unused-parameter) # Disable unused parameter warning
 endif()
 
 # install rules
