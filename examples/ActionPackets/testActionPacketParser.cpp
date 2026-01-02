@@ -96,9 +96,9 @@ void testBasicScenario() {
         }
     });
     
-    // 模拟网络字节流输入（分批输入，模拟流式接收）
+    // Simulate network byte stream
     size_t dataLen = strlen(mockNetworkData);
-    size_t batchSize = 20; // 分批输入，模拟网络逐段传输
+    size_t batchSize = 20; // split into batches, each batch 20 byte
     for (size_t i = 0; i < dataLen; i += batchSize) {
         size_t currentBatchLen = std::min(batchSize, dataLen - i);
         parser.feed(mockNetworkData + i, currentBatchLen);
