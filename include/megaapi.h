@@ -10983,15 +10983,12 @@ class MegaApi
          *
          * Maps 1:1 with PitagTrigger in types.h.
          */
-        enum : char
-        {
-            PITAG_TRIGGER_NOT_APPLICABLE = '.',
-            PITAG_TRIGGER_PICKER = 'p',
-            PITAG_TRIGGER_DRAG_AND_DROP = 'd',
-            PITAG_TRIGGER_CAMERA = 'c',
-            PITAG_TRIGGER_SCANNER = 's',
-            PITAG_TRIGGER_SYNC_ALGORITHM = 'a'
-        };
+        static constexpr char PITAG_TRIGGER_NOT_APPLICABLE = '.';
+        static constexpr char PITAG_TRIGGER_PICKER = 'p';
+        static constexpr char PITAG_TRIGGER_DRAG_AND_DROP = 'd';
+        static constexpr char PITAG_TRIGGER_CAMERA = 'c';
+        static constexpr char PITAG_TRIGGER_SCANNER = 's';
+        static constexpr char PITAG_TRIGGER_SYNC_ALGORITHM = 'a';
 
         /**
          * @brief Optional parameters to customize an upload.
