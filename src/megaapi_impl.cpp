@@ -18987,8 +18987,7 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
         newMtime,
         [this, nextTag](NodeHandle h, Error e)
         {
-            MegaTransferPrivate* transfer =
-                static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
+            MegaTransferPrivate* transfer = getMegaTransferPrivate(nextTag);
             if (!transfer)
             {
                 LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
