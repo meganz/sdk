@@ -19292,9 +19292,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 recursiveTransfer->setTransfersTotalCount(recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
 
                 // Remove remaining transfers in recursiveTransfer's custom queue
-                while (MegaTransferPrivate* childtransfer = auxQueue.pop())
+                while (auto* t = auxQueue.pop())
                 {
-                    delete childtransfer;
+                    delete t;
                 }
                 assert(auxQueue.empty());
                 // let the pop'd transfer notify the parent, we may be completely finished
@@ -31230,6 +31230,10 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
         {
+            while (auto* t = transferQueue.pop())
+            {
+                delete t;
+            }
             complete(API_EINCOMPLETE, true);
         }
         else if (transferQueue.empty())
@@ -32568,6 +32572,13 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
                 if (e)
                 {
+                    if (transferQueue)
+                    {
+                        while (auto* t = transferQueue->pop())
+                        {
+                            delete t;
+                        }
+                    }
                     complete(e);
                 }
                 else
