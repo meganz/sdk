@@ -321,6 +321,9 @@ enum class PasswordEntryError : uint8_t
     INVALID_CREDIT_CARD_EXPIRATION_DATE,
 };
 
+// Alias for `FileFingerprint` Crc
+using FingerprintCrc = std::array<int32_t, 4>;
+
 /**
  * @brief Get a string representation from a PasswordEntryError
  */

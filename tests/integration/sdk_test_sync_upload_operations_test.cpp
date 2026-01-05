@@ -7,6 +7,7 @@
 #ifdef ENABLE_SYNC
 
 #include "integration_test_utils.h"
+#include "mega/testhooks.h"
 #include "mega/utils.h"
 #include "megautils.h"
 #include "mock_listeners.h"
@@ -17,6 +18,43 @@
 
 using namespace sdk_test;
 using namespace testing;
+
+namespace
+{
+struct ScopedLegacyBuggySparseCrcHook
+{
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    std::function<void(bool&)> mPrev;
+    bool mEnabled = false;
+
+    explicit ScopedLegacyBuggySparseCrcHook(const bool enabled):
+        mPrev{::mega::globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc},
+        mEnabled{enabled}
+    {
+        setEnabled(mEnabled);
+    }
+
+    ~ScopedLegacyBuggySparseCrcHook()
+    {
+        ::mega::globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc = std::move(mPrev);
+    }
+
+    void setEnabled(const bool enabled)
+    {
+        mEnabled = enabled;
+        ::mega::globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc =
+            [enabled](bool& flag)
+        {
+            flag = enabled;
+        };
+    }
+#else
+    explicit ScopedLegacyBuggySparseCrcHook(const bool) {}
+
+    void setEnabled(const bool) {}
+#endif
+};
+} // namespace
 
 /**
  * @class SdkTestSyncUploadOperations
@@ -75,11 +113,14 @@ protected:
      * @param tt The transfer listener tracker for this file.
      * @param isFullUploadExpected If true, validates transfer completes with API_OK.
      * If false, validates that NO transfer occurred (clone/setattr should be used instead).
+     * @param noTransferTimeout Timeout used when no transfer is expected.
      */
-    void waitForSyncAndVerifyTransfer(const fs::path& localFilePathAbs,
-                                      std::shared_ptr<SyncUploadOperationsTracker> st,
-                                      std::shared_ptr<SyncUploadOperationsTransferTracker> tt,
-                                      const bool isFullUploadExpected)
+    void waitForSyncAndVerifyTransfer(
+        const fs::path& localFilePathAbs,
+        std::shared_ptr<SyncUploadOperationsTracker> st,
+        std::shared_ptr<SyncUploadOperationsTransferTracker> tt,
+        const bool isFullUploadExpected,
+        const std::chrono::milliseconds noTransferTimeout = std::chrono::seconds(30))
     {
         auto [syncStatus, syncErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
         ASSERT_TRUE(syncStatus == std::future_status::ready)
@@ -88,8 +129,7 @@ protected:
 
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 
-        const auto transferTimeout =
-            isFullUploadExpected ? COMMON_TIMEOUT : std::chrono::seconds(30);
+        const auto transferTimeout = isFullUploadExpected ? COMMON_TIMEOUT : noTransferTimeout;
         auto [transferStatus, transferErrCode] = tt->waitForCompletion(transferTimeout);
 
         const auto expectedTransferStatus =
@@ -97,6 +137,7 @@ protected:
         ASSERT_EQ(transferStatus, expectedTransferStatus)
             << "Unexpected transfer status for: " << localFilePathAbs
             << " [isFullUploadExpected: " << isFullUploadExpected << "]";
+
         const auto expectedTransferStartCount = isFullUploadExpected ? 1 : 0;
 
         ASSERT_EQ(tt->transferStartCount.load(), expectedTransferStartCount)
@@ -157,7 +198,48 @@ protected:
                                    const bool isFullUploadExpected,
                                    std::optional<m_time_t> expectedMtimeAfterMove = std::nullopt)
     {
-        static const std::string logPre{"moveFileIntoSyncAndVerify: "};
+        moveIntoSyncAndVerifyImpl(targetPathInSync,
+                                  isFullUploadExpected,
+                                  expectedMtimeAfterMove,
+                                  [&]()
+                                  {
+                                      std::error_code ec;
+                                      fs::rename(sourcePath, targetPathInSync, ec);
+                                      if (ec)
+                                      {
+                                          LOG_err << "Failed to move file from "
+                                                  << path_u8string(sourcePath) << " to "
+                                                  << path_u8string(targetPathInSync)
+                                                  << ". Error: " << ec.message();
+                                      }
+                                      return ec;
+                                  });
+    }
+
+    void moveLocalTempFileIntoSyncAndVerify(
+        const std::shared_ptr<sdk_test::LocalTempFile>& file,
+        const fs::path& targetPathInSync,
+        const bool isFullUploadExpected,
+        std::optional<m_time_t> expectedMtimeAfterMove = std::nullopt)
+    {
+        ASSERT_TRUE(file);
+        moveIntoSyncAndVerifyImpl(targetPathInSync,
+                                  isFullUploadExpected,
+                                  expectedMtimeAfterMove,
+                                  [&]()
+                                  {
+                                      return file->move(targetPathInSync);
+                                  });
+    }
+
+private:
+    template<typename MoveFn>
+    void moveIntoSyncAndVerifyImpl(const fs::path& targetPathInSync,
+                                   const bool isFullUploadExpected,
+                                   const std::optional<m_time_t>& expectedMtimeAfterMove,
+                                   MoveFn&& moveFn)
+    {
+        static const std::string logPre{"moveIntoSyncAndVerifyImpl: "};
         ASSERT_TRUE(mMtl) << logPre << "Invalid transfer listener";
 
         auto tt = addTransferListenerTracker(targetPathInSync.string());
@@ -167,10 +249,8 @@ protected:
         ASSERT_TRUE(st) << logPre
                         << "Cannot add SyncListenerTracker for: " << targetPathInSync.string();
 
-        std::error_code renameError;
-        fs::rename(sourcePath, targetPathInSync, renameError);
-        ASSERT_FALSE(renameError) << logPre << "Failed to move file from " << sourcePath << " to "
-                                  << targetPathInSync << ": " << renameError.message();
+        const auto ec = moveFn();
+        ASSERT_FALSE(ec) << logPre << "Move into sync failed for: " << targetPathInSync;
 
         if (expectedMtimeAfterMove.has_value())
         {
@@ -179,13 +259,14 @@ protected:
             ASSERT_TRUE(getMtimeOk)
                 << logPre << "Failed to get mtime of moved file: " << targetPathInSync;
             ASSERT_EQ(movedFileMtime, expectedMtimeAfterMove.value())
-                << logPre << "fs::rename should preserve mtime for: " << targetPathInSync;
+                << logPre << "Move should preserve mtime for: " << targetPathInSync;
         }
 
         ASSERT_NO_FATAL_FAILURE(
             waitForSyncAndVerifyTransfer(targetPathInSync, st, tt, isFullUploadExpected));
     }
 
+protected:
     enum class CxfMtimeDirection
     {
         Increase,
@@ -757,6 +838,214 @@ public:
 };
 
 /**
+ * @test
+ * SdkTestSyncUploadsOperations.CrcOnlyMismatchBugFixUpdatesRemoteFingerprintWithoutTransfer_CSF
+ *
+ * 1. Enable legacy (buggy) sparse CRC sampling via debug hook.
+ * 2. Create a couple of large random files outside the sync and move them in -> full upload
+ * expected.
+ * 3. Disable legacy hook, trigger a sync rescan to recompute fingerprint.
+ * 4. Verify cloud nodes get their fingerprint updated (CRC corrected) without transfers.
+ */
+TEST_F(SdkTestSyncUploadsOperations,
+       CrcOnlyMismatchBugFixUpdatesRemoteFingerprintWithoutTransfer_CSF)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const auto cleanup = setCleanupFunction();
+
+    static const std::string logPre{
+        "CrcOnlyMismatchBugFixUpdatesRemoteFingerprintWithoutTransfer_CSF: "};
+    const auto threadSuffix = "_" + getThisThreadIdStr();
+
+    ScopedLegacyBuggySparseCrcHook legacyHook{true};
+
+    // Sizes chosen to exceed the historical 32-bit sparse CRC offset overflow threshold (~33MB),
+    // while keeping uploads fast enough for integration environments.
+    static constexpr size_t FILE1_SIZE = 40 * 1024 * 1024; // 40MB
+    static constexpr size_t FILE2_SIZE = 90 * 1024 * 1024; // 90MB
+
+    const fs::path file1Path =
+        fs::absolute(getLocalTmpDir() / ("crc_bug_csf_1" + threadSuffix + ".dat"));
+    const fs::path file2Path =
+        fs::absolute(getLocalTmpDir() / ("crc_bug_csf_2" + threadSuffix + ".dat"));
+
+    const fs::path outsideLocalDir =
+        getLocalTmpDir().parent_path() / ("crc_bug_csf_tmp_dir" + threadSuffix);
+    LocalTempDir outsideDirCleanup(outsideLocalDir);
+
+    const fs::path outsideFile1 = outsideLocalDir / file1Path.filename();
+    const fs::path outsideFile2 = outsideLocalDir / file2Path.filename();
+
+    LOG_debug << logPre << "1. Creating two large files outside sync (avoid partial-file uploads)";
+    auto localFile1 = std::make_shared<sdk_test::LocalTempFile>(outsideFile1, FILE1_SIZE);
+    auto localFile2 = std::make_shared<sdk_test::LocalTempFile>(outsideFile2, FILE2_SIZE);
+    mLocalFiles.emplace_back(localFile1);
+    mLocalFiles.emplace_back(localFile2);
+
+    auto moveFileIntoSyncWithLocalTempFileAndVerify =
+        [&](const fs::path& targetPathInSync, const std::shared_ptr<sdk_test::LocalTempFile>& f)
+    {
+        ASSERT_NO_FATAL_FAILURE(moveLocalTempFileIntoSyncAndVerify(f, targetPathInSync, true));
+    };
+
+    LOG_debug << logPre << "2. Moving files into sync with legacy buggy sparse CRC enabled";
+    ASSERT_NO_FATAL_FAILURE(moveFileIntoSyncWithLocalTempFileAndVerify(file1Path, localFile1));
+    ASSERT_NO_FATAL_FAILURE(moveFileIntoSyncWithLocalTempFileAndVerify(file2Path, localFile2));
+
+    LOG_debug << logPre << "3. Disabling legacy hook and rescanning sync to recompute fingerprints";
+    legacyHook.setEnabled(false);
+    megaApi[0]->rescanSync(getBackupId(), true);
+
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << logPre << "Cannot get backup node";
+
+    auto waitForRemoteFingerprint = [&](const fs::path& localPath,
+                                        const std::string& filename,
+                                        std::shared_ptr<SyncUploadOperationsTransferTracker> tt)
+    {
+        const std::unique_ptr<char[]> expectedFp{
+            megaApi[0]->getFingerprint(path_u8string(localPath).c_str())};
+        ASSERT_TRUE(expectedFp) << logPre << "Cannot compute local fingerprint for: " << localPath;
+
+        const auto deadline = std::chrono::steady_clock::now() + COMMON_TIMEOUT;
+        for (;;)
+        {
+            std::unique_ptr<MegaNode> cloudNode(
+                megaApi[0]->getChildNodeOfType(backupNode.get(), filename.c_str(), FILENODE));
+            if (cloudNode && cloudNode->getFingerprint() &&
+                std::string_view{cloudNode->getFingerprint()} == expectedFp.get())
+            {
+                break;
+            }
+
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                FAIL() << logPre
+                       << "Timed out waiting for remote fingerprint update for: " << localPath;
+            }
+
+            std::this_thread::sleep_for(std::chrono::seconds(1));
+        }
+
+        ASSERT_EQ(tt->transferStartCount.load(), 0)
+            << logPre << "Transfer must not start for: " << localPath;
+    };
+
+    auto tt1 = addTransferListenerTracker(file1Path.string());
+    auto tt2 = addTransferListenerTracker(file2Path.string());
+    ASSERT_TRUE(tt1 && tt2);
+
+    LOG_debug << logPre << "4. Verifying remote fingerprints updated without transfers";
+    ASSERT_NO_FATAL_FAILURE(
+        waitForRemoteFingerprint(file1Path, path_u8string(file1Path.filename()), tt1));
+    ASSERT_NO_FATAL_FAILURE(
+        waitForRemoteFingerprint(file2Path, path_u8string(file2Path.filename()), tt2));
+#endif
+}
+
+/**
+ * @test
+ * SdkTestSyncUploadsOperations.CrcOnlyMismatchBugFixUpdatesRemoteFingerprintWithoutTransfer_CXF
+ *
+ * 1. Remove sync to start from CXF (no LocalNodes).
+ * 2. Manually upload a large file with legacy (buggy) sparse CRC enabled.
+ * 3. Disable legacy hook, place the same file into the sync local root, and re-add the sync.
+ * 4. Verify cloud node fingerprint gets corrected without transfers.
+ */
+TEST_F(SdkTestSyncUploadsOperations,
+       CrcOnlyMismatchBugFixUpdatesRemoteFingerprintWithoutTransfer_CXF)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const auto cleanup = setCleanupFunction();
+
+    static const std::string logPre{
+        "CrcOnlyMismatchBugFixUpdatesRemoteFingerprintWithoutTransfer_CXF: "};
+    const auto threadSuffix = "_" + getThisThreadIdStr();
+
+    static constexpr size_t FILE_SIZE = 40 * 1024 * 1024; // 40MB
+    const std::string fileName = "crc_bug_cxf" + threadSuffix + ".dat";
+
+    auto backupNodeBefore = getBackupNode();
+    ASSERT_TRUE(backupNodeBefore) << logPre << "Cannot get backup node";
+    const MegaHandle backupHandle = backupNodeBefore->getHandle();
+
+    LOG_debug << logPre << "1. Removing sync (CXF path upon re-addition)";
+    removeTestSync();
+
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupHandle));
+    ASSERT_TRUE(backupNode) << logPre << "Cannot re-acquire backup node by handle";
+
+    const fs::path outsideLocalDir =
+        getLocalTmpDir().parent_path() / ("crc_bug_cxf_tmp_dir" + threadSuffix);
+    LocalTempDir outsideDirCleanup(outsideLocalDir);
+    const fs::path outsideLocalPath = outsideLocalDir / fileName;
+
+    LOG_debug << logPre << "2. Creating random file outside sync";
+    createRandomFile(outsideLocalPath, FILE_SIZE);
+
+    const m_time_t fixedMtime = m_time(nullptr) - 60;
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(outsideLocalPath)),
+                                 fixedMtime))
+        << logPre << "Failed to set mtime on temp file";
+
+    LOG_debug << logPre << "3. Manual upload with legacy buggy sparse CRC enabled";
+    ScopedLegacyBuggySparseCrcHook legacyHook{true};
+    auto uploadedNode = uploadFile(megaApi[0].get(), outsideLocalPath, backupNode.get());
+    ASSERT_TRUE(uploadedNode) << logPre << "Manual upload failed";
+
+    LOG_debug << logPre << "4. Disabling legacy hook and moving file into sync local root";
+    legacyHook.setEnabled(false);
+
+    const fs::path insideSyncPath = fs::absolute(getLocalTmpDir() / fileName);
+    std::error_code renameError;
+    fs::rename(outsideLocalPath, insideSyncPath, renameError);
+    ASSERT_FALSE(renameError) << logPre
+                              << "Failed to move file into sync: " << renameError.message();
+
+    auto [getMtimeOk, movedMtime] =
+        mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(insideSyncPath)));
+    ASSERT_TRUE(getMtimeOk) << logPre << "Failed to get mtime of moved file";
+    ASSERT_EQ(movedMtime, fixedMtime) << logPre << "fs::rename should preserve mtime";
+
+    auto tt = addTransferListenerTracker(insideSyncPath.string());
+    ASSERT_TRUE(tt);
+
+    LOG_debug << logPre << "5. Re-adding sync and waiting for remote fingerprint correction";
+    ASSERT_NO_FATAL_FAILURE(initiateSync(getLocalTmpDirU8string(), SYNC_REMOTE_PATH, mBackupId));
+
+    const std::unique_ptr<char[]> expectedFp{
+        megaApi[0]->getFingerprint(path_u8string(insideSyncPath).c_str())};
+    ASSERT_TRUE(expectedFp) << logPre << "Cannot compute local fingerprint";
+
+    const auto deadline = std::chrono::steady_clock::now() + COMMON_TIMEOUT;
+    for (;;)
+    {
+        std::unique_ptr<MegaNode> cloudNode(
+            megaApi[0]->getChildNodeOfType(backupNode.get(), fileName.c_str(), FILENODE));
+        if (cloudNode && cloudNode->getFingerprint() &&
+            std::string_view{cloudNode->getFingerprint()} == expectedFp.get())
+        {
+            break;
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            FAIL() << logPre << "Timed out waiting for remote fingerprint update";
+        }
+
+        std::this_thread::sleep_for(std::chrono::seconds(1));
+    }
+
+    ASSERT_EQ(tt->transferStartCount.load(), 0) << logPre << "Transfer must not start";
+#endif
+}
+
+/**
  * @test SdkTestSyncUploadsOperations.BasicFileUpload
  *
  * 1. Create a new local file inside sync directory `dir2`.
@@ -1069,7 +1358,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
 
     const fs::path insideSyncPath = fs::absolute(getLocalTmpDir() / clonedFileName);
     LOG_debug << logPre << "4. Moving file into sync and waiting for sync (no transfer expected): "
-              << insideSyncPath.u8string();
+              << path_u8string(insideSyncPath);
     ASSERT_NO_FATAL_FAILURE(moveFileIntoSyncAndVerify(outsideLocalPath,
                                                       insideSyncPath,
                                                       false /*isFullUploadExpected*/,

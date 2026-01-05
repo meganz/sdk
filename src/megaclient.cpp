@@ -9926,6 +9926,35 @@ error MegaClient::updateNodeMtime(std::shared_ptr<Node> node,
     return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
 }
 
+error MegaClient::updateNodeFingerprint(std::shared_ptr<Node> node,
+                                        const FileFingerprint& newFingerprint,
+                                        std::function<void(NodeHandle, Error)>&& completion)
+{
+    if (!node || node->type != FILENODE || !completion)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS)";
+        return API_EARGS;
+    }
+
+    if (!newFingerprint.isvalid || newFingerprint.size < 0)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS): invalid fingerprint";
+        return API_EARGS;
+    }
+
+    if (node->size != newFingerprint.size)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS): size mismatch (node="
+                << node->size << ", fp=" << newFingerprint.size << ")";
+        return API_EARGS;
+    }
+
+    std::string attribute;
+    newFingerprint.serializefingerprint(&attribute);
+
+    return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(NodeHandle h,
                           VersioningOption vo,

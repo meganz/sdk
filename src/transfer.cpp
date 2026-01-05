@@ -1184,6 +1184,7 @@ void Transfer::complete(TransferDbCommitter& committer)
                 fingerprintChanged = isOpen && f->genfingerprint(fa.get());
                 isNotOpenAndIsNotSyncxfer || fingerprintChanged)
             {
+                bool skipRemoveTransferFile = false;
                 if (isNotOpenAndIsNotSyncxfer)
                 {
                     LOG_warn << "Deletion detected after upload";
@@ -1194,10 +1195,26 @@ void Transfer::complete(TransferDbCommitter& committer)
                              << localpath.toPath(false)
                              << ". Transfer fingerprint: " << fingerprintDebugString()
                              << ". FA fingerprint: " << f->fingerprintDebugString();
+                    DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(
+                        skipRemoveTransferFile);
                 }
 
                 it++; // the next line will remove the current item and invalidate that iterator
-                removeTransferFile(API_EREAD, f, &committer);
+
+                if (skipRemoveTransferFile)
+                {
+                    LOG_debug
+                        << fingerprintIssue
+                        << "Debug test hook filefingerprint using legacy buggy sparse crc was "
+                           "active. Skipping removeTransferFile and"
+                        << " mark transfer as successful. There can be fingerprint mismatches "
+                           "between IA and FA genfingerprints with buggy sparse crc calculation";
+                    f->crc = crc;
+                }
+                else
+                {
+                    removeTransferFile(API_EREAD, f, &committer);
+                }
             }
             else
             {

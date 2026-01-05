@@ -3248,7 +3248,7 @@ void LocalNode::resetTransfer(shared_ptr<SyncTransfer_inClient> p)
 
             // this flag allows in-progress transfers to self-cancel
             transferSP->wasRequesterAbandoned = true;
-            transferSP->wasJustMtimeChanged = false;
+            transferSP->attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
 
             // also queue an operation on the client thread to cancel it if it's queued
             auto tsp = transferSP;

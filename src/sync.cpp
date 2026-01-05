@@ -3062,7 +3062,8 @@ bool Sync::processCompletedUploadFromHere(SyncRow& row,
         statecacheadd(row.syncNode);
 
         // Record mtime-only operation to throttle future MAC computations
-        if (upload->wasJustMtimeChanged)
+        if (upload->attributeOnlyUpdate.load() ==
+            SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly)
         {
             row.syncNode->recordMtimeOnlyOperation();
         }
@@ -9041,7 +9042,8 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
             downloadPtr->wasFileTransferCompleted && downloadPtr->wasDistributed;
         onlyMtimeUpdated)
     {
-        assert(downloadPtr->wasJustMtimeChanged);
+        assert(downloadPtr->attributeOnlyUpdate.load() ==
+               SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly);
         SYNC_verbose << syncname << "Download setmtime change only at "
                      << logTriplet(row, fullPath);
 
@@ -9655,7 +9657,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
 
             // all three exist; compare
             // Use async MAC computation for mtime-only differences (non-blocking)
-            auto [fsCloudEqualRes, fcMacLocal, fcMacRemote] =
+            auto [fsCloudEqualRes, fcMacLocal, fcMacRemote, mismatch] =
                 syncEqualFsCloudExcludingMtimeAsync(syncs.mClient,
                                                     *row.cloudNode,
                                                     *row.fsNode,
@@ -9732,12 +9734,19 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             if (cloudSyncNodeEqual)
             {
                 // fsNode changed, upload the change
+                const auto attributeOnlyUpdate =
+                    fsCloudEqualRes == NODE_COMP_DIFFERS_MTIME ?
+                        SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly :
+                    (fsCloudEqualRes == NODE_COMP_DIFFERS_FP &&
+                     mismatch == FingerprintMismatch::CrcOnly) ?
+                        SyncTransfer_inClient::AttributeOnlyUpdate::CrcOnly :
+                        SyncTransfer_inClient::AttributeOnlyUpdate::None;
                 return resolve_upsync(row,
                                       parentRow,
                                       fullPath,
                                       pflsc,
                                       fcMacLocal,
-                                      fsCloudJustMtimeChanged);
+                                      attributeOnlyUpdate);
             }
 
             if (fsSyncNodeEqual)
@@ -9757,13 +9766,16 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                         LOG_warn << "syncItem: CloudNode and FsNode are not equal but "
                                     "metamacCloudNode has not been calculated";
                     }
-                    return resolve_downsync(row,
-                                            parentRow,
-                                            fullPath,
-                                            true,
-                                            pflsc,
-                                            fcMacRemote,
-                                            fsCloudJustMtimeChanged);
+                    return resolve_downsync(
+                        row,
+                        parentRow,
+                        fullPath,
+                        true,
+                        pflsc,
+                        fcMacRemote,
+                        fsCloudJustMtimeChanged ?
+                            SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly :
+                            SyncTransfer_inClient::AttributeOnlyUpdate::None);
                 }
             }
 
@@ -9798,7 +9810,9 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                                       fullPath,
                                       pflsc,
                                       fcMacLocal,
-                                      fsCloudJustMtimeChanged);
+                                      fsCloudJustMtimeChanged ?
+                                          SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly :
+                                          SyncTransfer_inClient::AttributeOnlyUpdate::None);
             }
 
             // both changed, so we can't decide without the user's help
@@ -9849,7 +9863,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                               fullPath,
                               pflsc,
                               INVALID_META_MAC,
-                              false /*onlyUpdateMtime*/);
+                              SyncTransfer_inClient::AttributeOnlyUpdate::None);
     }
     case SRT_CSX:
     {
@@ -9893,7 +9907,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                                     false,
                                     pflsc,
                                     INVALID_META_MAC,
-                                    false /*justMtimeChanged*/);
+                                    SyncTransfer_inClient::AttributeOnlyUpdate::None);
         }
         else if (row.syncNode->syncedCloudNodeHandle != row.cloudNode->handle)
         {
@@ -9905,7 +9919,7 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
                                     false,
                                     pflsc,
                                     INVALID_META_MAC,
-                                    false /*justMtimeChanged*/);
+                                    SyncTransfer_inClient::AttributeOnlyUpdate::None);
         }
         else
         {
@@ -9964,10 +9978,35 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             quickResult.has_value())
         {
             // Fingerprints fully match or differ in more than mtime (type, size, CRC)
-            if (auto fsCloudEqualRes = std::get<0>(*quickResult);
-                fsCloudEqualRes == NODE_COMP_EQUAL)
+            auto fsCloudEqualRes = std::get<0>(*quickResult);
+            auto mismatch = std::get<3>(*quickResult);
+            if (fsCloudEqualRes == NODE_COMP_EQUAL)
             {
                 return resolve_makeSyncNode_fromFS(row, parentRow, fullPath, false);
+            }
+            else if (fsCloudEqualRes == NODE_COMP_DIFFERS_FP &&
+                     mismatch == FingerprintMismatch::CrcOnly)
+            {
+                const auto& cloudFp = row.cloudNode->fingerprint;
+                const auto& localFp = row.fsNode->fingerprint;
+                if (const auto crcMismatchWasDueTo32bitOverflow =
+                        compareLegacyBuggySparseCrc(syncs.mClient,
+                                                    fullPath.localPath,
+                                                    localFp.size,
+                                                    cloudFp.crc);
+                    crcMismatchWasDueTo32bitOverflow)
+                {
+                    LOG_warn
+                        << "CXF case, CRC mismatch due to buggy CRC of cloud Node. We first need "
+                           "to create syncnode, and in next iteration in CSF CRC will be "
+                           "detected as buggy and fingerprint from cloud node will be updated";
+                    return resolve_makeSyncNode_fromCloud(row, parentRow, fullPath, false);
+                }
+                else
+                {
+                    LOG_warn << "CXF case, CRC mismatch.";
+                    return resolve_userIntervention(row, fullPath);
+                }
             }
             else
             {
@@ -10564,22 +10603,24 @@ bool Sync::resolve_delSyncNode(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
 namespace
 {
 
-void logUnreflectedTransferChanges(std::string_view context,
-                                   const shared_ptr<SyncTransfer_inClient>& transfer,
-                                   const bool justMtimeChanged,
-                                   const int64_t metamac,
-                                   const SyncRow& row,
-                                   const SyncPath& fullPath)
+void logUnreflectedTransferChanges(
+    std::string_view context,
+    const shared_ptr<SyncTransfer_inClient>& transfer,
+    const SyncTransfer_inClient::AttributeOnlyUpdate attributeOnlyUpdate,
+    const int64_t metamac,
+    const SyncRow& row,
+    const SyncPath& fullPath)
 {
     if (!transfer)
     {
         return;
     }
 
-    if (transfer->wasJustMtimeChanged != justMtimeChanged)
+    if (transfer->attributeOnlyUpdate.load() != attributeOnlyUpdate)
     {
-        LOG_warn << context << ": wasJustMtimeChanged unreflected change from "
-                 << transfer->wasJustMtimeChanged << " to " << justMtimeChanged << " for "
+        LOG_warn << context << ": attributeOnlyUpdate unreflected change from "
+                 << static_cast<unsigned>(transfer->attributeOnlyUpdate.load()) << " to "
+                 << static_cast<unsigned>(attributeOnlyUpdate) << " for "
                  << transfer->getLocalname() << Sync::logTriplet(row, fullPath);
     }
 
@@ -10599,7 +10640,7 @@ bool Sync::resolve_upsync(SyncRow& row,
                           SyncPath& fullPath,
                           PerFolderLogSummaryCounts& pflsc,
                           const int64_t metamac,
-                          const bool justMtimeChanged)
+                          const SyncTransfer_inClient::AttributeOnlyUpdate attributeOnlyUpdate)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -10665,10 +10706,18 @@ bool Sync::resolve_upsync(SyncRow& row,
         {
             logUnreflectedTransferChanges("resolve_upsync",
                                           existingUpload,
-                                          justMtimeChanged,
+                                          attributeOnlyUpdate,
                                           metamac,
                                           row,
                                           fullPath);
+
+            // Keep the pending upload decision in sync while it's still waiting to be started
+            // on the client thread.
+            if (!existingUpload->wasStarted &&
+                existingUpload->attributeOnlyUpdate.load() != attributeOnlyUpdate)
+            {
+                existingUpload->attributeOnlyUpdate = attributeOnlyUpdate;
+            }
 
             // keep the name and target folder details current:
             // if it's just a case change in a case insensitive name, use the updated
@@ -10764,7 +10813,7 @@ bool Sync::resolve_upsync(SyncRow& row,
                                                                     row.fsNode->localname,
                                                                     inshare,
                                                                     metamac,
-                                                                    justMtimeChanged);
+                                                                    attributeOnlyUpdate);
 
                 const NodeHandle displaceHandle =
                     row.cloudNode ? row.cloudNode->handle : NodeHandle();
@@ -10890,7 +10939,8 @@ bool Sync::resolve_upsync(SyncRow& row,
                     << row.syncNode->uploadCounter() << "]" << logTriplet(row, fullPath);
 
                 // Record mtime-only operation to throttle future MAC computations
-                if (existingUpload->wasJustMtimeChanged)
+                if (existingUpload->attributeOnlyUpdate.load() ==
+                    SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly)
                 {
                     row.syncNode->recordMtimeOnlyOperation();
                 }
@@ -11033,7 +11083,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                             [[maybe_unused]] bool alreadyExists,
                             PerFolderLogSummaryCounts& pflsc,
                             const int64_t metamac,
-                            const bool justMtimeChanged)
+                            const SyncTransfer_inClient::AttributeOnlyUpdate attributeOnlyUpdate)
 {
     assert(syncs.onSyncThread());
     ProgressingMonitor monitor(*this, row, fullPath);
@@ -11136,7 +11186,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                                                             row.fsNode ? row.fsNode->fingerprint :
                                                                          FileFingerprint(),
                                                             metamac,
-                                                            justMtimeChanged),
+                                                            attributeOnlyUpdate),
                     downloadFirst);
             }
             // terminated and completed transfers are checked for early in syncItem()
@@ -11144,7 +11194,7 @@ bool Sync::resolve_downsync(SyncRow& row,
             {
                 logUnreflectedTransferChanges("resolve_downsync",
                                               existingDownload,
-                                              justMtimeChanged,
+                                              attributeOnlyUpdate,
                                               metamac,
                                               row,
                                               fullPath);
