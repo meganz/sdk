@@ -19289,14 +19289,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 // shortcut in case we have a huge queue
                 // millions of listener callbacks, logging etc takes a while
                 LOG_debug << "Folder transfer is cancelled, skipping remaining subtransfers: " << auxQueue.size();
-                recursiveTransfer->setTransfersTotalCount(recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
-
+                recursiveTransfer->setTransfersTotalCount(
+                    recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
                 // Remove remaining transfers in recursiveTransfer's custom queue
-                while (auto* t = auxQueue.pop())
-                {
-                    delete t;
-                }
-                assert(auxQueue.empty());
+                auxQueue.clear();
                 // let the pop'd transfer notify the parent, we may be completely finished
                 // otherwise the folder completes when transfers already established in the SDK core finish
             }
@@ -29109,7 +29105,12 @@ size_t TransferQueue::size()
 void TransferQueue::clear()
 {
     std::lock_guard<std::mutex> g(mutex);
-    return transfers.clear();
+    for (auto& t: transfers)
+    {
+        delete t;
+        t = nullptr;
+    }
+    transfers.clear();
 }
 
 MegaTransferPrivate *TransferQueue::pop()
@@ -31230,10 +31231,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
         {
-            while (auto* t = transferQueue.pop())
-            {
-                delete t;
-            }
+            transferQueue.clear();
             complete(API_EINCOMPLETE, true);
         }
         else if (transferQueue.empty())
@@ -32574,10 +32572,7 @@ void MegaFolderDownloadController::start(MegaNode *node)
                 {
                     if (transferQueue)
                     {
-                        while (auto* t = transferQueue->pop())
-                        {
-                            delete t;
-                        }
+                        transferQueue->clear();
                     }
                     complete(e);
                 }
@@ -32722,7 +32717,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (isStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
             e = API_EINCOMPLETE;
-            return nullptr;
+            return transferQueue;
         }
 
         LocalPath &localpath = it->localPath;
@@ -32735,7 +32730,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
-            return nullptr;
+            return transferQueue;
         }
 
         auto folderAlreadyExist = (e && e == API_EEXIST);
@@ -32743,7 +32738,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType, folderAlreadyExist))
         {
             e = API_EINCOMPLETE;
-            return nullptr;
+            return transferQueue;
         }
 
         ++it;
