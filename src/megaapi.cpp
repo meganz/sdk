@@ -8381,4 +8381,9 @@ MegaCancelSubscriptionReasonList* MegaCancelSubscriptionReasonList::create()
 {
     return new MegaCancelSubscriptionReasonListPrivate();
 }
+
+MegaUploadOptions* MegaUploadOptions::createInstance()
+{
+    return new MegaUploadOptions();
+}
 }

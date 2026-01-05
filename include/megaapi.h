@@ -10598,6 +10598,13 @@ public:
     static constexpr char PITAG_TRIGGER_NOT_APPLICABLE = '.';
 
     /**
+     * @brief Creates a new instance of MegaUploadOptions.
+     *
+     * The caller takes ownership of the returned pointer.
+     */
+    static MegaUploadOptions* createInstance();
+
+    /**
      * Custom file or folder name in MEGA.
      * If empty, the name is taken from the local path.
      */
