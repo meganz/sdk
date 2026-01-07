@@ -33,6 +33,7 @@
 #include <memory>
 
 using namespace mega;
+using sdk_test::LocalTempFile;
 using sdk_test::uploadFile;
 
 namespace
@@ -228,7 +229,7 @@ TEST_F(SdkHttpServerTest, BasicGet)
 
     std::string testFileContent = "HTTP server basic test content";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_basic.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_basic.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -254,7 +255,7 @@ TEST_F(SdkHttpServerTest, HeadRequest)
 
     std::string testFileContent = "HTTP server HEAD test content";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_head.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_head.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -282,7 +283,7 @@ TEST_F(SdkHttpServerTest, ValidRangeRequests)
 
     std::string testFileContent = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_range.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_range.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -375,7 +376,7 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
 
     std::string testFileContent(50 * 1024 * 1024, 'X');
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_large_range.bin", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_large_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -428,7 +429,7 @@ TEST_F(SdkHttpServerTest, InvalidRangeRequests)
 
     std::string testFileContent = "Test content";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_invalid_range.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_invalid_range.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -486,7 +487,7 @@ TEST_F(SdkHttpServerTest, EmptyFile)
 
     // Upload empty file
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_empty.txt", ""});
+        uploadFile(api, LocalTempFile{"test_http_empty.txt", ""});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -534,7 +535,7 @@ TEST_F(SdkHttpServerTest, LargeFile)
 
     std::string testFileContent(10 * 1024 * 1024, 'L');
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_large.bin", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_large.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -593,7 +594,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
 
     std::string testFileContent(100 * 1024, 'C');
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_concurrent.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_concurrent.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -635,7 +636,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
 
     std::string testFileContent(2 * 1024 * 1024, 'R');
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_concurrent_range.bin", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_concurrent_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -704,7 +705,7 @@ TEST_F(SdkHttpServerTest, Restart)
 
     std::string testFileContent = "HTTP server restart test";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_restart.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_restart.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     for (int cycle = 0; cycle < 10; cycle++)
@@ -764,7 +765,7 @@ TEST_F(SdkHttpServerTest, UnsupportedMethods)
 
     std::string testFileContent = "HTTP methods test";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_methods.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_methods.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -797,7 +798,7 @@ TEST_F(SdkHttpServerTest, RapidRequests)
 
     std::string testFileContent(1024, 'R');
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_rapid.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_rapid.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -851,8 +852,7 @@ TEST_F(SdkHttpServerTest, SpecialCharactersInFilename)
     std::vector<std::unique_ptr<MegaNode>> uploadedNodes;
     for (const auto& fileName: testFiles)
     {
-        std::unique_ptr<MegaNode> uploadedNode =
-            uploadFile(api, sdk_test::LocalTempFile{fileName, fileName});
+        std::unique_ptr<MegaNode> uploadedNode = uploadFile(api, LocalTempFile{fileName, fileName});
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
@@ -885,13 +885,13 @@ TEST_F(SdkHttpServerTest, DifferentFileSizes)
     // Test 1-byte file
     std::string testFileContent1 = "A";
     std::unique_ptr<MegaNode> uploadedNode1 =
-        uploadFile(api, sdk_test::LocalTempFile{"test_1byte.tx", testFileContent1});
+        uploadFile(api, LocalTempFile{"test_1byte.tx", testFileContent1});
     ASSERT_NE(uploadedNode1, nullptr);
 
     // Test 2-byte file
     std::string testFileContent2 = "AB";
     std::unique_ptr<MegaNode> uploadedNode2 =
-        uploadFile(api, sdk_test::LocalTempFile{"test_2byte.tx", testFileContent2});
+        uploadFile(api, LocalTempFile{"test_2byte.tx", testFileContent2});
     ASSERT_NE(uploadedNode2, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -949,7 +949,7 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
 
     std::string testFileContent = "Test content";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_long.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_long.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -999,7 +999,7 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     std::string testFileContent(1024, 'C');
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, sdk_test::LocalTempFile{"test_http_connection.txt", testFileContent});
+        uploadFile(api, LocalTempFile{"test_http_connection.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1103,7 +1103,7 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     for (const auto& fileName: testFiles)
     {
         std::unique_ptr<MegaNode> uploadedNode =
-            uploadFile(api, sdk_test::LocalTempFile{fileName, fileName}, folderNode.get());
+            uploadFile(api, LocalTempFile{fileName, fileName}, folderNode.get());
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
