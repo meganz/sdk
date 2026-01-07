@@ -35,6 +35,28 @@
 using namespace mega;
 using sdk_test::uploadFile;
 
+namespace
+{
+
+std::optional<ScopedDestructor> scopedHttpServer(MegaApi* api)
+{
+    if (!api)
+        return std::nullopt;
+
+    if (!api->httpServerStart(true, 0))
+        return std::nullopt;
+
+    if (!api->httpServerIsRunning())
+        return std::nullopt;
+
+    return makeScopedDestructor(
+        [api]()
+        {
+            api->httpServerStop();
+        });
+}
+
+}
 class SdkHttpServerTest: public SdkTest
 {};
 
@@ -209,12 +231,8 @@ TEST_F(SdkHttpServerTest, BasicGet)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_basic.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -239,12 +257,8 @@ TEST_F(SdkHttpServerTest, HeadRequest)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_head.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -271,12 +285,8 @@ TEST_F(SdkHttpServerTest, ValidRangeRequests)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_range.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -368,12 +378,8 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_large_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -425,12 +431,8 @@ TEST_F(SdkHttpServerTest, InvalidRangeRequests)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_invalid_range.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -459,14 +461,11 @@ TEST_F(SdkHttpServerTest, NonExistentFile)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     MegaApi* api = megaApi[0].get();
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
-    int port = api->httpServerIsRunning();
 
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    int port = api->httpServerIsRunning();
     std::string baseUrl = "http://localhost:" + std::to_string(port) + "/";
     std::string invalidHandle = "12345678";
     std::string invalidUrl = baseUrl + invalidHandle + "/nonexistent_file.txt";
@@ -490,12 +489,8 @@ TEST_F(SdkHttpServerTest, EmptyFile)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_empty.txt", ""});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -542,12 +537,8 @@ TEST_F(SdkHttpServerTest, LargeFile)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_large.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -605,12 +596,8 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_concurrent.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -651,12 +638,8 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_concurrent_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -726,12 +709,8 @@ TEST_F(SdkHttpServerTest, Restart)
 
     for (int cycle = 0; cycle < 10; cycle++)
     {
-        ASSERT_TRUE(api->httpServerStart(true, 0));
-        auto serverStop = makeScopedDestructor(
-            [api]()
-            {
-                api->httpServerStop();
-            });
+        auto server = scopedHttpServer(api);
+        ASSERT_TRUE(server);
 
         std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
         ASSERT_NE(link, nullptr);
@@ -750,14 +729,11 @@ TEST_F(SdkHttpServerTest, MalformedUrls)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     MegaApi* api = megaApi[0].get();
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
-    int port = api->httpServerIsRunning();
 
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    int port = api->httpServerIsRunning();
     std::string baseUrl = "http://localhost:" + std::to_string(port) + "/";
 
     std::vector<std::string> malformedUrls = {
@@ -791,12 +767,8 @@ TEST_F(SdkHttpServerTest, UnsupportedMethods)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_methods.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -828,12 +800,8 @@ TEST_F(SdkHttpServerTest, RapidRequests)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_rapid.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -889,12 +857,8 @@ TEST_F(SdkHttpServerTest, SpecialCharactersInFilename)
         uploadedNodes.push_back(std::move(uploadedNode));
     }
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     for (size_t i = 0; i < testFiles.size(); i++)
     {
@@ -930,12 +894,8 @@ TEST_F(SdkHttpServerTest, DifferentFileSizes)
         uploadFile(api, sdk_test::LocalTempFile{"test_2byte.tx", testFileContent2});
     ASSERT_NE(uploadedNode2, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     // Test 1-byte file
     std::unique_ptr<char[]> link1(api->httpServerGetLocalLink(uploadedNode1.get()));
@@ -992,14 +952,10 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_long.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
     int port = api->httpServerIsRunning();
-    ASSERT_NE(0, port);
 
     std::string baseUrl = "http://localhost:" + std::to_string(port) + "/";
 
@@ -1046,12 +1002,8 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
         uploadFile(api, sdk_test::LocalTempFile{"test_http_connection.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
     ASSERT_NE(link, nullptr);
@@ -1105,12 +1057,8 @@ TEST_F(SdkHttpServerTest, FolderEmpty)
     api->httpServerEnableFolderServer(true);
     ASSERT_TRUE(api->httpServerIsFolderServerEnabled());
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(folderNode.get()));
     ASSERT_NE(link, nullptr);
@@ -1164,12 +1112,8 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     api->httpServerEnableFolderServer(true);
     ASSERT_TRUE(api->httpServerIsFolderServerEnabled());
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(folderNode.get()));
     ASSERT_NE(link, nullptr);
@@ -1213,12 +1157,8 @@ TEST_F(SdkHttpServerTest, FolderDisabled)
     api->httpServerEnableFolderServer(false);
     ASSERT_FALSE(api->httpServerIsFolderServerEnabled());
 
-    ASSERT_TRUE(api->httpServerStart(true, 0));
-    auto serverStop = makeScopedDestructor(
-        [api]()
-        {
-            api->httpServerStop();
-        });
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
 
     std::unique_ptr<char[]> link(api->httpServerGetLocalLink(folderNode.get()));
     EXPECT_NE(link.get(), nullptr);
