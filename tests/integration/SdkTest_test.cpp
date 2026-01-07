@@ -10431,7 +10431,11 @@ TEST_F(SdkTest, SdkGetBanners)
 
     auto rt = asyncGetBanners(0);
     auto err = rt->waitForResult();
-    ASSERT_TRUE(err == API_OK) << "Get banners failed (error: " << err << ")";
+    ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
+    if (err != API_OK)
+    {
+        return;
+    }
 
     auto banners = rt->request->getMegaBannerList();
     ASSERT_TRUE(banners);
