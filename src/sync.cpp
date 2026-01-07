@@ -9048,16 +9048,20 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
                      << logTriplet(row, fullPath);
 
         assert(row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint);
+
+        [[maybe_unused]] const bool isNewFsNode =
+            row.fsNode->fingerprint.mtime == downloadPtr->mtime;
+        assert(isNewFsNode || row.fsNode->fingerprint.equalExceptMtime(*downloadPtr));
+
         if (row.syncNode->syncedFingerprint.isvalid)
         {
             assert(row.syncNode->syncedFingerprint.size == row.fsNode->fingerprint.size);
             assert(row.syncNode->syncedFingerprint.crc == row.fsNode->fingerprint.crc);
-            assert(row.syncNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime);
+            assert(!isNewFsNode ||
+                   (row.syncNode->syncedFingerprint.mtime != row.fsNode->fingerprint.mtime));
             assert(
                 row.syncNode->syncedFingerprint.equalExceptMtime(row.syncNode->scannedFingerprint));
         }
-        assert(row.fsNode->fingerprint.equalExceptMtime(*downloadPtr));
-
         assert(FSNode::debugConfirmOnDiskFingerprintOrLogWhy(*syncs.fsaccess,
                                                              fullPath.localPath,
                                                              *downloadPtr));
