@@ -33,6 +33,9 @@
 
 using namespace mega;
 
+class SdkHttpServerTest: public SdkTest
+{};
+
 /**
  * Helper class for HTTP client requests
  */
@@ -213,7 +216,7 @@ static int doUploadFile(MegaApi* megaApi,
  * - start two HTTP servers from a thread and no ports conflicting
  * - stop HTTP servers from a different thread, to allow TSAN to report any data races
  */
-TEST_F(SdkTest, HttpServerCanUsePort0)
+TEST_F(SdkHttpServerTest, CanUsePort0)
 {
     CASE_info << "started";
 
@@ -238,7 +241,7 @@ TEST_F(SdkTest, HttpServerCanUsePort0)
 /**
  * Test basic HTTP server functionality with GET request.
  */
-TEST_F(SdkTest, HttpServerBasicGet)
+TEST_F(SdkHttpServerTest, BasicGet)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -278,7 +281,7 @@ TEST_F(SdkTest, HttpServerBasicGet)
 /**
  * Test HTTP server with HEAD request.
  */
-TEST_F(SdkTest, HttpServerHeadRequest)
+TEST_F(SdkHttpServerTest, HeadRequest)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -321,7 +324,7 @@ TEST_F(SdkTest, HttpServerHeadRequest)
 /**
  * Test HTTP server with valid range requests.
  */
-TEST_F(SdkTest, HttpServerValidRangeRequests)
+TEST_F(SdkHttpServerTest, ValidRangeRequests)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -428,7 +431,7 @@ TEST_F(SdkTest, HttpServerValidRangeRequests)
  * Test HTTP server with very large range requests.
  * Tests various range formats on very large files including suffix ranges.
  */
-TEST_F(SdkTest, HttpServerVeryLargeRangeRequests)
+TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -495,7 +498,7 @@ TEST_F(SdkTest, HttpServerVeryLargeRangeRequests)
 /**
  * Test HTTP server with invalid range requests (416 Requested Range Not Satisfiable).
  */
-TEST_F(SdkTest, HttpServerInvalidRangeRequests)
+TEST_F(SdkHttpServerTest, InvalidRangeRequests)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -545,7 +548,7 @@ TEST_F(SdkTest, HttpServerInvalidRangeRequests)
 /**
  * Test HTTP server with non-existent file (404 Not Found).
  */
-TEST_F(SdkTest, HttpServerNonExistentFile)
+TEST_F(SdkHttpServerTest, NonExistentFile)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -570,7 +573,7 @@ TEST_F(SdkTest, HttpServerNonExistentFile)
  * Test HTTP server with empty file.
  * Tests GET, HEAD, and range requests for empty files.
  */
-TEST_F(SdkTest, HttpServerEmptyFile)
+TEST_F(SdkHttpServerTest, EmptyFile)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -633,7 +636,7 @@ TEST_F(SdkTest, HttpServerEmptyFile)
  * Test HTTP server with large file.
  * Tests various range requests on large files including suffix ranges.
  */
-TEST_F(SdkTest, HttpServerLargeFile)
+TEST_F(SdkHttpServerTest, LargeFile)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -708,7 +711,7 @@ TEST_F(SdkTest, HttpServerLargeFile)
 /**
  * Test HTTP server with concurrent requests.
  */
-TEST_F(SdkTest, HttpServerConcurrentRequests)
+TEST_F(SdkHttpServerTest, ConcurrentRequests)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -764,7 +767,7 @@ TEST_F(SdkTest, HttpServerConcurrentRequests)
  * Test HTTP server with concurrent range requests.
  * Tests concurrent standard and suffix range requests.
  */
-TEST_F(SdkTest, HttpServerConcurrentRangeRequests)
+TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -847,7 +850,7 @@ TEST_F(SdkTest, HttpServerConcurrentRangeRequests)
 /**
  * Test HTTP server restart and multiple start/stop cycles.
  */
-TEST_F(SdkTest, HttpServerRestart)
+TEST_F(SdkHttpServerTest, Restart)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -885,7 +888,7 @@ TEST_F(SdkTest, HttpServerRestart)
 /**
  * Test HTTP server with malformed URLs.
  */
-TEST_F(SdkTest, HttpServerMalformedUrls)
+TEST_F(SdkHttpServerTest, MalformedUrls)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -920,7 +923,7 @@ TEST_F(SdkTest, HttpServerMalformedUrls)
 /**
  * Test HTTP server with unsupported HTTP methods.
  */
-TEST_F(SdkTest, HttpServerUnsupportedMethods)
+TEST_F(SdkHttpServerTest, UnsupportedMethods)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -967,7 +970,7 @@ TEST_F(SdkTest, HttpServerUnsupportedMethods)
 /**
  * Test HTTP server stability under rapid requests.
  */
-TEST_F(SdkTest, HttpServerRapidRequests)
+TEST_F(SdkHttpServerTest, RapidRequests)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1024,7 +1027,7 @@ TEST_F(SdkTest, HttpServerRapidRequests)
  * Test HTTP server with special characters in file names.
  * Tests files with spaces, URL-encoded characters, non-ASCII, and special symbols.
  */
-TEST_F(SdkTest, HttpServerSpecialCharactersInFilename)
+TEST_F(SdkHttpServerTest, SpecialCharactersInFilename)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1086,7 +1089,7 @@ TEST_F(SdkTest, HttpServerSpecialCharactersInFilename)
 /**
  * Test HTTP server with very small file sizes.
  */
-TEST_F(SdkTest, HttpServerDifferentFileSizes)
+TEST_F(SdkHttpServerTest, DifferentFileSizes)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1174,7 +1177,7 @@ TEST_F(SdkTest, HttpServerDifferentFileSizes)
  * Test HTTP server with very long URLs (1 MB).
  * Tests server behavior with extremely long URL paths, including non-existent files (404).
  */
-TEST_F(SdkTest, HttpServerVeryLongUrl)
+TEST_F(SdkHttpServerTest, VeryLongUrl)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1238,7 +1241,7 @@ TEST_F(SdkTest, HttpServerVeryLongUrl)
 /**
  * Test HTTP server various connections handling.
  */
-TEST_F(SdkTest, HttpServerConnectionHandling)
+TEST_F(SdkHttpServerTest, ConnectionHandling)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1299,7 +1302,7 @@ TEST_F(SdkTest, HttpServerConnectionHandling)
 /**
  * Test HTTP server with empty folder.
  */
-TEST_F(SdkTest, HttpServerFolderEmpty)
+TEST_F(SdkHttpServerTest, FolderEmpty)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1341,7 +1344,7 @@ TEST_F(SdkTest, HttpServerFolderEmpty)
 /**
  * Test HTTP server with folder with files.
  */
-TEST_F(SdkTest, HttpServerFolderWithFiles)
+TEST_F(SdkHttpServerTest, FolderWithFiles)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -1415,7 +1418,7 @@ TEST_F(SdkTest, HttpServerFolderWithFiles)
 /**
  * Test HTTP server with folder server disabled.
  */
-TEST_F(SdkTest, HttpServerFolderDisabled)
+TEST_F(SdkHttpServerTest, FolderDisabled)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
