@@ -22,6 +22,7 @@
  * program.
  */
 
+#include "integration_test_utils.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 #include "stdfs.h"
@@ -32,6 +33,7 @@
 #include <memory>
 
 using namespace mega;
+using sdk_test::uploadFile;
 
 class SdkHttpServerTest: public SdkTest
 {};
@@ -167,51 +169,6 @@ private:
 };
 
 /**
- * Helper function to upload a file and return the uploaded node.
- */
-static int doUploadFile(MegaApi* megaApi,
-                        const std::string& fileName,
-                        MegaNode* parentNode,
-                        std::unique_ptr<MegaNode>& uploadedNode)
-{
-    TransferTracker tt(megaApi);
-    megaApi->startUpload(fileName.c_str(),
-                         parentNode,
-                         nullptr,
-                         MegaApi::INVALID_CUSTOM_MOD_TIME,
-                         nullptr,
-                         false,
-                         false,
-                         nullptr,
-                         &tt);
-    auto error = static_cast<int>(tt.waitForResult());
-
-    if (error == MegaError::API_OK)
-    {
-        if (tt.resultNodeHandle != UNDEF)
-        {
-            if (auto node = megaApi->getNodeByHandle(tt.resultNodeHandle); node != nullptr)
-            {
-                uploadedNode.reset(node);
-                return MegaError::API_OK;
-            }
-            else
-            {
-                return MegaError::API_ENOENT;
-            }
-        }
-        else
-        {
-            return MegaError::API_ENOENT;
-        }
-    }
-    else
-    {
-        return error;
-    }
-}
-
-/**
  * Test for HTTP server using port 0, which also consist of:
  * - start two HTTP servers from a thread and no ports conflicting
  * - stop HTTP servers from a different thread, to allow TSAN to report any data races
@@ -247,21 +204,11 @@ TEST_F(SdkHttpServerTest, BasicGet)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_basic.txt";
     std::string testFileContent = "HTTP server basic test content";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_basic.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -287,22 +234,11 @@ TEST_F(SdkHttpServerTest, HeadRequest)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_head.txt";
     std::string testFileContent = "HTTP server HEAD test content";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_head.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
-    auto expectedSize = uploadedNode->getSize();
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -318,7 +254,7 @@ TEST_F(SdkHttpServerTest, HeadRequest)
     EXPECT_EQ(200, response.statusCode);
     EXPECT_TRUE(response.body.empty());
     EXPECT_NE(response.headers.find("Content-Length"), std::string::npos);
-    EXPECT_NE(response.headers.find(std::to_string(expectedSize)), std::string::npos);
+    EXPECT_NE(response.headers.find(std::to_string(testFileContent.size())), std::string::npos);
 }
 
 /**
@@ -330,22 +266,11 @@ TEST_F(SdkHttpServerTest, ValidRangeRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_range.txt";
     std::string testFileContent = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-    size_t fileSize = testFileContent.size();
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_range.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -395,6 +320,7 @@ TEST_F(SdkHttpServerTest, ValidRangeRequests)
     EXPECT_EQ("F", singleByte2.body);
 
     // Single byte range: last byte
+    size_t fileSize = testFileContent.size();
     auto singleByte3 =
         HttpClient::get(url, std::to_string(fileSize - 1) + "-" + std::to_string(fileSize - 1));
     EXPECT_EQ(206, singleByte3.statusCode);
@@ -437,22 +363,11 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_large_range.bin";
     std::string testFileContent(50 * 1024 * 1024, 'X');
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_large_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
-    auto fileSize = uploadedNode->getSize();
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -465,6 +380,7 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
     std::string url = link.get();
 
     // Full file range
+    auto fileSize = testFileContent.size();
     auto largeRange = HttpClient::get(url, "0-" + std::to_string(fileSize - 1));
     EXPECT_EQ(200, largeRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
     EXPECT_EQ(static_cast<size_t>(fileSize), largeRange.body.size());
@@ -504,22 +420,11 @@ TEST_F(SdkHttpServerTest, InvalidRangeRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_invalid_range.txt";
     std::string testFileContent = "Test content";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_invalid_range.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
-    auto fileSize = uploadedNode->getSize();
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -532,6 +437,7 @@ TEST_F(SdkHttpServerTest, InvalidRangeRequests)
     std::string url = link.get();
 
     // Range starting beyond file end
+    auto fileSize = testFileContent.size();
     auto invalidRange1 =
         HttpClient::get(url, std::to_string(fileSize) + "-" + std::to_string(fileSize + 100));
     EXPECT_EQ(416, invalidRange1.statusCode);
@@ -579,22 +485,11 @@ TEST_F(SdkHttpServerTest, EmptyFile)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_empty.txt";
-    std::string testFileContent = "";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    // Upload empty file
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_empty.txt", ""});
     ASSERT_NE(uploadedNode, nullptr);
-    EXPECT_EQ(0, uploadedNode->getSize());
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -642,23 +537,11 @@ TEST_F(SdkHttpServerTest, LargeFile)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_large.bin";
     std::string testFileContent(10 * 1024 * 1024, 'L');
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_large.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
-    auto expectedSize = uploadedNode->getSize();
-    EXPECT_EQ(testFileContent.size(), static_cast<size_t>(expectedSize));
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -673,7 +556,7 @@ TEST_F(SdkHttpServerTest, LargeFile)
     // Full file GET request
     auto response = HttpClient::get(url);
     EXPECT_EQ(200, response.statusCode);
-    EXPECT_EQ(static_cast<size_t>(expectedSize), response.body.size());
+    EXPECT_EQ(testFileContent.size(), response.body.size());
 
     // Standard range: first 1MB
     auto rangeResponse = HttpClient::get(url, "0-1048575");
@@ -717,21 +600,11 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_concurrent.txt";
     std::string testFileContent(100 * 1024, 'C');
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_concurrent.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -773,21 +646,11 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_concurrent_range.bin";
     std::string testFileContent(2 * 1024 * 1024, 'R');
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_concurrent_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -856,15 +719,9 @@ TEST_F(SdkHttpServerTest, Restart)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_restart.txt";
     std::string testFileContent = "HTTP server restart test";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_restart.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
 
     for (int cycle = 0; cycle < 10; cycle++)
@@ -929,21 +786,11 @@ TEST_F(SdkHttpServerTest, UnsupportedMethods)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_methods.txt";
     std::string testFileContent = "HTTP methods test";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_methods.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -976,21 +823,11 @@ TEST_F(SdkHttpServerTest, RapidRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_rapid.txt";
     std::string testFileContent(1024, 'R');
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_rapid.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -1042,26 +879,12 @@ TEST_F(SdkHttpServerTest, SpecialCharactersInFilename)
         "txt",
         "test-file-normal.txt",
     };
-    std::vector<ScopedDestructor> fileCleanups;
-
-    for (const auto& fileName: testFiles)
-    {
-        sdk_test::createFile(u8path_compat(fileName), fileName);
-        fileCleanups.push_back(makeScopedDestructor(
-            [this, fileName]()
-            {
-                deleteFile(fileName);
-            }));
-    }
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
 
     std::vector<std::unique_ptr<MegaNode>> uploadedNodes;
     for (const auto& fileName: testFiles)
     {
-        std::unique_ptr<MegaNode> uploadedNode;
-        ASSERT_EQ(MegaError::API_OK, doUploadFile(api, fileName, rootNode.get(), uploadedNode));
+        std::unique_ptr<MegaNode> uploadedNode =
+            uploadFile(api, sdk_test::LocalTempFile{fileName, fileName});
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
@@ -1096,34 +919,15 @@ TEST_F(SdkHttpServerTest, DifferentFileSizes)
     MegaApi* api = megaApi[0].get();
 
     // Test 1-byte file
-    std::string testFileName1 = "test_1byte.txt";
     std::string testFileContent1 = "A";
-    sdk_test::createFile(u8path_compat(testFileName1), testFileContent1);
-    auto fileCleanup1 = makeScopedDestructor(
-        [this, testFileName1]()
-        {
-            deleteFile(testFileName1);
-        });
-
-    // Test 2-byte file
-    std::string testFileName2 = "test_2byte.txt";
-    std::string testFileContent2 = "AB";
-    sdk_test::createFile(u8path_compat(testFileName2), testFileContent2);
-    auto fileCleanup2 = makeScopedDestructor(
-        [this, testFileName2]()
-        {
-            deleteFile(testFileName2);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode1;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName1, rootNode.get(), uploadedNode1));
+    std::unique_ptr<MegaNode> uploadedNode1 =
+        uploadFile(api, sdk_test::LocalTempFile{"test_1byte.tx", testFileContent1});
     ASSERT_NE(uploadedNode1, nullptr);
 
-    std::unique_ptr<MegaNode> uploadedNode2;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName2, rootNode.get(), uploadedNode2));
+    // Test 2-byte file
+    std::string testFileContent2 = "AB";
+    std::unique_ptr<MegaNode> uploadedNode2 =
+        uploadFile(api, sdk_test::LocalTempFile{"test_2byte.tx", testFileContent2});
     ASSERT_NE(uploadedNode2, nullptr);
 
     ASSERT_TRUE(api->httpServerStart(true, 0));
@@ -1183,21 +987,11 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_long.txt";
     std::string testFileContent = "Test content";
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_long.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -1247,21 +1041,11 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileName = "test_http_connection.txt";
     std::string testFileContent(1024, 'C');
-    sdk_test::createFile(u8path_compat(testFileName), testFileContent);
-    auto fileCleanup = makeScopedDestructor(
-        [this, testFileName]()
-        {
-            deleteFile(testFileName);
-        });
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    std::unique_ptr<MegaNode> uploadedNode;
-    ASSERT_EQ(MegaError::API_OK, doUploadFile(api, testFileName, rootNode.get(), uploadedNode));
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(api, sdk_test::LocalTempFile{"test_http_connection.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
+
     ASSERT_TRUE(api->httpServerStart(true, 0));
     auto serverStop = makeScopedDestructor(
         [api]()
@@ -1366,20 +1150,12 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
         "file?3.dat",
         "file-3.dat",
     };
-    std::vector<ScopedDestructor> fileCleanups;
 
     std::vector<std::unique_ptr<MegaNode>> uploadedNodes;
     for (const auto& fileName: testFiles)
     {
-        sdk_test::createFile(u8path_compat(fileName), fileName);
-        fileCleanups.push_back(makeScopedDestructor(
-            [this, fileName]()
-            {
-                deleteFile(fileName);
-            }));
-
-        std::unique_ptr<MegaNode> uploadedNode;
-        ASSERT_EQ(MegaError::API_OK, doUploadFile(api, fileName, folderNode.get(), uploadedNode));
+        std::unique_ptr<MegaNode> uploadedNode =
+            uploadFile(api, sdk_test::LocalTempFile{fileName, fileName}, folderNode.get());
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
