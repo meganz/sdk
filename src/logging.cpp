@@ -31,7 +31,7 @@ namespace mega {
 ExternalLogger g_externalLogger;
 ExclusiveLogger g_exclusiveLogger;
 
-Logger *SimpleLogger::logger = &g_externalLogger;
+std::atomic<Logger*> SimpleLogger::logger{&g_externalLogger};
 
 // by the default, display logs with level equal or less than logInfo
 std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
@@ -74,6 +74,7 @@ ExternalLogger::ExternalLogger()
 
 ExternalLogger::~ExternalLogger()
 {
+    SimpleLogger::setOutputClass(nullptr);
 }
 
 void ExternalLogger::addMegaLogger(void* id, LogCallback lc)
