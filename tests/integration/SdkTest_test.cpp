@@ -22927,7 +22927,7 @@ TEST_F(SdkTest, SdkTransferCopyRemote)
 
         mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
         MegaUploadOptions uploadOpts;
-        uploadOpts.fileName = uploadName;
+        uploadOpts.fileName = uploadName ? uploadName : "";
         uploadOpts.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
         const auto uploadLocalPath = filePath.string();
         megaApi[0]->startUpload(uploadLocalPath,
