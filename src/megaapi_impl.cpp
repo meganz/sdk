@@ -25883,6 +25883,21 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             {
                 return e;
             }
+
+            Pitag pitag{PitagPurpose::Upload,
+                        PitagTrigger::Camera,
+                        PitagNodeType::File,
+                        PitagTarget::CloudDrive,
+                        PitagImportSource::NotApplicable};
+
+            const bool inIncomingShare = parentNode && parentNode->matchesOrHasAncestorMatching(
+                                                           [](const Node& n)
+                                                           {
+                                                               return n.inshare != nullptr;
+                                                           });
+
+            pitag.target = inIncomingShare ? PitagTarget::IncomingShare : pitag.target;
+
             client->queueCommand(new CommandPutNodes(client,
                                                      parentHandle,
                                                      NULL,
@@ -25893,7 +25908,8 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                                                      nullptr,
                                                      nullptr,
                                                      false,
-                                                     {})); // customerIpPort
+                                                     {}, // customerIpPort
+                                                     pitag));
             return e;
 }
 
