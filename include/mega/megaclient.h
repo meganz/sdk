@@ -1166,7 +1166,8 @@ public:
      * - `API_EACCESS`:
      *      + `INVALID_LOCAL_TYPE` if the path is not a directory.
      */
-    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath, const handle backupIdToExclude);
+    SyncErrorInfo isValidLocalSyncRoot(const LocalPath& rootPath,
+                                       const handle backupIdToExclude) const;
 
     /**
      * @brief Check if a SyncConfig could be used to create a sync
