@@ -16594,6 +16594,7 @@ class MegaApi
          * starting a new file upload. If setting the mtime fails, the transfer will fail with
          * API_EWRITE.
          */
+        MEGA_DEPRECATED
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
 
         /**
