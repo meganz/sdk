@@ -26,7 +26,9 @@
 #include <gmock/gmock.h>
 
 #include <algorithm>
+#include <random>
 #include <string>
+#include <utility>
 
 class FtpServerTest: public SdkTest
 {
@@ -220,6 +222,19 @@ protected:
         curl_slist_free_all(slist);
         return response;
     }
+
+    int genRandomPort()
+    {
+        static thread_local std::mt19937 gen{std::random_device{}()};
+        std::uniform_int_distribution<int> dist(30000, 60000);
+        return dist(gen);
+    }
+
+    void startFtpServerWithDataPort()
+    {
+        int port = genRandomPort();
+        ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0, port, port + 100));
+    }
 };
 
 TEST_F(FtpServerTest, ServerStartStop)
@@ -342,7 +357,7 @@ TEST_F(FtpServerTest, LinksAndOperations)
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
     // Start FTP server
-    ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0));
+    startFtpServerWithDataPort();
 
     auto folderNode = createFolder("ftp_test_link_folder");
     ASSERT_TRUE(folderNode);
@@ -440,7 +455,7 @@ TEST_F(FtpServerTest, FtpUploadOperation)
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
     // Start FTP server
-    ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0));
+    startFtpServerWithDataPort();
 
     std::string uploadFileName = "ftp_upload_test.txt";
     std::string uploadFileContent =
