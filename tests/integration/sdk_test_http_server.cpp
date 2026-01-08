@@ -58,6 +58,10 @@ std::optional<ScopedDestructor> scopedHttpServer(MegaApi* api)
         });
 }
 
+std::string baseURL(int port)
+{
+    return "http://localhost:" + std::to_string(port) + "/";
+}
 }
 class SdkHttpServerTest: public SdkTest
 {};
@@ -468,9 +472,8 @@ TEST_F(SdkHttpServerTest, NonExistentFile)
     ASSERT_TRUE(server);
 
     int port = api->httpServerIsRunning();
-    std::string baseUrl = "http://localhost:" + std::to_string(port) + "/";
     std::string invalidHandle = "12345678";
-    std::string invalidUrl = baseUrl + invalidHandle + "/nonexistent_file.txt";
+    std::string invalidUrl = baseURL(port) + invalidHandle + "/nonexistent_file.txt";
 
     auto response = HttpClient::get(invalidUrl);
     EXPECT_EQ(403, response.statusCode); // BUG: HTTP protocol expects 404 Not Found
@@ -735,9 +738,7 @@ TEST_F(SdkHttpServerTest, MalformedUrls)
     auto server = scopedHttpServer(api);
     ASSERT_TRUE(server);
 
-    int port = api->httpServerIsRunning();
-    std::string baseUrl = "http://localhost:" + std::to_string(port) + "/";
-
+    std::string baseUrl = baseURL(api->httpServerIsRunning());
     std::vector<std::string> malformedUrls = {
         baseUrl + "invalid",
         baseUrl + "12345/invalid",
@@ -956,10 +957,6 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
     auto server = scopedHttpServer(api);
     ASSERT_TRUE(server);
 
-    int port = api->httpServerIsRunning();
-
-    std::string baseUrl = "http://localhost:" + std::to_string(port) + "/";
-
     // Create a 1 KB long path by appending many characters
     constexpr size_t targetSize = 1 * 1024;
     std::string longPath;
@@ -971,7 +968,7 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
     longPath.resize(targetSize);
 
     // Test with very long path to non-existent file
-    std::string longUrl = baseUrl + longPath;
+    std::string longUrl = baseURL(api->httpServerIsRunning()) + longPath;
     auto response = HttpClient::get(longUrl);
     EXPECT_EQ(404, response.statusCode);
 
