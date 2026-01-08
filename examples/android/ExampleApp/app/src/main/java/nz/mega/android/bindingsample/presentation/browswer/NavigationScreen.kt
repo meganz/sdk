@@ -20,6 +20,8 @@
  */
 package nz.mega.android.bindingsample.presentation.browswer
 
+import android.app.Application
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -33,116 +35,173 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import nz.mega.android.bindingsample.R
 
 /**
- * Main navigation screen composable
+ * Main navigation screen composable that manages ViewModel and handles navigation logic.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun NavigationScreen(
-    uiState: NavigationUiState,
-    onNodeClick: (NodeDisplayInfo) -> Unit,
-    onLogoutClick: () -> Unit,
+    onLogout: () -> Unit,
+    savedParentHandle: Long? = null,
     modifier: Modifier = Modifier
 ) {
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        text = when (uiState) {
-                            is NavigationUiState.Content -> uiState.parentName
-                            is NavigationUiState.Empty -> uiState.parentName
-                            is NavigationUiState.Error -> uiState.parentName.ifEmpty { stringResource(R.string.cloud_drive) }
-                            else -> stringResource(R.string.cloud_drive)
-                        }
-                    )
-                },
-                actions = {
-                    TextButton(onClick = onLogoutClick) {
+    val application = androidx.compose.ui.platform.LocalContext.current.applicationContext as Application
+    val viewModel: NavigationViewModel = viewModel(
+        factory = object : androidx.lifecycle.ViewModelProvider.Factory {
+            @Suppress("UNCHECKED_CAST")
+            override fun <T : androidx.lifecycle.ViewModel> create(modelClass: Class<T>): T {
+                return NavigationViewModel(application) as T
+            }
+        }
+    )
+
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    // Handle initial load and saved state restoration
+    LaunchedEffect(Unit) {
+        if (uiState is NavigationUiState.Initial) {
+            if (savedParentHandle != null) {
+                viewModel.handleSavedState(savedParentHandle)
+            } else {
+                viewModel.loadNodes(-1)
+            }
+        }
+    }
+
+    // Handle logout success - trigger navigation callback
+    LaunchedEffect(uiState) {
+        if (uiState is NavigationUiState.LogoutSuccess) {
+            onLogout()
+        }
+    }
+
+    // Handle back button navigation
+    // We can navigate up if we're not at root
+    val currentUiStateForBack = uiState
+    val canNavigateUp = when (currentUiStateForBack) {
+        is NavigationUiState.Content -> currentUiStateForBack.parentHandle != -1L
+        is NavigationUiState.Empty -> currentUiStateForBack.parentHandle != -1L
+        else -> false
+    }
+
+    BackHandler(enabled = canNavigateUp) {
+        viewModel.navigateUp()
+    }
+
+    NavigationActivityTheme {
+        Scaffold(
+            topBar = {
+                TopAppBar(
+                    title = {
+                        val currentState = uiState
                         Text(
-                            text = stringResource(R.string.action_logout),
-                            style = MaterialTheme.typography.bodyMedium
+                            text = when (currentState) {
+                                is NavigationUiState.Content -> currentState.parentName
+                                is NavigationUiState.Empty -> currentState.parentName
+                                is NavigationUiState.Error -> currentState.parentName.ifEmpty { stringResource(R.string.cloud_drive) }
+                                else -> stringResource(R.string.cloud_drive)
+                            }
+                        )
+                    },
+                    actions = {
+                        TextButton(onClick = { viewModel.logout() }) {
+                            Text(
+                                text = stringResource(R.string.action_logout),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
+                )
+            }
+        ) { paddingValues ->
+            val currentState = uiState
+            Box(
+                modifier = modifier
+                    .fillMaxSize()
+                    .padding(paddingValues)
+            ) {
+                when (currentState) {
+                    is NavigationUiState.Initial -> {
+                        // Initial state - show loading
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
-                }
-            )
-        }
-    ) { paddingValues ->
-        Box(
-            modifier = modifier
-                .fillMaxSize()
-                .padding(paddingValues)
-        ) {
-            when (uiState) {
-                is NavigationUiState.Initial -> {
-                    // Initial state - show loading
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
 
-                is NavigationUiState.Loading -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
+                    is NavigationUiState.Loading -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
 
-                is NavigationUiState.Content -> {
-                    if (uiState.nodes.isEmpty()) {
-                        EmptyFolderView()
-                    } else {
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize()
-                        ) {
-                            items(
-                                items = uiState.nodes,
-                                key = { it.node.handle }
-                            ) { nodeInfo ->
-                                NodeListItem(
-                                    nodeInfo = nodeInfo,
-                                    onNodeClick = onNodeClick
-                                )
+                    is NavigationUiState.Content -> {
+                        if (currentState.nodes.isEmpty()) {
+                            EmptyFolderView()
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize()
+                            ) {
+                                items(
+                                    items = currentState.nodes,
+                                    key = { it.node.handle }
+                                ) { nodeInfo ->
+                                    NodeListItem(
+                                        nodeInfo = nodeInfo,
+                                        onNodeClick = { viewModel.navigateToFolder(nodeInfo.node) }
+                                    )
+                                }
                             }
                         }
                     }
-                }
 
-                is NavigationUiState.Empty -> {
-                    EmptyFolderView()
-                }
+                    is NavigationUiState.Empty -> {
+                        EmptyFolderView()
+                    }
 
-                is NavigationUiState.Error -> {
-                    Box(
-                        modifier = Modifier.fillMaxSize(),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = uiState.errorMessage,
-                            color = MaterialTheme.colorScheme.error,
-                            style = MaterialTheme.typography.bodyLarge
+                    is NavigationUiState.Error -> {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = currentState.errorMessage,
+                                color = MaterialTheme.colorScheme.error,
+                                style = MaterialTheme.typography.bodyLarge
+                            )
+                        }
+                    }
+
+                    is NavigationUiState.LoggingOut -> {
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center)
+                        )
+                    }
+
+                    is NavigationUiState.LogoutSuccess -> {
+                        // This state should trigger navigation, handled by LaunchedEffect above
+                        CircularProgressIndicator(
+                            modifier = Modifier.align(Alignment.Center)
                         )
                     }
                 }
-
-                is NavigationUiState.LoggingOut -> {
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
-
-                is NavigationUiState.LogoutSuccess -> {
-                    // This state should trigger navigation, handled by LaunchedEffect in Activity
-                    CircularProgressIndicator(
-                        modifier = Modifier.align(Alignment.Center)
-                    )
-                }
             }
         }
+    }
+}
+
+@Composable
+fun NavigationActivityTheme(content: @Composable () -> Unit) {
+    MaterialTheme {
+        content()
     }
 }
 

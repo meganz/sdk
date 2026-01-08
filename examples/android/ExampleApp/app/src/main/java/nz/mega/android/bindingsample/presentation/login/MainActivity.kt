@@ -38,7 +38,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import nz.mega.android.bindingsample.navigation.Screen
-import nz.mega.android.bindingsample.presentation.browswer.NavigationScreenWrapper
+import nz.mega.android.bindingsample.presentation.browswer.NavigationScreen
 
 class MainActivity : ComponentActivity() {
 
@@ -65,7 +65,7 @@ class MainActivity : ComponentActivity() {
                         )
                     }
                     composable(Screen.Navigation) {
-                        NavigationScreenWrapper(
+                        NavigationScreen(
                             onLogout = {
                                 navController.navigate(Screen.Login) {
                                     popUpTo(Screen.Navigation) { inclusive = true }
