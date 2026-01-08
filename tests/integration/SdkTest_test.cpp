@@ -2841,7 +2841,13 @@ void SdkTest::getUserAttribute(MegaUser* u, int type, int /*timeout*/, int apiIn
     ASSERT_TRUE(result) << "User attribute retrieval failed (error: " << err << ")";
 }
 
-void SdkTest::synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail = nullptr, const char* filePreview = nullptr)
+void SdkTest::synchronousMediaUpload(unsigned int apiIndex,
+                                     int64_t fileSize,
+                                     const char* filename,
+                                     const char* fileEncrypted,
+                                     const char* fileOutput,
+                                     const char* fileThumbnail,
+                                     const char* filePreview)
 {
     // Create a "media upload" instance
     std::unique_ptr<MegaBackgroundMediaUpload> req(MegaBackgroundMediaUpload::createInstance(megaApi[apiIndex].get()));
