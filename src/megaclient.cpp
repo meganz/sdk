@@ -17907,7 +17907,7 @@ std::pair<error, SyncError> MegaClient::isLocalPathSyncable(const LocalPath& new
 }
 
 SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
-                                               const handle backupIdToExclude) const
+                                               const handle backupIdToExclude)
 {
     if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
@@ -17932,6 +17932,12 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     if (!fsaccess->issyncsupported(rootPathWithoutEndingSeparator, isnetwork, auxSErr, syncWarning))
     {
         LOG_warn << "Unsupported filesystem";
+
+        if (isnetwork)
+        {
+            sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
+        }
+
         return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
     }
 
