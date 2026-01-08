@@ -1103,7 +1103,9 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     const std::vector<std::string> testFiles = {
         "file 1.txt",
         "file#2.txt",
+#ifndef WIN32 // ? is not allowed on Windows
         "file?3.dat",
+#endif
         "file-3.dat",
     };
 
