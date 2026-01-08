@@ -31209,10 +31209,8 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                                        return node.inshare != nullptr;
                                                    });
         Pitag localPitag = transfer->getPitag();
-        localPitag.target =
-            inIncomingShare ? PitagTarget::IncomingShare :
-                              PitagTarget::CloudDrive; // to do: check if we can move it to a place
-                                                       // similar to the one for simple uploads
+        localPitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+
         megaapiThreadClient()->putnodes(
             NodeHandle().set6byte(tree.megaNode->getHandle()),
             UseLocalVersioningFlag,
