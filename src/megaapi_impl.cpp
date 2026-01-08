@@ -10279,6 +10279,7 @@ void MegaApiImpl::startUpload(const std::string localPath,
     }
 
     const PitagTrigger pitagTrigger = pitagTriggerFromChar(options.mPublicOptions.pitagTrigger);
+    const PitagTarget pitagTarget = pitagTargetFromChar(options.mPublicOptions.pitagTarget);
     MegaTransferPrivate* transfer =
         createUploadTransfer(path, parent, options, cancelToken, listener);
 
@@ -10287,7 +10288,7 @@ void MegaApiImpl::startUpload(const std::string localPath,
     const Pitag pitag{PitagPurpose::Upload,
                       pitagTrigger,
                       nodeType,
-                      options.mPitagTarget,
+                      pitagTarget,
                       PitagImportSource::NotApplicable};
     transfer->setPitag(pitag);
     transferQueue.push(transfer);

@@ -329,4 +329,40 @@ TEST_F(SdkTestPitag, PitagCapturedForBackgroundMediaUpload)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitag, PitagCapturedForChatTargetUpload)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_chat_target.bin");
+    const std::string remoteName = localFilePath.filename().string();
+    const std::string localPathUtf8 = localFilePath.string();
+    const sdk_test::LocalTempFile localFile(localFilePath, "pitag-chat-target-upload");
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    PitagCommandObserver observer;
+    TransferTracker tracker(megaApi[0].get());
+    MegaUploadOptions options;
+    options.fileName = remoteName;
+    options.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    options.pitagTrigger = MegaApi::PITAG_TRIGGER_CAMERA;
+    options.pitagTarget = MegaApi::PITAG_TARGET_CHAT_1TO1;
+
+    megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, &options, &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    std::string expected;
+    expected.push_back('U');
+    expected.push_back(options.pitagTrigger);
+    expected.push_back('f');
+    expected.push_back(options.pitagTarget);
+    expected.push_back('.');
+
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED

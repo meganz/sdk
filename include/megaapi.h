@@ -10613,6 +10613,7 @@ public:
     MegaUploadOptions() = default;
     static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
     static constexpr char PITAG_TRIGGER_NOT_APPLICABLE = '.';
+    static constexpr char PITAG_TARGET_NOT_APPLICABLE = '.';
 
     /**
      * @brief Creates a new instance of MegaUploadOptions.
@@ -10654,6 +10655,12 @@ public:
      * One-byte upload trigger tag (see PITAG_TRIGGER_*).
      */
     char pitagTrigger = PITAG_TRIGGER_NOT_APPLICABLE;
+
+    /**
+     * One-byte upload target tag (see PITAG_TARGET_*).
+     * Allows specifying destinations such as chat uploads.
+     */
+    char pitagTarget = PITAG_TARGET_NOT_APPLICABLE;
 };
 
 /**
@@ -11006,6 +11013,18 @@ class MegaApi
         static constexpr char PITAG_TRIGGER_CAMERA = 'c';
         static constexpr char PITAG_TRIGGER_SCANNER = 's';
         static constexpr char PITAG_TRIGGER_SYNC_ALGORITHM = 'a';
+
+        /**
+         * @brief PITAG target codes exposed at API level.
+         *
+         * Maps 1:1 with PitagTarget in types.h.
+         */
+        static constexpr char PITAG_TARGET_NOT_APPLICABLE = '.';
+        static constexpr char PITAG_TARGET_CLOUD_DRIVE = 'D';
+        static constexpr char PITAG_TARGET_CHAT_1TO1 = 'c';
+        static constexpr char PITAG_TARGET_CHAT_GROUP = 'C';
+        static constexpr char PITAG_TARGET_NOTE_TO_SELF = 's';
+        static constexpr char PITAG_TARGET_INCOMING_SHARE = 'i';
 
         /**
          * @brief Optional parameters to customize an upload.
