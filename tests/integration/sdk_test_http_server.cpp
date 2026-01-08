@@ -22,10 +22,10 @@
  * program.
  */
 
+#include "easy_curl.h"
 #include "integration_test_utils.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
-#include "stdfs.h"
 
 #include <curl/curl.h>
 
@@ -33,6 +33,7 @@
 #include <memory>
 
 using namespace mega;
+using sdk_test::EasyCurl;
 using sdk_test::LocalTempFile;
 using sdk_test::uploadFile;
 
@@ -114,12 +115,14 @@ private:
                                    const std::string& rangeHeader = EmptyRange,
                                    BodyMode bodyMode = BodyMode::WithBody)
     {
-        CURL* curl = curl_easy_init();
-        if (curl == nullptr)
+        const auto easyCurl = EasyCurl::create();
+        if (!easyCurl)
         {
             std::cerr << "Failed to initialize CURL" << std::endl;
             std::abort();
         }
+
+        auto curl = easyCurl->curl();
 
         std::string headerData;
         std::string bodyData;
@@ -167,8 +170,6 @@ private:
             response.statusCode = 0;
             response.contentLength = -1;
         }
-
-        curl_easy_cleanup(curl);
 
         response.headers = headerData;
         response.body = bodyData;
