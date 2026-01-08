@@ -20,7 +20,6 @@
  */
 package nz.mega.android.bindingsample.presentation.login
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -31,12 +30,15 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import nz.mega.android.bindingsample.presentation.browswer.NavigationActivity
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import nz.mega.android.bindingsample.navigation.Screen
+import nz.mega.android.bindingsample.presentation.browswer.NavigationScreenWrapper
 
 class MainActivity : ComponentActivity() {
 
@@ -45,45 +47,63 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContent {
-            val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-            // Handle navigation when login is successful
-            LaunchedEffect(uiState) {
-                if (uiState is LoginUiState.Success) {
-                    val intent = Intent(this@MainActivity, NavigationActivity::class.java)
-                    intent.flags = Intent.FLAG_ACTIVITY_CLEAR_TOP
-                    startActivity(intent)
-                    finish()
-                }
-            }
+            val navController = rememberNavController()
 
             MainActivityTheme {
-                Scaffold(
-                    modifier = Modifier.fillMaxSize()
-                ) { paddingValues ->
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(paddingValues),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        when (uiState) {
-                            is LoginUiState.Success -> {
-                                // Navigation is handled by LaunchedEffect above
-                                // This state should not be displayed
+                NavHost(
+                    navController = navController,
+                    startDestination = Screen.Login
+                ) {
+                    composable(Screen.Login) {
+                        LoginScreenContent(
+                            viewModel = viewModel,
+                            onLoginSuccess = {
+                                navController.navigate(Screen.Navigation) {
+                                    popUpTo(Screen.Login) { inclusive = true }
+                                }
                             }
-                            else -> {
-                                LoginScreen(
-                                    uiState = uiState,
-                                    onEmailChange = { viewModel.updateEmail(it) },
-                                    onPasswordChange = { viewModel.updatePassword(it) },
-                                    onLoginClick = { viewModel.onLoginClick() }
-                                )
+                        )
+                    }
+                    composable(Screen.Navigation) {
+                        NavigationScreenWrapper(
+                            onLogout = {
+                                navController.navigate(Screen.Login) {
+                                    popUpTo(Screen.Navigation) { inclusive = true }
+                                }
+                                // Reset login state when logging out
+                                viewModel.resetState()
                             }
-                        }
+                        )
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun LoginScreenContent(
+    viewModel: MainActivityViewModel,
+    onLoginSuccess: () -> Unit
+) {
+    val uiState by viewModel.uiState.collectAsStateWithLifecycle()
+
+    Scaffold(
+        modifier = Modifier.fillMaxSize()
+    ) { paddingValues ->
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(paddingValues),
+            contentAlignment = Alignment.Center
+        ) {
+            LoginScreen(
+                uiState = uiState,
+                onEmailChange = { viewModel.updateEmail(it) },
+                onPasswordChange = { viewModel.updatePassword(it) },
+                onLoginClick = { viewModel.onLoginClick() },
+                onLoginSuccess = onLoginSuccess
+            )
         }
     }
 }

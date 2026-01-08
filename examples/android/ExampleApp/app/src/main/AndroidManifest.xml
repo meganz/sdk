@@ -19,13 +19,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name="nz.mega.android.bindingsample.presentation.browswer.NavigationActivity"
-            android:launchMode="singleTop"
-            android:configChanges="orientation|screenSize"
-            android:windowSoftInputMode="stateHidden" >
-        </activity>
     </application>
 
 </manifest>

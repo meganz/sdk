@@ -1,6 +1,6 @@
 /**
  * NavigationViewModel.kt
- * ViewModel for NavigationActivity to manage file browser state and business logic
+ * ViewModel for NavigationScreen to manage file browser state and business logic
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
