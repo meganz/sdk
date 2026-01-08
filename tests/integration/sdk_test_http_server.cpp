@@ -24,15 +24,19 @@
 
 #include "easy_curl.h"
 #include "integration_test_utils.h"
+#include "mega/common/testing/utility.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
 #include <curl/curl.h>
 
 #include <future>
+#include <iterator>
 #include <memory>
+#include <string_view>
 
 using namespace mega;
+using ::mega::common::testing::randomBytes;
 using sdk_test::EasyCurl;
 using sdk_test::LocalTempFile;
 using sdk_test::uploadFile;
@@ -379,7 +383,7 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileContent(50 * 1024 * 1024, 'X');
+    std::string testFileContent = randomBytes(50 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
         uploadFile(api, LocalTempFile{"test_http_large_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
@@ -395,14 +399,14 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
     auto fileSize = testFileContent.size();
     auto largeRange = HttpClient::get(url, "0-" + std::to_string(fileSize - 1));
     EXPECT_EQ(200, largeRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(static_cast<size_t>(fileSize), largeRange.body.size());
+    EXPECT_EQ(testFileContent, largeRange.body);
 
-    // Middle range: from 25% to 50%
-    auto midRange =
-        HttpClient::get(url, std::to_string(fileSize / 4) + "-" + std::to_string(fileSize / 2));
+    // Middle range: from 25% to 50%, end is inclusive
+    auto begin = fileSize / 4;
+    auto end = fileSize / 2;
+    auto midRange = HttpClient::get(url, std::to_string(begin) + "-" + std::to_string(end));
     EXPECT_EQ(206, midRange.statusCode);
-    auto expectedMidSize = (fileSize / 2) - (fileSize / 4) + 1;
-    EXPECT_EQ(std::string(static_cast<size_t>(expectedMidSize), 'X'), midRange.body);
+    EXPECT_EQ(std::string_view(testFileContent.data() + begin, end - begin + 1), midRange.body);
 
     // Suffix range: last 10MB (bytes=-10485760)
     auto suffixRange = HttpClient::get(url, "-10485760");
@@ -417,10 +421,11 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
               suffixRange2.body); // BUG: Server returns full file instead of last 25%
 
     // Range from 75% to end
-    auto rangeToEnd = HttpClient::get(url, std::to_string((fileSize * 3) / 4) + "-");
+    begin = fileSize * 3 / 4;
+    end = testFileContent.size() - 1;
+    auto rangeToEnd = HttpClient::get(url, std::to_string(begin) + "-");
     EXPECT_EQ(206, rangeToEnd.statusCode);
-    auto expectedToEndSize = fileSize - ((fileSize * 3) / 4);
-    EXPECT_EQ(std::string(static_cast<size_t>(expectedToEndSize), 'X'), rangeToEnd.body);
+    EXPECT_EQ(std::string_view(testFileContent.data() + begin, end - begin + 1), rangeToEnd.body);
 }
 
 /**
@@ -537,7 +542,7 @@ TEST_F(SdkHttpServerTest, LargeFile)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileContent(10 * 1024 * 1024, 'L');
+    std::string testFileContent = randomBytes(10 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
         uploadFile(api, LocalTempFile{"test_http_large.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
@@ -552,17 +557,18 @@ TEST_F(SdkHttpServerTest, LargeFile)
     // Full file GET request
     auto response = HttpClient::get(url);
     EXPECT_EQ(200, response.statusCode);
-    EXPECT_EQ(testFileContent.size(), response.body.size());
+    EXPECT_EQ(testFileContent, response.body);
 
     // Standard range: first 1MB
     auto rangeResponse = HttpClient::get(url, "0-1048575");
     EXPECT_EQ(206, rangeResponse.statusCode);
-    EXPECT_EQ(std::string(1048576, 'L'), rangeResponse.body);
+    EXPECT_EQ(std::string_view(testFileContent.data(), 1048575u + 1), rangeResponse.body);
 
     // Standard range: second 1MB
     auto rangeResponse2 = HttpClient::get(url, "1048576-2097151");
     EXPECT_EQ(206, rangeResponse2.statusCode);
-    EXPECT_EQ(std::string(1048576, 'L'), rangeResponse2.body);
+    EXPECT_EQ(std::string_view(testFileContent.data() + 1048576, 2097151u - 1048576u + 1),
+              rangeResponse2.body);
 
     // Suffix range: last 1MB (bytes=-1048576)
     auto suffixRange = HttpClient::get(url, "-1048576");
@@ -579,12 +585,13 @@ TEST_F(SdkHttpServerTest, LargeFile)
     // Range from middle to near end
     auto midRange = HttpClient::get(url, "5242880-6291455");
     EXPECT_EQ(206, midRange.statusCode);
-    EXPECT_EQ(std::string(1048576, 'L'), midRange.body);
+    EXPECT_EQ(std::string_view(testFileContent.data() + 5242880, 6291455u - 5242880u + 1),
+              midRange.body);
 
     // Small range from beginning
     auto smallRange = HttpClient::get(url, "0-1023");
     EXPECT_EQ(206, smallRange.statusCode);
-    EXPECT_EQ(std::string(1024, 'L'), smallRange.body);
+    EXPECT_EQ(std::string_view(testFileContent.data(), 1023u + 1), smallRange.body);
 }
 
 /**
@@ -596,7 +603,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileContent(100 * 1024, 'C');
+    std::string testFileContent = randomBytes(100 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
         uploadFile(api, LocalTempFile{"test_http_concurrent.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
@@ -638,7 +645,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileContent(2 * 1024 * 1024, 'R');
+    std::string testFileContent = randomBytes(2 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
         uploadFile(api, LocalTempFile{"test_http_concurrent_range.bin", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
@@ -654,10 +661,12 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
     std::vector<std::future<HttpClient::Response>> futures;
 
     // Concurrent standard range requests
+    constexpr auto INTERVAL = 200000;
+    constexpr auto LENGTH = 200000;
     for (size_t i = 0; i < numRequests; i++)
     {
-        size_t start = i * 200000;
-        size_t end = start + 199999;
+        size_t start = i * INTERVAL;
+        size_t end = start + LENGTH - 1;
         std::string range = std::to_string(start) + "-" + std::to_string(end);
         futures.push_back(std::async(std::launch::async,
                                      [url, range]()
@@ -670,7 +679,8 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
     {
         auto response = futures[i].get();
         EXPECT_EQ(206, response.statusCode);
-        EXPECT_EQ(std::string(200000, 'R'), response.body);
+        size_t start = i * INTERVAL;
+        EXPECT_EQ(std::string_view(testFileContent.data() + start, LENGTH), response.body);
     }
 
     futures.clear();
@@ -798,7 +808,7 @@ TEST_F(SdkHttpServerTest, RapidRequests)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileContent(1024, 'R');
+    std::string testFileContent = randomBytes(1024);
     std::unique_ptr<MegaNode> uploadedNode =
         uploadFile(api, LocalTempFile{"test_http_rapid.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
@@ -995,7 +1005,7 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     MegaApi* api = megaApi[0].get();
 
-    std::string testFileContent(1024, 'C');
+    std::string testFileContent = randomBytes(1024);
     std::unique_ptr<MegaNode> uploadedNode =
         uploadFile(api, LocalTempFile{"test_http_connection.txt", testFileContent});
     ASSERT_NE(uploadedNode, nullptr);
