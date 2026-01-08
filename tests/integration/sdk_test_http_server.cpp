@@ -246,7 +246,7 @@ TEST_F(HttpServerTest, HttpServerStartStop)
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
     // Test starting HTTP server with default port
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     // Verify server is running
     EXPECT_TRUE(megaApi[0]->httpServerIsRunning());
@@ -362,7 +362,7 @@ TEST_F(HttpServerTest, HttpServerDirectoryListing)
     CASE_info << "started";
     megaApi[0]->httpServerEnableFolderServer(false);
     EXPECT_FALSE(megaApi[0]->httpServerIsFolderServerEnabled());
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_NE(nullptr, rootNode.get());
@@ -412,7 +412,7 @@ TEST_F(HttpServerTest, HttpServerFileAccess)
     megaApi[0]->httpServerEnableFileServer(false);
     EXPECT_FALSE(megaApi[0]->httpServerIsFileServerEnabled());
 
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     unique_ptr<char[]> localLink(megaApi[0]->httpServerGetLocalLink(node.get()));
     ASSERT_TRUE(localLink);
@@ -441,7 +441,7 @@ TEST_F(HttpServerTest, GetSetRestrictedMode)
               megaApi[0]->httpServerGetRestrictedMode());
     megaApi[0]->httpServerEnableFileServer(true);
 
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     const std::string testFileNameStart = "http_test_file_start.txt";
     const std::string testFileContentsStart =
@@ -537,7 +537,7 @@ TEST_F(HttpServerTest, HttpServerMultipleStartStop)
     // Test multiple start/stop cycles
     for (int i = 0; i < 3; ++i)
     {
-        ASSERT_TRUE(megaApi[0]->httpServerStart());
+        ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
         EXPECT_TRUE(megaApi[0]->httpServerIsRunning());
 
@@ -553,7 +553,7 @@ TEST_F(HttpServerTest, HttpServerWebDavBasicOperations)
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
     // Start HTTP server
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     // Create test folder and get WebDAV link
     const std::string folderName = "webdav_test_folder";
@@ -577,7 +577,7 @@ TEST_F(HttpServerTest, HttpServerWebDavPropfindOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     // Create test folder
     const std::string folderName = "webdav_propfind_folder";
@@ -623,7 +623,7 @@ TEST_F(HttpServerTest, HttpServerWebDavFileOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     // Upload test file
     const std::string testFileName = "webdav_test_file.txt";
@@ -660,7 +660,7 @@ TEST_F(HttpServerTest, HttpServerWebDavCollectionOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_NE(nullptr, rootNode.get());
@@ -683,7 +683,7 @@ TEST_F(HttpServerTest, HttpServerWebDavModificationOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     // Create test folder
     const std::string folderName = "webdav_mod_folder";
@@ -729,7 +729,7 @@ TEST_F(HttpServerTest, HttpServerWebDavLockingOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_NE(nullptr, rootNode.get());
@@ -783,7 +783,7 @@ TEST_F(HttpServerTest, HttpServerWebDavPropertyOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_NE(nullptr, rootNode.get());
@@ -817,7 +817,7 @@ TEST_F(HttpServerTest, HttpServerWebDavDeleteOperation)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
     ASSERT_NE(nullptr, rootNode.get());
@@ -849,7 +849,7 @@ TEST_F(HttpServerTest, HttpServerWebDavGetAllLinksAndManageAllowedNodes)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
     // Create test folder
     const std::string folderName = "webdav_links_folder";
     auto testFolder = createFolder(folderName);
@@ -925,7 +925,7 @@ TEST_F(HttpServerTest, HttpServerListenerCallbacks)
                     fileNodeHandlePromise.set_value(UNDEF);
             });
 
-    ASSERT_TRUE(megaApi[0]->httpServerStart());
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
 
     megaApi[0]->httpServerAddListener(&mockListener);
     // Upload test file to trigger transfer events
