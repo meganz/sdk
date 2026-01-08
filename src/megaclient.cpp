@@ -9926,6 +9926,35 @@ error MegaClient::updateNodeMtime(std::shared_ptr<Node> node,
     return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
 }
 
+error MegaClient::updateNodeFingerprint(std::shared_ptr<Node> node,
+                                        const FileFingerprint& newFingerprint,
+                                        std::function<void(NodeHandle, Error)>&& completion)
+{
+    if (!node || node->type != FILENODE || !completion)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS)";
+        return API_EARGS;
+    }
+
+    if (!newFingerprint.isvalid || newFingerprint.size < 0)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS): invalid fingerprint";
+        return API_EARGS;
+    }
+
+    if (node->size != newFingerprint.size)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS): size mismatch (node="
+                << node->size << ", fp=" << newFingerprint.size << ")";
+        return API_EARGS;
+    }
+
+    std::string attribute;
+    newFingerprint.serializefingerprint(&attribute);
+
+    return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(NodeHandle h,
                           VersioningOption vo,
@@ -12406,11 +12435,17 @@ void MegaClient::opensctable()
             // NOD is a special case where existing DB can be upgraded by renaming the existing
             // file and migrating data to the new DB scheme. In consequence, we just want to
             // recycle it (hence the flag DB_OPEN_FLAG_RECYCLE)
-            // Similarly, for SRW, we just need to rename the existing legacy DB, and only delete the DB if there is a downgrade (SRW to NO SRW),
-            // hence why we need to increase the DB version, but without affecting the upgrade from NO SRW to SRW.
-            int recycleDBVersion = (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD || DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW) ?
-                                            DB_OPEN_FLAG_RECYCLE :
-                                            0;
+            // Similarly, for VFINGERPRINT (Nodes table with fingerprint virtual column) where
+            // existing DB can be upgraded by renaming the existing file and migrating data to the
+            // new DB scheme. Similarly, for SRW, we just need to rename the existing legacy DB, and
+            // only delete the DB if there is a downgrade (SRW to NO SRW), hence why we need to
+            // increase the DB version, but without affecting the upgrade from NO SRW to SRW.
+            int recycleDBVersion =
+                (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD ||
+                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
+                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT) ?
+                    DB_OPEN_FLAG_RECYCLE :
+                    0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
             {
                 handleDbError(error);

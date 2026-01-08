@@ -946,6 +946,20 @@ public:
                           const m_time_t newMtime,
                           std::function<void(NodeHandle, Error)>&& completion);
 
+    /**
+     * @brief Updates the fingerprint attribute ('c') of a node.
+     *
+     * The fingerprint attribute encodes CRC and mtime. This can be used to fix metadata-only
+     * mismatches without re-uploading file data.
+     *
+     * @param node Shared pointer to the Node to be modified
+     * @param newFingerprint The fingerprint to serialize into the node's attribute
+     * @param completion A callback function that will be invoked when the operation completes
+     */
+    error updateNodeFingerprint(std::shared_ptr<Node> node,
+                                const FileFingerprint& newFingerprint,
+                                std::function<void(NodeHandle, Error)>&& completion);
+
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
     void putnodes(NodeHandle,

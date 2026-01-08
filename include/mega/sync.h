@@ -650,14 +650,14 @@ public:
                         SyncPath& fullPath,
                         PerFolderLogSummaryCounts& pflsc,
                         const int64_t metamac,
-                        const bool justMtimeChanged);
+                        const SyncTransfer_inClient::AttributeOnlyUpdate attributeOnlyUpdate);
     bool resolve_downsync(SyncRow& row,
                           SyncRow& parentRow,
                           SyncPath& fullPath,
                           bool alreadyExists,
                           PerFolderLogSummaryCounts& pflsc,
                           const int64_t metamac,
-                          const bool justMtimeChanged);
+                          const SyncTransfer_inClient::AttributeOnlyUpdate attributeOnlyUpdate);
     bool resolve_cloudNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
     bool resolve_fsNodeGone(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath);
 

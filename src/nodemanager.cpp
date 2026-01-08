@@ -1626,12 +1626,7 @@ void NodeManager::notifyPurge()
                 }
 
                 removeFingerprint(n.get());
-
-                // effectively delete node from RAM
-                if (n->mNodePosition->second.mLRUPosition != invalidCacheLRUPos())
-                {
-                    mCacheLRU.erase(n->mNodePosition->second.mLRUPosition);
-                }
+                removeNodeCacheLRU_internal(n.get());
 
                 mNodes.erase(n->mNodePosition);
                 n->mNodePosition = mNodes.end();
@@ -1957,14 +1952,9 @@ bool NodeManager::isFromRootNodeType(const Node& node) const
 void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
 {
     assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
-    if (node->mNodePosition->second.mLRUPosition != mCacheLRU.end())
-    {
-        mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
-    }
-
+    removeNodeCacheLRU_internal(node.get());
     node->mNodePosition->second.mLRUPosition = mCacheLRU.insert(mCacheLRU.begin(), node);
     unLoadNodeFromCacheLRU(); // check if it's necessary unload nodes
-
     // setfingerprint again to force to insert into NodeManager::mFingerPrints
     // only nodes in LRU are at NodeManager::mFingerPrints
     if (node->mFingerPrintPosition == invalidFingerprintPos())
@@ -1983,6 +1973,19 @@ void NodeManager::unLoadNodeFromCacheLRU()
         node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
         mCacheLRU.pop_back();
     }
+}
+
+void NodeManager::removeNodeCacheLRU_internal(Node* node)
+{
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
+    if (!node || node->mNodePosition == mNodes.end() ||
+        node->mNodePosition->second.mLRUPosition == mCacheLRU.end())
+    {
+        return;
+    }
+
+    mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
+    node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -2070,18 +2073,30 @@ FingerprintPosition NodeManager::insertFingerprint(Node *node)
     return insertFingerprint_internal(node);
 }
 
-FingerprintPosition NodeManager::insertFingerprint_internal(Node *node)
+FingerprintPosition NodeManager::insertFingerprint_internal(Node* node)
 {
     assert(mMutex.owns_lock());
+    assert(node->mFingerPrintPosition == invalidFingerprintPos());
 
-    // if node is not to be kept in memory, don't save the pointer in the set
-    // since it will be invalid once node is written to DB
-    if (node->type == FILENODE && mNodeToWriteInDb.get() != node)
+    if (node->type != FILENODE)
     {
-        return mFingerPrintsNoMtime.insert(node);
+        return mFingerPrintsNoMtime.end();
     }
 
-    return mFingerPrintsNoMtime.end();
+    // Only insert fingerprint for nodes currently cached in LRU, otherwise nodes could be destroyed
+    // leaving dangling pointers in `mFingerPrintsNoMtime`
+    if (mNodeToWriteInDb.get() == node)
+    {
+        return mFingerPrintsNoMtime.end();
+    }
+
+    if (auto it = mNodes.find(node->nodeHandle());
+        it == mNodes.end() || it->second.mLRUPosition == invalidCacheLRUPos())
+    {
+        return mFingerPrintsNoMtime.end();
+    }
+
+    return mFingerPrintsNoMtime.insert(node);
 }
 
 void NodeManager::removeFingerprint(Node *node, bool unloadNode)

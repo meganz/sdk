@@ -63,6 +63,11 @@ namespace mega {
         std::function<
             void(const int /*httpStatus*/, const unsigned /*curlCode*/, const bool /*failed*/)>
             onHttpReqFinish;
+
+        // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
+        // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
+        // 64-bit math when sampling large files (sparse CRC).
+        std::function<void(bool&)> onHookFileFingerprintUseLegacyBuggySparseCrc;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -144,6 +149,14 @@ namespace mega {
             globalMegaTestHooks.onHttpReqFinish((HTTPSTATUS), (CURLCODE), (FAILED)); \
     }
 
+#define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
+    { \
+        if (globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc) \
+        { \
+            globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc((FLAG)); \
+        } \
+    }
+
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -159,6 +172,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
 #define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS)
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
+#define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 
 #endif
 

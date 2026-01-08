@@ -24,6 +24,8 @@
 
 #include "filesystem.h"
 
+#include <cstdint>
+
 #ifdef ENABLE_SYNC
 #include "syncinternals/mac_computation_state.h"
 #endif
@@ -227,7 +229,15 @@ struct SyncTransfer_inClient: public File
     std::atomic<bool> wasTerminated{false};
     std::atomic<bool> wasFileTransferCompleted{false};
     std::atomic<bool> wasRequesterAbandoned{false};
-    std::atomic<bool> wasJustMtimeChanged{false};
+
+    enum class AttributeOnlyUpdate : std::uint8_t
+    {
+        None = 0,
+        MtimeOnly,
+        CrcOnly,
+    };
+
+    std::atomic<AttributeOnlyUpdate> attributeOnlyUpdate{AttributeOnlyUpdate::None};
 
     // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
     std::atomic<bool> terminatedReasonAlreadyKnown{false};
@@ -248,7 +258,7 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
                           shared_ptr<SyncThreadsafeState> stss,
                           const FileFingerprint& overwriteFF,
                           const int64_t metamac,
-                          const bool justMtimeChanged);
+                          const AttributeOnlyUpdate attributeOnlyUpdate);
 
     ~SyncDownload_inClient();
 
@@ -271,7 +281,7 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
                         const LocalPath& localname,
                         bool fromInshare,
                         const int64_t metamac,
-                        const bool justMtimeChanged);
+                        const AttributeOnlyUpdate attributeOnlyUpdate);
     ~SyncUpload_inClient();
 
     void prepare(FileSystemAccess&) override;

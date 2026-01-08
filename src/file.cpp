@@ -846,7 +846,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
                                          const LocalPath& localname,
                                          bool fromInshare,
                                          const int64_t metamac,
-                                         const bool justMtimeChanged)
+                                         const AttributeOnlyUpdate attributeOnlyUpdate)
 {
     *static_cast<FileFingerprint*>(this) = ff;
 
@@ -873,7 +873,7 @@ SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,
 
     sourceFsid = fsid;
     sourceLocalname = localname;
-    wasJustMtimeChanged = justMtimeChanged;
+    this->attributeOnlyUpdate = attributeOnlyUpdate;
     if (metamac != INVALID_META_MAC)
     {
         mMetaMac.emplace(metamac);
@@ -968,7 +968,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n,
                                              shared_ptr<SyncThreadsafeState> stss,
                                              const FileFingerprint& overwriteFF,
                                              const int64_t metamac,
-                                             const bool justMtimeChanged)
+                                             const AttributeOnlyUpdate attributeOnlyUpdate)
 {
     h = n.handle;
     *(FileFingerprint*)this = n.fingerprint;
@@ -981,7 +981,7 @@ SyncDownload_inClient::SyncDownload_inClient(CloudNode& n,
 
     syncThreadSafeState = std::move(stss);
     syncThreadSafeState->transferBegin(GET, size);
-    wasJustMtimeChanged = justMtimeChanged;
+    this->attributeOnlyUpdate = attributeOnlyUpdate;
     mMetaMac = metamac;
     LOG_debug << "[SyncDownload_inClient()] Name: '" << getLocalname() << "'. Handle: " << h
               << ". Cloud Fingerprint: " << fingerprintDebugString()

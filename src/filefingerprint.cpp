@@ -19,10 +19,11 @@
  * program.
  */
 
-#include "mega/filesystem.h"
-#include "mega/serialize64.h"
 #include "mega/base64.h"
+#include "mega/filesystem.h"
 #include "mega/logging.h"
+#include "mega/serialize64.h"
+#include "mega/testhooks.h"
 #include "mega/utils.h"
 
 namespace
@@ -162,6 +163,18 @@ static inline m_off_t computeSparseOffset64(const m_off_t size,
                                             const size_t crcCount,
                                             const size_t blockBytes)
 {
+#ifndef NDEBUG
+    bool useLegacyBuggySparseCrc = false;
+    DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(useLegacyBuggySparseCrc);
+    LOG_warn << "computeSparseOffset64: useLegacyBuggySparseCrc = " << useLegacyBuggySparseCrc;
+    if (useLegacyBuggySparseCrc)
+    {
+        // For test-only simulations: emulate the historical 32-bit overflow bug.
+        // This is equivalent to using the buggy math for the sparse offset calculation.
+        return legacySparseOffset32Bug(size, lane_i, block_j);
+    }
+#endif
+
     const auto sz = static_cast<uint64_t>(size);
     const auto idx64 = static_cast<uint64_t>(lane_i) * static_cast<uint64_t>(blocks) +
                        static_cast<uint64_t>(block_j); // 0..(crcCount*blocks-1)

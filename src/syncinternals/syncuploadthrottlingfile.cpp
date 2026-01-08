@@ -65,8 +65,9 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
     if (!upload.wasStarted)
     {
         assert(!upload.wasTerminated);
-        if (upload.wasJustMtimeChanged && fingerprint.equalExceptMtime(upload) &&
-            fingerprint.mtime != upload.mtime)
+        if (upload.attributeOnlyUpdate.load() ==
+                SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly &&
+            fingerprint.equalExceptMtime(upload) && fingerprint.mtime != upload.mtime)
         {
             LOG_verbose << "UploadThrottlingFile::handleAbortUpload: Updating fingerprint of "
                            "queued upload with mtime-only change: "
@@ -77,10 +78,10 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
         {
             LOG_verbose << "UploadThrottlingFile::handleAbortUpload: Updating fingerprint of "
                            "queued upload: "
-                        << transferPath << " [wasJustMtimeChanged: " << upload.wasJustMtimeChanged
-                        << "]";
+                        << transferPath << " [attributeOnlyUpdate: "
+                        << static_cast<unsigned>(upload.attributeOnlyUpdate.load()) << "]";
             upload.updateFingerprint(fingerprint);
-            upload.wasJustMtimeChanged = false;
+            upload.attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
             upload.mMetaMac = std::nullopt;
         }
         return false;
