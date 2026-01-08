@@ -18984,26 +18984,12 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
     }
 
     LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
-    transfer->setState(MegaTransfer::STATE_QUEUED);
-    transferMap[nextTag] = transfer;
-    transfer->setTag(nextTag);
-    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
-    transfer->setStartTime(Waiter::ds);
-    transfer->setUpdateTime(Waiter::ds);
-    fireOnTransferStart(transfer);
-    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-    transfer->setSpeed(0);
-    transfer->setMeanSpeed(0);
-    transfer->setState(MegaTransfer::STATE_COMPLETING);
-    fireOnTransferUpdate(transfer);
-
     const auto immediateErrCode = client->updateNodeMtime(
         node,
         newMtime,
         [this, nextTag](NodeHandle h, Error e)
         {
-            MegaTransferPrivate* transfer =
-                static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
+            MegaTransferPrivate* transfer = getMegaTransferPrivate(nextTag);
             if (!transfer)
             {
                 LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
@@ -19036,6 +19022,18 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
         return false;
     }
 
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    fireOnTransferStart(transfer);
+    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETING);
+    fireOnTransferUpdate(transfer);
     return true;
 }
 
@@ -19293,8 +19291,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 // shortcut in case we have a huge queue
                 // millions of listener callbacks, logging etc takes a while
                 LOG_debug << "Folder transfer is cancelled, skipping remaining subtransfers: " << auxQueue.size();
-                recursiveTransfer->setTransfersTotalCount(recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
-
+                recursiveTransfer->setTransfersTotalCount(
+                    recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
+                // Remove remaining transfers in recursiveTransfer's custom queue
                 auxQueue.clear();
                 // let the pop'd transfer notify the parent, we may be completely finished
                 // otherwise the folder completes when transfers already established in the SDK core finish
@@ -19546,7 +19545,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                             currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
-                            transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
                             transfer->setStartTime(Waiter::ds);
@@ -29124,7 +29122,12 @@ size_t TransferQueue::size()
 void TransferQueue::clear()
 {
     std::lock_guard<std::mutex> g(mutex);
-    return transfers.clear();
+    for (auto& t: transfers)
+    {
+        delete t;
+        t = nullptr;
+    }
+    transfers.clear();
 }
 
 MegaTransferPrivate *TransferQueue::pop()
@@ -31245,6 +31248,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
         {
+            transferQueue.clear();
             complete(API_EINCOMPLETE, true);
         }
         else if (transferQueue.empty())
@@ -32583,6 +32587,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
                 if (e)
                 {
+                    if (transferQueue)
+                    {
+                        transferQueue->clear();
+                    }
                     complete(e);
                 }
                 else
@@ -32726,7 +32734,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (isStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
             e = API_EINCOMPLETE;
-            return nullptr;
+            return transferQueue;
         }
 
         LocalPath &localpath = it->localPath;
@@ -32739,7 +32747,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
-            return nullptr;
+            return transferQueue;
         }
 
         auto folderAlreadyExist = (e && e == API_EEXIST);
@@ -32747,7 +32755,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType, folderAlreadyExist))
         {
             e = API_EINCOMPLETE;
-            return nullptr;
+            return transferQueue;
         }
 
         ++it;
