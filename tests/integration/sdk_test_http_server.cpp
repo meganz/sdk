@@ -31,7 +31,6 @@
 #include <curl/curl.h>
 
 #include <future>
-#include <iterator>
 #include <memory>
 #include <string_view>
 

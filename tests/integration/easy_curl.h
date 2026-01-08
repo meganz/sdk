@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mega/types.h"
+
 #include <curl/curl.h>
 
 #include <memory>
