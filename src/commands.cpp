@@ -1117,14 +1117,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
 
     if (pitag)
     {
-        std::string pitagString;
-        pitagString += static_cast<char>(pitag->purpose);
-        pitagString += static_cast<char>(pitag->trigger);
-        pitagString += static_cast<char>(pitag->nodeType);
-        pitagString += static_cast<char>(pitag->target);
-        pitagString += static_cast<char>(pitag->importSource);
-
-        arg("p", pitagString.c_str());
+        const auto pitagStr = pitagToString(*pitag);
+        arg("p", pitagStr.c_str());
     }
 
     if (cauth)

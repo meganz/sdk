@@ -1666,14 +1666,14 @@ TEST_F(SdkTestSyncUploadsOperations, PreComputedMacForCloneCandidatesNonBlocking
     auto uploadToCloud = [&](const fs::path& filePath, const int timeoutSeconds = 60)
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        megaApi[0]->startUpload(path_u8string(filePath).c_str(),
+        MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = m_time(nullptr) - 86400;
+
+        const auto localPath = path_u8string(filePath);
+        megaApi[0]->startUpload(localPath,
                                 candidatesFolder.get(),
-                                nullptr, // fileName
-                                m_time(nullptr) - 86400, // mtime (1 day ago - different from local)
-                                nullptr, // appData
-                                false, // isSourceTemporary
-                                false, // startFirst
-                                nullptr, // cancelToken
+                                nullptr,
+                                &uploadOptions,
                                 &uploadTracker);
         return uploadTracker.waitForResult(timeoutSeconds) == API_OK;
     };
@@ -1848,14 +1848,14 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnLocalDelete)
     // Upload to cloud with old mtime
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        megaApi[0]->startUpload(path_u8string(tempFile->getPath()).c_str(),
+        MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = m_time(nullptr) - 86400;
+
+        const auto tempLocalPath = path_u8string(tempFile->getPath());
+        megaApi[0]->startUpload(tempLocalPath,
                                 candidatesFolder.get(),
                                 nullptr,
-                                m_time(nullptr) - 86400,
-                                nullptr,
-                                false,
-                                false,
-                                nullptr,
+                                &uploadOptions,
                                 &uploadTracker);
         ASSERT_EQ(API_OK, uploadTracker.waitForResult(600));
     }
@@ -1935,14 +1935,14 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
     // Upload to cloud with old mtime
     {
         TransferTracker uploadTracker(megaApi[0].get());
-        megaApi[0]->startUpload(path_u8string(tempFile->getPath()).c_str(),
+        MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = m_time(nullptr) - 86400;
+
+        const auto tempLocalPath = path_u8string(tempFile->getPath());
+        megaApi[0]->startUpload(tempLocalPath,
                                 candidatesFolder.get(),
                                 nullptr,
-                                m_time(nullptr) - 86400,
-                                nullptr,
-                                false,
-                                false,
-                                nullptr,
+                                &uploadOptions,
                                 &uploadTracker);
         ASSERT_EQ(API_OK, uploadTracker.waitForResult(600));
     }
