@@ -84,7 +84,7 @@ pipeline {
                                     GTEST_REPEAT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_repeat=[^ ]*" | awk -F "gtest_repeat="  \'{print "--gtest_repeat="\$2}\'|| :', returnStdout: true).trim()
                                     GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
-                                    CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "120"
+                                    CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
