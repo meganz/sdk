@@ -2570,13 +2570,7 @@ bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
     if (isnetwork)
     {
         LOG_debug << "Network folder detected";
-
-        syncError = UNSUPPORTED_FILE_SYSTEM;
-        syncWarning = NO_SYNC_WARNING;
-
-        return false;
     }
-
     syncError = NO_SYNC_ERROR;
     syncWarning = NO_SYNC_WARNING;
 
