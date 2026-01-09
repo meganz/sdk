@@ -949,7 +949,7 @@ TEST_F(SdkHttpServerTest, DifferentFileSizes)
 }
 
 /**
- * Test HTTP server with very long URLs (1 MB).
+ * Test HTTP server with very long URLs
  * Tests server behavior with extremely long URL paths, including non-existent files (404).
  */
 TEST_F(SdkHttpServerTest, VeryLongUrl)
