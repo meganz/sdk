@@ -17868,12 +17868,12 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     {
         LOG_warn << "Unsupported filesystem";
 
-        if (isnetwork)
-        {
-            sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
-        }
-
         return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
+    }
+
+    if (isnetwork)
+    {
+        sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
     }
 
     std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();
