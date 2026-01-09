@@ -1743,6 +1743,7 @@ std::string MegaClient::getDeviceidHash()
     }
 
     string id = MegaClient::statsid;
+    DEBUG_TEST_HOOK_DEVICE_ID(id);
     if (id.size())
     {
         string hash;
@@ -18356,54 +18357,34 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
         attrs.map[attrId] = deviceId;
     };
 
-    // search for remote folder "My Backups"/`DEVICE_NAME`/
-    std::shared_ptr<Node> deviceNameNode = childnodebyattribute(myBackupsNode.get(), attrId, deviceId.c_str());
-    if (deviceNameNode) // validate this node
+    // search for remote folder "My Backups"/`DEVICE_ID`/
+    std::shared_ptr<Node> deviceBackupNode =
+        childnodebyattribute(myBackupsNode.get(), attrId, deviceId.c_str());
+    if (deviceBackupNode) // validate this node
     {
-        if (deviceNameNode->type != FOLDERNODE)
+        if (deviceBackupNode->type != FOLDERNODE)
         {
-            LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
+            LOG_err << "Add backup: device-id node did not have FOLDERNODE type";
             return completion(API_EACCESS, sc, nullptr);
         }
 
         // make sure there is no folder with the same name as the backup
-        std::shared_ptr<Node> backupNameNode = childnodebyname(deviceNameNode.get(), sc.mName.c_str());
+        std::shared_ptr<Node> backupNameNode =
+            childnodebyname(deviceBackupNode.get(), sc.mName.c_str());
         if (backupNameNode)
         {
             LOG_err << "Add backup: a backup with the same name (" << sc.mName << ") already existed";
             return completion(API_EACCESS, sc, nullptr);
         }
     }
-    else // create `DEVICE_NAME` remote dir
+    else // create `DEVICE_ID` remote dir
     {
-        // get `DEVICE_NAME`, from user attributes
-        attr_t attrType = ATTR_DEVICE_NAMES;
-        attribute = u->getAttribute(attrType);
-        if (!attribute || !attribute->isValid())
+        // is there a folder with the same device-id already?
+        deviceBackupNode = childnodebyname(myBackupsNode.get(), deviceId.c_str());
+        if (deviceBackupNode)
         {
-            LOG_err << "Add backup: device/drive name not set";
-            return completion(API_EINCOMPLETE, sc, nullptr);
-        }
-        if (attribute->value().empty())
-        {
-            LOG_err << "Add backup: empty attribute value for device/drive name";
-            return completion(API_EINCOMPLETE, sc, nullptr);
-        }
-
-        std::unique_ptr<string_map> records(tlv::containerToRecords(attribute->value(), key));
-        const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
-        const string& deviceName = records ? (*records)[deviceNameKey] : string {};
-        if (deviceName.empty())
-        {
-            LOG_err << "Add backup: device/drive name not found";
-            return completion(API_EINCOMPLETE, sc, nullptr);
-        }
-
-        // is there a folder with the same device-name already?
-        deviceNameNode = childnodebyname(myBackupsNode.get(), deviceName.c_str());
-        if (deviceNameNode)
-        {
-            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
+            LOG_err << "Add backup: new device, but a folder with the same device-id (" << deviceId
+                    << ") already existed";
             return completion(API_EEXIST, sc, nullptr);
         }
 
@@ -18411,7 +18392,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
         newnodes.emplace_back();
         NewNode& newNode = newnodes.back();
 
-        putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
+        putnodes_prepareOneFolder(&newNode, deviceId, true, addAttrsFunc);
         newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
     }
 
@@ -18420,14 +18401,14 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     NewNode& backupNameNode = newnodes.back();
 
     putnodes_prepareOneFolder(&backupNameNode, sc.mName, true);    // backup node should not include dev-id/drv-id
-    if (!deviceNameNode)
+    if (!deviceBackupNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)
         backupNameNode.parenthandle = newnodes[0].nodehandle;
     }
 
     // create the new node(s)
-    putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+    putnodes(deviceBackupNode ? deviceBackupNode->nodeHandle() : myBackupsNode->nodeHandle(),
              NoVersioning,
              std::move(newnodes),
              nullptr,

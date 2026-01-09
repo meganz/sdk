@@ -34,7 +34,6 @@ public:
     {
         SdkTest::SetUp();
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
     }
 
     const fs::path& getLocalFolder() const
