@@ -122,14 +122,8 @@ private:
                                    const std::string& rangeHeader = EmptyRange,
                                    BodyMode bodyMode = BodyMode::WithBody)
     {
-        const auto easyCurl = EasyCurl::create();
-        if (!easyCurl)
-        {
-            std::cerr << "Failed to initialize CURL" << std::endl;
-            std::abort();
-        }
-
-        auto curl = easyCurl->curl();
+        const auto easyCurl = EasyCurl();
+        auto curl = easyCurl.curl();
 
         std::string headerData;
         std::string bodyData;

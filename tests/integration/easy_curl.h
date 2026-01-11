@@ -26,6 +26,11 @@ public:
     ~EasyCurl();
 
     /**
+     * @brief constructor - init libcurl's CURL handle
+     */
+    EasyCurl();
+
+    /**
      * @brief Copy constructor - deleted to prevent copying
      */
     EasyCurl(const EasyCurl&) = delete;
@@ -49,23 +54,12 @@ public:
     EasyCurl& operator=(EasyCurl&& other);
 
     /**
-     * @brief Factory method to create a new EasyCurl instance
-     * @return std::unique_ptr<EasyCurl> or nullptr if creation fails
-     */
-    static std::unique_ptr<EasyCurl> create();
-
-    /**
      * @brief Get the underlying CURL handle
      * @return Raw pointer to the CURL handle
      */
     CURL* curl() const;
 
 private:
-    /**
-     * @brief Private constructor - use create() factory method instead
-     */
-    EasyCurl();
-
     CURL* mCurl{nullptr}; ///< The underlying libcurl handle
 };
 

@@ -1,5 +1,6 @@
 #include "easy_curl.h"
 
+#include <stdexcept>
 #include <utility>
 
 namespace sdk_test
@@ -19,7 +20,10 @@ EasyCurl::EasyCurl(EasyCurl&& other):
 
 EasyCurl::EasyCurl():
     mCurl(curl_easy_init())
-{}
+{
+    if (!mCurl)
+        throw std::runtime_error("curl_easy_init returns null");
+}
 
 EasyCurl& EasyCurl::operator=(EasyCurl&& other)
 {
@@ -29,11 +33,6 @@ EasyCurl& EasyCurl::operator=(EasyCurl&& other)
         swap(other.mCurl, mCurl);
     }
     return *this;
-}
-
-std::unique_ptr<EasyCurl> EasyCurl::create()
-{
-    return std::unique_ptr<EasyCurl>(new EasyCurl());
 }
 
 CURL* EasyCurl::curl() const
