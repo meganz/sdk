@@ -26,7 +26,7 @@ EasyCurl& EasyCurl::operator=(EasyCurl&& other)
     if (this != &other)
     {
         using std::swap;
-        std::swap(other.mCurl, mCurl);
+        swap(other.mCurl, mCurl);
     }
     return *this;
 }
