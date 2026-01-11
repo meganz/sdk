@@ -166,8 +166,8 @@ private:
         }
         else
         {
-            std::cerr << "CURL error for " << method << " " << url << ": "
-                      << curl_easy_strerror(res) << " (code: " << res << ")" << std::endl;
+            LOG_err << "CURL error for " << method << " " << url << ": " << curl_easy_strerror(res)
+                    << " (code: " << res << ")";
             response.statusCode = 0;
             response.contentLength = -1;
         }
