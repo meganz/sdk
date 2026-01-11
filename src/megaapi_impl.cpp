@@ -35908,7 +35908,8 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
     {
-        httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
+        // Body data can be written to streamingBuffer before the header is sent
+        httpctx->streamingBuffer.init(static_cast<size_t>(len) + resstr.size());
         httpctx->server->setMaxBufferSize(
             static_cast<int>(httpctx->streamingBuffer.getMaxBufferSize()));
         httpctx->server->setMaxOutputSize(
