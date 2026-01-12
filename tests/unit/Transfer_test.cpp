@@ -37,7 +37,7 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
                            exp.transferkey.data() + mega::SymmCipher::KEYLENGTH,
                            act.transferkey.data()));
     ASSERT_EQ(exp.lastaccesstime, act.lastaccesstime);
-    ASSERT_EQ(exp.ultoken.get() != nullptr, act.ultoken.get() != nullptr);
+    ASSERT_EQ(exp.ultoken != nullptr, act.ultoken != nullptr); // Both NULLs OR both valid
     if (exp.ultoken && act.ultoken)
     {
         ASSERT_EQ(*exp.ultoken, *act.ultoken);
