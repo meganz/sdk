@@ -10486,6 +10486,7 @@ bool CommandGetBanners::procresult(Result r, JSON& json)
                 break;
             case makeNameid("b"):
                 json.storeobject(&banner.button);
+                banner.button = Base64::atob(banner.button);
                 break;
             case EOO:
                 if (!banner.id || banner.title.empty() || banner.description.empty())
