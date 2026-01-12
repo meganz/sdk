@@ -98,6 +98,11 @@ struct MacComputationState
     std::atomic<bool> completed{false}; // True when local MAC computed
     std::atomic<bool> failed{false}; // True if read/compute error
 
+    // True when initialization is complete (first advanceMacComputation has returned).
+    // Used to prevent checkPendingCloneMac from racing with initCloneCandidateMacComputation.
+    // The sync thread (checkPendingCloneMac) should not proceed until this is true.
+    std::atomic<bool> initializationComplete{false};
+
     // Throttle tracking - true if we've acquired a slot from MacComputationThrottle
     bool throttleSlotAcquired{false};
 
@@ -173,6 +178,28 @@ struct MacComputationState
     bool hasFailed() const
     {
         return failed.load(std::memory_order_acquire);
+    }
+
+    /**
+     * @brief Thread-safe: check if initialization is complete.
+     *
+     * Returns true after the initializing thread has finished setting up the computation
+     * and the first advanceMacComputation call has returned. This prevents race conditions
+     * where checkPendingCloneMac runs before initCloneCandidateMacComputation completes.
+     */
+    bool isInitializationComplete() const
+    {
+        return initializationComplete.load(std::memory_order_acquire);
+    }
+
+    /**
+     * @brief Thread-safe: mark initialization as complete.
+     *
+     * Called after advanceMacComputation returns in the initialization function.
+     */
+    void setInitializationComplete()
+    {
+        initializationComplete.store(true, std::memory_order_release);
     }
 
     /**
