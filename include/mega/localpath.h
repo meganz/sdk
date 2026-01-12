@@ -182,7 +182,7 @@ public:
     LocalPath(LocalPath&&) noexcept;
     LocalPath& operator=(LocalPath&&) noexcept;
     LocalPath(const LocalPath& p);
-    LocalPath operator=(const LocalPath& p);
+    LocalPath& operator=(const LocalPath& p);
 
     virtual ~LocalPath() {}
 
