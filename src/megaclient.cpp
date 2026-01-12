@@ -9926,6 +9926,35 @@ error MegaClient::updateNodeMtime(std::shared_ptr<Node> node,
     return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
 }
 
+error MegaClient::updateNodeFingerprint(std::shared_ptr<Node> node,
+                                        const FileFingerprint& newFingerprint,
+                                        std::function<void(NodeHandle, Error)>&& completion)
+{
+    if (!node || node->type != FILENODE || !completion)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS)";
+        return API_EARGS;
+    }
+
+    if (!newFingerprint.isvalid || newFingerprint.size < 0)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS): invalid fingerprint";
+        return API_EARGS;
+    }
+
+    if (node->size != newFingerprint.size)
+    {
+        LOG_err << "updateNodeFingerprint immediate error (EARGS): size mismatch (node="
+                << node->size << ", fp=" << newFingerprint.size << ")";
+        return API_EARGS;
+    }
+
+    std::string attribute;
+    newFingerprint.serializefingerprint(&attribute);
+
+    return setattr(node, attr_map('c', std::move(attribute)), std::move(completion), true);
+}
+
 // send new nodes to API for processing
 void MegaClient::putnodes(NodeHandle h,
                           VersioningOption vo,
@@ -9934,7 +9963,8 @@ void MegaClient::putnodes(NodeHandle h,
                           int tag,
                           bool canChangeVault,
                           string customerIpPort,
-                          CommandPutNodes::Completion&& resultFunction)
+                          CommandPutNodes::Completion&& resultFunction,
+                          std::optional<Pitag> pitag)
 {
     queueCommand(new CommandPutNodes(this,
                                      h,
@@ -9946,7 +9976,8 @@ void MegaClient::putnodes(NodeHandle h,
                                      cauth,
                                      std::move(resultFunction),
                                      canChangeVault,
-                                     customerIpPort));
+                                     customerIpPort,
+                                     pitag));
 }
 
 // drop nodes into a user's inbox (must have RSA keypair) - obsolete feature, kept for sending logs
@@ -10211,9 +10242,28 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     const char* cauth = nullptr;
 
+    const bool inIncomingShare = parent && parent->matchesOrHasAncestorMatching(
+                                               [](const Node& node)
+                                               {
+                                                   return node.inshare != nullptr;
+                                               });
+
+    Pitag pitag;
+    pitag.purpose = PitagPurpose::CreateFolder;
+    pitag.nodeType = PitagNodeType::Folder;
+    pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
-    putnodes(parent->nodeHandle(), VersioningOption::NoVersioning, std::move(nn), cauth, rTag, canChangeVault);
+    putnodes(parent->nodeHandle(),
+             VersioningOption::NoVersioning,
+             std::move(nn),
+             cauth,
+             rTag,
+             canChangeVault,
+             {},
+             nullptr,
+             pitag);
 
     return API_OK;
 }
@@ -17904,12 +17954,12 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     {
         LOG_warn << "Unsupported filesystem";
 
-        if (isnetwork)
-        {
-            sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
-        }
-
         return {API_EFAILED, UNSUPPORTED_FILE_SYSTEM, syncWarning};
+    }
+
+    if (isnetwork)
+    {
+        sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
     }
 
     std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();

@@ -1104,24 +1104,60 @@ public:
         return rt.waitForResult();
     }
 
-    template<typename... requestArgs>
-    int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args)
+    int doStartUpload(unsigned apiIndex,
+                      MegaHandle* newNodeHandleResult,
+                      const char* localPath,
+                      MegaNode* parent,
+                      const char* fileName,
+                      int64_t mtime,
+                      const char* appData,
+                      bool isSourceTemporary,
+                      bool startFirst,
+                      MegaCancelToken* cancelToken)
     {
         TransferTracker tt(megaApi[apiIndex].get());
-        megaApi[apiIndex]->startUpload(args..., &tt);
+        MegaUploadOptions uploadOptions;
+        if (fileName)
+        {
+            uploadOptions.fileName = fileName;
+        }
+        uploadOptions.mtime = mtime;
+        uploadOptions.appData = appData;
+        uploadOptions.isSourceTemporary = isSourceTemporary;
+        uploadOptions.startFirst = startFirst;
+
+        const std::string pathStr = localPath ? localPath : "";
+        megaApi[apiIndex]->startUpload(pathStr, parent, cancelToken, &uploadOptions, &tt);
         auto e = tt.waitForResult();
         if (newNodeHandleResult)
             *newNodeHandleResult = tt.resultNodeHandle;
         return e;
     }
 
-    template<typename... requestArgs>
     std::tuple<int, m_off_t, m_off_t> doStartUploadWithSpeed(unsigned apiIndex,
                                                              MegaHandle* newNodeHandleResult,
-                                                             requestArgs... args)
+                                                             const char* localPath,
+                                                             MegaNode* parent,
+                                                             const char* fileName,
+                                                             int64_t mtime,
+                                                             const char* appData,
+                                                             bool isSourceTemporary,
+                                                             bool startFirst,
+                                                             MegaCancelToken* cancelToken)
     {
         TransferTracker tt(megaApi[apiIndex].get());
-        megaApi[apiIndex]->startUpload(args..., &tt);
+        MegaUploadOptions uploadOptions;
+        if (fileName)
+        {
+            uploadOptions.fileName = fileName;
+        }
+        uploadOptions.mtime = mtime;
+        uploadOptions.appData = appData;
+        uploadOptions.isSourceTemporary = isSourceTemporary;
+        uploadOptions.startFirst = startFirst;
+
+        const std::string pathStr = localPath ? localPath : "";
+        megaApi[apiIndex]->startUpload(pathStr, parent, cancelToken, &uploadOptions, &tt);
         auto e = tt.waitForResult();
         if (newNodeHandleResult)
             *newNodeHandleResult = tt.resultNodeHandle;

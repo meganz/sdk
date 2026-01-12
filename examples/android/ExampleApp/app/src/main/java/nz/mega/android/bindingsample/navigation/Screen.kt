@@ -1,6 +1,6 @@
 /**
- * AndroidLogger.java
- * Class for managing logs
+ * Screen.kt
+ * Navigation routes for Navigation Compose
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -18,16 +18,13 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample;
+package nz.mega.android.bindingsample.navigation
 
-
-import nz.mega.sdk.MegaLoggerInterface;
-import android.util.Log;
-
-
-public class AndroidLogger implements MegaLoggerInterface {
-	
-	 public void log(String time, int loglevel, String source, String message) {
-		Log.d("AndroidLogger", source + ": " + message); 
-	 }
+/**
+ * Navigation routes for the app
+ */
+object Screen {
+    const val Login = "login"
+    const val Navigation = "navigation"
 }
+

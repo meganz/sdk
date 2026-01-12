@@ -2,6 +2,7 @@ add_executable(test_integration)
 
 target_sources(test_integration
     PRIVATE
+    easy_curl.h
     env_var_accounts.h
     SdkTest_test.h
     SdkTestNodesSetUp.h
@@ -11,6 +12,7 @@ target_sources(test_integration
     integration_test_utils.h
     mock_listeners.h
 
+    easy_curl.cpp
     env_var_accounts.cpp
     main.cpp
     SdkTest_test.cpp

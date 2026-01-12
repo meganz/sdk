@@ -678,6 +678,7 @@ private:
     void initCompleted_internal();
     void insertNodeCacheLRU_internal(std::shared_ptr<Node> node);
     void unLoadNodeFromCacheLRU();
+    void removeNodeCacheLRU_internal(Node* node);
 };
 
 } // namespace

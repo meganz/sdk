@@ -42,6 +42,7 @@ def TESTS_PARALLEL
 def GTEST_REPEAT
 def GTEST_FILTER
 def WIN32_FLAG
+def CUSTOM_TIMEOUT
 
 pipeline {
     agent none
@@ -86,11 +87,14 @@ pipeline {
                                     GTEST_REPEAT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_repeat=[^ ]*" | awk -F "gtest_repeat="  \'{print "--gtest_repeat="\$2}\'|| :', returnStdout: true).trim()
                                     GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
                                     WIN32_FLAG = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-windows-32bits" || :', returnStdout: true).trim()
+                                    CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
+                                    CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
                                     println WIN32_FLAG
+                                    println CUSTOM_TIMEOUT
                                 }
                             }
                         }
@@ -181,9 +185,6 @@ pipeline {
                 }
 
                 stage('Run Windows tests'){
-                    options{
-                        timeout(time: 250, unit: 'MINUTES')
-                    }
                     environment {
                         PATH = "${windows_sources_workspace}\\\\vcpkg_installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
                         MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
@@ -208,40 +209,42 @@ pipeline {
                             env.BUILD_DIR = WIN32_FLAG ? "build_dir_x86" : "build_dir"
                             lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
                                 dir("${windows_sources_workspace}") {
-                                    script{
-                                        env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
-                                        echo "${env.ACCOUNTS_COMBINATION}"
-                                    }
-                                    bat """
+                                    timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
+                                        script{
+                                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                            echo "${env.ACCOUNTS_COMBINATION}"
+                                        }
+                                        bat """
 
-                                    cd %BUILD_DIR%
+                                        cd %BUILD_DIR%
 
-                                    tests\\\\unit\\\\Debug\\\\test_unit.exe
-                                    if %ERRORLEVEL% NEQ 0 exit 1
-                                    set gfxworkerTestIntegration=tools\\\\gfxworker\\\\tests\\\\integration\\\\Debug\\\\gfxworker_test_integration.exe
-                                    if exist %gfxworkerTestIntegration% (
-                                        %gfxworkerTestIntegration%
-                                        gzip -c gfxworker_test_integration.log > gfxworker_test_integration_${BUILD_ID}.log.gz
-                                        rm gfxworker_test_integration.log
-                                    )
-                                    if %ERRORLEVEL% NEQ 0 exit 1
-                                    """
-                                    def integration_tests_error = powershell script: 'jenkinsfile\\windows-integration-tests.ps1', returnStatus: true
-                                    sh """
-                                        if [ -z "${TESTS_PARALLEL}" ]; then
-                                            tar czf test_integration_${BUILD_ID}.tgz pid_*/test_integration*.log || true
-                                        fi
-                                        gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || true
-                                    """
-                                    if (integration_tests_error) {
-                                        sh """
-                                            tar czf dumps.tgz dumps || true
-                                            tar czf procdump.tgz procdump*.log || true
-                                            tar czf pdbs.tgz $BUILD_DIR/Debug/*.pdb $BUILD_DIR/tests/integration/Debug/*.pdb
-                                            exit ${integration_tests_error}
+                                        tests\\\\unit\\\\Debug\\\\test_unit.exe
+                                        if %ERRORLEVEL% NEQ 0 exit 1
+                                        set gfxworkerTestIntegration=tools\\\\gfxworker\\\\tests\\\\integration\\\\Debug\\\\gfxworker_test_integration.exe
+                                        if exist %gfxworkerTestIntegration% (
+                                            %gfxworkerTestIntegration%
+                                            gzip -c gfxworker_test_integration.log > gfxworker_test_integration_${BUILD_ID}.log.gz
+                                            rm gfxworker_test_integration.log
+                                        )
+                                        if %ERRORLEVEL% NEQ 0 exit 1
                                         """
+                                        def integration_tests_error = powershell script: 'jenkinsfile\\windows-integration-tests.ps1', returnStatus: true
+                                        sh """
+                                            if [ -z "${TESTS_PARALLEL}" ]; then
+                                                tar czf test_integration_${BUILD_ID}.tgz pid_*/test_integration*.log || true
+                                            fi
+                                            gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || true
+                                        """
+                                        if (integration_tests_error) {
+                                            sh """
+                                                tar czf dumps.tgz dumps || true
+                                                tar czf procdump.tgz procdump*.log || true
+                                                tar czf pdbs.tgz $BUILD_DIR/Debug/*.pdb $BUILD_DIR/tests/integration/Debug/*.pdb
+                                                exit ${integration_tests_error}
+                                            """
+                                        }
                                     }
-                               }
+                                }
                             }
                         }
                     }

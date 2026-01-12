@@ -98,6 +98,7 @@ class MegaTimeZoneDetails;
 class MegaPushNotificationSettings;
 class MegaBackgroundMediaUpload;
 class MegaCancelToken;
+class MegaUploadOptions;
 class MegaApi;
 class MegaSemaphore;
 class MegaScheduledMeeting;
@@ -10587,6 +10588,58 @@ private:
 };
 
 /**
+ * @brief Optional parameters to customize an upload.
+ */
+class MegaUploadOptions
+{
+public:
+    MegaUploadOptions() = default;
+    static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
+    static constexpr char PITAG_TRIGGER_NOT_APPLICABLE = '.';
+
+    /**
+     * @brief Creates a new instance of MegaUploadOptions.
+     *
+     * The caller takes ownership of the returned pointer.
+     */
+    static MegaUploadOptions* createInstance();
+
+    /**
+     * Custom file or folder name in MEGA.
+     * If empty, the name is taken from the local path.
+     */
+    std::string fileName;
+
+    /**
+     * Custom modification time for files (seconds since epoch).
+     * Use MegaUploadOptions::INVALID_CUSTOM_MOD_TIME to keep the local mtime.
+     */
+    int64_t mtime = INVALID_CUSTOM_MOD_TIME;
+
+    /**
+     * Custom app data associated with the transfer.
+     * Accessible via MegaTransfer::getAppData().
+     */
+    const char* appData = nullptr;
+
+    /**
+     * If true, the SDK deletes the local file when the upload finishes.
+     * Intended for temporary files only.
+     */
+    bool isSourceTemporary = false;
+
+    /**
+     * If true, the upload is put on top of the upload queue.
+     */
+    bool startFirst = false;
+
+    /**
+     * One-byte upload trigger tag (see PITAG_TRIGGER_*).
+     */
+    char pitagTrigger = PITAG_TRIGGER_NOT_APPLICABLE;
+};
+
+/**
  * @brief Allows to control a MEGA account or a shared folder
  *
  * You can enable local node caching by passing a local path in the constructor of this class. That saves many data usage
@@ -10925,6 +10978,21 @@ class MegaApi
             JSON_LOG_NONCHUNK_RECEIVED = 1 << 4,
         };
 
+        /**
+         * @brief PITAG trigger codes exposed at API level.
+         *
+         * Maps 1:1 with PitagTrigger in types.h.
+         */
+        static constexpr char PITAG_TRIGGER_NOT_APPLICABLE = '.';
+        static constexpr char PITAG_TRIGGER_PICKER = 'p';
+        static constexpr char PITAG_TRIGGER_DRAG_AND_DROP = 'd';
+        static constexpr char PITAG_TRIGGER_CAMERA = 'c';
+        static constexpr char PITAG_TRIGGER_SCANNER = 's';
+        static constexpr char PITAG_TRIGGER_SYNC_ALGORITHM = 'a';
+
+        /**
+         * @brief Optional parameters to customize an upload.
+         */
         static constexpr int64_t INVALID_CUSTOM_MOD_TIME = -1;
         static constexpr int CHAT_OPTIONS_EMPTY = 0;
         static constexpr int MAX_NODE_DESCRIPTION_SIZE = 3000;
@@ -16445,7 +16513,11 @@ class MegaApi
          * than the file to be uploaded, this function will try to update it's mtime instead of
          * starting a new file upload. If setting the mtime fails, the transfer will fail with
          * API_EWRITE.
+         *
+         * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+         * one.
          */
+        MEGA_DEPRECATED
         void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
         /**
@@ -16484,6 +16556,57 @@ class MegaApi
          * API_EWRITE.
          */
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
+
+        /**
+         * @brief Upload a file or a folder.
+         *
+         * This method starts an upload transfer for a local file or folder into the specified
+         * parent node.
+         *
+         * Business account overdue:
+         * If the status of the business account is expired/overdue,
+         * MegaTransferListener::onTransferFinish() will be called with error code
+         * MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar
+         * to "Your business account is overdue, please contact your administrator."
+         *
+         * Folder batch deadlock considerations:
+         * When uploading a batch of items that contains at least one folder, the SDK mutex will be
+         * partially locked until:
+         *  - onTransferStart has been received for every file in the batch, and
+         *  - onTransferUpdate has been received with MegaTransfer::getStage() ==
+         * MegaTransfer::STAGE_TRANSFERRING_FILES for every folder in the batch.
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+         * calling CancelToken::cancel(true). This cancels all transfers (not finished yet)
+         * associated with that cancel token instance.
+         *
+         * Important considerations about cancel tokens:
+         *  - A MegaCancelToken instance can be shared by multiple transfers. Calling cancel(true)
+         * affects all transfers that share the token.
+         *  - It is the app responsibility to keep the MegaCancelToken instance alive until
+         *    MegaTransferListener::onTransferFinish() is received for all MegaTransfers that share
+         * it.
+         *
+         * For more information about MegaTransfer stages please refer to
+         * MegaTransferListener::onTransferUpdate documentation.
+         *
+         * @param localPath Local path of the file or folder to upload.
+         * @param parent Parent node where the file/folder will be created in the MEGA account.
+         * @param cancelToken MegaCancelToken used to cancel the upload process safely (required for
+         * safe cancellation). App retains ownership and must keep it alive as described above.
+         * @param options Optional upload customization parameters.
+         * @param listener Optional MegaTransferListener to track this transfer. The app retains the
+         * ownership of the object. It can be deleted after the call returns.
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
+         */
+        void startUpload(const std::string& localPath,
+                         MegaNode* parent,
+                         MegaCancelToken* cancelToken,
+                         const MegaUploadOptions* options,
+                         MegaTransferListener* listener = nullptr);
 
         /**
          * @brief Download a file or a folder from MEGA, saving custom app data during the transfer
@@ -23951,7 +24074,6 @@ class MegaApi
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
 };
-
 
 /**
  * @brief Represents information of a Backup in MEGA

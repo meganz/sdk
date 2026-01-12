@@ -2025,8 +2025,6 @@ bool WinFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
     {
         LOG_debug << "Network folder detected";
         isnetwork = true;
-        syncError = UNSUPPORTED_FILE_SYSTEM;
-        result = false;
     }
 
     string utf8fsname;

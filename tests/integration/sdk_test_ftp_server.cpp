@@ -18,6 +18,7 @@
  * program.
  */
 
+#include "easy_curl.h"
 #include "integration_test_utils.h"
 #include "mock_listeners.h"
 #include "SdkTest_test.h"
@@ -26,23 +27,14 @@
 #include <gmock/gmock.h>
 
 #include <algorithm>
+#include <cstring>
 #include <random>
 #include <string>
 #include <utility>
 
-class FtpServerTest: public SdkTest
+class SdkFtpServerTest: public SdkTest
 {
 protected:
-    static void SetUpTestSuite()
-    {
-        curl_global_init(CURL_GLOBAL_DEFAULT);
-    }
-
-    static void TearDownTestSuite()
-    {
-        curl_global_cleanup();
-    }
-
     void SetUp() override
     {
         SdkTest::SetUp();
@@ -133,10 +125,9 @@ protected:
                                   const std::vector<std::string>& quoteCmds = {})
     {
         FtpResponse response;
+        auto easyCurl = sdk_test::EasyCurl();
 
-        CURL* curl = curl_easy_init();
-        if (!curl)
-            return response;
+        CURL* curl = easyCurl.curl();
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
@@ -146,12 +137,10 @@ protected:
         curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
 
         std::string uploadBuffer; // must live until perform() returns
-        curl_slist* slist = nullptr; // for QUOTE commands (must be freed)
 
         auto setQuote = [&](const std::vector<std::string>& cmds)
         {
-            for (const auto& c: cmds)
-                slist = curl_slist_append(slist, c.c_str());
+            curl_slist* slist = easyCurl.appendCurlList(cmds);
             curl_easy_setopt(curl, CURLOPT_POSTQUOTE, slist);
 
             // Don’t do a RETR by default when we only want to run commands
@@ -218,8 +207,6 @@ protected:
             response.responseCode = -1;
         }
 
-        curl_easy_cleanup(curl);
-        curl_slist_free_all(slist);
         return response;
     }
 
@@ -237,7 +224,7 @@ protected:
     }
 };
 
-TEST_F(FtpServerTest, ServerStartStop)
+TEST_F(SdkFtpServerTest, ServerStartStop)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
 
@@ -257,7 +244,7 @@ TEST_F(FtpServerTest, ServerStartStop)
     CASE_info << "finished";
 }
 
-TEST_F(FtpServerTest, ServerLocalOnly)
+TEST_F(SdkFtpServerTest, ServerLocalOnly)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
 
@@ -281,7 +268,7 @@ TEST_F(FtpServerTest, ServerLocalOnly)
  * - start two FTP servers from a thread and no ports conflicting
  * - stop FTP servers from a different thread, to allow TSAN to report any data races
  */
-TEST_F(FtpServerTest, FtpServerCanUsePort0)
+TEST_F(SdkFtpServerTest, FtpServerCanUsePort0)
 {
     CASE_info << "started";
 
@@ -303,7 +290,7 @@ TEST_F(FtpServerTest, FtpServerCanUsePort0)
     CASE_info << "finished";
 }
 
-TEST_F(FtpServerTest, RestrictedMode)
+TEST_F(SdkFtpServerTest, RestrictedMode)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -327,12 +314,12 @@ TEST_F(FtpServerTest, RestrictedMode)
     megaApi[0]->ftpServerSetRestrictedMode(MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK);
     EXPECT_EQ(MegaApi::TCP_SERVER_ALLOW_LAST_LOCAL_LINK, megaApi[0]->ftpServerGetRestrictedMode());
 
-    // TODO: should test whether the link is valid to download, but currently download is not vaid
+    // TODO: should test whether the link is valid to download, but currently download is not valid
     // because of thread issue
     CASE_info << "finished";
 }
 
-TEST_F(FtpServerTest, Listeners)
+TEST_F(SdkFtpServerTest, Listeners)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -352,7 +339,7 @@ TEST_F(FtpServerTest, Listeners)
 }
 
 // test FTP links and operations: LIST, GET
-TEST_F(FtpServerTest, LinksAndOperations)
+TEST_F(SdkFtpServerTest, LinksAndOperations)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -411,7 +398,7 @@ TEST_F(FtpServerTest, LinksAndOperations)
     CASE_info << "finished";
 }
 
-TEST_F(FtpServerTest, BufferSizeSettings)
+TEST_F(SdkFtpServerTest, BufferSizeSettings)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -430,7 +417,7 @@ TEST_F(FtpServerTest, BufferSizeSettings)
     CASE_info << "finished";
 }
 
-TEST_F(FtpServerTest, OutputSizeSettings)
+TEST_F(SdkFtpServerTest, OutputSizeSettings)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -450,7 +437,7 @@ TEST_F(FtpServerTest, OutputSizeSettings)
 }
 
 // test FTP upload operation
-TEST_F(FtpServerTest, FtpUploadOperation)
+TEST_F(SdkFtpServerTest, FtpUploadOperation)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -478,7 +465,7 @@ TEST_F(FtpServerTest, FtpUploadOperation)
 }
 
 // test FTP mkdir operation
-TEST_F(FtpServerTest, FtpMkdirOperation)
+TEST_F(SdkFtpServerTest, FtpMkdirOperation)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -505,7 +492,7 @@ TEST_F(FtpServerTest, FtpMkdirOperation)
 }
 
 // test FTP delete file operation
-TEST_F(FtpServerTest, FtpDeleteOperation)
+TEST_F(SdkFtpServerTest, FtpDeleteOperation)
 {
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
     CASE_info << "started";
@@ -536,7 +523,7 @@ TEST_F(FtpServerTest, FtpDeleteOperation)
 }
 
 // RMD operation can delete non-empty folders
-TEST_F(FtpServerTest, FtpRMDOperation)
+TEST_F(SdkFtpServerTest, FtpRMDOperation)
 {
     // test FTP RMD operation
     ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));

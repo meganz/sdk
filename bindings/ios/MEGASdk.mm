@@ -2640,6 +2640,34 @@ using namespace mega;
     }
 }
 
+- (void)startUploadWithLocalPath:(NSString *)localPath
+                          parent:(MEGANode *)parent
+                     cancelToken:(MEGACancelToken *)cancelToken
+                         options:(MEGAUploadOptions *)options
+                        delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        auto cppOptions = [self generateUploadOptionsFrom:options];
+        self.megaApi->startUpload(localPath.UTF8String,
+                                  parent.getCPtr,
+                                  cancelToken.getCPtr,
+                                  &cppOptions,
+                                  [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)startUploadWithLocalPath:(NSString *)localPath
+                          parent:(MEGANode *)parent
+                     cancelToken:(MEGACancelToken *)cancelToken
+                         options:(MEGAUploadOptions *)options {
+    if (self.megaApi) {
+        auto cppOptions = [self generateUploadOptionsFrom:options];
+        self.megaApi->startUpload(localPath.UTF8String,
+                                  parent.getCPtr,
+                                  cancelToken.getCPtr,
+                                  &cppOptions);
+    }
+}
+
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution {
     if (self.megaApi) {
         self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, false);
@@ -3950,6 +3978,27 @@ using namespace mega;
     return std::unique_ptr<MegaSearchPage>(
                                            MegaSearchPage::createInstance(page.startingOffset, page.pageSize)
                                            );
+}
+
+- (MegaUploadOptions)generateUploadOptionsFrom:(MEGAUploadOptions *)options {
+    MegaUploadOptions uploadOptions;
+    
+    if (options.fileName != nil && options.fileName.length > 0) {
+        uploadOptions.fileName = options.fileName.UTF8String;
+    }
+    
+    uploadOptions.mtime = options.mtime;
+    
+    if (options.appData != nil && options.appData.length > 0) {
+        uploadOptions.appData = options.appData.UTF8String;
+    }
+    
+    uploadOptions.isSourceTemporary = options.isSourceTemporary;
+    uploadOptions.startFirst = options.startFirst;
+    
+    uploadOptions.pitagTrigger = options.pitagTrigger;
+    
+    return uploadOptions;
 }
 
 #pragma mark - Cookie Dialog

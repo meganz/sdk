@@ -48,7 +48,7 @@ struct MEGA_API FileFingerprint : public Cacheable
 {
     m_off_t size = -1;
     m_time_t mtime = 0;
-    std::array<int32_t, 4> crc{};
+    FingerprintCrc crc{};
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key

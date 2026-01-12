@@ -2455,6 +2455,158 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     }
 }
 
+[[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
+                                              const unsigned lane,
+                                              const unsigned block) noexcept
+{
+    const auto sizeU64 = static_cast<std::uint64_t>(size);
+    const auto clampMax = sizeU64 - LEGACY_CRC_WINDOW_BYTES;
+
+    const std::uint32_t sz32 = static_cast<std::uint32_t>(sizeU64);
+    const std::uint32_t idx32 =
+        static_cast<std::uint32_t>(lane * LEGACY_CRC_BLOCKS_PER_LANE + block); // 0..127
+
+    const std::uint32_t numer = static_cast<std::uint32_t>(
+        (sz32 - static_cast<std::uint32_t>(LEGACY_CRC_WINDOW_BYTES)) * idx32); // wraps
+    const std::uint32_t off32 = LEGACY_SPARSE_DENOM ? (numer / LEGACY_SPARSE_DENOM) : 0;
+
+    const auto off64 = static_cast<std::uint64_t>(off32);
+    return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrcFA(MegaClient& mc,
+                                                 const LocalPath& path,
+                                                 const m_off_t expectedSize,
+                                                 std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut)
+{
+    if (expectedSize <= static_cast<m_off_t>(LEGACY_CRC_WINDOW_BYTES) ||
+        static_cast<std::uint64_t>(expectedSize) <= LEGACY_OVERFLOW_MIN_SIZE)
+    {
+        return false;
+    }
+
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+    {
+        return false;
+    }
+
+    // Only proceed if the file still matches what the sync thread decided to act on.
+    if (fa->size != expectedSize)
+    {
+        return false;
+    }
+
+    if (!fa->openf(FSLogging::logOnError))
+    {
+        return false;
+    }
+
+    std::array<byte, LEGACY_CRC_WINDOW_BYTES> block{};
+    std::int32_t crcval = 0;
+
+    for (unsigned lane = 0; lane < LEGACY_CRC_LANES; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < LEGACY_CRC_BLOCKS_PER_LANE; ++j)
+        {
+            const auto offset = legacySparseOffset32Bug(expectedSize, lane, j);
+            if (!fa->frawread(block.data(),
+                              static_cast<unsigned long>(block.size()),
+                              offset,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            crc32.add(block.data(), static_cast<unsigned>(block.size()));
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = static_cast<std::int32_t>(htonl(static_cast<std::uint32_t>(crcval)));
+    }
+
+    fa->closef();
+    return true;
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrcIA(MegaClient& mc,
+                                                 const LocalPath& path,
+                                                 const m_off_t expectedSize,
+                                                 std::array<std::int32_t, 4>& crcOut)
+{
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+        return false;
+    if (fa->size != expectedSize)
+        return false;
+    if (!fa->openf(FSLogging::logOnError))
+        return false;
+
+    std::array<byte, 64> block{};
+    std::int32_t crcval = 0;
+
+    m_off_t current = 0; // logical "current" used by the IA algorithm
+    m_off_t stream = 0; // actual forward-only position (UnixStreamAccess::mOffset)
+
+    for (unsigned lane = 0; lane < 4; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < 32; ++j)
+        {
+            const m_off_t offset = legacySparseOffset32Bug(expectedSize, lane, j);
+
+            // forward-only skip based on (offset - current)
+            for (m_off_t fullstep = offset - current; fullstep > 0;)
+            {
+                const unsigned step = fullstep > UINT_MAX ? UINT_MAX : (unsigned)fullstep;
+                stream += (m_off_t)step; // what is->read(nullptr, step) does
+                fullstep -= (m_off_t)step;
+            }
+
+            // IA updates current to offset even if it went backwards
+            current += (offset - current); // current = offset
+
+            // read happens at STREAM position, not at "current"
+            if (stream < 0 || stream + (m_off_t)block.size() > expectedSize)
+            {
+                fa->closef();
+                return false;
+            }
+
+            if (!fa->frawread(block.data(),
+                              (unsigned long)block.size(),
+                              stream,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            stream += (m_off_t)block.size();
+            current += (m_off_t)block.size();
+
+            crc32.add(block.data(), (unsigned)block.size());
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = (std::int32_t)htonl((std::uint32_t)crcval);
+    }
+
+    fa->closef();
+    return true;
+}
+
+bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs)
+{
+    return std::memcmp(lhs.data(), rhs.data(), sizeof(lhs)) == 0;
+}
+
 std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
                                          FileAccess& ifAccess,
                                          const int64_t iv,
@@ -3966,6 +4118,177 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
     }
 
     return std::nullopt;
+}
+
+PitagPurpose pitagPurposeFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagPurpose::Unknown;
+        case 'U':
+            return PitagPurpose::Upload;
+        case 'F':
+            return PitagPurpose::CreateFolder;
+        case 'I':
+            return PitagPurpose::Import;
+        case 'C':
+            return PitagPurpose::Copy;
+        case 'S':
+            return PitagPurpose::Sync;
+        case 'B':
+            return PitagPurpose::Backup;
+        case 'P':
+            return PitagPurpose::Password;
+        case 'f':
+            return PitagPurpose::Fuse;
+        case 'H':
+            return PitagPurpose::Helpdesk;
+        default:
+            return PitagPurpose::Unknown;
+    }
+}
+
+PitagTrigger pitagTriggerFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagTrigger::NotApplicable;
+        case 'p':
+            return PitagTrigger::Picker;
+        case 'd':
+            return PitagTrigger::DragAndDrop;
+        case 'c':
+            return PitagTrigger::Camera;
+        case 's':
+            return PitagTrigger::Scanner;
+        case 'a':
+            return PitagTrigger::SyncAlgorithm;
+        default:
+            return PitagTrigger::NotApplicable;
+    }
+}
+
+PitagNodeType pitagNodeTypeFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagNodeType::NotApplicable;
+        case 'F':
+            return PitagNodeType::Folder;
+        case 'f':
+            return PitagNodeType::File;
+        default:
+            return PitagNodeType::NotApplicable;
+    }
+}
+
+PitagTarget pitagTargetFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagTarget::NotApplicable;
+        case 'D':
+            return PitagTarget::CloudDrive;
+        case 'c':
+            return PitagTarget::Chat1To1;
+        case 'C':
+            return PitagTarget::ChatGroup;
+        case 's':
+            return PitagTarget::NoteToSelf;
+        case 'i':
+            return PitagTarget::IncomingShare;
+        default:
+            return PitagTarget::NotApplicable;
+    }
+}
+
+PitagImportSource pitagImportSourceFromChar(char c)
+{
+    switch (c)
+    {
+        case '.':
+            return PitagImportSource::NotApplicable;
+        case 'F':
+            return PitagImportSource::FolderLink;
+        case 'f':
+            return PitagImportSource::FileLink;
+        case 'A':
+            return PitagImportSource::AlbumLink;
+        case 'D':
+            return PitagImportSource::CloudDrive;
+        case 'c':
+            return PitagImportSource::Chat1To1;
+        case 'C':
+            return PitagImportSource::ChatGroup;
+        case 's':
+            return PitagImportSource::NoteToSelf;
+        case 'i':
+            return PitagImportSource::IncomingShare;
+        default:
+            return PitagImportSource::NotApplicable;
+    }
+}
+
+std::string pitagToString(const Pitag& pitag)
+{
+    std::string pitagString;
+    pitagString += getEnumValue(pitag.purpose);
+    pitagString += getEnumValue(pitag.trigger);
+    pitagString += getEnumValue(pitag.nodeType);
+    pitagString += getEnumValue(pitag.target);
+    pitagString += getEnumValue(pitag.importSource);
+    return pitagString;
+}
+
+MEGA_API std::optional<Pitag> pitagFromString(const std::string& pitagString)
+{
+    if (pitagString.size() != 5)
+    {
+        return std::nullopt;
+    }
+
+    Pitag pitag;
+    pitag.purpose = pitagPurposeFromChar(pitagString[0]);
+    pitag.trigger = pitagTriggerFromChar(pitagString[1]);
+    pitag.nodeType = pitagNodeTypeFromChar(pitagString[2]);
+    pitag.target = pitagTargetFromChar(pitagString[3]);
+    pitag.importSource = pitagImportSourceFromChar(pitagString[4]);
+
+    if (pitag.purpose == PitagPurpose::Unknown &&
+        pitagString[0] != getEnumValue(PitagPurpose::Unknown))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.trigger == PitagTrigger::NotApplicable &&
+        pitagString[1] != getEnumValue(PitagTrigger::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.nodeType == PitagNodeType::NotApplicable &&
+        pitagString[2] != getEnumValue(PitagNodeType::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.target == PitagTarget::NotApplicable &&
+        pitagString[3] != getEnumValue(PitagTarget::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    if (pitag.importSource == PitagImportSource::NotApplicable &&
+        pitagString[4] != getEnumValue(PitagImportSource::NotApplicable))
+    {
+        return std::nullopt;
+    }
+
+    return pitag;
 }
 
 } // namespace mega

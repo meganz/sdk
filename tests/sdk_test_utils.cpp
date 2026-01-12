@@ -173,7 +173,13 @@ std::error_code LocalTempFile::move(const fs::path& newPath)
 
 LocalTempFile::~LocalTempFile()
 {
-    fs::remove(mFilePath);
+    std::error_code ec;
+    fs::remove(mFilePath, ec);
+
+    if (ec)
+    {
+        LOG_err << "Error removing file: ec: " << ec.value() << " msg: " << ec.message();
+    }
 }
 
 FileNodeInfo::FileNodeInfo(const std::string& _name,
@@ -210,16 +216,11 @@ LocalTempDir::LocalTempDir(const fs::path& _dirPath):
 
 LocalTempDir::~LocalTempDir()
 {
-    try
+    std::error_code ec;
+    fs::remove_all(mDirPath, ec);
+    if (ec)
     {
-        if (fs::exists(mDirPath))
-        {
-            fs::remove_all(mDirPath);
-        }
-    }
-    catch (const std::exception& e)
-    {
-        LOG_err << "Error removing directory: " << mDirPath.string() << ". Error: " << e.what();
+        LOG_err << "Error removing directory: ec: " << ec.value() << " msg: " << ec.message();
     }
 }
 

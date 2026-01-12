@@ -193,7 +193,7 @@ TEST(FileFingerprint, defaultConstructor)
     const mega::FileFingerprint ffp;
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(0, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+    const mega::FingerprintCrc expected = {0, 0, 0, 0};
     ASSERT_EQ(expected, ffp.crc);
     ASSERT_EQ(false, ffp.isvalid);
 }

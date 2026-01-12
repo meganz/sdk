@@ -11,9 +11,43 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <type_traits>
 
 namespace
 {
+void createLocalTree(const fs::path& parentPath, const std::vector<sdk_test::NodeInfo>& nodes);
+
+void createLocalEntry(const fs::path& parentPath, const sdk_test::NodeInfo& node)
+{
+    std::visit(
+        [&](const auto& nodeInfo)
+        {
+            using NodeInfoType = std::decay_t<decltype(nodeInfo)>;
+            if constexpr (std::is_same_v<NodeInfoType, sdk_test::FileNodeInfo>)
+            {
+                const fs::path filePath = parentPath / nodeInfo.name;
+                const auto fileSize = nodeInfo.size > 0 ? nodeInfo.size : 1u;
+                ASSERT_NO_THROW(sdk_test::createFile(filePath, fileSize));
+            }
+            else
+            {
+                const fs::path dirPath = parentPath / nodeInfo.name;
+                ASSERT_TRUE(fs::create_directory(dirPath))
+                    << "Unable to create directory " << dirPath.string();
+                createLocalTree(dirPath, nodeInfo.childs);
+            }
+        },
+        node);
+}
+
+void createLocalTree(const fs::path& parentPath, const std::vector<sdk_test::NodeInfo>& nodes)
+{
+    for (const auto& node: nodes)
+    {
+        createLocalEntry(parentPath, node);
+    }
+}
+
 class PitagCommandObserver
 {
 public:
@@ -102,9 +136,13 @@ private:
     bool mCaptured{false};
     std::string mLastValue;
 };
+
+class SdkTestPitag: public SdkTest
+{};
+
 } // anonymous namespace
 
-TEST_F(SdkTest, PitagCapturedForRegularUpload)
+TEST_F(SdkTestPitag, PitagCapturedForRegularUpload)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
@@ -118,56 +156,103 @@ TEST_F(SdkTest, PitagCapturedForRegularUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[0].get());
-    megaApi[0]->startUpload(localPathUtf8.c_str(),
-                            rootNode.get(),
-                            remoteName.c_str(),
-                            MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr,
-                            false,
-                            false,
-                            nullptr,
-                            &tracker);
+    MegaUploadOptions options;
+    options.fileName = remoteName;
+    options.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    options.pitagTrigger = MegaApi::PITAG_TRIGGER_CAMERA;
+
+    megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, &options, &tracker);
 
     ASSERT_EQ(API_OK, tracker.waitForResult());
 
     const auto waitTimeout =
         std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
-    ASSERT_TRUE(observer.waitForValue("U.fD.", waitTimeout))
+    const std::string expected = std::string{"U"} + options.pitagTrigger + "fD.";
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
-TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
+TEST_F(SdkTestPitag, PitagCapturedForCreateFolder)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    PitagCommandObserver observer;
+
+    createFolder(0, "Folder", rootNode.get());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("F.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForUploadWithFolderController)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    PitagCommandObserver observer;
+
+    createFolder(0, "Folder", rootNode.get());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("F.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForBatchFolderUpload)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    const std::string localFolderName = getFilePrefix() + "pitag_batch_folder";
+    const fs::path localFolderPath = fs::current_path() / localFolderName;
+    sdk_test::LocalTempDir localFolder(localFolderPath);
+
+    const std::vector<sdk_test::NodeInfo> localStructure{
+        sdk_test::DirNodeInfo("nested")
+            .addChild(sdk_test::DirNodeInfo("inner").addChild(
+                sdk_test::FileNodeInfo("inner_file.bin").setSize(8)))
+            .addChild(sdk_test::FileNodeInfo("nested_file.bin").setSize(12)),
+        sdk_test::FileNodeInfo("root_file_a.bin").setSize(10),
+        sdk_test::FileNodeInfo("root_file_b.bin").setSize(14)};
+    ASSERT_NO_FATAL_FAILURE(createLocalTree(localFolderPath, localStructure));
+
+    PitagCommandObserver observer;
+    TransferTracker tracker(megaApi[0].get());
+    MegaUploadOptions folderOptions;
+    folderOptions.fileName = localFolderName;
+    folderOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+    megaApi[0]->startUpload(localFolderPath.string(),
+                            rootNode.get(),
+                            nullptr,
+                            &folderOptions,
+                            &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("U.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
 {
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
-
-    const auto [shareeEmail, shareePass] = getEnvVarAccounts().getVarValues(1);
-    ASSERT_FALSE(shareeEmail.empty());
 
     std::unique_ptr<MegaNode> ownerRoot{megaApi[0]->getRootNode()};
     ASSERT_TRUE(ownerRoot) << "Unable to get root node for owner account";
 
-    ASSERT_EQ(API_OK,
-              synchronousInviteContact(0,
-                                       shareeEmail.c_str(),
-                                       "pitag incoming share",
-                                       MegaContactRequest::INVITE_ACTION_ADD))
-        << "Failed to invite contact before sharing";
-
-    auto incomingRequestAvailable = [this]()
-    {
-        std::unique_ptr<MegaContactRequestList> list{megaApi[1]->getIncomingContactRequests()};
-        return list && list->size() > 0;
-    };
-    ASSERT_TRUE(WaitFor(incomingRequestAvailable, defaultTimeoutMs))
-        << "Sharee did not receive contact request";
-
-    std::unique_ptr<MegaContactRequestList> requestList{megaApi[1]->getIncomingContactRequests()};
-    std::unique_ptr<MegaContactRequest> contactRequest{requestList->get(0)->copy()};
-    ASSERT_EQ(API_OK,
-              synchronousReplyContactRequest(1,
-                                             contactRequest.get(),
-                                             MegaContactRequest::REPLY_ACTION_ACCEPT))
-        << "Sharee failed to accept contact request";
+    inviteTestAccount(0, 1, "Hi!!");
 
     const std::string folderName = getFilePrefix() + "incomingShare";
     RequestTracker folderTracker(megaApi[0].get());
@@ -178,11 +263,8 @@ TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
         megaApi[0]->getNodeByHandle(folderTracker.request->getNodeHandle())};
     ASSERT_TRUE(folderNode) << "Unable to obtain shared folder node";
 
-    ASSERT_EQ(API_OK, doOpenShareDialog(0, folderNode.get())) << "Failed to prepare node share key";
-
-    ASSERT_EQ(API_OK,
-              synchronousShare(0, folderNode.get(), shareeEmail.c_str(), MegaShare::ACCESS_FULL))
-        << "Failed to share folder";
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(folderNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
 
     auto inShareAvailable = [this]()
     {
@@ -204,20 +286,17 @@ TEST_F(SdkTest, PitagCapturedForIncomingShareUpload)
 
     PitagCommandObserver observer;
     TransferTracker tracker(megaApi[1].get());
-    megaApi[1]->startUpload(localPathUtf8.c_str(),
-                            incomingNode.get(),
-                            nullptr,
-                            MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr,
-                            false,
-                            false,
-                            nullptr,
-                            &tracker);
+    MegaUploadOptions shareOptions;
+    shareOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    shareOptions.pitagTrigger = MegaApi::PITAG_TRIGGER_SCANNER;
+
+    megaApi[1]->startUpload(localPathUtf8, incomingNode.get(), nullptr, &shareOptions, &tracker);
     ASSERT_EQ(API_OK, tracker.waitForResult());
 
-    const auto waitTimeout =
-        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
-    ASSERT_TRUE(observer.waitForValue("U.fi.", waitTimeout))
+    constexpr auto timeout = 3s; // short timeout, it has to be available
+    const auto waitTimeout = std::chrono::duration_cast<std::chrono::milliseconds>(timeout);
+    const std::string expected = std::string{"U"} + shareOptions.pitagTrigger + "fi.";
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
