@@ -19,6 +19,9 @@
  * program.
  */
 
+#ifndef SDKTEST_TEST_H
+#define SDKTEST_TEST_H
+
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
@@ -772,7 +775,7 @@ protected:
 
     onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int, bool& flag);
 public:
-    //void login(unsigned int apiIndex, int timeout = maxTimeout);
+    void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = 300);
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
@@ -1915,3 +1918,5 @@ Error setAccountLevel(MegaApi& client, requestArgs... args)
     // Return client's result to caller.
     return tracker.waitForResult();
 }
+
+#endif // SDKTEST_TEST_H
