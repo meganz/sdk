@@ -353,7 +353,7 @@ LocalPath::LocalPath(const LocalPath& p)
     assert(invariant());
 }
 
-LocalPath LocalPath::operator=(const LocalPath& p)
+LocalPath& LocalPath::operator=(const LocalPath& p)
 {
     if (this != &p)
     {

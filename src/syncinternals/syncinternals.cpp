@@ -793,11 +793,13 @@ enum class MacAdvanceResult
  *
  * @param mc MegaClient for file access and async queue.
  * @param state The MAC computation state (must have cipher params initialized).
+ *              Passed by value to ensure the state stays alive during the function,
+ *              even if another thread resets the original shared_ptr.
  * @param logPrefix Prefix for log messages.
  * @return MacAdvanceResult indicating current state.
  */
 MacAdvanceResult advanceMacComputation(MegaClient& mc,
-                                       std::shared_ptr<MacComputationState>& state,
+                                       std::shared_ptr<MacComputationState> state,
                                        const std::string& logPrefix)
 {
     if (!state)
@@ -987,7 +989,9 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
     // Check for existing computation
     if (syncNode.hasRare() && syncNode.rareRO().macComputation)
     {
-        auto& macComp = syncNode.rare().macComputation;
+        // Take a copy for consistency with clone candidate pattern (not strictly required
+        // since sync core is single-threaded, but defensive and documents intent)
+        auto macComp = syncNode.rare().macComputation;
 
         // Validate context is still current (handles moves, deletes, content changes)
         if (!macComp->contextMatches(fs.fsid, cn.handle, fs.fingerprint, cn.fingerprint))
@@ -1089,6 +1093,10 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
         return {NODE_COMP_EREAD, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
     }
 
+    // Mark initialization as complete (for consistency with clone candidate case,
+    // even though the sync core case is single-threaded)
+    macComp->setInitializationComplete();
+
     return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
 }
 
@@ -1186,34 +1194,36 @@ CloneMacStatus initCloneCandidateMacComputation(MegaClient& mc, SyncUpload_inCli
 
     // Create computation state (no context needed - upload lifetime handles validity)
     const m_off_t fileSize = upload.size;
-    upload.macComputation = std::make_shared<MacComputationState>(fileSize,
-                                                                  upload.getLocalname(),
-                                                                  mc.syncs.mMacComputationThrottle);
+    auto macComp = std::make_shared<MacComputationState>(fileSize,
+                                                         upload.getLocalname(),
+                                                         mc.syncs.mMacComputationThrottle);
+    upload.macComputation = macComp; // Store in upload, but keep local copy for safety
 
     // Initialize cipher params from candidate node
+    // Using local macComp pointer ensures the object stays alive even if another thread
+    // resets upload.macComputation during this function.
     const auto& nodeKey = candidateNode->nodekey();
-    auto& macComp = *upload.macComputation;
 
-    macComp.cloneCandidateHandle = candidateNode->nodeHandle();
-    macComp.cloneCandidateNodeKey = nodeKey;
+    macComp->cloneCandidateHandle = candidateNode->nodeHandle();
+    macComp->cloneCandidateNodeKey = nodeKey;
 
-    memcpy(macComp.transferkey.data(), nodeKey.data(), SymmCipher::KEYLENGTH);
+    memcpy(macComp->transferkey.data(), nodeKey.data(), SymmCipher::KEYLENGTH);
     SymmCipher::xorblock((const byte*)nodeKey.data() + SymmCipher::KEYLENGTH,
-                         macComp.transferkey.data());
+                         macComp->transferkey.data());
 
     const char* iva = nodeKey.data() + SymmCipher::KEYLENGTH;
-    macComp.ctriv = MemAccess::get<int64_t>(iva);
+    macComp->ctriv = MemAccess::get<int64_t>(iva);
 
     // Try to acquire throttle now; if not, leave computation set up and return Pending
     if (mc.syncs.macComputationThrottle().tryAcquireFile())
     {
-        macComp.throttleSlotAcquired = true;
+        macComp->throttleSlotAcquired = true;
 
         LOG_debug << logPre << "Initiating: " << upload.getLocalname() << " [size=" << fileSize
                   << ", files=" << mc.syncs.macComputationThrottle().currentFiles() << "]";
 
-        // Start first chunk
-        auto result = advanceMacComputation(mc, upload.macComputation, logPre);
+        // Start first chunk - pass local macComp to ensure object stays alive
+        auto result = advanceMacComputation(mc, macComp, logPre);
         if (result == MacAdvanceResult::Failed)
         {
             LOG_debug << logPre << "Failed to start computation of MAC for "
@@ -1228,6 +1238,9 @@ CloneMacStatus initCloneCandidateMacComputation(MegaClient& mc, SyncUpload_inCli
                     << " [files=" << mc.syncs.macComputationThrottle().currentFiles() << "]";
     }
 
+    // Mark initialization as complete - checkPendingCloneMac can now safely proceed
+    macComp->setInitializationComplete();
+
     return CloneMacStatus::Pending; // Computation created; may be waiting for throttle or running
 }
 
@@ -1235,12 +1248,23 @@ CloneMacStatus checkPendingCloneMac(MegaClient& mc, SyncUpload_inClient& upload)
 {
     static const std::string logPre{"checkPendingCloneMac: "};
 
-    if (!upload.macComputation)
+    // Take a copy of the shared_ptr to ensure the MacComputationState stays alive
+    // during this function, even if another thread resets upload.macComputation.
+    // This also makes the null check and subsequent use atomic with respect to
+    // other threads that might reset the shared_ptr.
+    auto macComp = upload.macComputation;
+    if (!macComp)
     {
         return CloneMacStatus::NoCandidates;
     }
 
-    auto& macComp = upload.macComputation;
+    // Wait until initCloneCandidateMacComputation has finished setting up the computation.
+    // This prevents races where we try to process/advance a computation that's still
+    // being initialized on the client thread.
+    if (!macComp->isInitializationComplete())
+    {
+        return CloneMacStatus::Pending;
+    }
 
     if (upload.mMetaMac.has_value())
     {
