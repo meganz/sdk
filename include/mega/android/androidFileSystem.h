@@ -81,8 +81,7 @@ public:
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const std::string& path);
     static std::shared_ptr<AndroidFileWrapper> getAndroidFileWrapper(const LocalPath& localPath,
                                                                      bool create,
-                                                                     bool lastIsFolder,
-                                                                     bool failIfLastExists = false);
+                                                                     bool lastIsFolder);
 
 private:
     class JavaObject
@@ -146,16 +145,10 @@ private:
     static void setLocalPathURI(const std::string& path, const std::string& uri);
     static std::optional<std::string> getLocalPathURI(const std::string& path);
     static std::shared_ptr<AndroidFileWrapper>
-        getAndroidFileWrapperFromURI(const LocalPath& localPath,
-                                     bool create,
-                                     bool lastIsFolder,
-                                     bool failIfLastExists);
+        getAndroidFileWrapperFromURI(const LocalPath& localPath, bool create, bool lastIsFolder);
 
     static std::shared_ptr<AndroidFileWrapper>
-        getAndroidFileWrapperFromPath(const LocalPath& localPath,
-                                      bool create,
-                                      bool lastIsFolder,
-                                      bool failIfLastExists);
+        getAndroidFileWrapperFromPath(const LocalPath& localPath, bool create, bool lastIsFolder);
 };
 
 /**

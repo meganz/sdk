@@ -586,15 +586,14 @@ bool AndroidFileWrapper::rename(const std::string& parentPath,
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::getAndroidFileWrapper(const LocalPath& localPath,
                                               bool create,
-                                              bool lastIsFolder,
-                                              bool failIfLastExists)
+                                              bool lastIsFolder)
 {
     if (localPath.isURI())
     {
-        return getAndroidFileWrapperFromURI(localPath, create, lastIsFolder, failIfLastExists);
+        return getAndroidFileWrapperFromURI(localPath, create, lastIsFolder);
     }
 
-    return getAndroidFileWrapperFromPath(localPath, create, lastIsFolder, failIfLastExists);
+    return getAndroidFileWrapperFromPath(localPath, create, lastIsFolder);
 }
 
 void AndroidFileWrapper::setLocalPathURI(const std::string& path, const std::string& uri)
@@ -612,8 +611,7 @@ std::optional<std::string> AndroidFileWrapper::getLocalPathURI(const std::string
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::getAndroidFileWrapperFromURI(const LocalPath& localPath,
                                                      bool create,
-                                                     bool lastIsFolder,
-                                                     bool failIfLastExists)
+                                                     bool lastIsFolder)
 {
     // Attempt to resolve from URI cache
     if (auto cachedURI = getLocalPathURI(localPath.toPath(false)); cachedURI.has_value())
@@ -676,10 +674,8 @@ std::shared_ptr<AndroidFileWrapper>
         if (!nextWrapper || !nextWrapper->exists())
         {
             bool isLast = (std::next(it) == pathSegments.end());
-            bool createIfMissing = isLast ? create && !failIfLastExists : create;
-            currentURI = currentWrapper->createOrReturnElement(segment,
-                                                               createIfMissing,
-                                                               !isLast || lastIsFolder);
+            currentURI =
+                currentWrapper->createOrReturnElement(segment, create, !isLast || lastIsFolder);
 
             if (!currentURI.has_value())
             {
@@ -706,8 +702,7 @@ std::shared_ptr<AndroidFileWrapper>
 std::shared_ptr<AndroidFileWrapper>
     AndroidFileWrapper::getAndroidFileWrapperFromPath(const LocalPath& localPath,
                                                       bool create,
-                                                      bool lastIsFolder,
-                                                      bool failIfLastExists)
+                                                      bool lastIsFolder)
 {
     if (create)
     {
@@ -716,14 +711,11 @@ std::shared_ptr<AndroidFileWrapper>
             AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
         if (parentFileWrapper->exists())
         {
-            // TODO: need android change to support failIfLastExists
-            (void)failIfLastExists;
             return parentFileWrapper->createChild(localPath.leafName().toPath(false), lastIsFolder);
         }
     }
     else
     {
-        // TODO: support failIfLastExists
         return AndroidFileWrapper::getAndroidFileWrapper(localPath.toPath(false));
     }
 
@@ -1342,7 +1334,7 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
             bool success =
                 oldNameWrapper->rename(parentPath, newname.leafName().toPath(false), overwrite);
             target_exists = !overwrite && !success;
-            return sucess;
+            return success;
         }
         else
         {
