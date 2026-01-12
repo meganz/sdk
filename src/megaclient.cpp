@@ -3252,203 +3252,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
-        {
-            #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-                if (globalMegaTestHooks.interceptSCRequest)
-                {
-                    globalMegaTestHooks.interceptSCRequest(pendingsc);
-                }
-            #endif
-
-            switch (static_cast<reqstatus_t>(pendingsc->status))
-            {
-            case REQ_SUCCESS:
-                pendingscTimedOut = false;
-                if (pendingsc->contentlength == 1
-                        && pendingsc->in.size()
-                        && pendingsc->in[0] == '0')
-                {
-                    LOG_debug << "SC keep-alive received";
-                    pendingsc.reset();
-                    btsc.reset();
-                    break;
-                }
-
-                if (*pendingsc->in.c_str() == '{')
-                {
-                    insca = false;
-                    insca_notlast = false;
-                    jsonsc.begin(pendingsc->in.c_str());
-                    jsonsc.enterobject();
-                    app->notify_network_activity(NetworkActivityChannel::SC,
-                                                 NetworkActivityType::REQUEST_RECEIVED,
-                                                 API_OK);
-                    break;
-                }
-                else
-                {
-                    error e = (error)atoi(pendingsc->in.c_str());
-                    if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
-                    {
-                        app->request_error(e);
-                        scsn.stopScsn();
-                        app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_RECEIVED,
-                                                     e);
-                    }
-                    else if (e == API_ETOOMANY)
-                    {
-                        LOG_warn << "Too many pending updates - reloading local state";
-                        app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_RECEIVED,
-                                                     e);
-
-                        // Stop the sc channel to prevent the reception of multiple
-                        // API_ETOOMANY errors causing multiple consecutive reloads
-                        scsn.stopScsn();
-
-                        app->reloading();
-                        int creqtag = reqtag;
-                        reqtag = fetchnodestag; // associate with ongoing request, if any
-                        fetchingnodes = false;
-                        fetchnodestag = 0;
-
-                        // reloading mid-session so we definitely go to the servers
-                        // the node tree will be replaced when the reply arrives
-                        // actionpacketsCurrent will be reset at that time
-                        // nocache = true so that we get to an equal or later SCSN
-                        // right away.  The ir:1 mechanism is not reliable for this
-                        fetchnodes(true, false, true);
-                        reqtag = creqtag;
-                    }
-                    else if (e == API_EAGAIN || e == API_ERATELIMIT)
-                    {
-                        if (!statecurrent)
-                        {
-                            fnstats.eAgainCount++;
-                        }
-                        app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_RECEIVED,
-                                                     e);
-                    }
-                    else if (e == API_EBLOCKED)
-                    {
-                        app->request_error(API_EBLOCKED);
-                        block(true);
-                    }
-                    else
-                    {
-                        LOG_err << "Unexpected sc response: " << pendingsc->in;
-                        app->notify_network_activity(NetworkActivityChannel::SC,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     e);
-                        scsn.stopScsn();
-                    }
-                }
-
-                // fall through
-            case REQ_FAILURE:
-                pendingscTimedOut = false;
-                if (pendingsc)
-                {
-                    if (!statecurrent && pendingsc->httpstatus != 200)
-                    {
-                        if (pendingsc->httpstatus == 500)
-                        {
-                            fnstats.e500Count++;
-                        }
-                        else
-                        {
-                            fnstats.eOthersCount++;
-                        }
-                    }
-
-                    if (pendingsc->httpstatus == 500 && !scnotifyurl.empty())
-                    {
-                        sendevent(99482, "500 received on wsc url");
-                        LOG_err << "500 error on wsc URL";
-                    }
-                    if (pendingsc->sslcheckfailed)
-                    {
-                        sendevent(99453, "Invalid public key");
-                        sslfakeissuer = pendingsc->sslfakeissuer;
-                        app->request_error(API_ESSL);
-                        sslfakeissuer.clear();
-
-                        if (!retryessl)
-                        {
-                            scsn.stopScsn();
-                        }
-                    }
-
-                    if (!scsn.stopped())
-                    {
-                        if (pendingsc->mDnsFailure)
-                        {
-                            app->notify_network_activity(NetworkActivityChannel::SC,
-                                                         NetworkActivityType ::REQUEST_SENT,
-                                                         LOCAL_ENETWORK);
-                        }
-                        else
-                        {
-                            app->notify_network_activity(NetworkActivityChannel::SC,
-                                                         NetworkActivityType ::REQUEST_RECEIVED,
-                                                         pendingsc->httpstatus);
-                        }
-                    }
-
-                    pendingsc.reset();
-                }
-
-                if (scsn.stopped())
-                {
-                    app->notify_network_activity(NetworkActivityChannel::SC,
-                                                 NetworkActivityType::REQUEST_ERROR,
-                                                 API_ESSL);
-                    btsc.backoff(NEVER);
-                }
-                else
-                {
-                    // failure, repeat with capped exponential backoff
-                    btsc.backoff();
-                    LOG_debug << clientname << "sc backing off with delay ds: " << btsc.retryin();
-                }
-                break;
-
-            case REQ_INFLIGHT:
-                if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
-                {
-                    LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds << " and lastdata ds: " << pendingsc->lastdata;
-                    // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.  But if it does, break the cycle of endless requests for the same thing
-                    pendingscTimedOut = true;
-                    pendingsc.reset();
-                    btsc.reset();
-                }
-                break;
-            default:
-                break;
-            }
-        }
-
-        if (!scpaused && jsonsc.pos)
-        {
-            // FIXME: reload in case of bad JSON
-            if (procsc(jsonsc))
-            {
-                // completed - initiate next SC request
-                jsonsc.pos = nullptr;
-                pendingsc.reset();
-                btsc.reset();
-
-                // upon reception of action packets, if the cs request is waiting for a retry
-                // and it failed due to -3 or -4 error from API, we can abort the backoff
-                if (reqs.retryReasonIsApi())
-                {
-                    btcs.reset();
-                }
-            }
-        }
+        processSc();
 
         if (!pendingsc && !pendingscUserAlerts && scsn.ready() && btsc.armed() && !mBlocked)
         {
@@ -25208,6 +25012,274 @@ void MegaClient::setMegaURL(const std::string& url)
 {
     std::unique_lock lock(megaUrlMutex);
     MEGAURL = url;
+}
+
+void MegaClient::checkScParsingSwitch()
+{
+    if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
+    {
+        // For now, only supporting the legacy mode
+        disableStreaming();
+    }
+}
+
+void MegaClient::processSc()
+{
+    checkScParsingSwitch();
+    return isStreamingEnabled() ? handleScInStreaming() : handleScNonStreaming();
+}
+
+void MegaClient::handleScInStreaming()
+{
+    if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
+    {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        if (globalMegaTestHooks.interceptSCRequest)
+        {
+            globalMegaTestHooks.interceptSCRequest(pendingsc);
+        }
+#endif
+
+        switch (static_cast<reqstatus_t>(pendingsc->status))
+        {
+            case REQ_SUCCESS:
+                break;
+            case REQ_FAILURE:
+                break;
+            case REQ_INFLIGHT:
+                break;
+            default:
+                break;
+        }
+    }
+    processScInStreaming();
+    return;
+}
+
+void MegaClient::processScInStreaming()
+{
+    return;
+}
+
+void MegaClient::handleScNonStreaming()
+{
+    if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
+    {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        if (globalMegaTestHooks.interceptSCRequest)
+        {
+            globalMegaTestHooks.interceptSCRequest(pendingsc);
+        }
+#endif
+
+        switch (static_cast<reqstatus_t>(pendingsc->status))
+        {
+            case REQ_SUCCESS:
+                pendingscTimedOut = false;
+                if (pendingsc->contentlength == 1 && pendingsc->in.size() &&
+                    pendingsc->in[0] == '0')
+                {
+                    LOG_debug << "SC keep-alive received";
+                    pendingsc.reset();
+                    btsc.reset();
+                    break;
+                }
+
+                if (*pendingsc->in.c_str() == '{')
+                {
+                    insca = false;
+                    insca_notlast = false;
+                    jsonsc.begin(pendingsc->in.c_str());
+                    jsonsc.enterobject();
+                    app->notify_network_activity(NetworkActivityChannel::SC,
+                                                 NetworkActivityType::REQUEST_RECEIVED,
+                                                 API_OK);
+                    break;
+                }
+                else
+                {
+                    processScError();
+                }
+
+                [[fallthrough]];
+            case REQ_FAILURE:
+                processScFailure();
+                break;
+
+            case REQ_INFLIGHT:
+                if (!pendingscTimedOut &&
+                    Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+                {
+                    LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds
+                              << " and lastdata ds: " << pendingsc->lastdata;
+                    // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.
+                    // But if it does, break the cycle of endless requests for the same thing
+                    pendingscTimedOut = true;
+                    pendingsc.reset();
+                    btsc.reset();
+                }
+                break;
+            default:
+                break;
+        }
+    }
+    processScNonStreaming();
+    return;
+}
+
+void MegaClient::processScNonStreaming()
+{
+    if (!scpaused && jsonsc.pos)
+    {
+        // FIXME: reload in case of bad JSON
+        if (procsc(jsonsc))
+        {
+            // completed - initiate next SC request
+            jsonsc.pos = nullptr;
+            pendingsc.reset();
+            btsc.reset();
+
+            // upon reception of action packets, if the cs request is waiting for a retry
+            // and it failed due to -3 or -4 error from API, we can abort the backoff
+            if (reqs.retryReasonIsApi())
+            {
+                btcs.reset();
+            }
+        }
+    }
+    return;
+}
+
+void MegaClient::processScError()
+{
+    error e = (error)atoi(pendingsc->in.c_str());
+    if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
+    {
+        app->request_error(e);
+        scsn.stopScsn();
+        app->notify_network_activity(NetworkActivityChannel::SC,
+                                     NetworkActivityType::REQUEST_RECEIVED,
+                                     e);
+    }
+    else if (e == API_ETOOMANY)
+    {
+        LOG_warn << "Too many pending updates - reloading local state";
+        app->notify_network_activity(NetworkActivityChannel::SC,
+                                     NetworkActivityType::REQUEST_RECEIVED,
+                                     e);
+
+        // Stop the sc channel to prevent the reception of multiple
+        // API_ETOOMANY errors causing multiple consecutive reloads
+        scsn.stopScsn();
+
+        app->reloading();
+        int creqtag = reqtag;
+        reqtag = fetchnodestag; // associate with ongoing request, if any
+        fetchingnodes = false;
+        fetchnodestag = 0;
+
+        // reloading mid-session so we definitely go to the servers
+        // the node tree will be replaced when the reply arrives
+        // actionpacketsCurrent will be reset at that time
+        // nocache = true so that we get to an equal or later SCSN
+        // right away.  The ir:1 mechanism is not reliable for this
+        fetchnodes(true, false, true);
+        reqtag = creqtag;
+    }
+    else if (e == API_EAGAIN || e == API_ERATELIMIT)
+    {
+        if (!statecurrent)
+        {
+            fnstats.eAgainCount++;
+        }
+        app->notify_network_activity(NetworkActivityChannel::SC,
+                                     NetworkActivityType::REQUEST_RECEIVED,
+                                     e);
+    }
+    else if (e == API_EBLOCKED)
+    {
+        app->request_error(API_EBLOCKED);
+        block(true);
+    }
+    else
+    {
+        LOG_err << "Unexpected sc response: " << pendingsc->in;
+        app->notify_network_activity(NetworkActivityChannel::SC,
+                                     NetworkActivityType::REQUEST_ERROR,
+                                     e);
+        scsn.stopScsn();
+    }
+    return;
+}
+
+void MegaClient::processScFailure()
+{
+    pendingscTimedOut = false;
+    if (pendingsc)
+    {
+        if (!statecurrent && pendingsc->httpstatus != 200)
+        {
+            if (pendingsc->httpstatus == 500)
+            {
+                fnstats.e500Count++;
+            }
+            else
+            {
+                fnstats.eOthersCount++;
+            }
+        }
+
+        if (pendingsc->httpstatus == 500 && !scnotifyurl.empty())
+        {
+            sendevent(99482, "500 received on wsc url");
+            LOG_err << "500 error on wsc URL";
+        }
+        if (pendingsc->sslcheckfailed)
+        {
+            sendevent(99453, "Invalid public key");
+            sslfakeissuer = pendingsc->sslfakeissuer;
+            app->request_error(API_ESSL);
+            sslfakeissuer.clear();
+
+            if (!retryessl)
+            {
+                scsn.stopScsn();
+            }
+        }
+
+        if (!scsn.stopped())
+        {
+            if (pendingsc->mDnsFailure)
+            {
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType ::REQUEST_SENT,
+                                             LOCAL_ENETWORK);
+            }
+            else
+            {
+                app->notify_network_activity(NetworkActivityChannel::SC,
+                                             NetworkActivityType ::REQUEST_RECEIVED,
+                                             pendingsc->httpstatus);
+            }
+        }
+
+        pendingsc.reset();
+    }
+
+    if (scsn.stopped())
+    {
+        app->notify_network_activity(NetworkActivityChannel::SC,
+                                     NetworkActivityType::REQUEST_ERROR,
+                                     API_ESSL);
+        btsc.backoff(NEVER);
+    }
+    else
+    {
+        // failure, repeat with capped exponential backoff
+        btsc.backoff();
+        LOG_debug << clientname << "sc backing off with delay ds: " << btsc.retryin();
+    }
+    return;
 }
 
 } // namespace
