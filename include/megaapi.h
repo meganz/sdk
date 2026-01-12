@@ -11018,6 +11018,8 @@ class MegaApi
          * @brief PITAG target codes exposed at API level.
          *
          * Maps 1:1 with PitagTarget in types.h.
+         * Apps uploading to chats should set the appropriate chat target (c, C, or s);
+         * for other uploads keep the default value to avoid interfering with internal logic.
          */
         static constexpr char PITAG_TARGET_NOT_APPLICABLE = '.';
         static constexpr char PITAG_TARGET_CLOUD_DRIVE = 'D';
@@ -16593,6 +16595,9 @@ class MegaApi
          * than the file to be uploaded, this function will try to update it's mtime instead of
          * starting a new file upload. If setting the mtime fails, the transfer will fail with
          * API_EWRITE.
+         *
+         * @deprecated Deprecated in favor of startUpload() with MegaUploadOptions passed via the
+         * uploadOptions parameter.
          */
         MEGA_DEPRECATED
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
