@@ -175,33 +175,59 @@ void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocal()
     ASSERT_TRUE(waitFor(areLocalAndCloudSynched, COMMON_TIMEOUT, 10s));
 }
 
-void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocalExhaustive()
+void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocalExhaustive(
+    const bool useFingerprint)
 {
-    const auto areLocalAndCloudSynchedExhaustive = [this]() -> bool
+    const auto areLocalAndCloudSynchedExhaustive = [this, useFingerprint]() -> bool
     {
-        return checkSyncRecursively(getSync()->getMegaHandle(), "");
+        return checkSyncRecursively(getSync()->getMegaHandle(), "", useFingerprint);
     };
     ASSERT_TRUE(waitFor(areLocalAndCloudSynchedExhaustive, COMMON_TIMEOUT, 10s));
 }
 
 bool SdkTestSyncNodesOperations::checkSyncRecursively(MegaHandle parentHandle,
-                                                      const std::string& localPath)
+                                                      const std::string& localPath,
+                                                      const bool useFingerprint)
 {
-    auto [childrenCloudNamesAndFingerprints, childrenNodeList] =
-        getCloudFirstChildrenNamesAndFingerprints(megaApi[0].get(), parentHandle);
-    if (!childrenCloudNamesAndFingerprints.has_value() || !childrenNodeList)
+    std::unique_ptr<MegaNodeList> childrenNodeList;
+    const auto subPath = localPath.empty() ? std::nullopt : std::make_optional(localPath);
+
+    if (!useFingerprint)
     {
-        return false;
+        auto [childrenCloudNames, nodeList] = getCloudFirstChildren(megaApi[0].get(), parentHandle);
+        if (!childrenCloudNames.has_value() || !nodeList)
+        {
+            return false;
+        }
+
+        const auto localChildrenNames = getLocalFirstChildrenNames(subPath);
+
+        if (!Value(localChildrenNames, UnorderedElementsAreArray(childrenCloudNames.value())))
+        {
+            return false;
+        }
+
+        childrenNodeList = std::move(nodeList);
     }
-
-    const auto localChildrenNamesAndFingerprints = getLocalFirstChildrenNamesAndFingerprints(
-        megaApi[0].get(),
-        localPath.empty() ? std::nullopt : std::make_optional(localPath));
-
-    if (!Value(localChildrenNamesAndFingerprints,
-               UnorderedElementsAreArray(childrenCloudNamesAndFingerprints.value())))
+    else
     {
-        return false;
+        auto [childrenCloudNamesAndFingerprints, nodeList] =
+            getCloudFirstChildrenNamesAndFingerprints(megaApi[0].get(), parentHandle);
+        if (!childrenCloudNamesAndFingerprints.has_value() || !nodeList)
+        {
+            return false;
+        }
+
+        const auto localChildrenNamesAndFingerprints =
+            getLocalFirstChildrenNamesAndFingerprints(megaApi[0].get(), subPath);
+
+        if (!Value(localChildrenNamesAndFingerprints,
+                   UnorderedElementsAreArray(childrenCloudNamesAndFingerprints.value())))
+        {
+            return false;
+        }
+
+        childrenNodeList = std::move(nodeList);
     }
 
     for (int i = 0; i < childrenNodeList->size(); ++i)
@@ -214,7 +240,8 @@ bool SdkTestSyncNodesOperations::checkSyncRecursively(MegaHandle parentHandle,
 
         std::string childLocalPath =
             localPath.empty() ? childNode->getName() : localPath + "/" + childNode->getName();
-        if (childNode->isFolder() && !checkSyncRecursively(childNode->getHandle(), childLocalPath))
+        if (childNode->isFolder() &&
+            !checkSyncRecursively(childNode->getHandle(), childLocalPath, useFingerprint))
         {
             return false;
         }

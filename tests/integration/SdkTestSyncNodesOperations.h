@@ -125,10 +125,12 @@ public:
      * @brief Waits until all levels of the sync tree match between cloud and local.
      *
      * This is an exhaustive check that recursively verifies synchronization at every level.
-     * Name and fingerprint are compared for the match.
+     * Name and fingerprint are compared for the match by default.
      * Asserts false if a timeout is exceeded.
+     *
+     * @param useFingerprint If false, the nodes are matched only using the name.
      */
-    void waitForSyncToMatchCloudAndLocalExhaustive();
+    void waitForSyncToMatchCloudAndLocalExhaustive(const bool useFingerprint = true);
 
     void checkCurrentLocalMatchesOriginal(const std::string_view cloudDirName);
 
@@ -173,13 +175,16 @@ public:
     /**
      * @brief Recursively checks if cloud and local sync match at all levels.
      *
-     * Name and fingerprint are compared for the match.
+     * Names and optinally fingerprints are used for the match.
      *
      * @param parentHandle The cloud parent node handle to check
      * @param localPath The local path to check (empty string for root)
+     * @param useFingerprint If true, the nodes are matched using the fingerprint too.
      * @return true if all levels match, false otherwise
      */
-    bool checkSyncRecursively(MegaHandle parentHandle, const std::string& localPath);
+    bool checkSyncRecursively(MegaHandle parentHandle,
+                              const std::string& localPath,
+                              const bool useFingerprint);
 
 protected:
     /**
