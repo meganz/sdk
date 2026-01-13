@@ -116,7 +116,7 @@ pipeline {
 
                 stage('Build All'){
                     parallel{
-                        stage('Android SDK example'){
+                        stage('Example App'){
                             options{
                                 timeout(time: 200, unit: 'MINUTES')
                             }
@@ -150,7 +150,7 @@ pipeline {
 
                                     }
                                 }
-                                stage("Build SDK"){
+                                stage("Build SDK for Example App"){
                                     steps {
                                         sh "echo Build SDK for arch $ARCH_TO_BUILD"
                                         sh "docker run --name sdk-android-builder-$ARCH_TO_BUILD-${env.BUILD_NUMBER} \
@@ -162,7 +162,8 @@ pipeline {
                                         -e VCPKG_BINARY_SOURCES \
                                         -e AWS_ACCESS_KEY_ID \
                                         -e AWS_SECRET_ACCESS_KEY \
-                                        -e AWS_ENDPOINT_URL meganz/sdk-android-mr-build-env:${env.BUILD_NUMBER}"
+                                        -e AWS_ENDPOINT_URL \
+                                        meganz/sdk-android-mr-build-env:${env.BUILD_NUMBER}"
 
                                         sh "cp -fv ${env.SDK_OUTPUT_DIR}/bindings/java/libmega.so ${env.SDK_JNILIBS_DIR}"                    
                                         sh "cp -fv ${env.SDK_OUTPUT_DIR}/bindings/java/nz/mega/sdk/*.java ${WORKSPACE}/examples/android/ExampleApp/app/src/main/java/nz/mega/sdk"                    
@@ -171,7 +172,7 @@ pipeline {
                                 }
                                 stage('Build Example App'){
                                     environment{
-                                        BUILD_ARCHS = "arm64-v8a"
+                                        //BUILD_ARCHS = "arm64-v8a"
                                         ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
                                         ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
                                         NDK_ROOT = "/home/jenkins/android-ndk/"
@@ -197,107 +198,129 @@ pipeline {
                                 }
                             }
                         }
-                        stage('test'){
-                            steps{
-                                sh "echo hello"
+                        stage('Android app'){
+                            agent { label 'linux && amd64 && android' }
+                            options{
+                                timeout(time: 300, unit: 'MINUTES')
+                            }
+                            environment {
+                                SDK_OUTPUT_DIR = "${WORKSPACE}/output/android/${ARCH_TO_BUILD}"
+                                SDK_JNILIBS_DIR = "${WORKSPACE}/sdk/src/main/jniLibs/${ARCH_TO_BUILD}"
+                                ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
+                                ANDROID_NDK_HOME = "/home/jenkins/android-ndk/"
+                                NDK_ROOT = "/home/jenkins/android-ndk/"
+                                VCPKG_ROOT = "/opt/vcpkg"
+                                DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
+                                USE_PREBUILT_SDK = false
+                                ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
+                            }
+                            stages {
+                                stage('Checkout SDK, MEGAchat and Android'){
+                                    steps {
+                                        deleteDir()
+                                        //Clone Android
+                                        sh "echo Cloning android branch \"${ANDROID_BRANCH}\""
+                                        checkout([
+                                            $class: 'GitSCM',
+                                            branches: [[name: "origin/${ANDROID_BRANCH}"]],
+                                            userRemoteConfigs: [[ url: "${env.GIT_URL_ANDROID}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                            extensions: [
+                                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
+                                                ]
+                                        ])
+                                        dir("sdk/src/main/jni/megachat/sdk"){
+                                            //Clone MEGAchat branch
+                                            sh "echo Cloning megachat branch \"${MEGACHAT_BRANCH}\""
+                                            checkout([
+                                                $class: 'GitSCM',
+                                                branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
+                                                userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                                extensions: [
+                                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
+                                                    ]
+                                            ])
+                                            script{
+                                                megachat_sources_workspace = WORKSPACE
+                                            }
+                                        }
+                                        dir('sdk/src/main/jni/mega/sdk'){
+                                            //Clone SDK (with PreBuildMerge)
+                                            checkout([
+                                                $class: 'GitSCM',
+                                                branches: [[name: "origin/${env.gitlabSourceBranch}"]],
+                                                userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                                                extensions: [
+                                                    [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                                    [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                                    ]
+                                            ])
+                                        }
+                                        script{
+                                            android_sources_workspace = WORKSPACE
+                                            sdk_sources_workspace = "${megachat_sources_workspace}/third-party/mega"
+                                        }
+                                    }
+                                }
+                                stage('Build Docker'){
+                                    //Building sdk with MEGAchat-android-cross-build dockerfile, because it uses webrtc
+                                    //(Needed for Android and unavailable from SDK dockerfile)
+                                    steps{
+                                        dir("sdk/src/main/jni/megachat/sdk/dockerfile"){
+                                            sh "docker build -t meganz/megachat-android-mr-build-env:${env.BUILD_NUMBER} -f ./android-cross-build.dockerfile ."
+                                        }
+                                        sh "echo ${ARCH_TO_BUILD}"
+                                        sh "mkdir -p ${env.SDK_OUTPUT_DIR}"
+                                        sh "mkdir -p ${env.SDK_JNILIBS_DIR}"
+                                        sh "mkdir -p ${WORKSPACE}/sdk/src/main/java/nz/mega/sdk"
+                                        sh "mkdir -p ${WORKSPACE}/sdk/src/main/jni/megachat/webrtc"
+
+                                    }
+                                }
+                                
+                                stage("Build SDK for Android App"){
+                                    steps {
+                                        sh "echo Build SDK for arch $ARCH_TO_BUILD"
+                                        sh "docker run --name megachat-android-builder-$ARCH_TO_BUILD-${env.BUILD_NUMBER} \
+                                        --rm \
+                                        -v ${WORKSPACE}/sdk/src/main/jni/megachat/sdk:/mega/MEGAchat \
+                                        -v ${WORKSPACE}/sdk/src/main/jni/mega/sdk:/mega/MEGAchat/third-party/mega \
+                                        -v ${VCPKGPATH}:/mega/vcpkg \
+                                        -v ${env.SDK_OUTPUT_DIR}:/mega/build-MEGAchat-mega-android \
+                                        -e ARCH=$ARCH_TO_BUILD \
+                                        -e VCPKG_BINARY_SOURCES \
+                                        -e AWS_ACCESS_KEY_ID \
+                                        -e AWS_SECRET_ACCESS_KEY \
+                                        -e AWS_ENDPOINT_URL \
+                                        meganz/megachat-android-mr-build-env:${env.BUILD_NUMBER}"
+
+                                        sh """
+                                            cp -fv ${env.SDK_OUTPUT_DIR}/bindings/java/libmega.so ${env.SDK_JNILIBS_DIR}        
+                                            cp -fv ${env.SDK_OUTPUT_DIR}/bindings/java/nz/mega/sdk/*.java ${WORKSPACE}/sdk/src/main/java/nz/mega/sdk                
+                                            cp -fv `find ${env.SDK_OUTPUT_DIR} -name "libwebrtc.jar"` ${WORKSPACE}/sdk/src/main/jni/megachat/webrtc
+                                            cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/
+                                        """
+                                    }
+                                }
+                                stage('Build Android App'){
+                                    steps{
+                                        script {
+                                            withCredentials([
+                                                    string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
+                                                    string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
+                                            ]){
+                                                withEnv([
+                                                    "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
+                                                    "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
+                                                ]){
+                                                    sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
+                                                    sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
                             }
                         }
-                        // stage('SDK and Android crosscompilation'){
-                        //     agent { label 'linux && amd64 && android' }
-                        //     options{
-                        //         timeout(time: 300, unit: 'MINUTES')
-                        //     }
-                        //     stages {
-                        //         stage('Checkout SDK MEGAchat and Android'){
-                        //             steps {
-                        //                 deleteDir()
-                        //                 //Clone Android
-                        //                 sh "echo Cloning android branch \"${ANDROID_BRANCH}\""
-                        //                 checkout([
-                        //                     $class: 'GitSCM',
-                        //                     branches: [[name: "origin/${ANDROID_BRANCH}"]],
-                        //                     userRemoteConfigs: [[ url: "${env.GIT_URL_ANDROID}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                        //                     extensions: [
-                        //                         [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
-                        //                         ]
-                        //                 ])
-                        //                 dir("sdk/src/main/jni/megachat/sdk"){
-                        //                     //Clone MEGAchat branch
-                        //                     sh "echo Cloning megachat branch \"${MEGACHAT_BRANCH}\""
-                        //                     checkout([
-                        //                         $class: 'GitSCM',
-                        //                         branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
-                        //                         userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                        //                         extensions: [
-                        //                             [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
-                        //                             ]
-                        //                     ])
-                        //                     script{
-                        //                         megachat_sources_workspace = WORKSPACE
-                        //                     }
-                        //                 }
-                        //                 dir('sdk/src/main/jni/mega/sdk'){
-                        //                     //Clone SDK (with PreBuildMerge)
-                        //                     checkout([
-                        //                         $class: 'GitSCM',
-                        //                         branches: [[name: "origin/${env.gitlabSourceBranch}"]],
-                        //                         userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
-                        //                         extensions: [
-                        //                             [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
-                        //                             [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
-                        //                             ]
-                        //                     ])
-                        //                     script{
-                        //                         sdk_sources_workspace = WORKSPACE
-                        //                     }
-                        //                 }
-                        //                 script{
-                        //                     android_sources_workspace = WORKSPACE
-                        //                     sdk_sources_workspace = "${megachat_sources_workspace}/third-party/mega"
-                        //                 }
-                        //             }
-                        //         }
-
-                        //         stage('Build SDK and Android App'){
-                        //             environment{
-                        //                 BUILD_ARCHS = "arm64-v8a"
-                        //                 ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                        //                 ANDROID_NDK_HOME = "/home/jenkins/android-ndk/"
-                        //                 NDK_ROOT = "/home/jenkins/android-ndk/"
-                        //                 VCPKG_ROOT = "/opt/vcpkg"
-                        //                 DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
-                        //                 USE_PREBUILT_SDK = false
-                        //                 ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
-                        //             }
-                        //             steps{
-                        //                 //build SDK
-                        //                 // dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
-                        //                 //     script{
-                        //                 //         env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
-                        //                 //     }
-                        //                 //     sh "mkdir -p ../java/nz/mega/sdk"
-                        //                 //     sh "sed -i 's#JOBS=.*#JOBS=3#' cmake.sh"
-                        //                 //     sh "bash ./cmake.sh"
-                        //                 // }
-                        //                 // sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
-                        //                 script {
-                        //                     withCredentials([
-                        //                             string(credentialsId: 'ARTIFACTORY_USER', variable: 'ARTIFACTORY_USER'),
-                        //                             string(credentialsId: 'ARTIFACTORY_ACCESS_TOKEN', variable: 'ARTIFACTORY_ACCESS_TOKEN'),
-                        //                     ]){
-                        //                         withEnv([
-                        //                             "ARTIFACTORY_USER=${ARTIFACTORY_USER}",
-                        //                             "ARTIFACTORY_ACCESS_TOKEN=${ARTIFACTORY_ACCESS_TOKEN}"
-                        //                         ]){
-                        //                             sh "./gradlew --no-daemon --max-workers=1 assembleGmsDebug"
-                        //                             sh "./gradlew --no-daemon --max-workers=1 assembleGmsQa"
-                        //                         }
-                        //                     }
-                        //                 }
-                        //             }
-                        //         }
-                        //     }
-                        // }
                     }
                 }
             }
