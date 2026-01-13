@@ -4844,9 +4844,6 @@ public:
     /**
      * @brief Returns the variant of the banner
      *
-     * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaBanner object is deleted.
-     *
      * @return Variant of the banner
      */
     virtual int getVariant() const;
