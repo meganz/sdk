@@ -164,10 +164,13 @@ void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocal()
 {
     const auto areLocalAndCloudSynched = [this]() -> bool
     {
-        const auto childrenCloudName =
-            getCloudFirstChildrenNames(megaApi[0].get(), getSync()->getMegaHandle());
-        return childrenCloudName &&
-               Value(getLocalFirstChildrenNames(), UnorderedElementsAreArray(*childrenCloudName));
+        const auto [childrenCloudNamesAndFingerprints, _] =
+            getCloudFirstChildrenNamesAndFingerprints(megaApi[0].get(), getSync()->getMegaHandle());
+        const auto childrenLocalNamesAndFingerprints =
+            getLocalFirstChildrenNamesAndFingerprints(megaApi[0].get());
+        return childrenCloudNamesAndFingerprints &&
+               Value(childrenLocalNamesAndFingerprints,
+                     UnorderedElementsAreArray(*childrenCloudNamesAndFingerprints));
     };
     ASSERT_TRUE(waitFor(areLocalAndCloudSynched, COMMON_TIMEOUT, 10s));
 }
@@ -184,17 +187,19 @@ void SdkTestSyncNodesOperations::waitForSyncToMatchCloudAndLocalExhaustive()
 bool SdkTestSyncNodesOperations::checkSyncRecursively(MegaHandle parentHandle,
                                                       const std::string& localPath)
 {
-    auto [childrenCloudNames, childrenNodeList] =
-        getCloudFirstChildren(megaApi[0].get(), parentHandle);
-    if (!childrenCloudNames.has_value() || !childrenNodeList)
+    auto [childrenCloudNamesAndFingerprints, childrenNodeList] =
+        getCloudFirstChildrenNamesAndFingerprints(megaApi[0].get(), parentHandle);
+    if (!childrenCloudNamesAndFingerprints.has_value() || !childrenNodeList)
     {
         return false;
     }
 
-    const auto localChildrenNames = getLocalFirstChildrenNames(
+    const auto localChildrenNamesAndFingerprints = getLocalFirstChildrenNamesAndFingerprints(
+        megaApi[0].get(),
         localPath.empty() ? std::nullopt : std::make_optional(localPath));
 
-    if (!Value(localChildrenNames, UnorderedElementsAreArray(childrenCloudNames.value())))
+    if (!Value(localChildrenNamesAndFingerprints,
+               UnorderedElementsAreArray(childrenCloudNamesAndFingerprints.value())))
     {
         return false;
     }
@@ -302,6 +307,21 @@ std::vector<std::string>
                                                        return name.front() != '.' &&
                                                               name != DEBRISFOLDER;
                                                    });
+}
+
+std::vector<ChildNameAndFingerprint>
+    SdkTestSyncNodesOperations::getLocalFirstChildrenNamesAndFingerprints(
+        MegaApi* megaApi,
+        std::optional<std::string> subPath) const
+{
+    fs::path pathObj = subPath.has_value() ? getLocalTmpDir() / subPath.value() : getLocalTmpDir();
+    return sdk_test::getLocalFirstChildrenNamesAndFingerprints_if(megaApi,
+                                                                  pathObj,
+                                                                  [](const std::string& name)
+                                                                  {
+                                                                      return name.front() != '.' &&
+                                                                             name != DEBRISFOLDER;
+                                                                  });
 }
 
 #endif // ENABLE_SYNC

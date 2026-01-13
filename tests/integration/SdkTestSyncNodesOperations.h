@@ -115,6 +115,8 @@ public:
     /**
      * @brief Waits until all direct successors from both remote and local roots of the sync match.
      *
+     * Name and fingerprint are compared for the match.
+     *
      * Asserts false if a timeout is exceeded.
      */
     void waitForSyncToMatchCloudAndLocal();
@@ -123,6 +125,7 @@ public:
      * @brief Waits until all levels of the sync tree match between cloud and local.
      *
      * This is an exhaustive check that recursively verifies synchronization at every level.
+     * Name and fingerprint are compared for the match.
      * Asserts false if a timeout is exceeded.
      */
     void waitForSyncToMatchCloudAndLocalExhaustive();
@@ -155,7 +158,22 @@ public:
         getLocalFirstChildrenNames(std::optional<std::string> subPath = std::nullopt) const;
 
     /**
+     * @brief Returns a vector with the names and fingerprints of the first successor
+     * files/directories inside the specified local directory.
+     *
+     * Hidden files (starting with . are excluded)
+     * @param megaApi Api to be used to calculate the local file fingerprint.
+     * @param subPath Optional subdirectory path relative to the local sync root. If not provided,
+     * uses the root.
+     */
+    std::vector<ChildNameAndFingerprint> getLocalFirstChildrenNamesAndFingerprints(
+        MegaApi* megaApi,
+        std::optional<std::string> subPath = std::nullopt) const;
+
+    /**
      * @brief Recursively checks if cloud and local sync match at all levels.
+     *
+     * Name and fingerprint are compared for the match.
      *
      * @param parentHandle The cloud parent node handle to check
      * @param localPath The local path to check (empty string for root)
