@@ -1359,7 +1359,13 @@ public:
 
     void explorePath(int account, MegaNode* node, int& files, int& folders);
 
-    void synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail, const char* filePreview);
+    void synchronousMediaUpload(unsigned int apiIndex,
+                                int64_t fileSize,
+                                const char* filename,
+                                const char* fileEncrypted,
+                                const char* fileOutput,
+                                const char* fileThumbnail = nullptr,
+                                const char* filePreview = nullptr);
     void synchronousMediaUploadIncomplete(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, std::string& fingerprint, std::string& string64UploadToken, std::string& string64FileKey);
 
 #ifdef ENABLE_CHAT

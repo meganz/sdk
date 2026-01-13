@@ -300,4 +300,33 @@ TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitag, PitagCapturedForBackgroundMediaUpload)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto sourcePath = fs::current_path() / (getFilePrefix() + "pitag_background_upload.bin");
+    const std::string encryptedPath =
+        path_u8string(sourcePath) + ".enc"; // encryptFile output destination
+    const std::string fileOutput = getFilePrefix() + "pitag_background_remote.bin";
+
+    // Create input file to upload through the background media upload pipeline
+    size_t size = 1024;
+    const sdk_test::LocalTempFile localFile(sourcePath, size);
+    const int64_t fileSize = static_cast<int64_t>(fs::file_size(sourcePath));
+
+    PitagCommandObserver observer;
+
+    synchronousMediaUpload(/*apiIndex*/ 0,
+                           fileSize,
+                           path_u8string(sourcePath).c_str(),
+                           encryptedPath.c_str(),
+                           fileOutput.c_str());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    const std::string expected = std::string{"U"} + MegaApi::PITAG_TRIGGER_CAMERA + "fD.";
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
