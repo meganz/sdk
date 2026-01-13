@@ -1,6 +1,7 @@
 #ifndef INCLUDE_TESTS_SDK_TEST_UTILS_H_
 #define INCLUDE_TESTS_SDK_TEST_UTILS_H_
 
+#include "megaapi.h"
 #include "stdfs.h"
 
 #include <algorithm>
@@ -400,6 +401,23 @@ bool waitFor(const std::function<bool()>& predicate,
 std::vector<std::string>
     getLocalFirstChildrenNames_if(const std::filesystem::path& localPath,
                                   std::function<bool(const std::string&)> filter = nullptr);
+
+using ChildNameAndFingerprint = std::pair<std::string, std::optional<std::string>>;
+/**
+ * @brief Get the names and fingerprints of the files/directories that are contained within the
+ * given path.
+ *
+ * Note: if the path does not point to a directory, an empty vector is returned
+ *
+ * @param megaApi Api to be used to calculate the local file fingerprint.
+ * @param localPath The path to evaluate their children
+ * @param filter Required named-based condition to be included in the results.
+ * @return A vector with the names and fingerprints of the children
+ */
+std::vector<ChildNameAndFingerprint> getLocalFirstChildrenNamesAndFingerprints_if(
+    ::mega::MegaApi* megaApi,
+    const std::filesystem::path& localPath,
+    std::function<bool(const std::string&)> filter = nullptr);
 }
 
 /**
