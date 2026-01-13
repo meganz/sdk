@@ -34,6 +34,23 @@ std::vector<std::string> toNamesVector(const MegaNodeList& nodes)
     return result;
 }
 
+std::vector<ChildNameAndFingerprint> toNamesAndFingerprintVector(const MegaNodeList& nodes)
+{
+    std::vector<ChildNameAndFingerprint> result;
+    result.reserve(static_cast<size_t>(nodes.size()));
+    for (int i = 0; i < nodes.size(); ++i)
+    {
+        std::optional<std::string> fp;
+        if (nodes.get(i)->getType() == MegaNode::TYPE_FILE)
+        {
+            fp = nodes.get(i)->getFingerprint();
+        }
+        ChildNameAndFingerprint res{nodes.get(i)->getName(), std::move(fp)};
+        result.emplace_back(std::move(res));
+    }
+    return result;
+}
+
 std::vector<std::string> stringListToVector(const MegaStringList& l)
 {
     std::vector<std::string> result;
