@@ -55,6 +55,7 @@ public:
 
     /**
      * @brief Waits until all direct successors from both remote and local roots of the sync match.
+     * Name and fingerprint are compared for the match.
      *
      * Asserts false if a timeout is exceeded.
      */
@@ -62,10 +63,14 @@ public:
     {
         const auto areLocalAndCloudSynched = [this]() -> bool
         {
-            const auto childrenCloudName =
-                getCloudFirstChildrenNames(megaApi[0].get(), getSync()->getMegaHandle());
-            return childrenCloudName && Value(getLocalFirstChildrenNames(),
-                                              UnorderedElementsAreArray(*childrenCloudName));
+            const auto [childrenCloudNamesAndFingerprints, _] =
+                getCloudFirstChildrenNamesAndFingerprints(megaApi[0].get(),
+                                                          getSync()->getMegaHandle());
+            const auto childrenLocalNamesAndFingerprints =
+                getLocalFirstChildrenNamesAndFingerprints(megaApi[0].get());
+            return childrenCloudNamesAndFingerprints &&
+                   Value(childrenLocalNamesAndFingerprints,
+                         UnorderedElementsAreArray(*childrenCloudNamesAndFingerprints));
         };
         ASSERT_TRUE(waitFor(areLocalAndCloudSynched, MAX_TIMEOUT, TIME_DELTA_CONSECUTIVE_TRIES));
     }
@@ -123,6 +128,21 @@ public:
                                              {
                                                  return name.front() != '.' && name != DEBRISFOLDER;
                                              });
+    }
+
+    /**
+     * @brief Get the names and fingerprints of the first successors in the current local sync root.
+     */
+    std::vector<ChildNameAndFingerprint>
+        getLocalFirstChildrenNamesAndFingerprints(MegaApi* megaApi) const
+    {
+        return getLocalFirstChildrenNamesAndFingerprints_if(
+            megaApi,
+            getLocalSyncRoot().value_or(getLocalTmpDir()),
+            [](const std::string& name)
+            {
+                return name.front() != '.' && name != DEBRISFOLDER;
+            });
     }
 
     handle getBackupId() const
