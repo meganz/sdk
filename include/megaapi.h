@@ -14250,14 +14250,16 @@ class MegaApi
         /**
          * @brief Get public attributes of participants of public chats during preview mode.
          *
-         * Other's public attributes are retrievable by contacts and users who participates in your chats.
-         * During a preview of a public chat, the user does not fullfil the above requirements, so the
-         * public handle of the chat being previewed is required as authorization.
+         * Other's public attributes are retrievable by contacts and users who participates in your
+         * chats. During a preview of a public chat, the user does not fullfil the above
+         * requirements, so the public handle of the chat being previewed is required as
+         * authorization.
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getParamType - Returns the attribute type
-         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one as parameter)
+         * - MegaRequest::getEmail - Returns the email or the handle of the user (the provided one
+         * as parameter)
          * - MegaRequest::getSessionKey - Returns the public handle of the chat
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
@@ -14281,6 +14283,7 @@ class MegaApi
          * MegaApi::USER_ATTR_CU25519_PUBLIC_KEY = 6
          * Get the public key Cu25519 of the user (public)
          *
+         * @param ph Public handle of the chat link the user participates.
          * @param listener MegaRequestListener to track this request
          */
         void getChatUserAttribute(const char *email_or_handle, int type, const char *ph, MegaRequestListener *listener = NULL);
