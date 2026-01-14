@@ -274,12 +274,33 @@ public class MegaApiJava {
     public final static int CLIENT_TYPE_VPN = MegaApi.CLIENT_TYPE_VPN;
     public final static int CLIENT_TYPE_PASSWORD_MANAGER = MegaApi.CLIENT_TYPE_PASSWORD_MANAGER;
 
+
+    /**
+     * PITAG trigger codes exposed at API level.
+     *
+     * Maps 1:1 with PitagTrigger in types.h.
+     */
     public final static char PITAG_TRIGGER_NOT_APPLICABLE = MegaApi.PITAG_TRIGGER_NOT_APPLICABLE;
     public final static char PITAG_TRIGGER_PICKER = MegaApi.PITAG_TRIGGER_PICKER;
     public final static char PITAG_TRIGGER_DRAG_AND_DROP = MegaApi.PITAG_TRIGGER_DRAG_AND_DROP;
     public final static char PITAG_TRIGGER_CAMERA = MegaApi.PITAG_TRIGGER_CAMERA;
     public final static char PITAG_TRIGGER_SCANNER = MegaApi.PITAG_TRIGGER_SCANNER;
     public final static char PITAG_TRIGGER_SYNC_ALGORITHM = MegaApi.PITAG_TRIGGER_SYNC_ALGORITHM;
+
+
+    /**
+     * PITAG target codes exposed at API level.
+     *
+     * Maps 1:1 with PitagTarget in types.h.
+     * Apps uploading to chats should set the appropriate chat target (c, C, or s);
+     * for other uploads keep the default value to avoid interfering with internal logic.
+     */
+    public final static char PITAG_TARGET_NOT_APPLICABLE = MegaApi.PITAG_TARGET_NOT_APPLICABLE;
+    public final static char PITAG_TARGET_CLOUD_DRIVE = MegaApi.PITAG_TARGET_CLOUD_DRIVE;
+    public final static char PITAG_TARGET_CHAT_1TO1 = MegaApi.PITAG_TARGET_CHAT_1TO1;
+    public final static char PITAG_TARGET_CHAT_GROUP = MegaApi.PITAG_TARGET_CHAT_GROUP;
+    public final static char PITAG_TARGET_NOTE_TO_SELF = MegaApi.PITAG_TARGET_NOTE_TO_SELF;
+    public final static char PITAG_TARGET_INCOMING_SHARE = MegaApi.PITAG_TARGET_INCOMING_SHARE;
 
     public final static int IMPORT_PASSWORD_SOURCE_GOOGLE = MegaApi.IMPORT_PASSWORD_SOURCE_GOOGLE;
 
