@@ -790,7 +790,7 @@ bool WinFileAccess::fopenForMacRead(const LocalPath& path, FSLogging fsl)
 {
     // Open with FILE_SHARE_DELETE to allow the file to be moved/deleted while we're computing MAC
     fopenSucceeded =
-        fopen_impl(path, true, false, fsl, false, nullptr, false, false, nullptr, true);
+        fopen_impl(path, OpenFlag::OPEN_RDONLY, fsl, false, nullptr, false, false, nullptr, true);
     return fopenSucceeded;
 }
 
