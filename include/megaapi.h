@@ -10657,8 +10657,15 @@ public:
     char pitagTrigger = PITAG_TRIGGER_NOT_APPLICABLE;
 
     /**
+     * Indicate if the upload is done to a chat
+     */
+    bool isChatUpload = false;
+
+    /**
      * One-byte upload target tag (see PITAG_TARGET_*).
      * Allows specifying destinations such as chat uploads.
+     * Apps uploading to chats should set the appropriate chat target (c, C, or s);
+     * for other uploads keep the default value to avoid interfering with internal logic.
      */
     char pitagTarget = PITAG_TARGET_NOT_APPLICABLE;
 };

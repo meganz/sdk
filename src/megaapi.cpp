@@ -3785,6 +3785,12 @@ void MegaApi::startUpload(const std::string& localPath,
         localOptionsPrivate.mPublicOptions = *options;
     }
 
+    if (localOptionsPrivate.mPublicOptions.isChatUpload)
+    {
+        localOptionsPrivate.mPublicOptions.startFirst = true;
+        localOptionsPrivate.mForceNewUpload = true;
+    }
+
     pImpl->startUpload(localPath,
                        parent,
                        convertToCancelToken(cancelToken),
