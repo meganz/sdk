@@ -312,6 +312,8 @@ private:
                     << " (code: " << res << ")";
             response.statusCode = 0;
             response.contentLength = -1;
+            response.body.clear();
+            response.headers.clear();
         }
 
         return response;
@@ -1250,33 +1252,34 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
     auto fileSize = testFileContent.size();
     auto largeRange = HttpClient::get(url, "0-" + std::to_string(fileSize - 1));
     EXPECT_EQ(200, largeRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent, largeRange.body);
+    EXPECT_TRUE(testFileContent == largeRange.body);
 
     // Middle range: from 25% to 50%, end is inclusive
     auto begin = fileSize / 4;
     auto end = fileSize / 2;
     auto midRange = HttpClient::get(url, std::to_string(begin) + "-" + std::to_string(end));
     EXPECT_EQ(206, midRange.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + begin, end - begin + 1), midRange.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + begin, end - begin + 1) == midRange.body);
 
     // Suffix range: last 10MB (bytes=-10485760)
     auto suffixRange = HttpClient::get(url, "-10485760");
     EXPECT_EQ(200, suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange.body); // BUG: Server returns full file instead of last 10MB
+    EXPECT_TRUE(testFileContent ==
+                suffixRange.body); // BUG: Server returns full file instead of last 10MB
 
     // Suffix range: last 25% of file
     auto suffixRange2 = HttpClient::get(url, "-" + std::to_string(fileSize / 4));
     EXPECT_EQ(200, suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange2.body); // BUG: Server returns full file instead of last 25%
+    EXPECT_TRUE(testFileContent ==
+                suffixRange2.body); // BUG: Server returns full file instead of last 25%
 
     // Range from 75% to end
     begin = fileSize * 3 / 4;
     end = testFileContent.size() - 1;
     auto rangeToEnd = HttpClient::get(url, std::to_string(begin) + "-");
     EXPECT_EQ(206, rangeToEnd.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + begin, end - begin + 1), rangeToEnd.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + begin, end - begin + 1) ==
+                rangeToEnd.body);
 }
 
 /**
@@ -1406,41 +1409,44 @@ TEST_F(SdkHttpServerTest, LargeFile)
     // Full file GET request
     auto response = HttpClient::get(url);
     EXPECT_EQ(200, response.statusCode);
-    EXPECT_EQ(testFileContent, response.body);
+    EXPECT_TRUE(testFileContent == response.body);
 
     // Standard range: first 1MB
     auto rangeResponse = HttpClient::get(url, "0-1048575");
     EXPECT_EQ(206, rangeResponse.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data(), 1048575u + 1), rangeResponse.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data(), 1048575u + 1) == rangeResponse.body);
 
     // Standard range: second 1MB
     auto rangeResponse2 = HttpClient::get(url, "1048576-2097151");
     EXPECT_EQ(206, rangeResponse2.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + 1048576, 2097151u - 1048576u + 1),
+    EXPECT_TRUE(std::string_view(testFileContent.data() + 1048576, 2097151u - 1048576u + 1) ==
+                rangeResponse2.body);
               rangeResponse2.body);
 
-    // Suffix range: last 1MB (bytes=-1048576)
-    auto suffixRange = HttpClient::get(url, "-1048576");
-    EXPECT_EQ(200, suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange.body); // BUG: Server returns full file instead of last 1MB
+              // Suffix range: last 1MB (bytes=-1048576)
+              auto suffixRange = HttpClient::get(url, "-1048576");
+              EXPECT_EQ(200,
+                        suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
+              EXPECT_TRUE(testFileContent ==
+                          suffixRange.body); // BUG: Server returns full file instead of last 1MB
 
-    // Suffix range: last 512KB
-    auto suffixRange2 = HttpClient::get(url, "-524288");
-    EXPECT_EQ(200, suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange2.body); // BUG: Server returns full file instead of last 512KB
+              // Suffix range: last 512KB
+              auto suffixRange2 = HttpClient::get(url, "-524288");
+              EXPECT_EQ(200,
+                        suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
+              EXPECT_TRUE(testFileContent ==
+                          suffixRange2.body); // BUG: Server returns full file instead of last 512KB
 
-    // Range from middle to near end
-    auto midRange = HttpClient::get(url, "5242880-6291455");
-    EXPECT_EQ(206, midRange.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + 5242880, 6291455u - 5242880u + 1),
-              midRange.body);
+              // Range from middle to near end
+              auto midRange = HttpClient::get(url, "5242880-6291455");
+              EXPECT_EQ(206, midRange.statusCode);
+              EXPECT_TRUE(std::string_view(testFileContent.data() + 5242880,
+                                           6291455u - 5242880u + 1) == midRange.body);
 
-    // Small range from beginning
-    auto smallRange = HttpClient::get(url, "0-1023");
-    EXPECT_EQ(206, smallRange.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data(), 1023u + 1), smallRange.body);
+              // Small range from beginning
+              auto smallRange = HttpClient::get(url, "0-1023");
+              EXPECT_EQ(206, smallRange.statusCode);
+              EXPECT_TRUE(std::string_view(testFileContent.data(), 1023u + 1) == smallRange.body);
 }
 
 /**
@@ -1480,7 +1486,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
     {
         auto response = futures[i].get();
         EXPECT_EQ(200, response.statusCode);
-        EXPECT_EQ(testFileContent, response.body);
+        EXPECT_TRUE(testFileContent == response.body);
     }
 }
 
@@ -1529,7 +1535,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
         auto response = futures[i].get();
         EXPECT_EQ(206, response.statusCode);
         size_t start = i * INTERVAL;
-        EXPECT_EQ(std::string_view(testFileContent.data() + start, LENGTH), response.body);
+        EXPECT_TRUE(std::string_view(testFileContent.data() + start, LENGTH) == response.body);
     }
 
     futures.clear();
@@ -1545,8 +1551,8 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
             {
                 auto resp = HttpClient::get(url, range);
                 EXPECT_EQ(200, resp.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-                EXPECT_EQ(testFileContent,
-                          resp.body); // BUG: Server returns full file instead of last N bytes
+                EXPECT_TRUE(testFileContent ==
+                            resp.body); // BUG: Server returns full file instead of last N bytes
                 return resp;
             }));
     }
@@ -1865,7 +1871,7 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
     {
         auto response = HttpClient::get(url);
         EXPECT_EQ(200, response.statusCode);
-        EXPECT_EQ(testFileContent, response.body);
+        EXPECT_TRUE(testFileContent == response.body);
     }
 
     // Test HEAD followed by GET
@@ -1874,16 +1880,16 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     auto getResponse = HttpClient::get(url);
     EXPECT_EQ(200, getResponse.statusCode);
-    EXPECT_EQ(testFileContent, getResponse.body);
+    EXPECT_TRUE(testFileContent == getResponse.body);
 
     // Test range request followed by full request
     auto rangeResponse = HttpClient::get(url, "0-99");
     EXPECT_EQ(206, rangeResponse.statusCode);
-    EXPECT_EQ(100, rangeResponse.body.size());
+    EXPECT_TRUE(100 == rangeResponse.body.size());
 
     auto fullResponse = HttpClient::get(url);
     EXPECT_EQ(200, fullResponse.statusCode);
-    EXPECT_EQ(testFileContent, fullResponse.body);
+    EXPECT_TRUE(testFileContent == fullResponse.body);
 }
 
 /**
