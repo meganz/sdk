@@ -356,7 +356,9 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootWhenSyncDisableOK)
     ASSERT_NO_FATAL_FAILURE(ensureSyncNodeIsRunning("dir2"));
 
     LOG_verbose << logPre << "Waiting for sync remote and local roots to have the same content";
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    // Check without fingerprints. There is an expected stall and fingerprints will not match
+    // ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive(false));
 
     LOG_verbose << logPre << "Checking the final state";
     ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
