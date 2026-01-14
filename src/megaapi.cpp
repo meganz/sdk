@@ -8134,9 +8134,7 @@ int MegaIntegerList::size() const
     return 0;
 }
 
-MegaBanner::MegaBanner()
-{
-}
+MegaBanner::MegaBanner() {}
 
 MegaBanner::~MegaBanner()
 {
@@ -8182,6 +8180,15 @@ const char* MegaBanner::getImageLocation() const
     return nullptr;
 }
 
+int MegaBanner::getVariant() const
+{
+    return -1;
+}
+
+const char* MegaBanner::getButton() const
+{
+    return nullptr;
+}
 
 MegaBannerList::MegaBannerList()
 {

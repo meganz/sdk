@@ -1054,6 +1054,14 @@ public:
     }
 
     template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncGetBanners(unsigned int apiIndex, requestArgs... args)
+    {
+        auto requestTracker{std::make_unique<RequestTracker>(megaApi[apiIndex].get())};
+        megaApi[apiIndex]->getBanners(args..., requestTracker.get());
+        return requestTracker;
+    }
+
+    template<typename... requestArgs>
     int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());

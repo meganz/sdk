@@ -10266,8 +10266,32 @@ TEST_F(SdkTest, SdkGetBanners)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST GetBanners___";
 
-    auto err = synchronousGetBanners(0);
-    ASSERT_TRUE(err == API_OK || err == API_ENOENT) << "Get banners failed (error: " << err << ")";
+    auto rt = asyncGetBanners(0);
+    auto err = rt->waitForResult();
+    ASSERT_THAT(err, testing::AnyOf(API_OK, API_ENOENT))
+        << "Get banners failed (error: " << err << ")";
+    if (err != API_OK)
+    {
+        return;
+    }
+
+    auto banners = rt->request->getMegaBannerList();
+    ASSERT_TRUE(banners);
+    EXPECT_GT(banners->size(), 0);
+
+    for (int n = 0; n < banners->size(); ++n)
+    {
+        auto banner = banners->get(n);
+        EXPECT_GT(banner->getId(), 0);
+        EXPECT_NE(banner->getTitle(), nullptr);
+        EXPECT_NE(banner->getDescription(), nullptr);
+        EXPECT_NE(banner->getImage(), nullptr);
+        EXPECT_NE(banner->getUrl(), nullptr);
+        EXPECT_NE(banner->getBackgroundImage(), nullptr);
+        EXPECT_NE(banner->getImageLocation(), nullptr);
+        EXPECT_GE(banner->getVariant(), 0);
+        EXPECT_NE(banner->getButton(), nullptr);
+    }
 }
 
 TEST_F(SdkTest, SdkSimpleCommands)

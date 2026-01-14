@@ -2210,7 +2210,7 @@ class MegaRequestPrivate : public MegaRequest
         void setBackupListener(MegaScheduledCopyListener *value);
 
         MegaBannerList* getMegaBannerList() const override;
-        void setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners);
+        void setBanners(std::vector<BannerDetails>&& banners);
 
         MegaRecentActionBucketList *getRecentActions() const override;
         void setRecentActions(std::unique_ptr<MegaRecentActionBucketList> recentActionBucketList);
@@ -2748,7 +2748,7 @@ private:
 class MegaBannerPrivate : public MegaBanner
 {
 public:
-    MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details);
+    MegaBannerPrivate(BannerDetails&& details);
     MegaBanner* copy() const override;
 
     int getId() const override;
@@ -2758,9 +2758,11 @@ public:
     const char* getUrl() const override;
     const char* getBackgroundImage() const override;
     const char* getImageLocation() const override;
+    int getVariant() const override;
+    const char* getButton() const override;
 
 private:
-    std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string> mDetails;
+    BannerDetails mDetails;
 };
 
 class MegaBannerListPrivate : public MegaBannerList
@@ -5053,7 +5055,7 @@ public:
         void storagesum_changed(int64_t newsum) override;
         void getmiscflags_result(error) override;
         void getbanners_result(error e) override;
-        void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+        void getbanners_result(std::vector<BannerDetails>&& banners) override;
         void dismissbanner_result(error e) override;
         void reqstat_progress(int permilprogress) override;
 

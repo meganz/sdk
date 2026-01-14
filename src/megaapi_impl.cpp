@@ -5056,7 +5056,7 @@ MegaBannerList* MegaRequestPrivate::getMegaBannerList() const
     return mBannerList.get();
 }
 
-void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+void MegaRequestPrivate::setBanners(vector<BannerDetails>&& banners)
 {
     mBannerList = std::make_unique<MegaBannerListPrivate>();
 
@@ -5439,8 +5439,8 @@ bool MegaRequestPrivate::causesLocklessRequest(const int type)
     }
 }
 
-MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
-                  :mDetails(std::move(details))
+MegaBannerPrivate::MegaBannerPrivate(BannerDetails&& details):
+    mDetails(std::move(details))
 {
 }
 
@@ -5451,37 +5451,47 @@ MegaBanner* MegaBannerPrivate::copy() const
 
 int MegaBannerPrivate::getId() const
 {
-    return std::get<0>(mDetails);
+    return mDetails.id;
 }
 
 const char* MegaBannerPrivate::getTitle() const
 {
-    return std::get<1>(mDetails).c_str();
+    return mDetails.title.c_str();
 }
 
 const char* MegaBannerPrivate::getDescription() const
 {
-    return std::get<2>(mDetails).c_str();
+    return mDetails.description.c_str();
 }
 
 const char* MegaBannerPrivate::getImage() const
 {
-    return std::get<3>(mDetails).c_str();
+    return mDetails.image.c_str();
 }
 
 const char* MegaBannerPrivate::getUrl() const
 {
-    return std::get<4>(mDetails).c_str();
+    return mDetails.url.c_str();
 }
 
 const char* MegaBannerPrivate::getBackgroundImage() const
 {
-    return std::get<5>(mDetails).c_str();
+    return mDetails.backgroundImage.c_str();
 }
 
 const char* MegaBannerPrivate::getImageLocation() const
 {
-    return std::get<6>(mDetails).c_str();
+    return mDetails.imageLocation.c_str();
+}
+
+int MegaBannerPrivate::getVariant() const
+{
+    return mDetails.variant;
+}
+
+const char* MegaBannerPrivate::getButton() const
+{
+    return mDetails.button.c_str();
 }
 
 MegaBannerListPrivate* MegaBannerListPrivate::copy() const
@@ -17213,7 +17223,7 @@ void MegaApiImpl::getbanners_result(error e)
     }
 }
 
-void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+void MegaApiImpl::getbanners_result(vector<BannerDetails>&& banners)
 {
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end()) return;
