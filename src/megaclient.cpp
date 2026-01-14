@@ -25016,48 +25016,24 @@ void MegaClient::setMegaURL(const std::string& url)
 
 void MegaClient::checkScParsingSwitch()
 {
-    if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
-    {
-        // For now, only supporting the legacy mode
-        disableStreaming();
-    }
+    assert(false);
+    return;
 }
 
 void MegaClient::processSc()
 {
-    checkScParsingSwitch();
     return isStreamingEnabled() ? handleScInStreaming() : handleScNonStreaming();
 }
 
 void MegaClient::handleScInStreaming()
 {
-    if (!jsonsc.pos && !pendingscUserAlerts && pendingsc)
-    {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-        if (globalMegaTestHooks.interceptSCRequest)
-        {
-            globalMegaTestHooks.interceptSCRequest(pendingsc);
-        }
-#endif
-
-        switch (static_cast<reqstatus_t>(pendingsc->status))
-        {
-            case REQ_SUCCESS:
-                break;
-            case REQ_FAILURE:
-                break;
-            case REQ_INFLIGHT:
-                break;
-            default:
-                break;
-        }
-    }
-    processScInStreaming();
+    assert(false);
     return;
 }
 
 void MegaClient::processScInStreaming()
 {
+    assert(false);
     return;
 }
 
@@ -25098,12 +25074,12 @@ void MegaClient::handleScNonStreaming()
                 }
                 else
                 {
-                    processScError();
+                    handleScErrorInSuccessState();
                 }
 
                 [[fallthrough]];
             case REQ_FAILURE:
-                processScFailure();
+                handleScInFailureState();
                 break;
 
             case REQ_INFLIGHT:
@@ -25150,7 +25126,7 @@ void MegaClient::processScNonStreaming()
     return;
 }
 
-void MegaClient::processScError()
+void MegaClient::handleScErrorInSuccessState()
 {
     error e = (error)atoi(pendingsc->in.c_str());
     if ((e == API_ESID) || (e == API_ENOENT && loggedIntoFolder()))
@@ -25212,7 +25188,7 @@ void MegaClient::processScError()
     return;
 }
 
-void MegaClient::processScFailure()
+void MegaClient::handleScInFailureState()
 {
     pendingscTimedOut = false;
     if (pendingsc)

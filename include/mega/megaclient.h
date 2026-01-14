@@ -2601,8 +2601,8 @@ public:
     void processScInStreaming();
     void processScNonStreaming();
 
-    void processScError();
-    void processScFailure();
+    void handleScErrorInSuccessState();
+    void handleScInFailureState();
 
     size_t procreqstat();
 
