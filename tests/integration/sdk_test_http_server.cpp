@@ -1421,32 +1421,31 @@ TEST_F(SdkHttpServerTest, LargeFile)
     EXPECT_EQ(206, rangeResponse2.statusCode);
     EXPECT_TRUE(std::string_view(testFileContent.data() + 1048576, 2097151u - 1048576u + 1) ==
                 rangeResponse2.body);
-              rangeResponse2.body);
 
-              // Suffix range: last 1MB (bytes=-1048576)
-              auto suffixRange = HttpClient::get(url, "-1048576");
-              EXPECT_EQ(200,
-                        suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-              EXPECT_TRUE(testFileContent ==
-                          suffixRange.body); // BUG: Server returns full file instead of last 1MB
+    // Suffix range: last 1MB (bytes=-1048576)
+    auto suffixRange = HttpClient::get(url, "-1048576");
+    EXPECT_EQ(200,
+              suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
+    EXPECT_TRUE(testFileContent ==
+                suffixRange.body); // BUG: Server returns full file instead of last 1MB
 
-              // Suffix range: last 512KB
-              auto suffixRange2 = HttpClient::get(url, "-524288");
-              EXPECT_EQ(200,
-                        suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-              EXPECT_TRUE(testFileContent ==
-                          suffixRange2.body); // BUG: Server returns full file instead of last 512KB
+    // Suffix range: last 512KB
+    auto suffixRange2 = HttpClient::get(url, "-524288");
+    EXPECT_EQ(200,
+              suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
+    EXPECT_TRUE(testFileContent ==
+                suffixRange2.body); // BUG: Server returns full file instead of last 512KB
 
-              // Range from middle to near end
-              auto midRange = HttpClient::get(url, "5242880-6291455");
-              EXPECT_EQ(206, midRange.statusCode);
-              EXPECT_TRUE(std::string_view(testFileContent.data() + 5242880,
-                                           6291455u - 5242880u + 1) == midRange.body);
+    // Range from middle to near end
+    auto midRange = HttpClient::get(url, "5242880-6291455");
+    EXPECT_EQ(206, midRange.statusCode);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + 5242880, 6291455u - 5242880u + 1) ==
+                midRange.body);
 
-              // Small range from beginning
-              auto smallRange = HttpClient::get(url, "0-1023");
-              EXPECT_EQ(206, smallRange.statusCode);
-              EXPECT_TRUE(std::string_view(testFileContent.data(), 1023u + 1) == smallRange.body);
+    // Small range from beginning
+    auto smallRange = HttpClient::get(url, "0-1023");
+    EXPECT_EQ(206, smallRange.statusCode);
+    EXPECT_TRUE(std::string_view(testFileContent.data(), 1023u + 1) == smallRange.body);
 }
 
 /**
