@@ -128,9 +128,6 @@ public:
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
 
-    void setBackupState(SyncBackupState state);
-    SyncBackupState getBackupState() const;
-
     // enabled/disabled by the user
     bool mEnabled = true;
 
@@ -170,9 +167,6 @@ public:
     // Path to the volume containing this backup (only for external backups).
     // This one is not serialized
     LocalPath mExternalDrivePath;
-
-    // Whether this backup is monitoring or mirroring.
-    SyncBackupState mBackupState;
 
     // If the database exists then its running/suspended. Not serialized.
     bool mDatabaseExists = false;
@@ -771,15 +765,6 @@ public:
 
     // Whether this is a backup sync.
     bool isBackup() const;
-
-    // Whether this is a backup sync and it is mirroring.
-    bool isBackupAndMirroring() const;
-
-    // Whether this is a backup sync and it is monitoring.
-    bool isBackupMonitoring() const;
-
-    // Move the sync into the monitoring state.
-    void setBackupMonitoring();
 
     // True if this sync should have a state cache database.
     bool shouldHaveDatabase() const;

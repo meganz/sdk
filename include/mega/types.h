@@ -528,17 +528,6 @@ enum class SyncRunState { Pending, Loading, Run,
     Pause, /* do not use this state in new code; pausing a sync should actually use Suspend state */
     Suspend, Disable };
 
-typedef enum
-{
-    // Sync is not operating in a backup capacity.
-    SYNC_BACKUP_NONE = 0,
-    // Sync is mirroring the local source.
-    SYNC_BACKUP_MIRROR = 1,
-    // Sync is monitoring (and propagating) local changes.
-    SYNC_BACKUP_MONITOR = 2
-}
-SyncBackupState;
-
 enum ScanResult
 {
     SCAN_INPROGRESS,

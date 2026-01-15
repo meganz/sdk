@@ -5696,14 +5696,6 @@ SyncWaitPredicate SyncDisabled(handle id)
     };
 }
 
-SyncWaitPredicate SyncMonitoring(handle id)
-{
-    return [id](StandardClient& client) {
-        const auto* sync = client.syncByBackupId(id);
-        return sync && sync->isBackupMonitoring();
-    };
-}
-
 SyncWaitPredicate SyncStallState(bool state)
 {
     return [state](StandardClient& client) {
@@ -11935,36 +11927,6 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
         ASSERT_NO_FATAL_FAILURE(testcase.second.CheckSetup(allstate, false));
     }
 
-    auto backupsAreMonitoring = [&cases]() {
-        for (auto& i : cases)
-        {
-            // Convenience.
-            auto& testcase = i.second;
-
-            // Only check backup syncs.
-            if (!testcase.isBackup()) continue;
-
-            // Only check active syncs.
-            if (!testcase.client1().syncByBackupId(testcase.backupId)) continue;
-
-            // Get the sync's config so we can determine if it's monitoring.
-            auto config = testcase.client1().syncConfigByBackupID(testcase.backupId);
-
-            // Is the sync monitoring as it should be?
-            if (config.getBackupState() != SYNC_BACKUP_MONITOR)
-            {
-                LOG_warn << "Backup state is not SYNC_BACKUP_MONITOR, for test " << testcase.name() << ". actual state: " << config.getBackupState();
-                return false;
-            }
-        }
-
-        // Everyone's monitoring as they should be.
-        return true;
-    };
-
-    out() << "Checking Backups are Monitoring";
-    ASSERT_TRUE(backupsAreMonitoring());
-
     int paused = 0;
     for (auto& testcase : cases)
     {
@@ -12033,9 +11995,6 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
 
     ASSERT_NO_FATAL_FAILURE(CatchupClients(&clientA1Steady, &clientA1Resume, &clientA2));
     waitonsyncs(std::chrono::seconds(15), &clientA1Steady, &clientA1Resume, &clientA2);
-
-    out() << "Checking Backups are Monitoring";
-    ASSERT_TRUE(backupsAreMonitoring());
 
     out() << "Checking local and remote state in each sub-test";
 
@@ -12209,9 +12168,6 @@ TEST_F(SyncTest, MonitoringExternalBackupRestoresInMirroringMode)
         // Make sure everything made it to the cloud.
         ASSERT_TRUE(cb.confirmModel_mainthread(m.root.get(), id));
 
-        // Wait for sync to transition to monitoring mode.
-        ASSERT_TRUE(cb.waitFor(SyncMonitoring(id), TIMEOUT));
-
         // Get our hands on the sync's root handle.
         rootHandle = cb.syncSet(id).h;
 
@@ -12283,18 +12239,12 @@ TEST_F(SyncTest, MonitoringExternalBackupResumesInMirroringMode)
     // Make sure everything arrived safe and sound.
     ASSERT_TRUE(cb->confirmModel_mainthread(m.root.get(), id));
 
-    // Wait for transition to monitoring mode.
-    ASSERT_TRUE(cb->waitFor(SyncMonitoring(id), TIMEOUT));
-
     // Disable the sync.
     ASSERT_TRUE(cb->disableSync(id, NO_SYNC_ERROR, true, true));
 
     // Make sure the sync's config is as we expect.
     {
         auto config = cb->syncConfigByBackupID(id);
-
-        // Backup should remain in monitoring mode.
-        ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MONITOR);
 
         // Disabled external backups are always considered "user-disabled."
         // That is, the user must consciously decide to resume these syncs.
@@ -12394,7 +12344,6 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             // Make sure the sync's in mirroring mode.
             ASSERT_EQ(config.mBackupId, id);
             ASSERT_EQ(config.mSyncType, SyncConfig::TYPE_BACKUP);
-            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Disable the sync.
             cb.client.syncs.disableSyncs(NO_SYNC_ERROR, true, true);
@@ -12417,7 +12366,6 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
         {
             auto config = cb.syncConfigByBackupID(id);
 
-            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
             ASSERT_EQ(config.mEnabled, true);
             ASSERT_EQ(config.mError, UNLOADING_SYNC);
         }
@@ -12445,7 +12393,6 @@ TEST_F(SyncTest, MirroringInternalBackupResumesInMirroringMode)
             // Make sure we're mirroring.
             ASSERT_EQ(config.mBackupId, id);
             ASSERT_EQ(config.mSyncType, SyncConfig::TYPE_BACKUP);
-            ASSERT_EQ(config.mBackupState, SYNC_BACKUP_MIRROR);
 
             // Notify the waiter.
             waiter.set_value();
