@@ -17933,6 +17933,14 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     if (!localPath.isAbsolute() && !localPath.isURI())
         return {API_EARGS, NO_SYNC_ERROR, NO_SYNC_WARNING};
 
+#ifdef __ANDROID__
+    if (!localPath.isURI())
+    {
+        LOG_warn << "Sync path is not from URIPath type: " << localPath;
+        return {API_EFAILED, UNABLE_TO_ADD_WATCH, NO_SYNC_WARNING};
+    }
+#endif
+
     const auto rootPathWithoutEndingSeparator = std::invoke(
         [&localPath]() -> LocalPath
         {
@@ -17987,14 +17995,14 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
 
     if (openedLocalFolder->fsid == UNDEF)
     {
-        LOG_err << "Cannot get its fsid: " << rootPathWithoutEndingSeparator;
+        LOG_warn << "Cannot get its fsid: " << rootPathWithoutEndingSeparator;
         return {API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID, syncWarning};
     }
 
     auto fsfp = fsaccess->fsFingerprint(rootPathWithoutEndingSeparator);
     if (!fsfp)
     {
-        LOG_err << "Cannot retrieve filesystem fingerprint: " << rootPathWithoutEndingSeparator;
+        LOG_warn << "Cannot retrieve filesystem fingerprint: " << rootPathWithoutEndingSeparator;
         return {API_EFAILED, FILESYSTEM_ID_UNAVAILABLE, syncWarning};
     }
 
@@ -18004,7 +18012,7 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     {
         // On Mac, stat() can and sometimes does return different IDs between calls
         // for the same path, for exFAT, and probably other FAT variants too.
-        LOG_err << "Filesystem IDs are not stable: " << rootPathWithoutEndingSeparator;
+        LOG_warn << "Filesystem IDs are not stable: " << rootPathWithoutEndingSeparator;
         return {API_EFAILED, FILESYSTEM_FILE_IDS_ARE_UNSTABLE, syncWarning};
     }
 #endif
