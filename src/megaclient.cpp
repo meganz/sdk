@@ -5275,7 +5275,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 }
 
 // process server-client request
-bool MegaClient::processScJson(JSON& json)
+bool MegaClient::procsc(JSON& json)
 {
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
@@ -25090,7 +25090,7 @@ void MegaClient::processScMessageNonStreaming()
     if (!scpaused && jsonsc.pos)
     {
         // FIXME: reload in case of bad JSON
-        if (processScJson(jsonsc))
+        if (procsc(jsonsc))
         {
             // completed - initiate next SC request
             jsonsc.pos = nullptr;

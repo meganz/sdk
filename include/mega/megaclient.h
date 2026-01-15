@@ -2570,7 +2570,7 @@ public:
 
     // Process actual data from the server-client channel
     void processScMessageNonStreaming();
-    bool processScJson(JSON& json);
+    bool procsc(JSON& json);
 
     size_t procreqstat();
 
