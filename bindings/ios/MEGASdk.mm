@@ -3997,7 +3997,10 @@ using namespace mega;
     uploadOptions.startFirst = options.startFirst;
     
     uploadOptions.pitagTrigger = options.pitagTrigger;
-    
+
+    uploadOptions.isChatUpload = options.isChatUpload;
+    uploadOptions.pitagTarget = options.pitagTarget;
+
     return uploadOptions;
 }
 

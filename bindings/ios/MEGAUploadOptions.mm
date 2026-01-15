@@ -33,7 +33,9 @@ using namespace mega;
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'];
+                     pitagTrigger:'.'
+                     isChatUpload:NO
+                     pitagTarget:'.'];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName {
@@ -42,7 +44,9 @@ using namespace mega;
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'];
+                     pitagTrigger:'.'
+                     isChatUpload:NO
+                     pitagTarget:'.'];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName mtime:(int64_t)mtime {
@@ -51,7 +55,9 @@ using namespace mega;
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'];
+                     pitagTrigger:'.'
+                     isChatUpload:NO
+                     pitagTarget:'.'];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName
@@ -62,7 +68,9 @@ using namespace mega;
                           appData:appData
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'];
+                     pitagTrigger:'.'
+                     isChatUpload:NO
+                     pitagTarget:'.'];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName
@@ -70,7 +78,9 @@ using namespace mega;
                          appData:(nullable NSString *)appData
                 isSourceTemporary:(BOOL)isSourceTemporary
                       startFirst:(BOOL)startFirst
-                    pitagTrigger:(char)pitagTrigger {
+                    pitagTrigger:(char)pitagTrigger
+                    isChatUpload:(BOOL)isChatUpload
+                     pitagTarget:(char)pitagTarget {
     self = [super init];
     if (self) {
         _fileName = [fileName copy];
@@ -79,6 +89,8 @@ using namespace mega;
         _isSourceTemporary = isSourceTemporary;
         _startFirst = startFirst;
         _pitagTrigger = pitagTrigger;
+        _isChatUpload = isChatUpload;
+        _pitagTarget = pitagTarget;
     }
     return self;
 }
