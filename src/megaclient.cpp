@@ -17961,14 +17961,17 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     {
         sendevent(800035, "Detected an attempt to setup a sync involving a network drive");
     }
-
     std::unique_ptr openedLocalFolder = fsaccess->newfileaccess();
+    // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
+    bool reparsePointOkAtRoot = true;
     if (!openedLocalFolder->fopen(rootPathWithoutEndingSeparator,
                                   true,
                                   false,
                                   FSLogging::logOnError,
                                   nullptr,
-                                  true))
+                                  reparsePointOkAtRoot,
+                                  true,
+                                  nullptr))
     {
         LOG_warn << "Cannot open rootpath for sync: " << rootPathWithoutEndingSeparator;
         if (openedLocalFolder->retry)
@@ -17978,9 +17981,33 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
 
     if (openedLocalFolder->type != FOLDERNODE)
     {
-        LOG_warn << "Cannot sync non-folder";
+        LOG_warn << "Cannot sync non-folder: " << rootPathWithoutEndingSeparator;
         return {API_EACCESS, INVALID_LOCAL_TYPE, syncWarning};
     }
+
+    if (openedLocalFolder->fsid == UNDEF)
+    {
+        LOG_err << "Cannot get its fsid: " << rootPathWithoutEndingSeparator;
+        return {API_EFAILED, UNABLE_TO_RETRIEVE_ROOT_FSID, syncWarning};
+    }
+
+    auto fsfp = fsaccess->fsFingerprint(rootPathWithoutEndingSeparator);
+    if (!fsfp)
+    {
+        LOG_err << "Cannot retrieve filesystem fingerprint: " << rootPathWithoutEndingSeparator;
+        return {API_EFAILED, FILESYSTEM_ID_UNAVAILABLE, syncWarning};
+    }
+
+#ifdef __APPLE__
+    auto fsstableids = fsaccess->fsStableIDs(rootPathWithoutEndingSeparator);
+    if (!fsstableids)
+    {
+        // On Mac, stat() can and sometimes does return different IDs between calls
+        // for the same path, for exFAT, and probably other FAT variants too.
+        LOG_err << "Filesystem IDs are not stable: " << rootPathWithoutEndingSeparator;
+        return {API_EFAILED, FILESYSTEM_FILE_IDS_ARE_UNSTABLE, syncWarning};
+    }
+#endif
 
     if (const auto [e, syncError] = isLocalPathSyncable(localPath, backupIdToExclude); e != API_OK)
     {
