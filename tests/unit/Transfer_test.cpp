@@ -184,7 +184,6 @@ TEST(Transfer, serialize_unserialize_very_long_urls)
 
     mega::Transfer tf{client.get(), mega::GET};
     setupTransfer(tf, "large_file", 'G', 8, 16, 'H', 24);
-    // Create very long URLs (simulating real-world scenarios)
     std::string longToken(200, 'x');
     std::string mediumToken(150, 'y');
     std::string shortToken(100, 'z');
@@ -242,7 +241,6 @@ TEST(Transfer, serialize_unserialize_extreme_length_variation)
 
     mega::Transfer tf{client.get(), mega::GET};
     setupTransfer(tf, "extreme_file", 'K', 11, 22, 'L', 33);
-    // Extreme variation: shortest first, longest last - tests parsing logic thoroughly
     tf.tempurls = {
         "http://a.co/x",
         "http://gfs262n309.userstorage.mega.co.nz/dl/medium12345",
