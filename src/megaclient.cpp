@@ -3252,7 +3252,7 @@ void MegaClient::exec()
         }
 
         // handle API server-client requests
-        processSc();
+        handleScChannel();
 
         if (!pendingsc && !pendingscUserAlerts && scsn.ready() && btsc.armed() && !mBlocked)
         {
@@ -5275,7 +5275,7 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
 }
 
 // process server-client request
-bool MegaClient::procsc(JSON& json)
+bool MegaClient::processScJson(JSON& json)
 {
     // prevent the sync thread from looking things up while we change the tree
     std::unique_lock<recursive_mutex> nodeTreeIsChanging(nodeTreeMutex);
@@ -25014,7 +25014,7 @@ void MegaClient::setMegaURL(const std::string& url)
     MEGAURL = url;
 }
 
-void MegaClient::processSc()
+void MegaClient::handleScChannel()
 {
     return handleScNonStreaming();
 }
@@ -25081,16 +25081,16 @@ void MegaClient::handleScNonStreaming()
                 break;
         }
     }
-    processScNonStreaming();
+    processScMessageNonStreaming();
     return;
 }
 
-void MegaClient::processScNonStreaming()
+void MegaClient::processScMessageNonStreaming()
 {
     if (!scpaused && jsonsc.pos)
     {
         // FIXME: reload in case of bad JSON
-        if (procsc(jsonsc))
+        if (processScJson(jsonsc))
         {
             // completed - initiate next SC request
             jsonsc.pos = nullptr;

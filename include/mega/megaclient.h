@@ -2559,9 +2559,8 @@ public:
 
     void handleauth(handle, byte*);
 
-    bool procsc(JSON& json);
-
-    void processSc();
+    // Entrance for server-client channel processing
+    void handleScChannel();
 
     // Process states and prepare data
     void handleScNonStreaming();
@@ -2569,8 +2568,9 @@ public:
     void handleScErrorInSuccessState();
     void handleScInFailureState();
 
-    // Process data chunks
-    void processScNonStreaming();
+    // Process actual data from the server-client channel
+    void processScMessageNonStreaming();
+    bool processScJson(JSON& json);
 
     size_t procreqstat();
 
