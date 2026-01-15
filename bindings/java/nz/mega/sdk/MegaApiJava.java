@@ -301,6 +301,7 @@ public class MegaApiJava {
     public final static char PITAG_TARGET_CHAT_GROUP = MegaApi.PITAG_TARGET_CHAT_GROUP;
     public final static char PITAG_TARGET_NOTE_TO_SELF = MegaApi.PITAG_TARGET_NOTE_TO_SELF;
     public final static char PITAG_TARGET_INCOMING_SHARE = MegaApi.PITAG_TARGET_INCOMING_SHARE;
+    public final static char PITAG_TARGET_MULTIPLE_CHATS = MegaApi.PITAG_TARGET_MULTIPLE_CHATS;
 
     public final static int IMPORT_PASSWORD_SOURCE_GOOGLE = MegaApi.IMPORT_PASSWORD_SOURCE_GOOGLE;
 

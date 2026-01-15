@@ -4201,6 +4201,8 @@ PitagTarget pitagTargetFromChar(char c)
             return PitagTarget::NoteToSelf;
         case 'i':
             return PitagTarget::IncomingShare;
+        case 'M':
+            return PitagTarget::MultipleChats;
         default:
             return PitagTarget::NotApplicable;
     }

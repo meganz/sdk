@@ -11034,6 +11034,7 @@ class MegaApi
         static constexpr char PITAG_TARGET_CHAT_GROUP = 'C';
         static constexpr char PITAG_TARGET_NOTE_TO_SELF = 's';
         static constexpr char PITAG_TARGET_INCOMING_SHARE = 'i';
+        static constexpr char PITAG_TARGET_MULTIPLE_CHATS = 'M';
 
         /**
          * @brief Optional parameters to customize an upload.
