@@ -1781,11 +1781,6 @@ private:
 
     bool pendingscTimedOut = false;
 
-    // This is used as a switch to toggle between two parsing modes for Action Packets:
-    // - Legacy mode: parse when recevied the entire Action Packets
-    // - Streaming mode: parse Action Packets in chunks
-    bool mStreamingEnabled = false;
-
     // badhost report
     HttpReq* badhostcs;
 
@@ -2566,43 +2561,16 @@ public:
 
     bool procsc(JSON& json);
 
-    // Check if streaming parsing Action Packets is enabled
-    inline bool isStreamingEnabled() const
-    {
-        return mStreamingEnabled;
-    }
-
-    // Enable streaming parsing Action Packets
-    inline void enableStreaming()
-    {
-        mStreamingEnabled = true;
-        if (pendingsc)
-        {
-            // This will purge the chunks that are already processed
-            pendingsc->mChunked = true;
-        }
-    }
-
-    // Disable streaming parsing Action Packets
-    inline void disableStreaming()
-    {
-        mStreamingEnabled = false;
-    }
-
-    void checkScParsingSwitch();
-
     void processSc();
 
     // Process states and prepare data
-    void handleScInStreaming();
     void handleScNonStreaming();
-
-    // Process data chunks
-    void processScInStreaming();
-    void processScNonStreaming();
 
     void handleScErrorInSuccessState();
     void handleScInFailureState();
+
+    // Process data chunks
+    void processScNonStreaming();
 
     size_t procreqstat();
 

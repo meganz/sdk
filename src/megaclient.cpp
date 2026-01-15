@@ -25014,27 +25014,9 @@ void MegaClient::setMegaURL(const std::string& url)
     MEGAURL = url;
 }
 
-void MegaClient::checkScParsingSwitch()
-{
-    assert(false);
-    return;
-}
-
 void MegaClient::processSc()
 {
-    return isStreamingEnabled() ? handleScInStreaming() : handleScNonStreaming();
-}
-
-void MegaClient::handleScInStreaming()
-{
-    assert(false);
-    return;
-}
-
-void MegaClient::processScInStreaming()
-{
-    assert(false);
-    return;
+    return handleScNonStreaming();
 }
 
 void MegaClient::handleScNonStreaming()
