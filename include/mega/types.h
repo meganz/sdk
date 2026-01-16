@@ -1705,7 +1705,8 @@ enum class PitagTarget : char
     Chat1To1 = 'c',
     ChatGroup = 'C',
     NoteToSelf = 's',
-    IncomingShare = 'i'
+    IncomingShare = 'i',
+    MultipleChats = 'M'
 };
 
 enum class PitagImportSource : char

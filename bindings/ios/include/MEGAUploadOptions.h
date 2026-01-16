@@ -85,6 +85,33 @@ NS_ASSUME_NONNULL_BEGIN
 @property (nonatomic) char pitagTrigger;
 
 /**
+ * @brief Indicate if the upload is done to a chat.
+ *
+ * Default value is NO.
+ */
+@property (nonatomic) BOOL isChatUpload;
+
+/**
+ * @brief One-byte upload target tag.
+ *
+ * Allows specifying destinations such as chat uploads.
+ * Apps uploading to chats should set the appropriate chat target (c, C, or s);
+ * for other uploads keep the default value to avoid interfering with internal logic.
+ *
+ * Valid values are:
+ * - MEGAPitagTargetNotApplicable = '.'
+ * - MEGAPitagTargetCloudDrive = 'D'
+ * - MEGAPitagTargetChat1To1 = 'c'
+ * - MEGAPitagTargetChatGroup = 'C'
+ * - MEGAPitagTargetNoteToSelf = 's'
+ * - MEGAPitagTargetIncomingShare = 'i'
+ * - MEGAPitagTargetMultipleChats = 'M'
+ *
+ * Default value is MEGAPitagTargetNotApplicable.
+ */
+@property (nonatomic) char pitagTarget;
+
+/**
  * @brief Creates a new instance with default values.
  *
  * @return A new MEGAUploadOptions instance with all default values.
@@ -129,6 +156,8 @@ NS_ASSUME_NONNULL_BEGIN
  * @param isSourceTemporary If YES, deletes the local file after upload.
  * @param startFirst If YES, puts the upload at the top of the queue.
  * @param pitagTrigger One-byte upload trigger tag.
+ * @param isChatUpload Indicate if the upload is done to a chat.
+ * @param pitagTarget One-byte upload target tag.
  * @return A new MEGAUploadOptions instance.
  */
 - (instancetype)initWithFileName:(nullable NSString *)fileName
@@ -136,7 +165,9 @@ NS_ASSUME_NONNULL_BEGIN
                          appData:(nullable NSString *)appData
                 isSourceTemporary:(BOOL)isSourceTemporary
                       startFirst:(BOOL)startFirst
-                    pitagTrigger:(char)pitagTrigger NS_DESIGNATED_INITIALIZER;
+                    pitagTrigger:(char)pitagTrigger
+                    isChatUpload:(BOOL)isChatUpload
+                     pitagTarget:(char)pitagTarget NS_DESIGNATED_INITIALIZER;
 
 @end
 

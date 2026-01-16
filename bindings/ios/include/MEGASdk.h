@@ -316,6 +316,19 @@ typedef NS_ENUM(char, MEGAPitagTrigger) {
 };
 
 /**
+ * @brief Upload target tag values
+ */
+typedef NS_ENUM(char, MEGAPitagTarget) {
+    MEGAPitagTargetNotApplicable = '.',
+    MEGAPitagTargetCloudDrive = 'D',
+    MEGAPitagTargetChat1To1 = 'c',
+    MEGAPitagTargetChatGroup = 'C',
+    MEGAPitagTargetNoteToSelf = 's',
+    MEGAPitagTargetIncomingShare = 'i',
+    MEGAPitagTargetMultipleChats = 'M'
+};
+
+/**
  * @brief Allows to control a MEGA account or a public folder.
  *
  * You must provide an appKey to use this SDK. You can generate an appKey for your app for free here:
