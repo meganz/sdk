@@ -2559,7 +2559,19 @@ public:
 
     void handleauth(handle, byte*);
 
+    // Entrance for server-client channel processing
+    void handleScChannel();
+
+    // Process states and prepare data
+    void handleScNonStreaming();
+
+    void handleScErrorInSuccessState();
+    void handleScInFailureState();
+
+    // Process actual data from the server-client channel
+    void processScMessageNonStreaming();
     bool procsc(JSON& json);
+
     size_t procreqstat();
 
     // API warnings
