@@ -11020,6 +11020,9 @@ class MegaApi
         static constexpr char PITAG_TRIGGER_CAMERA = 'c';
         static constexpr char PITAG_TRIGGER_SCANNER = 's';
         static constexpr char PITAG_TRIGGER_SYNC_ALGORITHM = 'a';
+        static constexpr char PITAG_TRIGGER_SHARE_FROM_APP = 'S';
+        static constexpr char PITAG_TRIGGER_CAMERA_CAPTURE = 'C';
+        static constexpr char PITAG_TRIGGER_EXPLORER_EXTENSION = 'e';
 
         /**
          * @brief PITAG target codes exposed at API level.

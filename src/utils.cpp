@@ -4165,6 +4165,12 @@ PitagTrigger pitagTriggerFromChar(char c)
             return PitagTrigger::Scanner;
         case 'a':
             return PitagTrigger::SyncAlgorithm;
+        case 'S':
+            return PitagTrigger::ShareFromApp;
+        case 'C':
+            return PitagTrigger::CameraCapture;
+        case 'e':
+            return PitagTrigger::ExplorerExtension;
         default:
             return PitagTrigger::NotApplicable;
     }

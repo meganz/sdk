@@ -286,6 +286,9 @@ public class MegaApiJava {
     public final static char PITAG_TRIGGER_CAMERA = MegaApi.PITAG_TRIGGER_CAMERA;
     public final static char PITAG_TRIGGER_SCANNER = MegaApi.PITAG_TRIGGER_SCANNER;
     public final static char PITAG_TRIGGER_SYNC_ALGORITHM = MegaApi.PITAG_TRIGGER_SYNC_ALGORITHM;
+    public final static char PITAG_TRIGGER_SHARE_FROM_APP = MegaApi.PITAG_TRIGGER_SHARE_FROM_APP;
+    public final static char PITAG_TRIGGER_CAMERA_CAPTURE = MegaApi.PITAG_TRIGGER_CAMERA_CAPTURE;
+    public final static char PITAG_TRIGGER_EXPLORER_EXTENSION = MegaApi.PITAG_TRIGGER_EXPLORER_EXTENSION;
 
 
     /**

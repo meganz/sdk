@@ -1688,7 +1688,10 @@ enum class PitagTrigger : char
     DragAndDrop = 'd',
     Camera = 'c',
     Scanner = 's',
-    SyncAlgorithm = 'a'
+    SyncAlgorithm = 'a',
+    ShareFromApp = 'S',
+    CameraCapture = 'C',
+    ExplorerExtension = 'e'
 };
 
 enum class PitagNodeType : char
