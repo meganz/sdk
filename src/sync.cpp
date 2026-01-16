@@ -9052,7 +9052,11 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         SYNC_verbose << syncname << "Download setmtime change only at "
                      << logTriplet(row, fullPath);
 
-        assert(row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint);
+        assert((downloadPtr->mtimeAppliedOnDisk &&
+                row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint) ||
+               (!downloadPtr->mtimeAppliedOnDisk &&
+                row.syncNode->realScannedFingerprint.equalExceptMtime(
+                    row.syncNode->scannedFingerprint)));
 
         [[maybe_unused]] const bool isNewFsNode =
             row.fsNode->fingerprint.mtime == downloadPtr->mtime;
@@ -9081,7 +9085,12 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         row.fsNode->fingerprint.mtime = downloadPtr->mtime;
         row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
         row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
-        row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
+        if (downloadPtr->mtimeAppliedOnDisk)
+        {
+            // realScannedFingerprint remains the actual filesystem value,
+            // as mtime was applied we need to update it.
+            row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
+        }
 
         statecacheadd(row.syncNode);
         row.syncNode->recordMtimeOnlyOperation(); // Throttle future MAC computations

@@ -573,8 +573,17 @@ void clientDownload(MegaClient& mc,
     {
         if (auto cloudNode = mc.nodeByHandle(download->h); cloudNode)
         {
-            if (mc.fsaccess->setmtimelocal(download->getLocalname(), cloudNode->mtime))
+#ifdef __ANDROID__
+            constexpr bool allowMtimeFailure = true;
+#else
+            constexpr bool allowMtimeFailure = false;
+#endif
+
+            if (const auto setMtimeSuccess =
+                    mc.fsaccess->setmtimelocal(download->getLocalname(), cloudNode->mtime);
+                setMtimeSuccess || allowMtimeFailure)
             {
+                download->mtimeAppliedOnDisk = setMtimeSuccess;
                 download->completed(nullptr, PUTNODES_SYNC);
                 download->wasDistributed = true;
                 LOG_debug << "clientDownload: setmtimelocal change only";
