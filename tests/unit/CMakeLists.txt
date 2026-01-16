@@ -59,6 +59,7 @@ target_sources(test_unit
     Sqlite_test.cpp
     file_access_tests.cpp
     jsonsplitter_test.cpp
+    megaclient_test.cpp
 )
 
 target_sources_conditional(test_unit
