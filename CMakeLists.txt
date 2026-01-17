@@ -100,6 +100,13 @@ endif()
 message(STATUS "Target System Processor: ${CMAKE_SYSTEM_PROCESSOR}")
 message(STATUS "Host System Processor: ${CMAKE_HOST_SYSTEM_PROCESSOR}")
 
+# For Windows/MSVC: Set source file encoding to UTF-8
+# This ensures that source files with UTF-8 characters are interpreted correctly
+if(WIN32 AND MSVC)
+    # /utf-8 sets both source and execution character sets to UTF-8
+    add_compile_options(/utf-8 /wd4819)
+endif()
+
 get_property(IS_MULTI_CONFIG GLOBAL PROPERTY GENERATOR_IS_MULTI_CONFIG)
 
 if(IS_MULTI_CONFIG)
