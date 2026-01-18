@@ -2103,6 +2103,10 @@ public:
     JSON jsonsc;
     bool insca;
     bool insca_notlast;
+    
+    // JSONSplitter for incremental parsing of actionpackets
+    JSONSplitter mScJsonSplitter;
+    std::map<std::string, JSONSplitter::FilterCallback> mScFilters;
 
     // no two interrelated client instances should ever have the same sessionid
     char sessionid[10];
@@ -2486,6 +2490,12 @@ public:
     void handleauth(handle, byte*);
 
     bool procsc(JSON& json);
+    
+    // Initialize filters for incremental parsing of actionpackets
+    void initScFilters();
+    
+    // Process a chunk of sc response data incrementally
+    m_off_t processScChunk(const char* chunk);
     size_t procreqstat();
 
     // API warnings

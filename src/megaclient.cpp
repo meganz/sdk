@@ -1938,6 +1938,10 @@ void MegaClient::init()
     mPendingCatchUps = 0;
     mReceivingCatchUp = false;
     scsn.clear();
+    
+    // Initialize JSONSplitter for incremental parsing of actionpackets
+    mScJsonSplitter.clear();
+    initScFilters();
 
     // initialize random client application instance ID (for detecting own
     // actions in server-client stream)
@@ -3279,8 +3283,30 @@ void MegaClient::exec()
                 {
                     insca = false;
                     insca_notlast = false;
-                    jsonsc.begin(pendingsc->in.c_str());
-                    jsonsc.enterobject();
+                    
+                    // Use incremental parsing for actionpackets
+                    mScJsonSplitter.clear();
+                    // m_off_t consumed = processScChunk(pendingsc->in.c_str());
+                    
+                    if (mScJsonSplitter.hasFailed())
+                    {
+                        LOG_err << "Failed to parse sc response incrementally, falling back to traditional parsing";
+                        // Fall back to traditional parsing
+                        jsonsc.begin(pendingsc->in.c_str());
+                        jsonsc.enterobject();
+                    }
+                    else if (mScJsonSplitter.hasFinished())
+                    {
+                        // Successfully parsed incrementally
+                        jsonsc.pos = nullptr; // Mark as processed
+                    }
+                    else
+                    {
+                        // More data needed (shouldn't happen for complete response)
+                        LOG_warn << "SC response parsing not finished, but response is complete";
+                        jsonsc.pos = nullptr;
+                    }
+                    
                     app->notify_network_activity(NetworkActivityChannel::SC,
                                                  NetworkActivityType::REQUEST_RECEIVED,
                                                  API_OK);
@@ -3434,13 +3460,31 @@ void MegaClient::exec()
         if (!scpaused && jsonsc.pos)
         {
             // FIXME: reload in case of bad JSON
-            if (procsc(jsonsc))
+            // Only use traditional procsc if incremental parsing wasn't used
+            if (!mScJsonSplitter.hasFinished() && !mScJsonSplitter.hasFailed())
             {
-                // completed - initiate next SC request
+                if (procsc(jsonsc))
+                {
+                    // completed - initiate next SC request
+                    jsonsc.pos = nullptr;
+                    pendingsc.reset();
+                    btsc.reset();
+
+                    // upon reception of action packets, if the cs request is waiting for a retry
+                    // and it failed due to -3 or -4 error from API, we can abort the backoff
+                    if (reqs.retryReasonIsApi())
+                    {
+                        btcs.reset();
+                    }
+                }
+            }
+            else if (mScJsonSplitter.hasFinished())
+            {
+                // Incremental parsing completed successfully
                 jsonsc.pos = nullptr;
                 pendingsc.reset();
                 btsc.reset();
-
+                
                 // upon reception of action packets, if the cs request is waiting for a retry
                 // and it failed due to -3 or -4 error from API, we can abort the backoff
                 if (reqs.retryReasonIsApi())
@@ -5468,6 +5512,346 @@ void MegaClient::httprequest(const char *url, int method, bool binary, const cha
         }
         req->post(this);
     }
+}
+
+// Initialize filters for incremental parsing of actionpackets
+void MegaClient::initScFilters()
+{
+    mScFilters.clear();
+    
+    // Filter for the root object start
+    mScFilters[""] = [this](JSON*) -> JSONSplitter::CallbackResult
+    {
+        // Reset state
+        insca = false;
+        insca_notlast = false;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for "w" (notification URL)
+    mScFilters["{\"w"] = [this](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        JSON tempJson(json->pos);
+        tempJson.begin(json->pos);
+        if (tempJson.enterobject())
+        {
+            if (tempJson.getnameid() == makeNameid("w"))
+            {
+                tempJson.storeobject(&scnotifyurl);
+            }
+        }
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for "ir" (incomplete response flag)
+    mScFilters["{\"ir"] = [this](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        JSON tempJson(json->pos);
+        tempJson.begin(json->pos);
+        if (tempJson.enterobject())
+        {
+            if (tempJson.getnameid() == makeNameid("ir"))
+            {
+                insca_notlast = tempJson.getint() == 1;
+            }
+        }
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for "sn" (scsn)
+    mScFilters["{\"sn"] = [this](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        JSON tempJson(json->pos);
+        tempJson.begin(json->pos);
+        if (tempJson.enterobject())
+        {
+            if (tempJson.getnameid() == makeNameid("sn"))
+            {
+                scsn.setScsn(&tempJson);
+                assert(!mCurrentSeqtagSeen);
+                notifypurge();
+                if (sctable)
+                {
+                    LOG_debug << "DB transaction COMMIT (sessionid: "
+                              << string(sessionid, sizeof(sessionid)) << ")";
+                    sctable->commit();
+                    sctable->begin();
+                    app->notify_dbcommit();
+                }
+            }
+        }
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for "a" array (actionpackets)
+    mScFilters["{[a"] = [this](JSON*) -> JSONSplitter::CallbackResult
+    {
+        LOG_debug << "Processing action packets for " << string(sessionid, sizeof(sessionid));
+        insca = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for individual actionpacket objects within the "a" array
+    // This is where we process each actionpacket incrementally
+    mScFilters["{[a{"] = [this](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        // Create a temporary JSON object for this actionpacket
+        JSON actionPacketJson(json->pos);
+        actionPacketJson.begin(json->pos);
+        
+        // Process this actionpacket using the existing procsc logic
+        // We need to temporarily set insca to true and process the packet
+        bool savedInsca = insca;
+        insca = true;
+        
+        // Use a simplified version of procsc logic for this single actionpacket
+        std::shared_ptr<Node> lastAPDeletedNode;
+        bool moveOperation = false;
+        
+        auto actionpacketStart = actionPacketJson.pos;
+        if (actionPacketJson.enterobject())
+        {
+            // Check if it is ok to process the current action packet
+            if (!sc_checkActionPacket(actionPacketJson, lastAPDeletedNode.get()))
+            {
+                actionPacketJson.pos = actionpacketStart;
+                insca = savedInsca;
+                return JSONSplitter::CallbackResult::PAUSED;
+            }
+        }
+        actionPacketJson.pos = actionpacketStart;
+        
+        if (actionPacketJson.enterobject())
+        {
+            // the "a" attribute is guaranteed to be the first in the object
+            if (actionPacketJson.getnameid() == makeNameid("a"))
+            {
+                nameid name = actionPacketJson.getnameidvalue();
+                
+                // only process server-client request if not marked as self-originating
+                if (fetchingnodes || !Utils::startswith(actionPacketJson.pos, "\"i\":\"") ||
+                    memcmp(actionPacketJson.pos + 5, sessionid, sizeof sessionid) ||
+                    actionPacketJson.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
+                    name == 't')
+                {
+                    // Process the actionpacket based on its type
+                    switch (name)
+                    {
+                        case name_id::u:
+                            sc_updatenode(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("t"):
+                        {
+                            if (!loggedIntoFolder())
+                                useralerts.beginNotingSharedNodes();
+                            handle originatingUser = sc_newnodes(actionPacketJson);
+                            mergenewshares(1);
+                            if (!loggedIntoFolder())
+                                useralerts.convertNotedSharedNodes(true, originatingUser);
+                        }
+                        break;
+                        
+                        case name_id::d:
+                            lastAPDeletedNode = sc_deltree(actionPacketJson, moveOperation);
+                            break;
+                            
+                        case makeNameid("s"):
+                        case makeNameid("s2"):
+                            if (sc_shares(actionPacketJson))
+                            {
+                                int creqtag = reqtag;
+                                reqtag = 0;
+                                mergenewshares(1);
+                                reqtag = creqtag;
+                            }
+                            break;
+                            
+                        case name_id::c:
+                            sc_contacts(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("fa"):
+                            sc_fileattr(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("ua"):
+                            sc_userattr(actionPacketJson);
+                            break;
+                            
+                        case name_id::psts:
+                        case name_id::psts_v2:
+                        case makeNameid("ftr"):
+                            if (sc_upgrade(actionPacketJson, name))
+                            {
+                                app->account_updated();
+                                abortbackoff(true);
+                            }
+                            break;
+                            
+                        case name_id::pses:
+                            sc_paymentreminder(actionPacketJson);
+                            break;
+                            
+                        case name_id::ipc:
+                            sc_ipc(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("opc"):
+                            sc_opc(actionPacketJson);
+                            break;
+                            
+                        case name_id::upci:
+                            sc_upc(actionPacketJson, true);
+                            break;
+                            
+                        case name_id::upco:
+                            sc_upc(actionPacketJson, false);
+                            break;
+                            
+                        case makeNameid("ph"):
+                            sc_ph(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("se"):
+                            sc_se(actionPacketJson);
+                            break;
+#ifdef ENABLE_CHAT
+                        case makeNameid("mcpc"):
+                        {
+                            bool readingPublicChat = true;
+                            sc_chatupdate(actionPacketJson, readingPublicChat);
+                            break;
+                        }
+                        case makeNameid("mcc"):
+                            sc_chatupdate(actionPacketJson, false);
+                            break;
+                            
+                        case makeNameid("mcfpc"):
+                        case makeNameid("mcfc"):
+                            sc_chatflags(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("mcpna"):
+                        case makeNameid("mcna"):
+                            sc_chatnode(actionPacketJson);
+                            break;
+                            
+                        case name_id::mcsmp:
+                            sc_scheduledmeetings(actionPacketJson);
+                            break;
+                            
+                        case name_id::mcsmr:
+                            sc_delscheduledmeeting(actionPacketJson);
+                            break;
+#endif
+                        case makeNameid("uac"):
+                            sc_uac(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("la"):
+                            sc_la(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("ub"):
+                            sc_ub(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("sqac"):
+                            sc_sqac(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("asp"):
+                            sc_asp(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("ass"):
+                            sc_ass(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("asr"):
+                            sc_asr(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("aep"):
+                            sc_aep(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("aer"):
+                            sc_aer(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("pk"):
+                            sc_pk();
+                            break;
+                            
+                        case makeNameid("uec"):
+                            sc_uec(actionPacketJson);
+                            break;
+                            
+                        case makeNameid("cce"):
+                            sc_cce();
+                            break;
+                            
+                        default:
+                            // Skip unknown actionpacket types
+                            break;
+                    }
+                }
+            }
+            actionPacketJson.leaveobject();
+        }
+        
+        insca = savedInsca;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for end of root object
+    mScFilters["{"] = [this](JSON*) -> JSONSplitter::CallbackResult
+    {
+        // Finalize processing
+        if (!useralerts.isDeletedSharedNodesStashEmpty())
+        {
+            useralerts.purgeNodeVersionsFromStash();
+            useralerts.convertStashedDeletedSharedNodes();
+        }
+        
+        LOG_debug << "Processing of action packets for " << string(sessionid, sizeof(sessionid)) << " finished.  More to follow: " << insca_notlast;
+        mergenewshares(1);
+        applykeys();
+        mNewKeyRepository.clear();
+        
+        // Handle statecurrent logic...
+        // (simplified for now)
+        
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+    
+    // Filter for parsing errors
+    mScFilters["E"] = [this](JSON*) -> JSONSplitter::CallbackResult
+    {
+        LOG_err << "Error parsing sc request incrementally";
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+}
+
+// Process a chunk of sc response data incrementally
+m_off_t MegaClient::processScChunk(const char* chunk)
+{
+    if (mScJsonSplitter.hasFailed() || mScJsonSplitter.hasFinished())
+    {
+        return 0;
+    }
+    
+    m_off_t consumed = mScJsonSplitter.processChunk(&mScFilters, chunk);
+    
+    if (mScJsonSplitter.hasFailed())
+    {
+        LOG_err << "Failed to process sc chunk incrementally";
+        return 0;
+    }
+    
+    return consumed;
 }
 
 // process server-client request

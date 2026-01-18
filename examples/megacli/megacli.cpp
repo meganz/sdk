@@ -4527,7 +4527,7 @@ static void exec_fusemountenable(autocomplete::ACState& state)
     if (result == MOUNT_SUCCESS)
     {
         std::cout << "Successfully enabled mount \""
-                  << name 
+                  << name
                   << "\"."
                   << std::endl;
 
@@ -4535,7 +4535,7 @@ static void exec_fusemountenable(autocomplete::ACState& state)
     }
 
     std::cerr << "Failed to enable mount \""
-              << name 
+              << name
               << "\": "
               << toString(result)
               << std::endl;
