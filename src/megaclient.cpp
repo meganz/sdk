@@ -19346,8 +19346,91 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
             if (!t)
             {
-                t = new Transfer(this, d);
-                *(FileFingerprint*)t = *(FileFingerprint*)f;
+                // Check if there's an existing node with the same fingerprint
+                // If MAC matches, we can copy instead of uploading
+                if (d == PUT && f->isvalid)
+                {
+                    sharedNode_vector remoteNodes = mNodeManager.getNodesByFingerprint(*f);
+                    
+                    if (!remoteNodes.empty())
+                    {
+                        // Try each candidate node until we find one with matching MAC
+                        for (auto& remoteNode : remoteNodes)
+                        {
+                            if (!remoteNode || remoteNode->type != FILENODE || !remoteNode->isvalid)
+                                continue;
+                            
+                            if (!remoteNode->keyApplied())
+                                continue;
+                            
+                            // Use the existing file's encryption credentials to encrypt and compute MAC
+                            auto fa = fsaccess->newfileaccess();
+                            if (!fa->fopen(f->getLocalname(), true, false, FSLogging::logOnError))
+                                continue;
+                            
+                            std::string remoteKey = remoteNode->nodekey();
+                            const char* iva = &remoteKey[SymmCipher::KEYLENGTH];
+                            
+                            SymmCipher cipher;
+                            cipher.setkey((byte*)&remoteKey[0], remoteNode->type);
+                            
+                            int64_t remoteIv = MemAccess::get<int64_t>(iva);
+                            int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+                            
+                            auto result = generateMetaMac(cipher, *fa, remoteIv);
+                            if (result.first && result.second == remoteMac)
+                            {
+                                // MAC matches! Copy the remote file instead of uploading
+                                std::shared_ptr<Node> parent = nodeByHandle(f->h);
+                                std::optional<std::string> inboxTarget = std::nullopt;
+                                
+                                // Handle inbox uploads
+                                if (f->h.isUndef() && !f->targetuser.empty())
+                                {
+                                    inboxTarget = f->targetuser;
+                                }
+                                
+                                // For inbox uploads, parent can be null
+                                // For regular uploads, parent must exist
+                                if (inboxTarget.has_value() || parent)
+                                {
+                                    LOG_debug << "File with matching fingerprint and MAC found, copying instead of uploading: " << f->name;
+                                    
+                                    // Create a dummy transfer for transferRemoteCopy
+                                    t = new Transfer(this, d);
+                                    *(FileFingerprint*)t = *(FileFingerprint*)f;
+                                    t->tag = tag;
+                                    f->tag = tag;
+                                    f->file_it = t->files.insert(t->files.end(), f);
+                                    f->transfer = t;
+                                    
+                                    // Copy the remote file instead of uploading
+                                    error copyError = transferRemoteCopy(f, remoteNode, f->name, parent, tag, inboxTarget);
+                                    if (copyError == API_OK)
+                                    {
+                                        *cause = API_OK;
+                                        return true;
+                                    }
+                                    else
+                                    {
+                                        // If copy failed, fall through to normal upload
+                                        LOG_warn << "Failed to copy remote file, falling back to upload: " << copyError;
+                                        t->removeTransferFile(API_EINCOMPLETE, f, &committer);
+                                        t->removeAndDeleteSelf(TRANSFERSTATE_FAILED);
+                                        t = nullptr;
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                if (!t)
+                {
+                    t = new Transfer(this, d);
+                    *(FileFingerprint*)t = *(FileFingerprint*)f;
+                }
             }
 
             t->skipserialization = donotpersist;
