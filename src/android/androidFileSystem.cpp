@@ -1765,9 +1765,21 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname,
         return false;
     }
 
+    // Check if destination exists if overwrite is false
+    if (!overwrite)
+    {
+        if (auto exitingFileWrapper =
+                AndroidFileWrapper::getAndroidFileWrapper(newname, false, false);
+            exitingFileWrapper && exitingFileWrapper->exists())
+        {
+            target_exists = true;
+            LOG_info << "Destination file already exists and overwrite is false";
+            return false;
+        }
+    }
+
     unique_ptr<FileAccess> newFile{newfileaccess()};
-    const auto newFileFlag = overwrite ? OPEN_RDWR : static_cast<OpenFlag>(OPEN_RDWR | OPEN_EXCL);
-    if (!newFile->fopen(newname, newFileFlag, FSLogging::logOnError))
+    if (!newFile->fopen(newname, OPEN_RDWR, FSLogging::logOnError))
     {
         LOG_warn << "Unable to open target file, copy failed";
         return false;
