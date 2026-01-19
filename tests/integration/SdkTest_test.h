@@ -27,6 +27,7 @@
 #include "gtest/gtest.h"
 #include "mega.h"
 #include "mega/scoped_helpers.h"
+#include "mock_listeners.h"
 #include "sdk_test_data_provider.h"
 #include "test.h"
 
@@ -501,7 +502,6 @@ decltype(auto) value(T&& expected)
 }
 
 using MegaApiTestPointer = std::unique_ptr<MegaApiTest, MegaApiTestDeleter>;
-
 // Fixture class with common code for most of tests
 class SdkTest:
     public SdkTestBase,
@@ -511,6 +511,26 @@ class SdkTest:
     MegaLogger
 {
 public:
+    static constexpr auto COMMON_TIMEOUT = 3min;
+
+    struct SyncUptoDate
+    {
+        MegaHandle mBackupID{INVALID_HANDLE};
+        std::atomic<bool> mIsUpToDate{false};
+        std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
+        std::unique_ptr<std::future<void>> mSyncFut;
+
+        void resetStatus()
+        {
+            mSyncUpToDatePms.reset(new std::promise<void>());
+            mSyncFut.reset(new std::future<void>(mSyncUpToDatePms->get_future()));
+        }
+
+        SyncUptoDate()
+        {
+            resetStatus();
+        }
+    };
     struct PerApi
     {
         MegaApi* megaApi = nullptr;
@@ -529,6 +549,10 @@ public:
         std::unique_ptr<MegaStringMap> mStringMap;
         std::unique_ptr<MegaPricing> mMegaPricing;
         std::unique_ptr<MegaCurrency> mMegaCurrency;
+
+        // variables to monitor when sync is upToDate
+        std::map<MegaHandle, std::shared_ptr<SyncUptoDate>> mBackupsMonitor;
+        std::unique_ptr<testing::NiceMock<MockSyncListener>> mMslStats;
 
         // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
         bool userUpdated;
@@ -562,6 +586,62 @@ public:
         MegaHandle chatid;          // last chat added
         MegaHandle schedId;         // last scheduled meeting added
 #endif
+        /**
+         * @brief Add sync monitor and configure EXPECT calls to notify when sync is up to date
+         */
+        void addsyncMonitor(const MegaHandle backupID)
+        {
+            ASSERT_TRUE(!mMslStats) << "addsyncMonitor: mMslStats already initialized";
+            mMslStats.reset(new testing::NiceMock<MockSyncListener>(megaApi));
+
+            ASSERT_TRUE(mBackupsMonitor.find(backupID) == mBackupsMonitor.end())
+                << "mBackupsMonitor already contains an entry for BackupId: " << toHandle(backupID);
+            mBackupsMonitor[backupID] = std::shared_ptr<SyncUptoDate>(new SyncUptoDate());
+
+            EXPECT_CALL(*mMslStats.get(), onSyncStatsUpdated(testing::_, testing::_))
+                .WillRepeatedly(
+                    [this, backupID](MegaApi*, MegaSyncStats* stats)
+                    {
+                        if (backupID != UNDEF && stats && stats->getBackupId() == backupID &&
+                            stats->getUploadCount() == 0 && !stats->isScanning() &&
+                            !stats->isSyncing())
+                        {
+                            auto it = mBackupsMonitor.find(backupID);
+                            if (it == mBackupsMonitor.end() || !it->second->mSyncUpToDatePms ||
+                                it->second->mIsUpToDate)
+                            {
+                                return;
+                            }
+
+                            it->second->mIsUpToDate = true;
+                            it->second->mSyncUpToDatePms->set_value();
+                        }
+                    });
+            megaApi->addListener(mMslStats.get());
+        }
+
+        /**
+         * @brief Wait for Sync is up to date.
+         */
+        bool waitForBackupSyncUpToDate(const MegaHandle backupID)
+        {
+            if (!mMslStats)
+            {
+                LOG_err << "waitForBackupSyncUpToDate: mMslStats is invalid";
+                return false;
+            }
+
+            auto it = mBackupsMonitor.find(backupID);
+            if (it == mBackupsMonitor.end())
+            {
+                LOG_err
+                    << "waitForBackupSyncUpToDate: No entry found at mBackupsMonitor with BackupId"
+                    << toHandle(backupID);
+                return false;
+            }
+
+            return it->second->mSyncFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
+        };
 
         /**
          * @brief Ensures that the access to the customCallbackCheck map and the posterior function
@@ -634,9 +714,20 @@ public:
         }
         const MegaStringList* getStringList(const char* key) const { return stringListMap ? stringListMap->get(key) : nullptr; }
 
-        void setStringTable(const MegaStringTable* s) { stringTable.reset(s); }
-        int getStringTableSize() const { return stringTable ? stringTable->size() : 0; }
-        const MegaStringList* getStringTableRow(int i) { return stringTable ? stringTable->get(i) : nullptr; }
+        void setStringTable(const MegaStringTable* s)
+        {
+            stringTable.reset(s);
+        }
+
+        int getStringTableSize() const
+        {
+            return stringTable ? stringTable->size() : 0;
+        }
+
+        const MegaStringList* getStringTableRow(int i)
+        {
+            return stringTable ? stringTable->get(i) : nullptr;
+        }
 
     private:
         mutex& getResourceMutex() const
