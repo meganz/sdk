@@ -23,11 +23,10 @@
  */
 
 #include "easy_curl.h"
-#include "integration_test_utils.h"
 #include "mega/common/testing/utility.h"
 #include "mock_listeners.h"
+#include "sdk_server_test_utils.h"
 #include "sdk_test_utils.h"
-#include "SdkTest_test.h"
 
 #include <curl/curl.h>
 
@@ -46,107 +45,55 @@ using namespace ::mega;
 using namespace ::std;
 using ::mega::common::testing::randomBytes;
 using sdk_test::EasyCurl;
+using sdk_test::EasyCurlSlist;
 using sdk_test::LocalTempFile;
 
-class SdkHttpServerTest: public SdkTest
+namespace
 {
-protected:
-    void SetUp() override
+
+std::optional<ScopedDestructor> scopedHttpServer(MegaApi* api)
+{
+    if (!api)
+        return std::nullopt;
+
+    if (!api->httpServerStart(true, 0))
+        return std::nullopt;
+
+    if (!api->httpServerIsRunning())
+        return std::nullopt;
+
+    return makeScopedDestructor(
+        [api]()
+        {
+            api->httpServerStop();
+        });
+}
+
+std::string baseURL(int port)
+{
+    return "http://localhost:" + std::to_string(port) + "/";
+}
+
+std::string extractEndpointFromUrl(const std::string& url)
+{
+    // extract <protocol>://<ip:port> from url: http://127.0.0.1:4443/... or
+    // https://[::1]:4443/...
+    size_t schemeEndPos = url.find("://");
+    if (schemeEndPos == string::npos)
     {
-        SdkTest::SetUp();
+        return "";
     }
-
-    void TearDown() override
+    size_t hostStartPos = schemeEndPos + 3;
+    size_t hostEndPos = url.find('/', hostStartPos);
+    if (hostEndPos == string::npos)
     {
-        // Stop any running HTTP servers
-        for (auto& api: megaApi)
-        {
-            if (api)
-                api->httpServerStop();
-        }
-        SdkTest::TearDown();
+        return url;
     }
+    return url.substr(0, hostEndPos);
+}
 
-    unique_ptr<MegaNode> createFolder(const std::string& name, MegaNode* parent = nullptr)
-    {
-        unique_ptr<MegaNode> rootNode;
-        if (parent == nullptr)
-        {
-            rootNode = unique_ptr<MegaNode>(megaApi[0]->getRootNode());
-            parent = rootNode.get();
-        }
-        if (parent == nullptr)
-        {
-            return nullptr;
-        }
-        MegaHandle handle = SdkTest::createFolder(0, name.c_str(), parent);
-        if (handle == UNDEF)
-        {
-            return nullptr;
-        }
-        return std::unique_ptr<MegaNode>(megaApi[0]->getNodeByHandle(handle));
-    }
-
-    unique_ptr<MegaNode> uploadFile(const std::string& name,
-                                    const std::string& contents,
-                                    MegaNode* parent = nullptr)
-    {
-        unique_ptr<MegaNode> rootNode;
-        if (parent == nullptr)
-        {
-            rootNode = unique_ptr<MegaNode>(megaApi[0]->getRootNode());
-            parent = rootNode.get();
-        }
-        if (parent == nullptr)
-        {
-            return nullptr;
-        }
-        deleteFile(name);
-        sdk_test::LocalTempFile f(name, contents);
-        return sdk_test::uploadFile(megaApi[0].get(), name, parent);
-    }
-
-    std::string extractEndpointFromUrl(const std::string& url)
-    {
-        // extract <protocol>://<ip:port> from url: http://127.0.0.1:4443/... or
-        // https://[::1]:4443/...
-        size_t schemeEndPos = url.find("://");
-        if (schemeEndPos == string::npos)
-        {
-            return "";
-        }
-        size_t hostStartPos = schemeEndPos + 3;
-        size_t hostEndPos = url.find('/', hostStartPos);
-        if (hostEndPos == string::npos)
-        {
-            return url;
-        }
-        return url.substr(0, hostEndPos);
-    }
-
-    std::optional<ScopedDestructor> scopedHttpServer(MegaApi* api)
-    {
-        if (!api)
-            return std::nullopt;
-
-        if (!api->httpServerStart(true, 0))
-            return std::nullopt;
-
-        if (!api->httpServerIsRunning())
-            return std::nullopt;
-
-        return makeScopedDestructor(
-            [api]()
-            {
-                api->httpServerStop();
-            });
-    }
-
-    std::string baseURL(int port)
-    {
-        return "http://localhost:" + std::to_string(port) + "/";
-    }
-};
+class SdkHttpServerTest: public SdkServerTest
+{};
 
 /**
  * Helper class for HTTP client requests
@@ -249,11 +196,12 @@ private:
     {
         Response response;
         auto easyCurl = EasyCurl();
+        auto easyCurlSlist = EasyCurlSlist();
         auto curl = easyCurl.curl();
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
 
         if (method != "GET" && method != "HEAD")
@@ -274,21 +222,25 @@ private:
         if (!body.empty())
         {
             curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
-            curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE, body.size());
+            curl_easy_setopt(curl,
+                             CURLOPT_POSTFIELDSIZE_LARGE,
+                             static_cast<curl_off_t>(body.size()));
+        }
+        else
+        {
+            curl_easy_setopt(curl,
+                             CURLOPT_POSTFIELDSIZE_LARGE,
+                             static_cast<curl_off_t>(body.size()));
         }
 
-        // transform headers to string vector
-        std::vector<std::string> headerList;
-        for (const auto& [key, value]: headers)
+        if (!easyCurlSlist.appendHttpHeaders(headers))
         {
-            headerList.push_back(key + ": " + value);
+            LOG_err << "Failed to append HTTP headers";
+            response.statusCode = 0;
+            response.contentLength = -1;
+            return response;
         }
-        auto headerChunk = easyCurl.appendCurlList(headerList);
-
-        if (headerChunk)
-        {
-            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headerChunk);
-        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, easyCurlSlist.slist());
 
         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, headerCallback);
         curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response);
@@ -419,6 +371,7 @@ TEST_F(SdkHttpServerTest, HttpServerStartNotOnLocal)
     ASSERT_TRUE(megaApi[0]->httpServerStart(false, 0));
     EXPECT_GT(megaApi[0]->httpServerIsRunning(), 0);
     EXPECT_FALSE(megaApi[0]->httpServerIsLocalOnly());
+    megaApi[0]->httpServerStop();
     CASE_info << "finished";
 }
 
@@ -429,6 +382,7 @@ TEST_F(SdkHttpServerTest, HttpServerIPv6)
     // Test starting server with IPv6 support
     ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0, false, nullptr, nullptr, true));
     EXPECT_GT(megaApi[0]->httpServerIsRunning(), 0);
+    megaApi[0]->httpServerStop();
     CASE_info << "finished";
 }
 
@@ -510,7 +464,7 @@ TEST_F(SdkHttpServerTest, HttpServerDirectoryListing)
     EXPECT_FALSE(response.body.empty());
 
     const std::string folderName = "subfolder";
-    auto node = createFolder(folderName, rootNode.get());
+    auto node = createFolder(0, folderName, rootNode.get());
     ASSERT_TRUE(node);
     localLink.reset(megaApi[0]->httpServerGetLocalLink(node.get()));
     ASSERT_TRUE(localLink);
@@ -533,7 +487,7 @@ TEST_F(SdkHttpServerTest, HttpServerFileAccess)
     // Prepare a test file
     const std::string testFileName = "http_test_file.txt";
     const std::string testFileContents = "This is a test file for HTTP server access.";
-    auto node = uploadFile(testFileName, testFileContents);
+    auto node = uploadFile(0, testFileName, testFileContents);
     ASSERT_TRUE(node);
 
     megaApi[0]->httpServerEnableFileServer(false);
@@ -575,12 +529,12 @@ TEST_F(SdkHttpServerTest, GetSetRestrictedMode)
     const std::string testFileNameStart = "http_test_file_start.txt";
     const std::string testFileContentsStart =
         "This is a test file for HTTP server access before changing modes.";
-    auto fileNodeStart = uploadFile(testFileNameStart, testFileContentsStart);
+    auto fileNodeStart = uploadFile(0, testFileNameStart, testFileContentsStart);
     ASSERT_TRUE(fileNodeStart);
 
     const std::string testFileNameAfter = "http_test_file.txt";
     const std::string testFileContentsAfter = "This is a test file for HTTP server access.";
-    auto fileNodeAfter = uploadFile(testFileNameAfter, testFileContentsAfter);
+    auto fileNodeAfter = uploadFile(0, testFileNameAfter, testFileContentsAfter);
     ASSERT_TRUE(fileNodeAfter);
     unique_ptr<char[]> fileLinkAfter(megaApi[0]->httpServerGetLocalLink(fileNodeAfter.get()));
     ASSERT_TRUE(fileLinkAfter);
@@ -634,7 +588,7 @@ TEST_F(SdkHttpServerTest, GetSetRestrictedMode)
     {
         const std::string testFileNameLast = "http_test_file_last.txt";
         const std::string testFileContentsLast = "This is a last test file for HTTP server access.";
-        auto fileNodeLast = uploadFile(testFileNameLast, testFileContentsLast);
+        auto fileNodeLast = uploadFile(0, testFileNameLast, testFileContentsLast);
         ASSERT_TRUE(fileNodeLast);
         unique_ptr<char[]> fileLinkLast(megaApi[0]->httpServerGetLocalLink(fileNodeLast.get()));
         ASSERT_TRUE(fileLinkLast);
@@ -670,7 +624,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavBasicOperations)
 
     // Create test folder and get WebDAV link
     const std::string folderName = "webdav_test_folder";
-    auto testFolder = createFolder(folderName);
+    auto testFolder = createFolder(0, folderName);
     ASSERT_TRUE(testFolder);
 
     unique_ptr<char[]> folderWebdavLink(megaApi[0]->httpServerGetLocalWebDavLink(testFolder.get()));
@@ -697,7 +651,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavPropfindOperations)
 
     // Create test folder
     const std::string folderName = "webdav_propfind_folder";
-    auto testFolder = createFolder(folderName);
+    auto testFolder = createFolder(0, folderName);
     ASSERT_TRUE(testFolder);
 
     unique_ptr<char[]> folderWebdavLink(megaApi[0]->httpServerGetLocalWebDavLink(testFolder.get()));
@@ -746,7 +700,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavFileOperations)
     const std::string testFileName = "webdav_test_file.txt";
     const std::string testFileContents = "WebDAV test file content";
 
-    auto fileNode = uploadFile(testFileName, testFileContents);
+    auto fileNode = uploadFile(0, testFileName, testFileContents);
     ASSERT_TRUE(fileNode);
 
     unique_ptr<char[]> fileWebdavLink(megaApi[0]->httpServerGetLocalWebDavLink(fileNode.get()));
@@ -808,7 +762,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavModificationOperations)
 
     // Create test folder
     const std::string folderName = "webdav_mod_folder";
-    auto testFolder = createFolder(folderName);
+    auto testFolder = createFolder(0, folderName);
     ASSERT_TRUE(testFolder);
 
     unique_ptr<char[]> folderWebdavLink(megaApi[0]->httpServerGetLocalWebDavLink(testFolder.get()));
@@ -949,7 +903,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavDeleteOperation)
     const std::string testFileName = "webdav_delete_test.txt";
     const std::string testFileContents = "Delete test file content";
 
-    auto fileNode = uploadFile(testFileName, testFileContents);
+    auto fileNode = uploadFile(0, testFileName, testFileContents);
     ASSERT_TRUE(fileNode);
 
     unique_ptr<char[]> fileWebdavLink(megaApi[0]->httpServerGetLocalWebDavLink(fileNode.get()));
@@ -980,7 +934,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavGetAllLinksAndManageAllowedNodes)
     ASSERT_TRUE(server);
     // Create test folder
     const std::string folderName = "webdav_links_folder";
-    auto testFolder = createFolder(folderName);
+    auto testFolder = createFolder(0, folderName);
     ASSERT_TRUE(testFolder);
     CASE_info << "Created test folder with handle: " << testFolder->getHandle();
 
@@ -992,7 +946,7 @@ TEST_F(SdkHttpServerTest, HttpServerWebDavGetAllLinksAndManageAllowedNodes)
     // Upload test file
     const std::string testFileName = "webdav_links_file.txt";
     const std::string testFileContents = "WebDAV links test file content";
-    auto fileNode = uploadFile(testFileName, testFileContents, testFolder.get());
+    auto fileNode = uploadFile(0, testFileName, testFileContents, testFolder.get());
     ASSERT_TRUE(fileNode);
     CASE_info << "Uploaded test file with handle: " << fileNode->getHandle();
 
@@ -1061,7 +1015,7 @@ TEST_F(SdkHttpServerTest, HttpServerListenerCallbacks)
     const std::string testFileName = "http_server_listener_test.txt";
     const std::string testFileContents = "HTTP server listener test file content";
 
-    auto fileNode = uploadFile(testFileName, testFileContents);
+    auto fileNode = uploadFile(0, testFileName, testFileContents);
     ASSERT_TRUE(fileNode);
 
     // get webdav link to trigger the transfer
@@ -1093,7 +1047,7 @@ TEST_F(SdkHttpServerTest, BasicGet)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "HTTP server basic test content";
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_basic.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_basic.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1118,7 +1072,7 @@ TEST_F(SdkHttpServerTest, HeadRequest)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "HTTP server HEAD test content";
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_head.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_head.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1145,7 +1099,7 @@ TEST_F(SdkHttpServerTest, ValidRangeRequests)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_range.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_range.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1238,7 +1192,7 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
 
     std::string testFileContent = randomBytes(50 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile("test_http_large_range.bin", testFileContent);
+        uploadFile(0, "test_http_large_range.bin", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1293,7 +1247,7 @@ TEST_F(SdkHttpServerTest, InvalidRangeRequests)
 
     std::string testFileContent = "Test content";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile("test_http_invalid_range.txt", testFileContent);
+        uploadFile(0, "test_http_invalid_range.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1349,7 +1303,7 @@ TEST_F(SdkHttpServerTest, EmptyFile)
     MegaApi* api = megaApi[0].get();
 
     // Upload empty file
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_empty.txt", "");
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_empty.txt", "");
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1396,7 +1350,7 @@ TEST_F(SdkHttpServerTest, LargeFile)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = randomBytes(10 * 1024 * 1024);
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_large.bin", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_large.bin", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1459,7 +1413,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
 
     std::string testFileContent = randomBytes(100 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile("test_http_concurrent.txt", testFileContent);
+        uploadFile(0, "test_http_concurrent.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1501,7 +1455,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
 
     std::string testFileContent = randomBytes(2 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile("test_http_concurrent_range.bin", testFileContent);
+        uploadFile(0, "test_http_concurrent_range.bin", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1572,7 +1526,8 @@ TEST_F(SdkHttpServerTest, Restart)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "HTTP server restart test";
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_restart.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(0, "test_http_restart.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     for (int cycle = 0; cycle < 10; cycle++)
@@ -1629,7 +1584,8 @@ TEST_F(SdkHttpServerTest, UnsupportedMethods)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "HTTP methods test";
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_methods.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(0, "test_http_methods.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1661,7 +1617,7 @@ TEST_F(SdkHttpServerTest, RapidRequests)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = randomBytes(1024);
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_rapid.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_rapid.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1715,7 +1671,7 @@ TEST_F(SdkHttpServerTest, SpecialCharactersInFilename)
     std::vector<std::unique_ptr<MegaNode>> uploadedNodes;
     for (const auto& fileName: testFiles)
     {
-        std::unique_ptr<MegaNode> uploadedNode = uploadFile(fileName, fileName);
+        std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, fileName, fileName);
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
@@ -1747,12 +1703,12 @@ TEST_F(SdkHttpServerTest, DifferentFileSizes)
 
     // Test 1-byte file
     std::string testFileContent1 = "A";
-    std::unique_ptr<MegaNode> uploadedNode1 = uploadFile("test_1byte.tx", testFileContent1);
+    std::unique_ptr<MegaNode> uploadedNode1 = uploadFile(0, "test_1byte.tx", testFileContent1);
     ASSERT_NE(uploadedNode1, nullptr);
 
     // Test 2-byte file
     std::string testFileContent2 = "AB";
-    std::unique_ptr<MegaNode> uploadedNode2 = uploadFile("test_2byte.tx", testFileContent2);
+    std::unique_ptr<MegaNode> uploadedNode2 = uploadFile(0, "test_2byte.tx", testFileContent2);
     ASSERT_NE(uploadedNode2, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1809,7 +1765,7 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "Test content";
-    std::unique_ptr<MegaNode> uploadedNode = uploadFile("test_http_long.txt", testFileContent);
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_long.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1855,7 +1811,7 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     std::string testFileContent = randomBytes(1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile("test_http_connection.txt", testFileContent);
+        uploadFile(0, "test_http_connection.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1901,7 +1857,7 @@ TEST_F(SdkHttpServerTest, FolderEmpty)
     MegaApi* api = megaApi[0].get();
 
     // Create empty folder
-    std::unique_ptr<MegaNode> folderNode(createFolder("test_http_folder_empty"));
+    auto folderNode = createFolder(0, "test_http_folder_empty");
     ASSERT_NE(folderNode, nullptr);
 
     // Enable folder server support
@@ -1934,7 +1890,7 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     MegaApi* api = megaApi[0].get();
 
     // Create folder
-    std::unique_ptr<MegaNode> folderNode(createFolder("test_http_folder_files"));
+    auto folderNode = createFolder(0, "test_http_folder_files");
     ASSERT_NE(folderNode, nullptr);
 
     // Upload files to folder
@@ -1950,7 +1906,8 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     std::vector<std::unique_ptr<MegaNode>> uploadedNodes;
     for (const auto& fileName: testFiles)
     {
-        std::unique_ptr<MegaNode> uploadedNode = uploadFile(fileName, fileName, folderNode.get());
+        std::unique_ptr<MegaNode> uploadedNode =
+            uploadFile(0, fileName, fileName, folderNode.get());
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
@@ -1980,4 +1937,5 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     // HEAD request
     auto headResponse = HttpClient::head(url);
     EXPECT_EQ(200, headResponse.statusCode);
+}
 }

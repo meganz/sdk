@@ -420,7 +420,7 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
     }
     uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
 
-    const auto pathString = path_u8string(localPath);
+    const auto pathString = localPath.string();
     megaApi->startUpload(pathString, uploadParent, nullptr, &uploadOptions, &mtl);
     EXPECT_TRUE(mtl.waitForFinishOrTimeout(MAX_TIMEOUT)) << "Error uploading file: " << localPath;
     if (nodeHandle == UNDEF)

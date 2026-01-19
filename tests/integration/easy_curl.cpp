@@ -12,16 +12,10 @@ EasyCurl::~EasyCurl()
     {
         curl_easy_cleanup(mCurl);
     }
-
-    if (mChunk)
-    {
-        curl_slist_free_all(mChunk);
-    }
 }
 
 EasyCurl::EasyCurl(EasyCurl&& other):
-    mCurl(std::exchange(other.mCurl, nullptr)),
-    mChunk(std::exchange(other.mChunk, nullptr))
+    mCurl(std::exchange(other.mCurl, nullptr))
 {}
 
 EasyCurl::EasyCurl():
@@ -37,7 +31,6 @@ EasyCurl& EasyCurl::operator=(EasyCurl&& other)
     {
         using std::swap;
         swap(other.mCurl, mCurl);
-        swap(other.mChunk, mChunk);
     }
     return *this;
 }
@@ -47,19 +40,63 @@ CURL* EasyCurl::curl() const
     return mCurl;
 }
 
-curl_slist* EasyCurl::appendCurlList(const std::vector<std::string>& items)
+EasyCurlSlist::EasyCurlSlist():
+    mSlist(nullptr)
+{}
+
+EasyCurlSlist::~EasyCurlSlist()
 {
-    if (items.empty())
+    if (mSlist)
     {
-        return mChunk;
+        curl_slist_free_all(mSlist);
     }
-    for (const auto& item: items)
-    {
-        mChunk = curl_slist_append(mChunk, item.c_str());
-    }
-    return mChunk;
 }
 
+EasyCurlSlist::EasyCurlSlist(EasyCurlSlist&& other) noexcept:
+    mSlist(std::exchange(other.mSlist, nullptr))
+{}
+
+EasyCurlSlist& EasyCurlSlist::operator=(EasyCurlSlist&& other) noexcept
+{
+    if (this != &other)
+    {
+        std::swap(mSlist, other.mSlist);
+    }
+    return *this;
 }
 
-// namespace sdk_test
+bool EasyCurlSlist::appendHttpHeaders(const std::map<std::string, std::string>& headers)
+{
+    for (const auto& header: headers)
+    {
+        std::string headerStr = header.first + ": " + header.second;
+        curl_slist* newSlist = curl_slist_append(mSlist, headerStr.c_str());
+        if (!newSlist)
+        {
+            return false;
+        }
+        mSlist = newSlist;
+    }
+    return true;
+}
+
+bool EasyCurlSlist::appendFtpCommands(const std::vector<std::string>& commands)
+{
+    for (const auto& command: commands)
+    {
+        curl_slist* newSlist = curl_slist_append(mSlist, command.c_str());
+        if (!newSlist)
+        {
+            return false;
+        }
+        mSlist = newSlist;
+    }
+    return true;
+}
+
+curl_slist* EasyCurlSlist::slist() const
+{
+    return mSlist;
+}
+
+} // namespace sdk_test
