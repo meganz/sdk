@@ -95,6 +95,17 @@ public:
             matchTreeRecurse(rootNodeA.get(), rootNodeB.get(), apiIndexA, apiIndexB));
     }
 
+    bool waitForNodeToBeDecrypted(unsigned apiIndex, MegaHandle nodeHandle)
+    {
+        return WaitFor(
+            [this, apiIndex, nodeHandle]()
+            {
+                unique_ptr<MegaNode> node(megaApi[apiIndex]->getNodeByHandle(nodeHandle));
+                return node && node->isNodeKeyDecrypted();
+            },
+            defaultTimeoutMs);
+    }
+
 protected:
     // Name of the initial elements in the remote tree
     static constexpr auto FOLDER_A = "folderA";
@@ -252,8 +263,10 @@ TEST_F(SdkTestShareNested, BasicNestedShares)
     LOG_info << logPre
              << "Ensure that the sharer, Alice and Bob can see the same nodes and that the tree is "
                 "decrypted.";
+    waitForNodeToBeDecrypted(shareeAliceIndex, sharerFolderANode->getHandle());
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderANode->getHandle(), sharerIndex, shareeAliceIndex));
+    waitForNodeToBeDecrypted(shareeBobIndex, sharerFolderBNode->getHandle());
     ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderBNode->getHandle(), shareeAliceIndex, shareeBobIndex));
