@@ -446,6 +446,19 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
+            state = TRANSFERSTATE_RETRYING;
+#ifdef MEGA_USE_WSUPLOAD
+            if (channel == Transfer::Channel::WebSocket && client->wsEngine())
+            {
+                dstime retryUntil = NEVER;
+                if (timeleft)
+                {
+                    const dstime now = Waiter::ds;
+                    retryUntil = (timeleft >= (NEVER - now)) ? NEVER : (now + timeleft);
+                }
+                client->wsEngine()->markFailed(*this, retryUntil);
+            }
+#endif
             client->activateoverquota(timeleft, (e == API_EPAYWALL));
             client->app->transfer_failed(this, e, timeleft);
             ++client->performanceStats.transferTempErrors;

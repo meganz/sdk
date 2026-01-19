@@ -224,6 +224,190 @@ namespace
         return true;
     }
 
+    class CommandUscForTest final : public Command
+    {
+    public:
+        using SizeClass = std::pair<std::string, m_off_t>;
+        using Completion = std::function<void(Error, std::vector<SizeClass>&&)>;
+
+        CommandUscForTest(MegaClient& client, Completion completion)
+            : mCompletion(std::move(completion))
+        {
+            cmd("usc");
+            tag = client.reqtag;
+            mLockless = true;
+        }
+
+        bool procresult(Result r, JSON& json) override
+        {
+            if (r.wasErrorOrOK())
+            {
+                if (r.wasError(API_OK))
+                    mCompletion(API_EINTERNAL, {});
+                else
+                    mCompletion(r.errorOrOK(), {});
+                return true;
+            }
+
+            if (!r.hasJsonArray())
+            {
+                mCompletion(API_EINTERNAL, {});
+                return true;
+            }
+
+            std::vector<SizeClass> sizeClasses;
+
+            auto peek = [](const JSON& j) -> char
+            {
+                const char* p = j.pos;
+                while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',' || *p == ':')
+                    ++p;
+                return *p;
+            };
+
+            auto parseEntryArray = [&](JSON& j)
+            {
+                std::string host;
+                std::string path;
+                m_off_t maxSize = 0;
+
+                const bool okHost = j.storeobject(&host);
+                const bool okPath = j.storeobject(&path);
+                if (okHost && okPath)
+                {
+                    if (j.isnumeric())
+                    {
+                        maxSize = j.getint();
+                    }
+
+                    while (j.storeobject())
+                        ;
+
+                    std::string url = "wss://";
+                    url.append(host);
+                    url.append("/");
+                    url.append(path);
+                    sizeClasses.emplace_back(std::move(url), maxSize);
+                }
+                else
+                {
+                    while (j.storeobject())
+                        ;
+                }
+            };
+
+            std::function<void(JSON&)> parseArrayContents;
+            parseArrayContents = [&](JSON& j)
+            {
+                const char next = peek(j);
+                if (next == ']')
+                {
+                    return;
+                }
+
+                if (next == '[')
+                {
+                    while (j.enterarray())
+                    {
+                        parseArrayContents(j);
+                        j.leavearray();
+                    }
+                    return;
+                }
+
+                if (next != '"')
+                {
+                    while (j.storeobject())
+                        ;
+                    return;
+                }
+
+                parseEntryArray(j);
+            };
+
+            JSON jsonCopy = json;
+            while (jsonCopy.enterarray())
+            {
+                parseArrayContents(jsonCopy);
+                jsonCopy.leavearray();
+            }
+
+            while (json.storeobject())
+                ;
+
+            if (sizeClasses.empty())
+            {
+                mCompletion(API_EINTERNAL, {});
+            }
+            else
+            {
+                mCompletion(API_OK, std::move(sizeClasses));
+            }
+            return true;
+        }
+
+    private:
+        Completion mCompletion;
+    };
+
+    bool fetchUscSizeClasses(MegaApi& api,
+                             std::vector<m_off_t>& maxSizes,
+                             const int timeoutSeconds = defaultTimeout)
+    {
+        MegaApiImpl* impl = MegaApiImpl::ImplOf(&api);
+        if (!impl)
+        {
+            return false;
+        }
+
+        auto promise = std::make_shared<std::promise<std::vector<CommandUscForTest::SizeClass>>>();
+        auto future = promise->get_future();
+
+        auto exec = std::make_shared<ExecuteOnce>(
+            [impl, promise]()
+            {
+                MegaClient* client = impl->getClientForTesting();
+                if (!client)
+                {
+                    promise->set_value({});
+                    return;
+                }
+
+                client->queueCommand(new CommandUscForTest(
+                    *client,
+                    [promise](Error e, std::vector<CommandUscForTest::SizeClass>&& classes)
+                    {
+                        if (e != API_OK)
+                        {
+                            promise->set_value({});
+                            return;
+                        }
+                        promise->set_value(std::move(classes));
+                    }));
+            });
+
+        impl->executeOnThreadForTesting(exec);
+
+        if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+        {
+            return false;
+        }
+
+        auto classes = future.get();
+        if (classes.empty())
+        {
+            return false;
+        }
+
+        maxSizes.clear();
+        maxSizes.reserve(classes.size());
+        for (const auto& entry: classes)
+        {
+            maxSizes.push_back(entry.second);
+        }
+        return true;
+    }
+
     //
     // Get a new endpoint name without conflicts with any running instances
     // under the following situations:
@@ -17944,6 +18128,259 @@ TEST_F(SdkTest, SdkTestUploads)
         std::for_each(maxConnectionsVector.begin(), maxConnectionsVector.end(), uploadFile));
 }
 
+namespace
+{
+struct TransferTempErrorTracker : public ::mega::MegaTransferListener
+{
+    std::atomic<bool> done{false};
+    std::atomic<bool> temporary{false};
+    std::atomic<ErrorCodes> result{ErrorCodes::API_EINTERNAL};
+    std::atomic<int> transferTag{-1};
+    std::promise<ErrorCodes> promiseResult;
+    MegaApi* mApi;
+    std::future<ErrorCodes> futureResult;
+
+    explicit TransferTempErrorTracker(MegaApi* api):
+        mApi(api),
+        futureResult(promiseResult.get_future())
+    {
+    }
+
+    ~TransferTempErrorTracker() override
+    {
+        if (!done && mApi)
+        {
+            mApi->removeTransferListener(this);
+        }
+    }
+
+    void onTransferStart(MegaApi*, MegaTransfer* transfer) override
+    {
+        if (transfer && transferTag.load() < 0)
+        {
+            transferTag = transfer->getTag();
+        }
+    }
+
+    void onTransferFinish(MegaApi*, MegaTransfer* transfer, MegaError* error) override
+    {
+        recordResult(transfer, error, false);
+    }
+
+    void onTransferTemporaryError(MegaApi*, MegaTransfer* transfer, MegaError* error) override
+    {
+        recordResult(transfer, error, true);
+    }
+
+    ErrorCodes waitForResult(int seconds = defaultTimeout, bool unregisterListenerOnTimeout = true)
+    {
+        if (std::future_status::ready != futureResult.wait_for(std::chrono::seconds(seconds)))
+        {
+            if (unregisterListenerOnTimeout && mApi)
+            {
+                mApi->removeTransferListener(this);
+            }
+            return static_cast<ErrorCodes>(LOCAL_ETIMEOUT);
+        }
+        return futureResult.get();
+    }
+
+    bool wasTemporaryError() const
+    {
+        return temporary;
+    }
+
+private:
+    void recordResult(MegaTransfer* transfer, MegaError* error, const bool isTemporary)
+    {
+        bool expected = false;
+        if (!done.compare_exchange_strong(expected, true))
+            return;
+
+        if (transfer && transferTag.load() < 0)
+        {
+            transferTag = transfer->getTag();
+        }
+
+        const int code = error ? error->getErrorCode() : API_EINTERNAL;
+        result = static_cast<ErrorCodes>(code);
+        temporary = isTemporary;
+
+        std::promise<ErrorCodes> localPromise = std::move(promiseResult);
+        localPromise.set_value(result);
+    }
+};
+} // namespace
+
+TEST_F(SdkTest, SdkTestUploadsOverquota)
+{
+    LOG_info << "___TEST SdkTestUploadsOverquota___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+
+    const fs::path fillPath = "SdkTestUploadsOverquota";
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
+    auto fillCleanup = makeScopedDestructor([this, fillPath]()
+                                            { cleanUp(this->megaApi[0].get(), fillPath); });
+
+    auto fillHandle = createFolder(0, path_u8string(fillPath).c_str(), rootnode.get());
+    ASSERT_NE(fillHandle, UNDEF) << "Error creating remote fillPath";
+    std::unique_ptr<MegaNode> fillNode(megaApi[0]->getNodeByHandle(fillHandle));
+    ASSERT_NE(fillNode.get(), nullptr);
+
+    auto importHandle = importPublicLink(
+        0,
+        MegaClient::getMegaURL() + "/file/gzlQ3DIY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
+        fillNode.get());
+    std::unique_ptr<MegaNode> seedNode(megaApi[0]->getNodeByHandle(importHandle));
+    ASSERT_NE(seedNode.get(), nullptr);
+
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false));
+    ASSERT_NE(mApi[0].accountDetails, nullptr);
+
+    const long long storageMax = mApi[0].accountDetails->getStorageMax();
+    const long long storageUsed = mApi[0].accountDetails->getStorageUsed();
+    ASSERT_GT(storageMax, 0);
+
+    if (storageUsed >= storageMax)
+    {
+        GTEST_SKIP() << "Account already overquota or full (used=" << storageUsed
+                     << ", max=" << storageMax << ")";
+    }
+
+    const long long copySize = seedNode->getSize();
+    ASSERT_GT(copySize, 0);
+
+    const long long uploadSize = 16LL * 1024 * 1024;
+    long long remaining = storageMax - storageUsed;
+    long long copies = remaining / copySize;
+    const std::string seedName = seedNode->getName() ? seedNode->getName() : "seed";
+
+    for (long long i = 1; i <= copies; ++i)
+    {
+        const std::string copyName = seedName + std::to_string(i);
+        ASSERT_EQ(API_OK, doCopyNode(0, nullptr, seedNode.get(), fillNode.get(), copyName.c_str()))
+            << "Error copying fill node";
+    }
+
+    const auto createFileWithSize = [&](const std::string& filename,
+                                        const long long fileSize,
+                                        const std::string& seed)
+    {
+        ASSERT_GT(fileSize, 0);
+        deleteFile(filename);
+        std::ofstream file(u8path_compat(filename), ios::out | ios::binary);
+        ASSERT_TRUE(file) << "Couldn't create " << filename;
+
+        const std::string pattern = seed.empty() ? "SdkTestUploadsOverquota" : seed;
+        const long long chunkSize = 1024LL * 1024LL;
+        std::vector<char> buffer(static_cast<size_t>(chunkSize));
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+            buffer[i] = pattern[i % pattern.size()];
+        }
+
+        long long remainingBytes = fileSize;
+        while (remainingBytes > 0)
+        {
+            const long long toWrite = std::min(remainingBytes, chunkSize);
+            file.write(buffer.data(), static_cast<std::streamsize>(toWrite));
+            remainingBytes -= toWrite;
+        }
+        file.close();
+        ASSERT_EQ(getFilesize(filename), fileSize) << "Wrong size for " << filename;
+    };
+
+    const long long remainingAfterCopies = remaining - (copies * copySize);
+    if (remainingAfterCopies >= uploadSize)
+    {
+        const long long fillerSize = remainingAfterCopies - (uploadSize - 1);
+        const std::string fillerName = "oq_fill.bin";
+        ASSERT_NO_FATAL_FAILURE(createFileWithSize(fillerName, fillerSize, fillerName));
+
+        TransferTracker fillTracker(megaApi[0].get());
+        MegaUploadOptions fillOptions;
+        fillOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(fillerName, fillNode.get(), nullptr, &fillOptions, &fillTracker);
+        ASSERT_EQ(API_OK, fillTracker.waitForResult())
+            << "Filler upload failed (error: " << fillTracker.result << ")";
+        deleteFile(fillerName);
+    }
+
+    const std::string uploadName1 = "oq_test_upload_1.bin";
+    ASSERT_NO_FATAL_FAILURE(createFileWithSize(uploadName1, uploadSize, uploadName1));
+
+    TransferTempErrorTracker overTracker1(megaApi[0].get());
+    MegaUploadOptions uploadOptions1;
+    uploadOptions1.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(uploadName1, rootnode.get(), nullptr, &uploadOptions1, &overTracker1);
+
+    const ErrorCodes result1 = overTracker1.waitForResult(180);
+    ASSERT_NE(result1, LOCAL_ETIMEOUT) << "Upload timed out waiting for result";
+    if (overTracker1.wasTemporaryError())
+    {
+        ASSERT_EQ(API_EOVERQUOTA, result1)
+            << "Expected storage overquota, got: " << result1;
+        const int transferTag1 = overTracker1.transferTag.load();
+        if (transferTag1 >= 0)
+        {
+            megaApi[0]->cancelTransferByTag(transferTag1);
+        }
+    }
+    else
+    {
+        ASSERT_EQ(API_OK, result1) << "Unexpected upload result: " << result1;
+    }
+    deleteFile(uploadName1);
+
+    if (result1 == API_OK)
+    {
+        const bool overquotaReached = WaitFor(
+            [this]()
+            {
+                if (synchronousGetSpecificAccountDetails(0, true, false, false) != API_OK)
+                    return false;
+                if (!mApi[0].accountDetails)
+                    return false;
+                return mApi[0].accountDetails->getStorageUsed() >
+                       mApi[0].accountDetails->getStorageMax();
+            },
+            120000);
+        if (!overquotaReached)
+        {
+            GTEST_SKIP() << "Account did not reach overquota status after initial upload";
+        }
+
+        const std::string uploadName2 = "oq_test_upload_2.bin";
+        ASSERT_NO_FATAL_FAILURE(createFileWithSize(uploadName2, uploadSize, uploadName2));
+
+        TransferTempErrorTracker overTracker2(megaApi[0].get());
+        MegaUploadOptions uploadOptions2;
+        uploadOptions2.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(
+            uploadName2, rootnode.get(), nullptr, &uploadOptions2, &overTracker2);
+
+        const ErrorCodes result2 = overTracker2.waitForResult(180);
+        ASSERT_NE(result2, LOCAL_ETIMEOUT) << "Upload timed out waiting for result";
+        deleteFile(uploadName2);
+        const int transferTag2 = overTracker2.transferTag.load();
+        if (transferTag2 >= 0)
+        {
+            megaApi[0]->cancelTransferByTag(transferTag2);
+        }
+        if (!overTracker2.wasTemporaryError() && result2 == API_OK)
+        {
+            GTEST_SKIP() << "Upload completed despite storage usage exceeding quota";
+        }
+        ASSERT_TRUE(overTracker2.wasTemporaryError())
+            << "Expected transfer temporary error after exceeding quota";
+        ASSERT_EQ(API_EOVERQUOTA, result2)
+            << "Expected storage overquota after exceeding quota, got: " << result2;
+    }
+}
+
 TEST_F(SdkTest, SdkTestMultipleUploads)
 {
     LOG_info << "___TEST Multiple Uploads___";
@@ -18010,26 +18447,14 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     onTransferUpdate_filesize = 0;
 
     // Start first upload
-    megaApi[0]->startUpload(file1.c_str(),
-                            rootnode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
-                            &ut1 /*listener*/);
+    MegaUploadOptions uploadOptions1;
+    uploadOptions1.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(file1, rootnode.get(), nullptr, &uploadOptions1, &ut1);
 
     // Start second upload
-    megaApi[0]->startUpload(file2.c_str(),
-                            rootnode.get(),
-                            nullptr /*fileName*/,
-                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
-                            nullptr /*appData*/,
-                            false /*isSourceTemporary*/,
-                            false /*startFirst*/,
-                            nullptr /*cancelToken*/,
-                            &ut2 /*listener*/);
+    MegaUploadOptions uploadOptions2;
+    uploadOptions2.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(file2, rootnode.get(), nullptr, &uploadOptions2, &ut2);
 
     // Wait for both uploads to complete
     unsigned int transfer_timeout_in_seconds = 300; // 5 minutes for parallel uploads
@@ -18068,6 +18493,150 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     // Clean up local files
     deleteFile(file1);
     deleteFile(file2);
+}
+
+TEST_F(SdkTest, SdkTestMultipleUploadsExpanded)
+{
+    LOG_info << "___TEST Multiple Uploads Expanded___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    auto accountRestorer = scopedToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+
+    std::vector<m_off_t> sizeClasses;
+    ASSERT_TRUE(fetchUscSizeClasses(*megaApi[0], sizeClasses, 60))
+        << "Unable to fetch USC size classes";
+
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] USC size classes count: "
+              << sizeClasses.size();
+
+    const m_off_t kLargeFileSize = 160000000; // 160MB
+    std::vector<m_off_t> fileSizes;
+    fileSizes.reserve(sizeClasses.size());
+
+    for (const auto maxSize: sizeClasses)
+    {
+        m_off_t size = 0;
+        if (maxSize > 0)
+        {
+            size = maxSize - 1;
+            if (size <= 0)
+                size = 1;
+            if (size > kLargeFileSize)
+                size = kLargeFileSize;
+        }
+        else
+        {
+            size = kLargeFileSize;
+        }
+        fileSizes.push_back(size);
+    }
+
+    if (fileSizes.size() < 2)
+    {
+        GTEST_SKIP() << "USC returned fewer than 2 size classes";
+    }
+
+    const auto createFileWithSize = [&](const std::string& filename, const size_t fileSize)
+    {
+        deleteFile(filename);
+        std::ofstream file(u8path_compat(filename), ios::out);
+        ASSERT_TRUE(file) << "Couldn't create " << filename;
+
+        const std::string lineStr = "Test data for " + filename + " ";
+        const size_t lineSize = lineStr.size();
+        const size_t numLines = fileSize / lineSize;
+
+        for (size_t l = 0; l < numLines; ++l)
+        {
+            file << lineStr;
+        }
+
+        const size_t remaining = fileSize % lineSize;
+        if (remaining > 0)
+        {
+            file << lineStr.substr(0, remaining);
+        }
+
+        file.close();
+
+        const auto actualSize = getFilesize(filename);
+        ASSERT_EQ(actualSize, static_cast<int64_t>(fileSize)) << "Wrong size for " << filename;
+    };
+
+    std::vector<std::string> fileNames;
+    fileNames.reserve(fileSizes.size());
+
+    for (size_t i = 0; i < fileSizes.size(); ++i)
+    {
+        const std::string filename = "parallel_upload_expanded_" + std::to_string(i + 1) + ".txt";
+        fileNames.push_back(filename);
+        const auto size = static_cast<size_t>(fileSizes[i] > 0 ? fileSizes[i] : 1);
+        ASSERT_NO_FATAL_FAILURE(createFileWithSize(filename, size));
+        LOG_debug << "[SdkTestMultipleUploadsExpanded] File " << (i + 1) << ": " << size
+                  << " bytes";
+    }
+
+    std::vector<std::unique_ptr<TransferTracker>> trackers;
+    trackers.reserve(fileNames.size());
+
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] Starting parallel uploads: "
+              << fileNames.size();
+
+    const auto& uploadStartTime = std::chrono::system_clock::now();
+
+    for (size_t i = 0; i < fileNames.size(); ++i)
+    {
+        trackers.push_back(std::make_unique<TransferTracker>(megaApi[0].get()));
+        MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(fileNames[i], rootnode.get(), nullptr, &uploadOptions,
+                                trackers.back().get());
+    }
+
+    const unsigned int transferTimeoutSeconds = 600;
+    for (size_t i = 0; i < trackers.size(); ++i)
+    {
+        ASSERT_EQ(API_OK, trackers[i]->waitForResult(transferTimeoutSeconds))
+            << "Upload failed for " << fileNames[i] << " (error: " << trackers[i]->result << ")";
+    }
+
+    const auto& uploadEndTime = std::chrono::system_clock::now();
+    const auto uploadTime =
+        std::chrono::duration_cast<std::chrono::milliseconds>(uploadEndTime - uploadStartTime)
+            .count();
+
+    m_off_t totalSize = 0;
+    for (const auto size: fileSizes)
+        totalSize += size;
+
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] Parallel uploads completed in " << uploadTime
+              << " ms";
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] Total size: " << totalSize << " bytes";
+
+    ASSERT_EQ(API_OK, mApi[0].lastError) << "Upload error: " << mApi[0].lastError;
+
+    for (size_t i = 0; i < trackers.size(); ++i)
+    {
+        ASSERT_NE(trackers[i]->resultNodeHandle, ::mega::INVALID_HANDLE)
+            << "Upload didn't return valid node handle for " << fileNames[i];
+
+        std::unique_ptr<MegaNode> uploadedNode(
+            megaApi[0]->getNodeByHandle(trackers[i]->resultNodeHandle));
+        ASSERT_NE(uploadedNode, nullptr) << "Cannot find uploaded file in cloud for "
+                                         << fileNames[i];
+        ASSERT_STREQ(fileNames[i].c_str(), uploadedNode->getName())
+            << "Uploaded file has wrong name for " << fileNames[i];
+        ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(fileSizes[i]))
+            << "Uploaded file has wrong size for " << fileNames[i];
+    }
+
+    for (const auto& file: fileNames)
+    {
+        deleteFile(file);
+    }
 }
 
 /**

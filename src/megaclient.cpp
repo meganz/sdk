@@ -1744,6 +1744,7 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
             for (auto& it : multi_transfers[d])
             {
                 Transfer *t = it.second;
+                const bool alreadyOverquota = (t->bt.nextset() == NEVER);
                 t->bt.backoff(NEVER);
                 if (t->slot)
                 {
@@ -1753,6 +1754,25 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
                     app->transfer_failed(t, isPaywall ? API_EPAYWALL : API_EOVERQUOTA, 0);
                     ++performanceStats.transferTempErrors;
                 }
+#ifdef MEGA_USE_WSUPLOAD
+                else if (t->channel == Transfer::Channel::WebSocket)
+                {
+                    if (wsEngine())
+                        wsEngine()->markFailed(*t, NEVER);
+                    if (!alreadyOverquota)
+                    {
+                        t->state = TRANSFERSTATE_RETRYING;
+                        app->transfer_failed(t,
+                                             isPaywall ? API_EPAYWALL : API_EOVERQUOTA,
+                                             0);
+                        ++performanceStats.transferTempErrors;
+                    }
+                    else if (t->state != TRANSFERSTATE_RETRYING)
+                    {
+                        t->state = TRANSFERSTATE_RETRYING;
+                    }
+                }
+#endif
             }
         }
     }
@@ -2163,15 +2183,26 @@ MegaClient::MegaClient(MegaApp* a,
 
 #ifdef MEGA_USE_WSUPLOAD
     m_wsEngine.reset(new ws::UploadEngine(*this));
-    if (ws::wsEnabled(*this))
-    {
-        m_wsEngine->start();
-        installWsEngineCallbacks();
-    }
 #endif
 }
 
 #ifdef MEGA_USE_WSUPLOAD
+void MegaClient::maybeStartWsUploadEngine()
+{
+    if (mWsEngineStarted)
+        return;
+    if (!m_wsEngine)
+        return;
+    if (!ws::wsEnabled(*this))
+        return;
+    if (loggedin() == NOTLOGGEDIN)
+        return;
+
+    m_wsEngine->start();
+    installWsEngineCallbacks();
+    mWsEngineStarted = true;
+}
+
 void MegaClient::installWsEngineCallbacks()
 {
     if (!m_wsEngine)
@@ -2215,21 +2246,103 @@ void MegaClient::installWsEngineCallbacks()
                                               "t.setProgresscompleted(confirmed="
                                            << confirmed
                                            << ") [t.localfilename = " << t.localfilename << "]";
+                                 const auto diff = confirmed - t.progresscompleted;
+                                 if (diff > 0 && t.client && t.client->httpio)
+                                 {
+                                     t.client->httpio->updateuploadspeed(diff);
+                                 }
                                  t.setProgresscompleted(confirmed);
                              });
     };
 
-    cb.onFail = [this](Transfer& t, int /*reason*/)
+    cb.onFail = [this](Transfer& t, int apierr, m_off_t /*aux*/)
     {
-        wsPostTransferUpdate(&t,
-                             [](Transfer& t, TransferDbCommitter&)
-                             {
-                                 LOG_debug
-                                     << "[MegaClient::wsPostTransferUpdate] onFail -> t.state = "
-                                        "TRANSFERSTATE_RETRYING [t.localfilename = "
-                                     << t.localfilename << "]";
-                                 t.state = TRANSFERSTATE_RETRYING;
-                             });
+        auto* tp = &t;
+        const auto type = t.type;
+        const auto th = t.uploadhandle;
+
+        wsPostToClientThread(
+            [tp, type, th, apierr](MegaClient& client, TransferDbCommitter& committer) mutable
+            {
+                if (!tp)
+                    return;
+
+                auto& transfers = client.multi_transfers[type];
+                auto it = transfers.find(tp);
+                if (it == transfers.end() || !(tp->uploadhandle == th))
+                    return;
+
+                const error e = static_cast<error>(apierr);
+                dstime retrydelay = 0;
+
+                bool shouldRetry = false;
+                if (e != API_EBUSINESSPASTDUE)
+                {
+                    if (e == API_EOVERQUOTA && tp->type == PUT)
+                    {
+                        bool anyRetained = false;
+                        for (auto* f : tp->files)
+                        {
+                            if (!f)
+                                continue;
+                            if (f->isFuseTransfer() || client.isForeignNode(f->h))
+                                continue;
+                            anyRetained = true;
+                            break;
+                        }
+                        shouldRetry = anyRetained;
+                    }
+                    else if (e == API_EARGS || e == API_ESUBUSERKEYMISSING)
+                    {
+                        for (auto* f : tp->files)
+                        {
+                            if (f && f->syncxfer && e == API_EARGS)
+                            {
+                                shouldRetry = true;
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for (auto* f : tp->files)
+                        {
+                            if (f && f->failed(e, &client))
+                            {
+                                shouldRetry = true;
+                                break;
+                            }
+                        }
+
+                        if (!shouldRetry && e == API_ENOENT && tp->type == PUT &&
+                            tp->tempurls.empty() && tp->failcount < 16)
+                        {
+                            shouldRetry = true;
+                        }
+                    }
+                }
+
+                const bool mayDelete = !shouldRetry;
+                if (mayDelete && client.wsEngine())
+                {
+                    client.wsEngine()->remove(*tp);
+                }
+
+                tp->failed(e, committer, retrydelay);
+
+                if (!mayDelete && client.wsEngine())
+                {
+                    dstime retryAt = tp->bt.nextset();
+                    if (!retryAt || retryAt == 1)
+                        retryAt = client.waiter->ds;
+                    client.wsEngine()->setRetryUntil(*tp, retryAt);
+                }
+
+                if (!mayDelete && client.app)
+                {
+                    client.app->transfer_update(tp);
+                }
+            });
     };
 
     cb.onComplete = [this](Transfer& t, const char* payload, const int len)
@@ -2288,6 +2401,9 @@ void MegaClient::installWsEngineCallbacks()
                 c.transfercacheadd(&tt, &committer);
                 if (c.app)
                     c.app->transfer_update(tPtr);
+                const bool addedStats = tt.addTransferStats();
+                if (addedStats)
+                    tt.collectAndPrintTransferStatsIfLimitReached();
                 if (c.wsEngine())
                     c.wsEngine()->remove(tt);
 
@@ -2513,6 +2629,8 @@ void MegaClient::wsProcessVerifyUploads()
 
 bool MegaClient::wsCanStartAnotherFile() const
 {
+    if (ststatus == STORAGE_RED || ststatus == STORAGE_PAYWALL)
+        return false;
     // Same semantics as legacy FA back‑pressure.
     LOG_debug << "[MegaClient::wsCanStartAnotherFile] queuedfa.size() < MAXQUEUEDFA -> "
               << queuedfa.size() << " < " << MAXQUEUEDFA;
@@ -3683,7 +3801,13 @@ void MegaClient::exec()
                                                     this,
                                                     idempotenceId);
 
+		    LOG_debug << "Lockless req: " << *mPendingLocklessCS->out;
                     mPendingLocklessCS->posturl = httpio->APIURL;
+		    if (*mPendingLocklessCS->out == "[{\"a\":\"usc\"}]")
+	            {
+			mPendingLocklessCS->posturl = "https://staging.api.mega.co.nz/";
+			LOG_warn << "[USC] Lockless req is USC !!! APIURL set to staging: " << mPendingLocklessCS->posturl;
+		    }
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
@@ -3700,7 +3824,8 @@ void MegaClient::exec()
                         mPendingLocklessCS->posturl.append("&j=");
                         mPendingLocklessCS->posturl.append(mJourneyId->getValue());
                     }
-                    mPendingLocklessCS->type = REQ_JSON;
+                    
+		    mPendingLocklessCS->type = REQ_JSON;
 
                     mPendingLocklessCS->post(this);
                     continue;
@@ -4561,6 +4686,7 @@ bool MegaClient::abortbackoff(bool includexfers)
     {
         overquotauntil = 0;
         mLastStreamOverquotaNotifyDs = 0;
+        const dstime now = Waiter::ds;
         if (ststatus != STORAGE_PAYWALL)    // in ODQ Paywall, ULs/DLs are not allowed
         {
             // in ODQ Red, only ULs are disallowed
@@ -4581,6 +4707,12 @@ bool MegaClient::abortbackoff(bool includexfers)
                             r = true;
                         }
                     }
+#ifdef MEGA_USE_WSUPLOAD
+                    if (it.second->channel == Transfer::Channel::WebSocket && wsEngine())
+                    {
+                        wsEngine()->setRetryUntil(*it.second, now);
+                    }
+#endif
                 }
             }
 
@@ -15558,6 +15690,9 @@ void MegaClient::reportLoggedInChanges()
         mLastLoggedInMyEmail = currentEmail;
         app->loggedInStateChanged(currState, me, currentEmail);
     }
+#ifdef MEGA_USE_WSUPLOAD
+    maybeStartWsUploadEngine();
+#endif
 }
 
 void MegaClient::whyamiblocked()
@@ -20261,7 +20396,7 @@ std::shared_ptr<Node> MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     auto localPath = localNode->getLocalPath();
 
-    if (!ifAccess->fopen(localPath, true, false, FSLogging::logOnError))
+    if (!ifAccess->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         return nullptr;
 
     std::string remoteKey = (*remoteNode)->nodekey();

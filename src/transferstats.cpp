@@ -22,9 +22,11 @@
 #include "mega/transferstats.h"
 
 #include "mega/logging.h"
+#include "mega/megaclient.h"
 #include "mega/transferslot.h"
 
 #include <chrono>
+#include <cmath>
 #include <iomanip>
 
 namespace mega::stats
@@ -134,6 +136,9 @@ bool TransferStats::addTransferData(TransferData&& transferData)
 
     mUncollectedAndPrintedTransferData.first += 1;
     mUncollectedAndPrintedTransferData.second += transferData.mSize;
+    LOG_debug << "[TransferStats::addTransferData] uncollected=("
+              << mUncollectedAndPrintedTransferData.first << ", "
+              << mUncollectedAndPrintedTransferData.second << ")";
 
     // Update the timestamp and move the transferData to the collection.
     transferData.mTimestamp = now;
@@ -238,6 +243,42 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
         return false;
     }
 
+    if (transfer->channel == Transfer::Channel::WebSocket)
+    {
+        if (!transfer->client || !transfer->client->wsEngine())
+        {
+            LOG_debug << "[TransferStatsManager::addTransferStats] Missing WS engine for "
+                         "WebSocket transfer";
+            return false;
+        }
+
+        ws::UploadEngine::WsTransferStats wsStats;
+        if (!transfer->client->wsEngine()->getTransferStats(*transfer, wsStats))
+        {
+            LOG_debug << "[TransferStatsManager::addTransferStats] WS stats not available yet "
+                         "[size="
+                      << transfer->size << "]";
+            return false;
+        }
+
+        const m_off_t meanSpeed = wsStats.meanSpeedBytesPerSecond;
+        TransferStats::TransferData transferData{
+            transfer->size,
+            meanSpeed,
+            static_cast<double>(wsStats.avgStartTransferTime.count()),
+            wsStats.failedRequestRatio,
+            false};
+
+        std::lock_guard<std::mutex> guard(mTransferStatsMutex);
+        const bool added = mUploadStatistics.addTransferData(std::move(transferData));
+        LOG_debug << "[TransferStatsManager::addTransferStats] WS stats "
+                  << (added ? "added" : "discarded") << " [size=" << transfer->size
+                  << " meanSpeed=" << meanSpeed << " B/s"
+                  << " avgLatencyMs=" << wsStats.avgStartTransferTime.count()
+                  << " failedRatio=" << wsStats.failedRequestRatio << "]";
+        return added;
+    }
+
     // Add transfer stats.
     TransferStats::TransferData transferData{transfer->size,
                                              transfer->slot->mTransferSpeed.getMeanSpeed(),
@@ -324,8 +365,9 @@ TransferStats::UncollectedTransfersCounters
     TransferStatsManager::getUncollectedAndPrintedTransferData(const direction_t type) const
 {
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
-    return type == PUT ? mUploadStatistics.getUncollectedAndPrintedTransferData() :
-                         mDownloadStatistics.getUncollectedAndPrintedTransferData();
+    const auto counters = type == PUT ? mUploadStatistics.getUncollectedAndPrintedTransferData() :
+                                        mDownloadStatistics.getUncollectedAndPrintedTransferData();
+    return counters;
 }
 
 // Utils
@@ -411,6 +453,13 @@ bool checkTransferStateValidity(const Transfer* const transfer)
             "[checkTransferStateValidity] called with an invalid transfer type"))
     {
         return false;
+    }
+
+    if (transfer->channel == Transfer::Channel::WebSocket)
+    {
+        return checkTransferStateCondition(
+            transfer->type == PUT,
+            "[checkTransferStateValidity] WebSocket channel used for non-PUT transfer");
     }
 
     if (!checkTransferStateCondition(

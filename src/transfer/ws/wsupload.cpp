@@ -11,6 +11,7 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <limits>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -22,7 +23,9 @@
 // --- SDK headers (kept local to .cpp to keep the public header light)
 #include "mega/file.h"
 #include "mega/filesystem.h"
+#include "mega/command.h"
 #include "mega/logging.h"
+#include "mega/http.h"
 #include "mega/megaclient.h"
 #include "mega/transfer.h"
 #include "mega/types.h"
@@ -40,8 +43,6 @@ namespace ws
 {
 
 // ---------- small time helper (deciseconds) ----------
-using dstime = std::uint32_t;
-
 struct SteadyTime
 {
     static dstime ds()
@@ -62,6 +63,36 @@ struct SteadyTime
     {
         return static_cast<std::int32_t>(a - b);
     }
+};
+
+// ---------- RAII helper: temporarily release a unique_lock and re-acquire it on scope exit ----------
+class ScopedUnlock
+{
+public:
+    explicit ScopedUnlock(std::unique_lock<std::mutex>& lock):
+        mLock(lock),
+        mWasLocked(lock.owns_lock())
+    {
+        if (mWasLocked)
+        {
+            mLock.unlock();
+        }
+    }
+
+    ~ScopedUnlock()
+    {
+        if (mWasLocked)
+        {
+            mLock.lock();
+        }
+    }
+
+    ScopedUnlock(const ScopedUnlock&) = delete;
+    ScopedUnlock& operator=(const ScopedUnlock&) = delete;
+
+private:
+    std::unique_lock<std::mutex>& mLock;
+    bool mWasLocked{false};
 };
 
 // ---------- CRC32 wrapper ----------
@@ -156,12 +187,17 @@ public:
     // queue/pool bookkeeping
     bool continuingUpload(const dstime now) const
     {
-        if (!mAborted && mUploadCompletionTime == 0)
-            return true;
-        if (mUploadFailedTime != 0 &&
-            SteadyTime::difference(now, mUploadFailedTime) > RETRYINTERVAL)
-            return true;
-        return false;
+        if (mAborted || mUploadCompletionTime != 0)
+            return false;
+
+        if (mUploadFailedTime != 0)
+        {
+            const dstime retryUntil =
+                mRetryUntil ? mRetryUntil : (mUploadFailedTime + RETRYINTERVAL);
+            return now >= retryUntil;
+        }
+
+        return true;
     }
 
     void setPool(WsPool& p); // defined after WsPool
@@ -218,8 +254,7 @@ public:
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             engineMutex.unlock();
             auto fa = mClient.fsaccess->newfileaccess();
-            const bool okOpen =
-                fa->fopen(mFile->getLocalname(), true, false, FSLogging::logOnError);
+            const bool okOpen = fa->fopen(mFile->getLocalname(), OPEN_RDONLY, FSLogging::logOnError);
             LOG_debug << "[WsUploadFile::readData] okOpen=" << okOpen
                       << " [localname=" << mFile->getLocalname() << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
@@ -328,6 +363,8 @@ public:
     void onServerConfirmedBytes(const m_off_t bytes)
     {
         mBytesConfirmed += bytes;
+        if (!mFirstAckTime)
+            mFirstAckTime = SteadyTime::ds();
         mClientActiveFilesTick = true;
     }
 
@@ -413,6 +450,21 @@ public:
     {
         LOG_debug << "[WsUploadFile::setUploadStart] t=" << t << " [this = " << this << "]";
         mUploadStartTime = t;
+        mUploadFailedTime = 0;
+        mRetryUntil = 0;
+    }
+
+    void setRetryUntil(const dstime when)
+    {
+        mRetryUntil = when;
+    }
+
+    void markFailedForRetry(const dstime retryUntil)
+    {
+        if (!mUploadFailedTime)
+            mUploadFailedTime = SteadyTime::ds();
+        mRetryUntil = retryUntil ? retryUntil : (mUploadFailedTime + RETRYINTERVAL);
+        closeFA();
     }
 
     m_off_t bytesConfirmed() const noexcept
@@ -424,6 +476,7 @@ public:
     void uploadFailed(const FailReason reason)
     {
         mUploadFailedTime = SteadyTime::ds();
+        mRetryUntil = mUploadFailedTime + RETRYINTERVAL;
         unsetPool();
         closeFA();
         LOG_warn << "[WsUploadFile::uploadFailed] file failed, reason=" << static_cast<int>(reason)
@@ -469,6 +522,54 @@ public:
         return mUploadStartTime != 0 && !mPaused && !mAborted && mUploadFailedTime == 0;
     }
 
+    void onRequestSent() noexcept
+    {
+        ++mNumRequests;
+    }
+
+    void onRequestFailed() noexcept
+    {
+        ++mNumFailedRequests;
+    }
+
+    bool getTransferStats(UploadEngine::WsTransferStats& stats) const
+    {
+        if (!mUploadStartTime || mBytesConfirmed <= 0)
+            return false;
+
+        const dstime endTime = mUploadCompletionTime ? mUploadCompletionTime : SteadyTime::ds();
+        const dstime dataStart = mFirstAckTime ? mFirstAckTime : mUploadStartTime;
+        const dstime dsElapsed = SteadyTime::difference(endTime, dataStart);
+        const dstime safeElapsed = dsElapsed > 0 ? dsElapsed : 1;
+        const m_off_t maxSpeed = std::numeric_limits<m_off_t>::max();
+        const m_off_t scale = static_cast<m_off_t>(SpeedController::DS_PER_SECOND);
+        const m_off_t numerator =
+            (mBytesConfirmed > maxSpeed / scale) ? maxSpeed : (mBytesConfirmed * scale);
+        stats.meanSpeedBytesPerSecond = numerator / static_cast<m_off_t>(safeElapsed);
+
+        dstime latencyDs = 0;
+        if (mFirstAckTime)
+            latencyDs = SteadyTime::difference(mFirstAckTime, mUploadStartTime);
+        else if (mUploadCompletionTime)
+            latencyDs = SteadyTime::difference(mUploadCompletionTime, mUploadStartTime);
+        if (latencyDs < 0)
+            latencyDs = 0;
+        if (latencyDs == 0 && (mBytesConfirmed > 0 || mUploadCompletionTime))
+            latencyDs = 1;
+        stats.avgStartTransferTime = std::chrono::milliseconds(latencyDs * 100);
+
+        if (mNumRequests > 0)
+        {
+            stats.failedRequestRatio =
+                static_cast<double>(mNumFailedRequests) / static_cast<double>(mNumRequests);
+        }
+        else
+        {
+            stats.failedRequestRatio = 0.0;
+        }
+        return true;
+    }
+
 public: // accessed by engine
     bool mClientActiveFilesTick{false};
     WsPool* mPool{nullptr};
@@ -500,6 +601,7 @@ private:
     void markFailed()
     {
         mUploadFailedTime = SteadyTime::ds();
+        mRetryUntil = mUploadFailedTime + RETRYINTERVAL;
     }
 
 private:
@@ -518,6 +620,9 @@ private:
     m_off_t mHeadPos{0};
     m_off_t mBytesConfirmed{0};
     m_off_t mLastReportedBytesConfirmed{0};
+    m_off_t mNumRequests{0};
+    m_off_t mNumFailedRequests{0};
+    dstime mFirstAckTime{0};
     m_off_t mLastProgressReportBytes{0};
     dstime mLastProgressReportDs{0};
     m_time_t mMtime{0};
@@ -529,6 +634,7 @@ private:
     dstime mUploadStartTime{0};
     dstime mUploadCompletionTime{0};
     dstime mUploadFailedTime{0};
+    dstime mRetryUntil{0};
 };
 
 // ---------- WS payloads ----------
@@ -817,13 +923,13 @@ struct WsPool
     bool getWsUploadFile(dstime now, class UploadEngine::Impl& impl);
     WsUploadFile* findFile(std::uint32_t fileno, class UploadEngine::Impl& impl);
     bool nextChunk(WsChunk& chunk, class UploadEngine::Impl& impl);
-
+    void retryChunkLocked(const WsChunk& chunk);
     void retryChunk(const WsChunk& chunk);
 
     void retryChunksOnTheWire(WsConn* ws);
 
+    void applyInFlightLocked(const std::uint32_t fileno);
     void applyInFlight(const std::uint32_t fileno);
-
     bool sendChunk(WsConn* ws, class UploadEngine::Impl& impl);
 };
 
@@ -880,6 +986,9 @@ struct WsPoolMgr
 
     std::unordered_set<WsUploadFile*> mActiveFiles; // progress reporting
     dstime mLastNetRead{0};
+    std::atomic_bool mRefreshing{false};
+    dstime mNextRefreshAttempt{0};
+    unsigned mRefreshFailCount{0};
 
     WsPoolMgr()
     {
@@ -888,10 +997,13 @@ struct WsPoolMgr
 
     ~WsPoolMgr() = default;
 
-    void curlIO(class UploadEngine::Impl& impl); // defined later
+    void curlIO(std::unique_lock<std::mutex>& lk); // defined later
     void checkPools(class UploadEngine::Impl& impl); // defined later
     void refreshPools(); // defined later
     bool refreshPoolsResponse(std::string& response); // defined later
+
+    // Shared tail for USC refresh responses (parsing can be done via string parsing or JSON).
+    void applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> urls);
 
     void setCurlResponseProc(CURL* curl, CurlResponseProc* proc)
     {
@@ -925,6 +1037,140 @@ struct WsPoolMgr
             p->mLastServerResponse = now;
         }
     }
+};
+
+// API command wrapper for "usc" (Upload Session Context) used by websocket uploads.
+//
+// NOTE: WS uploads are pool-based (not per-file), so the response can contain multiple endpoints
+// across size classes. We keep parsing minimal and convert to "wss://<host>/<path>" URLs.
+class CommandUSCForWsUpload final : public Command
+{
+public:
+    using SizeClass = std::pair<std::string, m_off_t>; // (wss url, max size)
+    using Completion = std::function<void(Error, std::vector<SizeClass>&&)>;
+
+    CommandUSCForWsUpload(MegaClient& client, Completion completion)
+        : mCompletion(std::move(completion))
+    {
+        cmd("usc");
+        tag = client.reqtag;
+        // USC is read-only and safe to run on the lockless request channel.
+        mLockless = true;
+    }
+
+    bool procresult(Result r, JSON& json) override
+    {
+        if (r.wasErrorOrOK())
+        {
+            if (r.wasError(API_OK))
+                mCompletion(API_EINTERNAL, {});
+            else
+                mCompletion(r.errorOrOK(), {});
+            return true;
+        }
+
+        if (!r.hasJsonArray())
+        {
+            mCompletion(API_EINTERNAL, {});
+            return true;
+        }
+
+        std::vector<SizeClass> sizeClasses;
+
+        auto peek = [](const JSON& j) -> char
+        {
+            const char* p = j.pos;
+            while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',' || *p == ':')
+                ++p;
+            return *p;
+        };
+
+        auto parseEntryArray = [&](JSON& j)
+        {
+            std::string host;
+            std::string path;
+            m_off_t maxSize = 0;
+
+            const bool okHost = j.storeobject(&host);
+            const bool okPath = j.storeobject(&path);
+            if (okHost && okPath)
+            {
+                if (j.isnumeric())
+                {
+                    maxSize = j.getint();
+                }
+
+                // Ignore any extra fields we don't currently understand.
+                while (j.storeobject())
+                    ;
+
+                std::string url = "wss://";
+                url.append(host);
+                url.append("/");
+                url.append(path);
+                sizeClasses.emplace_back(std::move(url), maxSize);
+            }
+            else
+            {
+                while (j.storeobject())
+                    ;
+            }
+        };
+
+        std::function<void(JSON&)> parseArrayContents;
+        parseArrayContents = [&](JSON& j)
+        {
+            const char next = peek(j);
+            if (next == ']')
+            {
+                return;
+            }
+
+            if (next == '[')
+            {
+                while (j.enterarray())
+                {
+                    parseArrayContents(j);
+                    j.leavearray();
+                }
+                return;
+            }
+
+            if (next != '"')
+            {
+                while (j.storeobject())
+                    ;
+                return;
+            }
+
+            parseEntryArray(j);
+        };
+
+        // Parse using a copy to avoid cursor desync on the main JSON instance.
+        JSON jsonCopy = json;
+        while (jsonCopy.enterarray())
+        {
+            parseArrayContents(jsonCopy);
+            jsonCopy.leavearray();
+        }
+
+        // Consume the full response element in the original JSON.
+        while (json.storeobject())
+            ;
+
+        if (sizeClasses.empty())
+        {
+            mCompletion(API_EINTERNAL, {});
+        }
+        else
+        {
+            mCompletion(API_OK, std::move(sizeClasses));
+        }
+        return true;
+    }
+
+private:
+    Completion mCompletion;
 };
 
 // ========== UploadEngine::Impl (queue + mgr + thread) ==========
@@ -1139,6 +1385,24 @@ public:
             removed->waitForNoIO();
     }
 
+    void setRetryUntil(Transfer& t, const dstime when)
+    {
+        withFile(t,
+                 [when](WsUploadFile& f)
+                 {
+                     f.setRetryUntil(when);
+                 });
+    }
+
+    void markFailed(Transfer& t, const dstime retryUntil)
+    {
+        withFile(t,
+                 [retryUntil](WsUploadFile& f)
+                 {
+                     f.markFailedForRetry(retryUntil);
+                 });
+    }
+
     bool isUploading(Transfer& t) const
     {
         LOG_debug << "[UploadEngine::Impl::isUploading] t=" << t.localfilename
@@ -1159,6 +1423,15 @@ public:
             return false;
         const WsUploadFile* f = it->second.get();
         return f->inPool();
+    }
+
+    bool getTransferStats(const Transfer& t, UploadEngine::WsTransferStats& stats) const
+    {
+        std::lock_guard<std::mutex> g(uploadMutex);
+        auto it = files.find(const_cast<Transfer*>(&t));
+        if (it == files.end() || !it->second)
+            return false;
+        return it->second->getTransferStats(stats);
     }
 
     void start()
@@ -1267,7 +1540,7 @@ public:
             currentTime = SteadyTime::ds();
 
             // Pump USC/aux cURL
-            poolMgr.curlIO(*this);
+            poolMgr.curlIO(lk);
 
             // per-file throughput (server-ack basis)
             for (WsUploadFile* f: poolMgr.mActiveFiles)
@@ -1344,15 +1617,25 @@ private:
 WsConn::WsConn(WsPool* pool):
     mPool(pool)
 {
+    assert(pool);
+    assert(pool->mImpl);
+
+    // Protect pool->mConns against concurrent access (e.g. UploadEngine::Impl::remove() iterating it)
+    std::lock_guard<std::mutex> lk(pool->mImpl->uploadMutex);
     mConns_it = pool->mConns.insert(this).first;
 }
 
 WsConn::~WsConn()
 {
-    if (mPool)
+    if (mPool && mPool->mImpl)
+    {
+        std::lock_guard<std::mutex> lk(mPool->mImpl->uploadMutex);
         mPool->mConns.erase(mConns_it);
+    }
     if (curl)
+    {
         curl_easy_cleanup(curl);
+    }
 }
 
 /*
@@ -1601,10 +1884,6 @@ void WsConn::curlRecv()
 void WsConn::onmessage(const char* msg, const int len)
 {
     LOG_debug << "[WsConn::onmessage] BEGIN [len=" << len << "] [this = " << this << "]";
-    mPool->mLastActive = mPool->mImpl->currentTime;
-    mPool->mLastServerResponse = mPool->mImpl->currentTime;
-    mPool->mImpl->poolMgr.bumpLastNetRead(mPool->mImpl->currentTime);
-
     if (len < 9)
     {
         LOG_warn << "WsUpload: invalid server msg len=" << len;
@@ -1621,13 +1900,20 @@ void WsConn::onmessage(const char* msg, const int len)
         return;
     }
 
+    // From here on we must protect pool/file/transfer state with the upload mutex.
+    std::lock_guard<std::mutex> lk(mPool->mImpl->uploadMutex);
+
+    mPool->mLastActive = mPool->mImpl->currentTime;
+    mPool->mLastServerResponse = mPool->mImpl->currentTime;
+    mPool->mImpl->poolMgr.bumpLastNetRead(mPool->mImpl->currentTime);
+
 #pragma pack(push, 1)
 
     struct ChunkResponse
     {
         std::uint32_t fileno;
         m_off_t chunkpos;
-        char event;
+        signed char event;
     };
 
 #pragma pack(pop)
@@ -1654,6 +1940,12 @@ void WsConn::onmessage(const char* msg, const int len)
                          "uf->uploadFailed(FailReason::ServerError) [this = "
                       << this << "]";
             uf->uploadFailed(FailReason::ServerError);
+            if (mPool->mImpl->mCb.onFail)
+            {
+                const int apierr = static_cast<int>(response->event);
+                const m_off_t aux = response->chunkpos;
+                mPool->mImpl->mCb.onFail(uf->transfer(), apierr, aux);
+            }
             return;
         }
 
@@ -1662,20 +1954,17 @@ void WsConn::onmessage(const char* msg, const int len)
         chunk.pos = -1;
         const bool shouldApply =
             response->event == 1 || response->event == 2 || response->event == 7;
+        for (int i = 0; i < static_cast<int>(mChunksInFlight.size()); ++i)
         {
-            std::lock_guard<std::mutex> g(mPool->mImpl->uploadMutex);
-            for (int i = 0; i < static_cast<int>(mChunksInFlight.size()); ++i)
+            if (mChunksInFlight[i].first.pos == response->chunkpos &&
+                mChunksInFlight[i].first.fileno == response->fileno)
             {
-                if (mChunksInFlight[i].first.pos == response->chunkpos &&
-                    mChunksInFlight[i].first.fileno == response->fileno)
-                {
-                    chunk = mChunksInFlight[i].first;
-                    if (shouldApply)
-                        mChunksInFlight[i].second.apply(chunk.pos);
-                    mChunksInFlight.erase(mChunksInFlight.begin() + i);
-                    mPool->mNumChunksInFlight--;
-                    break;
-                }
+                chunk = mChunksInFlight[i].first;
+                if (shouldApply)
+                    mChunksInFlight[i].second.apply(chunk.pos);
+                mChunksInFlight.erase(mChunksInFlight.begin() + i);
+                mPool->mNumChunksInFlight--;
+                break;
             }
         }
         if (chunk.pos < 0)
@@ -1693,6 +1982,8 @@ void WsConn::onmessage(const char* msg, const int len)
                      "uf->uploadFailed(FailReason::Unknown) [this = "
                   << this << "]";
         uf->uploadFailed(FailReason::Unknown);
+        if (mPool->mImpl->mCb.onFail)
+            mPool->mImpl->mCb.onFail(uf->transfer(), API_EAGAIN, 0);
         return;
     }
 
@@ -1767,7 +2058,8 @@ void WsConn::onmessage(const char* msg, const int len)
             LOG_warn << "[WsConn::onmessage] response->event == 3 CRC failed -> "
                         "mPool->retryChunk(chunk) [this = "
                      << this << "]";
-            mPool->retryChunk(chunk);
+            uf->onRequestFailed();
+            mPool->retryChunkLocked(chunk);
             break;
 
         case 4: // upload completed
@@ -1775,7 +2067,7 @@ void WsConn::onmessage(const char* msg, const int len)
             LOG_debug << "[WsConn::onmessage] response->event == 4 upload completed -> "
                          "mPool->applyInFlight(response->fileno) [this = "
                       << this << "]";
-            mPool->applyInFlight(response->fileno);
+            mPool->applyInFlightLocked(response->fileno);
             uf->maybeReportThroughput(mPool->mImpl->currentTime);
 
             const int payLen = static_cast<unsigned char>(msg[13]); // payload length
@@ -1810,11 +2102,6 @@ void WsConn::onmessage(const char* msg, const int len)
                       << " -> unknown server opcode=" << static_cast<int>(response->event)
                       << " -> break [this = " << this << "]";
             break;
-    }
-    if (response->event < 0)
-    {
-        if (mPool->mImpl->mCb.onFail)
-            mPool->mImpl->mCb.onFail(uf->transfer(), static_cast<int>(response->event));
     }
     LOG_debug << "[WsConn::onmessage] END [this = " << this << "]";
 }
@@ -2067,15 +2354,19 @@ void WsPool::retryChunksOnTheWire(WsConn* ws)
     ws->mChunksInFlight.clear();
 }
 
-void WsPool::retryChunk(const WsChunk& chunk)
+void WsPool::retryChunkLocked(const WsChunk& chunk)
 {
-    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
     mToResend.push_back(chunk);
 }
 
-void WsPool::applyInFlight(const std::uint32_t fileno)
+void WsPool::retryChunk(const WsChunk& chunk)
 {
     std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+    retryChunkLocked(chunk);
+}
+
+void WsPool::applyInFlightLocked(const std::uint32_t fileno)
+{
     for (auto& conn: mConns)
     {
         for (int j = static_cast<int>(conn->mChunksInFlight.size()); j--;)
@@ -2088,6 +2379,12 @@ void WsPool::applyInFlight(const std::uint32_t fileno)
             }
         }
     }
+}
+
+void WsPool::applyInFlight(const std::uint32_t fileno)
+{
+    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+    applyInFlightLocked(fileno);
 }
 
 bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl)
@@ -2169,6 +2466,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl)
                      "[mNumChunksInFlight="
                   << mNumChunksInFlight << "] [this = " << this << "]";
         ws->mChunksInFlight.emplace_back(chunk, std::move(update));
+        uf->onRequestSent();
         ws->sendChunkData(chunk.fileno, chunk.pos, tlsBuf.get(), chunk.len);
 
         ++mNumChunksInFlight;
@@ -2202,10 +2500,12 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     {
         if (ws.readyState == WsConn::ReadyState::CLOSED)
         {
-            // unlock around blocking connect
-            mImpl->uploadMutex.unlock();
-            const bool ok = ws.connectWS();
-            mImpl->uploadMutex.lock();
+            // Do not hold the engine mutex while blocking on connect.
+            bool ok = false;
+            {
+                ScopedUnlock unlock(lk);
+                ok = ws.connectWS();
+            }
 
             if (!ok)
             {
@@ -2227,9 +2527,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                 LOG_debug << "[WsPool::poolWorkerThread] !ok -> continue [retryCount=" << retryCount
                           << "] [this = " << this << "]";
 
-                mImpl->uploadMutex.unlock();
-                SteadyTime::sleep_ds(CONNRETRYINTERVAL);
-                mImpl->uploadMutex.lock();
+                {
+                    ScopedUnlock unlock(lk);
+                    SteadyTime::sleep_ds(CONNRETRYINTERVAL);
+                }
                 continue;
             }
             retryCount = 0;
@@ -2238,42 +2539,47 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         lastQueueVersion = mImpl->queueVersion;
 
         // recv server frames
-        mImpl->uploadMutex.unlock();
-        ws.curlRecv();
-        mImpl->uploadMutex.lock();
+        {
+            ScopedUnlock unlock(lk);
+            ws.curlRecv();
+        }
 
         // server throttle?
         if (throttledByServer())
         {
             LOG_debug << "[WsPool::poolWorkerThread] throttledByServer=true -> continue [this = "
                       << this << "]";
-            mImpl->uploadMutex.unlock();
-            SteadyTime::sleep_ds(1);
-            mImpl->uploadMutex.lock();
+            {
+                ScopedUnlock unlock(lk);
+                SteadyTime::sleep_ds(1);
+            }
             continue;
         }
 
         // flush send buffers
-        mImpl->uploadMutex.unlock();
-        ws.curlSend();
-        mImpl->uploadMutex.lock();
+        {
+            ScopedUnlock unlock(lk);
+            ws.curlSend();
+        }
 
         if (!ws.haveSpace())
         {
             LOG_debug << "[WsPool::poolWorkerThread] haveSpace=false -> continue [this = " << this
                       << "]";
-            mImpl->uploadMutex.unlock();
-            SteadyTime::sleep_ds(2);
-            mImpl->uploadMutex.lock();
+            {
+                ScopedUnlock unlock(lk);
+                SteadyTime::sleep_ds(2);
+            }
             continue;
         }
         if (!ws.readyForData())
         {
             LOG_debug << "[WsPool::poolWorkerThread] readyForData=false -> continue [this = "
                       << this << "]";
-            mImpl->uploadMutex.unlock();
-            SteadyTime::sleep_ds(2);
-            mImpl->uploadMutex.lock();
+            {
+                ScopedUnlock unlock(lk);
+                SteadyTime::sleep_ds(2);
+            }
             continue;
         }
 
@@ -2282,9 +2588,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         {
             LOG_debug << "[WsPool::poolWorkerThread] sendChunk=false -> continue [this = " << this
                       << "]";
-            mImpl->uploadMutex.unlock();
-            SteadyTime::sleep_ds(10);
-            mImpl->uploadMutex.lock();
+            {
+                ScopedUnlock unlock(lk);
+                SteadyTime::sleep_ds(10);
+            }
             continue;
         }
     }
@@ -2316,7 +2623,7 @@ void WsPool::checkThreads()
 }
 
 // ========== WsPoolMgr ==========
-void WsPoolMgr::curlIO(UploadEngine::Impl& impl)
+void WsPoolMgr::curlIO(std::unique_lock<std::mutex>& lk)
 {
     int still_running = 0, msgs_left = 0;
     curl_multi_perform(curlm, &still_running);
@@ -2346,9 +2653,11 @@ void WsPoolMgr::curlIO(UploadEngine::Impl& impl)
         }
     }
 
-    impl.uploadMutex.unlock();
-    (void)curl_multi_poll(curlm, nullptr, 0, 500, nullptr);
-    impl.uploadMutex.lock();
+    // Don't hold the engine mutex while blocking in curl I/O.
+    {
+        ScopedUnlock unlock(lk);
+        (void)curl_multi_poll(curlm, nullptr, 0, 500, nullptr);
+    }
 }
 
 void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
@@ -2391,87 +2700,58 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
     mActiveFiles.clear();
 }
 
-// USC: staging (no session) — Phase 4 will move to SDK Command channel
-struct CurlResponseProcRefreshPools: CurlResponseProc
-{
-    WsPoolMgr* mgr{nullptr};
-
-    explicit CurlResponseProcRefreshPools(WsPoolMgr* m):
-        mgr(m)
-    {}
-
-    bool done(const bool success) override
-    {
-        if (!success || !mgr->refreshPoolsResponse(response))
-        {
-            LOG_warn << "USC refresh failed";
-        }
-        return true;
-    }
-};
-
 void WsPoolMgr::refreshPools()
 {
     if (!mImpl)
         return;
 
+    const dstime now = SteadyTime::ds();
+    if (now < mNextRefreshAttempt)
+    {
+        return;
+    }
+
+    if (mRefreshing.exchange(true))
+    {
+        return;
+    }
+
     mImpl->client.wsPostToClientThread(
         [this](MegaClient& client, TransferDbCommitter&)
         {
-            auto* cio = dynamic_cast<CurlHttpIO*>(client.httpio);
-            if (!cio)
-            {
-                LOG_warn << "[WsPoolMgr::refreshPools] [wsPostToClientThread] "
-                            "dynamic_cast<CurlHttpIO*>(client.httpio) "
-                            "failed, return [this = "
-                         << this << "]";
-                return;
-            }
-
-            // Plain POST handled in client thread; reuse JSON posture.
-            std::string body, err;
-            CURL* easy = curl_easy_init();
-            if (!easy)
-            {
-                LOG_warn << "[WsPoolMgr::refreshPools] [wsPostToClientThread] curl_easy_init "
-                            "failed, return [this = "
-                         << this << "]";
-                return;
-            }
-
-            cio->configureWsEasy(easy, /*isPostJson*/ true);
-
-            static const char* kCS = "https://staging.api.mega.co.nz/cs";
-            curl_easy_setopt(easy, CURLOPT_URL, kCS);
-            curl_easy_setopt(easy, CURLOPT_POSTFIELDS, "[{\"a\":\"usc\"}]");
-            curl_easy_setopt(
-                easy,
-                CURLOPT_WRITEFUNCTION,
-                +[](char* p, size_t s, size_t n, void* u) -> size_t
+            // Queue lockless USC command using the RequestDispatcher. This avoids blocking on
+            // the main client-server channel when lockless channels are enabled.
+            client.queueCommand(new CommandUSCForWsUpload(
+                client,
+                [this](Error e, std::vector<std::pair<std::string, m_off_t>>&& sizeClasses)
                 {
-                    auto* out = static_cast<std::string*>(u);
-                    out->append(p, s * n);
-                    return s * n;
-                });
-            curl_easy_setopt(easy, CURLOPT_WRITEDATA, &body);
+                    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+                    if (e == API_OK)
+                    {
+                        mRefreshFailCount = 0;
+                        mNextRefreshAttempt = 0;
+                        applyRefreshedUrls(std::move(sizeClasses));
+                    }
+                    else
+                    {
+                        ++mRefreshFailCount;
+                        const unsigned count =
+                            mRefreshFailCount ? (mRefreshFailCount - 1) : 0;
+                        const unsigned exponent = std::min<unsigned>(count, 6);
+                        const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
+                        const dstime maxDelay = 10 * 60 * 10; // 10 minutes
+                        dstime backoff = baseDelay * static_cast<dstime>(1u << exponent);
+                        if (backoff > maxDelay)
+                        {
+                            backoff = maxDelay;
+                        }
+                        mNextRefreshAttempt = SteadyTime::ds() + backoff;
 
-            CURLcode rc = curl_easy_perform(easy);
-            curl_easy_cleanup(easy);
-
-            if (rc == CURLE_OK)
-            {
-                LOG_debug << "[WsPoolMgr::refreshPools] [wsPostToClientThread] rc == CURLE_OK -> "
-                             "refreshPoolsResponse(body) [this = "
-                          << this << "]";
-                std::lock_guard<std::mutex> g(mImpl->uploadMutex);
-                refreshPoolsResponse(body); // your existing parser unchanged
-            }
-            else
-            {
-                LOG_warn << "[WsPoolMgr::refreshPools] [wsPostToClientThread] rc != CURLE_OK -> "
-                            "USC fetch failed: "
-                         << rc << " [this = " << this << "]";
-            }
+                        LOG_warn << "[WsPoolMgr::refreshPools] USC command failed: " << e
+                                 << " [this = " << this << "]";
+                    }
+                    mRefreshing = false;
+                }));
         });
 }
 
@@ -2524,38 +2804,54 @@ bool WsPoolMgr::refreshPoolsResponse(std::string& response)
 
         if (ok)
         {
-            const dstime oldest = SteadyTime::ds() - POOLFRESHNESS;
-
-            // mark existing not-retiring pools retiring
-            for (int i = 0; i < static_cast<int>(mPools.size()) && !mPools[i]->mRetiring; ++i)
-                mPools[i]->mRetiring = true;
-
-            for (int i = 0; i < static_cast<int>(apiSizeClasses.size()); ++i)
-            {
-                int j;
-                for (j = static_cast<int>(mPools.size()); j--;)
-                {
-                    if (mPools[j]->freshAndSameHostMaxSize(apiSizeClasses[i], oldest))
-                    {
-                        if (j != i)
-                            std::swap(mPools[i], mPools[j]);
-                        mPools[i]->mRetiring = false;
-                        break;
-                    }
-                }
-                if (j < 0)
-                {
-                    mPools.insert(mPools.begin() + i,
-                                  std::make_unique<WsPool>(apiSizeClasses[i],
-                                                           i ? apiSizeClasses[i - 1].second : 0,
-                                                           mImpl));
-                }
-            }
-            bumpAllPools(mImpl->currentTime);
-            LOG_info << "WsUpload: refreshed pools (" << apiSizeClasses.size() << " size classes)";
+            applyRefreshedUrls(std::move(apiSizeClasses));
         }
     }
     return ok;
+}
+
+void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> apiSizeClasses)
+{
+    if (apiSizeClasses.empty())
+    {
+        LOG_warn << "WsUpload: USC returned no upload pools";
+        return;
+    }
+
+    const dstime oldest = SteadyTime::ds() - POOLFRESHNESS;
+
+    // Mark all currently-active pools as retiring; we'll unretire those that still match.
+    for (int i = 0; i < static_cast<int>(mPools.size()) && !mPools[i]->mRetiring; ++i)
+    {
+        mPools[i]->mRetiring = true;
+    }
+
+    for (int i = 0; i < static_cast<int>(apiSizeClasses.size()); ++i)
+    {
+        int j;
+        for (j = static_cast<int>(mPools.size()); j--;)
+        {
+            if (mPools[j]->freshAndSameHostMaxSize(apiSizeClasses[i], oldest))
+            {
+                if (j != i)
+                {
+                    std::swap(mPools[i], mPools[j]);
+                }
+                mPools[i]->mRetiring = false;
+                break;
+            }
+        }
+        if (j < 0)
+        {
+            mPools.insert(mPools.begin() + i,
+                          std::make_unique<WsPool>(apiSizeClasses[i],
+                                                   i ? apiSizeClasses[i - 1].second : 0,
+                                                   mImpl));
+        }
+    }
+
+    bumpAllPools(mImpl->currentTime);
+    LOG_info << "WsUpload: refreshed pools (" << apiSizeClasses.size() << " size classes)";
 }
 
 // ========== UploadEngine (public facade) ==========
@@ -2595,6 +2891,16 @@ void UploadEngine::remove(Transfer& t)
     pImpl->remove(t);
 }
 
+void UploadEngine::setRetryUntil(Transfer& t, const dstime when)
+{
+    pImpl->setRetryUntil(t, when);
+}
+
+void UploadEngine::markFailed(Transfer& t, const dstime retryUntil)
+{
+    pImpl->markFailed(t, retryUntil);
+}
+
 bool UploadEngine::isUploading(Transfer& t) const
 {
     return pImpl->isUploading(t);
@@ -2603,6 +2909,11 @@ bool UploadEngine::isUploading(Transfer& t) const
 void UploadEngine::setCallbacks(UploadEngine::Callbacks cb)
 {
     pImpl->mCb = std::move(cb);
+}
+
+bool UploadEngine::getTransferStats(const Transfer& t, UploadEngine::WsTransferStats& stats) const
+{
+    return pImpl->getTransferStats(t, stats);
 }
 
 void UploadEngine::kick()

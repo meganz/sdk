@@ -524,6 +524,7 @@ class MEGA_API MegaClient
 {
 #ifdef MEGA_USE_WSUPLOAD
     std::unique_ptr<ws::UploadEngine> m_wsEngine;
+    bool mWsEngineStarted{false};
 
     // WS client-thread actions (processed in MegaClient::exec()).
     std::mutex mWsClientActionsMutex;
@@ -552,6 +553,7 @@ class MEGA_API MegaClient
     void wsScheduleVerifyUpload(Transfer& t);
     void wsDrainClientActions(dstime maxExecTimeDs = 5);
     void wsProcessVerifyUploads();
+    void maybeStartWsUploadEngine();
 #endif
 
 public:

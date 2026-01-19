@@ -57,7 +57,8 @@
                 "ENABLE_SYNC": "ON",
                 "ENABLE_TSAN": "OFF",
                 "ENABLE_UBSAN": "OFF",
-                "USE_LIBUV": "ON"
+                "USE_LIBUV": "ON",
+		"MEGA_USE_WSUPLOAD": "ON"
             }
         },
         {

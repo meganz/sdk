@@ -2,6 +2,7 @@
 
 #include "types.h"
 
+#include <chrono>
 #include <functional>
 #include <memory>
 
@@ -24,6 +25,12 @@ namespace ws
 class UploadEngine
 {
 public:
+    struct WsTransferStats
+    {
+        m_off_t meanSpeedBytesPerSecond = 0;
+        std::chrono::milliseconds avgStartTransferTime{0};
+        double failedRequestRatio = 0.0;
+    };
     // Callbacks are invoked by the engine thread. In Phase 3 they will run
     // on CurlHttpIO/Waiter. MegaClient should bounce them to its own thread
     // if required.
@@ -41,8 +48,10 @@ public:
         // Cumulative bytes confirmed by the server (ACKed). Called frequently.
         std::function<void(Transfer&, m_off_t confirmed)> onProgress;
 
-        // Terminal failure for this attempt. 'reason' is engine-specific for now.
-        std::function<void(Transfer&, int reason)> onFail;
+        // Terminal failure for this attempt.
+        // apierr is typically a negative Mega API error code.
+        // aux carries extra WS context (if any).
+        std::function<void(Transfer&, int apierr, m_off_t aux)> onFail;
 
         // Upload completed; small payload (server metadata) is provided.
         std::function<void(Transfer&, const char* payload, int len)> onComplete;
@@ -67,12 +76,15 @@ public:
     void pause(Transfer& t);
     void unpause(Transfer& t);
     void remove(Transfer& t);
+    void setRetryUntil(Transfer& t, dstime when);
+    void markFailed(Transfer& t, dstime retryUntil);
 
     // status
     bool isUploading(Transfer& t) const;
 
     // integration
     void setCallbacks(Callbacks cb);
+    bool getTransferStats(const Transfer& t, WsTransferStats& stats) const;
 
     // Hint the engine that conditions may have changed (e.g. FA queue).
     void kick();

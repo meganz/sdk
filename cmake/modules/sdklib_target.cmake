@@ -396,7 +396,7 @@ target_compile_definitions(SDKlib
 )
 
 target_compile_definitions(SDKlib
-    PRIVATE
+    PUBLIC
     $<$<BOOL:${MEGA_USE_WSUPLOAD}>:MEGA_USE_WSUPLOAD>
 )
 
