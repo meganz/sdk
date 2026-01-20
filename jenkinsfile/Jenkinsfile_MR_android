@@ -186,7 +186,6 @@ pipeline {
                                 }
                                 stage('Build Example App'){
                                     environment{
-                                        //BUILD_ARCHS = "arm64-v8a"
                                         ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
                                         ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
                                         NDK_ROOT = "/home/jenkins/android-ndk/"
