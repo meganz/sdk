@@ -79,6 +79,9 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGAPitagTriggerCamera = 'c'
  * - MEGAPitagTriggerScanner = 's'
  * - MEGAPitagTriggerSyncAlgorithm = 'a'
+ * - MEGAPitagTriggerShareFromApp = 'S'
+ * - MEGAPitagTriggerCameraCapture = 'C'
+ * - MEGAPitagTriggerExplorerExtension = 'e'
  *
  * Default value is MEGAPitagTriggerNotApplicable.
  */
