@@ -1,5 +1,7 @@
 #pragma once
 
+#include "mega/types.h"
+
 #ifdef WIN32
 #include <windows.h>
 #else
