@@ -429,6 +429,20 @@ std::string SdkTest::getFilePrefix() const
     return suite + "_" + name + "_";
 }
 
+void SdkTest::cleanupPerApiBackupsMonitorMap(const unsigned i)
+{
+    if (megaApi[i])
+    {
+        mApi[i].clearBackupsMonitorMap();
+    }
+    else
+    {
+        LOG_warn << "[SdkTest::Cleanup]: BackupsMonitorMap Could not be properly cleared as "
+                    "megaApi instance didn't exists at this point. It will be cleared when "
+                    "mApi instance is destroyed";
+    }
+}
+
 void SdkTest::Cleanup()
 {
     LOG_debug << "[SdkTest::Cleanup]";
@@ -437,6 +451,7 @@ void SdkTest::Cleanup()
     cleanupLocalFiles();
     for (unsigned nApi = 0; nApi < mApi.size(); ++nApi)
     {
+        cleanupPerApiBackupsMonitorMap(nApi);
         if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
         {
             continue;
@@ -20403,16 +20418,12 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
     const MrProper cleanUp(
         [this]()
         {
-            for (unsigned int i = 0; i < mApi.size(); ++i)
+            // It's a good practise to unregister listeners as soon as test finish
+            for (unsigned i = 0; i < mApi.size(); ++i)
             {
-                if (mApi[i].mMslStats)
-                {
-                    megaApi[0]->removeListener(mApi[i].mMslStats.get());
-                    mApi[i].mMslStats.reset();
-                }
+                cleanupPerApiBackupsMonitorMap(i);
             }
         });
-
     MegaHandle testBackupID{INVALID_HANDLE};
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 

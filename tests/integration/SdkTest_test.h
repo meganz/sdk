@@ -519,6 +519,7 @@ public:
         std::atomic<bool> mIsUpToDate{false};
         std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
         std::unique_ptr<std::future<void>> mSyncFut;
+        std::unique_ptr<testing::NiceMock<MockSyncListener>> mMslStats;
 
         void resetStatus()
         {
@@ -526,8 +527,9 @@ public:
             mSyncFut.reset(new std::future<void>(mSyncUpToDatePms->get_future()));
         }
 
-        SyncUptoDate()
+        SyncUptoDate(MegaApi* megaApi)
         {
+            mMslStats.reset(new testing::NiceMock<MockSyncListener>(megaApi));
             resetStatus();
         }
     };
@@ -551,8 +553,7 @@ public:
         std::unique_ptr<MegaCurrency> mMegaCurrency;
 
         // variables to monitor when sync is upToDate
-        std::map<MegaHandle, std::shared_ptr<SyncUptoDate>> mBackupsMonitor;
-        std::unique_ptr<testing::NiceMock<MockSyncListener>> mMslStats;
+        std::map<MegaHandle, std::unique_ptr<SyncUptoDate>> mBackupsMonitor;
 
         // flags to monitor the updates of nodes/users/sets/set-elements/PCRs due to actionpackets
         bool userUpdated;
@@ -591,14 +592,17 @@ public:
          */
         void addsyncMonitor(const MegaHandle backupID)
         {
-            ASSERT_TRUE(!mMslStats) << "addsyncMonitor: mMslStats already initialized";
-            mMslStats.reset(new testing::NiceMock<MockSyncListener>(megaApi));
-
             ASSERT_TRUE(mBackupsMonitor.find(backupID) == mBackupsMonitor.end())
                 << "mBackupsMonitor already contains an entry for BackupId: " << toHandle(backupID);
-            mBackupsMonitor[backupID] = std::shared_ptr<SyncUptoDate>(new SyncUptoDate());
 
-            EXPECT_CALL(*mMslStats.get(), onSyncStatsUpdated(testing::_, testing::_))
+            auto [it, succeeded] =
+                mBackupsMonitor.emplace(backupID,
+                                        std::unique_ptr<SyncUptoDate>(new SyncUptoDate(megaApi)));
+            ASSERT_TRUE(succeeded)
+                << "addsyncMonitor: Could not add entry at mBackupsMonitor for BackupId: "
+                << toHandle(backupID);
+            auto msl = it->second->mMslStats.get();
+            EXPECT_CALL(*msl, onSyncStatsUpdated(testing::_, testing::_))
                 .WillRepeatedly(
                     [this, backupID](MegaApi*, MegaSyncStats* stats)
                     {
@@ -617,7 +621,24 @@ public:
                             it->second->mSyncUpToDatePms->set_value();
                         }
                     });
-            megaApi->addListener(mMslStats.get());
+            megaApi->addListener(msl);
+        }
+
+        /**
+         * @brief Clear BackupsMonitorMap and Unregister SyncListeners stored in BackupsMonitorMap
+         * items
+         */
+        void clearBackupsMonitorMap()
+        {
+            for (auto it = mBackupsMonitor.begin(); it != mBackupsMonitor.end();)
+            {
+                if (it->second->mMslStats)
+                {
+                    megaApi->removeListener(it->second->mMslStats.get());
+                    it->second->mMslStats.reset();
+                }
+                it = mBackupsMonitor.erase(it);
+            }
         }
 
         /**
@@ -625,18 +646,18 @@ public:
          */
         bool waitForBackupSyncUpToDate(const MegaHandle backupID)
         {
-            if (!mMslStats)
-            {
-                LOG_err << "waitForBackupSyncUpToDate: mMslStats is invalid";
-                return false;
-            }
-
             auto it = mBackupsMonitor.find(backupID);
             if (it == mBackupsMonitor.end())
             {
                 LOG_err
                     << "waitForBackupSyncUpToDate: No entry found at mBackupsMonitor with BackupId"
                     << toHandle(backupID);
+                return false;
+            }
+
+            if (!it->second->mMslStats)
+            {
+                LOG_err << "waitForBackupSyncUpToDate: mMslStats is invalid";
                 return false;
             }
 
@@ -793,6 +814,7 @@ protected:
     void SetUp() override;
     void TearDown() override;
 
+    void cleanupPerApiBackupsMonitorMap(const unsigned i);
     void Cleanup();
     void setTestAccountsToFree(unsigned int nApi);
 
