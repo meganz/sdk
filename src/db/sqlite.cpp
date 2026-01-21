@@ -1630,20 +1630,19 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
 
     sqlite3_stmt *stmt = nullptr;
     bool result = false;
-    int sqlResult = sqlite3_prepare_v2(
-        db,
-        "SELECT nodehandle, counter, node FROM nodes WHERE "
-        "(?1 = 1 AND share = 1 OR share = 3 OR share = 5 OR share = 7 OR share = "
-        "9 OR share = 11  OR share = 13 OR share = 15) OR"
-        "(?1 = 2 AND share = 2 OR share = 3 OR share = 6 OR share = 7 OR share = "
-        "10 OR share = 11  OR share = 14 OR share = 15) OR"
-        "(?1 = 4 AND share = 4 OR share = 5 OR share = 6 OR share = 7 OR share = "
-        "12 OR share = 13  OR share = 14 OR share = 15) OR"
-        "(?1 = 8 AND share = 8 OR share = 9 OR share = 10 OR share = 11 OR share "
-        "= 12 OR share = 13  OR share = 14 OR share = 15)",
-        -1,
-        &stmt,
-        NULL);
+    // The integers for the expresion "share IN (x, y, z,...)" are the decimal representation of
+    // the possible combinations of ShareType_t binary map values.
+    // For example 10 coresponds to IN_SHARES = 0x01 + LINK = 0x08 and 12 corresponds to
+    // PENDING_OUTSHARES = 0x04 + LINK = 0x08.
+    int sqlResult = sqlite3_prepare_v2(db,
+                                       "SELECT nodehandle, counter, node FROM nodes WHERE "
+                                       "(?1 = 1 AND share IN (1, 3, 5, 7, 9, 11, 13, 15)) "
+                                       "OR (?1 = 2 AND share IN (2, 3, 6, 7, 10, 11, 14, 15)) "
+                                       "OR (?1 = 4 AND share IN (4, 5, 6, 7, 12, 13, 14, 15)) "
+                                       "OR (?1 = 8 AND share IN (8, 9, 10, 11, 12, 13, 14, 15))",
+                                       -1,
+                                       &stmt,
+                                       NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
