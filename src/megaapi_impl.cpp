@@ -20968,6 +20968,23 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 }
             }
 
+            const bool targetIsIncomingShare = target && target->matchesOrHasAncestorMatching(
+                                                             [](const Node& n)
+                                                             {
+                                                                 return n.inshare != nullptr;
+                                                             });
+            Pitag pitag;
+            pitag.purpose = PitagPurpose::Copy;
+            pitag.trigger = PitagTrigger::NotApplicable;
+            pitag.nodeType =
+                node ? (node->type == FOLDERNODE ? PitagNodeType::Folder : PitagNodeType::File) :
+                       (megaNode->getType() == MegaNode::TYPE_FOLDER ? PitagNodeType::Folder :
+                                                                       PitagNodeType::File);
+            pitag.target =
+                targetIsIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+            pitag.importSource = node && node->inshare ? PitagImportSource::IncomingShare :
+                                                         PitagImportSource::CloudDrive;
+
             if (!node)
             {
                 if (!megaNode->getNodeKey()->size())
@@ -21034,7 +21051,10 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                                      std::move(tc.nn),
                                      privateNode ? privateNode->getChatAuth() : nullptr,
                                      request->getTag(),
-                                     false);
+                                     false,
+                                     {},
+                                     nullptr,
+                                     pitag);
                 }
                 else
                 {
@@ -21063,7 +21083,15 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, request->getTag(), false);
+                    client->putnodes(target->nodeHandle(),
+                                     UseLocalVersioningFlag,
+                                     std::move(nn),
+                                     nullptr,
+                                     request->getTag(),
+                                     false,
+                                     {},
+                                     nullptr,
+                                     pitag);
                 }
                 else
                 {
