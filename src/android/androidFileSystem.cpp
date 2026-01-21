@@ -1752,6 +1752,10 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
     if (oldFile->fopen(oldname, true, false, FSLogging::logOnError) &&
         newFile->fopen(newname, true, true, FSLogging::logOnError))
     {
+        if (!newFile->ftruncate(0))
+        {
+            LOG_warn << "Failed to truncate destination before copy: " << newname;
+        }
         constexpr uint32_t BUFFER_SIZE{16384};
         unsigned char buffer[BUFFER_SIZE];
         size_t pos{0};
