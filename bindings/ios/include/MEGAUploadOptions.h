@@ -82,6 +82,7 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGAPitagTriggerShareFromApp = 'S'
  * - MEGAPitagTriggerCameraCapture = 'C'
  * - MEGAPitagTriggerExplorerExtension = 'e'
+ * - MEGAPitagTriggerVoiceRecorder = 'v'
  *
  * Default value is MEGAPitagTriggerNotApplicable.
  */
