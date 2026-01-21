@@ -78,7 +78,7 @@ pipeline {
                                 script{
                                     env.ARCH_TO_BUILD = sh(script: 'echo "$gitlabTriggerPhrase" | grep ARCH_TO_BUILD | awk -F "ARCH_TO_BUILD="  \'{print \$2}\' | cut -d\\" -f2', returnStdout: true).trim()
                                     if (env.ARCH_TO_BUILD == ""){ 
-                                        env.ARCH_TO_BUILD = "x86" 
+                                        env.ARCH_TO_BUILD = "arm64" 
                                     }
                                     // Map Jenkins arch -> Android ABI folder name
                                     env.ANDROID_ABI = sh(script: """
