@@ -65,32 +65,14 @@ EasyCurlSlist& EasyCurlSlist::operator=(EasyCurlSlist&& other) noexcept
     return *this;
 }
 
-bool EasyCurlSlist::appendHttpHeaders(const std::map<std::string, std::string>& headers)
+bool EasyCurlSlist::append(const std::string& value)
 {
-    for (const auto& header: headers)
+    curl_slist* newSlist = curl_slist_append(mSlist, value.c_str());
+    if (!newSlist)
     {
-        std::string headerStr = header.first + ": " + header.second;
-        curl_slist* newSlist = curl_slist_append(mSlist, headerStr.c_str());
-        if (!newSlist)
-        {
-            return false;
-        }
-        mSlist = newSlist;
+        return false;
     }
-    return true;
-}
-
-bool EasyCurlSlist::appendFtpCommands(const std::vector<std::string>& commands)
-{
-    for (const auto& command: commands)
-    {
-        curl_slist* newSlist = curl_slist_append(mSlist, command.c_str());
-        if (!newSlist)
-        {
-            return false;
-        }
-        mSlist = newSlist;
-    }
+    mSlist = newSlist;
     return true;
 }
 

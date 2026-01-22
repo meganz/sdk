@@ -150,6 +150,19 @@ private:
         return copySize;
     }
 
+    static bool appendFtpCommands(sdk_test::EasyCurlSlist& easyCurlSlist,
+                                  const std::vector<std::string>& commands)
+    {
+        for (const auto& command: commands)
+        {
+            if (!easyCurlSlist.append(command))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static FtpResponse performFtpRequest(const std::string& url,
                                          FtpMethod method,
                                          const std::string& uploadData = "",
@@ -172,7 +185,7 @@ private:
 
         auto setQuote = [&](const std::vector<std::string>& cmds) -> bool
         {
-            if (!easyCurlSlist.appendFtpCommands(cmds))
+            if (!appendFtpCommands(easyCurlSlist, cmds))
             {
                 return false;
             }
@@ -384,6 +397,7 @@ TEST_F(SdkFtpServerTest, LinksAndOperations)
     // Test LIST root directory
     auto listRootResponse = FtpClient::list(rootLink.get());
     EXPECT_EQ(226, listRootResponse.responseCode); // FTP success code
+    EXPECT_TRUE(listRootResponse.data.find(rootNode->getName()) != std::string::npos);
 
     // Get file link
     std::unique_ptr<char[]> fileLink(megaApi[0]->ftpServerGetLocalLink(testNode.get()));
@@ -484,6 +498,7 @@ TEST_F(SdkFtpServerTest, FtpUploadOperation)
         megaApi[0]->getNodeByPath(uploadFileName.c_str(), rootNode.get()));
     ASSERT_TRUE(uploadedNode);
     EXPECT_EQ(uploadedNode->getType(), MegaNode::TYPE_FILE);
+    EXPECT_EQ(uploadedNode->getSize(), uploadFileContent.size());
     CASE_info << "finished";
 }
 

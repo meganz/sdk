@@ -24,6 +24,7 @@
 
 #include "easy_curl.h"
 #include "mega/common/testing/utility.h"
+#include "mega/utils.h"
 #include "mock_listeners.h"
 #include "sdk_server_test_utils.h"
 #include "sdk_test_utils.h"
@@ -187,6 +188,20 @@ public:
     }
 
 private:
+    static bool appendHttpHeaders(EasyCurlSlist& easyCurlSlist,
+                                  const std::map<std::string, std::string>& headers)
+    {
+        for (const auto& header: headers)
+        {
+            std::string headerStr = header.first + ": " + header.second;
+            if (!easyCurlSlist.append(headerStr))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static Response performRequest(const std::string& url,
                                    const std::string& method,
                                    const std::string& rangeHeader = EmptyRange,
@@ -233,7 +248,7 @@ private:
                              static_cast<curl_off_t>(body.size()));
         }
 
-        if (!easyCurlSlist.appendHttpHeaders(headers))
+        if (!appendHttpHeaders(easyCurlSlist, headers))
         {
             LOG_err << "Failed to append HTTP headers";
             response.statusCode = 0;
@@ -297,21 +312,10 @@ private:
         if (colonPos != std::string::npos)
         {
             std::string headerName = headerLine.substr(0, colonPos);
-            std::transform(headerName.begin(),
-                           headerName.end(),
-                           headerName.begin(),
-                           [](unsigned char c)
-                           {
-                               return static_cast<char>(std::tolower(c));
-                           });
+            headerName = Utils::toLowerUtf8(headerName);
             std::string headerValue = headerLine.substr(colonPos + 1);
             // Trim whitespace
-            headerValue.erase(0, headerValue.find_first_not_of(" \t\r\n"));
-            auto last = headerValue.find_last_not_of(" \t\r\n");
-            if (last == std::string::npos)
-                headerValue.clear();
-            else
-                headerValue.erase(last + 1);
+            headerValue = Utils::trim(headerValue);
             response->headers[headerName] = headerValue;
         }
         return totalSize;

@@ -110,18 +110,11 @@ public:
     EasyCurlSlist& operator=(EasyCurlSlist&& other) noexcept;
 
     /**
-     * @brief Appends multiple headers to the curl_slist
-     * @param headers A map of header names and values to append
+     * @brief Appends a single value to the curl_slist
+     * @param value The string value to append
      * @return true on success, false on failure
      */
-    bool appendHttpHeaders(const std::map<std::string, std::string>& headers);
-
-    /**
-     * @brief Appends multiple FTP commands to the curl_slist
-     * @param commands A vector of FTP command strings to append
-     * @return true on success, false on failure
-     */
-    bool appendFtpCommands(const std::vector<std::string>& commands);
+    bool append(const std::string& value);
 
     /**
      * @brief Get the underlying curl_slist handle
