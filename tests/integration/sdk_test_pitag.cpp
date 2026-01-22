@@ -365,4 +365,82 @@ TEST_F(SdkTestPitag, PitagCapturedForChatTargetUpload)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitag, PitagCapturedForCopyNodeFromCloudDrive)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    const std::string srcName = getFilePrefix() + "pitag_copy_src";
+    RequestTracker createTracker(megaApi[0].get());
+    megaApi[0]->createFolder(srcName.c_str(), rootNode.get(), &createTracker);
+    ASSERT_EQ(API_OK, createTracker.waitForResult());
+
+    std::unique_ptr<MegaNode> srcNode{
+        megaApi[0]->getNodeByHandle(createTracker.request->getNodeHandle())};
+    ASSERT_TRUE(srcNode) << "Unable to get source folder";
+
+    PitagCommandObserver observer;
+    RequestTracker copyTracker(megaApi[0].get());
+    const std::string dstName = getFilePrefix() + "pitag_copy_dst";
+    megaApi[0]->copyNode(srcNode.get(), rootNode.get(), dstName.c_str(), &copyTracker);
+    ASSERT_EQ(API_OK, copyTracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("C.FDD", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForCopyNodeFromIncomingShare)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    std::unique_ptr<MegaNode> ownerRoot{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(ownerRoot) << "Unable to get root node for owner account";
+
+    inviteTestAccount(0, 1, "Hi!!");
+
+    const std::string folderName = getFilePrefix() + "pitag_copy_inshare_src";
+    RequestTracker folderTracker(megaApi[0].get());
+    megaApi[0]->createFolder(folderName.c_str(), ownerRoot.get(), &folderTracker);
+    ASSERT_EQ(API_OK, folderTracker.waitForResult()) << "Failed to create folder for sharing";
+
+    std::unique_ptr<MegaNode> folderNode{
+        megaApi[0]->getNodeByHandle(folderTracker.request->getNodeHandle())};
+    ASSERT_TRUE(folderNode) << "Unable to obtain shared folder node";
+
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(folderNode.get(), mApi[1].email.c_str(), MegaShare::ACCESS_FULL));
+
+    auto inShareAvailable = [this]()
+    {
+        std::unique_ptr<MegaShareList> shares{megaApi[1]->getInSharesList()};
+        return shares && shares->size() > 0;
+    };
+    ASSERT_TRUE(WaitFor(inShareAvailable, defaultTimeoutMs))
+        << "Incoming share not received by sharee";
+
+    std::unique_ptr<MegaShareList> inShares{megaApi[1]->getInSharesList()};
+    ASSERT_TRUE(inShares && inShares->size() > 0);
+    const MegaHandle sharedHandle = inShares->get(0)->getNodeHandle();
+    std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
+    ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
+
+    std::unique_ptr<MegaNode> shareeRoot{megaApi[1]->getRootNode()};
+    ASSERT_TRUE(shareeRoot) << "Unable to get sharee root node";
+
+    PitagCommandObserver observer;
+    RequestTracker copyTracker(megaApi[1].get());
+    const std::string dstName = getFilePrefix() + "pitag_copy_from_inshare_dst";
+    megaApi[1]->copyNode(incomingNode.get(), shareeRoot.get(), dstName.c_str(), &copyTracker);
+    ASSERT_EQ(API_OK, copyTracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("C.FDi", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
