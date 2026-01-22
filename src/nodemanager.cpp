@@ -1628,6 +1628,8 @@ void NodeManager::notifyPurge()
                 removeFingerprint(n.get());
                 removeNodeCacheLRU_internal(n.get());
 
+                removeNodePendingApplyKeys_internal(n.get());
+
                 mNodes.erase(n->mNodePosition);
                 n->mNodePosition = mNodes.end();
 
@@ -1971,6 +1973,7 @@ void NodeManager::unLoadNodeFromCacheLRU()
         std::shared_ptr<Node> node = mCacheLRU.back();
         removeFingerprint(node.get(), true);
         node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
+        removeNodePendingApplyKeys_internal(node.get());
         mCacheLRU.pop_back();
     }
 }
@@ -1986,6 +1989,28 @@ void NodeManager::removeNodeCacheLRU_internal(Node* node)
 
     mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
     node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
+}
+
+void NodeManager::removeNodePendingApplyKeys_internal(Node* node)
+{
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
+
+    if (node->keyApplied())
+    {
+        return;
+    }
+
+    mNodePendingApplyKeys.remove_if(
+        [node](const std::shared_ptr<Node>& n)
+        {
+            if (node->nodehandle == n->nodehandle)
+            {
+                assert(node == n.get());
+                return true;
+            }
+
+            return false;
+        });
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -2184,6 +2209,7 @@ void NodeManager::saveNodeInDb_internal(Node *node)
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
+        removeNodePendingApplyKeys_internal(mNodeToWriteInDb.get());
         assert(mNodeToWriteInDb.get() == node);
         mNodeToWriteInDb.reset();
     }
