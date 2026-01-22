@@ -4171,6 +4171,8 @@ PitagTrigger pitagTriggerFromChar(char c)
             return PitagTrigger::CameraCapture;
         case 'e':
             return PitagTrigger::ExplorerExtension;
+        case 'v':
+            return PitagTrigger::VoiceRecorder;
         default:
             return PitagTrigger::NotApplicable;
     }

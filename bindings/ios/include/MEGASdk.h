@@ -315,7 +315,8 @@ typedef NS_ENUM(char, MEGAPitagTrigger) {
     MEGAPitagTriggerSyncAlgorithm = 'a',
     MEGAPitagTriggerShareFromApp = 'S',
     MEGAPitagTriggerCameraCapture = 'C',
-    MEGAPitagTriggerExplorerExtension = 'e'
+    MEGAPitagTriggerExplorerExtension = 'e',
+    MEGAPitagTriggerVoiceRecorder = 'v'
 };
 
 /**
