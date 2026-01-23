@@ -368,7 +368,6 @@ enum OpenFlag
     OPEN_WRONLY = 0x00000001,
     OPEN_RDWR = 0x00000002,
     OPEN_ACCMODE = 0x00000003, /* mask for above modes */
-    OPEN_EXCL = 0x00000800, /* error if already exists */
 };
 
 constexpr bool openRead(OpenFlag flag)
