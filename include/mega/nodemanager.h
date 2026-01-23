@@ -23,12 +23,14 @@
 #ifndef NODEMANAGER_H
 #define NODEMANAGER_H 1
 
-#include <map>
-#include <limits>
-#include <set>
-#include <vector>
 #include "node.h"
 #include "types.h"
+
+#include <limits>
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <vector>
 
 namespace mega {
 
@@ -558,7 +560,7 @@ private:
     sharedNode_vector mNodeNotify;
 
     // Stores nodes pending key application
-    std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
+    std::unordered_map<handle, std::shared_ptr<Node>> mNodePendingApplyKeys;
 
     // tracks how many nodes have had a successful applykey()
     std::atomic<long long> mAppliedKeyNodeCount{0};

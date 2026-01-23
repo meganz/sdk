@@ -1515,7 +1515,9 @@ void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
         return;
     }
 
-    mNodePendingApplyKeys.push_back(node);
+    [[maybe_unused]] auto [it, inserted] = mNodePendingApplyKeys.emplace(node->nodehandle, node);
+    // If the handle is already present, the stored node should be the same instance.
+    assert(inserted || it->second.get() == node.get());
 }
 
 void NodeManager::applyKeys_internal()
@@ -1524,13 +1526,14 @@ void NodeManager::applyKeys_internal()
 
     for (auto it = mNodePendingApplyKeys.begin(); it != mNodePendingApplyKeys.end();)
     {
-        if (it->get()->applykey() || it->get()->keyApplied())
+        auto& [_, pendingNode] = *it;
+        if (pendingNode->applykey() || pendingNode->keyApplied())
         {
             it = mNodePendingApplyKeys.erase(it);
         }
         else
         {
-            it++;
+            ++it;
         }
     }
 
@@ -2000,17 +2003,7 @@ void NodeManager::removeNodePendingApplyKeys_internal(Node* node)
         return;
     }
 
-    mNodePendingApplyKeys.remove_if(
-        [node](const std::shared_ptr<Node>& n)
-        {
-            if (node->nodehandle == n->nodehandle)
-            {
-                assert(node == n.get());
-                return true;
-            }
-
-            return false;
-        });
+    mNodePendingApplyKeys.erase(node->nodehandle);
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
