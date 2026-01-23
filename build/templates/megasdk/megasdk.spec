@@ -14,49 +14,41 @@ Packager:	MEGA Linux Team <linux@mega.co.nz>
 BuildRequires: autoconf, autoconf-archive, automake, libtool, gcc-c++
 BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
 
-%if 0%{?fedora_version} >= 40
-    BuildRequires: wget2, wget2-wget
-%else
-    BuildRequires: wget
-%endif
-
-%if 0%{?suse_version} || 0%{?sle_version}
-    %if 0%{?suse_version} > 1500
-        BuildRequires: pkgconf-pkg-config
-    %else
-        BuildRequires: pkg-config
-    %endif
-    %if 0%{?suse_version} > 1400
-        BuildRequires: libqt5-qtbase-devel, libqt5-linguist-devel, libqt5-qtsvg-devel, libqt5-qtx11extras-devel, libqt5-qtdeclarative-devel
-        Requires: libQt5Core5 libqt5-qtquickcontrols libqt5-qtquickcontrols2
-    %endif
-%endif
-%if 0%{?fedora}
-    BuildRequires: pkgconf-pkg-config
-%endif
-
 #OpenSUSE
 %if 0%{?suse_version} || 0%{?sle_version}
     # disabling post-build-checks that ocassionally prevent opensuse rpms from being generated
     # plus it speeds up building process
     #!BuildIgnore: post-build-checks
+        BuildRequires: libqt5-qtbase-devel, libqt5-linguist-devel, libqt5-qtsvg-devel, libqt5-qtx11extras-devel, libqt5-qtdeclarative-devel
+        Requires: libQt5Core5 libqt5-qtquickcontrols libqt5-qtquickcontrols2
+        BuildRequires: kernel-devel
+%else
+    BuildRequires: python3, kernel-headers
+%endif
 
-    # OpenSUSE leap features too old compiler and python 3.10 by default:
-    %if 0%{?suse_version} && 0%{?suse_version} <= 1500
-        BuildRequires: gcc13 gcc13-c++
-        BuildRequires: python311
-    %endif
+%if 0%{?suse_version} && 0%{?suse_version} <= 1500
+    BuildRequires: gcc14-c++
+%else
+    BuildRequires: gcc-c++
+%endif
+
+# OpenSuse Leap 15.6 -> python311
+# OpenSuse Leap 16.0 -> python313
+# OpenSuse Tumbleweed -> python313
+%if 0%{?sle_version} && 0%{?suse_version} < 1600
+    BuildRequires: python311
+%endif
+%if (0%{?sle_version} || 0%{?is_opensuse}) && 0%{?suse_version} >= 1600
+    BuildRequires: python313
 %endif
 
 #Fedora specific
 %if 0%{?fedora}
     # allowing for rpaths (taken as invalid, as if they were not absolute paths when they are)
-    %if 0%{?fedora_version} >= 35
+    %if 0%{?fedora_version} >= 40
         %define __brp_check_rpaths QA_RPATHS=0x0002 /usr/lib/rpm/check-rpaths
-    %endif
-    %if 0%{?fedora_version} >= 36
-        BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
-        Requires: qt5-qtbase >= 5.6, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
+        BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel, wget2, wget2-wget
+        Requires: qt5-qtbase >= 5.15, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
     %endif
 %endif
 
@@ -67,10 +59,7 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
 
 #CentOS/RedHat/AlmaLinux
 %if 0%{?centos_version} || 0%{?rhel_version}
-    BuildRequires: openssl-devel, sqlite-devel, c-ares-devel, bzip2-devel
     BuildRequires: desktop-file-utils
-    BuildRequires: systemd-devel
-    BuildRequires: bzip2-devel
     BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-linguist, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
     Requires: qt5-qtbase qt5-qtquickcontrols qt5-qtquickcontrols2 qt5-qtdeclarative
 %endif
@@ -101,8 +90,8 @@ fi
 # OpenSuse Leap 15.x defaults to gcc7.
 # Python>=10 needed for VCPKG pkgconf
 %if 0%{?suse_version} && 0%{?suse_version} <= 1500
-    export CC=gcc-13
-    export CXX=g++-13
+    export CC=gcc-14
+    export CXX=g++-14
     mkdir python311
     ln -sf /usr/bin/python3.11 python311/python3
     export PATH=$PWD/python311:$PATH

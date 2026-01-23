@@ -302,9 +302,10 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     // 1-1: A and B credentials already verified by both.
     //
 
-    fs::path basePath = fs::u8path(folder11.c_str());
+    fs::path basePath = u8path_compat(folder11.c_str());
 
-    auto [nh, remoteBaseNode] = createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+    auto [nh, remoteBaseNode] =
+        createFolder(0, path_u8string(basePath).c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
@@ -497,10 +498,10 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     // 1-2: A has verified B, but B has not verified A. B verifies A after creating the share.
     //
 
-    basePath = fs::u8path(folder12.c_str()); // Use a different node
+    basePath = u8path_compat(folder12.c_str()); // Use a different node
 
     std::tie(nh, remoteBaseNode) =
-        createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+        createFolder(0, path_u8string(basePath).c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
@@ -679,10 +680,10 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     // 1-3: None are verified. Then A verifies B and later B verifies A.
     //
 
-    basePath = fs::u8path(folder13.c_str()); // Use a different node
+    basePath = u8path_compat(folder13.c_str()); // Use a different node
 
     std::tie(nh, remoteBaseNode) =
-        createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+        createFolder(0, path_u8string(basePath).c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
     ASSERT_NE(remoteBaseNode.get(), nullptr);
 
@@ -897,10 +898,10 @@ TEST_F(SdkTestShare, TestSharesContactVerification)
     // 2: Create a share between A and B, being A and B no contacts.
     //
 
-    basePath = fs::u8path(folder2.c_str()); // Use a different node
+    basePath = u8path_compat(folder2.c_str()); // Use a different node
 
     std::tie(nh, remoteBaseNode) =
-        createFolder(0, basePath.u8string().c_str(), remoteRootNode.get());
+        createFolder(0, path_u8string(basePath).c_str(), remoteRootNode.get());
     ASSERT_NE(nh, UNDEF) << "Error creating remote basePath";
     remoteBaseNode.reset(megaApi[0]->getNodeByHandle(nh));
     ASSERT_NE(remoteBaseNode.get(), nullptr);
@@ -1200,7 +1201,7 @@ TEST_F(SdkTestShare, TestSharesPermission)
     {
         // Wait until node attr's is decrypted, otherwise getNodeByPath could not retrieve
         // it, even if it has already been received
-        return [=, &sharedNode]()
+        return [=, this, &sharedNode]()
         {
             sharedNode.reset(megaApi[idx]->getNodeByPath(sharedPath.c_str()));
             return !!sharedNode;

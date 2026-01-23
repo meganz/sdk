@@ -120,6 +120,7 @@ struct FileAttributeFetch;
 struct FileAttributeFetchChannel;
 struct FileFingerprint;
 struct FileFingerprintCmp;
+struct FileFingerprintCmpNoMtime;
 struct HttpReq;
 struct GenericHttpReq;
 struct LocalNode;
@@ -320,6 +321,9 @@ enum class PasswordEntryError : uint8_t
     INVALID_CREDIT_CARD_EXPIRATION_DATE,
 };
 
+// Alias for `FileFingerprint` Crc
+using FingerprintCrc = std::array<int32_t, 4>;
+
 /**
  * @brief Get a string representation from a PasswordEntryError
  */
@@ -441,7 +445,8 @@ typedef enum { MIME_TYPE_UNKNOWN    = 0,
                MIME_TYPE_MISC       = 9,    // miscExtensions
                MIME_TYPE_SPREADSHEET = 10,  // spreadsheetExtensions
                MIME_TYPE_ALL_DOCS   = 11,   // any of {document, pdf, presentation, spreadsheet}
-               MIME_TYPE_OTHERS     = 12,   // any other file not included in previous types
+               MIME_TYPE_OTHERS = 12, // any other file not included in previous types
+               MIME_TYPE_ALL_VISUAL_MEDIA = 13, // any of {photo, video}
              } MimeType_t;
 
 typedef enum { LBL_UNKNOWN = 0, LBL_RED = 1, LBL_ORANGE = 2, LBL_YELLOW = 3, LBL_GREEN = 4,

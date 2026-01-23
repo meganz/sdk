@@ -104,7 +104,8 @@ TEST_F(SdkTestNodeTagsBasic, ExistingTagsCopiedToNewFileVersion)
     auto directory = nodeByPath(*client0, "/d0");
     ASSERT_NE(directory, nullptr);
 
-    auto newFile = createFile(*client0, *directory, "f0");
+    // Ensure that new version content is different, otherwise SDK won't perform a full upload
+    auto newFile = createFileWithContent(*client0, *directory, "f0", "abcd");
     ASSERT_EQ(result(newFile), API_OK);
 
     auto newFileTags = getTags(*client0, "/d0/f0");
@@ -430,7 +431,8 @@ TEST_F(SdkTestNodeTagsSearch, TagsBelowSucceeds)
     EXPECT_THAT(value(tags), ElementsAre("yf0", "yf1", "yf2", "zf0", "zf1", "zf2"));
 
     // Add a new version of yf without the yf1 tag.
-    auto yf = createFile(*client0, *y, "yf");
+    // Ensure that new version content is different, otherwise SDK won't perform a full upload
+    auto yf = createFileWithContent(*client0, *y, "yf", "abcd");
     ASSERT_EQ(result(yf), API_OK);
     ASSERT_EQ(removeTag(*client0, *value(yf), "yf1"), API_OK);
 
@@ -533,8 +535,22 @@ auto SdkTestNodeTagsCommon::createFile(MegaApi& client,
 {
     using sdk_test::LocalTempFile;
 
-    auto filePath = fs::u8path(name);
+    auto filePath = u8path_compat(name);
     LocalTempFile file(filePath, 0);
+
+    return uploadFile(client, parent, filePath);
+}
+
+auto SdkTestNodeTagsCommon::createFileWithContent(MegaApi& client,
+                                                  const MegaNode& parent,
+                                                  const std::string& name,
+                                                  const std::string_view content)
+    -> UploadFileResult
+{
+    using sdk_test::LocalTempFile;
+
+    auto filePath = u8path_compat(name);
+    LocalTempFile file(filePath, content);
 
     return uploadFile(client, parent, filePath);
 }
@@ -765,9 +781,9 @@ auto SdkTestNodeTagsCommon::uploadFile(MegaApi& client,
 {
     TransferTracker tracker(&client);
 
-    client.startUpload(path.u8string().c_str(),
+    client.startUpload(path_u8string(path).c_str(),
                        const_cast<MegaNode*>(&parent),
-                       path.filename().u8string().c_str(),
+                       path_u8string(path.filename()).c_str(),
                        MegaApi::INVALID_CUSTOM_MOD_TIME,
                        nullptr,
                        false,

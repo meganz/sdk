@@ -176,10 +176,8 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
         // File exists but we couldn't truncate it.
         if (error != ERROR_FILE_NOT_FOUND)
         {
-            LOG_debug << "Unable to truncate data file: "
-                      << path.u8string()
-                      << ". Error was: "
-                      << error;
+            LOG_debug << "Unable to truncate data file: " << path_u8string(path)
+                      << ". Error was: " << error;
 
             return false;
         }
@@ -194,10 +192,8 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
             error = GetLastError();
 
             // Let everyone know why we failed.
-            LOG_debug << "Unable to create data file: "
-                      << path.u8string()
-                      << ". Error was: "
-                      << error;
+            LOG_debug << "Unable to create data file: " << path_u8string(path)
+                      << ". Error was: " << error;
 
             // Let caller know we failed.
             return false;
@@ -221,10 +217,8 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
             auto error = GetLastError();
 
             // Let debuggers know why we failed.
-            LOG_debug << "Unable to write data to file: "
-                      << path.u8string()
-                      << ". Error was: "
-                      << error;
+            LOG_debug << "Unable to write data to file: " << path_u8string(path)
+                      << ". Error was: " << error;
 
             // Close handle and return failure to caller.
             return CloseHandle(handle), false;
@@ -244,10 +238,8 @@ bool createFile(const fs::path& path, const void* data, const size_t data_length
         auto error = GetLastError();
 
         // Let debuggers know why we failed.
-        LOG_debug << "Couldn't flush file to disk: "
-                  << path.u8string()
-                  << ". Error was: "
-                  << error;
+        LOG_debug << "Couldn't flush file to disk: " << path_u8string(path)
+                  << ". Error was: " << error;
     }
 
     // Release handle.
@@ -263,7 +255,8 @@ bool createFile(const fs::path &path, const void *data, const size_t data_length
 {
     ofstream ostream(path, ios::binary);
 
-    LOG_verbose << "Creating local data file at " << path.u8string() << ", length " << data_length;
+    LOG_verbose << "Creating local data file at " << path_u8string(path) << ", length "
+                << data_length;
 
     ostream.write(reinterpret_cast<const char*>(data), static_cast<std::streamsize>(data_length));
 
@@ -345,8 +338,7 @@ void Model::ModelNode::generate(const fs::path& path, bool force)
         if (changed || force)
         {
             ASSERT_TRUE(createFile(ourPath, content))
-              << "Couldn't generate model file: "
-              << ourPath.u8string();
+                << "Couldn't generate model file: " << path_u8string(ourPath);
 
             changed = false;
         }
@@ -1220,7 +1212,7 @@ StandardClientInUse ClientManager::getCleanStandardClient(int loginIndex, fs::pa
         if (!i->inUse)
         {
             i->ptr->cleanupForTestReuse(loginIndex);
-            i->ptr->fsBasePath = i->ptr->ensureDir(workingFolder / fs::u8path(i->name));
+            i->ptr->fsBasePath = i->ptr->ensureDir(workingFolder / u8path_compat(i->name));
             return StandardClientInUse(i);
         }
     }
@@ -1265,7 +1257,7 @@ bool StandardSyncController::call(const Callback& callback,
     std::lock_guard<std::mutex> guard(mLock);
 
     if (callback)
-        return callback(fs::u8path(path.toPath(false)));
+        return callback(u8path_compat(path.toPath(false)));
 
     return false;
 }
@@ -1381,7 +1373,7 @@ string StandardClient::ensureDir(const fs::path& p)
 {
     fs::create_directories(p);
 
-    string result = p.u8string();
+    string result = path_u8string(p);
 
     if (result.back() != fs::path::preferred_separator)
     {
@@ -1483,11 +1475,11 @@ StandardClient::StandardClient(const fs::path& basepath,
 
     if (workingFolder.empty())
     {
-        fsBasePath = basepath / fs::u8path(name);
+        fsBasePath = basepath / u8path_compat(name);
     }
     else
     {
-        fsBasePath = ensureDir(workingFolder / fs::u8path(name));
+        fsBasePath = ensureDir(workingFolder / u8path_compat(name));
     }
 
     // SyncTests want to skip backup restrictions, so they are not
@@ -1636,6 +1628,24 @@ void StandardClient::syncupdate_stateconfig(const SyncConfig& config)
 
     if (mOnSyncStateConfig)
         mOnSyncStateConfig(config);
+}
+
+void StandardClient::syncupdate_treestate(const SyncConfig& config,
+                                          const LocalPath& localPath,
+                                          treestate_t treeState,
+                                          nodetype_t type)
+{
+    onCallback();
+
+    if (logcb)
+    {
+        lock_guard<mutex> g(om);
+
+        out() << clientname << "syncupdate_stateconfig() " << toHandle(config.mBackupId);
+    }
+
+    if (mOnSyncTreeState)
+        mOnSyncTreeState(config, localPath, treeState, type);
 }
 
 void StandardClient::useralerts_updated(UserAlert::Base** /*alerts*/, int numAlerts)
@@ -2411,7 +2421,7 @@ void StandardClient::putnodes(const CloudItem& parent,
 void StandardClient::uploadFolderTree_recurse(handle parent, handle& h, const fs::path& p, vector<NewNode>& newnodes)
 {
     NewNode n;
-    client.putnodes_prepareOneFolder(&n, p.filename().u8string(), false);
+    client.putnodes_prepareOneFolder(&n, path_u8string(p.filename()), false);
     handle thishandle = n.nodehandle = h++;
     n.parenthandle = parent;
     newnodes.emplace_back(std::move(n));
@@ -2465,7 +2475,7 @@ void StandardClient::downloadFile(const CloudItem& item, const fs::path& destina
 
     file->h = node->nodeHandle();
     file->hprivate = true;
-    file->setLocalname(LocalPath::fromAbsolutePath(destination.u8string()));
+    file->setLocalname(LocalPath::fromAbsolutePath(path_u8string(destination)));
     file->name = node->displayname();
     file->result = std::move(result);
 
@@ -2517,7 +2527,7 @@ void StandardClient::uploadFile(const fs::path& path, const string& name, const 
     unique_ptr<File> file(new FilePut(std::move(completion)));
 
     file->h = parent->nodeHandle();
-    file->setLocalname(LocalPath::fromAbsolutePath(path.u8string()));
+    file->setLocalname(LocalPath::fromAbsolutePath(path_u8string(path)));
     file->name = name;
 
     error result = API_OK;
@@ -2558,7 +2568,7 @@ bool StandardClient::uploadFile(const fs::path& path, const string& name, const 
 
 bool StandardClient::uploadFile(const fs::path& path, const CloudItem& parent, int timeoutSeconds, VersioningOption vo)
 {
-    return uploadFile(path, path.filename().u8string(), parent, timeoutSeconds, vo);
+    return uploadFile(path, path_u8string(path.filename()), parent, timeoutSeconds, vo);
 }
 
 void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::path& p, std::atomic<int>& inprogress, TransferDbCommitter& committer, VersioningOption vo)
@@ -2566,11 +2576,20 @@ void StandardClient::uploadFilesInTree_recurse(const Node* target, const fs::pat
     if (fs::is_regular_file(p))
     {
         ++inprogress;
-        uploadFile(p, p.filename().u8string(), target, committer, [&inprogress](bool){ --inprogress; }, vo);
+        uploadFile(
+            p,
+            path_u8string(p.filename()),
+            target,
+            committer,
+            [&inprogress](bool)
+            {
+                --inprogress;
+            },
+            vo);
     }
     else if (fs::is_directory(p))
     {
-        if (auto newtarget = client.childnodebyname(target, p.filename().u8string().c_str()))
+        if (auto newtarget = client.childnodebyname(target, path_u8string(p.filename()).c_str()))
         {
             for (fs::directory_iterator i(p); i != fs::directory_iterator(); ++i)
             {
@@ -2688,7 +2707,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
     file->h = parentNode->nodeHandle();
     file->mCompletion = std::move(completion);
     file->name = targetName;
-    file->setLocalname(LocalPath::fromAbsolutePath(sourcePath.u8string()));
+    file->setLocalname(LocalPath::fromAbsolutePath(path_u8string(sourcePath)));
 
     // Kick off the upload. Client takes ownership of file.
     TransferDbCommitter committer(client.tctable);
@@ -2718,7 +2737,7 @@ void StandardClient::uploadFile(const fs::path& sourcePath,
                                 const VersioningOption versioningPolicy)
 {
     uploadFile(sourcePath,
-               sourcePath.filename().u8string(),
+               path_u8string(sourcePath.filename()),
                parent,
                std::move(completion),
                versioningPolicy);
@@ -2852,7 +2871,7 @@ void StandardClient::deleteTestBaseFolder(bool mayNeedDeleting,
             resultproc.prepresult(
                 COMPLETION,
                 ++next_request_tag,
-                [=]()
+                [=, this]()
                 {
                     client.unlink(basenode.get(), false, 0, false, std::move(completion));
                 },
@@ -3134,7 +3153,7 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
                                         PromiseHandleSP result)
 {
     auto ec = std::error_code();
-    auto rootPath_ = fsBasePath / fs::u8path(rootPath);
+    auto rootPath_ = fsBasePath / u8path_compat(rootPath);
 
     // Try and create the local sync root.
     fs::create_directories(rootPath_, ec);
@@ -3148,19 +3167,18 @@ void StandardClient::setupBackup_inThread(const string& rootPath,
     // Translate exclude path if necessary.
     if (!syncOptions.excludePath.empty())
     {
-        excludePath_ = fsBasePath / fs::u8path(syncOptions.excludePath);
+        excludePath_ = fsBasePath / u8path_compat(syncOptions.excludePath);
     }
 
     // Create a suitable sync config.
-    SyncConfig config(LocalPath::fromAbsolutePath(rootPath_.u8string()),
-            rootPath,
-            NodeHandle(),
-            string(),
-            fsfp_t(),
-            LocalPath(),
-            true,
-            SyncConfig::TYPE_BACKUP);
-
+    SyncConfig config(LocalPath::fromAbsolutePath(path_u8string(rootPath_)),
+                      rootPath,
+                      NodeHandle(),
+                      string(),
+                      fsfp_t(),
+                      LocalPath(),
+                      true,
+                      SyncConfig::TYPE_BACKUP);
 
     client.preparebackup(config, [result, this](Error err, SyncConfig sc, MegaClient::UndoFunction revertOnError){
 
@@ -3245,7 +3263,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         return result->set_value(UNDEF);
 
     auto ec = std::error_code();
-    auto rootPath_ = fsBasePath / fs::u8path(rootPath);
+    auto rootPath_ = fsBasePath / u8path_compat(rootPath);
 
     // Try and create the local sync root.
     fs::create_directories(rootPath_, ec);
@@ -3260,12 +3278,12 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     if (syncOptions.drivePath != internalDrive)
     {
         // Path should be valid as syncs must be contained by their drive.
-        drivePath_ = fsBasePath / fs::u8path(syncOptions.drivePath);
+        drivePath_ = fsBasePath / u8path_compat(syncOptions.drivePath);
 
         // Read drive ID if present...
         auto fsAccess = client.fsaccess.get();
         auto id = UNDEF;
-        auto path = drivePath_.u8string();
+        auto path = path_u8string(drivePath_);
         auto result_ = readDriveId(*fsAccess, path.c_str(), id);
 
         // Generate one if not...
@@ -3283,18 +3301,18 @@ void StandardClient::setupSync_inThread(const string& rootPath,
     // Translate exclude path if necessary.
     if (!syncOptions.excludePath.empty())
     {
-        excludePath_ = fsBasePath / fs::u8path(syncOptions.excludePath);
+        excludePath_ = fsBasePath / u8path_compat(syncOptions.excludePath);
     }
 
     // For purposes of capturing.
-    auto legacyExclusionsEligible = syncOptions.legacyExclusionsEligible;
     auto isBackup = syncOptions.isBackup;
     auto remoteHandle = remoteNode->nodeHandle();
     auto remoteIsShare = isShare(remoteNode.get());
     auto remotePath = string(remoteNode->displaypath());
 
     // Called when it's time to actually add the sync.
-    auto completion = [=](error e) {
+    auto completion = [=, this](error e)
+    {
         LOG_debug << "Starting to add sync: "
                   << e;
 
@@ -3309,18 +3327,14 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         constexpr auto TWOWAY = SyncConfig::TYPE_TWOWAY;
 
         // Generate config for the new sync.
-        auto config =
-          SyncConfig(LocalPath::fromAbsolutePath(rootPath_.u8string()),
-                     rootPath_.u8string(),
-                     remoteHandle,
-                     remotePath,
-                     fsfp_t(),
-                     LocalPath(),
-                     true,
-                     isBackup ? BACKUP : TWOWAY);
-
-        // Do we need to migrate legacy exclusion rules?
-        config.mLegacyExclusionsIneligigble = !legacyExclusionsEligible;
+        auto config = SyncConfig(LocalPath::fromAbsolutePath(path_u8string(rootPath_)),
+                                 path_u8string(rootPath_),
+                                 remoteHandle,
+                                 remotePath,
+                                 fsfp_t(),
+                                 LocalPath(),
+                                 true,
+                                 isBackup ? BACKUP : TWOWAY);
 
         // Sanity check.
         EXPECT_TRUE(remoteIsShare || remotePath.substr(0, 1) == "/")
@@ -3331,8 +3345,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         if (!drivePath_.empty())
         {
             // Then make sure we specify where the external drive can be found.
-            config.mExternalDrivePath =
-              LocalPath::fromAbsolutePath(drivePath_.u8string());
+            config.mExternalDrivePath = LocalPath::fromAbsolutePath(path_u8string(drivePath_));
         }
 
         if (gScanOnly)
@@ -3370,7 +3383,7 @@ void StandardClient::setupSync_inThread(const string& rootPath,
         client.addsync(std::move(config),
                        std::move(completion),
                        logName,
-                       excludePath_.u8string());
+                       path_u8string(excludePath_));
     };
 
     // Do we need to upload an ignore file?
@@ -3475,7 +3488,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descen
         if (m->fsOnly)
             continue;
 
-        if (skipIgnoreFile && m->cloudName() == IGNORE_FILE_NAME)
+        if (skipIgnoreFile && IGNORE_FILE_NAME == m->cloudName())
             continue;
 
         ms.emplace(m->cloudName(), m.get());
@@ -3485,7 +3498,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, Node* n, int& descen
     sharedNode_list children = client.getChildren(n);
     for (auto& n2 : children)
     {
-        if (skipIgnoreFile && n2->displayname() == IGNORE_FILE_NAME)
+        if (skipIgnoreFile && std::string(IGNORE_FILE_NAME) == n2->displayname())
             continue;
 
         ns.emplace(n2->displayname(), n2.get());
@@ -3727,7 +3740,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
 
     if (depth)
     {
-        if (comparator.compare(p.filename().u8string(), mn->fsName()))
+        if (comparator.compare(path_u8string(p.filename()), mn->fsName()))
         {
             out() << "filesystem name mismatch: " << mn->path() << " " << p;
             return false;
@@ -3737,11 +3750,12 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
     nodetype_t pathtype = fs::is_directory(p) ? FOLDERNODE : fs::is_regular_file(p) ? FILENODE : TYPE_UNKNOWN;
     if (!mn->typematchesnodetype(pathtype))
     {
-        out() << "Path type mismatch: " << mn->path() << ":" << mn->type << " " << p.u8string() << ":" << pathtype;
+        out() << "Path type mismatch: " << mn->path() << ":" << mn->type << " " << path_u8string(p)
+              << ":" << pathtype;
         return false;
     }
 
-    if (pathtype == FILENODE && p.filename().u8string() != "lock")
+    if (pathtype == FILENODE && path_u8string(p.filename()) != "lock")
     {
         if (localFSFilesThatMayDiffer.find(p) == localFSFilesThatMayDiffer.end())
         {
@@ -3773,7 +3787,7 @@ bool StandardClient::recursiveConfirm(Model::ModelNode* mn, fs::path p, int& des
 
     for (fs::directory_iterator pi(p); pi != fs::directory_iterator(); ++pi)
     {
-        auto name = pi->path().filename().u8string();
+        auto name = path_u8string(pi->path().filename());
 
         if (skipIgnoreFile && name == IGNORE_FILE_NAME)
             continue;
@@ -3918,7 +3932,7 @@ bool StandardClient::enableSyncByBackupId(handle id, const string& logname)
 
 handle StandardClient::backupIdForSyncPath(fs::path path)
 {
-    auto localPath = LocalPath::fromAbsolutePath(path.u8string());
+    auto localPath = LocalPath::fromAbsolutePath(path_u8string(path));
 
     auto configs = client.syncs.getConfigs(false);
     for (auto& sc : configs)
@@ -4110,17 +4124,25 @@ bool StandardClient::setattr(const CloudItem& item, attr_map&& updates)
 
 void StandardClient::setattr(const CloudItem& item, attr_map&& updates, PromiseBoolSP result)
 {
-    resultproc.prepresult(COMPLETION,
-                            ++next_request_tag,
-                            [=]()
-                            {
-                                auto node = item.resolve(*this);
-                                if (!node)
-                                    return result->set_value(false);
+    resultproc.prepresult(
+        COMPLETION,
+        ++next_request_tag,
+        [=, this]()
+        {
+            auto node = item.resolve(*this);
+            if (!node)
+                return result->set_value(false);
 
-                                client.setattr(node, attr_map(updates),
-                                    [result](NodeHandle, error e) { result->set_value(!e); }, false);
-                            }, nullptr);
+            client.setattr(
+                node,
+                attr_map(updates),
+                [result](NodeHandle, error e)
+                {
+                    result->set_value(!e);
+                },
+                false);
+        },
+        nullptr);
 }
 
 bool StandardClient::rename(const CloudItem& item, const string& newName)
@@ -4639,15 +4661,20 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
 
     LOG_debug << clientname << "cleaning syncs for client reuse";
     future<bool> p1;
-    p1 = thread_do<bool>([=](StandardClient& sc, PromiseBoolSP pb) {
-
-        sc.client.syncs.prepareForLogout(false, [this, pb](){
-
-            // 3rd param true to "load" (zero) syncs again so store is ready for the test
-            client.syncs.locallogout(true, false, true);
-            pb->set_value(true);
-        });
-    }, __FILE__, __LINE__);
+    p1 = thread_do<bool>(
+        [=, this](StandardClient& sc, PromiseBoolSP pb)
+        {
+            sc.client.syncs.prepareForLogout(false,
+                                             [this, pb]()
+                                             {
+                                                 // 3rd param true to "load" (zero) syncs again so
+                                                 // store is ready for the test
+                                                 client.syncs.locallogout(true, false, true);
+                                                 pb->set_value(true);
+                                             });
+        },
+        __FILE__,
+        __LINE__);
     if (!waitonresults(&p1))
     {
         out() << "removeSelectedSyncs failed";
@@ -4719,7 +4746,6 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     mTotalConflictsUpdated.store(false);
 
     // Nuke any custom exclusion rules.
-    client.syncs.mLegacyUpgradeFilterChain.reset();
     client.syncs.mNewSyncFilterChain.reset();
 
     // Make sure any throttles are reset.
@@ -4830,28 +4856,6 @@ bool StandardClient::login_reset_makeremotenodes(const string& user, const strin
         return false;
     }
     return true;
-}
-
-void StandardClient::copySyncConfig(SyncConfig config, PromiseHandleSP result)
-{
-    auto completion =
-        [result](handle id, error e)
-        {
-            result->set_value(e ? UNDEF : id);
-        };
-
-    client.copySyncConfig(config, std::move(completion));
-}
-
-handle StandardClient::copySyncConfig(const SyncConfig& config)
-{
-    auto result =
-        thread_do<handle>([=](StandardClient& client, PromiseHandleSP result)
-                        {
-                            client.copySyncConfig(config, result);
-                        }, __FILE__, __LINE__);
-
-    return result.get();
 }
 
 bool StandardClient::login(const string& user, const string& pw)
@@ -5170,7 +5174,7 @@ bool StandardClient::backupOpenDrive(const fs::path& drivePath)
 
 void StandardClient::backupOpenDrive(const fs::path& drivePath, PromiseBoolSP result)
 {
-    auto localDrivePath = LocalPath::fromAbsolutePath(drivePath.u8string());
+    auto localDrivePath = LocalPath::fromAbsolutePath(path_u8string(drivePath));
     client.syncs.backupOpenDrive(localDrivePath, [result](Error e){
         result->set_value(e == API_OK);
     });
@@ -5217,8 +5221,8 @@ void StandardClient::createHardLink(const fs::path& src,
                                     LocalPath& targetPath)
 {
     auto fsAccess = client.fsaccess.get();
-    sourcePath = LocalPath::fromAbsolutePath(src.u8string());
-    targetPath = LocalPath::fromAbsolutePath(dst.u8string());
+    sourcePath = LocalPath::fromAbsolutePath(path_u8string(src));
+    targetPath = LocalPath::fromAbsolutePath(path_u8string(dst));
     ASSERT_TRUE(fsAccess->hardLink(sourcePath, targetPath));
 }
 
@@ -5298,7 +5302,7 @@ FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
     auto fileAccess = fsAccess.newfileaccess(false);
 
     // Translate input path into something useful.
-    auto path = LocalPath::fromAbsolutePath(fsPath.u8string());
+    auto path = LocalPath::fromAbsolutePath(path_u8string(fsPath));
 
     FileFingerprint fingerprint;
 
@@ -6009,7 +6013,7 @@ bool StandardClient::debugging = false;
 
 bool createNameFile(const fs::path &p, const string &filename)
 {
-    return createFile(p / fs::u8path(filename), filename.data(), filename.size());
+    return createFile(p / u8path_compat(filename), filename.data(), filename.size());
 }
 
 bool createFileWithTimestamp(const fs::path &path,
@@ -6038,7 +6042,7 @@ bool buildLocalFolders(fs::path targetfolder, const string& prefix, int n, int r
 {
     if (suppressfiles) filesperfolder = 0;
 
-    fs::path p = targetfolder / fs::u8path(prefix);
+    fs::path p = targetfolder / u8path_compat(prefix);
     if (!fs::create_directory(p))
         return false;
 
@@ -6076,7 +6080,8 @@ void renameLocalFolders(fs::path targetfolder, const string& newprefix)
 
     for (auto p : toRename)
     {
-        auto newpath = p.parent_path() / (newprefix + p.filename().u8string());
+        auto newpath =
+            path_u8string(p.parent_path() / u8path_compat(newprefix + path_u8string(p.filename())));
         fs::rename(p, newpath);
     }
 }
@@ -6089,7 +6094,7 @@ bool createSpecialFiles(fs::path targetfolder, const string& prefix, int n = 1)
     for (int i = 0; i < n; ++i)
     {
         string filename = "file" + to_string(i) + "_" + prefix;
-        fs::path fp = p / fs::u8path(filename);
+        fs::path fp = p / u8path_compat(filename);
 
         int fdtmp = openat(AT_FDCWD, p.c_str(), O_RDWR|O_CLOEXEC|O_TMPFILE, 0600);
         if (const auto wrBytes = write(fdtmp, filename.data(), filename.size()); wrBytes < 0)
@@ -6187,8 +6192,11 @@ public:
 
     void confirmModels()
     {
+        LOG_debug << "Confirm model client 0...";
         confirmModel(*client0, model0, backupId0);
+        LOG_debug << "Confirm model client 1...";
         confirmModel(*client1, model1, backupId1);
+        LOG_debug << "After confirming models...";
     }
 
     const fs::path localRoot0() const
@@ -6238,6 +6246,8 @@ public:
 
 TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
 {
+    static const std::string logPre{"SyncFingerprintCollisionTest.DifferentMacSameName : "};
+
     auto data0 = randomData(arbitraryFileLength);
     auto data1 = data0;
     const auto path0 = localRoot0() / "d_0" / "a";
@@ -6248,36 +6258,94 @@ TEST_F(SyncFingerprintCollisionTest, DifferentMacSameName)
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
 
-    // Wait for the engine to process any further changes.
     waitOnSyncs();
 
-    // Alter MAC but leave fingerprint untouched.
+    LOG_debug << logPre << "0. Alter MAC but leave fp untouched";
     data1[0x41] = static_cast<char>(~data1[0x41]);
 
     // Prepare the file outside of the sync's view.
     auto stamp = fs::last_write_time(path0);
+    ASSERT_TRUE(
+        createFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
 
-    ASSERT_TRUE(createFileWithTimestamp(client0->fsBasePath / "a", data1, client0->fsBasePath, stamp));
-
+    LOG_debug << logPre << "0. Move file after altering MAC";
     prepareForNodeUpdates();
     fs::rename(client0->fsBasePath / "a", path1);
+    LOG_debug << logPre << "0. File moved after altering MAC";
+
     client0->triggerPeriodicScanEarly(backupId0);
     waitForNodeUpdates();
-
-    // Wait for the engine to process changes.
     waitOnSyncs();
 
+    LOG_debug << logPre << "0. Adding model files and confirming models";
     addModelFile(model0, "d/d_0", "a", data0);
     addModelFile(model0, "d/d_1", "a", data1);
     addModelFile(model1, "d/d_0", "a", data0);
-#ifdef SRW_NEEDED_FOR_THIS_ONE
-    addModelFile(model1, "d/d_1", "a", data1); // SRW gets this one right
-#else
-    addModelFile(model1, "d/d_1", "a", data1); // with treatAsIfFileDataEqual we can get this one right
-#endif
+    addModelFile(model1, "d/d_1", "a", data1);
     model1.ensureLocalDebrisTmpLock("d");
-
     confirmModels();
+    LOG_debug << logPre << "0. Models confirmed after adding model files";
+
+    LOG_debug << logPre << "1. Data change keeping mtime";
+
+    data1[0x41] = static_cast<char>(~data1[0x42]);
+    {
+        std::unique_ptr<FSACCESS_CLASS> fa(std::make_unique<FSACCESS_CLASS>());
+        auto [succeed, oldMtime] =
+            fa->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(path1)));
+        ASSERT_TRUE(succeed);
+
+        std::ofstream file(path1, std::ios::binary);
+        file.write(data1.data(), static_cast<std::streamsize>(data1.size()));
+        file.close();
+
+        ASSERT_TRUE(fa->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(path1)), oldMtime));
+        auto [succeed2, newMtime] =
+            fa->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(path1)));
+        ASSERT_TRUE(succeed2);
+        ASSERT_EQ(oldMtime, newMtime);
+    }
+    waitOnSyncs();
+
+    // Update model0 data to data1 so local content matches
+    // Do not update model1 because we expect the previous change NOT to be reflected in the cloud,
+    // so model1 shouldn't have synced it
+
+    LOG_debug << logPre << "1. Confirm models after data change";
+    model0.findnode("d/d_1/a")->content = data1;
+    confirmModels();
+    LOG_debug << logPre << "1. Models confirmed after data change keeping mtime";
+
+    LOG_debug << logPre << "2. Change mtime local";
+    prepareForNodeUpdates();
+    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
+    mFsAccess = std::make_unique<FSACCESS_CLASS>();
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(path1)), m_time(nullptr));
+    client0->triggerPeriodicScanEarly(backupId0);
+    waitForNodeUpdates();
+    waitOnSyncs();
+
+    // Now we expect this change to have been reflected in the cloud and c1 should have reflected
+    // the change
+    LOG_debug << logPre << "2. Confirm models after changing mtime local";
+    model1.movetosynctrash("d/d_1/a", "d");
+    addModelFile(model1, "d/d_1", "a", data1);
+    confirmModels();
+    LOG_debug << logPre << "2. Models confirmed after changing mtime local";
+
+    LOG_debug << logPre
+              << "3. Change mtime local again, this time fp differs in mtime and MACs are equals, "
+                 "there shall be no download but a setmtime change";
+    prepareForNodeUpdates();
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(path1)), m_time(nullptr));
+    client0->triggerPeriodicScanEarly(backupId0);
+    waitForNodeUpdates();
+    waitOnSyncs();
+
+    LOG_debug << logPre << "3. Confirm models after changing mtime keeping same MAC";
+    confirmModels();
+
+    LOG_debug << logPre << "3. Models confirmed after changing mtime keeping same MAC";
 }
 
 TEST_F(SyncFingerprintCollisionTest, DifferentMacDifferentName)
@@ -6446,16 +6514,18 @@ TEST_F(SyncTest, BasicSync_DelLocalFolder)
     ASSERT_TRUE(clientA1->confirmModel_mainthread(model.findnode("f"), backupId1));
     ASSERT_TRUE(clientA2->confirmModel_mainthread(model.findnode("f"), backupId2));
 
-    auto checkpath = clientA1->syncSet(backupId1).localpath.u8string();
+    auto checkpath = path_u8string(clientA1->syncSet(backupId1).localpath);
     out() << "checking paths " << checkpath;
     for(auto& p: fs::recursive_directory_iterator(TestFS::GetTestFolder()))
     {
-        out() << "checking path is present: " << p.path().u8string();
+        out() << "checking path is present: " << path_u8string(p.path());
     }
     // delete something in the local filesystem and see if we catch up in A1 and A2 (deleter and observer syncs)
     error_code e;
     auto nRemoved = fs::remove_all(clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1", e);
-    ASSERT_TRUE(!e) << "remove failed " << (clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1").u8string() << " error " << e;
+    ASSERT_TRUE(!e) << "remove failed "
+                    << path_u8string((clientA1->syncSet(backupId1).localpath / "f_2" / "f_2_1"))
+                    << " error " << e;
     ASSERT_GT(static_cast<unsigned>(nRemoved), 0u) << e;
 
     clientA1->triggerPeriodicScanEarly(backupId1);
@@ -7716,8 +7786,10 @@ TEST_F(SyncTest, BasicSync_ResumeSyncFromSessionAfterContractoryLocalAndRemoteMo
     ASSERT_EQ(2u, waitResult[0].stall.local.size());
     ASSERT_EQ(waitResult[0].stall.cloud.begin()->first, "/mega_test_sync/f/f_0");
     ASSERT_EQ(waitResult[0].stall.cloud.rbegin()->first, "/mega_test_sync/f/f_1/f_0");
-    ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(false), (client1LocalSyncRoot / "f_0" / "f_1").u8string() );
-    ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(false), (client1LocalSyncRoot / "f_1").u8string() );
+    ASSERT_EQ(waitResult[0].stall.local.begin()->first.toPath(false),
+              path_u8string((client1LocalSyncRoot / "f_0" / "f_1")));
+    ASSERT_EQ(waitResult[0].stall.local.rbegin()->first.toPath(false),
+              path_u8string((client1LocalSyncRoot / "f_1")));
 }
 #endif
 
@@ -8349,7 +8421,7 @@ TEST_F(SyncTest, BasicSync_CreateAndReplaceLinkUponSyncDown)
 TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 {
     const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT  = std::chrono::seconds(4);
+    const auto TIMEOUT = std::chrono::seconds(4);
 
     auto c = g_clientManager->getCleanStandardClient(0, TESTROOT);
     CatchupClients(c);
@@ -8440,137 +8512,6 @@ TEST_F(SyncTest, BasicSync_NewVersionsCreatedWhenFilesModified)
 
     matched &= !f && i == fingerprints.crend();
     ASSERT_TRUE(matched);
-}
-
-// Test disabled after SDK-5758
-// JSCD data is now loaded after the fetchnodes, not the login.
-TEST_F(SyncTest, DISABLED_BasicSync_ClientToSDKConfigMigration)
-{
-    const auto TESTROOT = makeNewTestRoot();
-    const auto TIMEOUT  = std::chrono::seconds(4);
-
-    SyncConfig config0;
-    SyncConfig config1;
-    Model model;
-
-    // Create some syncs for us to migrate.
-    {
-        StandardClient c0(TESTROOT, "c0");
-
-        // Log callbacks.
-        c0.logcb = true;
-
-        // Log in client.
-        ASSERT_TRUE(c0.login_reset_makeremotenodes("MEGA_EMAIL", "MEGA_PWD", "s", 1, 2));
-
-        // Add syncs.
-        auto id0 = c0.setupSync_mainthread("s0", "s/s_0", false, true);
-        ASSERT_NE(id0, UNDEF);
-
-        auto id1 = c0.setupSync_mainthread("s1", "s/s_1", false, false);
-        ASSERT_NE(id1, UNDEF);
-
-        // Populate filesystem.
-        auto root0 = c0.syncSet(id0).localpath;
-        auto root1 = c0.syncSet(id1).localpath;
-
-        model.addfile("d/f");
-        model.addfile("f");
-        model.generate(root0);
-        model.generate(root1, true);
-
-        c0.triggerPeriodicScanEarly(id0);
-        c0.triggerPeriodicScanEarly(id1);
-
-        // Wait for sync to complete.
-        waitonsyncs(TIMEOUT, &c0);
-
-        // Make sure everything arrived safely.
-        ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id0));
-        ASSERT_TRUE(c0.confirmModel_mainthread(model.root.get(), id1));
-
-        // Get our hands on the configs.
-        config0 = c0.syncConfigByBackupID(id0);
-        config1 = c0.syncConfigByBackupID(id1);
-    }
-
-    // Migrate the configs.
-    StandardClient c1(TESTROOT, "c1");
-
-    // Log callbacks.
-    c1.logcb = true;
-
-    // Log in the client.
-    ASSERT_TRUE(c1.login("MEGA_EMAIL", "MEGA_PWD"));
-
-    // Update configs so they're useful for this client.
-    {
-        auto root0 = TESTROOT / "c1" / "s0";
-        auto root1 = TESTROOT / "c1" / "s1";
-
-        // Issue new backup IDs.
-        config0.mBackupId = UNDEF;
-        config1.mBackupId = UNDEF;
-
-        // Update path for c1.
-        config0.mLocalPath = LocalPath::fromAbsolutePath(root0.u8string());
-        config1.mLocalPath = LocalPath::fromAbsolutePath(root1.u8string());
-        config0.mLocalPathFsid = UNDEF;
-        config1.mLocalPathFsid = UNDEF;
-
-        // Make sure local sync roots exist.
-        fs::create_directories(root0);
-        fs::create_directories(root1);
-    }
-
-    // Migrate the configs.
-    auto id0 = c1.copySyncConfig(config0);
-    ASSERT_NE(id0, UNDEF);
-    auto id1 = c1.copySyncConfig(config1);
-    ASSERT_NE(id1, UNDEF);
-
-    // So we can wait until the syncs are resumed.
-    promise<void> notify;
-
-    // Hook OnSyncStateConfig callback.
-    c1.mOnSyncStateConfig = ([id0, id1, &notify]() {
-        auto waiting = std::make_shared<set<handle>>();
-
-        // Track the syncs we're waiting for.
-        waiting->emplace(id0);
-        waiting->emplace(id1);
-
-        // Return effective callback.
-        return [&notify, waiting](const SyncConfig& config) {
-            // Is the sync running?
-            if (config.mRunState != SyncRunState::Run)
-                return;
-
-            // This sync's been resumed.
-            waiting->erase(config.mBackupId);
-
-            // Are we still waiting for any syncs to resume?
-            if (!waiting->empty())
-                return;
-
-            // Let the waiter know the syncs are up.
-            notify.set_value();
-        };
-    })();
-
-    // Fetch nodes (and resume syncs.)
-    ASSERT_TRUE(c1.fetchnodes(false, true, false));
-
-    // Wait for the syncs to be resumed.
-    ASSERT_TRUE(debugTolerantWaitOnFuture(notify.get_future(), 45));
-
-    // Wait for sync to complete.
-    waitonsyncs(TIMEOUT, &c1);
-
-    // Check that all files from the cloud were downloaded.
-    model.ensureLocalDebrisTmpLock("");
-    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id0));
-    ASSERT_TRUE(c1.confirmModel_mainthread(model.root.get(), id1));
 }
 
 #ifdef SRW_NEEDED_FOR_THIS_ONE
@@ -8790,7 +8731,7 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     ASSERT_TRUE(client->makeCloudSubdirs(rdir1, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
     const handle backupId1 =
-        client->setupSync_mainthread((root / ldir1).u8string(), rdir1, false, true);
+        client->setupSync_mainthread(path_u8string((root / ldir1)), rdir1, false, true);
     ASSERT_NE(backupId1, UNDEF) << "Invalid BackupId";
 
     const std::string f11 = "f0";
@@ -8823,7 +8764,7 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     ASSERT_TRUE(client->makeCloudSubdirs(rdir2, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
     const handle backupId2 =
-        client->setupSync_mainthread((root / ldir2).u8string(), rdir2, false, true);
+        client->setupSync_mainthread(path_u8string((root / ldir2)), rdir2, false, true);
     ASSERT_NE(backupId2, UNDEF) << "Invalid BackupId";
 
     const std::string f21 = "f0";
@@ -8851,15 +8792,54 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     ASSERT_TRUE(client->makeCloudSubdirs(rdir3, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
     const handle backupId3 =
-        client->setupSync_mainthread((root / ldir3).u8string(), rdir3, false, true);
+        client->setupSync_mainthread(path_u8string((root / ldir3)), rdir3, false, true);
     ASSERT_NE(backupId3, UNDEF) << "Invalid BackupId";
     fs::create_directories(root / ldir3 / "e");
-    createNameFile(root / ldir3, "n0");
+
+    constexpr auto transferTimeout{30s};
+
+    auto createFileAndWaitForUploadOf =
+        [&](const fs::path& path, const std::string& name, std::chrono::seconds timeout)
+    {
+        std::promise<void> p;
+        auto f = p.get_future();
+        std::atomic_bool done{false};
+
+        auto filePath = path / name;
+        client->mOnSyncTreeState = [&p, &done, filePath](const SyncConfig&,
+                                                         const LocalPath& localPath,
+                                                         treestate_t treeState,
+                                                         nodetype_t)
+        {
+            if (localPath.toPath(false) != path_u8string(filePath) ||
+                treeState != treestate_t::TREESTATE_SYNCED)
+            {
+                return;
+            }
+
+            if (done.exchange(true))
+            {
+                LOG_err << "Promise has been already resolved";
+                return;
+            }
+
+            p.set_value();
+        };
+
+        EXPECT_TRUE(createFile(filePath, name));
+        auto status = f.wait_for(timeout);
+        client->mOnSyncTreeState = nullptr;
+        return status == std::future_status::ready;
+    };
+
+    std::string fileNameTest3{"n0"};
+
+    ASSERT_TRUE(createFileAndWaitForUploadOf(root / ldir3, fileNameTest3, transferTimeout));
     waitonsyncs(TIMEOUT, client);
 
     LocalPath sPath1;
     LocalPath tPath1;
-    client->createHardLink(root / ldir3 / "n0", root / ldir3 / "e" / "n5", sPath1, tPath1);
+    client->createHardLink(root / ldir3 / fileNameTest3, root / ldir3 / "e" / "n5", sPath1, tPath1);
 
     waitonsyncs(TIMEOUT, client);
     ASSERT_TRUE(client->waitFor(SyncStallState(true), TIMEOUT));
@@ -8876,15 +8856,16 @@ TEST_F(SyncTest, DetectsAndReportsSyncProblems)
     ASSERT_TRUE(client->makeCloudSubdirs(rdir4, 0, 0));
     ASSERT_TRUE(CatchupClients(client));
     const handle backupId4 =
-        client->setupSync_mainthread((root / ldir4).u8string(), rdir4, false, true);
+        client->setupSync_mainthread(path_u8string((root / ldir4)), rdir4, false, true);
     ASSERT_NE(backupId4, UNDEF) << "Invalid BackupId";
     fs::create_directories(root / ldir4 / "e");
-    createNameFile(root / ldir4, "n0");
+    std::string fileNameTest4{"n0"};
+    ASSERT_TRUE(createFileAndWaitForUploadOf(root / ldir4, fileNameTest4, transferTimeout));
     waitonsyncs(TIMEOUT, client);
 
     LocalPath sPath2;
     LocalPath tPath2;
-    client->createHardLink(root / ldir4 / "n0", root / ldir4 / "e" / "n5", sPath2, tPath2);
+    client->createHardLink(root / ldir4 / fileNameTest4, root / ldir4 / "e" / "n5", sPath2, tPath2);
 
     waitonsyncs(TIMEOUT, client);
     ASSERT_TRUE(client->waitForSyncTotalStallsStateUpdateTrue(TIMEOUT));
@@ -11021,10 +11002,8 @@ struct TwoWaySyncSymmetryCase
         if (!root)
         {
             LOG_err << name()
-                    << " root is NULL, local sync root:"
-                    << localSyncRootPath().u8string()
-                    << " remote sync root:"
-                    << remoteRootPath;
+                    << " root is NULL, local sync root:" << path_u8string(localSyncRootPath())
+                    << " remote sync root:" << remoteRootPath;
             return nullptr;
         }
 
@@ -11043,14 +11022,14 @@ struct TwoWaySyncSymmetryCase
     {
         ASSERT_NE(remoteSyncRoot(), nullptr);
 
-        string basePath   = client1().fsBasePath.u8string();
+        string basePath = path_u8string(client1().fsBasePath);
         string drivePath  = string(1, '\0');
-        string sourcePath = localSyncRootPath().u8string();
+        string sourcePath = path_u8string(localSyncRootPath());
         string targetPath = remoteSyncRootPath();
 
         if (isExternalBackup())
         {
-            drivePath = localTestBasePath().u8string();
+            drivePath = path_u8string(localTestBasePath());
             drivePath.erase(0, basePath.size() + 1);
         }
 
@@ -11232,7 +11211,7 @@ struct TwoWaySyncSymmetryCase
         for (auto& c : p)
             if (c == '/')
                 c = fs::path::preferred_separator;
-        return fs::u8path(p);
+        return u8path_compat(p);
     }
 
     void local_rename(std::string path, std::string newname, bool updatemodel, bool reportaction, bool deleteTargetFirst)
@@ -11828,13 +11807,13 @@ TEST_F(SyncTest, TwoWay_Highlevel_Symmetries)
     StandardClient clientA1Resume(localtestroot, "clientA1R");
     ASSERT_TRUE(clientA1Steady.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
     ASSERT_TRUE(clientA1Resume.login_fetchnodes("MEGA_EMAIL", "MEGA_PWD", false, true));
-    fs::create_directory(clientA1Steady.fsBasePath / fs::u8path("twoway"));
-    fs::create_directory(clientA1Resume.fsBasePath / fs::u8path("twoway"));
-    fs::create_directory(clientA2.fsBasePath / fs::u8path("twoway"));
+    fs::create_directory(clientA1Steady.fsBasePath / u8path_compat("twoway"));
+    fs::create_directory(clientA1Resume.fsBasePath / u8path_compat("twoway"));
+    fs::create_directory(clientA2.fsBasePath / u8path_compat("twoway"));
 
     TwoWaySyncSymmetryCase::State allstate(clientA1Steady, clientA1Resume, clientA2);
-    allstate.localBaseFolderSteady = clientA1Steady.fsBasePath / fs::u8path("twoway");
-    allstate.localBaseFolderResume = clientA1Resume.fsBasePath / fs::u8path("twoway");
+    allstate.localBaseFolderSteady = clientA1Steady.fsBasePath / u8path_compat("twoway");
+    allstate.localBaseFolderResume = clientA1Resume.fsBasePath / u8path_compat("twoway");
 
     std::map<std::string, TwoWaySyncSymmetryCase> cases;
 
@@ -12106,7 +12085,7 @@ TEST_F(SyncTest, MoveExistingIntoNewDirectoryWhilePaused)
         ASSERT_NE(id, UNDEF);
 
         // Squirrel away for later use.
-        root = c.syncSet(id).localpath.u8string();
+        root = path_u8string(c.syncSet(id).localpath);
 
         // Populate filesystem.
         model.addfolder("a");
@@ -13109,7 +13088,7 @@ TEST_F(FilterFixture, ExclusionSpecifiedWhenSyncAdded)
         SyncOptions options;
 
         // s/q should be excluded by default.
-        options.excludePath = (fs::u8path("s") / fs::u8path("q")).u8string();
+        options.excludePath = path_u8string((u8path_compat("s") / u8path_compat("q")));
 
         // Add and start the sync.
         id = cdu->setupSync_mainthread("s", "s", options);
@@ -13304,134 +13283,6 @@ TEST_F(FilterFixture, FilterChangeWhileUploading)
     // Confirm models.
     ASSERT_TRUE(confirm(*cdu, id, localFS));
     ASSERT_TRUE(confirm(*cdu, id, remoteTree));
-}
-
-TEST_F(FilterFixture, MigrateLegacyFilters)
-{
-    // Useful constants.
-    m_off_t MINSIZE = 64;
-    m_off_t MAXSIZE = 128;
-
-    // Helpful aliases.
-    auto& oldExclusions = cu->client.syncs.mLegacyUpgradeFilterChain;
-    auto& fsAccess = *cu->client.fsaccess;
-    DefaultFilterChain oldExclusionsNoAbsoutePaths;
-
-    // after we add .megaignore.default, we will actually be using the legacy rules (until edited)
-    // auto& newExclusions = cu->client.syncs.mNewSyncFilterChain;
-
-    // Convenience.
-    auto root = this->root(*cu) / "root";
-    auto rootPath = LocalPath::fromAbsolutePath(root.u8string());
-
-    // Prepare legacy exclusions.
-    {
-        // Set legacy name filters.
-        string_vector elements = {"fe"};
-
-        oldExclusions.excludedNames(elements, fsAccess);
-
-        // Set legacy path filters.
-        elements = {
-            (root / "dp" / "fi").u8string(),
-            (fs::u8path("bogus") / "path").u8string()
-        };
-
-        oldExclusions.excludedPaths(elements);
-
-        // Set legacy size exclusions.
-        oldExclusions.lowerLimit(static_cast<uint64_t>(MINSIZE));
-        oldExclusions.upperLimit(static_cast<uint64_t>(MAXSIZE));
-    }
-
-    // Prepare legacy exclusions without absolute paths, as would go into .megaignore.default
-    {
-        // Set legacy name filters.
-        string_vector elements = {"fe"};
-
-        oldExclusionsNoAbsoutePaths.excludedNames(elements, fsAccess);
-
-        // Set legacy size exclusions.
-        oldExclusionsNoAbsoutePaths.lowerLimit(static_cast<uint64_t>(MINSIZE));
-        oldExclusionsNoAbsoutePaths.upperLimit(static_cast<uint64_t>(MAXSIZE));
-    }
-
-
-    // Prepare local filesystem.
-    LocalFSModel localFS;
-    string dpfidata;
-    localFS.addfile("dn/fi", randomData(static_cast<size_t>(MINSIZE)));
-    localFS.addfile("dn/fe", randomData(static_cast<size_t>(MINSIZE)));
-    localFS.addfile("dn/fs", randomData(static_cast<size_t>(MINSIZE) - 1));
-    localFS.addfile("dn/fl", randomData(static_cast<size_t>(MAXSIZE) + 1));
-    localFS.addfile("dp/fi", (dpfidata = randomData(static_cast<size_t>(MINSIZE))));
-    localFS.generate(root);
-    localFS.addfile(".megaignore", oldExclusions.generate(rootPath, fsAccess, true, false));
-
-    // Prepare remote model.
-    RemoteNodeModel remoteTree = localFS;
-    remoteTree.removenode(".megaignore"); // not synced by default
-
-    remoteTree.removenode("dn/fe");
-    remoteTree.removenode("dn/fs");
-    remoteTree.removenode("dn/fl");
-    remoteTree.removenode("dp/fi");
-
-    // Log in client.
-    ASSERT_TRUE(cu->makeCloudSubdirs("cu", 0, 0));
-    ASSERT_TRUE(CatchupClients(cd, cdu, cu));
-
-    // Add and start the sync.
-    auto id = setupSync(*cu, "root", "cu", false, true);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for the initial sync to complete.
-    waitOnSyncs(cu);
-
-    // Are the excluded things actually excluded?
-    ASSERT_TRUE(confirm(*cu, id, localFS));
-    ASSERT_TRUE(confirm(*cu, id, remoteTree));
-
-    // Remove the sync.
-    ASSERT_TRUE(cu->delSync_mainthread(id));
-
-    // Remove the ignore file from disk.
-    {
-        std::error_code result;
-
-        fs::remove(root / ".megaignore", result);
-        ASSERT_FALSE(result);
-
-        localFS.removenode(".megaignore");
-    }
-
-    // Remove the ignore file from the cloud.
-    {
-        remoteTree.removenode(".megaignore");
-
-        //ASSERT_TRUE(cu->deleteremote("cu/.megaignore"));
-
-        auto predicate = SyncRemoteMatch("cu", remoteTree.root.get());
-        ASSERT_TRUE(cu->waitFor(predicate, DEFAULTWAIT));
-    }
-
-    // Restart the sync.
-    id = setupSync(*cu, "root", "cu", false);
-    ASSERT_NE(id, UNDEF);
-
-    // Wait for the initial sync to complete.
-    waitOnSyncs(cu);
-
-    // Make sure everything's uploaded as it should be.
-    //RemoteNodeModel remoteTree2 = localFS;
-    // after we add .megaignore.default, we will actually be using the legacy rules (until edited)
-    localFS.addfile(".megaignore", /*newExclusions*/ oldExclusionsNoAbsoutePaths.generate(rootPath, fsAccess, true, false));   // .megaignore not synced by default
-
-    // with .megaignore.default copied to the sync, dp path is no longer excluded
-    remoteTree.addfile("dp/fi", dpfidata);
-
-    ASSERT_TRUE(confirm(*cu, id, localFS));
-    ASSERT_TRUE(confirm(*cu, id, remoteTree));
 }
 
 TEST_F(FilterFixture, NameFilter)
@@ -14933,8 +14784,7 @@ TEST_F(LocalToCloudFilterFixture, FilterNameClash)
     const auto& conflict = conflicts.front();
 
     // Detected at sync root?
-    ASSERT_EQ(conflict.localPath.toPath(false),
-              (cu->fsBasePath / "s").u8string());
+    ASSERT_EQ(conflict.localPath.toPath(false), path_u8string((cu->fsBasePath / "s")));
 
     // Two local name clashes detected?
     ASSERT_EQ(conflict.clashingLocalNames.size(), 2u);
@@ -16971,8 +16821,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
         auto localPath = c->fsBasePath / "s" / DIRECTORY_NAME;
         auto cloudPath = "/mega_test_sync/s/" + DIRECTORY_NAME;
 
-        ASSERT_EQ(stalls.local.begin()->first.toPath(false),
-                  localPath.u8string());
+        ASSERT_EQ(stalls.local.begin()->first.toPath(false), path_u8string(localPath));
 
         ASSERT_TRUE(stalls.local.begin()->second.localPath2.localPath.empty());
 
@@ -17019,8 +16868,7 @@ TEST_F(SyncTest, StallsWhenDownloadTargetHasLongName)
 
         ASSERT_TRUE(sr.localPath1.localPath.toPath(false).find(".getxfer") != string::npos);
 
-        ASSERT_EQ(sr.localPath2.localPath.toPath(false),
-            localPath.u8string());
+        ASSERT_EQ(sr.localPath2.localPath.toPath(false), path_u8string(localPath));
 
         ASSERT_EQ(sr.cloudPath1.cloudPath,
                   cloudPath);
@@ -17096,10 +16944,10 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
 
     // Was the stall due to the rename?
     ASSERT_EQ(sr.localPath1.localPath.toPath(false),
-              (c->fsBasePath / "s" / "d" / "f").u8string());
+              path_u8string((c->fsBasePath / "s" / "d" / "f")));
 
     ASSERT_EQ(sr.localPath2.localPath.toPath(false),
-              (c->fsBasePath / "s" / "d" / FILE_NAME).u8string());
+              path_u8string((c->fsBasePath / "s" / "d" / FILE_NAME)));
 
     ASSERT_EQ(sr.cloudPath1.cloudPath,
         "/mega_test_sync/s/d/f");
@@ -17156,7 +17004,7 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
               "/mega_test_sync/s/" + FILE_NAME);
 
     ASSERT_EQ(cloud_sr1.localPath1.localPath.toPath(false),
-              (c->fsBasePath / "s" / "d" / "ff").u8string());
+              path_u8string((c->fsBasePath / "s" / "d" / "ff")));
 
     // Correct reasons reported?
     ASSERT_EQ(cloud_sr1.reason,
@@ -17170,10 +17018,10 @@ TEST_F(SyncTest, StallsWhenMoveTargetHasLongName)
 
     // Correct paths reported?
     ASSERT_EQ(cloud_sr2.localPath1.localPath.toPath(false),
-              (c->fsBasePath / "s" / "d" / "ff").u8string());
+              path_u8string((c->fsBasePath / "s" / "d" / "ff")));
 
     ASSERT_EQ(cloud_sr2.localPath2.localPath.toPath(false),
-              (c->fsBasePath / "s" / FILE_NAME).u8string());
+              path_u8string((c->fsBasePath / "s" / FILE_NAME)));
 
     ASSERT_EQ(cloud_sr2.cloudPath1.cloudPath,
               "/mega_test_sync/s/d/ff");
@@ -17741,7 +17589,7 @@ TEST_F(SyncTest, ChangingDirectoryPermissions)
     // Make sure everything made it to the cloud.
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
-    const auto dPath = (client->fsBasePath / "s" / "d").u8string();
+    const auto dPath = path_u8string((client->fsBasePath / "s" / "d"));
 
     // Use PermissionsHandler to handle directory permissions
     PermissionHandler dirPermissionHandler(dPath);
@@ -17828,7 +17676,7 @@ TEST_F(SyncTest, StallsOnSpecialFile)
     ASSERT_TRUE(client->confirmModel_mainthread(model.root.get(), id));
 
     // Create a pipe for the engine to stall on.
-    const auto fPath = (client->fsBasePath / "s" / "f").u8string();
+    const auto fPath = path_u8string((client->fsBasePath / "s" / "f"));
 
     ASSERT_EQ(mkfifo(fPath.c_str(), S_IRUSR | S_IWUSR), 0);
 
@@ -18367,13 +18215,14 @@ SyncWaitPredicate SyncHasLocalStallMatching(SyncWaitReason reason,
                                             const fs::path& path1 = fs::path(),
                                             PathProblem problem1 = PathProblem::NoProblem)
 {
-    return SyncHasLocalStallMatching([=](const SyncStallEntry& entry) {
-        return entry.reason == reason
-               && entry.localPath1.problem == problem0
-               && entry.localPath2.problem == problem1
-               && entry.localPath1.localPath.toPath(false) == path0.u8string()
-               && entry.localPath2.localPath.toPath(false) == path1.u8string();
-    });
+    return SyncHasLocalStallMatching(
+        [=](const SyncStallEntry& entry)
+        {
+            return entry.reason == reason && entry.localPath1.problem == problem0 &&
+                   entry.localPath2.problem == problem1 &&
+                   entry.localPath1.localPath.toPath(false) == path_u8string(path0) &&
+                   entry.localPath2.localPath.toPath(false) == path_u8string(path1);
+        });
 }
 
 static bool isDeferredPathProblem(PathProblem problem)
@@ -19613,11 +19462,11 @@ TEST_F(SyncTest, SyncUtf8DifferentlyNormalized1)
     string name1 = "\x73\x6f\x75\x68\x6c\x61\x73\x20\x73\x20\x6b\x6f\x70\x69\xc3\xad\x20\x43\x50";  // from cloud - therefore, this is the normalized form we use
     string name2 = "\x73\x6f\x75\x68\x6c\x61\x73\x20\x73\x20\x6b\x6f\x70\x69\x69\xcc\x81\x20\x43\x50"; // form from Mac FS
 
-    fs::path n1_utf8 = fs::u8path(name1);
-    fs::path n2_utf8 = fs::u8path(name2);
+    fs::path n1_utf8 = u8path_compat(name1);
+    fs::path n2_utf8 = u8path_compat(name2);
 
-    string convertedback_1 = n1_utf8.u8string();
-    string convertedback_2 = n2_utf8.u8string();
+    string convertedback_1 = path_u8string(n1_utf8);
+    string convertedback_2 = path_u8string(n2_utf8);
 
     ASSERT_EQ(convertedback_1.size(), name1.size());
     ASSERT_EQ(convertedback_2.size(), name2.size());

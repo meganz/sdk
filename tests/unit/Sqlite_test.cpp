@@ -9,6 +9,7 @@
 
 #include <filesystem>
 #include <mega.h>
+#include <stdfs.h>
 #include <string>
 
 using namespace mega;
@@ -38,7 +39,7 @@ TEST(Sqlite, renameDB)
         });
 
     std::filesystem::create_directory(pathString);
-    LocalPath folderPath = LocalPath::fromAbsolutePath(pathString.u8string());
+    LocalPath folderPath = LocalPath::fromAbsolutePath(path_u8string(pathString));
     SqliteDbAccess dbAccess{folderPath};
 
     // Create and open DB

@@ -2343,7 +2343,7 @@ class MegaUser
          */
         virtual int64_t getTimestamp();
 
-        enum
+        enum : uint64_t
         {
             CHANGE_TYPE_AUTHRING                    = 0x01,
             CHANGE_TYPE_LSTINT                      = 0x02,
@@ -2376,7 +2376,8 @@ class MegaUser
             CHANGE_TYPE_COOKIE_SETTINGS             = 0x10000000,
             CHANGE_TYPE_NO_CALLKIT                  = 0x20000000,
             CHANGE_APPS_PREFS                       = 0x40000000,
-            CHANGE_CC_PREFS                         = 0x80000000,
+            CHANGE_CC_PREFS = 0x80000000,
+            CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000ULL,
         };
 
         /**
@@ -2484,6 +2485,9 @@ class MegaUser
          *
          * - MegaUser::CHANGE_CC_PREFS       = 0x80000000
          * Check if content consumption prefs have changed
+         *
+         * - MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP = 0x100000000
+         * Check if the timestamp for clearing recent actions history has changed
          *
          * @return true if this user has an specific change
          */
@@ -5537,6 +5541,8 @@ class MegaRequest
          * - MegaApi::createPublicChat - Returns if chat room is a meeting room
          * - MegaApi::fetchAds - Returns a bitmap flag used to communicate with the API
          * - MegaApi::queryAds - Returns a bitmap flag used to communicate with the API
+         * - MegaApi::clearRecentActionHistory - Returns the epoch time in seconds to set as the
+         * recent action history clear timestamp
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -10188,6 +10194,7 @@ public:
      * - MegaApi::FILE_TYPE_SPREADSHEET = 10
      * - MegaApi::FILE_TYPE_ALL_DOCS = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
      * - MegaApi::FILE_TYPE_OTHERS = 12
+     * - MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA = 13--> any of {PHOTO, VIDEO}
      */
     virtual void byCategory(int mimeType);
 
@@ -10681,6 +10688,8 @@ class MegaApi
             USER_ATTR_S4 = 49, // private - non-encrypted - char array
             USER_ATTR_S4_CONTAINER = 50, // private - non-encrypted - char array
             USER_ATTR_DEV_OPT = 51, // private - encrypted - byte array
+            USER_ATTR_RECENT_CLEAR_TIMESTAMP =
+                52, // private - encrypted - byte array - non-versioned
         };
 
         enum {
@@ -14070,10 +14079,11 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the value for public attributes
          * - MegaRequest::getMegaStringMap - Returns the value for private attributes
-         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was USER_ATTR_DEVICE_NAMES
+         * - MegaRequest::getFlag - Returns true for external drive, in case attribute type was
+         * USER_ATTR_DEVICE_NAMES
          *
-         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the attribute
-         * is obtained for the active account
+         * @param user MegaUser to get the attribute. If this parameter is set to NULL, the
+         * attribute is obtained for the active account
          * @param type Attribute type
          *
          * Valid values are:
@@ -14146,7 +14156,8 @@ class MegaApi
          * Get last read notification (private)
          * MegaApi::USER_ATTR_LAST_ACTIONED_BANNER = 45
          * Get last actioned banner (private)
-         *
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52 (private, encrypted)
+         * Get the epoch time (in seconds) used as the recent actions history clear timestamp.
          * @param listener MegaRequestListener to track this request
          */
         void getUserAttribute(MegaUser* user, int type, MegaRequestListener *listener = NULL);
@@ -16356,44 +16367,53 @@ class MegaApi
         /**
          * @brief Upload a file to support
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * If the status of the business account is expired, onTransferFinish will be called with
+         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
+         * message similar to "Your business account is overdue, please contact your administrator."
          *
          * For folders, onTransferFinish will be called with error MegaError:API_EARGS;
          *
          * @param localPath Local path of the file
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it
+         * when the upload finishes. This parameter is intended to automatically delete temporary
+         * files that are only created to be uploaded. Use this parameter with caution. Set it to
+         * true only if you are sure about what are you doing.
          * @param listener MegaTransferListener to track this transfer
+         *
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUploadForSupport(const char* localPath, bool isSourceTemporary = false, MegaTransferListener *listener=NULL);
 
         /**
          * @brief Upload a file or a folder
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * If the status of the business account is expired, onTransferFinish will be called with
+         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
+         * message similar to "Your business account is overdue, please contact your administrator."
          *
-         * When user wants to upload a batch of items that at least contains one folder, SDK mutex will be partially
-         * locked until:
+         * When user wants to upload a batch of items that at least contains one folder, SDK mutex
+         * will be partially locked until:
          *  - we have received onTransferStart for every file in the batch
-         *  - we have received onTransferUpdate with MegaTransfer::getStage == MegaTransfer::STAGE_TRANSFERRING_FILES
-         *    for every folder in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage ==
+         * MegaTransfer::STAGE_TRANSFERRING_FILES for every folder in the batch
          *
-         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by calling CancelToken::cancel(true).
-         * This method will cancel all transfers(not finished yet).
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+         * calling CancelToken::cancel(true). This method will cancel all transfers(not finished
+         * yet).
          *
          * Important considerations:
-         *  - A cancel token instance can be shared by multiple transfers, and calling CancelToken::cancel(true) will affect all
-         *    of those transfers.
+         *  - A cancel token instance can be shared by multiple transfers, and calling
+         * CancelToken::cancel(true) will affect all of those transfers.
          *
-         *  - It's app responsibility, to keep cancel token instance alive until receive MegaTransferListener::onTransferFinish for all MegaTransfers
-         *    that shares the same cancel token instance.
+         *  - It's app responsibility, to keep cancel token instance alive until receive
+         * MegaTransferListener::onTransferFinish for all MegaTransfers that shares the same cancel
+         * token instance.
          *
-         * For more information about MegaTransfer stages please refer to onTransferUpdate documentation.
+         * For more information about MegaTransfer stages please refer to onTransferUpdate
+         * documentation.
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -16409,9 +16429,10 @@ class MegaApi
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
          *  + If you don't need this param provide NULL as value
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it
+         * when the upload finishes. This parameter is intended to automatically delete temporary
+         * files that are only created to be uploaded. Use this parameter with caution. Set it to
+         * true only if you are sure about what are you doing.
          *  + If you don't need this param provide false as value
          * @param startFirst puts the transfer on top of the upload queue
          *  + If you don't need this param provide false as value
@@ -16419,6 +16440,11 @@ class MegaApi
          * This param is required to be able to cancel the transfer safely.
          * App retains the ownership of this param.
          * @param listener MegaTransferListener to track this transfer
+         *
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData, bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener=NULL);
 
@@ -16427,14 +16453,14 @@ class MegaApi
          *
          * This method should be used ONLY to share by chat a local file. In case the file
          * is already uploaded, but the corresponding node is missing the thumbnail and/or preview,
-         * this method will force a new upload from the scratch (ensuring the file attributes are set),
-         * instead of doing a remote copy.
+         * this method will force a new upload from the scratch (ensuring the file attributes are
+         * set), instead of doing a remote copy.
          *
          * This method always puts the transfer on top of the upload queue.
          *
-         * If the status of the business account is expired, onTransferFinish will be called with the error
-         * code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-         * "Your business account is overdue, please contact your administrator."
+         * If the status of the business account is expired, onTransferFinish will be called with
+         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
+         * message similar to "Your business account is overdue, please contact your administrator."
          *
          * @param localPath Local path of the file or folder
          * @param parent Parent node for the file or folder in the MEGA account
@@ -16445,11 +16471,17 @@ class MegaApi
          * fails with the error API_EEXISTS and the appData of the new transfer is appended to
          * the appData of the old transfer, using a '!' separator if the old transfer had already
          * appData.
-         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it when the upload finishes.
-         * This parameter is intended to automatically delete temporary files that are only created to be uploaded.
-         * Use this parameter with caution. Set it to true only if you are sure about what are you doing.
+         * @param isSourceTemporary Pass the ownership of the file to the SDK, that will DELETE it
+         * when the upload finishes. This parameter is intended to automatically delete temporary
+         * files that are only created to be uploaded. Use this parameter with caution. Set it to
+         * true only if you are sure about what are you doing.
          * @param fileName Custom file name for the file or folder in MEGA
          * @param listener MegaTransferListener to track this transfer
+         *
+         * @note In case we find a node in cloud drive with the same content but a different mtime
+         * than the file to be uploaded, this function will try to update it's mtime instead of
+         * starting a new file upload. If setting the mtime fails, the transfer will fail with
+         * API_EWRITE.
          */
         void startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener = NULL);
 
@@ -17508,84 +17540,22 @@ class MegaApi
                                    MegaRequestListener* const listener);
 
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from Sync management based on Apps cache into SDK
-         * based cache. You will need to call copyCachedStatus prior to this one, so that disable sync reasons are properly
-         * adjusted.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getLink - Returns the path of the remote folder
-         * - MegaRequest::getNumber - Returns the local filesystem fingerprint
-         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
-         * - MegaRequest::getFlag - if sync is enabled
-
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getParentHandle - backupId assigned to the sync (MegaApi::copySyncDataToCache)
-         *
-         * @param localFolder Local folder
-         * @param name Name given to the sync
-         * @param megaHandle MEGA folder
-         * @param remotePath MEGA folder path
-         * @param localfp Filesystem fingerprint
-         * @param enabled If the sync is enabled by the user
-         * @param temporaryDisabled If the sync is temporarily disabled
-         * @param listener MegaRequestListener to track this request
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copySyncDataToCache(const char *localFolder, const char *name, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from Sync management based on Apps cache into SDK
-         * based cache. You will need to call copyCachedStatus prior to this one, so that disable sync reasons are properly
-         * adjusted.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_SYNC_CONFIG
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNodeHandle - Returns the handle of the folder in MEGA
-         * - MegaRequest::getFile - Returns the path of the local folder
-         * - MegaRequest::getName - Returns the name of the sync
-         * - MegaRequest::getLink - Returns the path of the remote folder
-         * - MegaRequest::getNumber - Returns the local filesystem fingreprint
-         * - MegaRequest::getNumDetails - Returns if sync is temporarily disabled
-         * - MegaRequest::getFlag - if sync is enabled
-
-         * Valid data in the MegaRequest object received in onRequestFinish when the error code
-         * is MegaError::API_OK:
-         * - MegaRequest::getParentHandle - backupId assigned to the sync (MegaApi::copySyncDataToCache)
-         *
-         * @param localFolder Local folder
-         * @param megaHandle MEGA folder
-         * @param remotePath MEGA folder path
-         * @param localfp Filesystem fingerprint
-         * @param enabled If the sync is enabled by the user
-         * @param temporaryDisabled If the sync is temporarily disabled
-         * @param listener MegaRequestListener to track this request
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copySyncDataToCache(const char *localFolder, MegaHandle megaHandle, const char *remotePath,
                                  long long localfp, bool enabled, bool temporaryDisabled, MegaRequestListener *listener = NULL);
+
         /**
-         * @brief Copy sync data to SDK cache.
-         *
-         * This function is destined to allow transition from some account status cached in Apps into SDK cached values.
-         * This should be called before fetching nodes and copySyncDataToCache.
-         *
-         * The associated request type with this request is MegaRequest::TYPE_COPY_CACHED_STATUS
-         * Valid data in the MegaRequest object received on callbacks:
-         * - MegaRequest::getNumber - Returns storageStatus+1000*blockStatus+1000000*businessStatus
-         *
-         * @param storageStatus storage status. Pass 999 if not valid
-         * @param blockStatus block status (0 = blocked, != 0 otherwise). Pass 999 if not valid
-         * @param businessStatus business status. Pass 999 if not valid
-         * @param listener MegaRequestListener to track this request
-         *
+         * @deprecated This version of the function is deprecated. It results on API_EINTERNAL.
          */
+        MEGA_DEPRECATED
         void copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener *listener = NULL);
 
         /**
@@ -17731,75 +17701,33 @@ class MegaApi
         bool isSyncing();
 
         /**
-         * @brief Inform the SDK of the exclusion names used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Wildcards (* and ?) are allowed
-         *
-         * @param List of excluded file names
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed in future updates
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
-        void setLegacyExcludedNames(std::vector<std::string> *excludedNames);
+        MEGA_DEPRECATED
+        void setLegacyExcludedNames(std::vector<std::string>* excludedNames);
 
         /**
-         * @brief Inform the SDK of the exclusion paths used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Wildcards (* and ?) are allowed
-         *
-         * @param List of excluded paths
-         * @deprecated A more powerful exclusion system based on regular expresions is being developed. This
-         * function will be removed in future updates
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
-        void setLegacyExcludedPaths(std::vector<std::string> *excludedPaths);
+        MEGA_DEPRECATED
+        void setLegacyExcludedPaths(std::vector<std::string>* excludedPaths);
 
         /**
-         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Files with a size lower than this limit won't be synchronized
-         * To disable the limit, you can set it to 0
-         *
-         * If both limits are enabled and the lower one is greater than the upper one,
-         * only files between both limits will be excluded
-         *
-         * @param limit Lower limit for synchronized files
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         void setLegacyExclusionLowerSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Inform the SDK of the size limits used for old syncs, in case any need to be upgraded to .megaignore
-         *
-         * Files with a size greater than this limit won't be synchronized
-         * To disable the limit, you can set it to 0
-         *
-         * If both limits are enabled and the lower one is greater than the upper one,
-         * only files between both limits will be excluded
-         *
-         * @param limit Upper limit for synchronized files
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         void setLegacyExclusionUpperSizeLimit(unsigned long long limit);
 
         /**
-         * @brief Create a .megaignore file using legacy exclusion rules.
-         *
-         * Absolute paths included in the legacy rules will only be included
-         * if they are contained in the absolute path passed to the function.
-         *
-         * Ex:
-         * 1. Legacy excluded path: "/home/user/someSync/folder1*"
-         * 2. Param absolutePath: "/home/user/someSync"
-         * 3. Path "folder1*" will be included in the .megaignore created at "someSync".
-         *
-         * Possible return values for this function are:
-         * - MegaError::API_OK if the megaignore file was successfuly written.
-         * - MegaError::API_EARGS if absolutePath is empty or invalid.
-         * - MegaError::API_EACCESS if there was a problem writing the megaignore file.
-         * - MegaError::API_EEXIST if the megaignore file already exists.
-         *
-         * The caller takes ownership of the returned value.
-         *
-         * @param absolutePath Absolute path where the .megaignore file is going to be created.
-         * @return MegaError::API_OK if the file was created, otherwise it returns an error.
+         * @deprecated This function is deprecated and it will be removed in future updates.
          */
+        MEGA_DEPRECATED
         MegaError* exportLegacyExclusionRules(const char* absolutePath);
 
         /**
@@ -18348,9 +18276,10 @@ class MegaApi
                FILE_TYPE_PROGRAM,
                FILE_TYPE_MISC,
                FILE_TYPE_SPREADSHEET,
-               FILE_TYPE_ALL_DOCS,    // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
+               FILE_TYPE_ALL_DOCS, // any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
                FILE_TYPE_OTHERS,
-               FILE_TYPE_LAST = FILE_TYPE_OTHERS,
+               FILE_TYPE_ALL_VISUAL_MEDIA, // any of {PHOTO, VIDEO}
+               FILE_TYPE_LAST = FILE_TYPE_ALL_VISUAL_MEDIA,
              };
 
         enum { SEARCH_TARGET_INSHARE = 0,
@@ -19294,6 +19223,19 @@ class MegaApi
         MegaNodeList *getNodesByFingerprint(const char* fingerprint);
 
         /**
+         * @brief Returns all nodes that have a fingerprint (ignoring modification time)
+         *
+         * If there isn't any node in the account with that fingerprint, this function returns an
+         * empty MegaNodeList.
+         *
+         * You take the ownership of the returned value.
+         *
+         * @param fingerprint Fingerprint to check
+         * @return List of nodes with the same fingerprint (ignoring modification time)
+         */
+        MegaNodeList* getNodesByFingerprintIgnoringMtime(const char* fingerprint);
+
+        /**
          * @brief Returns nodes that have an originalFingerprint equal to the supplied value
          *
          * Search the node tree and return a list of nodes that have an originalFingerprint, which
@@ -19705,6 +19647,28 @@ class MegaApi
                                    unsigned maxnodes,
                                    bool excludeSensitives,
                                    MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Clear the account’s recent actions history up to a given timestamp.
+         *
+         * This method clears the recent actions history on the account by setting a
+         * “recent clear” timestamp. All actions that occurred at or before the given
+         * timestamp are considered cleared.
+         *
+         * The associated request type for this operation is
+         * MegaRequest::TYPE_SET_ATTR_USER.
+         *
+         * Valid data available in the MegaRequest object received in callbacks:
+         * - MegaRequest::getParamType - Returns the user attribute type
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
+         * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
+         * actions history clear timestamp.
+         *
+         * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+         * @param listener  Optional MegaRequestListener to track this request.
+         */
+
+        void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Process a node tree using a MegaTreeProcessor implementation
@@ -20528,11 +20492,12 @@ class MegaApi
          * inside the folder is returned.
          *
          * It's important to know that the HTTP proxy server has several configuration options
-         * that can restrict the nodes that will be served and the connections that will be accepted.
+         * that can restrict the nodes that will be served and the connections that will be
+         * accepted.
          *
          * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-         * (see MegaApi::httpServerSetRestrictedMode)
+         * - The restricted mode of the server is set to
+         * MegaApi::TCP_SERVER_ALLOW_CREATED_LOCAL_LINKS (see MegaApi::httpServerSetRestrictedMode)
          *
          * - Folder nodes are NOT allowed to be served (see MegaApi::httpServerEnableFolderServer)
          * - File nodes are allowed to be served (see MegaApi::httpServerEnableFileServer)
@@ -20540,8 +20505,10 @@ class MegaApi
          *
          * The HTTP server will only stream a node if it's allowed by all configuration options.
          *
-         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
-         * @param port Port in which the server must accept connections
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network
+         * interfaces
+         * @param port Port in which the server must accept connections. A free port is selected if
+         * it is 0.
          * @param useTLS Use TLS (default false).
          * If the SDK compilation does not support TLS,
          * enabling this flag will cause the function to return false.
@@ -20930,16 +20897,19 @@ class MegaApi
          * You can generate a correct link for a MegaNode using MegaApi::ftpServerGetLocalLink
          *
          * It's important to know that the FTP server has several configuration options
-         * that can restrict the nodes that will be served and the connections that will be accepted.
+         * that can restrict the nodes that will be served and the connections that will be
+         * accepted.
          *
          * These are the default options:
-         * - The restricted mode of the server is set to MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
-         * (see MegaApi::ftpServerSetRestrictedMode)
+         * - The restricted mode of the server is set to
+         * MegaApi::FTP_SERVER_ALLOW_CREATED_LOCAL_LINKS (see MegaApi::ftpServerSetRestrictedMode)
          *
          * The FTP server will only stream a node if it's allowed by all configuration options.
          *
-         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network interfaces
-         * @param port Port in which the server must accept connections
+         * @param localOnly true to listen on 127.0.0.1 only, false to listen on all network
+         * interfaces
+         * @param port Port in which the server must accept connections. A free port is selected if
+         * it is 0.
          * @param dataportBegin Initial port for FTP data channel
          * @param dataPortEnd Final port for FTP data channel (included)
          * @param useTLS Use TLS (default false)
@@ -23745,7 +23715,8 @@ class MegaApi
          * @brief Delete a user attribute of the current user, for testing
          * This method is for developer use only and it requires to be logged-in into an
          * account under a MEGA email. Otherwise, it will fail with API_EACCESS (except for
-         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by Webclient).
+         * attributes "gmk" and "promocode", which are not supported by SDK, but removed by
+         * Webclient).
          *
          * The associated request type with this request is MegaRequest::TYPE_DEL_ATTR_USER
          * Valid data in the MegaRequest object received on callbacks:
@@ -23805,6 +23776,8 @@ class MegaApi
          * Delete name and key to cypher sync-configs file
          * MegaApi::USER_ATTR_NO_CALLKIT = 36
          * Delete whether user has iOS CallKit disabled or enabled (private, non-encrypted)
+         * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP = 52
+         * Delete the timestamp for recent actions history clearing (private, encrypted)
          *
          * @param listener MegaRequestListener to track this request
          */

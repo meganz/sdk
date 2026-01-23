@@ -34,7 +34,7 @@ public:
     {
         SdkTest::SetUp();
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
     }
 
     const fs::path& getLocalFolder() const
@@ -46,7 +46,7 @@ public:
     {
         LOG_debug << "Creating a backup";
         ASSERT_EQ(mBackupID, INVALID_HANDLE) << "There is already a backup/sync created.";
-        mBackupID = backupFolder(megaApi[0].get(), getLocalFolder().u8string(), mBackupName);
+        mBackupID = backupFolder(megaApi[0].get(), path_u8string(getLocalFolder()), mBackupName);
         ASSERT_NE(mBackupID, INVALID_HANDLE) << "Invalid Backup ID";
     }
 
@@ -98,7 +98,7 @@ public:
         unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
         ASSERT_TRUE(rootnode) << "Account root node not available.";
         mDestinationFolderHandle =
-            createFolder(0, mDestinationFolderName.u8string().c_str(), rootnode.get());
+            createFolder(0, path_u8string(mDestinationFolderName).c_str(), rootnode.get());
         ASSERT_NE(mDestinationFolderHandle, INVALID_HANDLE) << "Invalid destination folder handle";
     }
 

@@ -63,13 +63,16 @@ typedef enum
 
 typedef enum
 {
-    NODE_COMP_INVALID_NODE_TYPE = -31,
     NODE_COMP_EREAD = -21,
     NODE_COMP_EARGS = -2,
+    NODE_COMP_PENDING = -1,
     NODE_COMP_EQUAL = 0,
     NODE_COMP_DIFFERS_FP = 1,
     NODE_COMP_DIFFERS_MAC = 2,
+    NODE_COMP_DIFFERS_MTIME = 3,
 } node_comparison_result;
+
+std::string nodeComparisonResultToStr(const node_comparison_result result);
 
 std::string backupTypeToStr(BackupType type);
 
@@ -608,42 +611,139 @@ struct FileAccess;
 struct InputStreamAccess;
 class SymmCipher;
 
-static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
+/*******************\
+*     CRC UTILS     *
+\*******************/
+constexpr std::uint64_t LEGACY_CRC_WINDOW_BYTES = 64; // 4 * sizeof(FileFingerprint::crc)
+constexpr unsigned LEGACY_CRC_LANES = 4;
+constexpr unsigned LEGACY_CRC_BLOCKS_PER_LANE = 32;
+constexpr std::uint32_t LEGACY_SPARSE_DENOM =
+    static_cast<std::uint32_t>(LEGACY_CRC_LANES * LEGACY_CRC_BLOCKS_PER_LANE - 1); // 127
 
-std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv);
+// The old buggy 32-bit computation could only overflow once (size - windowBytes) * idx crosses
+// 2^32.
+constexpr std::uint64_t LEGACY_OVERFLOW_MIN_SIZE =
+    (static_cast<std::uint64_t>(std::numeric_limits<std::uint32_t>::max()) / LEGACY_SPARSE_DENOM) +
+    LEGACY_CRC_WINDOW_BYTES;
+
+[[nodiscard]] bool
+    computeLegacyBuggySparseCrcFA(MegaClient& mc,
+                                  const LocalPath& path,
+                                  const m_off_t expectedSize,
+                                  std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut);
+
+[[nodiscard]] bool
+    computeLegacyBuggySparseCrcIA(MegaClient& mc,
+                                  const LocalPath& path,
+                                  const m_off_t expectedSize,
+                                  std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut);
+
+[[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
+                                              const unsigned lane,
+                                              const unsigned block) noexcept;
+
+bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs);
+
+/*******************\
+*   METAMAC UTILS   *
+\*******************/
+static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
+std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
+                                         FileAccess& ifAccess,
+                                         const int64_t iv,
+                                         std::optional<std::string> pathStr);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
-                                                            int type);
+                                                            int type,
+                                                            std::optional<std::string> pathStr);
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
 /**
- * @brief Compares a local file with a remote node based on fingerprint and MAC.
+ * @brief Generates local METAMAC (from local file) and remote METAMAC (from a Node)
+ * @param fa Pointer to FileAccess object for file operations
+ * @param nodeKey The node's encryption key
+ * @param type The node type
+ * @return A pair containing the local and remote METAMACs
+ */
+std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
+                                                     const std::string& nodeKey,
+                                                     int type,
+                                                     std::optional<std::string> pathStr);
+
+/**
+ * @brief Compares two fingerprints (excluding mtime) and two METAMACs.
+ *
+ * @param fp1 First Fingerprint to be compared.
+ * @param fp2 Second Fingerprint to be compared.
+ * @param metamac1 First MetaMac to be compared.
+ * @param metamac2 Second MetaMac to be compared.
+ * @note fpX and metamacX corresponds to the same item
+ * @return `node_comparison_result` indicating the comparison result:
+ *      - NODE_COMP_EQUAL: Fingerprints (also mtime is equal) and METAMACs match
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ * mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: METAMACs differ.
+ */
+node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
+                                                     const FileFingerprint& fp2,
+                                                     const int64_t metamac1,
+                                                     const int64_t metamac2);
+
+/**
+ * @brief Compares node's fingerprint and METAMAC with fingerprint and METAMAC provided as params
+ * (Excluding mtime)
+ *
+ * @param node Pointer to the remote node to compare with.
+ * @param fp Fingerprint to be compared.
+ * @param precalcMetamac Precalculated METAMAC to be compared.
+ *
+ * @return A value of type `node_comparison_result` indicating the comparison result:
+ *      - NODE_COMP_EREAD: Error reading the local file.
+ *      - NODE_COMP_EQUAL: Fingerprints (also mtime is equal) and METAMACs match
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ * mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: METAMACs differ.
+ */
+node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node* node,
+                                                                     const FileFingerprint& fp,
+                                                                     const int64_t precalcMetamac);
+
+/**
+ * @brief Compares a local file with a node based on fingerprint (Excluding mtime) and METAMAC.
  *
  * This function checks whether a local file matches a remote node by comparing:
  * 1. The fingerprint of the local file with the fingerprint of the node.
- * 2. The MAC (Message Authentication Code) of the local file with the node key.
+ * 2. The METAMAC (Message Authentication Code) of the local file with the METAMAC generated from
+ node key.
  *
  * @param client reference to the MegaClient instance.
  * @param path Local path to the file to be compared.
  * @param fp Fingerprint of the local file to be compared.
- * @param node Pointer to the remote node to compare with.
- * @return A value of type `node_comparison_result` indicating the comparison result:
- *         - NODE_COMP_EREAD: Error reading the local file.
- *         - NODE_COMP_EARGS: Invalid arguments
- *         - NODE_COMP_DIFFERS_FP: Fingerprints do not match.
- *         - NODE_COMP_DIFFERS_MAC: Fingerprints match but MACs differ.
- *         - NODE_COMP_EQUAL: Both fingerprint and MAC match.
+ * @param node Pointer to the node to compare with.
+ * @param excludeMtime If true, ignores mtime time during fingerprint comparison.
+ *
+ * @return A pair of {`node_comparison_result`, metamac}.
+ *     `node_comparison_result` indicates:
+ *      - NODE_COMP_EARGS: Invalid arguments
+ *      - NODE_COMP_EREAD: Error reading the local file.
+ *      - NODE_COMP_EQUAL: Fingerprints (also mtime is equal) and METAMACs match
+ *      - NODE_COMP_DIFFERS_FP: Node types mismatch or fingerprints differ in something more than
+ mtime (CRC, Size, isValid).
+ *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
+ *      - NODE_COMP_DIFFERS_MAC: METAMACs differ.
  */
 std::pair<node_comparison_result, int64_t>
-    CompareLocalFileWithNodeFpAndMac(MegaClient& client,
-                                     const LocalPath& path,
-                                     const FileFingerprint& fp,
-                                     const Node* node,
-                                     bool debugMode = false);
+    CompareLocalFileWithNodeMacAndFpExludingMtime(MegaClient& client,
+                                                  const LocalPath& path,
+                                                  const FileFingerprint& fp,
+                                                  const Node* node,
+                                                  bool debugMode = false);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
@@ -1071,13 +1171,6 @@ string connDirectionToStr(direction_t directionType);
 // Translate retry reason into a human-friendly string.
 const char* toString(retryreason_t reason);
 
-enum class CharType : uint8_t
-{
-    CSYMBOL = 0,
-    CDIGIT = 1,
-    CALPHA = 2,
-};
-
 // Wrapper functions for std::isspace and std::isdigit
 // Not considering EOF values
 
@@ -1096,29 +1189,6 @@ bool is_space(unsigned int ch);
  * @return true if the character is a digit (0-9), otherwise returns false.
  */
 bool is_digit(unsigned int ch);
-
-/**
- * @brief Checks if a character is a symbol.
- *
- * Note: this function is only valid for monobyte characters.
- *
- * @param ch The character to check
- * @return true if the character is a symbol, otherwise returns false
- */
-bool is_symbol(unsigned int ch);
-
-/**
- * @brief Determines the type of a given character.
- *
- * Valid values returned by this function are:
- * - CharType::CSYMBOL if the character is a symbol
- * - CharType::CDIGIT if the character is a digit
- * - CharType::CALPHA if the character is alphabetic
- *
- * @param ch The character to be classified
- * @return CharType representing the type of the character
- */
-CharType getCharType(const unsigned int ch);
 
 template<typename Container = std::set<std::string>>
 Container splitString(const string& str, char delimiter)
@@ -1367,23 +1437,30 @@ SplitResult split(const char* begin, const std::size_t size, char delimiter);
 SplitResult split(const std::string& value, char delimiter);
 
 /**
- * @brief Sorts input char strings using natural sorting ignoring case
+ * @brief Compares two utf8 strings using natural sorting
  *
- * This function is only valid for comparing monobyte characters.
- * The default natural ascending order implemented by this function is:
- * Symbols < Numbers < Alphabetic_characters(# < 1 < a).
+ * This function uses icu collator
  *
- * Valid values returned by this function are:
- *  - if i == j returns 0
- *  - if i goes first returns a number greater than 0 (>=1)
- *  - if j goes first returns a number smaller than 0 (<=1)
+ * @param i Pointer to a null-terminated utf-8 string.
+ * @param j Pointer to a null-terminated utf-8 string.
  *
- * @param i Pointer to the first null-terminated string.
- * @param j Pointer to the second null-terminated string.
- *
- * @returns the order between 2 characters
+ * @returns 0 if i == j, negative if i < j, otherwise positive
  */
-int naturalsorting_compare(const char* i, const char* j);
+[[nodiscard]] int naturalsorting_compare(const char* i, const char* j);
+
+/**
+ * @brief Compares two utf8 strings using natural sorting
+ *
+ * This function uses icu collator
+ *
+ * @param i Pointer to a utf-8 string.
+ * @param iSize Size of the first utf-8 string.
+ * @param j Pointer to a utf-8 string.
+ * @param jSize Size of the second utf-8 string.
+ *
+ * @returns 0 if i == j, negative if i < j, otherwise positive
+ */
+[[nodiscard]] int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize);
 
 /**
  * @class NaturalSortingComparator
@@ -1676,10 +1753,10 @@ inline Range range(const T end)
     {
         if (end <= 0)
         {
-            return range(0u);
+            return Range(0u, 0u);
         }
     }
-    return range(0u, static_cast<unsigned>(end));
+    return Range(0u, static_cast<unsigned>(end));
 }
 
 /**

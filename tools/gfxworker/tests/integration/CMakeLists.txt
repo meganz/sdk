@@ -3,6 +3,7 @@ add_executable(gfxworker_test_integration
     executable_dir.cpp
     main.cpp
     server_client_test.cpp
+    getDefaultLogName.cpp
 )
 
 target_link_libraries(gfxworker_test_integration

@@ -125,6 +125,7 @@ const unordered_map<attr_t, const UserAttributeDefinition>&
         {ATTR_S4, {"s4", "S4", MAKE_PRIVATE}},
         {ATTR_S4_CONTAINER, {"s4c", "S4_CONTAINER", MAKE_PRIVATE}},
         {ATTR_DEV_OPT, {"^!devopt", "DEV_OPT"}},
+        {ATTR_RECENT_CLEAR_TIMESTAMP, {"*!rcts", "RECENT_CLEAR_TIMESTAMP", DISABLE_VERSIONING}},
     };
 
     return defs;

@@ -33,7 +33,7 @@ public:
         SdkTest::SetUp();
 
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
 
         // Initialize a second session with the same credentials
         ASSERT_NO_FATAL_FAILURE(initializeSecondSession());
@@ -143,7 +143,7 @@ private:
         LOG_debug << "Creating a full account sync";
         const unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
         mBackupID =
-            syncFolder(megaApi[0].get(), getLocalFolder().u8string(), rootnode->getHandle());
+            syncFolder(megaApi[0].get(), path_u8string(getLocalFolder()), rootnode->getHandle());
         ASSERT_NE(mBackupID, INVALID_HANDLE) << "Invalid full-sync ID";
     }
 };
@@ -260,7 +260,7 @@ private:
     void setupBackup()
     {
         LOG_debug << "Creating a backup";
-        mBackupID = backupFolder(megaApi[0].get(), getLocalFolder().u8string(), mBackupName);
+        mBackupID = backupFolder(megaApi[0].get(), path_u8string(getLocalFolder()), mBackupName);
         ASSERT_NE(mBackupID, INVALID_HANDLE) << "Invalid Backup ID";
     }
 
@@ -269,7 +269,7 @@ private:
         const unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
         ASSERT_TRUE(rootnode) << "Account root node not available.";
         mDestinationFolderHandle =
-            createFolder(0, mDestinationFolderName.u8string().c_str(), rootnode.get());
+            createFolder(0, path_u8string(mDestinationFolderName).c_str(), rootnode.get());
         ASSERT_NE(mDestinationFolderHandle, INVALID_HANDLE) << "Invalid destination folder handle";
     }
 };

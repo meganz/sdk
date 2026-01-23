@@ -24,6 +24,12 @@
 
 #include "filesystem.h"
 
+#include <cstdint>
+
+#ifdef ENABLE_SYNC
+#include "syncinternals/mac_computation_state.h"
+#endif
+
 namespace mega {
 
 enum class CollisionResolution : uint8_t
@@ -38,6 +44,7 @@ enum class CollisionResolution : uint8_t
 constexpr unsigned FILE_MAX_RETRIES = 16;
 constexpr unsigned FILE_IO_MAX_RETRIES = 6;
 constexpr unsigned FILE_SYNC_MAX_RETRIES = 8;
+class TransferDbCommitter; // Forward declaration
 
 // File is the base class for an upload or download, as managed by the SDK core.
 // Each Transfer consists of a list of File that all have the same content and fingerprint
@@ -220,11 +227,21 @@ struct SyncTransfer_inClient: public File
     error mError = API_OK;
 
     std::atomic<bool> wasTerminated{false};
-    std::atomic<bool> wasCompleted{false};
+    std::atomic<bool> wasFileTransferCompleted{false};
     std::atomic<bool> wasRequesterAbandoned{false};
+
+    enum class AttributeOnlyUpdate : std::uint8_t
+    {
+        None = 0,
+        MtimeOnly,
+        CrcOnly,
+    };
+
+    std::atomic<AttributeOnlyUpdate> attributeOnlyUpdate{AttributeOnlyUpdate::None};
 
     // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
     std::atomic<bool> terminatedReasonAlreadyKnown{false};
+    std::optional<int64_t> mMetaMac{std::nullopt};
 };
 
 struct SyncDownload_inClient: public SyncTransfer_inClient
@@ -235,8 +252,13 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
     void prepare(FileSystemAccess&) override;
     bool failed(error, MegaClient*) override;
 
-    SyncDownload_inClient(CloudNode& n, const LocalPath&, bool fromInshare,
-            shared_ptr<SyncThreadsafeState> stss, const FileFingerprint& overwriteFF);
+    SyncDownload_inClient(CloudNode& n,
+                          const LocalPath&,
+                          bool fromInshare,
+                          shared_ptr<SyncThreadsafeState> stss,
+                          const FileFingerprint& overwriteFF,
+                          const int64_t metamac,
+                          const AttributeOnlyUpdate attributeOnlyUpdate);
 
     ~SyncDownload_inClient();
 
@@ -250,23 +272,34 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
 {
     // This class is part of the client's Transfer system (ie, works in the client's thread)
     // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
-    SyncUpload_inClient(NodeHandle targetFolder, const LocalPath& fullPath,
-            const string& nodeName, const FileFingerprint& ff, shared_ptr<SyncThreadsafeState> stss,
-            handle fsid, const LocalPath& localname, bool fromInshare);
+    SyncUpload_inClient(NodeHandle targetFolder,
+                        const LocalPath& fullPath,
+                        const string& nodeName,
+                        const FileFingerprint& ff,
+                        shared_ptr<SyncThreadsafeState> stss,
+                        handle fsid,
+                        const LocalPath& localname,
+                        bool fromInshare,
+                        const int64_t metamac,
+                        const AttributeOnlyUpdate attributeOnlyUpdate);
     ~SyncUpload_inClient();
 
     void prepare(FileSystemAccess&) override;
     void completed(Transfer*, putsource_t) override;
+    void updateFingerprintMtime(const m_time_t newMtime);
     void updateFingerprint(const FileFingerprint& newFingerprint);
 
-    bool putnodesStarted = false;
-
-    // Valid when wasPutnodesCompleted is true. (putnodes might be from upload, or shortcut node clone)
-    NodeHandle putnodesResultHandle;
-    bool putnodesFailed = false;
-
+    /* UpSync operation can be one of the following:
+     *  - putnodes of upload
+     *  - put nodes of clone
+     *  - update mtime of node in cloud
+     */
+    std::atomic<bool> upsyncStarted{false};
+    std::atomic<bool> upsyncFailed{false};
     std::atomic<bool> wasStarted{false};
-    std::atomic<bool> wasPutnodesCompleted{false};
+    std::atomic<bool> wasUpsyncCompleted{false};
+    // Valid when wasUpsyncCompleted is true.
+    NodeHandle upsyncResultHandle;
 
     handle sourceFsid = UNDEF;
     LocalPath sourceLocalname;
@@ -277,8 +310,32 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
     FileNodeKey fileNodeKey;
     std::string fileAttr;
 
+    void fullUpload(MegaClient& client,
+                    mega::TransferDbCommitter& committer,
+                    const VersioningOption vo,
+                    const bool queueFirst);
+
+    void cloneNode(MegaClient& client,
+                   std::shared_ptr<Node> cloneNodeCandidate,
+                   const NodeHandle ovHandleIfShortcut);
+
+    bool updateNodeMtime(MegaClient* client,
+                         std::shared_ptr<Node> node,
+                         const m_time_t newMtime,
+                         std::function<void(NodeHandle, Error)>&& completion);
+
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @brief State for async MAC computation when looking for clone candidates.
+     *
+     * Used to pre-compute MAC before calling findCloneNodeCandidate, avoiding
+     * blocking the client thread for large files.
+     */
+    std::shared_ptr<MacComputationState> macComputation;
+#endif
 };
 
 /**

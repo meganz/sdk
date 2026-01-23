@@ -266,6 +266,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromStart)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedData.size());
 
     // No need to purge because the consumed length is 0
@@ -274,6 +275,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromStart)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedData, testing::ElementsAre("d", "x"));
 }
 
@@ -312,6 +314,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
     EXPECT_EQ(consumed, 16); // {"a":[{"a": "d",
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_THAT(capturedData, testing::ElementsAre("d"));
 
     // Must purge consumed bytes before next call
@@ -321,6 +324,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithPauseFromMiddle)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedData, testing::ElementsAre("d", "x"));
 }
 
@@ -366,6 +370,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedValues.size());
 
     // Second call should pause at key1's string value
@@ -373,6 +378,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_EQ(consumed, 0);
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(0, capturedValues.size());
 
     // Second call should process all remaining values
@@ -380,7 +386,94 @@ TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseAtStringValue)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_THAT(capturedValues, testing::ElementsAre("value1", "value2", "value3"));
+}
+
+TEST_F(JSONSplitterTest, ProcessChunkWithMultiplePauseCheckStartAndEndFilters)
+{
+    std::string testJson = R"({"key1":"value1", "key2":"value2", "key3":"value3"})";
+    int callCount = 0;
+    int flag = -1;
+    std::vector<std::string> capturedValues;
+
+    // start filter
+    filters["<"] = [&flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        flag = 1;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // end filter
+    filters[">"] = [&flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        flag = 0;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // Filter for string values - pause at first value
+    filters["{\"key1"] =
+        [&callCount, &capturedValues, &flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_EQ(flag, 1);
+        callCount++;
+        if (callCount <= 2)
+        {
+            return JSONSplitter::CallbackResult::PAUSED;
+        }
+
+        std::string output;
+        json->storeobject(&output);
+        capturedValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters["{\"key2"] = [&capturedValues, &flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_EQ(flag, 1);
+        std::string output;
+        json->storeobject(&output);
+        capturedValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters["{\"key3"] = [&capturedValues, &flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_EQ(flag, 1);
+        std::string output;
+        json->storeobject(&output);
+        capturedValues.emplace_back(output);
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    // First call should pause at key1's string value
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
+    EXPECT_EQ(0, capturedValues.size());
+    EXPECT_EQ(0, flag);
+
+    // Second call should pause at key1's string value
+    consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
+    EXPECT_EQ(0, capturedValues.size());
+    EXPECT_EQ(0, flag);
+
+    // Second call should process all remaining values
+    consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
+    EXPECT_THAT(capturedValues, testing::ElementsAre("value1", "value2", "value3"));
+    EXPECT_EQ(0, flag);
 }
 
 TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
@@ -428,6 +521,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     EXPECT_EQ(consumed, 5); // {"a":  - up to outer filter start
     EXPECT_FALSE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_TRUE(splitter.hasPaused());
     EXPECT_EQ(1, innerCallCount);
     EXPECT_EQ(0, outerCallCount); // Outer not reached yet
     EXPECT_EQ(0, capturedInnerValues.size());
@@ -441,6 +535,7 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
     EXPECT_EQ(2, innerCallCount); // Inner called again
     EXPECT_EQ(1, outerCallCount); // Outer called
     EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc"));
@@ -631,6 +726,26 @@ TEST_F(JSONSplitterTest, ProcessUnexpectedFailure2)
         EXPECT_NE(json, nullptr);
         return JSONSplitter::CallbackResult::FAILED;
     };
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedCloseBracketWithEmptyStack)
+{
+    std::string testJson = R"(}{}})"; // extra }
+
+    auto consumed = splitter.processChunk(&filters, testJson.c_str());
+    EXPECT_EQ(consumed, 0);
+    EXPECT_FALSE(splitter.hasFinished());
+    EXPECT_TRUE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessUnexpectedContentWithEmptyStack)
+{
+    std::string testJson = R"("abc","def")";
 
     auto consumed = splitter.processChunk(&filters, testJson.c_str());
     EXPECT_EQ(consumed, 0);

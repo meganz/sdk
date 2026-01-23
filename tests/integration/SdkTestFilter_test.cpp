@@ -722,3 +722,105 @@ TEST_F(SdkTestFilter, SdkAndOrSwitchCombinaion)
     ASSERT_THAT(results, NotNull()) << "search() returned a nullptr";
     EXPECT_THAT(toNamesVector(*results), UnorderedElementsAreArray(getAllNodesNames()));
 }
+
+/**
+ * @class SdkTestUnicodeSort
+ * @brief Test suite to test unicode strings sort
+ *
+ */
+class SdkTestUnicodeSort: public SdkTestNodesSetUp
+{
+    const std::vector<NodeInfo>& getElements() const override
+    {
+        static const std::vector<NodeInfo> ELEMENTS{
+            FileNodeInfo("11.txt"),    FileNodeInfo("#.txt"),     FileNodeInfo("中文.txt"),
+            FileNodeInfo("😼.txt"),     FileNodeInfo("१.txt"),     FileNodeInfo("一.txt"),
+            FileNodeInfo("2.txt"),     FileNodeInfo("cafe.txt"),  FileNodeInfo("file2.txt"),
+            FileNodeInfo("1.txt"),     FileNodeInfo("Cafe.txt"),  FileNodeInfo("अमन.txt.txt"),
+            FileNodeInfo("file1.txt"), FileNodeInfo("cáfe.txt"),  FileNodeInfo("file11.txt"),
+            FileNodeInfo("test.txt"),  FileNodeInfo("中文1.txt"), FileNodeInfo("☺️.txt"),
+            FileNodeInfo("{}.txt"),
+        };
+        return ELEMENTS;
+    }
+
+    const std::string& getRootTestDir() const override
+    {
+        static const std::string dirName{"SDK_TEST_UNICODE_SORT_AUX_DIR"};
+        return dirName;
+    }
+};
+
+/**
+ * @brief SdkTestUnicodeSort.GetChildrenSortedByName
+ *
+ * Get children nodes and sort them by name
+ */
+TEST_F(SdkTestUnicodeSort, GetChildrenSortedByName)
+{
+    using testing::ElementsAreArray;
+    using testing::NotNull;
+
+    std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
+
+    std::vector<std::string_view> expected{
+        "{}.txt",   "#.txt",       "☺️.txt", "😼.txt",    "१.txt",     "1.txt",     "2.txt",
+        "11.txt",   "cafe.txt",    "Cafe.txt",   "cáfe.txt", "file1.txt", "file2.txt", "file11.txt",
+        "test.txt", "अमन.txt.txt", "一.txt",     "中文.txt", "中文1.txt",
+    };
+
+    std::unique_ptr<MegaNodeList> children(
+        megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
+    ASSERT_THAT(toNamesVector(*children), ElementsAreArray(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_ASC";
+
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    ASSERT_THAT(toNamesVector(*children), ElementsAreArray(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_ASC getChildren with parent";
+
+    std::reverse(expected.begin(), expected.end());
+
+    children.reset(megaApi[0]->getChildren(filteringInfo.get(), MegaApi::ORDER_DEFAULT_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() returned a nullptr";
+    ASSERT_THAT(toNamesVector(*children), ElementsAreArray(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_ASC";
+
+    children.reset(megaApi[0]->getChildren(getRootTestDirectory(), MegaApi::ORDER_DEFAULT_DESC));
+    ASSERT_THAT(children, NotNull()) << "getChildren() with parent returned a nullptr";
+    ASSERT_THAT(toNamesVector(*children), ElementsAreArray(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_ASC getChildren with parent";
+}
+
+/**
+ * @brief SdkTestUnicodeSort.SearchSortedByName
+ *
+ * Search nodes and sort them by name
+ */
+TEST_F(SdkTestUnicodeSort, SearchSortedByName)
+{
+    using testing::ElementsAreArray;
+    using testing::NotNull;
+
+    std::unique_ptr<MegaSearchFilter> filteringInfo(getDefaultfilter());
+
+    std::vector<std::string_view> expected{
+        "{}.txt",   "#.txt",       "☺️.txt", "😼.txt",    "१.txt",     "1.txt",     "2.txt",
+        "11.txt",   "cafe.txt",    "Cafe.txt",   "cáfe.txt", "file1.txt", "file2.txt", "file11.txt",
+        "test.txt", "अमन.txt.txt", "一.txt",     "中文.txt", "中文1.txt",
+    };
+
+    std::unique_ptr<MegaNodeList> searchResults(
+        megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_ASC));
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), ElementsAreArray(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_ASC";
+
+    std::reverse(expected.begin(), expected.end());
+
+    searchResults.reset(megaApi[0]->search(filteringInfo.get(), MegaApi::ORDER_DEFAULT_DESC));
+    ASSERT_THAT(searchResults, NotNull()) << "search() returned a nullptr";
+    EXPECT_THAT(toNamesVector(*searchResults), ElementsAreArray(expected))
+        << "Unexpected sorting for ORDER_DEFAULT_DESC";
+}

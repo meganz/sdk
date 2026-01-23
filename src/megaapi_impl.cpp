@@ -1246,6 +1246,7 @@ MegaBackgroundMediaUploadPrivate::~MegaBackgroundMediaUploadPrivate()
 bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const char* inputFilepath)
 {
 #ifdef USE_MEDIAINFO
+    std::lock_guard<std::recursive_timed_mutex> g(api->sdkMutex);
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
@@ -2534,6 +2535,10 @@ MegaUserPrivate::MegaUserPrivate(User *user) : MegaUser()
     if (user->changed.ccPrefs)
     {
         changed |= MegaUser::CHANGE_CC_PREFS;
+    }
+    if (user->changed.recentClearTimestamp)
+    {
+        changed |= MegaUser::CHANGE_TYPE_RECENT_CLEAR_TIMESTAMP;
     }
     // Don't need to notify about user->changed.enableTestSurveys
 }
@@ -8612,6 +8617,7 @@ void MegaApiImpl::getUserAttribute(const char* email_or_handle, int type, MegaRe
         case ATTR_PWM_BASE:
         case ATTR_LAST_READ_NOTIFICATION:
         case ATTR_LAST_ACTIONED_BANNER:
+        case ATTR_RECENT_CLEAR_TIMESTAMP:
         // undocumented types, allowed only for testing:
         case ATTR_KEYS:
         case ATTR_DEV_OPT:
@@ -10686,48 +10692,29 @@ MegaSyncList *MegaApiImpl::getSyncs()
     return syncList;
 }
 
-void MegaApiImpl::setLegacyExcludedNames(vector<string> *excludedNames)
+void MegaApiImpl::setLegacyExcludedNames(vector<string>*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.excludedNames(
-      excludedNames ? *excludedNames : string_vector(), *client->fsaccess);
+    return;
 }
 
-void MegaApiImpl::setLegacyExcludedPaths(vector<string> *excludedPaths)
+void MegaApiImpl::setLegacyExcludedPaths(vector<string>*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.excludedPaths(
-      excludedPaths ? *excludedPaths : string_vector());
+    return;
 }
 
-void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionLowerSizeLimit(unsigned long long)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.lowerLimit(limit);
+    return;
 }
 
-void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long limit)
+void MegaApiImpl::setLegacyExclusionUpperSizeLimit(unsigned long long)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    client->syncs.mLegacyUpgradeFilterChain.upperLimit(limit);
+    return;
 }
 
-MegaError* MegaApiImpl::exportLegacyExclusionRules(const char* absolutePath)
+MegaError* MegaApiImpl::exportLegacyExclusionRules(const char*)
 {
-    SdkMutexGuard guard(sdkMutex);
-
-    if (!absolutePath || !*absolutePath)
-    {
-        return new MegaErrorPrivate(API_EARGS);
-    }
-
-    auto lp = LocalPath::fromAbsolutePath(absolutePath);
-    auto result = client->syncs.createMegaignoreFromLegacyExclusions(lp);
-    return new MegaErrorPrivate(result);
+    return new MegaErrorPrivate(API_EINTERNAL);
 }
 
 long long MegaApiImpl::getNumLocalNodes()
@@ -11206,13 +11193,12 @@ void MegaApiImpl::httpServerStop()
 
 int MegaApiImpl::httpServerIsRunning()
 {
-    bool result = false;
     SdkMutexGuard g(sdkMutex);
     if (httpServer)
     {
-        result = httpServer->getPort() != 0;
+        return httpServer->getPort();
     }
-    return result;
+    return 0;
 }
 
 char *MegaApiImpl::httpServerGetLocalLink(MegaNode *node)
@@ -11559,13 +11545,12 @@ void MegaApiImpl::ftpServerStop()
 
 int MegaApiImpl::ftpServerIsRunning()
 {
-    bool result = false;
     SdkMutexGuard g(sdkMutex);
     if (ftpServer)
     {
-        result = ftpServer->getPort() != 0;
+        return ftpServer->getPort();
     }
-    return result;
+    return 0;
 }
 
 char *MegaApiImpl::ftpServerGetLocalLink(MegaNode *node)
@@ -13069,6 +13054,8 @@ bool MegaApiImpl::isValidTypeNode(const Node *node, int type) const
         case MegaApi::FILE_TYPE_ALL_DOCS:
             return client->nodeIsDocument(node) || client->nodeIsPdf(node) ||
                    client->nodeIsPresentation(node) || client->nodeIsSpreadsheet(node);
+        case MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA:
+            return client->nodeIsPhoto(node, false) || client->nodeIsVideo(node);
         case MegaApi::FILE_TYPE_OTHERS:
             return client->nodeIsOtherType(node);
         case MegaApi::FILE_TYPE_DEFAULT:
@@ -13348,7 +13335,7 @@ MegaNode *MegaApiImpl::getNodeByFingerprint(const char *fingerprint)
     return MegaNodePrivate::fromNode(getNodeByFingerprintInternal(fingerprint).get());
 }
 
-MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
+MegaNodeList* MegaApiImpl::getNodesByFingerprint(const char* fingerprint, const bool excludeMtime)
 {
     unique_ptr<FileFingerprint> fp(MegaApiImpl::getFileFingerprintInternal(fingerprint));
     if (!fp)
@@ -13357,7 +13344,7 @@ MegaNodeList *MegaApiImpl::getNodesByFingerprint(const char *fingerprint)
     }
 
     SdkMutexGuard g(sdkMutex);
-    sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp);
+    sharedNode_vector nodes = client->mNodeManager.getNodesByFingerprint(*fp, excludeMtime);
     return new MegaNodeListPrivate(nodes);
 }
 
@@ -16528,6 +16515,23 @@ void MegaApiImpl::getua_completion(unique_ptr<string_map> uaRecords,
             return;
         }   // end of get+set
 
+        if (request->getParamType() == MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP)
+        {
+            MegaTimeStamp time = formatRecentClearTimestamp(&records);
+            if (MegaClient::isValidMegaTimeStamp(time))
+            {
+                std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, false));
+                request->setMegaStringMap(stringMap.get());
+                request->setNumber(time);
+            }
+            else
+            {
+                e = API_EINTERNAL;
+            }
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            return;
+        }
+
         // TLV data usually includes byte arrays with zeros in the middle, so values
         // must be converted into Base64 strings to avoid problems
         std::unique_ptr<MegaStringMap> stringMap(new MegaStringMapPrivate(&records, true));
@@ -18960,6 +18964,81 @@ void MegaApiImpl::updateBackups()
     }
 }
 
+bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
+                                  MegaTransferPrivate* transfer,
+                                  const m_time_t newMtime,
+                                  const int nextTag)
+{
+    if (!transfer)
+    {
+        LOG_err << "updateNodeMtime: invalid transfer";
+        assert(false);
+        return false;
+    }
+
+    if (!node)
+    {
+        LOG_err << "updateNodeMtime: invalid node";
+        assert(false);
+        return false;
+    }
+
+    LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    fireOnTransferStart(transfer);
+    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETING);
+    fireOnTransferUpdate(transfer);
+
+    const auto immediateErrCode = client->updateNodeMtime(
+        node,
+        newMtime,
+        [this, nextTag](NodeHandle h, Error e)
+        {
+            MegaTransferPrivate* transfer =
+                static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
+            if (!transfer)
+            {
+                LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
+                          << ") has finished with errorCode(" << e << "), but transfer with tag("
+                          << nextTag << ") does not exists anymore";
+                return;
+            }
+
+            if (e)
+            {
+                LOG_debug << "updateNodeMtime could not update mtime for node(" << toNodeHandle(h)
+                          << "), errorCode(" << e << ")";
+                transfer->setState(MegaTransfer::STATE_FAILED);
+                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EWRITE));
+            }
+            else
+            {
+                LOG_debug << "updateNodeMtime has finished successfully for node("
+                          << toNodeHandle(h) << ")";
+
+                transfer->setState(MegaTransfer::STATE_COMPLETED);
+                fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(e));
+            }
+        });
+
+    if (immediateErrCode != API_OK)
+    {
+        LOG_debug << "updateNodeMtime immediate error for node(" << toNodeHandle(node->nodehandle)
+                  << ")";
+        return false;
+    }
+
+    return true;
+}
+
 MegaFilePut*
     MegaApiImpl::createMegaFileForRemoteCopyTransfer(MegaTransferPrivate& megaTransfer,
                                                      std::shared_ptr<Node> prevNodeSameName,
@@ -19023,7 +19102,12 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
         return false;
     }
 
-    return CompareLocalFileMetaMacWithNodeKey(fa, *fileNode->getNodeKey(), fileNode->getType())
+    auto name =
+        fileNode->getName() ? fileNode->getName() : std::optional<std::string>(std::nullopt);
+    return CompareLocalFileMetaMacWithNodeKey(fa,
+                                              *fileNode->getNodeKey(),
+                                              fileNode->getType(),
+                                              name)
         .first;
 }
 
@@ -19276,7 +19360,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                 if (transfer->fingerprint_filetype == FILENODE)
                 {
-
                     FileFingerprint fp_forCloud = transfer->fingerprint_onDisk;
                     // don't clone an existing node unless it also already has the overridden mtime
                     // don't think that an existing file at this path is the right file unless it also has the overridden mtime
@@ -19285,12 +19368,19 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         fp_forCloud.mtime = mtime;
                     }
 
-                    auto finishTransferSameNodeNameFoundInTarget =
-                        [transfer, nextTag, this](const handle h)
+                    auto immediateFinishSameNodeNameFoundInTarget =
+                        [nextTag, this](MegaTransferPrivate* transfer, const handle h)
                     {
-                        LOG_debug << "Previous node exists with same name in target node, and the "
-                                     "upload is not forced: "
-                                  << Base64Str<MegaClient::NODEHANDLE>(h);
+                        if (!transfer)
+                        {
+                            LOG_err << "finishTransferSameNodeNameFoundInTarget: invalid transfer";
+                            assert(false);
+                            return;
+                        }
+
+                        LOG_debug << "Another node(" << toNodeHandle(h)
+                                  << ") with same name, FP and MAC exists in target, and the "
+                                  << "upload is not forced.";
                         transfer->setState(MegaTransfer::STATE_QUEUED);
                         transferMap[nextTag] = transfer;
                         transfer->setTag(nextTag);
@@ -19299,6 +19389,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         transfer->setStartTime(Waiter::ds);
                         transfer->setUpdateTime(Waiter::ds);
                         fireOnTransferStart(transfer);
+
                         transfer->setNodeHandle(h);
                         transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
                         transfer->setSpeed(0);
@@ -19335,20 +19426,39 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         }
                         else if (forceToUpload =
                                      hasToForceUpload(*prevNodeSameName.get(), *transfer);
-                                 !forceToUpload &&
-                                 CompareLocalFileWithNodeFpAndMac(*client,
-                                                                  wLocalPath,
-                                                                  fp_forCloud,
-                                                                  prevNodeSameName.get())
-                                         .first == NODE_COMP_EQUAL)
+                                 !forceToUpload)
                         {
-                            LOG_debug
-                                << "Another node ("
-                                << Base64Str<MegaClient::NODEHANDLE>(prevNodeSameName->nodehandle)
-                                << ") with same name, FP and MAC exists in target "
-                                   "node.";
-                            finishTransferSameNodeNameFoundInTarget(prevNodeSameName->nodehandle);
-                            break;
+                            auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                *client,
+                                wLocalPath,
+                                fp_forCloud,
+                                prevNodeSameName.get(),
+                                true /*debugMode*/);
+
+                            if (compRes == NODE_COMP_DIFFERS_MTIME)
+                            {
+                                if (auto succeeded = updateNodeMtime(prevNodeSameName,
+                                                                     transfer,
+                                                                     fp_forCloud.mtime,
+                                                                     nextTag);
+                                    succeeded)
+                                {
+                                    e = API_OK; // In case of mtime update, Transfer
+                                                // (Start/Update/Finish) is delegated to
+                                                // updateNodeMtime so ensure `e` is API OK to avoid
+                                                // duplicated actions
+                                    break;
+                                }
+                                // Fallback setmtime failed with immediate error, so let's try with
+                                // clone node/regular upload
+                            }
+                            else if (compRes == NODE_COMP_EQUAL)
+                            {
+                                immediateFinishSameNodeNameFoundInTarget(
+                                    transfer,
+                                    prevNodeSameName->nodehandle);
+                                break;
+                            }
                         }
                         // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
                         // is not NODE_COMP_EQUAL, just continue with transfer
@@ -19360,29 +19470,38 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     {
                         std::shared_ptr<Node> sameNodeFpFound;
                         sharedNode_vector nodes =
-                            client->mNodeManager.getNodesByFingerprint(fp_forCloud);
+                            client->mNodeManager.getNodesByFingerprint(fp_forCloud,
+                                                                       true /*excludeMtime*/);
 
                         const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
                         bool sameNodeSameNameInTarget{false};
                         for (auto& n: nodes)
                         {
-                            if (!hasToForceUpload(*n.get(), *transfer) &&
-                                CompareLocalFileWithNodeFpAndMac(*client,
-                                                                 wLocalPath,
-                                                                 fp_forCloud,
-                                                                 n.get())
-                                        .first == NODE_COMP_EQUAL)
+                            if (!hasToForceUpload(*n.get(), *transfer))
                             {
-                                sameNodeFpFound = n;
-                                sameNodeSameNameInTarget =
-                                    (sameNodeFpFound->parent && parent) &&
-                                    (sameNodeFpFound->parent->nodeHandle() ==
-                                     parent->nodeHandle()) &&
-                                    (fileName == sameNodeFpFound->displayname());
+                                auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                    *client,
+                                    wLocalPath,
+                                    fp_forCloud,
+                                    n.get(),
+                                    true /*debugMode*/);
 
-                                if (alreadyCheckedSameNodeNameInTarget || sameNodeSameNameInTarget)
+                                if (compRes == NODE_COMP_EQUAL ||
+                                    compRes == NODE_COMP_DIFFERS_MTIME)
                                 {
-                                    break;
+                                    sameNodeFpFound = n;
+                                    sameNodeSameNameInTarget =
+                                        (sameNodeFpFound->parent && parent) &&
+                                        (sameNodeFpFound->parent->nodeHandle() ==
+                                         parent->nodeHandle()) &&
+                                        (fileName == sameNodeFpFound->displayname());
+
+                                    if (alreadyCheckedSameNodeNameInTarget ||
+                                        sameNodeSameNameInTarget)
+                                    {
+                                        // There only can be one node with same name in target node
+                                        break;
+                                    }
                                 }
                             }
                             // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
@@ -19391,24 +19510,39 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         if (sameNodeFpFound)
                         {
+                            const auto differentMtime{fp_forCloud.mtime != sameNodeFpFound->mtime};
                             if (sameNodeSameNameInTarget)
                             {
-                                LOG_debug << "Another node ("
-                                          << Base64Str<MegaClient::NODEHANDLE>(
-                                                 sameNodeFpFound->nodehandle)
-                                          << ") with same name, FP and MAC exists in target "
-                                             "node.";
-
-                                finishTransferSameNodeNameFoundInTarget(
-                                    sameNodeFpFound->nodehandle);
-                                break;
+                                if (differentMtime)
+                                {
+                                    if (auto succeeded = updateNodeMtime(sameNodeFpFound,
+                                                                         transfer,
+                                                                         fp_forCloud.mtime,
+                                                                         nextTag);
+                                        succeeded)
+                                    {
+                                        e = API_OK; // In case of mtime update, Transfer
+                                                    // (Start/Update/Finish) is delegated to
+                                                    // updateNodeMtime so ensure `e` is API OK to
+                                                    // avoid duplicated actions
+                                        break;
+                                    }
+                                    // Fallback setmtime failed with immediate error, so let's try
+                                    // with clone node
+                                }
+                                else
+                                {
+                                    immediateFinishSameNodeNameFoundInTarget(
+                                        transfer,
+                                        sameNodeFpFound->nodehandle);
+                                    break;
+                                }
                             }
 
-                            LOG_debug
-                                << "Another node ("
-                                << Base64Str<MegaClient::NODEHANDLE>(sameNodeFpFound->nodehandle)
-                                << ") with same FP and MAC exists in target node. Perform remote "
-                                   "copy";
+                            LOG_debug << "Another node ("
+                                      << toNodeHandle(sameNodeFpFound->nodehandle)
+                                      << ") with same FP and MAC exists in Cloud. Perform remote "
+                                         "copy";
 
                             currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
@@ -19419,14 +19553,17 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                             transfer->setUpdateTime(Waiter::ds);
 
                             auto f = createMegaFileForRemoteCopyTransfer(*transfer,
-                                                                         prevNodeSameName,
+                                                                         sameNodeFpFound,
                                                                          committer);
-                            e = client->transferRemoteCopy(f,
-                                                           sameNodeFpFound,
-                                                           transfer->getFileName(),
-                                                           parent,
-                                                           nextTag,
-                                                           inboxTarget);
+                            e = client->transferRemoteCopy(
+                                f,
+                                sameNodeFpFound,
+                                transfer->getFileName(),
+                                parent,
+                                nextTag,
+                                differentMtime ? fp_forCloud :
+                                                 std::optional<FileFingerprint>{std::nullopt},
+                                inboxTarget);
 
                             if (e == API_OK)
                             {
@@ -23767,163 +23904,31 @@ void MegaApiImpl::importSyncConfigs(const char* configs, MegaRequestListener* li
     waiter->notify();
 }
 
-void MegaApiImpl::copySyncDataToCache(const char* localFolder, const char* name, MegaHandle megaHandle, const char* remotePath,
-    long long, bool enabled, bool temporaryDisabled, MegaRequestListener* listener)
+void MegaApiImpl::copySyncDataToCache(const char*,
+                                      const char*,
+                                      MegaHandle,
+                                      const char*,
+                                      long long,
+                                      bool,
+                                      bool,
+                                      MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_SYNC_CONFIG, listener);
-
-    request->setNodeHandle(megaHandle);
-    if (localFolder)
+    request->performRequest = []()
     {
-        request->setFile(localFolder);
-    }
-
-    if (name)
-    {
-        request->setName(name);
-    }
-    else if (localFolder)
-    {
-        request->setName(request->getFile());
-    }
-
-    request->setLink(remotePath);
-    request->setFlag(enabled);
-    request->setNumDetails(temporaryDisabled);
-
-    request->performRequest = [this, request]()
-        {
-            const char *localPath = request->getFile();
-            if(!localPath)
-            {
-                return API_EARGS;
-            }
-
-            const char *name = request->getName();
-            const char *remotePath = request->getLink();
-
-            using CType = CacheableStatus::Type;
-            bool overStorage = client->mCachedStatus.lookup(CType::STATUS_STORAGE, MegaApi::STORAGE_STATE_UNKNOWN) >= MegaApi::STORAGE_STATE_RED;
-            bool businessExpired = client->mCachedStatus.lookup(CType::STATUS_BUSINESS, BIZ_STATUS_UNKNOWN) == BIZ_STATUS_EXPIRED;
-            bool blocked = client->mCachedStatus.lookup(CType::STATUS_BLOCKED, 0) == 1;
-
-            auto syncError = NO_SYNC_ERROR;
-            // the order is important here: a user needs to resolve blocked in order to resolve storage
-            if (overStorage)
-            {
-                syncError = STORAGE_OVERQUOTA;
-            }
-            else if (businessExpired)
-            {
-                syncError = ACCOUNT_EXPIRED;
-            }
-            else if (blocked)
-            {
-                syncError = ACCOUNT_BLOCKED;
-            }
-
-            bool enabled = request->getFlag();
-            bool temporaryDisabled = request->getNumDetails() != 0;
-
-            if (!enabled && temporaryDisabled)
-            {
-                if (!syncError)
-                {
-                    syncError = UNKNOWN_TEMPORARY_ERROR;
-                }
-            }
-
-            // Copy sync config is only used for sync migration
-            // therefore only deals with internal syncs, so drive path is empty
-            LocalPath drivePath;
-            SyncConfig syncConfig(LocalPath::fromAbsolutePath(localPath),
-                                  name, NodeHandle().set6byte(request->getNodeHandle()), remotePath ? remotePath : "",
-                                  fsfp_t(),
-                                  drivePath, enabled);
-
-            if (temporaryDisabled)
-            {
-                syncConfig.mError = syncError;
-            }
-
-            client->copySyncConfig(syncConfig, [this, request](handle backupId, error e)
-            {
-                if (e == API_OK)
-                {
-                    request->setParentHandle(backupId);
-                }
-
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
-            });
-
-            return API_OK;
-        };
-
+        return API_EINTERNAL;
+    };
     requestQueue.push(request);
     waiter->notify();
 }
 
-void MegaApiImpl::copyCachedStatus(int storageStatus, int blockStatus, int businessStatus, MegaRequestListener* listener)
+void MegaApiImpl::copyCachedStatus(int, int, int, MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_COPY_CACHED_STATUS, listener);
-
-    if (blockStatus < 0) blockStatus = 999;
-    if (storageStatus < 0) storageStatus = 999;
-    if (businessStatus < 0) businessStatus = 999;
-    request->setNumber(storageStatus + 1000 * blockStatus + 1000000 * businessStatus);
-
-    request->performRequest = [this, request]()
-        {
-            auto number = request->getNumber();
-            int businessStatusValue = static_cast<int>(number / 1000000);
-            number = number % 1000000;
-            int blockedStatusValue =  static_cast<int>(number / 1000);
-            int storageStatusValue = static_cast<int>(number % 1000);
-
-            using CType = CacheableStatus::Type;
-            auto loadAndPersist = [this](CType type, int value) -> error
-            {
-                if (value == 999)
-                {
-                    LOG_verbose << "Ignoring not valid status in migration: " << CacheableStatus::typeToStr(type) << " = " << value;
-                    return API_OK; //received invalid value: not to be used
-                }
-
-                if (int64_t oldValue = client->mCachedStatus.lookup(type, 999) != 999)
-                {
-                    LOG_verbose << "Ignoring already present status in migration: " << CacheableStatus::typeToStr(type) << " = " << value
-                                << " existing = " << oldValue;
-                    return API_OK;
-                }
-
-                client->mCachedStatus.loadCachedStatus(type, value);
-                return API_OK;
-            };
-
-            error e = API_OK;
-            auto subE = loadAndPersist(CType::STATUS_STORAGE, storageStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-            subE = loadAndPersist(CType::STATUS_BUSINESS, businessStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-            subE = loadAndPersist(CType::STATUS_BLOCKED, blockedStatusValue);
-            if (!e)
-            {
-                e = subE;
-            }
-
-            if (!e)
-            {
-                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            }
-            return e;
-        };
-
+    request->performRequest = []()
+    {
+        return API_EINTERNAL;
+    };
     requestQueue.push(request);
     waiter->notify();
 }
@@ -25868,7 +25873,6 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             {
                 return e;
             }
-
             client->queueCommand(new CommandPutNodes(client,
                                                      parentHandle,
                                                      NULL,
@@ -26425,6 +26429,10 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
         m_time_t since = m_time() - days * 86400;
 
+        MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
+
+        since = std::max(since, sinceClearHistory);
+
         recentactions_vector v;
         if (withExcludeSensitives)
         {
@@ -26444,6 +26452,71 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_USER, listener);
+    request->setParamType(MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP);
+    request->setNumber(until);
+
+    request->performRequest = [this, request]()
+    {
+        MegaTimeStamp time = request->getNumber();
+        if (!MegaClient::isValidMegaTimeStamp(time))
+        {
+            return API_EARGS;
+        }
+        MegaStringMapPrivate stringMap;
+        string key = "t";
+        auto b64 = Base64Str<sizeof(time)>(reinterpret_cast<void*>(&time));
+        stringMap.set(key.c_str(), (Base64::btoa(b64.chars)).c_str());
+        request->setMegaStringMap(&stringMap);
+
+        return performRequest_setAttrUser(request);
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+MegaTimeStamp MegaApiImpl::getRecentClearTimestamp()
+{
+    mega::User* user = client->finduser(client->me);
+    if (user == nullptr)
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+
+    const UserAttribute* attr = user->getAttribute(ATTR_RECENT_CLEAR_TIMESTAMP);
+    if (attr == nullptr || attr->value().empty())
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+
+    std::unique_ptr<string_map> records{tlv::containerToRecords(attr->value(), client->key)};
+    if (!records || records->empty())
+    {
+        return MEGA_INVALID_TIMESTAMP;
+    }
+    return formatRecentClearTimestamp(records.get());
+}
+
+MegaTimeStamp MegaApiImpl::formatRecentClearTimestamp(string_map* records)
+{
+    MegaTimeStamp recentClearTimestamp = MEGA_INVALID_TIMESTAMP;
+    auto it = records->find("t");
+    if (it == records->end())
+    {
+        return recentClearTimestamp;
+    }
+    string value = Base64::atob(it->second);
+    if (value.size() != sizeof(recentClearTimestamp))
+    {
+        return recentClearTimestamp;
+    }
+    memcpy(&recentClearTimestamp, value.data(), sizeof(recentClearTimestamp));
+    return recentClearTimestamp;
 }
 
 #ifdef ENABLE_CHAT
@@ -33155,7 +33228,7 @@ bool MegaTCPServer::start(int newPort, bool newLocalOnly)
     if (!started)
         port = 0;
 
-    LOG_verbose << "MegaTCPServer::start. port = " << newPort << ", returning " << started;
+    LOG_verbose << "MegaTCPServer::start. port = " << port << ", returning " << started;
     return started;
 }
 
@@ -33197,7 +33270,39 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
 }
 #endif
 
-// todo: a lot of this function is the same as initializeAndStartListening, we should factor them (maybe call that one from this one?)
+// return 0 on error, otherwise a port number (positive)
+static int getBoundPort(uv_tcp_t* server)
+{
+    assert(server);
+
+    struct sockaddr_storage bound_addr;
+    int addr_len = sizeof(bound_addr);
+    if (uv_tcp_getsockname(server, reinterpret_cast<struct sockaddr*>(&bound_addr), &addr_len))
+    {
+        // error
+        return 0;
+    }
+
+    int port = 0;
+    if (bound_addr.ss_family == AF_INET)
+    {
+        const auto addrin = reinterpret_cast<struct sockaddr_in*>(&bound_addr);
+        port = ntohs(addrin->sin_port);
+    }
+    else if (bound_addr.ss_family == AF_INET6)
+    {
+        const auto addrin6 = reinterpret_cast<struct sockaddr_in6*>(&bound_addr);
+        port = ntohs(addrin6->sin6_port);
+    }
+    else
+    {
+        // Doesn't support others
+        assert(false);
+    }
+
+    return port;
+}
+
 void MegaTCPServer::run()
 {
     LOG_debug << " Running tcp server: " << port << " TLS=" << useTLS;
@@ -33268,10 +33373,9 @@ void MegaTCPServer::run()
     }
 #endif
 
-    if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
-        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
+    auto cleanOnError = [this](const char* action)
     {
-        LOG_err << "TCP failed to bind/listen port = " << port;
+        LOG_err << "TCP failed to " << action << " = " << port;
 
         uv_close((uv_handle_t *)&exit_handle,NULL);
         uv_close((uv_handle_t *)&server,NULL);
@@ -33283,6 +33387,28 @@ void MegaTCPServer::run()
         {
             LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
         }
+    };
+
+    if (uv_tcp_bind(&server, (const struct sockaddr*)&address, 0))
+    {
+        cleanOnError("bind port");
+        return;
+    }
+
+    // Update port to bound port if request port is 0
+    if (port == 0)
+    {
+        port = getBoundPort(&server);
+        if (port == 0) // still zero?
+        {
+            cleanOnError("get bound port");
+            return;
+        }
+    }
+
+    if (uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
+    {
+        cleanOnError("listen port");
         return;
     }
 
@@ -33308,93 +33434,6 @@ void MegaTCPServer::run()
         LOG_err << "[MegaTCPServer::run] Error closing uv_loop: " << uv_strerror(closeVal);
     }
     LOG_debug << "UV loop thread exit";
-}
-
-void MegaTCPServer::initializeAndStartListening()
-{
-#ifdef ENABLE_EVT_TLS
-    if (useTLS)
-    {
-        if (evt_ctx_init_ex(&evtctx, certificatepath.c_str(), keypath.c_str()) != 1 )
-        {
-            LOG_err << "Unable to init evt ctx";
-            port = 0;
-            uv_sem_post(&semaphoreStartup);
-            uv_sem_post(&semaphoreEnd);
-            return;
-        }
-        evtrequirescleaning = true;
-        evt_ctx_set_nio(&evtctx, NULL, uv_tls_writer);
-    }
-#endif
-
-    uv_loop_init(&uv_loop);
-
-    uv_async_init(&uv_loop, &exit_handle, onCloseRequested);
-    exit_handle.data = this;
-
-    uv_tcp_init(&uv_loop, &server);
-    server.data = this;
-
-    uv_tcp_keepalive(&server, 0, 0);
-
-    union {
-        struct sockaddr_in6 ipv6;
-        struct sockaddr_in ipv4;
-    } address;
-
-    if (useIPv6)
-    {
-        if (localOnly)
-        {
-            uv_ip6_addr("::1", port, &address.ipv6);
-        }
-        else
-        {
-            uv_ip6_addr("::", port, &address.ipv6);
-        }
-    }
-    else
-    {
-        if (localOnly)
-        {
-            uv_ip4_addr("127.0.0.1", port, &address.ipv4);
-        }
-        else
-        {
-            uv_ip4_addr("0.0.0.0", port, &address.ipv4);
-        }
-    }
-
-    uv_connection_cb onNewClientCB;
-#ifdef ENABLE_EVT_TLS
-    if (useTLS)
-    {
-         onNewClientCB = onNewClient_tls;
-    }
-    else
-    {
-#endif
-        onNewClientCB = onNewClient;
-#ifdef ENABLE_EVT_TLS
-    }
-#endif
-
-    if(uv_tcp_bind(&server, (const struct sockaddr*)&address, 0)
-        || uv_listen((uv_stream_t*)&server, 32, onNewClientCB))
-    {
-        LOG_err << "TCP failed to bind/listen port = " << port;
-        port = 0;
-        uv_async_send(&exit_handle);
-        //This is required in case uv_loop was already running so as to free references to "this".
-        // a uv_sem_post will be required there, so that we can delete the server accordingly
-        return;
-    }
-
-    LOG_info << "TCP" << (useTLS ? "(tls)" : "") << " server started on port " << port;
-    started = true;
-    uv_sem_post(&semaphoreStartup);
-    LOG_debug << "UV loop already alive!";
 }
 
 void MegaTCPServer::stop(bool doNotWait)

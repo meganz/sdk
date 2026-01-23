@@ -29,8 +29,16 @@
 #include "mega/serialize64.h"
 #include "mega/testhooks.h"
 
+#include <unicode/coll.h>
+#include <unicode/errorcode.h>
+#include <unicode/stringpiece.h>
+#include <unicode/ucol.h>
+#include <unicode/unistr.h>
+#include <unicode/utypes.h>
+
 #include <cctype>
 #include <iomanip>
+#include <memory>
 
 #if defined(_WIN32) && defined(_MSC_VER)
 #include <sys/timeb.h>
@@ -2447,11 +2455,178 @@ std::string CacheableStatus::typeToStr(CacheableStatus::Type type)
     }
 }
 
-std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, FileAccess &ifAccess, const int64_t iv)
+[[nodiscard]] m_off_t legacySparseOffset32Bug(const m_off_t size,
+                                              const unsigned lane,
+                                              const unsigned block) noexcept
 {
-    FileInputStream isAccess(&ifAccess);
+    const auto sizeU64 = static_cast<std::uint64_t>(size);
+    const auto clampMax = sizeU64 - LEGACY_CRC_WINDOW_BYTES;
 
-    return generateMetaMac(cipher, isAccess, iv);
+    const std::uint32_t sz32 = static_cast<std::uint32_t>(sizeU64);
+    const std::uint32_t idx32 =
+        static_cast<std::uint32_t>(lane * LEGACY_CRC_BLOCKS_PER_LANE + block); // 0..127
+
+    const std::uint32_t numer = static_cast<std::uint32_t>(
+        (sz32 - static_cast<std::uint32_t>(LEGACY_CRC_WINDOW_BYTES)) * idx32); // wraps
+    const std::uint32_t off32 = LEGACY_SPARSE_DENOM ? (numer / LEGACY_SPARSE_DENOM) : 0;
+
+    const auto off64 = static_cast<std::uint64_t>(off32);
+    return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrcFA(MegaClient& mc,
+                                                 const LocalPath& path,
+                                                 const m_off_t expectedSize,
+                                                 std::array<std::int32_t, LEGACY_CRC_LANES>& crcOut)
+{
+    if (expectedSize <= static_cast<m_off_t>(LEGACY_CRC_WINDOW_BYTES) ||
+        static_cast<std::uint64_t>(expectedSize) <= LEGACY_OVERFLOW_MIN_SIZE)
+    {
+        return false;
+    }
+
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+    {
+        return false;
+    }
+
+    // Only proceed if the file still matches what the sync thread decided to act on.
+    if (fa->size != expectedSize)
+    {
+        return false;
+    }
+
+    if (!fa->openf(FSLogging::logOnError))
+    {
+        return false;
+    }
+
+    std::array<byte, LEGACY_CRC_WINDOW_BYTES> block{};
+    std::int32_t crcval = 0;
+
+    for (unsigned lane = 0; lane < LEGACY_CRC_LANES; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < LEGACY_CRC_BLOCKS_PER_LANE; ++j)
+        {
+            const auto offset = legacySparseOffset32Bug(expectedSize, lane, j);
+            if (!fa->frawread(block.data(),
+                              static_cast<unsigned long>(block.size()),
+                              offset,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            crc32.add(block.data(), static_cast<unsigned>(block.size()));
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = static_cast<std::int32_t>(htonl(static_cast<std::uint32_t>(crcval)));
+    }
+
+    fa->closef();
+    return true;
+}
+
+[[nodiscard]] bool computeLegacyBuggySparseCrcIA(MegaClient& mc,
+                                                 const LocalPath& path,
+                                                 const m_off_t expectedSize,
+                                                 std::array<std::int32_t, 4>& crcOut)
+{
+    auto fa = mc.fsaccess->newfileaccess();
+    if (!fa || !fa->fopen(path, FSLogging::logOnError) || fa->type != FILENODE)
+        return false;
+    if (fa->size != expectedSize)
+        return false;
+    if (!fa->openf(FSLogging::logOnError))
+        return false;
+
+    std::array<byte, 64> block{};
+    std::int32_t crcval = 0;
+
+    m_off_t current = 0; // logical "current" used by the IA algorithm
+    m_off_t stream = 0; // actual forward-only position (UnixStreamAccess::mOffset)
+
+    for (unsigned lane = 0; lane < 4; ++lane)
+    {
+        HashCRC32 crc32;
+
+        for (unsigned j = 0; j < 32; ++j)
+        {
+            const m_off_t offset = legacySparseOffset32Bug(expectedSize, lane, j);
+
+            // forward-only skip based on (offset - current)
+            for (m_off_t fullstep = offset - current; fullstep > 0;)
+            {
+                const unsigned step = fullstep > UINT_MAX ? UINT_MAX : (unsigned)fullstep;
+                stream += (m_off_t)step; // what is->read(nullptr, step) does
+                fullstep -= (m_off_t)step;
+            }
+
+            // IA updates current to offset even if it went backwards
+            current += (offset - current); // current = offset
+
+            // read happens at STREAM position, not at "current"
+            if (stream < 0 || stream + (m_off_t)block.size() > expectedSize)
+            {
+                fa->closef();
+                return false;
+            }
+
+            if (!fa->frawread(block.data(),
+                              (unsigned long)block.size(),
+                              stream,
+                              true,
+                              FSLogging::logOnError))
+            {
+                fa->closef();
+                return false;
+            }
+
+            stream += (m_off_t)block.size();
+            current += (m_off_t)block.size();
+
+            crc32.add(block.data(), (unsigned)block.size());
+        }
+
+        crc32.get(reinterpret_cast<byte*>(&crcval));
+        crcOut[lane] = (std::int32_t)htonl((std::uint32_t)crcval);
+    }
+
+    fa->closef();
+    return true;
+}
+
+bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs)
+{
+    return std::memcmp(lhs.data(), rhs.data(), sizeof(lhs)) == 0;
+}
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
+                                         FileAccess& ifAccess,
+                                         const int64_t iv,
+                                         std::optional<std::string> pathStr)
+{
+    using clock = std::chrono::steady_clock;
+    auto start = clock::now();
+
+    FileInputStream isAccess(&ifAccess);
+    auto res = generateMetaMac(cipher, isAccess, iv);
+    auto end = clock::now();
+    auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(6) << durationSec;
+
+    const std::string p = pathStr.has_value() ? (" for: " + pathStr.value()) : "";
+    LOG_debug << "generateMetaMac: MAC computed in " << oss.str() << " (s)" << p;
+    return res;
 }
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
@@ -2487,79 +2662,192 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
 std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                             const std::string& nodeKey,
-                                                            int type)
+                                                            int type,
+                                                            std::optional<std::string> pathStr)
 {
     SymmCipher cipher;
     const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
     int64_t remoteIv = MemAccess::get<int64_t>(iva);
     int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
-    auto result = generateMetaMac(cipher, *fa, remoteIv);
+    auto result = generateMetaMac(cipher, *fa, remoteIv, pathStr);
     return {(result.first && result.second == remoteMac), result.second};
 }
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
 {
-    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type).first;
+    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type, node->displaypath())
+        .first;
+}
+
+std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
+                                                     const std::string& nodeKey,
+                                                     int type,
+                                                     std::optional<std::string> pathStr)
+{
+    SymmCipher cipher;
+    const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
+    int64_t remoteIv = MemAccess::get<int64_t>(iva);
+    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    cipher.setkey((byte*)&nodeKey[0], type);
+    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv, pathStr);
+    int64_t localMac = succeeded ? calcMac : INVALID_META_MAC;
+    return {localMac, remoteMac};
+}
+
+std::string nodeComparisonResultToStr(const node_comparison_result result)
+{
+    switch (result)
+    {
+        case NODE_COMP_EREAD:
+            return "NODE_COMP_EREAD";
+        case NODE_COMP_EARGS:
+            return "NODE_COMP_EARGS";
+        case NODE_COMP_PENDING:
+            return "NODE_COMP_PENDING";
+        case NODE_COMP_EQUAL:
+            return "NODE_COMP_EQUAL";
+        case NODE_COMP_DIFFERS_FP:
+            return "NODE_COMP_DIFFERS_FP";
+        case NODE_COMP_DIFFERS_MAC:
+            return "NODE_COMP_DIFFERS_MAC";
+        case NODE_COMP_DIFFERS_MTIME:
+            return "NODE_COMP_DIFFERS_MTIME";
+        default:
+            return "NODE_COMP_UNKNOWN";
+    }
+}
+
+node_comparison_result CompareMacAndFpExcludingMtime(const FileFingerprint& fp1,
+                                                     const FileFingerprint& fp2,
+                                                     const int64_t metamac1,
+                                                     const int64_t metamac2)
+{
+    // It doesn't make sense to call this method with invalid metamacs
+    assert(metamac1 != INVALID_META_MAC && metamac2 != INVALID_META_MAC);
+
+    // Fingerprint comparison excluding mtime
+    if (!fp1.equalExceptMtime(static_cast<const FileFingerprint&>(fp2)))
+    {
+        if (!fp1.isvalid || !fp2.isvalid)
+        {
+            LOG_warn << "CompareMacAndFpExcludingMtime: fp1 isValid (" << fp1.isvalid
+                     << "), fp2 isValid (" << fp2.isvalid << ")";
+        }
+        return NODE_COMP_DIFFERS_FP;
+    }
+
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in a few bytes, and FPs could match but METAMAC differ)
+    auto areEqualMacs = metamac1 == metamac2;
+    if (!areEqualMacs)
+    {
+        // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+        // different items
+        return NODE_COMP_DIFFERS_MAC;
+    }
+
+    return fp1.mtime == fp2.mtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
+}
+
+node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node* node,
+                                                                     const FileFingerprint& fp,
+                                                                     const int64_t precalcMetamac)
+{
+    if (!node || node->type != FILENODE || node->nodekey().empty())
+    {
+        return NODE_COMP_EARGS;
+    }
+
+    // Fingerprint comparison excluding mtime
+    if (!fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node)))
+    {
+        if (!node->isvalid || !fp.isvalid)
+        {
+            LOG_warn << "CompareNodeWithProvidedFpAndMac: node isValid (" << node->isvalid
+                     << "), fp isValid (" << fp.isvalid << ")";
+        }
+        return NODE_COMP_DIFFERS_FP;
+    }
+
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in a few bytes, and FPs could match but METAMAC differ)
+    const char* iva = &node->nodekey()[SymmCipher::KEYLENGTH];
+    const int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    auto areEqualMacs = precalcMetamac == remoteMac;
+    const auto areEqualMtimes = fp.mtime == node->mtime;
+    LOG_debug << "[CompareNodeWithProvidedMacAndFpExcludingMtime] areEqualMacs = " << areEqualMacs
+              << ", areEqualMtimes = " << areEqualMtimes;
+
+    if (!areEqualMacs)
+    {
+        // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+        // different items
+        return NODE_COMP_DIFFERS_MAC;
+    }
+
+    return fp.mtime == node->mtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
 }
 
 std::pair<node_comparison_result, int64_t>
-    CompareLocalFileWithNodeFpAndMac(class MegaClient& client,
-                                     const LocalPath& path,
-                                     const FileFingerprint& fp,
-                                     const Node* node,
-                                     bool debugMode)
+    CompareLocalFileWithNodeMacAndFpExludingMtime(class MegaClient& client,
+                                                  const LocalPath& path,
+                                                  const FileFingerprint& fp,
+                                                  const Node* node,
+                                                  bool debugMode)
 {
-    if (!node)
+    if (!node || node->type != FILENODE || node->nodekey().empty())
     {
         return {NODE_COMP_EARGS, INVALID_META_MAC};
     }
 
-    if (node->type != FILENODE)
+    // Fingerprint comparison excluding mtime
+    if (!fp.equalExceptMtime(static_cast<const FileFingerprint&>(*node)))
     {
-        LOG_err << "CompareLocalFileWithNodeFpAndMac called with invalid node type";
-        assert(false && "CompareLocalFileWithNodeFpAndMac called with invalid node type");
-        return {NODE_COMP_INVALID_NODE_TYPE, INVALID_META_MAC};
-    }
+        if (!node->isvalid || !fp.isvalid)
+        {
+            LOG_warn << "CompareLocalFileWithNodeFpAndMac: node isValid (" << node->isvalid
+                     << "), fp isValid (" << fp.isvalid << ")";
+        }
 
-    if (node->nodekey().empty())
-    {
-        return {NODE_COMP_EARGS, 0};
-    }
-
-    if (!node->isvalid || !fp.isvalid)
-    {
-        LOG_warn << "CompareLocalFileWithNodeFpAndMac: valid node: " << node->isvalid
-                 << " valid file fingerprint: " << fp.isvalid;
-        return {NODE_COMP_EARGS, INVALID_META_MAC};
-    }
-
-    if (fp != static_cast<const FileFingerprint&>(*node))
-    {
+        // Fingerprints differ in any of these fields (CRC, Size, isValid)
+        // They may also differ in mtime (it's not relevant for this case as FPs also differs in
+        // something else)
         return {NODE_COMP_DIFFERS_FP, INVALID_META_MAC};
     }
 
+    // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
+    // just in few bytes, and FPs could match but METAMAC differ)
     if (auto fa = client.fsaccess->newfileaccess();
         fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
     {
-        auto [res, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(), node->nodekey(), node->type);
-        if (res)
+        LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs BEGIN...";
+        auto [areEqualMacs, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(),
+                                                                      node->nodekey(),
+                                                                      node->type,
+                                                                      path.toPath(false));
+
+        auto sameMtime = fp.mtime == node->mtime;
+        LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
+                  << sameMtime << "]";
+
+        if (debugMode && sameMtime)
         {
-            if (!debugMode)
-            {
-                client.sendevent(800029, "Node found with same Fp and MAC than local file");
-            }
-            return {NODE_COMP_EQUAL, mac};
-        }
-        else
-        {
-            if (!debugMode)
-            {
+            areEqualMacs ?
+                client.sendevent(800029, "Node found with same Fp and MAC than local file") :
                 client.sendevent(800030,
                                  "Node found with same Fp but different MAC than local file");
-            }
+        }
+
+        if (!areEqualMacs)
+        {
+            // It doesn't matter that FPs are equal as METAMAC comparison show that they are
+            // different items
             return {NODE_COMP_DIFFERS_MAC, mac};
         }
+
+        auto compRes = sameMtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
+        return {compRes, mac};
     }
 
     LOG_warn << "CompareLocalFileWithNodeFpAndMac: cannot read local file: " << path.toPath(false);
@@ -3285,24 +3573,6 @@ bool is_digit(unsigned int ch)
     return std::isdigit(static_cast<unsigned char>(ch)) != 0;
 }
 
-bool is_symbol(unsigned int ch)
-{
-    return std::isalnum(static_cast<unsigned char>(ch)) == 0;
-}
-
-CharType getCharType(const unsigned int ch)
-{
-    if (is_symbol(ch))
-    {
-        return CharType::CSYMBOL;
-    }
-    else if (is_digit(ch))
-    {
-        return CharType::CDIGIT;
-    }
-    return CharType::CALPHA;
-}
-
 std::string escapeWildCards(const std::string& pattern)
 {
     std::string newString;
@@ -3636,130 +3906,73 @@ SplitResult split(const std::string& value, char delimiter)
     return split(value.data(), value.size(), delimiter);
 }
 
+using CollatorPtr = std::unique_ptr<icu::Collator>;
+
+// Set up a collator for numeric (natural) sorting, so it behaves the same as
+// the web client collator instance Intl.Collator('co', {numeric: true}).
+// For reference, see the Google V8 engine function JSCollator::New in commit 3b9350b6fc0.
+// Use English locale on all platforms: such as avoid en_US_POSIX default locale on iOS.
+// UCOL_CASE_FIRST is decided by English locale which is UCOL_LOWER_FIRST
+[[nodiscard]] static CollatorPtr createCollator()
+{
+    UErrorCode ec = U_ZERO_ERROR;
+    CollatorPtr collator{icu::Collator::createInstance(icu::Locale::getEnglish(), ec)};
+    if (U_FAILURE(ec))
+    {
+        LOG_err << "ICU::collator fail to createInstance: " << ec;
+        return nullptr;
+    }
+
+    collator->setStrength(icu::Collator::TERTIARY);
+
+    // Enable numeric ordering, E.g. 2 < 12
+    collator->setAttribute(UCOL_NUMERIC_COLLATION, UCOL_ON, ec);
+    if (U_FAILURE(ec))
+    {
+        LOG_err << "ICU::collator fail to setAttribute UCOL_NUMERIC_COLLATION: " << ec;
+        return nullptr;
+    }
+
+    return collator;
+}
+
+static int naturalsorting_compare(icu::StringPiece i, icu::StringPiece j)
+{
+    static_assert(UCOL_EQUAL == 0 && UCOL_GREATER == 1 && UCOL_LESS == -1,
+                  "UCollationResult not expected");
+
+    // Thread local for multithread safety and performance
+    const static thread_local CollatorPtr collator{createCollator()};
+    if (!collator)
+    {
+        assert(false && "No collator");
+        // Fallback
+        return i.compare(j);
+    }
+
+    UErrorCode ec{U_ZERO_ERROR};
+    auto result = static_cast<int>(collator->compareUTF8(i, j, ec));
+    if (U_FAILURE(ec))
+    {
+        assert(false && "compareUTF8 error");
+        // Fallback
+        return i.compare(j);
+    }
+
+    // Additionally, StringPiece::compare two strings if they are numeric natural equal for
+    // cases: 0, 00, 01, 001, a0, a00, 0a00, 00a0.
+    return result != 0 ? result : i.compare(j);
+}
+
 int naturalsorting_compare(const char* i, const char* j)
 {
-    static uint64_t maxNumber = (ULONG_MAX - 57) / 10; // 57 --> ASCII code for '9'
-    bool stringMode = true;
+    return naturalsorting_compare(icu::StringPiece{i}, icu::StringPiece{j});
+}
 
-    while (*i && *j)
-    {
-        if (stringMode)
-        {
-            char char_i, char_j;
-            char_i = *i;
-            char_j = *j;
-            while (char_i && char_j)
-            {
-                CharType iCharType = getCharType(static_cast<unsigned int>(*i));
-                CharType jCharType = getCharType(static_cast<unsigned int>(*j));
-                if (iCharType == jCharType)
-                {
-                    if (iCharType == CharType::CSYMBOL || iCharType == CharType::CALPHA)
-                    {
-                        if (int difference = strncasecmp(reinterpret_cast<const char*>(&char_i),
-                                                         reinterpret_cast<const char*>(&char_j),
-                                                         1);
-                            difference)
-                        {
-                            return difference;
-                        }
-
-                        ++i;
-                        ++j;
-                    }
-                    else if (iCharType == CharType::CDIGIT)
-                    {
-                        stringMode = false;
-                        break;
-                    }
-                }
-                else
-                {
-                    return iCharType < jCharType ? -1 : 1;
-                }
-                char_i = *i;
-                char_j = *j;
-            }
-        }
-        else // we are comparing numbers on both strings
-        {
-            auto m = i;
-            auto n = j;
-
-            uint64_t number_i = 0;
-            unsigned int i_overflow_count = 0;
-            while (*i && is_digit(static_cast<unsigned int>(*i)))
-            {
-                number_i = number_i * 10 + static_cast<uint64_t>(*i - 48); // '0' ASCII code is 48
-                ++i;
-
-                // check the number won't overflow upon addition of next char
-                if (number_i >= maxNumber)
-                {
-                    number_i -= maxNumber;
-                    i_overflow_count++;
-                }
-            }
-
-            uint64_t number_j = 0;
-            unsigned int j_overflow_count = 0;
-            while (*j && is_digit(static_cast<unsigned int>(*j)))
-            {
-                number_j = number_j * 10 + static_cast<uint64_t>(*j - 48);
-                ++j;
-
-                // check the number won't overflow upon addition of next char
-                if (number_j >= maxNumber)
-                {
-                    number_j -= maxNumber;
-                    j_overflow_count++;
-                }
-            }
-
-            int difference = static_cast<int>(i_overflow_count - j_overflow_count);
-
-            if (difference)
-            {
-                return difference;
-            }
-
-            if (number_i != number_j)
-            {
-                return number_i > number_j ? 1 : -1;
-            }
-
-            auto length = static_cast<std::size_t>(std::min(i - m, j - n));
-
-            difference = strncmp(m, n, length);
-            if (difference)
-            {
-                return difference;
-            }
-
-            auto relation = (i - m) - (j - n);
-
-            relation = std::clamp<decltype(relation)>(relation, -1, 1);
-
-            if (relation)
-            {
-                return static_cast<int>(relation);
-            }
-
-            stringMode = true;
-        }
-    }
-
-    if (*j)
-    {
-        return -1;
-    }
-
-    if (*i)
-    {
-        return 1;
-    }
-
-    return 0;
+int naturalsorting_compare(const char* i, int iSize, const char* j, int jSize)
+{
+    return naturalsorting_compare(icu::StringPiece{i, static_cast<int32_t>(iSize)},
+                                  icu::StringPiece{j, static_cast<int32_t>(jSize)});
 }
 
 std::string ensureAsteriskSurround(std::string str)

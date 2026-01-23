@@ -193,7 +193,7 @@ TEST(FileFingerprint, defaultConstructor)
     const mega::FileFingerprint ffp;
     ASSERT_EQ(-1, ffp.size);
     ASSERT_EQ(0, ffp.mtime);
-    const std::array<int32_t, 4> expected = {0, 0, 0, 0};
+    const mega::FingerprintCrc expected = {0, 0, 0, 0};
     ASSERT_EQ(expected, ffp.crc);
     ASSERT_EQ(false, ffp.isvalid);
 }
@@ -262,7 +262,7 @@ TEST(FileFingerprint, comparisonOperator_compareNotEqualBecauseOfMTime)
 {
     mega::FileFingerprint ffp;
     ffp.isvalid = true;
-    ffp.mtime = 3; // difference must be at least 3
+    ffp.mtime = mega::FS_MTIME_TOLERANCE_SECS + 1; // difference must be at least 3
 
     mega::FileFingerprint ffp2;
     ffp2.isvalid = true;

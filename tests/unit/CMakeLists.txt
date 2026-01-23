@@ -19,10 +19,12 @@ target_sources(test_unit
     ChunkMacMap_test.cpp
     Commands_test.cpp
     Crypto_test.cpp
+    cxx20_features_test.cpp
     FileFingerprint_test.cpp
     FileFingerprint_CRC_test.cpp
     File_test.cpp
     FsNode.cpp
+    getDefaultLogName.cpp
     hashcash_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp

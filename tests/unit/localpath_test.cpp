@@ -106,10 +106,10 @@ TEST(LocalPathTest, AbsoluteLocalPathFromFileNameStr)
 {
 #ifdef WIN32
     std::string input{"Jose\xC3\x8C\xC2\x81.txt"};
-    std::string expected{(fs::current_path() / "Jos\x65\xCC\x81.txt").u8string()};
+    std::string expected{path_u8string((fs::current_path() / "Jos\x65\xCC\x81.txt"))};
 #else
     std::string input{"Jos\x65\xCC\x81.txt"};
-    std::string expected{(fs::current_path() / "Jos\x65\xCC\x81.txt").u8string()};
+    std::string expected{path_u8string((fs::current_path() / "Jos\x65\xCC\x81.txt"))};
 #endif
 
     auto auxLocalPath = LocalPath::fromAbsolutePath(expected);
@@ -344,6 +344,113 @@ TEST(LocalPathTest, LocalPathToLocalPathStr)
               rootDrive + pathSep + "folder1" + pathSep + "Jos\x65\xCC\x81.txt");
     EXPECT_EQ(localPath.toPath(true),
               rootDrive + pathSep + "folder1" + pathSep + "Jos\xC3\xA9.txt");
+}
+
+/**
+ * @brief Tests that the copy assignment operator works correctly.
+ *
+ * Regression test for a bug where operator= returned LocalPath (by value)
+ * instead of LocalPath& (by reference), which could leave the assigned-to
+ * object with a null mImplementation after the temporary return value was destroyed.
+ */
+TEST(LocalPathTest, CopyAssignment)
+{
+    // Create source path
+    LocalPath source =
+        LocalPath::fromAbsolutePath(rootDrive + pathSep + "folder" + pathSep + "file.txt");
+    ASSERT_FALSE(source.empty());
+
+    // Test simple copy assignment
+    LocalPath dest;
+    dest = source;
+
+    // Both source and dest should be valid after assignment
+    EXPECT_FALSE(source.empty()) << "Source should remain valid after copy assignment";
+    EXPECT_FALSE(dest.empty()) << "Destination should be valid after copy assignment";
+    EXPECT_EQ(source, dest) << "Source and destination should be equal";
+
+    // Verify dest can still be used (this would crash with null mImplementation)
+    EXPECT_EQ(dest.toPath(false), source.toPath(false));
+    EXPECT_EQ(dest.leafName(), source.leafName());
+}
+
+/**
+ * @brief Tests that chained copy assignment works correctly.
+ *
+ * This specifically tests the return type of operator= - it must return
+ * LocalPath& for chained assignments to work.
+ */
+TEST(LocalPathTest, ChainedCopyAssignment)
+{
+    LocalPath a = LocalPath::fromAbsolutePath(rootDrive + pathSep + "original.txt");
+    LocalPath b;
+    LocalPath c;
+
+    // Chained assignment: c = b = a
+    // This requires operator= to return LocalPath&
+    c = b = a;
+
+    // All three should be valid and equal
+    EXPECT_FALSE(a.empty());
+    EXPECT_FALSE(b.empty());
+    EXPECT_FALSE(c.empty());
+    EXPECT_EQ(a, b);
+    EXPECT_EQ(b, c);
+
+    // Verify all can still be used
+    std::string expectedPath = a.toPath(false);
+    EXPECT_EQ(b.toPath(false), expectedPath);
+    EXPECT_EQ(c.toPath(false), expectedPath);
+}
+
+/**
+ * @brief Tests that move assignment works correctly.
+ */
+TEST(LocalPathTest, MoveAssignment)
+{
+    std::string originalPath = rootDrive + pathSep + "folder" + pathSep + "file.txt";
+    LocalPath source = LocalPath::fromAbsolutePath(originalPath);
+
+    LocalPath dest;
+    dest = std::move(source);
+
+    // dest should have the original value
+    EXPECT_FALSE(dest.empty());
+    EXPECT_EQ(dest.toPath(false), originalPath);
+}
+
+/**
+ * @brief Tests that copy constructor works correctly.
+ */
+TEST(LocalPathTest, CopyConstructor)
+{
+    LocalPath source =
+        LocalPath::fromAbsolutePath(rootDrive + pathSep + "folder" + pathSep + "file.txt");
+
+    // Copy construct
+    LocalPath dest(source);
+
+    // Both should be valid and equal
+    EXPECT_FALSE(source.empty());
+    EXPECT_FALSE(dest.empty());
+    EXPECT_EQ(source, dest);
+    EXPECT_EQ(source.toPath(false), dest.toPath(false));
+}
+
+/**
+ * @brief Tests that move constructor works correctly.
+ */
+TEST(LocalPathTest, MoveConstructor)
+{
+    std::string originalPath = rootDrive + pathSep + "folder" + pathSep + "file.txt";
+    LocalPath source = LocalPath::fromAbsolutePath(originalPath);
+
+    // Move construct
+    LocalPath dest(std::move(source));
+
+    // dest should have the original value
+    EXPECT_FALSE(dest.empty());
+    EXPECT_EQ(dest.toPath(false), originalPath);
 }
 
 TEST(LocalPathTest, leafOrParentName)

@@ -36,9 +36,9 @@ public:
     {
         SdkTest::SetUp();
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
         createInitialLocalFiles();
-        mBackupId = backupFolder(megaApi[0].get(), getLocalTmpDir().u8string());
+        mBackupId = backupFolder(megaApi[0].get(), path_u8string(getLocalTmpDir()));
         ASSERT_NE(mBackupId, UNDEF);
         ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
         ASSERT_TRUE(disableSync(megaApi[0].get(), mBackupId));

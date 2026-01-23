@@ -46,8 +46,6 @@ pipeline {
 
     environment {
         BUILD_OPTIONS = ' '
-        UPLOAD_THIRD_PARTY_SOURCES = ' '
-        UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = ' '
         THIRD_PARTY_SOURCES_ANDROID_PATH = "sdk/src/main/jni"
         THIRD_PARTY_SOURCES_EXAMPLE_PATH = "examples/android/ExampleApp/app/src/main/jni"
     }
@@ -77,11 +75,7 @@ pipeline {
                             steps {
                                 script{
                                     BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
-                                    UPLOAD_THIRD_PARTY_SOURCES = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_android" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
-                                    UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-upload_example" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                                     println BUILD_OPTIONS
-                                    println UPLOAD_THIRD_PARTY_SOURCES
-                                    println UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE
                                 }
                             }
                         }
@@ -134,30 +128,13 @@ pipeline {
                                         ])
                                     }
                                 }
-
-                                stage('Download prebuilt third-party-sources for example'){
-                                    steps {
-                                        dir("${env.THIRD_PARTY_SOURCES_EXAMPLE_PATH}"){
-                                            withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
-                                                sh """
-                                                    jf rt download \
-                                                        --url ${REPO_URL} \
-                                                        --access-token \${MEGASDK_ARTIFACTORY_TOKEN} \
-                                                        third-party-sources-sdk/3rdparty-sdk-android-example.tar.gz \
-                                                        .
-                                                """
-                                            }
-                                            sh "tar -xf 3rdparty-sdk-android-example.tar.gz --skip-old-files"
-                                            sh "rm 3rdparty-sdk-android-example.tar.gz"
-                                        }
-                                    }
-                                }
-
                                 stage('Build SDK and exampleApp'){
                                     environment{
                                         BUILD_ARCHS = "arm64-v8a"
                                         ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
                                         ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                        NDK_ROOT = "/home/jenkins/android-ndk/"
+                                        VCPKG_ROOT="/opt/vcpkg"
                                     }
                                     steps{
                                         dir("examples/android/ExampleApp") {
@@ -168,27 +145,9 @@ pipeline {
                                             sh "./gradlew --no-daemon --max-workers=1 clean"
 
                                             dir("app/src/main/jni/"){
-                                                sh "sed -i 's#JOBS=.*#JOBS=1#' build.sh"
-                                                sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                                sh "rm -rf ../java/nz/mega/sdk"
-                                                //Build SDK and libs
-                                                sh "bash -x ./build.sh all"
-                                                script {
-                                                    if ("${UPLOAD_THIRD_PARTY_SOURCES_EXAMPLE}" == "true"){
-                                                        sh "rm curl/crashlytics.h.ready"
-                                                        sh "tar -czf 3rdparty-sdk-android-example.tar.gz cryptopp curl icu libuv mediainfo openssl sodium sqlite"
-                                                        withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
-                                                            sh """
-                                                                jf rt upload \
-                                                                    --url ${REPO_URL} \
-                                                                    --access-token \${MEGASDK_ARTIFACTORY_TOKEN} \
-                                                                    3rdparty-sdk-android-example.tar.gz \
-                                                                    third-party-sources-sdk/
-                                                            """
-                                                        }
-                                                        sh "rm 3rdparty-sdk-android-example.tar.gz"
-                                                    }
-                                                }
+                                                sh "sed -i 's#JOBS=.*#JOBS=1#' cmake.sh"
+                                                sh "mkdir -p ../java/nz/mega/sdk"
+                                                sh "bash ./cmake.sh"
                                             }
                                             //Build Example App
                                             sh "./gradlew --no-daemon --max-workers=2 build"
@@ -260,31 +219,14 @@ pipeline {
                                     }
                                 }
 
-                                stage('Download prebuilt third-party-sources'){
-                                    steps {
-                                        dir("${env.THIRD_PARTY_SOURCES_ANDROID_PATH}"){
-                                            withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
-                                                sh """
-                                                    jf rt download \
-                                                        --url ${REPO_URL} \
-                                                        --access-token \${MEGASDK_ARTIFACTORY_TOKEN} \
-                                                        third-party-sources-sdk/3rdparty-sdk.tar.gz \
-                                                        .
-                                                """
-                                            }
-                                            sh "tar -xf 3rdparty-sdk.tar.gz --skip-old-files"
-                                            sh "rm 3rdparty-sdk.tar.gz"
-                                        }
-                                    }
-                                }
-
                                 stage('Build SDK and Android App'){
                                     environment{
                                         BUILD_ARCHS = "arm64-v8a"
                                         ANDROID_HOME = "/home/jenkins/android-cmdlinetools/"
-                                        ANDROID_NDK_HOME ="/home/jenkins/android-ndk/"
+                                        ANDROID_NDK_HOME = "/home/jenkins/android-ndk/"
+                                        NDK_ROOT = "/home/jenkins/android-ndk/"
+                                        VCPKG_ROOT = "/opt/vcpkg"
                                         DEFAULT_GOOGLE_MAPS_API_PATH = "/home/jenkins/android-default_google_maps_api"
-                                        ANDROID_WEBRTC="/home/jenkins/android-webrtc"
                                         USE_PREBUILT_SDK = false
                                         ARTIFACTORY_BASE_URL = "${env.REPOSITORY_URL}"
                                     }
@@ -294,26 +236,9 @@ pipeline {
                                             script{
                                                 env.PATH="${env.PATH}:${env.ANDROID_HOME}/cmdline-tools/tools/bin/"
                                             }
-                                            sh "ln -sfrT ${ANDROID_WEBRTC} megachat/webrtc"
-                                            sh "sed -i 's#JOBS=.*#JOBS=3#' build.sh"
-                                            sh "sed -i 's#LOG_FILE=/dev/null#LOG_FILE=/dev/stdout#g' build.sh"
-                                            sh "./build.sh all"
-                                            script {
-                                                if ("${UPLOAD_THIRD_PARTY_SOURCES}" == "true"){
-                                                    sh "rm curl/crashlytics.h.ready"
-                                                    sh "tar -czf 3rdparty-sdk.tar.gz cryptopp curl icu libuv libwebsockets mediainfo pdfviewer sodium sqlite"
-                                                    withCredentials([string(credentialsId: 'MEGASDK_ARTIFACTORY_TOKEN', variable: 'MEGASDK_ARTIFACTORY_TOKEN')]) {
-                                                        sh """
-                                                            jf rt upload \
-                                                                --url ${REPO_URL} \
-                                                                --access-token \${MEGASDK_ARTIFACTORY_TOKEN} \
-                                                                3rdparty-sdk.tar.gz \
-                                                                third-party-sources-sdk/
-                                                        """
-                                                    }
-                                                    sh "rm 3rdparty-sdk.tar.gz"
-                                                }
-                                            }
+                                            sh "mkdir -p ../java/nz/mega/sdk"
+                                            sh "sed -i 's#JOBS=.*#JOBS=3#' cmake.sh"
+                                            sh "bash ./cmake.sh"
                                         }
                                         sh "cp -r ${DEFAULT_GOOGLE_MAPS_API_PATH}/* app/src/"
                                         script {

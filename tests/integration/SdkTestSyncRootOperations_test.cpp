@@ -143,7 +143,7 @@ TEST_F(SdkTestSyncRootOperations, MoveSyncToAnotherSync)
 
     // Moving a sync to another sync should disable it
     LOG_verbose << logPre << "Create a new sync in dir2";
-    std::string tempLocalDir2Name = getLocalTmpDir().u8string() + "2";
+    std::string tempLocalDir2Name = path_u8string(getLocalTmpDir()) + "2";
     LocalTempDir tempLocalDir2{tempLocalDir2Name};
     MegaHandle dir2SyncId;
     ASSERT_NO_FATAL_FAILURE(initiateSync(tempLocalDir2Name, "dir2/", dir2SyncId));
@@ -241,10 +241,10 @@ TEST_F(SdkTestSyncRootOperations, ChangeSyncRemoteRootErrorOnBackup)
         "SdkTestSyncRootOperations.ChangeSyncRemoteRootErrorOnBackup : "};
 
     LOG_verbose << logPre << "Create a backup";
-    ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceName(megaApi[0].get()));
+    ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
     LocalTempDir tmpDir{"auxChangeSyncRemoteRootErrorOnBackupDir"};
 
-    const auto backupId = backupFolder(megaApi[0].get(), tmpDir.getPath().u8string());
+    const auto backupId = backupFolder(megaApi[0].get(), path_u8string(tmpDir.getPath()));
     ASSERT_NE(backupId, UNDEF) << "Error initiating the backup";
     const MrProper defer{[backupId, &api = megaApi[0]]()
                          {

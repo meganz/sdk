@@ -250,6 +250,9 @@ public:
     // Check if the parsing has failed
     bool hasFailed();
 
+    // Check if the parsing has paused
+    bool hasPaused();
+
     // Check if the parsing is starting
     bool isStarting();
 
@@ -298,6 +301,9 @@ protected:
 
     // the parsing has failed
     bool mFailed = false;
+
+    // the parsing has paused
+    bool mPaused = false;
 
 }; // JSONSplitter
 

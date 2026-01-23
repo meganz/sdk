@@ -4285,6 +4285,11 @@ void MegaApi::getRecentActionsAsync(unsigned days,
     pImpl->getRecentActionsAsync(days, maxnodes, excludeSensitives, listener);
 }
 
+void MegaApi::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
+{
+    pImpl->clearRecentActionHistory(until, listener);
+}
+
 bool MegaApi::processMegaTree(MegaNode* n, MegaTreeProcessor* processor, bool recursive)
 {
     return pImpl->processMegaTree(n, processor, recursive);
@@ -4503,6 +4508,11 @@ MegaNode *MegaApi::getNodeByFingerprint(const char *fingerprint, MegaNode *paren
 MegaNodeList *MegaApi::getNodesByFingerprint(const char *fingerprint)
 {
     return pImpl->getNodesByFingerprint(fingerprint);
+}
+
+MegaNodeList* MegaApi::getNodesByFingerprintIgnoringMtime(const char* fingerprint)
+{
+    return pImpl->getNodesByFingerprint(fingerprint, true);
 }
 
 MegaNodeList *MegaApi::getNodesByOriginalFingerprint(const char* originalFingerprint, MegaNode* parent)

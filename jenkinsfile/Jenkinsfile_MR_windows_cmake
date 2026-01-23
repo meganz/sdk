@@ -151,7 +151,7 @@ pipeline {
                         TMPDIR    = "${windows_sources_workspace}\\tmp"
                         MEGAQTPATH_X64 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x64"
                         MEGAQTPATH_X86 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x86"
-                        CMAKE_COMMON = "-DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_MEDIA_FILE_METADATA=ON -DCMAKE_VERBOSE_MAKEFILE=ON"
+                        CMAKE_COMMON = "-DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_VERBOSE_MAKEFILE=ON"
                     }
                     options{
                         timeout(time: 150, unit: 'MINUTES')

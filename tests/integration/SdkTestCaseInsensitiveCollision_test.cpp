@@ -59,7 +59,7 @@ void SdkTestCapitalisationCollision::SetUp()
     mFolderDestination = fs::current_path() / "Destination";
     std::filesystem::create_directory(mFolderDestination);
     std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
-    LocalPath path = LocalPath::fromAbsolutePath(fs::current_path().u8string());
+    LocalPath path = LocalPath::fromAbsolutePath(path_u8string(fs::current_path()));
     auto value = isCaseInsensitive(path, fileSystemAccess.get());
     mIsCaseInsensitive = value.has_value() ? value.value() : false;
 }
@@ -115,7 +115,7 @@ void SdkTestCapitalisationCollision::testCapitalisationFolderCollision(
     for (const auto& element: std::filesystem::directory_iterator(mFolderDestination))
     {
         numElements++;
-        const auto fileName = element.path().filename().u8string();
+        const auto fileName = path_u8string(element.path().filename());
         ASSERT_NE(localNames.find(fileName), localNames.end())
             << "Unexpected file name: " << fileName;
     }
@@ -172,7 +172,7 @@ void SdkTestCapitalisationCollision::testCapitalisationDownloadFolderWithCollisi
 
     for (const auto& element: std::filesystem::directory_iterator(mFolderDestination / "Test"))
     {
-        if (element.path().filename().u8string().find(suffix) != std::string::npos)
+        if (path_u8string(element.path().filename()).find(suffix) != std::string::npos)
         {
             elementsWithSuffix++;
         }
@@ -255,7 +255,7 @@ void SdkTestCapitalisationCollision::testCapitalisationFile(
     for (const auto& element: std::filesystem::directory_iterator(mFolderDestination))
     {
         numElements++;
-        const auto fileName = element.path().filename().u8string();
+        const auto fileName = path_u8string(element.path().filename());
         ASSERT_NE(localNames.find(fileName), localNames.end())
             << "Unexpected file name: " << fileName;
     }

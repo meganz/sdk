@@ -1945,7 +1945,7 @@ bool FSNode::debugConfirmOnDiskFingerprintOrLogWhy(FileSystemAccess& fsAccess, c
     {
         if (od->fingerprint == ff) return true;
 #ifdef __ANDROID__
-        if (od->fingerprint.equalExceptMtime(ff))
+        if (od->fingerprint.equalExceptMtimeAndIsValid(ff))
         {
             return true;
         }

@@ -858,6 +858,7 @@ public:
                              const string& name,
                              std::shared_ptr<Node> parent,
                              int tag,
+                             std::optional<FileFingerprint> overridenFp,
                              std::optional<std::string> inboxTarget);
 
     // maximum number of connections per transfer
@@ -933,6 +934,31 @@ public:
                               const AttrMap& attrs,
                               const bool resetSensitive,
                               const bool isPublic);
+    /**
+     * @brief Updates the modification time (mtime) of a node.
+     * @param node Shared pointer to the Node to be modified
+     * @param newMtime The new modification time
+     * @param completion A callback function that will be invoked when the operation completes
+     * @return `true` if the command was successfully sent to the API, `false` if an error occurred
+     * before the command could be sent.
+     */
+    error updateNodeMtime(std::shared_ptr<Node> node,
+                          const m_time_t newMtime,
+                          std::function<void(NodeHandle, Error)>&& completion);
+
+    /**
+     * @brief Updates the fingerprint attribute ('c') of a node.
+     *
+     * The fingerprint attribute encodes CRC and mtime. This can be used to fix metadata-only
+     * mismatches without re-uploading file data.
+     *
+     * @param node Shared pointer to the Node to be modified
+     * @param newFingerprint The fingerprint to serialize into the node's attribute
+     * @param completion A callback function that will be invoked when the operation completes
+     */
+    error updateNodeFingerprint(std::shared_ptr<Node> node,
+                                const FileFingerprint& newFingerprint,
+                                std::function<void(NodeHandle, Error)>&& completion);
 
     // add nodes to specified parent node (complete upload, copy files, make
     // folders)
@@ -1243,13 +1269,6 @@ public:
      */
     typedef std::function<void(std::function<void()> continuation)> UndoFunction;
     void preparebackup(SyncConfig, std::function<void(Error, SyncConfig, UndoFunction revertOnError)>);
-
-    /**
-     * @brief Used to migrate all the sync's management data from MEGAsync to the SDK
-     *
-     * @deprecated This function is deprecated. Please don't use it in new code.
-     */
-    void copySyncConfig(const SyncConfig& config, std::function<void(handle, error)> completion);
 
     /**
      * @brief
@@ -1854,8 +1873,23 @@ public:
     void closetc(bool remove = false);
 
     // server-client command processing
+    void sc_storeSn(JSON& json);
+    void sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChanging, bool originalAC);
+    // process an action packet
+    bool sc_procActionPacket(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode);
+    // process an action packet excluding a, i and st tags
+    void sc_procActionPacketWithoutCommonTags(JSON& json,
+                                              nameid name,
+                                              bool isSelfOriginating,
+                                              std::shared_ptr<Node>& lastAPDeletedNode);
+    // evaluates if the sequence tag matches
     bool sc_checkSequenceTag(const string& tag);
-    bool sc_checkActionPacket(JSON& json, Node* lastAPDeletedNode);
+    // check if it is ok to process the current action packet
+    bool sc_checkActionPacket(JSON& json, const Node* lastAPDeletedNode);
+    // check if it is ok to process the current action packet when there's no st
+    bool sc_checkActionPacketWithoutSt(nameid cmd, const Node* lastAPDeletedNode);
+    // enter json object to check the action packet, then restore json position
+    bool sc_checkActionPacketPreservePos(JSON& json, const Node* lastAPDeletedNode);
 
     void sc_updatenode(JSON& json);
     std::shared_ptr<Node> sc_deltree(JSON& json, bool& moveOperation);
@@ -2392,6 +2426,45 @@ public:
 
     // move queued nodes to SyncDebris (for syncing into the user's own cloud drive)
     void execmovetosyncdebris(Node* n, std::function<void(NodeHandle, Error)>&& completion, bool canChangeVault, bool isInshare);
+
+    /**
+     * @brief Get the daily SyncDebris folder name for a given timestamp.
+     *
+     * @param timestamp to generate daily SyncDebris folder name
+     * @return String that contains the daily SyncDebris folder name
+     */
+    std::string getDailyDebrisName(const m_time_t& ts) const;
+
+    /**
+     * @brief Get the daily SyncDebris folder for a given timestamp.
+     *
+     * This function locates the daily folder inside the SyncDebris folder for the specified
+     * timestamp.
+     *
+     * @param binSyncDebrisNode Shared pointer to the //bin/SyncDebris node
+     * @param dailyDebrisName Daily SyncDebris folder name
+     * @return Shared pointer to the daily SyncDebris node (nullptr if not found)
+     */
+    std::shared_ptr<Node> getSyncdebrisDaily(std::shared_ptr<Node> binSyncDebrisNode,
+                                             const std::string& dailyDebrisName);
+
+    /**
+     * @brief Get the daily SyncDebris folder and all its ancestor nodes
+     *
+     * This function retrieves the complete path from the rubbish bin root to
+     * the daily SyncDebris folder for the specified timestamp. It returns all
+     * intermediate nodes in the hierarchy: rubbish bin, SyncDebris folder,
+     * and the daily folder.
+     *
+     * @param ts Timestamp to generate the daily folder name from
+     * @return Tuple containing:
+     *         - Shared pointer to the rubbish bin node (nullptr if not found)
+     *         - Shared pointer to the //bin/SyncDebris node (nullptr if not found)
+     *         - Shared pointer to the daily SyncDebris node (nullptr if not found)
+     *         - String with the daily folder name in yyyy-mm-dd format
+     */
+    std::tuple<std::shared_ptr<Node>, std::shared_ptr<Node>, std::shared_ptr<Node>, std::string>
+        getSyncdebrisDailyAndAncestors(const m_time_t& ts);
 
     std::shared_ptr<Node> getOrCreateSyncdebrisFolder();
     struct pendingDebrisRecord {

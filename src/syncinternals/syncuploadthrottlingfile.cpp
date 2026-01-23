@@ -56,7 +56,7 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
                                              const unsigned maxUploadsBeforeThrottle,
                                              const LocalPath& transferPath)
 {
-    if (upload.putnodesStarted)
+    if (upload.upsyncStarted)
         return false;
 
     if (transferDirectionNeedsToChange)
@@ -65,8 +65,25 @@ bool UploadThrottlingFile::handleAbortUpload(SyncUpload_inClient& upload,
     if (!upload.wasStarted)
     {
         assert(!upload.wasTerminated);
-        LOG_verbose << "Updating fingerprint of queued upload " << transferPath;
-        upload.updateFingerprint(fingerprint);
+        if (upload.attributeOnlyUpdate.load() ==
+                SyncTransfer_inClient::AttributeOnlyUpdate::MtimeOnly &&
+            fingerprint.equalExceptMtime(upload) && fingerprint.mtime != upload.mtime)
+        {
+            LOG_verbose << "UploadThrottlingFile::handleAbortUpload: Updating fingerprint of "
+                           "queued upload with mtime-only change: "
+                        << transferPath << " to " << fingerprint.mtime;
+            upload.updateFingerprintMtime(fingerprint.mtime);
+        }
+        else
+        {
+            LOG_verbose << "UploadThrottlingFile::handleAbortUpload: Updating fingerprint of "
+                           "queued upload: "
+                        << transferPath << " [attributeOnlyUpdate: "
+                        << static_cast<unsigned>(upload.attributeOnlyUpdate.load()) << "]";
+            upload.updateFingerprint(fingerprint);
+            upload.attributeOnlyUpdate = SyncTransfer_inClient::AttributeOnlyUpdate::None;
+            upload.mMetaMac = std::nullopt;
+        }
         return false;
     }
 

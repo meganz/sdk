@@ -16,11 +16,7 @@ class SdkTestBackupUploadsOperations: public SdkTestBackup
 {
 public:
     static constexpr auto COMMON_TIMEOUT = 3min;
-    std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
-    std::unique_ptr<NiceMock<MockSyncListener>> mMsl;
-    std::unique_ptr<NiceMock<MockSyncListener>> mMslFiles;
-    std::unique_ptr<std::promise<int>> mFileUploadPms;
-    std::unique_ptr<std::future<int>> mFileUploadFut;
+    std::unique_ptr<FSACCESS_CLASS> mFsAccess;
 
     /**
      * @brief Sets the cleanup function to be executed during TearDown.
@@ -56,24 +52,31 @@ public:
             return std::make_unique<MrProper>(
                 [this]()
                 {
-                    if (mMtl)
-                    {
-                        megaApi[0]->removeListener(mMtl.get());
-                        mMtl.reset();
-                    }
-
-                    if (mMsl)
-                    {
-                        megaApi[0]->removeListener(mMsl.get());
-                        mMsl.reset();
-                    }
-
-                    if (mMslFiles)
-                    {
-                        megaApi[0]->removeListener(mMslFiles.get());
-                        mMslFiles.reset();
-                    }
+                    cleanDefaultListeners();
                 });
+        }
+    }
+
+    void cleanDefaultListeners()
+    {
+        removeBackupSync();
+
+        if (mMtl)
+        {
+            megaApi[0]->removeListener(mMtl.get());
+            mMtl.reset();
+        }
+
+        if (mMslStats)
+        {
+            megaApi[0]->removeListener(mMslStats.get());
+            mMslStats.reset();
+        }
+
+        if (mMslFiles)
+        {
+            megaApi[0]->removeListener(mMslFiles.get());
+            mMslFiles.reset();
         }
     }
 
@@ -82,12 +85,16 @@ public:
      * @param localFilePathAbs Absolute path to the local file to be created.
      * @param contents The file contents to be written.
      * @param customMtime Optional custom modification time.
+     * @param expectFullUpload If true, expects a transfer to occur (onTransferStart/Finish).
+     *        If false, expects only sync state change (file may be cloned from existing node).
+     *        Default is true for backward compatibility.
      * @return Pair (success, shared pointer to the created LocalTempFile).
      */
     std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
         createLocalFileAndWaitForSync(const fs::path& localFilePathAbs,
                                       const std::string_view contents,
-                                      std::optional<fs::file_time_type> customMtime);
+                                      std::optional<fs::file_time_type> customMtime,
+                                      bool expectFullUpload = true);
 
     /**
      * @brief Moves deconfigured backup nodes into a cloud folder.
@@ -100,11 +107,6 @@ public:
     void resetOnSyncStatsUpdated();
 
     /**
-     * @brief Resets related variables that tracks when a local file is created
-     */
-    void resetLocalFileEnv();
-
-    /**
      * @brief Waits until the backup sync is up-to-date state.
      * @return True if sync was up to date within the timeout, false otherwise.
      */
@@ -114,6 +116,32 @@ public:
      * @brief Confirms that local and cloud models are identical.
      */
     void confirmModels() const;
+
+    std::shared_ptr<SyncUploadOperationsTracker> addSyncListenerTracker(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mSyncListenerTrackers.add(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTracker> getSyncListenerTrackerByPath(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mSyncListenerTrackers.getByPath(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        addTransferListenerTracker(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mTransferListenerTrackers.add(s);
+    }
+
+    std::shared_ptr<SyncUploadOperationsTransferTracker>
+        getTransferListenerTrackerByPath(const std::string& s)
+    {
+        TestMutexGuard g(trackerMutex);
+        return mTransferListenerTrackers.getByPath(s);
+    }
 
 protected:
     void SetUp() override;
@@ -158,11 +186,17 @@ protected:
                         std::optional<fs::file_time_type> customMtime);
 
 private:
+    mutable std::recursive_timed_mutex trackerMutex;
+    using TestMutexGuard = std::unique_lock<std::recursive_timed_mutex>;
+    std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
+    std::unique_ptr<NiceMock<MockSyncListener>> mMslStats;
+    std::unique_ptr<NiceMock<MockSyncListener>> mMslFiles;
+    SyncItemTrackerManager<SyncUploadOperationsTracker> mSyncListenerTrackers;
+    SyncItemTrackerManager<SyncUploadOperationsTransferTracker> mTransferListenerTrackers;
     MegaHandle mBackupRootHandle{INVALID_HANDLE};
     MegaHandle mCloudArchiveBackupFolderHandle{INVALID_HANDLE};
     const fs::path mCloudArchiveBackupFolderName{"BackupArchive"};
     std::atomic<bool> mIsUpToDate{false};
-    std::atomic<bool> mCreatedFile{false};
     std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
     std::unique_ptr<std::future<void>> mSyncFut;
     bool mCleanupFunctionSet{false};
@@ -172,27 +206,85 @@ std::pair<bool, shared_ptr<sdk_test::LocalTempFile>>
     SdkTestBackupUploadsOperations::createLocalFileAndWaitForSync(
         const fs::path& localFilePathAbs,
         const std::string_view contents,
-        std::optional<fs::file_time_type> customMtime)
+        std::optional<fs::file_time_type> customMtime,
+        bool expectFullUpload)
 {
-    EXPECT_CALL(*mMslFiles.get(), onSyncFileStateChanged(_, _, _, _))
-        .WillRepeatedly(
-            [this, localFilePathStr = localFilePathAbs.string()](MegaApi*,
-                                                                 MegaSync* sync,
-                                                                 std::string* localPath,
-                                                                 int newState)
-            {
-                if (sync && sync->getBackupId() == getBackupId() &&
-                    newState == MegaApi::STATE_SYNCED && localPath &&
-                    *localPath == localFilePathStr && !mCreatedFile)
-                {
-                    mCreatedFile = true;
-                    mFileUploadPms->set_value(newState);
-                }
-            });
+    if (!mMtl)
+    {
+        LOG_err << "createLocalFileAndWaitForSync: invalid transfer listener";
+        return {false, nullptr};
+    }
+
+    if (!mMslFiles)
+    {
+        LOG_err << "createLocalFileAndWaitForSync: invalid sync listener";
+        return {false, nullptr};
+    }
+
+    // Always add transfer tracker to verify behavior (transfer vs clone)
+    auto tt = addTransferListenerTracker(localFilePathAbs.string());
+    if (!tt)
+    {
+        LOG_err << "Cannot add TransferListenerTracker for: " << localFilePathAbs.string();
+        return {false, nullptr};
+    }
+
+    auto st = addSyncListenerTracker(localFilePathAbs.string());
+    if (!st)
+    {
+        LOG_err << "Cannot add SyncListenerTracker for: " << localFilePathAbs.string();
+        return {false, nullptr};
+    }
+
     auto localFile = createLocalFile(localFilePathAbs, contents, customMtime);
-    const auto succeeded = mFileUploadFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
-    resetLocalFileEnv();
-    return {succeeded, localFile};
+
+    // Wait for sync state change (always expected)
+    auto [stFutStatus, stErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
+    if (stFutStatus != std::future_status::ready)
+    {
+        LOG_err << "Sync state change not received for: " << localFilePathAbs.u8string();
+        return {false, nullptr};
+    }
+
+    if (stErrCode != API_OK)
+    {
+        LOG_err << "Sync failed for: " << localFilePathAbs.u8string();
+        return {false, nullptr};
+    }
+
+    // Wait for transfer with appropriate timeout:
+    // - Full upload: wait with COMMON_TIMEOUT for completion
+    // - Clone: wait briefly (30s) and expect timeout (no transfer should occur)
+    const auto transferTimeout = expectFullUpload ? COMMON_TIMEOUT : std::chrono::seconds(30);
+    auto [ttFutStatus, ttErrCode] = tt->waitForCompletion(transferTimeout);
+
+    const auto expectedTransferStatus =
+        expectFullUpload ? std::future_status::ready : std::future_status::timeout;
+    if (ttFutStatus != expectedTransferStatus)
+    {
+        LOG_err << "Unexpected transfer status for: " << localFilePathAbs.u8string()
+                << " [expectFullUpload: " << expectFullUpload << "]";
+        return {false, nullptr};
+    }
+
+    // Verify transfer start count matches expectation
+    const int expectedTransferStartCount = expectFullUpload ? 1 : 0;
+    if (tt->transferStartCount.load() != expectedTransferStartCount)
+    {
+        LOG_err << "Transfer started count mismatch for: " << localFilePathAbs.u8string()
+                << " [expected: " << expectedTransferStartCount
+                << ", actual: " << tt->transferStartCount.load() << "]";
+        return {false, nullptr};
+    }
+
+    // Verify transfer succeeded if we expected a full upload
+    if (expectFullUpload && ttErrCode != API_OK)
+    {
+        LOG_err << "Transfer failed for: " << localFilePathAbs.u8string();
+        return {false, nullptr};
+    }
+
+    return {true, localFile};
 }
 
 void SdkTestBackupUploadsOperations::moveDeconfiguredBackupNodesToCloud()
@@ -212,16 +304,10 @@ void SdkTestBackupUploadsOperations::resetOnSyncStatsUpdated()
     mIsUpToDate = false;
 }
 
-void SdkTestBackupUploadsOperations::resetLocalFileEnv()
-{
-    testing::Mock::VerifyAndClearExpectations(mMslFiles.get());
-    mFileUploadPms.reset(new std::promise<int>());
-    mFileUploadFut.reset(new std::future<int>(mFileUploadPms->get_future()));
-    mCreatedFile = false;
-}
-
 bool SdkTestBackupUploadsOperations::waitForBackupSyncUpToDate() const
 {
+    if (!mMslStats)
+        return false;
     return mSyncFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
 }
 
@@ -238,6 +324,7 @@ void SdkTestBackupUploadsOperations::confirmModels() const
 void SdkTestBackupUploadsOperations::SetUp()
 {
     SdkTestBackup::SetUp();
+    mFsAccess = std::make_unique<FSACCESS_CLASS>();
     ASSERT_NO_FATAL_FAILURE(createBackupSync());
     ASSERT_NO_FATAL_FAILURE(createArchiveDestinationFolder());
     const std::unique_ptr<MegaSync> sync{megaApi[0]->getSyncByBackupId(getBackupId())};
@@ -246,11 +333,46 @@ void SdkTestBackupUploadsOperations::SetUp()
 
     // add transfer listener
     mMtl.reset(new NiceMock<MockTransferListener>(megaApi[0].get()));
+    EXPECT_CALL(*mMtl, onTransferStart)
+        .WillRepeatedly(
+            [this](::mega::MegaApi*, ::mega::MegaTransfer* t)
+            {
+                if (!t || !t->getPath())
+                {
+                    return;
+                }
+
+                auto element = getTransferListenerTrackerByPath(t->getPath());
+                if (!element)
+                    return;
+
+                ASSERT_EQ(++element->transferStartCount, 1)
+                    << "Unexpected times onTransferStart has been called: " << t->getPath();
+            });
+
+    EXPECT_CALL(*mMtl, onTransferFinish)
+        .WillRepeatedly(
+            [this](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError* e)
+            {
+                if (!t || !t->getPath())
+                {
+                    return;
+                }
+
+                auto element = getTransferListenerTrackerByPath(t->getPath());
+                if (!element || !e)
+                    return;
+
+                ASSERT_TRUE(!element->getActionCompleted())
+                    << "onTransferFinish has been previously received: " << t->getPath();
+                element->setActionCompleted();
+                element->setActionCompletedPms(e->getErrorCode());
+            });
     megaApi[0]->addListener(mMtl.get());
 
     // add sync listener and add EXPECT(S)
-    mMsl.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
-    EXPECT_CALL(*mMsl.get(), onSyncStatsUpdated(_, _))
+    mMslStats.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
+    EXPECT_CALL(*mMslStats.get(), onSyncStatsUpdated(_, _))
         .WillRepeatedly(
             [this](MegaApi*, MegaSyncStats* stats)
             {
@@ -261,10 +383,24 @@ void SdkTestBackupUploadsOperations::SetUp()
                     mSyncUpToDatePms->set_value();
                 }
             });
-    megaApi[0]->addListener(mMsl.get());
+    megaApi[0]->addListener(mMslStats.get());
 
     mMslFiles.reset(new NiceMock<MockSyncListener>(megaApi[0].get()));
-    resetLocalFileEnv();
+    EXPECT_CALL(*mMslFiles.get(), onSyncFileStateChanged(_, _, _, _))
+        .WillRepeatedly(
+            [this](MegaApi*, MegaSync* sync, std::string* localPath, int newState)
+            {
+                if (sync && sync->getBackupId() == getBackupId() &&
+                    newState == MegaApi::STATE_SYNCED && localPath)
+                {
+                    auto element = getSyncListenerTrackerByPath(*localPath);
+                    if (!element || element->getActionCompleted())
+                        return;
+
+                    element->setActionCompleted();
+                    element->setActionCompletedPms(API_OK);
+                }
+            });
     megaApi[0]->addListener(mMslFiles.get());
 }
 
@@ -276,8 +412,8 @@ void SdkTestBackupUploadsOperations::TearDown()
 
     ASSERT_TRUE(!mMtl) << getLogPrefix()
                        << "(TearDown). Transfer listener has not been unregistered yet";
-    ASSERT_TRUE(!mMsl) << getLogPrefix()
-                       << "(TearDown). Sync listener has not been unregistered yet";
+    ASSERT_TRUE(!mMslStats) << getLogPrefix()
+                            << "(TearDown). Sync listener has not been unregistered yet";
     removeBackupSync();
     SdkTestBackup::TearDown();
 }
@@ -287,7 +423,7 @@ void SdkTestBackupUploadsOperations::createArchiveDestinationFolder()
     unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode) << "setupDestinationDirectory: Account root node not available.";
     mCloudArchiveBackupFolderHandle =
-        createFolder(0, mCloudArchiveBackupFolderName.u8string().c_str(), rootnode.get());
+        createFolder(0, path_u8string(mCloudArchiveBackupFolderName).c_str(), rootnode.get());
     ASSERT_NE(mCloudArchiveBackupFolderHandle, INVALID_HANDLE)
         << "setupDestinationDirectory: Invalid destination folder handle";
 }
@@ -372,11 +508,6 @@ TEST_F(SdkTestBackupUploadsOperations, BasicTest)
     // Add cleanup function to unregister listeners as soon as test fail/finish
     const auto cleanup = setCleanupFunction();
 
-    // Set expectation for number of expected calls to MockTransferListener callbacks
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(1);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(1);
-
     // Reset MockSyncListener related promise/future
     resetOnSyncStatsUpdated();
 
@@ -407,28 +538,40 @@ TEST_F(SdkTestBackupUploadsOperations, BasicTest)
  */
 TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
 {
+    std::shared_ptr<NiceMock<MockTransferListener>> auxMtl;
     static const auto logPre{getLogPrefix()};
     LOG_verbose << logPre << "#### Test body started ####";
 
     // Add cleanup function to unregister listeners as soon as test fail/finish
-    const auto cleanup = setCleanupFunction();
-
-    // Set TransferListener expectations
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(3);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(3);
+    const auto cleanup = setCleanupFunction(
+        [this, auxMtl]()
+        {
+            cleanDefaultListeners();
+            if (auxMtl)
+            {
+                megaApi[0]->removeListener(auxMtl.get());
+            }
+        });
 
     constexpr unsigned numFiles{3};
     auto localBasePath{fs::absolute(getLocalFolderPath())};
     std::vector<std::shared_ptr<sdk_test::LocalTempFile>> localFiles;
+
+    auto mtime = fs::file_time_type::clock::now();
     for (unsigned i = 1; i <= numFiles; ++i)
     {
+        auto auxMtime = mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i);
         std::string filename = "file" + std::to_string(i);
-        LOG_debug << logPre << "#### TC " << std::to_string(i) << "Creating local file `"
+        LOG_debug << logPre << "#### TC " << std::to_string(i) << " Creating local file `"
                   << filename << "` in Backup dir ####";
+
+        // First file triggers a full upload. Subsequent files with same content
+        // but different mtime will be cloned (no transfer expected).
+        const bool expectFullUpload = (i == 1);
         auto [res, localFile] = createLocalFileAndWaitForSync(localBasePath / filename,
                                                               "abcde",
-                                                              fs::file_time_type::clock::now());
+                                                              auxMtime,
+                                                              expectFullUpload);
 
         ASSERT_TRUE(res) << "Cannot create local file `" << filename << "`";
         localFiles.push_back(localFile);
@@ -447,11 +590,11 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     createBackupSync();
     resetOnSyncStatsUpdated();
 
-    // Reset TransferListener expectations => files already exist in Cloud drive, SDK must perform
     // Clone Put nodes (no transfer is created)
-    testing::Mock::VerifyAndClearExpectations(mMtl.get());
-    EXPECT_CALL(*mMtl.get(), onTransferStart).Times(0);
-    EXPECT_CALL(*mMtl.get(), onTransferFinish).Times(0);
+    auxMtl.reset(new NiceMock<MockTransferListener>(megaApi[0].get()));
+    EXPECT_CALL(*auxMtl.get(), onTransferStart).Times(0);
+    EXPECT_CALL(*auxMtl.get(), onTransferFinish).Times(0);
+    megaApi[0]->addListener(auxMtl.get());
 
     LOG_debug << logPre << "#### TC8 resuming sync ####";
     ASSERT_NO_FATAL_FAILURE(resumeBackupSync());
@@ -463,6 +606,224 @@ TEST_F(SdkTestBackupUploadsOperations, NodesRemoteCopyUponResumingBackup)
     LOG_debug << logPre << "#### TC10 ensure local and cloud drive models match ####";
     ASSERT_NO_FATAL_FAILURE(confirmModels());
 
+    LOG_verbose << logPre << "#### Test finished ####";
+}
+
+/**
+ * @test SdkTestBackupUploadsOperations.UpdateNodeMtime
+ *
+ * 1. Create a local file in the backup directory and ensure it is synced.
+ * 2. Wait until the backup sync is up to date.
+ * 3. Update mtime to local file and wait for notification that confirms change.
+ * 4. Confirm that local and remote (cloud) models match.
+ */
+TEST_F(SdkTestBackupUploadsOperations, UpdateNodeMtime)
+{
+    static const auto logPre{getLogPrefix()};
+    LOG_verbose << logPre << "#### Test body started ####";
+    // Add cleanup function to unregister listeners as soon as test fail/finish
+    const auto cleanup = setCleanupFunction();
+
+    // Reset MockSyncListener related promise/future
+    resetOnSyncStatsUpdated();
+
+    auto localBasePath{fs::absolute(getLocalFolderPath())};
+    LOG_debug << logPre << "#### TC1 Creating local file `file1` in Backup dir ####";
+    auto [res1, localFile1] = createLocalFileAndWaitForSync(localBasePath / "file1",
+                                                            "abcde",
+                                                            fs::file_time_type::clock::now());
+    ASSERT_TRUE(res1) << "Cannot create local file `file1`";
+
+    LOG_debug << "#### TC2 wait until all files (in Backup folder) have been synced  ####";
+    ASSERT_TRUE(waitForBackupSyncUpToDate());
+    resetOnSyncStatsUpdated();
+
+    std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
+    ASSERT_TRUE(backupSync) << "Cannot get backup sync";
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync";
+    std::unique_ptr<MegaNode> fileNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), "file1", FILENODE));
+    ASSERT_TRUE(fileNode) << "Cannot get file node";
+
+    bool mTimeChangeRecv{false};
+    mApi[0].mOnNodesUpdateCompletion =
+        [&mTimeChangeRecv,
+         oldMtime = fileNode->getModificationTime(),
+         targetNodeHandle = fileNode->getHandle()](size_t, MegaNodeList* nodes)
+    {
+        ASSERT_TRUE(nodes) << "Invalid meganode list received";
+        for (int i = 0; i < nodes->size(); ++i)
+        {
+            MegaNode* n = nodes->get(i);
+            if (n && n->getHandle() == targetNodeHandle &&
+                n->hasChanged(static_cast<uint64_t>(MegaNode::CHANGE_TYPE_ATTRIBUTES)) &&
+                oldMtime != n->getModificationTime())
+            {
+                mTimeChangeRecv = true;
+            }
+        }
+    };
+
+    LOG_debug << logPre << "#### TC3 Update mtime to local file ####";
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+    mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(localBasePath / "file1")),
+                             m_time(nullptr));
+    ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
+        << "No mtime change received after " << maxTimeout << " seconds";
+    resetOnNodeUpdateCompletionCBs(); // important to reset
+
+    LOG_debug << logPre << "#### TC4 Ensure local and cloud drive structures matches ####";
+    ASSERT_NO_FATAL_FAILURE(confirmModels());
+    LOG_verbose << logPre << "#### Test finished ####";
+}
+
+/**
+ * @test SdkTestBackupUploadsOperations.getnodesByFingerprintNoMtime
+ *
+ * 1. Create '3' local files in the backup directory and ensure they are synced.
+ * 2. Validate `getNodesByFingerprint` and `getNodesByFingerprintIgnoringMtime` results
+ * 3. Modify the mtime of local file (idx_0) setting mtime of local file (idx_2) and wait for sync.
+ * 4. Modify the mtime of local file (idx_1) setting mtime of local file (idx_2) and wait for sync.
+ * 5. Validate `getNodesByFingerprint` and `getNodesByFingerprintIgnoringMtime` results
+ * 6. Confirm that local and remote (cloud) models match.
+ */
+TEST_F(SdkTestBackupUploadsOperations, getnodesByFingerprintNoMtime)
+{
+    static const auto logPre{getLogPrefix()};
+    LOG_verbose << logPre << "#### Test body started ####";
+
+    // Add cleanup function to unregister listeners as soon as test fail/finish
+    const auto cleanup = setCleanupFunction();
+
+    std::unique_ptr<MegaSync> backupSync(megaApi[0]->getSyncByBackupId(getBackupId()));
+    ASSERT_TRUE(backupSync) << "Cannot get backup sync";
+    std::unique_ptr<MegaNode> backupNode(megaApi[0]->getNodeByHandle(backupSync->getMegaHandle()));
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    constexpr unsigned numFiles{3};
+    auto localBasePath{fs::absolute(getLocalFolderPath())};
+    std::vector<std::pair<std::shared_ptr<sdk_test::LocalTempFile>, fs::file_time_type>> localFiles;
+    std::vector<std::string> filenames;
+
+    LOG_debug << logPre << "#### TC1: create (" << numFiles
+              << ") local files and wait until back up has been completed ####";
+
+    auto mtime{fs::file_time_type::clock::now()};
+    for (unsigned i = 1; i <= numFiles; ++i)
+    {
+        const auto auxMtime{mtime + std::chrono::seconds(MIN_ALLOW_MTIME_DIFFERENCE * i)};
+        std::string fn = "file" + std::to_string(i);
+        filenames.emplace_back(fn);
+        LOG_debug << logPre << "#### TC1." << std::to_string(i) << " Creating local file `" << fn
+                  << "` in Backup dir ####";
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+
+        // First file triggers a full upload. Subsequent files with same content
+        // but different mtime will be cloned (no transfer expected).
+        const bool expectFullUpload = (i == 1);
+        auto [res, localFile] =
+            createLocalFileAndWaitForSync(localBasePath / fn, "abcde", auxMtime, expectFullUpload);
+
+        ASSERT_TRUE(res) << "Cannot sync local file `" << fn << "`";
+        localFiles.push_back({localFile, auxMtime});
+    }
+
+    LOG_debug << logPre << "#### TC2: getNodesByFingerprint with and without mtime ####";
+    std::unique_ptr<MegaNodeList> nl;
+    std::vector<std::unique_ptr<MegaNode>> nodes;
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[0].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[1].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[2].c_str(), FILENODE));
+
+    for (size_t i = 0; i < nodes.size(); ++i)
+    {
+        auto& n = nodes.at(i);
+        ASSERT_TRUE(n) << "Invalid node with index(" << std::to_string(i) << ")";
+        ASSERT_TRUE(n->getFingerprint())
+            << "Invalid fingerprint for node(" << toNodeHandle(n->getHandle()) << ")";
+        auto auxfp = n->getFingerprint();
+
+        nl.reset(megaApi[0]->getNodesByFingerprint(auxfp));
+        ASSERT_EQ(nl->size(), 1) << "TC2.1(" << std::to_string(i) << "): getNodesByFingerprint("
+                                 << auxfp << ") Unexpected node count";
+
+        nl.reset(megaApi[0]->getNodesByFingerprintIgnoringMtime(n->getFingerprint()));
+        ASSERT_EQ(nl->size(), nodes.size())
+            << "TC2.2(" << std::to_string(i) << "): getNodesByFingerprintIgnoringMtime(" << auxfp
+            << ") Unexpected node count";
+    }
+
+    auto updateNodeMtime =
+        [this](MegaHandle nodeHandle, const LocalPath& path, int64_t oldMtime, int64_t newMtime)
+    {
+        bool mTimeChangeRecv{false};
+        mApi[0].mOnNodesUpdateCompletion =
+            [&mTimeChangeRecv, oldMtime, nodeHandle](size_t, MegaNodeList* nodes)
+        {
+            ASSERT_TRUE(nodes) << "Invalid meganode list received";
+            for (int i = 0; i < nodes->size(); ++i)
+            {
+                MegaNode* n = nodes->get(i);
+                if (n && n->getHandle() == nodeHandle &&
+                    n->hasChanged(static_cast<uint64_t>(MegaNode::CHANGE_TYPE_ATTRIBUTES)) &&
+                    oldMtime != n->getModificationTime())
+                {
+                    mTimeChangeRecv = true;
+                }
+            }
+        };
+
+        mFsAccess->setmtimelocal(path, newMtime);
+        ASSERT_TRUE(waitForResponse(&mTimeChangeRecv))
+            << "No mtime change received after " << maxTimeout << " seconds";
+        resetOnNodeUpdateCompletionCBs(); // important to reset
+    };
+
+    LOG_debug
+        << logPre
+        << "#### TC3 update localNode (idx_0) mtime (with mtime of idx_2) and wait for sync ####";
+    auto h = nodes.at(0)->getHandle();
+    auto path = LocalPath::fromAbsolutePath(path_u8string(localFiles.at(0).first->getPath()));
+    auto oldMtime = nodes.at(0)->getModificationTime();
+    auto newMtime = nodes.at(2)->getModificationTime();
+    updateNodeMtime(h, path, oldMtime, newMtime);
+
+    LOG_debug
+        << logPre
+        << "#### TC4 update localNode (idx_1) mtime (with mtime of idx_2) and wait for sync ####";
+    h = nodes.at(1)->getHandle();
+    path = LocalPath::fromAbsolutePath(path_u8string(localFiles.at(1).first->getPath()));
+    oldMtime = nodes.at(1)->getModificationTime();
+    newMtime = nodes.at(2)->getModificationTime();
+    updateNodeMtime(h, path, oldMtime, newMtime);
+
+    LOG_debug << logPre
+              << "#### TC5: getNodesByFingerprint with and without mtime (Now 3 nodes should have "
+                 "same mtime) ####";
+    nodes.clear();
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[0].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[1].c_str(), FILENODE));
+    nodes.emplace_back(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), filenames[2].c_str(), FILENODE));
+    for (auto& n: nodes)
+    {
+        nl.reset(megaApi[0]->getNodesByFingerprint(n->getFingerprint()));
+        ASSERT_EQ(nl->size(), nodes.size())
+            << "(getNodesByFingerprint) Unexpected node count by FP1";
+
+        nl.reset(megaApi[0]->getNodesByFingerprintIgnoringMtime(n->getFingerprint()));
+        ASSERT_EQ(nl->size(), nodes.size())
+            << "(getNodesByFingerprintIgnoringMtime) Unexpected node count by FP1";
+    }
+
+    LOG_debug << logPre << "#### TC4 Ensure local and cloud drive structures matches ####";
+    ASSERT_NO_FATAL_FAILURE(confirmModels());
     LOG_verbose << logPre << "#### Test finished ####";
 }
 #endif

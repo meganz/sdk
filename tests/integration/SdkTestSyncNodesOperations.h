@@ -169,6 +169,12 @@ protected:
      */
     static const fs::path& localTmpPath();
 
+    /**
+     * @brief Creates a temporary directory inside the process folder.
+     * The directory name is made unique per thread.
+     */
+    fs::path makeProcessTempDir(const std::string& dirName) const;
+
     LocalTempDir mTempLocalDir{localTmpPath()};
     handle mBackupId{UNDEF};
 };

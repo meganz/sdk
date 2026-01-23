@@ -1,0 +1,21 @@
+diff --git a/source/i18n/plurrule.cpp b/source/i18n/plurrule.cpp
+index 839d141..e3379f6 100644
+--- a/source/i18n/plurrule.cpp
++++ b/source/i18n/plurrule.cpp
+@@ -37,7 +37,6 @@
+ #include "ustrfmt.h"
+ #include "uassert.h"
+ #include "uvectr32.h"
+-#include "sharedpluralrules.h"
+ #include "unifiedcache.h"
+ #include "number_decimalquantity.h"
+ #include "util.h"
+@@ -47,6 +46,8 @@
+ 
+ #if !UCONFIG_NO_FORMATTING
+ 
++#include "sharedpluralrules.h"
++
+ U_NAMESPACE_BEGIN
+ 
+ using namespace icu::pluralimpl;
