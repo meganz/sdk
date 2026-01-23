@@ -8925,6 +8925,7 @@ TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
         // Upload ff once.
         ASSERT_TRUE(cu->uploadFile(root / "ff", node.get()));
     }
+    ASSERT_TRUE(CatchupClients(cd, cu));
 
     // Add and start sync.
     handle backupId1 = cd->setupSync_mainthread("sd", "x", false, false);
