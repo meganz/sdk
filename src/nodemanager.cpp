@@ -1510,14 +1510,27 @@ void NodeManager::applyKeys()
 void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
 {
     LockGuard g(mMutex);
-    if (isFromRootNodeType(*node.get()))
+    if (isFromRootNodeType(*node))
     {
         return;
     }
 
-    [[maybe_unused]] auto [it, inserted] = mNodePendingApplyKeys.emplace(node->nodehandle, node);
-    // If the handle is already present, the stored node should be the same instance.
-    assert(inserted || it->second.get() == node.get());
+    auto [it, inserted] = mNodePendingApplyKeys.emplace(node->nodehandle, node);
+    if (!inserted)
+    {
+        if (auto existing = it->second.lock())
+        {
+            // Same handle already tracked; ensure it's the same instance.
+            assert(existing.get() == node.get() &&
+                   "Same handle with different Node instance in mNodePendingApplyKeys");
+        }
+        else
+        {
+            // Expired entry: replace with current node.
+            assert(false && "Element removed at ~Node, no empty element should be present");
+            it->second = node;
+        }
+    }
 }
 
 void NodeManager::applyKeys_internal()
@@ -1527,13 +1540,23 @@ void NodeManager::applyKeys_internal()
     for (auto it = mNodePendingApplyKeys.begin(); it != mNodePendingApplyKeys.end();)
     {
         auto& [_, pendingNode] = *it;
-        if (pendingNode->applykey() || pendingNode->keyApplied())
+        auto currentIt = it;
+        ++it;
+        if (auto sharedNode = pendingNode.lock())
         {
-            it = mNodePendingApplyKeys.erase(it);
+            if (sharedNode->keyApplied())
+            {
+                mNodePendingApplyKeys.erase(currentIt);
+                continue;
+            }
+
+            // Node::applykey already remove element from mNodePendingApplyKeys if key has been
+            // applied
+            sharedNode->applykey();
         }
         else
         {
-            ++it;
+            mNodePendingApplyKeys.erase(currentIt);
         }
     }
 
@@ -1544,8 +1567,20 @@ void NodeManager::applyKeys_internal()
     unsigned noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
                              (getRootNodeRubbish().isUndef() ? 0 : 1);
 
-    assert(mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) ==
-           mNodePendingApplyKeys.size());
+    if (const auto unexpectedCount =
+            mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) !=
+            mNodePendingApplyKeys.size();
+        unexpectedCount)
+    {
+        LOG_warn << "applyKeys_internal: "
+                 << " Nodes in Ram: " << mNodesInRam << ", Applied Keys: " << mAppliedKeyNodeCount
+                 << ", NoKeys: " << noKeyExpected
+                 << ", mNodePendingApplyKeys: " << mNodePendingApplyKeys.size();
+
+        assert(mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) ==
+                   mNodePendingApplyKeys.size() &&
+               "Unexpected num nodes with key pending to be applied in RAM");
+    }
 #endif
 }
 
@@ -1630,9 +1665,6 @@ void NodeManager::notifyPurge()
 
                 removeFingerprint(n.get());
                 removeNodeCacheLRU_internal(n.get());
-
-                removeNodePendingApplyKeys_internal(n.get());
-
                 mNodes.erase(n->mNodePosition);
                 n->mNodePosition = mNodes.end();
 
@@ -1954,6 +1986,12 @@ bool NodeManager::isFromRootNodeType(const Node& node) const
     return node.type == ROOTNODE || node.type == RUBBISHNODE || node.type == VAULTNODE;
 }
 
+void NodeManager::removeNodePendingApplyKeys(const Node* node)
+{
+    LockGuard g(mMutex);
+    removeNodePendingApplyKeys_internal(node);
+}
+
 void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
 {
     assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
@@ -1976,7 +2014,6 @@ void NodeManager::unLoadNodeFromCacheLRU()
         std::shared_ptr<Node> node = mCacheLRU.back();
         removeFingerprint(node.get(), true);
         node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
-        removeNodePendingApplyKeys_internal(node.get());
         mCacheLRU.pop_back();
     }
 }
@@ -1994,15 +2031,9 @@ void NodeManager::removeNodeCacheLRU_internal(Node* node)
     node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
 }
 
-void NodeManager::removeNodePendingApplyKeys_internal(Node* node)
+void NodeManager::removeNodePendingApplyKeys_internal(const Node* node)
 {
     assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
-
-    if (node->keyApplied())
-    {
-        return;
-    }
-
     mNodePendingApplyKeys.erase(node->nodehandle);
 }
 
@@ -2202,7 +2233,6 @@ void NodeManager::saveNodeInDb_internal(Node *node)
 
     if (mNodeToWriteInDb)   // not to be kept in memory
     {
-        removeNodePendingApplyKeys_internal(mNodeToWriteInDb.get());
         assert(mNodeToWriteInDb.get() == node);
         mNodeToWriteInDb.reset();
     }
