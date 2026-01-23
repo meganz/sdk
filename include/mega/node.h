@@ -223,6 +223,12 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static const std::string CRYPTO_ERROR;
     static const std::string NO_KEY;
 
+    // It's important to not perform copies of this class. We use shared_ptr <Node> in
+    // lot of places, so making a new copy may affect to the lifecycle of the instance and it may
+    // have severel side-effects in different points of SDK.
+    Node(const Node&) = delete;
+    Node& operator=(const Node&) = delete;
+
     MegaClient* client = nullptr;
 
     // supplies the nodekey (which is private to ensure we track changes to it)
