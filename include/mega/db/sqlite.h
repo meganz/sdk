@@ -190,6 +190,10 @@ private:
     sqlite3_stmt* mStmtNodesByFpNoMtime = nullptr;
     sqlite3_stmt* mStmtNodeByFp = nullptr;
     sqlite3_stmt* mStmtNodeByOrigFp = nullptr;
+    sqlite3_stmt* mStmtNodesWithInshares = nullptr;
+    sqlite3_stmt* mStmtNodesWithOutshares = nullptr;
+    sqlite3_stmt* mStmtNodesWithPendingOutshares = nullptr;
+    sqlite3_stmt* mStmtNodesWithPubLink = nullptr;
     sqlite3_stmt* mStmtChildNode = nullptr;
     sqlite3_stmt* mStmtIsAncestor = nullptr;
     sqlite3_stmt* mStmtNumChild = nullptr;
