@@ -517,19 +517,19 @@ public:
     {
         MegaHandle mBackupID{INVALID_HANDLE};
         std::atomic<bool> mIsUpToDate{false};
-        std::shared_ptr<std::promise<void>> mSyncUpToDatePms;
-        std::unique_ptr<std::future<void>> mSyncFut;
-        std::unique_ptr<testing::NiceMock<MockSyncListener>> mMslStats;
+        std::promise<void> mSyncUpToDatePms;
+        std::future<void> mSyncFut;
+        testing::NiceMock<MockSyncListener> mMslStats;
 
         void resetStatus()
         {
-            mSyncUpToDatePms.reset(new std::promise<void>());
-            mSyncFut.reset(new std::future<void>(mSyncUpToDatePms->get_future()));
+            mSyncUpToDatePms = std::promise<void>();
+            mSyncFut = std::future<void>(mSyncUpToDatePms.get_future());
         }
 
-        SyncUptoDate(MegaApi* megaApi)
+        SyncUptoDate(MegaApi* megaApi):
+            mMslStats(testing::NiceMock<MockSyncListener>(megaApi))
         {
-            mMslStats.reset(new testing::NiceMock<MockSyncListener>(megaApi));
             resetStatus();
         }
     };
@@ -601,8 +601,8 @@ public:
             ASSERT_TRUE(succeeded)
                 << "addsyncMonitor: Could not add entry at mBackupsMonitor for BackupId: "
                 << toHandle(backupID);
-            auto msl = it->second->mMslStats.get();
-            EXPECT_CALL(*msl, onSyncStatsUpdated(testing::_, testing::_))
+            auto& msl = it->second->mMslStats;
+            EXPECT_CALL(msl, onSyncStatsUpdated(testing::_, testing::_))
                 .WillRepeatedly(
                     [this, backupID](MegaApi*, MegaSyncStats* stats)
                     {
@@ -611,17 +611,16 @@ public:
                             !stats->isSyncing())
                         {
                             auto it = mBackupsMonitor.find(backupID);
-                            if (it == mBackupsMonitor.end() || !it->second->mSyncUpToDatePms ||
-                                it->second->mIsUpToDate)
+                            if (it == mBackupsMonitor.end() || it->second->mIsUpToDate)
                             {
                                 return;
                             }
 
                             it->second->mIsUpToDate = true;
-                            it->second->mSyncUpToDatePms->set_value();
+                            it->second->mSyncUpToDatePms.set_value();
                         }
                     });
-            megaApi->addListener(msl);
+            megaApi->addListener(&msl);
         }
 
         /**
@@ -632,11 +631,7 @@ public:
         {
             for (auto it = mBackupsMonitor.begin(); it != mBackupsMonitor.end();)
             {
-                if (it->second->mMslStats)
-                {
-                    megaApi->removeListener(it->second->mMslStats.get());
-                    it->second->mMslStats.reset();
-                }
+                megaApi->removeListener(&it->second->mMslStats);
                 it = mBackupsMonitor.erase(it);
             }
         }
@@ -654,14 +649,7 @@ public:
                     << toHandle(backupID);
                 return false;
             }
-
-            if (!it->second->mMslStats)
-            {
-                LOG_err << "waitForBackupSyncUpToDate: mMslStats is invalid";
-                return false;
-            }
-
-            return it->second->mSyncFut->wait_for(COMMON_TIMEOUT) == std::future_status::ready;
+            return it->second->mSyncFut.wait_for(COMMON_TIMEOUT) == std::future_status::ready;
         };
 
         /**
