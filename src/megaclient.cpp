@@ -6851,8 +6851,7 @@ void MegaClient::initScStreamingFilters()
     {
         insca = false;
         sc_checkSequenceTag(string());
-        json->enterarray();
-        return JSONSplitter::ResultFromBool(json->leavearray());
+        return JSONSplitter::ResultFromBool(json->storeobject());
     });
 
     mScFilters.emplace("{", [this](JSON*)
@@ -6871,6 +6870,9 @@ void MegaClient::initScStreamingFilters()
 
 void MegaClient::startScStreaming()
 {
+    LOG_warn << "Starting SC streaming";
+
+
     if (mScStreamingActive)
     {
         return;
