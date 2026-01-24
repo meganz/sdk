@@ -1392,6 +1392,36 @@ m_off_t JSONSplitter::processChunk(std::map<string, FilterCallback>* filters, co
                 break;
             }
 
+            if (filters)
+            {
+                std::string filter = mCurrentPath + '"' + mLastName;
+                auto filterit = filters->find(filter);
+                if (filterit != filters->end() && filterit->second)
+                {
+                    JSON_CHUNK_PROCESSING
+                        << "JSON numeric value callback for: " << filter
+                        << " Data: " << std::string(mPos, static_cast<size_t>(j));
+
+                    JSON jsonData(mPos);
+                    auto& callback = filterit->second;
+                    auto result = callback(&jsonData);
+                    if (result == CallbackResult::FAILED)
+                    {
+                        LOG_err << "Parsing error processing streaming filter: " << filter
+                                << " Data: " << std::string(mPos, static_cast<size_t>(j));
+                        parseError(filters);
+                        return 0;
+                    }
+                    else if (result == CallbackResult::PAUSED)
+                    {
+                        auto consumedBytes = mLastPos - data;
+                        mProcessedBytes = mPos - mLastPos;
+                        return consumedBytes;
+                    }
+                    mLastPos = mPos + j;
+                }
+            }
+
             JSON_CHUNK_PROCESSING << "JSON number parsed at path " << mCurrentPath
                                   << " Data: " << mLastName << " = "
                                   << std::string(mPos, static_cast<size_t>(j));
