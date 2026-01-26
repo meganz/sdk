@@ -1558,8 +1558,97 @@ public:
 static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024; // 64kB
 static constexpr size_t MAX_FILE_ATTRIBUTE_SIZE = 16 * 1024 * 1024; // 16MB
 
-
 using detail::CheckableMutex;
+
+/**
+ * @brief Thread safe access to shared resource - accessing with scoped locking.
+ *
+ * The owner thread must call to initOwnerThread() before using shared resource.
+ * Methods to access to shared resource:
+ * - getReadOwnerThread(): owner thread, no mutex.
+ * - getReadOtherThread(): non-owner thread, mutex held.
+ * - getWriteGuardOwnerThread(): owner thread, mutex held (for mutation).
+ *
+ * Returned guards control the lifetime of access, references obtained from getData()
+ * are only valid while the guard lives.
+ *
+ * Keep guard lives as short as possible
+ *
+ * @tparam SharedData Templatized data type stored inside the critical section.
+ * @tparam MutexType  Mutex type used to protect cross-thread access.
+ */
+template<typename SharedData, typename MutexType = std::mutex>
+class SharedResource
+{
+public:
+    SharedResource() = default;
+
+    void initOwnerThread()
+    {
+        mOwnerThreadId = std::this_thread::get_id();
+    }
+
+    const auto getReadOwnerThread()
+    {
+        ensureExpectedThread(true);
+        return Guard(mData, nullptr);
+    }
+
+    const auto getReadOtherThread()
+    {
+        ensureExpectedThread(false);
+        return Guard(mData, &mMutex);
+    }
+
+    auto getWriteGuardOwnerThread()
+    {
+        ensureExpectedThread(true);
+        return Guard(mData, &mMutex);
+    }
+
+private:
+    void ensureExpectedThread(bool expectedOwnerThread)
+    {
+        assert(mOwnerThreadId.has_value() && "SharedResouce used without init");
+        assert((expectedOwnerThread ? std::this_thread::get_id() == mOwnerThreadId :
+                                      std::this_thread::get_id() != mOwnerThreadId) &&
+               "SharedResouce unexpected threadId");
+    }
+
+    class Guard
+    {
+    public:
+        Guard(SharedData& data, MutexType* mutex):
+            mOwner(data)
+        {
+            if (mutex)
+            {
+                mLock = std::unique_lock<MutexType>(*mutex);
+            }
+        }
+
+        Guard(const Guard&) = delete;
+        Guard& operator=(const Guard&) = delete;
+
+        const SharedData& getData() const
+        {
+            return mOwner;
+        }
+
+        SharedData& getData()
+        {
+            return mOwner;
+        }
+
+    private:
+        SharedData& mOwner;
+        std::unique_lock<MutexType> mLock;
+    };
+
+    MutexType mMutex;
+    SharedData mData;
+    std::optional<std::thread::id> mOwnerThreadId{};
+};
 
 // For convenience.
 #ifdef USE_IOS
