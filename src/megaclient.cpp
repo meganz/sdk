@@ -3283,6 +3283,11 @@ void MegaClient::exec()
                     size_t consumedBytes = mScJsonSplitter.processChunk(&mScFilters, pendingsc->data());
                     (void)consumedBytes;
                     processPendingActionPackets();
+                    if (mScJsonSplitter.hasFinished())
+                    {
+                        mScStreamingFinished = true;
+                        processPendingActionPackets();
+                    }
                     app->notify_network_activity(NetworkActivityChannel::SC,
                                                  NetworkActivityType::REQUEST_RECEIVED,
                                                  API_OK);
@@ -3291,6 +3296,15 @@ void MegaClient::exec()
                         LOG_err << "SC streaming parse did not finish cleanly.";
                         scsn.stopScsn();
                         abortScStreaming();
+                        // output the remaining unprocessed data for debugging
+                        if (pendingsc->bufpos > pendingsc->notifiedbufpos)
+                        {
+                            size_t remainingBytes = pendingsc->bufpos - pendingsc->notifiedbufpos;
+                            LOG_err << "Remaining unprocessed data (" << remainingBytes << " bytes): "
+                                    << MaxDirectMessage(pendingsc->data() + pendingsc->notifiedbufpos,
+                                                        remainingBytes,
+                                                        CONSUMED_CHUNK_MAX_LOGGING);
+                        }
                     }
                     pendingsc.reset();
                     btsc.reset();
@@ -3440,6 +3454,11 @@ void MegaClient::exec()
                     (void)consumedBytes;
                     pendingsc->notifiedbufpos = pendingsc->bufpos;
                     processPendingActionPackets();
+                    if (mScJsonSplitter.hasFinished())
+                    {
+                        mScStreamingFinished = true;
+                        processPendingActionPackets();
+                    }
                 }
                 if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
                 {
@@ -6869,13 +6888,6 @@ void MegaClient::initScStreamingFilters()
         }
 
         return JSONSplitter::CallbackResult::FAILED;
-    });
-
-    mScFilters.emplace("{", [this](JSON*)
-    {
-        mScStreamingFinished = true;
-        processPendingActionPackets();
-        return JSONSplitter::CallbackResult::SUCCESS;
     });
 
     mScFilters.emplace("E", [](JSON* json)
