@@ -23306,8 +23306,8 @@ string KeyManager::tagHeader(const byte tag, size_t len) const
 
     res.push_back(tag);
     res.push_back(static_cast<byte>((len & 0xFF0000) >> 16));
-    res.push_back((len & 0xFF00) >> 8);
-    res.push_back(len & 0xFF);
+    res.push_back(static_cast<byte>((len & 0xFF00) >> 8));
+    res.push_back(static_cast<byte>(len & 0xFF));
 
     return string((const char*)res.data(), res.size());
 }
