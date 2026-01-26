@@ -3281,10 +3281,7 @@ void MegaClient::exec()
                 {
                     startScStreaming();
                     size_t consumedBytes = mScJsonSplitter.processChunk(&mScFilters, pendingsc->data());
-                    if (consumedBytes)
-                    {
-                        pendingsc->purge(consumedBytes);
-                    }
+                    (void)consumedBytes;
                     processPendingActionPackets();
                     app->notify_network_activity(NetworkActivityChannel::SC,
                                                  NetworkActivityType::REQUEST_RECEIVED,
@@ -3440,10 +3437,7 @@ void MegaClient::exec()
                 {
                     startScStreaming();
                     size_t consumedBytes = mScJsonSplitter.processChunk(&mScFilters, pendingsc->data());
-                    if (consumedBytes)
-                    {
-                        pendingsc->purge(consumedBytes);
-                    }
+                    (void)consumedBytes;
                     pendingsc->notifiedbufpos = pendingsc->bufpos;
                     processPendingActionPackets();
                 }
@@ -6851,7 +6845,30 @@ void MegaClient::initScStreamingFilters()
     {
         insca = false;
         sc_checkSequenceTag(string());
-        return JSONSplitter::ResultFromBool(json->storeobject());
+        if (!json->pos)
+        {
+            return JSONSplitter::CallbackResult::FAILED;
+        }
+
+        const char* ptr = json->pos;
+        while (*ptr == ' ' || *ptr == '\n' || *ptr == '\r' || *ptr == '\t')
+        {
+            ++ptr;
+        }
+
+        if (*ptr == ']')
+        {
+            json->pos = ptr + 1;
+            return JSONSplitter::CallbackResult::SUCCESS;
+        }
+
+        if (*ptr == '[')
+        {
+            json->pos = ptr;
+            return JSONSplitter::ResultFromBool(json->storeobject());
+        }
+
+        return JSONSplitter::CallbackResult::FAILED;
     });
 
     mScFilters.emplace("{", [this](JSON*)
