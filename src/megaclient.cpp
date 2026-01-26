@@ -3283,15 +3283,17 @@ void MegaClient::exec()
                     size_t consumedBytes = mScJsonSplitter.processChunk(&mScFilters, pendingsc->data());
                     (void)consumedBytes;
                     processPendingActionPackets();
-                    if (mScJsonSplitter.hasFinished())
+                    const bool scFinished = mScJsonSplitter.hasFinished();
+                    if (scFinished)
                     {
                         mScStreamingFinished = true;
                         processPendingActionPackets();
                     }
+                    pendingsc->notifiedbufpos = pendingsc->bufpos;
                     app->notify_network_activity(NetworkActivityChannel::SC,
                                                  NetworkActivityType::REQUEST_RECEIVED,
                                                  API_OK);
-                    if (!mScJsonSplitter.hasFinished())
+                    if (!scFinished)
                     {
                         LOG_err << "SC streaming parse did not finish cleanly.";
                         scsn.stopScsn();
@@ -3454,7 +3456,8 @@ void MegaClient::exec()
                     (void)consumedBytes;
                     pendingsc->notifiedbufpos = pendingsc->bufpos;
                     processPendingActionPackets();
-                    if (mScJsonSplitter.hasFinished())
+                    const bool scFinished = mScJsonSplitter.hasFinished();
+                    if (scFinished)
                     {
                         mScStreamingFinished = true;
                         processPendingActionPackets();
