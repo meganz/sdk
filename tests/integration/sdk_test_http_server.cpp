@@ -23,22 +23,31 @@
  */
 
 #include "easy_curl.h"
-#include "integration_test_utils.h"
 #include "mega/common/testing/utility.h"
+#include "mega/utils.h"
+#include "mock_listeners.h"
+#include "sdk_server_test_utils.h"
 #include "sdk_test_utils.h"
-#include "SdkTest_test.h"
 
 #include <curl/curl.h>
 
+#include <algorithm>
+#include <cctype>
+#include <chrono>
+#include <cstring>
 #include <future>
+#include <map>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
 
-using namespace mega;
+using namespace ::mega;
+using namespace ::std;
 using ::mega::common::testing::randomBytes;
 using sdk_test::EasyCurl;
+using sdk_test::EasyCurlSlist;
 using sdk_test::LocalTempFile;
-using sdk_test::uploadFile;
 
 namespace
 {
@@ -65,8 +74,26 @@ std::string baseURL(int port)
 {
     return "http://localhost:" + std::to_string(port) + "/";
 }
+
+std::string extractEndpointFromUrl(const std::string& url)
+{
+    // extract <protocol>://<ip:port> from url: http://127.0.0.1:4443/... or
+    // https://[::1]:4443/...
+    size_t schemeEndPos = url.find("://");
+    if (schemeEndPos == string::npos)
+    {
+        return "";
+    }
+    size_t hostStartPos = schemeEndPos + 3;
+    size_t hostEndPos = url.find('/', hostStartPos);
+    if (hostEndPos == string::npos)
+    {
+        return url;
+    }
+    return url.substr(0, hostEndPos);
 }
-class SdkHttpServerTest: public SdkTest
+
+class SdkHttpServerTest: public SdkServerTest
 {};
 
 /**
@@ -86,51 +113,72 @@ public:
     struct Response
     {
         int statusCode;
-        std::string headers;
+        map<string, string> headers;
         std::string body;
         curl_off_t contentLength;
     };
 
-    static Response get(const std::string& url, const std::string& range = EmptyRange)
+    static Response get(const std::string& url,
+                        const std::string& range = EmptyRange,
+                        const map<string, string>& headers = {})
     {
-        return performRequest(url, "GET", range, BodyMode::WithBody);
+        return performRequest(url, "GET", range, headers, "", BodyMode::WithBody);
     }
 
-    static Response post(const std::string& url)
+    static Response post(const std::string& url,
+                         const map<string, string>& headers = {},
+                         const string& body = "")
     {
-        return performRequest(url, "POST", EmptyRange, BodyMode::WithBody);
+        return performRequest(url, "POST", EmptyRange, headers, body, BodyMode::WithBody);
     }
 
-    static Response put(const std::string& url)
+    static Response put(const std::string& url,
+                        const map<string, string>& headers = {},
+                        const string& body = "")
     {
-        return performRequest(url, "PUT", EmptyRange, BodyMode::WithBody);
+        return performRequest(url, "PUT", EmptyRange, headers, body, BodyMode::WithBody);
     }
 
-    static Response del(const std::string& url)
+    static Response del(const std::string& url, const map<string, string>& headers = {})
     {
-        return performRequest(url, "DELETE", EmptyRange, BodyMode::WithBody);
+        return performRequest(url, "DELETE", EmptyRange, headers, "", BodyMode::WithBody);
     }
 
-    static Response head(const std::string& url)
+    static Response head(const std::string& url, const map<string, string>& headers = {})
     {
-        return performRequest(url, "HEAD", EmptyRange, BodyMode::WithoutBody);
+        return performRequest(url, "HEAD", EmptyRange, headers, "", BodyMode::WithoutBody);
     }
 
 private:
+    static bool appendHttpHeaders(EasyCurlSlist& easyCurlSlist,
+                                  const std::map<std::string, std::string>& headers)
+    {
+        for (const auto& header: headers)
+        {
+            std::string headerStr = header.first + ": " + header.second;
+            if (!easyCurlSlist.append(headerStr))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
     static Response performRequest(const std::string& url,
                                    const std::string& method,
                                    const std::string& rangeHeader = EmptyRange,
+                                   const map<string, string>& headers = {},
+                                   const string& body = "",
                                    BodyMode bodyMode = BodyMode::WithBody)
     {
-        const auto easyCurl = EasyCurl();
+        Response response;
+        auto easyCurl = EasyCurl();
+        auto easyCurlSlist = EasyCurlSlist();
         auto curl = easyCurl.curl();
 
-        std::string headerData;
-        std::string bodyData;
-
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+        curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
 
         if (method != "GET" && method != "HEAD")
@@ -145,11 +193,35 @@ private:
         else
         {
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, writeCallback);
-            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &bodyData);
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response);
         }
 
+        if (!body.empty())
+        {
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, body.c_str());
+            curl_easy_setopt(curl,
+                             CURLOPT_POSTFIELDSIZE_LARGE,
+                             static_cast<curl_off_t>(body.size()));
+        }
+        else
+        {
+            curl_easy_setopt(curl,
+                             CURLOPT_POSTFIELDSIZE_LARGE,
+                             static_cast<curl_off_t>(body.size()));
+        }
+
+        if (!appendHttpHeaders(easyCurlSlist, headers))
+        {
+            LOG_err << "Failed to append HTTP headers";
+            response.statusCode = 0;
+            response.contentLength = -1;
+            return response;
+        }
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, easyCurlSlist.slist());
+
         curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, headerCallback);
-        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &headerData);
+        curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response);
+        curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
 
         if (!rangeHeader.empty())
         {
@@ -157,7 +229,6 @@ private:
         }
 
         CURLcode res = curl_easy_perform(curl);
-        Response response;
 
         if (res == CURLE_OK)
         {
@@ -170,35 +241,73 @@ private:
                     << " (code: " << res << ")";
             response.statusCode = 0;
             response.contentLength = -1;
+            response.body.clear();
+            response.headers.clear();
         }
 
-        response.headers = headerData;
-        response.body = bodyData;
         return response;
     }
 
-    static size_t writeCallback(void* contents, size_t size, size_t nmemb, void* userdata)
+    static size_t writeCallback(void* contents, size_t size, size_t nmemb, Response* response)
     {
-        auto* str = reinterpret_cast<std::string*>(userdata);
-        auto newContents = reinterpret_cast<char*>(contents);
-        str->append(newContents, size * nmemb);
-        return size * nmemb;
+        size_t totalSize = size * nmemb;
+        response->body.append(static_cast<char*>(contents), totalSize);
+        return totalSize;
     }
 
-    static size_t headerCallback(char* buffer, size_t size, size_t nitems, void* userdata)
+    static size_t headerCallback(void* contents, size_t size, size_t nmemb, Response* response)
     {
-        auto* str = reinterpret_cast<std::string*>(userdata);
-        str->append(buffer, size * nitems);
-        return size * nitems;
+        size_t totalSize = size * nmemb;
+        std::string headerLine(static_cast<char*>(contents), totalSize);
+        if (headerLine == "\r\n")
+        {
+            // end of header block
+            return totalSize;
+        }
+
+        if (headerLine.rfind("HTTP/", 0) == 0)
+        {
+            // status line
+            return totalSize;
+        }
+        size_t colonPos = headerLine.find(':');
+        if (colonPos != std::string::npos)
+        {
+            std::string headerName = headerLine.substr(0, colonPos);
+            headerName = Utils::toLowerUtf8(headerName);
+            std::string headerValue = headerLine.substr(colonPos + 1);
+            // Trim whitespace
+            headerValue = Utils::trim(headerValue);
+            response->headers[headerName] = headerValue;
+        }
+        return totalSize;
     }
 };
+
+TEST_F(SdkHttpServerTest, HttpServerStartStop)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test starting HTTP server with default port
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
+
+    // Verify server is running
+    EXPECT_GT(megaApi[0]->httpServerIsRunning(), 0);
+
+    // Test stopping HTTP server (returns void)
+    megaApi[0]->httpServerStop();
+
+    // Verify server is no longer running
+    EXPECT_FALSE(megaApi[0]->httpServerIsRunning());
+    CASE_info << "finished";
+}
 
 /**
  * Test for HTTP server using port 0, which also consist of:
  * - start two HTTP servers from a thread and no ports conflicting
  * - stop HTTP servers from a different thread, to allow TSAN to report any data races
  */
-TEST_F(SdkHttpServerTest, CanUsePort0)
+TEST_F(SdkHttpServerTest, HttpServerCanUsePort0)
 {
     CASE_info << "started";
 
@@ -220,6 +329,305 @@ TEST_F(SdkHttpServerTest, CanUsePort0)
     CASE_info << "finished";
 }
 
+TEST_F(SdkHttpServerTest, HttpServerStartNotOnLocal)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test starting server not limited to localhost
+    ASSERT_TRUE(megaApi[0]->httpServerStart(false, 0));
+    EXPECT_GT(megaApi[0]->httpServerIsRunning(), 0);
+    EXPECT_FALSE(megaApi[0]->httpServerIsLocalOnly());
+    megaApi[0]->httpServerStop();
+    CASE_info << "finished";
+}
+
+TEST_F(SdkHttpServerTest, HttpServerIPv6)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test starting server with IPv6 support
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0, false, nullptr, nullptr, true));
+    EXPECT_GT(megaApi[0]->httpServerIsRunning(), 0);
+    megaApi[0]->httpServerStop();
+    CASE_info << "finished";
+}
+
+TEST_F(SdkHttpServerTest, EnableOfflineAttribute)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test enabling offline attribute
+    megaApi[0]->httpServerEnableOfflineAttribute(true);
+    EXPECT_TRUE(megaApi[0]->httpServerIsOfflineAttributeEnabled());
+
+    megaApi[0]->httpServerEnableOfflineAttribute(false);
+    EXPECT_FALSE(megaApi[0]->httpServerIsOfflineAttributeEnabled());
+    CASE_info << "finished";
+}
+
+TEST_F(SdkHttpServerTest, httpServerEnableSubtitlesSupport)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test enabling subtitles support
+    megaApi[0]->httpServerEnableSubtitlesSupport(true);
+    EXPECT_TRUE(megaApi[0]->httpServerIsSubtitlesSupportEnabled());
+
+    megaApi[0]->httpServerEnableSubtitlesSupport(false);
+    EXPECT_FALSE(megaApi[0]->httpServerIsSubtitlesSupportEnabled());
+    CASE_info << "finished";
+}
+
+TEST_F(SdkHttpServerTest, httpServerSetMaxBufferSize)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test setting and getting max buffer size
+    int testSize = 2 * 1024 * 1024; // 2 MB
+    megaApi[0]->httpServerSetMaxBufferSize(testSize);
+    EXPECT_EQ(testSize, megaApi[0]->httpServerGetMaxBufferSize());
+    CASE_info << "finished";
+}
+
+TEST_F(SdkHttpServerTest, httpServerSetMaxOutputSize)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Test setting and getting max output size
+    int testSize = 1 * 1024 * 1024; // 1 MB
+    megaApi[0]->httpServerSetMaxOutputSize(testSize);
+    EXPECT_EQ(testSize, megaApi[0]->httpServerGetMaxOutputSize());
+    CASE_info << "finished";
+}
+
+// test httpServerEnableFolderServer and httpServerGetLocalLink for directories
+TEST_F(SdkHttpServerTest, HttpServerDirectoryListing)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    megaApi[0]->httpServerEnableFolderServer(false);
+    EXPECT_FALSE(megaApi[0]->httpServerIsFolderServerEnabled());
+
+    auto server = scopedHttpServer(megaApi[0].get());
+    ASSERT_TRUE(server);
+
+    unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(nullptr, rootNode.get());
+
+    unique_ptr<char[]> localLink(megaApi[0]->httpServerGetLocalLink(rootNode.get()));
+    ASSERT_TRUE(localLink);
+
+    CASE_info << "Performing HTTP request to folder link" << localLink.get();
+
+    auto response = HttpClient::get(localLink.get());
+    EXPECT_EQ(403, response.statusCode);
+
+    megaApi[0]->httpServerEnableFolderServer(true);
+    EXPECT_TRUE(megaApi[0]->httpServerIsFolderServerEnabled());
+
+    response = HttpClient::get(localLink.get());
+    EXPECT_EQ(200, response.statusCode);
+    EXPECT_FALSE(response.body.empty());
+
+    const std::string folderName = "subfolder";
+    auto node = createFolder(0, folderName, rootNode.get());
+    ASSERT_TRUE(node);
+    localLink.reset(megaApi[0]->httpServerGetLocalLink(node.get()));
+    ASSERT_TRUE(localLink);
+
+    CASE_info << "Performing HTTP request to subfolder link" << localLink.get();
+
+    response = HttpClient::get(localLink.get());
+    EXPECT_EQ(200, response.statusCode);
+
+    EXPECT_TRUE(response.body.find(folderName) != string::npos)
+        << "Response body: " << response.body << " does not contain folder name: " << folderName;
+    CASE_info << "finished";
+}
+
+// test httpServerEnableFileServer and httpServerGetLocalLink for files
+TEST_F(SdkHttpServerTest, HttpServerFileAccess)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // Prepare a test file
+    const std::string testFileName = "http_test_file.txt";
+    const std::string testFileContents = "This is a test file for HTTP server access.";
+    auto node = uploadFile(0, testFileName, testFileContents);
+    ASSERT_TRUE(node);
+
+    megaApi[0]->httpServerEnableFileServer(false);
+    EXPECT_FALSE(megaApi[0]->httpServerIsFileServerEnabled());
+
+    auto server = scopedHttpServer(megaApi[0].get());
+    ASSERT_TRUE(server);
+
+    unique_ptr<char[]> localLink(megaApi[0]->httpServerGetLocalLink(node.get()));
+    ASSERT_TRUE(localLink);
+
+    CASE_info << "Performing HTTP request to file link " << localLink.get();
+
+    auto response = HttpClient::get(localLink.get());
+    EXPECT_EQ(403, response.statusCode);
+
+    megaApi[0]->httpServerEnableFileServer(true);
+    EXPECT_TRUE(megaApi[0]->httpServerIsFileServerEnabled());
+    response = HttpClient::get(localLink.get());
+
+    EXPECT_EQ(200, response.statusCode);
+    EXPECT_EQ(testFileContents, response.body);
+    CASE_info << "finished";
+}
+
+// test httpServerSetRestrictedMode and httpServerGetRestrictedMode
+TEST_F(SdkHttpServerTest, GetSetRestrictedMode)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    // default mode is ALLOW_CREATED_LOCAL_LINKS
+    EXPECT_EQ(MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS,
+              megaApi[0]->httpServerGetRestrictedMode());
+    megaApi[0]->httpServerEnableFileServer(true);
+
+    auto server = scopedHttpServer(megaApi[0].get());
+    ASSERT_TRUE(server);
+
+    const std::string testFileNameStart = "http_test_file_start.txt";
+    const std::string testFileContentsStart =
+        "This is a test file for HTTP server access before changing modes.";
+    auto fileNodeStart = uploadFile(0, testFileNameStart, testFileContentsStart);
+    ASSERT_TRUE(fileNodeStart);
+
+    const std::string testFileNameAfter = "http_test_file.txt";
+    const std::string testFileContentsAfter = "This is a test file for HTTP server access.";
+    auto fileNodeAfter = uploadFile(0, testFileNameAfter, testFileContentsAfter);
+    ASSERT_TRUE(fileNodeAfter);
+    unique_ptr<char[]> fileLinkAfter(megaApi[0]->httpServerGetLocalLink(fileNodeAfter.get()));
+    ASSERT_TRUE(fileLinkAfter);
+    std::string fileLinkAfterStr(fileLinkAfter.get());
+
+    CASE_info << "Generated file link: " << fileLinkAfterStr;
+
+    // generate file link for the first file
+    std::string link = extractEndpointFromUrl(fileLinkAfterStr);
+    ASSERT_FALSE(link.empty());
+    unique_ptr<char[]> base64handlePtr(fileNodeStart->getBase64Handle());
+    std::string name = fileNodeStart->getName();
+    std::string escapedName;
+    URLCodec::escape(&name, &escapedName);
+    std::string fileLinkStartStr = link + "/" + base64handlePtr.get() + "/" + escapedName;
+
+    CASE_info << "Generated file link for first file: " << fileLinkStartStr;
+
+    // test restricted modes MegaApi::HTTP_SERVER_DENY_ALL
+    {
+        megaApi[0]->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_DENY_ALL);
+        EXPECT_EQ(MegaApi::HTTP_SERVER_DENY_ALL, megaApi[0]->httpServerGetRestrictedMode());
+        auto fileStartResponse = HttpClient::get(fileLinkStartStr);
+        EXPECT_EQ(403, fileStartResponse.statusCode);
+        auto fileAfterResponse = HttpClient::get(fileLinkAfterStr);
+        EXPECT_EQ(403, fileAfterResponse.statusCode);
+    }
+
+    // test restricted modes MegaApi::HTTP_SERVER_ALLOW_ALL
+    {
+        megaApi[0]->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_ALLOW_ALL);
+        EXPECT_EQ(MegaApi::HTTP_SERVER_ALLOW_ALL, megaApi[0]->httpServerGetRestrictedMode());
+        auto fileStartResponse = HttpClient::get(fileLinkStartStr);
+        EXPECT_EQ(200, fileStartResponse.statusCode);
+        auto fileAfterResponse = HttpClient::get(fileLinkAfterStr);
+        EXPECT_EQ(200, fileAfterResponse.statusCode);
+    }
+
+    // test restricted modes MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS
+    {
+        megaApi[0]->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS);
+        EXPECT_EQ(MegaApi::HTTP_SERVER_ALLOW_CREATED_LOCAL_LINKS,
+                  megaApi[0]->httpServerGetRestrictedMode());
+        auto fileStartResponse = HttpClient::get(fileLinkStartStr);
+        EXPECT_EQ(403, fileStartResponse.statusCode);
+        auto fileAfterResponse = HttpClient::get(fileLinkAfterStr);
+        EXPECT_EQ(200, fileAfterResponse.statusCode);
+    }
+
+    // test restricted modes MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK
+    {
+        const std::string testFileNameLast = "http_test_file_last.txt";
+        const std::string testFileContentsLast = "This is a last test file for HTTP server access.";
+        auto fileNodeLast = uploadFile(0, testFileNameLast, testFileContentsLast);
+        ASSERT_TRUE(fileNodeLast);
+        unique_ptr<char[]> fileLinkLast(megaApi[0]->httpServerGetLocalLink(fileNodeLast.get()));
+        ASSERT_TRUE(fileLinkLast);
+
+        CASE_info << "Generated file link for last file: " << fileLinkLast.get();
+
+        megaApi[0]->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK);
+        EXPECT_EQ(MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK,
+                  megaApi[0]->httpServerGetRestrictedMode());
+        auto fileStartResponse = HttpClient::get(fileLinkStartStr);
+        EXPECT_EQ(403, fileStartResponse.statusCode);
+        auto fileAfterResponse = HttpClient::get(fileLinkAfterStr);
+        EXPECT_EQ(403, fileAfterResponse.statusCode);
+        auto fileLastResponse = HttpClient::get(fileLinkLast.get());
+        EXPECT_EQ(200, fileLastResponse.statusCode);
+    }
+
+    // test invalid restricted mode value (should not change)
+    megaApi[0]->httpServerSetRestrictedMode(99);
+    EXPECT_EQ(MegaApi::HTTP_SERVER_ALLOW_LAST_LOCAL_LINK,
+              megaApi[0]->httpServerGetRestrictedMode());
+    CASE_info << "finished";
+}
+
+// test httpServerAddListener, httpServerRemoveListener and check MegaTransferListener callbacks
+TEST_F(SdkHttpServerTest, HttpServerListenerCallbacks)
+{
+    ASSERT_NO_FATAL_FAILURE(SdkTest::getAccountsForTest(1));
+    CASE_info << "started";
+    testing::NiceMock<MockMegaTransferListener> mockListener{megaApi[0].get()};
+    std::promise<handle> fileNodeHandlePromise;
+
+    EXPECT_CALL(mockListener, onTransferFinish)
+        .WillOnce(
+            [&fileNodeHandlePromise](MegaApi*, MegaTransfer* transfer, MegaError*)
+            {
+                LOG_debug << "onTransferFinish called for node handle: "
+                          << transfer->getNodeHandle();
+                if (transfer)
+                    fileNodeHandlePromise.set_value(transfer->getNodeHandle());
+                else
+                    fileNodeHandlePromise.set_value(UNDEF);
+            });
+
+    auto server = scopedHttpServer(megaApi[0].get());
+    ASSERT_TRUE(server);
+
+    megaApi[0]->httpServerAddListener(&mockListener);
+    // Upload test file to trigger transfer events
+    const std::string testFileName = "http_server_listener_test.txt";
+    const std::string testFileContents = "HTTP server listener test file content";
+
+    auto fileNode = uploadFile(0, testFileName, testFileContents);
+    ASSERT_TRUE(fileNode);
+
+    // get local link to trigger the transfer
+    unique_ptr<char[]> fileLocalLink(megaApi[0]->httpServerGetLocalLink(fileNode.get()));
+    ASSERT_TRUE(fileLocalLink);
+    string fileLinkStr(fileLocalLink.get());
+    CASE_info << "Local file link: " << fileLinkStr;
+    auto response = HttpClient::get(fileLinkStr);
+    EXPECT_EQ(200, response.statusCode);
+
+    // Wait for OnTransferFinish callback
+    auto fileNodeHandle = fileNodeHandlePromise.get_future();
+    ASSERT_EQ(fileNodeHandle.wait_for(std::chrono::seconds(5U)), std::future_status::ready)
+        << "Timeout waiting for onTransferFinish callback";
+    EXPECT_EQ(fileNode->getHandle(), fileNodeHandle.get());
+
+    megaApi[0]->httpServerRemoveListener(&mockListener);
+    CASE_info << "finished";
+}
+
 /**
  * Test basic HTTP server functionality with GET request.
  */
@@ -230,8 +638,7 @@ TEST_F(SdkHttpServerTest, BasicGet)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "HTTP server basic test content";
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_basic.txt", testFileContent});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_basic.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -256,8 +663,7 @@ TEST_F(SdkHttpServerTest, HeadRequest)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "HTTP server HEAD test content";
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_head.txt", testFileContent});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_head.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -270,8 +676,8 @@ TEST_F(SdkHttpServerTest, HeadRequest)
     auto response = HttpClient::head(url);
     EXPECT_EQ(200, response.statusCode);
     EXPECT_TRUE(response.body.empty());
-    EXPECT_NE(response.headers.find("Content-Length"), std::string::npos);
-    EXPECT_NE(response.headers.find(std::to_string(testFileContent.size())), std::string::npos);
+    ASSERT_TRUE(response.headers.find("content-length") != response.headers.end());
+    EXPECT_EQ(response.headers["content-length"], std::to_string(testFileContent.size()));
 }
 
 /**
@@ -284,8 +690,7 @@ TEST_F(SdkHttpServerTest, ValidRangeRequests)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_range.txt", testFileContent});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_range.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -378,7 +783,7 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
 
     std::string testFileContent = randomBytes(50 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_large_range.bin", testFileContent});
+        uploadFile(0, "test_http_large_range.bin", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -392,33 +797,34 @@ TEST_F(SdkHttpServerTest, VeryLargeRangeRequests)
     auto fileSize = testFileContent.size();
     auto largeRange = HttpClient::get(url, "0-" + std::to_string(fileSize - 1));
     EXPECT_EQ(200, largeRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent, largeRange.body);
+    EXPECT_TRUE(testFileContent == largeRange.body);
 
     // Middle range: from 25% to 50%, end is inclusive
     auto begin = fileSize / 4;
     auto end = fileSize / 2;
     auto midRange = HttpClient::get(url, std::to_string(begin) + "-" + std::to_string(end));
     EXPECT_EQ(206, midRange.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + begin, end - begin + 1), midRange.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + begin, end - begin + 1) == midRange.body);
 
     // Suffix range: last 10MB (bytes=-10485760)
     auto suffixRange = HttpClient::get(url, "-10485760");
     EXPECT_EQ(200, suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange.body); // BUG: Server returns full file instead of last 10MB
+    EXPECT_TRUE(testFileContent ==
+                suffixRange.body); // BUG: Server returns full file instead of last 10MB
 
     // Suffix range: last 25% of file
     auto suffixRange2 = HttpClient::get(url, "-" + std::to_string(fileSize / 4));
     EXPECT_EQ(200, suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange2.body); // BUG: Server returns full file instead of last 25%
+    EXPECT_TRUE(testFileContent ==
+                suffixRange2.body); // BUG: Server returns full file instead of last 25%
 
     // Range from 75% to end
     begin = fileSize * 3 / 4;
     end = testFileContent.size() - 1;
     auto rangeToEnd = HttpClient::get(url, std::to_string(begin) + "-");
     EXPECT_EQ(206, rangeToEnd.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + begin, end - begin + 1), rangeToEnd.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + begin, end - begin + 1) ==
+                rangeToEnd.body);
 }
 
 /**
@@ -432,7 +838,7 @@ TEST_F(SdkHttpServerTest, InvalidRangeRequests)
 
     std::string testFileContent = "Test content";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_invalid_range.txt", testFileContent});
+        uploadFile(0, "test_http_invalid_range.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -488,8 +894,7 @@ TEST_F(SdkHttpServerTest, EmptyFile)
     MegaApi* api = megaApi[0].get();
 
     // Upload empty file
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_empty.txt", ""});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_empty.txt", "");
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -503,14 +908,14 @@ TEST_F(SdkHttpServerTest, EmptyFile)
     auto response = HttpClient::get(url);
     EXPECT_EQ(200, response.statusCode);
     EXPECT_TRUE(response.body.empty());
-    EXPECT_NE(response.headers.find("Content-Length"), std::string::npos);
-    EXPECT_NE(response.headers.find("Content-Length: 0"), std::string::npos);
+    EXPECT_TRUE(response.headers.find("content-length") != response.headers.end());
+    EXPECT_EQ("0", response.headers["content-length"]);
 
     // HEAD request for empty file
     auto headResponse = HttpClient::head(url);
     EXPECT_EQ(200, headResponse.statusCode);
     EXPECT_TRUE(headResponse.body.empty());
-    EXPECT_NE(headResponse.headers.find("Content-Length"), std::string::npos);
+    EXPECT_TRUE(headResponse.headers.find("content-length") != headResponse.headers.end());
 
     // Range requests for empty file
     auto rangeResponse1 = HttpClient::get(url, "0-0");
@@ -536,8 +941,7 @@ TEST_F(SdkHttpServerTest, LargeFile)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = randomBytes(10 * 1024 * 1024);
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_large.bin", testFileContent});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_large.bin", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -550,41 +954,43 @@ TEST_F(SdkHttpServerTest, LargeFile)
     // Full file GET request
     auto response = HttpClient::get(url);
     EXPECT_EQ(200, response.statusCode);
-    EXPECT_EQ(testFileContent, response.body);
+    EXPECT_TRUE(testFileContent == response.body);
 
     // Standard range: first 1MB
     auto rangeResponse = HttpClient::get(url, "0-1048575");
     EXPECT_EQ(206, rangeResponse.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data(), 1048575u + 1), rangeResponse.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data(), 1048575u + 1) == rangeResponse.body);
 
     // Standard range: second 1MB
     auto rangeResponse2 = HttpClient::get(url, "1048576-2097151");
     EXPECT_EQ(206, rangeResponse2.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + 1048576, 2097151u - 1048576u + 1),
-              rangeResponse2.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + 1048576, 2097151u - 1048576u + 1) ==
+                rangeResponse2.body);
 
     // Suffix range: last 1MB (bytes=-1048576)
     auto suffixRange = HttpClient::get(url, "-1048576");
-    EXPECT_EQ(200, suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange.body); // BUG: Server returns full file instead of last 1MB
+    EXPECT_EQ(200,
+              suffixRange.statusCode); // BUG: HTTP protocol expects 206 Partial Content
+    EXPECT_TRUE(testFileContent ==
+                suffixRange.body); // BUG: Server returns full file instead of last 1MB
 
     // Suffix range: last 512KB
     auto suffixRange2 = HttpClient::get(url, "-524288");
-    EXPECT_EQ(200, suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-    EXPECT_EQ(testFileContent,
-              suffixRange2.body); // BUG: Server returns full file instead of last 512KB
+    EXPECT_EQ(200,
+              suffixRange2.statusCode); // BUG: HTTP protocol expects 206 Partial Content
+    EXPECT_TRUE(testFileContent ==
+                suffixRange2.body); // BUG: Server returns full file instead of last 512KB
 
     // Range from middle to near end
     auto midRange = HttpClient::get(url, "5242880-6291455");
     EXPECT_EQ(206, midRange.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data() + 5242880, 6291455u - 5242880u + 1),
-              midRange.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data() + 5242880, 6291455u - 5242880u + 1) ==
+                midRange.body);
 
     // Small range from beginning
     auto smallRange = HttpClient::get(url, "0-1023");
     EXPECT_EQ(206, smallRange.statusCode);
-    EXPECT_EQ(std::string_view(testFileContent.data(), 1023u + 1), smallRange.body);
+    EXPECT_TRUE(std::string_view(testFileContent.data(), 1023u + 1) == smallRange.body);
 }
 
 /**
@@ -598,7 +1004,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
 
     std::string testFileContent = randomBytes(100 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_concurrent.txt", testFileContent});
+        uploadFile(0, "test_http_concurrent.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -624,7 +1030,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRequests)
     {
         auto response = futures[i].get();
         EXPECT_EQ(200, response.statusCode);
-        EXPECT_EQ(testFileContent, response.body);
+        EXPECT_TRUE(testFileContent == response.body);
     }
 }
 
@@ -640,7 +1046,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
 
     std::string testFileContent = randomBytes(2 * 1024 * 1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_concurrent_range.bin", testFileContent});
+        uploadFile(0, "test_http_concurrent_range.bin", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -673,7 +1079,7 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
         auto response = futures[i].get();
         EXPECT_EQ(206, response.statusCode);
         size_t start = i * INTERVAL;
-        EXPECT_EQ(std::string_view(testFileContent.data() + start, LENGTH), response.body);
+        EXPECT_TRUE(std::string_view(testFileContent.data() + start, LENGTH) == response.body);
     }
 
     futures.clear();
@@ -689,8 +1095,8 @@ TEST_F(SdkHttpServerTest, ConcurrentRangeRequests)
             {
                 auto resp = HttpClient::get(url, range);
                 EXPECT_EQ(200, resp.statusCode); // BUG: HTTP protocol expects 206 Partial Content
-                EXPECT_EQ(testFileContent,
-                          resp.body); // BUG: Server returns full file instead of last N bytes
+                EXPECT_TRUE(testFileContent ==
+                            resp.body); // BUG: Server returns full file instead of last N bytes
                 return resp;
             }));
     }
@@ -712,7 +1118,7 @@ TEST_F(SdkHttpServerTest, Restart)
 
     std::string testFileContent = "HTTP server restart test";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_restart.txt", testFileContent});
+        uploadFile(0, "test_http_restart.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     for (int cycle = 0; cycle < 10; cycle++)
@@ -770,7 +1176,7 @@ TEST_F(SdkHttpServerTest, UnsupportedMethods)
 
     std::string testFileContent = "HTTP methods test";
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_methods.txt", testFileContent});
+        uploadFile(0, "test_http_methods.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -802,8 +1208,7 @@ TEST_F(SdkHttpServerTest, RapidRequests)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = randomBytes(1024);
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_rapid.txt", testFileContent});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_rapid.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -857,7 +1262,7 @@ TEST_F(SdkHttpServerTest, SpecialCharactersInFilename)
     std::vector<std::unique_ptr<MegaNode>> uploadedNodes;
     for (const auto& fileName: testFiles)
     {
-        std::unique_ptr<MegaNode> uploadedNode = uploadFile(api, LocalTempFile{fileName, fileName});
+        std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, fileName, fileName);
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
@@ -889,14 +1294,12 @@ TEST_F(SdkHttpServerTest, DifferentFileSizes)
 
     // Test 1-byte file
     std::string testFileContent1 = "A";
-    std::unique_ptr<MegaNode> uploadedNode1 =
-        uploadFile(api, LocalTempFile{"test_1byte.tx", testFileContent1});
+    std::unique_ptr<MegaNode> uploadedNode1 = uploadFile(0, "test_1byte.tx", testFileContent1);
     ASSERT_NE(uploadedNode1, nullptr);
 
     // Test 2-byte file
     std::string testFileContent2 = "AB";
-    std::unique_ptr<MegaNode> uploadedNode2 =
-        uploadFile(api, LocalTempFile{"test_2byte.tx", testFileContent2});
+    std::unique_ptr<MegaNode> uploadedNode2 = uploadFile(0, "test_2byte.tx", testFileContent2);
     ASSERT_NE(uploadedNode2, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -953,8 +1356,7 @@ TEST_F(SdkHttpServerTest, VeryLongUrl)
     MegaApi* api = megaApi[0].get();
 
     std::string testFileContent = "Test content";
-    std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_long.txt", testFileContent});
+    std::unique_ptr<MegaNode> uploadedNode = uploadFile(0, "test_http_long.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1000,7 +1402,7 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     std::string testFileContent = randomBytes(1024);
     std::unique_ptr<MegaNode> uploadedNode =
-        uploadFile(api, LocalTempFile{"test_http_connection.txt", testFileContent});
+        uploadFile(0, "test_http_connection.txt", testFileContent);
     ASSERT_NE(uploadedNode, nullptr);
 
     auto server = scopedHttpServer(api);
@@ -1015,7 +1417,7 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
     {
         auto response = HttpClient::get(url);
         EXPECT_EQ(200, response.statusCode);
-        EXPECT_EQ(testFileContent, response.body);
+        EXPECT_TRUE(testFileContent == response.body);
     }
 
     // Test HEAD followed by GET
@@ -1024,16 +1426,16 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
 
     auto getResponse = HttpClient::get(url);
     EXPECT_EQ(200, getResponse.statusCode);
-    EXPECT_EQ(testFileContent, getResponse.body);
+    EXPECT_TRUE(testFileContent == getResponse.body);
 
     // Test range request followed by full request
     auto rangeResponse = HttpClient::get(url, "0-99");
     EXPECT_EQ(206, rangeResponse.statusCode);
-    EXPECT_EQ(100, rangeResponse.body.size());
+    EXPECT_TRUE(100 == rangeResponse.body.size());
 
     auto fullResponse = HttpClient::get(url);
     EXPECT_EQ(200, fullResponse.statusCode);
-    EXPECT_EQ(testFileContent, fullResponse.body);
+    EXPECT_TRUE(testFileContent == fullResponse.body);
 }
 
 /**
@@ -1045,13 +1447,8 @@ TEST_F(SdkHttpServerTest, FolderEmpty)
 
     MegaApi* api = megaApi[0].get();
 
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
     // Create empty folder
-    MegaHandle folderHandle = createFolder(0, "test_http_folder_empty", rootNode.get());
-    ASSERT_NE(folderHandle, INVALID_HANDLE);
-    std::unique_ptr<MegaNode> folderNode(api->getNodeByHandle(folderHandle));
+    auto folderNode = createFolder(0, "test_http_folder_empty");
     ASSERT_NE(folderNode, nullptr);
 
     // Enable folder server support
@@ -1083,13 +1480,8 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
 
     MegaApi* api = megaApi[0].get();
 
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
     // Create folder
-    MegaHandle folderHandle = createFolder(0, "test_http_folder_files", rootNode.get());
-    ASSERT_NE(folderHandle, INVALID_HANDLE);
-    std::unique_ptr<MegaNode> folderNode(api->getNodeByHandle(folderHandle));
+    auto folderNode = createFolder(0, "test_http_folder_files");
     ASSERT_NE(folderNode, nullptr);
 
     // Upload files to folder
@@ -1106,7 +1498,7 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     for (const auto& fileName: testFiles)
     {
         std::unique_ptr<MegaNode> uploadedNode =
-            uploadFile(api, LocalTempFile{fileName, fileName}, folderNode.get());
+            uploadFile(0, fileName, fileName, folderNode.get());
         ASSERT_NE(uploadedNode, nullptr);
         uploadedNodes.push_back(std::move(uploadedNode));
     }
@@ -1137,36 +1529,4 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     auto headResponse = HttpClient::head(url);
     EXPECT_EQ(200, headResponse.statusCode);
 }
-
-/**
- * Test HTTP server with folder server disabled.
- */
-TEST_F(SdkHttpServerTest, FolderDisabled)
-{
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-
-    MegaApi* api = megaApi[0].get();
-
-    std::unique_ptr<MegaNode> rootNode(api->getRootNode());
-    ASSERT_NE(rootNode, nullptr);
-
-    // Create folder
-    MegaHandle folderHandle = createFolder(0, "test_http_folder_disabled", rootNode.get());
-    ASSERT_NE(folderHandle, INVALID_HANDLE);
-    std::unique_ptr<MegaNode> folderNode(api->getNodeByHandle(folderHandle));
-    ASSERT_NE(folderNode, nullptr);
-
-    // Ensure folder server is disabled (default)
-    api->httpServerEnableFolderServer(false);
-    ASSERT_FALSE(api->httpServerIsFolderServerEnabled());
-
-    auto server = scopedHttpServer(api);
-    ASSERT_TRUE(server);
-
-    std::unique_ptr<char[]> link(api->httpServerGetLocalLink(folderNode.get()));
-    EXPECT_NE(link.get(), nullptr);
-
-    std::string url = link.get();
-    auto response = HttpClient::get(url);
-    EXPECT_EQ(403, response.statusCode);
 }
