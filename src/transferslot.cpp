@@ -234,7 +234,7 @@ TransferSlot::~TransferSlot()
 
             // Open the file in synchonous mode
             fa.reset(transfer->client->fsaccess->newfileaccess());
-            if (!fa->fopen(transfer->localfilename, false, true, FSLogging::logOnError))
+            if (!fa->fopen(transfer->localfilename, OPEN_WRONLY, FSLogging::logOnError))
             {
                 fa.reset();
             }

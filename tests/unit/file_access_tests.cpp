@@ -29,7 +29,7 @@ struct FileAccessTests: ::testing::Test
         auto logOnError = FSLogging::logOnError;
 
         // Make sure our test file is open for IO.
-        ASSERT_TRUE(mFileAccess->fopen(mFilePath, true, true, logOnError));
+        ASSERT_TRUE(mFileAccess->fopen(mFilePath, OPEN_RDWR, logOnError));
     }
 
     // How we interface with the local filesystem.

@@ -2819,7 +2819,7 @@ std::pair<node_comparison_result, int64_t>
     // IMPORTANT: we need to compare METAMACs even if entire Fingerprint Match (2 Items could differ
     // just in few bytes, and FPs could match but METAMAC differ)
     if (auto fa = client.fsaccess->newfileaccess();
-        fa && fa->fopen(path, true, false, FSLogging::logOnError) && fa->type == FILENODE)
+        fa && fa->fopen(path, OPEN_RDONLY, FSLogging::logOnError) && fa->type == FILENODE)
     {
         LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs BEGIN...";
         auto [areEqualMacs, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(),
@@ -3209,7 +3209,7 @@ error readDriveId(FileSystemAccess& fsAccess, const LocalPath& pathToDrive, hand
 
     auto fileAccess = fsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false, FSLogging::logExceptFileNotFound))
+    if (!fileAccess->fopen(path, OPEN_RDONLY, FSLogging::logExceptFileNotFound))
     {
         // This case is valid when only checking for file existence
         return API_ENOENT;
@@ -3243,7 +3243,7 @@ error writeDriveId(FileSystemAccess& fsAccess, const char* pathToDrive, handle d
 
     // Open the file for writing
     auto fileAccess = fsAccess.newfileaccess(false);
-    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
+    if (!fileAccess->fopen(path, OPEN_WRONLY, FSLogging::logOnError))
     {
         LOG_err << "Unable to open file to write drive-id: " << path;
         return API_EWRITE;
@@ -4061,8 +4061,7 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
 
             LOG_verbose << logPre << "Opening " << lpuc;
             bool opened1 = fa1->fopen(lpuc,
-                                      true,
-                                      false,
+                                      OPEN_RDONLY,
                                       FSLogging::logExceptFileNotFound,
                                       nullptr,
                                       false,
@@ -4074,8 +4073,7 @@ std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* f
 
             LOG_verbose << logPre << "Opening " << lplc;
             bool opened2 = fa2->fopen(lplc,
-                                      true,
-                                      false,
+                                      OPEN_RDONLY,
                                       FSLogging::logExceptFileNotFound,
                                       nullptr,
                                       false,

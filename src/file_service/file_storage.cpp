@@ -26,7 +26,7 @@ FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
         throw FSError1("Couldn't create file access instance");
 
     // Vulnerable to TOCTOU race.
-    if (file->isfile(path) != !mustCreate || !file->fopen(path, true, true, FSLogging::noLogging))
+    if (file->isfile(path) != !mustCreate || !file->fopen(path, OPEN_RDWR, FSLogging::noLogging))
         throw FSErrorF("Couldn't %s file: %s",
                        mustCreate ? "create" : "open",
                        path.toPath(false).c_str());

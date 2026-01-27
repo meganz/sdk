@@ -634,10 +634,15 @@ bool WinFileAccess::asyncavailable()
 
 void WinFileAccess::asyncsysopen(AsyncIOContext *context)
 {
-    bool read = context->access & AsyncIOContext::ACCESS_READ;
-    bool write = context->access & AsyncIOContext::ACCESS_WRITE;
-
-    context->failed = !fopen_impl(context->openPath, read, write, FSLogging::logOnError, true, nullptr, false, false, nullptr);
+    const auto flag = AsyncIOContext::toOpenFlag(context->access);
+    context->failed = !fopen_impl(context->openPath,
+                                  flag,
+                                  FSLogging::logOnError,
+                                  true,
+                                  nullptr,
+                                  false,
+                                  false,
+                                  nullptr);
     context->retry = retry;
     context->finished = true;
     if (context->userCallback)
@@ -761,12 +766,16 @@ bool WinFileAccess::skipattributes(DWORD dwAttributes)
 // CreateFile() operation without first looking at the attributes?
 // FIXME #2: How to convert a CreateFile()-opened directory directly to a hFind
 // without doing a FindFirstFile()?
-bool WinFileAccess::fopen(const LocalPath& name, bool read, bool write, FSLogging fsl,
-                          DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent)
+bool WinFileAccess::fopen(const LocalPath& name,
+                          OpenFlag flag,
+                          FSLogging fsl,
+                          DirAccess* iteratingDir,
+                          bool ignoreAttributes,
+                          bool skipcasecheck,
+                          LocalPath* actualLeafNameIfDifferent)
 {
     fopenSucceeded = fopen_impl(name,
-                                read,
-                                write,
+                                flag,
                                 fsl,
                                 false,
                                 iteratingDir,
@@ -781,13 +790,12 @@ bool WinFileAccess::fopenForMacRead(const LocalPath& path, FSLogging fsl)
 {
     // Open with FILE_SHARE_DELETE to allow the file to be moved/deleted while we're computing MAC
     fopenSucceeded =
-        fopen_impl(path, true, false, fsl, false, nullptr, false, false, nullptr, true);
+        fopen_impl(path, OpenFlag::OPEN_RDONLY, fsl, false, nullptr, false, false, nullptr, true);
     return fopenSucceeded;
 }
 
 bool WinFileAccess::fopen_impl(const LocalPath& namePath,
-                               bool read,
-                               bool write,
+                               OpenFlag flag,
                                FSLogging fsl,
                                bool async,
                                DirAccess* iteratingDir,
@@ -800,6 +808,8 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath,
     assert(hFile == INVALID_HANDLE_VALUE);
     BY_HANDLE_FILE_INFORMATION bhfi = { 0 };
 
+    const bool read = openRead(flag);
+    const bool write = openWrite(flag);
     if (write)
     {
         type = FILENODE;
@@ -2264,7 +2274,7 @@ ScanResult WinFileSystemAccess::directoryScan(const LocalPath& path,
                         LocalPath p = path;
                         p.appendWithSeparator(result.localname, false);
                         auto fa = newfileaccess();
-                        if (fa->fopen(p, true, false, FSLogging::logOnError))
+                        if (fa->fopen(p, OPEN_RDONLY, FSLogging::logOnError))
                         {
                             result.fingerprint.genfingerprint(fa.get());
                             nFingerprinted += 1;

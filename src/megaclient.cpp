@@ -238,7 +238,7 @@ bool MegaClient::JourneyID::loadValuesFromCache()
         return false;
     }
     auto fileAccess = mClientFsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, true, false, FSLogging::logOnError);
+    bool success = fileAccess->fopen(mCacheFilePath, OPEN_RDONLY, FSLogging::logOnError);
     if (success)
     {
         string cachedJidValue, cachedTrackValue;
@@ -295,7 +295,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
         return false;
     }
     auto fileAccess = mClientFsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, false, true, FSLogging::logOnError);
+    bool success = fileAccess->fopen(mCacheFilePath, OPEN_WRONLY, FSLogging::logOnError);
     if (success)
     {
         if (storeJidValue)
@@ -4429,9 +4429,11 @@ void MegaClient::dispatchTransfers()
                     LOG_debug << "Sync open: "
                               << nexttransfer->localfilename;
 
-                    openok = (nexttransfer->type == PUT)
-                        ? ts->fa->fopen(nexttransfer->localfilename, FSLogging::logOnError)
-                        : ts->fa->fopen(nexttransfer->localfilename, false, true, FSLogging::logOnError);
+                    openok = (nexttransfer->type == PUT) ?
+                                 ts->fa->fopen(nexttransfer->localfilename, FSLogging::logOnError) :
+                                 ts->fa->fopen(nexttransfer->localfilename,
+                                               OPEN_WRONLY,
+                                               FSLogging::logOnError);
                     openfinished = true;
                 }
 
@@ -17777,8 +17779,7 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
     if (!openedLocalFolder->fopen(rootPathWithoutEndingSeparator,
-                                  true,
-                                  false,
+                                  OPEN_RDONLY,
                                   FSLogging::logOnError,
                                   nullptr,
                                   reparsePointOkAtRoot,
@@ -18739,7 +18740,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(f->getLocalname(), d == PUT, d == GET, FSLogging::logOnError))
+                if (fa->fopen(f->getLocalname(), OPEN_RDONLY, FSLogging::logOnError))
                 {
                     f->genfingerprint(fa.get());
                 }
@@ -19376,7 +19377,7 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1,
 
     FileFingerprint fp;
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(file2, true, false, FSLogging::logOnError))
+    if (fa->fopen(file2, OPEN_RDONLY, FSLogging::logOnError))
     {
 
         if (!fp.genfingerprint(fa.get())) return false;

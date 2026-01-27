@@ -543,7 +543,9 @@ bool AndroidFileWrapper::deleteEmptyFolder()
     return env->CallBooleanMethod(mJavaObject->mObj, methodID);
 }
 
-bool AndroidFileWrapper::rename(const std::string& newName)
+bool AndroidFileWrapper::rename(const std::string& parentPath,
+                                const std::string& newName,
+                                bool overwrite)
 {
     if (!exists())
     {
@@ -552,10 +554,10 @@ bool AndroidFileWrapper::rename(const std::string& newName)
 
     JNIEnv* env{nullptr};
     MEGAjvm->AttachCurrentThread(&env, NULL);
-    jmethodID methodID =
-        env->GetMethodID(fileWrapper,
-                         RENAME,
-                         "(Ljava/lang/String;)Lmega/privacy/android/data/filewrapper/FileWrapper;");
+    jmethodID methodID = env->GetMethodID(fileWrapper,
+                                          RENAME_OVERRIDE,
+                                          "(Ljava/lang/String;Ljava/lang/String;Z)Lmega/privacy/"
+                                          "android/data/filewrapper/FileWrapper;");
     if (!methodID)
     {
         env->ExceptionDescribe();
@@ -564,9 +566,12 @@ bool AndroidFileWrapper::rename(const std::string& newName)
         return false;
     }
 
+    jstring jPathName = env->NewStringUTF(parentPath.c_str());
     jstring jnewName = env->NewStringUTF(newName.c_str());
-    jobject temporalObject = env->CallObjectMethod(mJavaObject->mObj, methodID, jnewName);
+    jobject temporalObject =
+        env->CallObjectMethod(mJavaObject->mObj, methodID, jPathName, jnewName, overwrite);
     env->DeleteLocalRef(jnewName);
+    env->DeleteLocalRef(jPathName);
     if (temporalObject != nullptr)
     {
         env->DeleteGlobalRef(mJavaObject->mObj);
@@ -824,8 +829,7 @@ std::optional<string_type> AndroidPlatformURIHelper::getURI(const string_type& u
 }
 
 bool AndroidFileAccess::fopen(const LocalPath& f,
-                              bool,
-                              bool write,
+                              OpenFlag flag,
                               FSLogging,
                               DirAccess*,
                               bool,
@@ -836,6 +840,7 @@ bool AndroidFileAccess::fopen(const LocalPath& f,
     retry = false;
     assert(!mFileWrapper);
 
+    const bool write = openWrite(flag);
     mFileWrapper = AndroidFileWrapper::getAndroidFileWrapper(f, write, false);
     if (!mFileWrapper)
     {
@@ -1325,11 +1330,15 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
 
         if (oldname.parentPath() == newname.parentPath())
         {
-            return oldNameWrapper->rename(newname.leafName().toPath(false));
+            auto parentPath = newname.parentPath().toPath(false);
+            bool success =
+                oldNameWrapper->rename(parentPath, newname.leafName().toPath(false), overwrite);
+            target_exists = !overwrite && !success;
+            return success;
         }
         else
         {
-            if (copy(oldname, newname))
+            if (copy(oldname, newname, overwrite))
             {
                 if (oldNameWrapper->isFolder())
                 {
@@ -1355,7 +1364,7 @@ bool AndroidFileSystemAccess::copylocal(const LocalPath& oldname,
 {
     if (oldname.isURI() || newname.isURI())
     {
-        if (!copy(oldname, newname))
+        if (!copy(oldname, newname, true))
         {
             return false;
         }
@@ -1624,7 +1633,7 @@ ScanResult AndroidFileSystemAccess::directoryScan(const LocalPath& targetPath,
 
         AndroidFileAccess fAccess(nullptr);
         fAccess.updatelocalname(newpath, true);
-        bool validOpen = fAccess.fopen(newpath, false, false, FSLogging::logOnError);
+        bool validOpen = fAccess.fopen(newpath, OPEN_RDONLY, FSLogging::logOnError);
 
         // Only fingerprint the file if we could actually open it.
         if (!validOpen)
@@ -1719,7 +1728,9 @@ LocalPath AndroidFileSystemAccess::getStandartPath(const LocalPath& localPath) c
     return LocalPath{};
 }
 
-bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& newname)
+bool AndroidFileSystemAccess::copy(const LocalPath& oldname,
+                                   const LocalPath& newname,
+                                   bool overwrite)
 {
     auto androidfileWrapper{AndroidFileWrapper::getAndroidFileWrapper(oldname, false, false)};
 
@@ -1740,7 +1751,7 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
                 LocalPath childOldPath{oldname};
                 childOldPath.appendWithSeparator(LocalPath::fromRelativePath(child->getName()),
                                                  false);
-                copy(childOldPath, childNewPath);
+                copy(childOldPath, childNewPath, overwrite);
             }
         }
 
@@ -1748,9 +1759,32 @@ bool AndroidFileSystemAccess::copy(const LocalPath& oldname, const LocalPath& ne
     }
 
     unique_ptr<FileAccess> oldFile{newfileaccess()};
+    if (!oldFile->fopen(oldname, OPEN_RDONLY, FSLogging::logOnError))
+    {
+        LOG_warn << "Unable to open source file, copy failed";
+        return false;
+    }
+
+    // Check if destination exists if overwrite is false
+    if (!overwrite)
+    {
+        if (auto exitingFileWrapper =
+                AndroidFileWrapper::getAndroidFileWrapper(newname, false, false);
+            exitingFileWrapper && exitingFileWrapper->exists())
+        {
+            target_exists = true;
+            LOG_info << "Destination file already exists and overwrite is false";
+            return false;
+        }
+    }
+
     unique_ptr<FileAccess> newFile{newfileaccess()};
-    if (oldFile->fopen(oldname, true, false, FSLogging::logOnError) &&
-        newFile->fopen(newname, true, true, FSLogging::logOnError))
+    if (!newFile->fopen(newname, OPEN_RDWR, FSLogging::logOnError))
+    {
+        LOG_warn << "Unable to open target file, copy failed";
+        return false;
+    }
+
     {
         constexpr uint32_t BUFFER_SIZE{16384};
         unsigned char buffer[BUFFER_SIZE];

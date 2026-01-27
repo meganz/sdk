@@ -684,7 +684,7 @@ TEST_F(SqliteDBTest, ProbeCurrent)
                                 DbAccess::DB_VERSION);
 
         auto fileAccess = fsAccess.newfileaccess(false);
-        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true, FSLogging::logOnError));
+        EXPECT_TRUE(fileAccess->fopen(dbFile, OPEN_WRONLY, FSLogging::logOnError));
     }
 
     EXPECT_TRUE(dbAccess.probe(fsAccess, name));
@@ -702,7 +702,7 @@ TEST_F(SqliteDBTest, ProbeLegacy)
                                 DbAccess::LEGACY_DB_VERSION);
 
         auto fileAccess = fsAccess.newfileaccess(false);
-        EXPECT_TRUE(fileAccess->fopen(dbFile, false, true, FSLogging::logOnError));
+        EXPECT_TRUE(fileAccess->fopen(dbFile, OPEN_WRONLY, FSLogging::logOnError));
     }
 
     EXPECT_TRUE(dbAccess.probe(fsAccess, name));
@@ -1031,8 +1031,8 @@ public:
 
         auto fileAccess = mFsAccess.newfileaccess(false);
 
-        return fileAccess->fopen(path, false, true, FSLogging::logOnError)
-               && fileAccess->fwrite(&data, 1, 0);
+        return fileAccess->fopen(path, OPEN_WRONLY, FSLogging::logOnError) &&
+               fileAccess->fwrite(&data, 1, 0);
     }
 
     void SetUp() override
@@ -1834,7 +1834,7 @@ TEST_F(FileAccessTest, OpenForReadWriteSucceeds)
     ASSERT_TRUE(fileAccess);
 
     // Opening for reading and writing should create a new file if necessary.
-    EXPECT_TRUE(fileAccess->fopen(mName, true, true, NO_LOGGING));
+    EXPECT_TRUE(fileAccess->fopen(mName, OPEN_RDWR, NO_LOGGING));
 }
 
 TEST_F(FileAccessTest, OpenEquivalence)
@@ -1847,10 +1847,10 @@ TEST_F(FileAccessTest, OpenEquivalence)
     ASSERT_TRUE(fileAccess1);
 
     // Create a new file.
-    ASSERT_TRUE(fileAccess0->fopen(mName, true, true, NO_LOGGING));
+    ASSERT_TRUE(fileAccess0->fopen(mName, OPEN_RDWR, NO_LOGGING));
 
     // Open an existing file.
-    EXPECT_TRUE(fileAccess1->fopen(mName, true, true, NO_LOGGING));
+    EXPECT_TRUE(fileAccess1->fopen(mName, OPEN_RDWR, NO_LOGGING));
 
     // Convenience.
     auto& lhs = *fileAccess0;

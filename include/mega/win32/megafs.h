@@ -174,11 +174,16 @@ public:
     HANDLE hFind;
     WIN32_FIND_DATAW ffd;
 
-    bool fopen(const LocalPath&, bool read, bool write, FSLogging,
-               DirAccess* iteratingDir, bool ignoreAttributes, bool skipcasecheck, LocalPath* actualLeafNameIfDifferent) override;
+    bool fopen(const LocalPath&,
+               OpenFlag flag,
+               FSLogging,
+               DirAccess* iteratingDir,
+               bool ignoreAttributes,
+               bool skipcasecheck,
+               LocalPath* actualLeafNameIfDifferent) override;
+
     bool fopen_impl(const LocalPath&,
-                    bool read,
-                    bool write,
+                    OpenFlag flag,
                     FSLogging,
                     bool async,
                     DirAccess* iteratingDir,

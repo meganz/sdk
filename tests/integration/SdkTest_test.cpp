@@ -26,6 +26,7 @@
 #include "gtest_common.h"
 #include "integration_test_utils.h"
 #include "mega/account.h"
+#include "mega/filesystem.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
@@ -7113,7 +7114,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
-        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false, FSLogging::logOnError));
+        ASSERT_TRUE(fopen_directory->fopen(localdir, OPEN_RDONLY, FSLogging::logOnError));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa->newdiraccess());
@@ -7131,16 +7132,19 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
+                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError));
                 plain_fopen[leafNameUtf8] = *plain_fopen_fa;
 
-                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da.get()));
+                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath,
+                                                    OPEN_RDONLY,
+                                                    FSLogging::logOnError,
+                                                    da.get()));
                 iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
             }
         }
 
         std::unique_ptr<FileAccess> fopen_directory2(fsa->newfileaccess(true));  // true = follow symlinks
-        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false, FSLogging::logOnError));
+        ASSERT_TRUE(fopen_directory2->fopen(localdir, OPEN_RDONLY, FSLogging::logOnError));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da_follow(fsa->newdiraccess());
@@ -7158,10 +7162,14 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
+                ASSERT_TRUE(
+                    plain_follow_fopen_fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
 
-                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da_follow.get()));
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath,
+                                                           OPEN_RDONLY,
+                                                           FSLogging::logOnError,
+                                                           da_follow.get()));
                 iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
             }
         }
@@ -10074,7 +10082,7 @@ TEST_F(SdkTest, SdkTestStreaming)
 
     // Read three slices from disk
     std::unique_ptr<FileAccess> fa(fsAccess->newfileaccess(false));
-    ASSERT_TRUE(fa->fopen(localPath, true, false, FSLogging::logOnError))
+    ASSERT_TRUE(fa->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         << "Failed to open local file";
 
     std::string bufHead;
@@ -18443,20 +18451,20 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFile = [&filename](bool readF, bool writeF) -> bool
+    auto openFile = [&filename](OpenFlag flag) -> bool
     {
         auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
         LocalPath localfilePath = fspathToLocal(filePath);
 
         std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
-        return plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
+        return plain_fopen_fa->fopen(localfilePath, flag, FSLogging::logOnError);
     };
 
     // TEST 1: Control test. Default file permissions (0600).
     // Expected: successful download and successul file opening for reading and writing.
     ASSERT_EQ(API_OK, downloadFile());
-    ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
+    ASSERT_TRUE(openFile(OPEN_RDWR)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
     auto minimumPermissions = makeScopedMinimumPermissions(0700, 0400);
@@ -18466,13 +18474,13 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
         ASSERT_EQ(API_OK, downloadFile());
-        ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
+        ASSERT_TRUE(openFile(OPEN_RDONLY)) << "Couldn't open file for read";
 #ifdef _WIN32
         // Files should be able to be opened: posix file permissions don't have any effect on
         // Windows.
-        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFile(OPEN_RDWR)) << "Couldn't open files for read|write";
 #else
-        ASSERT_FALSE(openFile(true, true))
+        ASSERT_FALSE(openFile(OPEN_RDWR))
             << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
         deleteFile(filename.c_str());
@@ -18483,7 +18491,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0700);
         ASSERT_EQ(API_OK, downloadFile());
-        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFile(OPEN_RDWR)) << "Couldn't open files for read|write";
         deleteFile(filename.c_str());
     }
 }
@@ -18561,7 +18569,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFolderAndFiles = [this, &foldername, &nimported](bool readF, bool writeF) -> bool
+    auto openFolderAndFiles = [this, &foldername, &nimported](OpenFlag flag) -> bool
     {
         auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path dirPath = fs::current_path() / foldername.c_str();
@@ -18580,7 +18588,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                     fs::path filePath = dirPath / childrenList->get(childIndex)->getName();
                     auto localfilePath = fspathToLocal(filePath);
                     std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));
-                    openResult &= plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
+                    openResult &= plain_fopen_fa->fopen(localfilePath, flag, FSLogging::logOnError);
                 }
             }
         }
@@ -18590,7 +18598,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     // TEST 1. Control test. Default folder permissions. Default file permissions.
     // Expected a successful download and no issues when accessing the folder.
     ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+    ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
 
     auto minimumPermissions = makeScopedMinimumPermissions(0400, 0400);
@@ -18604,15 +18612,15 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
         // Folder and files should be able to be opened: posix file/folder permissions don't have
         // any effect on Windows.
         ASSERT_EQ(API_OK, downloadFolder());
-        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
-        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDONLY)) << "Couldn't open files for read";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
 #else
         ASSERT_EQ(API_EINCOMPLETE, downloadFolder())
             << "Download should have failed as there are not enough permissions to write in the "
                "folder";
-        ASSERT_FALSE(openFolderAndFiles(true, false))
+        ASSERT_FALSE(openFolderAndFiles(OPEN_RDONLY))
             << "Could open files for read, while it shouldn't due to permissions";
-        ASSERT_FALSE(openFolderAndFiles(true, true))
+        ASSERT_FALSE(openFolderAndFiles(OPEN_RDWR))
             << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
         deleteFolder(foldername.c_str());
@@ -18624,11 +18632,11 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
         ASSERT_EQ(API_OK, downloadFolder());
-        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDONLY)) << "Couldn't open files for read";
 #ifdef _WIN32
-        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
 #else
-        ASSERT_FALSE(openFolderAndFiles(true, true))
+        ASSERT_FALSE(openFolderAndFiles(OPEN_RDWR))
             << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
         deleteFolder(foldername.c_str());
@@ -18640,7 +18648,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0600);
         ASSERT_EQ(API_OK, downloadFolder());
-        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
         deleteFolder(foldername.c_str());
     }
 }

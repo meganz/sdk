@@ -34,8 +34,7 @@ public:
     {}
 
     virtual bool fopen(const ::mega::LocalPath&,
-                       bool,
-                       bool,
+                       ::mega::OpenFlag,
                        FSLogging,
                        ::mega::DirAccess* = nullptr,
                        bool = false,

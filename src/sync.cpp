@@ -760,8 +760,14 @@ Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
 
-    if (!fas->fopen(mLocalPath, true, false, FSLogging::logOnError, nullptr, reparsePointOkAtRoot, true, nullptr)
-        || fas->fsid == UNDEF)
+    if (!fas->fopen(mLocalPath,
+                    OPEN_RDONLY,
+                    FSLogging::logOnError,
+                    nullptr,
+                    reparsePointOkAtRoot,
+                    true,
+                    nullptr) ||
+        fas->fsid == UNDEF)
     {
         LOG_err << "Could not open sync root folder, could not get its fsid: " << mLocalPath;
         e = UNABLE_TO_RETRIEVE_ROOT_FSID;
@@ -1173,7 +1179,7 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
         {
             // delete the database file directly since we don't have an object for it
             auto fas = syncs.fsaccess->newfileaccess(false);
-            if (fas->fopen(mConfig.mLocalPath, true, false, FSLogging::logOnError))
+            if (fas->fopen(mConfig.mLocalPath, OPEN_RDONLY, FSLogging::logOnError))
             {
                 string dbname = mConfig.getSyncDbStateCacheName(fas->fsid, mConfig.mRemoteNode, syncs.mClient.me);
 
@@ -1270,8 +1276,7 @@ SyncError UnifiedSync::changeConfigLocalRoot(const LocalPath& newPath)
     // we do allow, eg. mounting an exFAT drive over an NTFS folder and making a sync at that path
     const bool reparsePointOkAtRoot = true;
     if (!fas->fopen(newPath,
-                    true,
-                    false,
+                    OPEN_RDONLY,
                     FSLogging::logOnError,
                     nullptr,
                     reparsePointOkAtRoot,
@@ -1448,7 +1453,7 @@ void Sync::createDebrisTmpLockOnce()
             LocalPath lockname = LocalPath::fromRelativePath("lock");
             localfilename.appendWithSeparator(lockname, true);
 
-            if (tmpfa->fopen(localfilename, false, true, FSLogging::logOnError))
+            if (tmpfa->fopen(localfilename, OPEN_WRONLY, FSLogging::logOnError))
             {
                 LOG_verbose << syncname << "Locked local sync debris tmp lock file";
                 break;
@@ -2812,7 +2817,7 @@ bool debug_confirm_getfsid(const LocalPath& p, FileSystemAccess& fsa, handle exp
 {
     auto fa = fsa.newfileaccess();
     LocalPath lp = p;
-    if (fa->fopen(lp, true, false, FSLogging::logOnError, nullptr, false))
+    if (fa->fopen(lp, OPEN_RDONLY, FSLogging::logOnError, nullptr, false))
     {
         return fa->fsid == expectedFsid;
     }
@@ -4091,7 +4096,7 @@ void Syncs::confirmOrCreateDefaultMegaignore(unique_ptr<DefaultFilterChain>& res
         // the absolute paths which might be relevant for a particular sync
         resultIfMegaignoreDefault.reset(new string_vector);
         auto fa = fsaccess->newfileaccess(false);
-        if (fa->fopen(defaultpath, true, false, FSLogging::logOnError))
+        if (fa->fopen(defaultpath, OPEN_RDONLY, FSLogging::logOnError))
         {
             if (readLines(*fa, *resultIfMegaignoreDefault))
             {
@@ -4300,7 +4305,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
             filePath.appendWithSeparator(IGNORE_FILE_NAME, false);
             auto fa = fsaccess->newfileaccess(false);
             writeMegaignoreFailed = true;
-            if (fa->fopen(filePath, false, true, FSLogging::logOnError))
+            if (fa->fopen(filePath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 if (fa->fwrite((const byte*)wholefile.data(), (unsigned)wholefile.size(), 0))
                 {
@@ -5604,7 +5609,7 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                 {
                     // backward compatibilty for when we didn't store the fsid in serialized config
                     auto fas = fsaccess->newfileaccess(false);
-                    if (fas->fopen(c.mLocalPath, true, false, FSLogging::logOnError))
+                    if (fas->fopen(c.mLocalPath, OPEN_RDONLY, FSLogging::logOnError))
                     {
                         root_fsid = fas->fsid;
                     }
@@ -11246,7 +11251,7 @@ bool Sync::resolve_downsync(SyncRow& row,
                 // This allows the next level of folders to be created too
 
                 auto fa = syncs.fsaccess->newfileaccess(false);
-                if (fa->fopen(fullPath.localPath, true, false, FSLogging::logOnError))
+                if (fa->fopen(fullPath.localPath, OPEN_RDONLY, FSLogging::logOnError))
                 {
                     auto fsnode = FSNode::fromFOpened(*fa, fullPath.localPath, *syncs.fsaccess);
 
@@ -12829,7 +12834,7 @@ error SyncConfigIOContext::read(const LocalPath& dbPath,
     // Try and open the file for reading.
     auto fileAccess = mFsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError))
+    if (!fileAccess->fopen(path, OPEN_RDONLY, FSLogging::logOnError))
     {
         // Couldn't open the file for reading.
         LOG_err << "Unable to open config DB for reading: "
@@ -12950,7 +12955,7 @@ error SyncConfigIOContext::write(const LocalPath& dbPath,
     // Open the file for writing.
     auto fileAccess = mFsAccess.newfileaccess(false);
 
-    if (!fileAccess->fopen(path, false, true, FSLogging::logOnError))
+    if (!fileAccess->fopen(path, OPEN_WRONLY, FSLogging::logOnError))
     {
         // Couldn't open the file for writing.
         LOG_err << "Unable to open config DB for writing: "
@@ -13377,7 +13382,11 @@ void Syncs::syncLoop()
                 }
 
                 auto fa = fsaccess->newfileaccess();
-                if (fa->fopen(sync->localroot->localname, true, false, FSLogging::logOnError, nullptr, true))
+                if (fa->fopen(sync->localroot->localname,
+                              OPEN_RDONLY,
+                              FSLogging::logOnError,
+                              nullptr,
+                              true))
                 {
                     if (fa->type != FOLDERNODE)
                     {
@@ -13462,7 +13471,11 @@ void Syncs::syncLoop()
                 auto expectedFsfp = us->mConfig.mFilesystemFingerprint;
 
                 auto fa = fsaccess->newfileaccess();
-                if (fa->fopen(us->mConfig.mLocalPath, true, false, FSLogging::logExceptFileNotFound, nullptr, true))
+                if (fa->fopen(us->mConfig.mLocalPath,
+                              OPEN_RDONLY,
+                              FSLogging::logExceptFileNotFound,
+                              nullptr,
+                              true))
                 {
                     if (fa->type != FOLDERNODE)
                     {

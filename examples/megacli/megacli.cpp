@@ -2422,7 +2422,7 @@ int loadfile(LocalPath& localPath, string* data)
 {
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localPath, 1, 0, FSLogging::logOnError))
+    if (fa->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
     {
         data->resize(size_t(fa->size));
         fa->fread(data, unsigned(data->size()), 0, 0, FSLogging::logOnError);
@@ -3713,7 +3713,7 @@ void exec_fingerprint(autocomplete::ACState& s)
     auto localfilepath = localPathArg(s.words[1].s);
     auto fa = client->fsaccess->newfileaccess();
 
-    if (fa->fopen(localfilepath, true, false, FSLogging::logOnError, nullptr))
+    if (fa->fopen(localfilepath, OPEN_RDONLY, FSLogging::logOnError, nullptr))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -3784,7 +3784,7 @@ void exec_timelocal(autocomplete::ACState& s)
 
     // perform get in both cases
     auto fa = client->fsaccess->newfileaccess();
-    if (fa->fopen(localfilepath, true, false, FSLogging::logOnError))
+    if (fa->fopen(localfilepath, OPEN_RDONLY, FSLogging::logOnError))
     {
         FileFingerprint fp;
         fp.genfingerprint(fa.get());
@@ -6738,7 +6738,7 @@ void uploadLocalPath(nodetype_t type, std::string name, const LocalPath& localna
     if (type == FILENODE)
     {
         auto fa = client->fsaccess->newfileaccess();
-        if (fa->fopen(localname, true, false, FSLogging::logOnError))
+        if (fa->fopen(localname, OPEN_RDONLY, FSLogging::logOnError))
         {
             FileFingerprint fp;
             fp.genfingerprint(fa.get());
@@ -11728,7 +11728,7 @@ void exec_metamac(autocomplete::ACState& s)
     auto ifAccess = client->fsaccess->newfileaccess();
     {
         auto localPath = localPathArg(s.words[1].s);
-        if (!ifAccess->fopen(localPath, 1, 0, FSLogging::logOnError))
+        if (!ifAccess->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         {
             cerr << "Failed to open: " << s.words[1].s << endl;
             return;
@@ -11792,7 +11792,7 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
     const std::string filePath{s.words[1].s};
     auto fa = client->fsaccess->newfileaccess();
     auto localPath = localPathArg(filePath.c_str());
-    if (!fa->fopen(localPath, 1, 0, FSLogging::logOnError))
+    if (!fa->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
     {
         cerr << "Failed to open: " << filePath.c_str() << endl;
         return;

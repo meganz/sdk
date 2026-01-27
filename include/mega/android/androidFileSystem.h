@@ -66,7 +66,7 @@ public:
     // this FileWrapper shouldn't be used after call this method
     bool deleteEmptyFolder();
     // Rename an element. It is kept at same folder
-    bool rename(const std::string& newName);
+    bool rename(const std::string& parentPath, const std::string& newName, bool overwrite);
 
     // Returns true if it's a folder
     bool isFolder();
@@ -132,6 +132,7 @@ private:
     static constexpr char DELETE_FILE[] = "deleteFile";
     static constexpr char DELETE_EMPTY_FOLDER[] = "deleteFolderIfEmpty";
     static constexpr char RENAME[] = "rename";
+    static constexpr char RENAME_OVERRIDE[] = "renameOverwrite";
     static constexpr char CREATE_NESTED_PATH[] = "createNestedPath";
 
     void setUriData(const URIData& uriData);
@@ -189,8 +190,7 @@ class MEGA_API AndroidFileAccess: public FileAccess
 {
 public:
     bool fopen(const LocalPath&,
-               bool read,
-               bool write,
+               OpenFlag flag,
                FSLogging,
                DirAccess* iteratingDir = nullptr,
                bool ignoreAttributes = false,
@@ -333,7 +333,7 @@ public:
 
 private:
     LocalPath getStandartPath(const LocalPath& localPath) const;
-    bool copy(const LocalPath& oldname, const LocalPath& newName);
+    bool copy(const LocalPath& oldname, const LocalPath& newName, bool overwrite);
 };
 
 class AndroidDirNotify: public LinuxDirNotify

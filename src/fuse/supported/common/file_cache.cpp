@@ -52,7 +52,8 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
     //
     // Open for reading only if create is false.
     // Open for writing only if create is true.
-    if (!fileAccess_->fopen(path, !create, create, FSLogging::logOnError))
+    const auto flag = create ? OPEN_WRONLY : OPEN_RDONLY;
+    if (!fileAccess_->fopen(path, flag, FSLogging::logOnError))
         return unexpected(API_EWRITE);
 
     // Make sure the file's attributes have been loaded.
@@ -70,7 +71,7 @@ ErrorOr<FileInfoRef> FileCache::create(const FileExtension& extension,
     fileAccess_->fclose();
 
     // Couldn't reopen the file for reading and writing.
-    if (!fileAccess_->fopen(path, true, true, FSLogging::logOnError))
+    if (!fileAccess_->fopen(path, OPEN_RDWR, FSLogging::logOnError))
         return unexpected(API_EWRITE);
 
     // Transfer ownership of file access to caller.
@@ -391,7 +392,7 @@ FileInfoRef FileCache::info(const FileExtension& extension, InodeID id, bool inM
     auto filePath = path(extension, id);
 
     // File doesn't exist or couldn't be accessed.
-    if (!fileAccess->fopen(filePath, true, false, FSLogging::eNoLogging))
+    if (!fileAccess->fopen(filePath, OPEN_RDONLY, FSLogging::eNoLogging))
         return FileInfoRef();
 
     // File isn't actually a file.
