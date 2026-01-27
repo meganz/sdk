@@ -64,6 +64,7 @@ target_sources_conditional(test_integration
     PRIVATE
     sdk_server_test_utils.h
     sdk_server_test_utils.cpp
+    sdk_test_ftp_server.cpp
     sdk_test_http_server.cpp
 )
 
