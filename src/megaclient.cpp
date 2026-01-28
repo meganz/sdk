@@ -22613,6 +22613,20 @@ error MegaClient::createPasswordEntries(
     std::vector<NewNode> nn(data.size());
     size_t nodeToFillIndex = 0;
     const bool canChangeVault = true;
+    Pitag pitag{PitagPurpose::Password,
+                PitagTrigger::NotApplicable,
+                PitagNodeType::NotApplicable,
+                PitagTarget::CloudDrive,
+                PitagImportSource::NotApplicable};
+    if (nParent && nParent->matchesOrHasAncestorMatching(
+                       [](const Node& node)
+                       {
+                           return node.inshare != nullptr;
+                       }))
+    {
+        pitag.target = PitagTarget::IncomingShare;
+    }
+
     for (const auto& [name, dataAttrMap]: data)
     {
         if (name.empty() || !dataAttrMap)
@@ -22645,7 +22659,10 @@ error MegaClient::createPasswordEntries(
              std::move(nn),
              cauth,
              rTag,
-             canChangeVault);
+             canChangeVault,
+             {}, // customerIpPort
+             nullptr,
+             pitag);
     return API_OK;
 }
 
