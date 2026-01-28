@@ -1588,26 +1588,26 @@ public:
         mOwnerThreadId = std::this_thread::get_id();
     }
 
-    const auto getReadOwnerThread()
+    auto getReadOwnerThread() const
     {
         ensureExpectedThread(true);
-        return Guard(mData, nullptr);
+        return ReadGuard(mData, nullptr);
     }
 
-    const auto getReadOtherThread()
+    auto getReadOtherThread() const
     {
         ensureExpectedThread(false);
-        return Guard(mData, &mMutex);
+        return ReadGuard(mData, &mMutex);
     }
 
     auto getWriteGuardOwnerThread()
     {
         ensureExpectedThread(true);
-        return Guard(mData, &mMutex);
+        return WriteGuard(mData, &mMutex);
     }
 
 private:
-    void ensureExpectedThread(bool expectedOwnerThread)
+    void ensureExpectedThread(bool expectedOwnerThread) const
     {
         assert(mOwnerThreadId.has_value() && "SharedResouce used without init");
         assert((expectedOwnerThread ? std::this_thread::get_id() == mOwnerThreadId :
@@ -1615,10 +1615,11 @@ private:
                "SharedResouce unexpected threadId");
     }
 
-    class Guard
+    template<typename DataType>
+    class GuardBase
     {
     public:
-        Guard(SharedData& data, MutexType* mutex):
+        GuardBase(DataType& data, MutexType* mutex):
             mOwner(data)
         {
             if (mutex)
@@ -1627,25 +1628,29 @@ private:
             }
         }
 
-        Guard(const Guard&) = delete;
-        Guard& operator=(const Guard&) = delete;
+        GuardBase(const GuardBase&) = delete;
+        GuardBase& operator=(const GuardBase&) = delete;
 
-        const SharedData& getData() const
+        const DataType& getData() const
         {
             return mOwner;
         }
 
-        SharedData& getData()
+        DataType& getData()
         {
             return mOwner;
         }
 
     private:
-        SharedData& mOwner;
+        DataType& mOwner;
         std::unique_lock<MutexType> mLock;
     };
 
-    MutexType mMutex;
+    // Aliases for read/write guards required to obtain a const/no-const reference to data owned by
+    // this class
+    using ReadGuard = GuardBase<const SharedData>;
+    using WriteGuard = GuardBase<SharedData>;
+    mutable MutexType mMutex;
     SharedData mData;
     std::optional<std::thread::id> mOwnerThreadId{};
 };
