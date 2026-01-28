@@ -19117,6 +19117,17 @@ error MegaClient::transferRemoteCopy(File* file,
     attrs.getjson(&attrstring);
     makeattr(&nodeKey, tc.nn[0].attrstring, attrstring.c_str());
 
+    auto pitag = file->getPitag();
+    if (pitag && pitag->target == PitagTarget::NotApplicable)
+    {
+        const bool inIncomingShare = parent && parent->matchesOrHasAncestorMatching(
+                                                   [](const Node& node)
+                                                   {
+                                                       return node.inshare != nullptr;
+                                                   });
+        pitag->target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    }
+
     if (tc.nn[0].type == FILENODE)
     {
         if (std::shared_ptr<Node> ovn = getovnode(parent.get(), &sname))
@@ -19143,7 +19154,10 @@ error MegaClient::transferRemoteCopy(File* file,
                  std::move(tc.nn),
                  nullptr,
                  tag,
-                 false);
+                 false,
+                 {}, // customerIpPort
+                 nullptr,
+                 pitag);
     }
 
     // Delete Transfer and File
