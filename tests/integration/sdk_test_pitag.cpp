@@ -443,4 +443,43 @@ TEST_F(SdkTestPitag, PitagCapturedForCopyNodeFromIncomingShare)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitag, PitagCapturedForRemoteCopyUploadDedup)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << "Unable to get root node";
+
+    const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_remote_copy.bin");
+    const std::string localPathUtf8 = path_u8string(localFilePath);
+    const sdk_test::LocalTempFile localFile(localFilePath, "pitag-remote-copy");
+
+    // Initial upload to create the deduplication source in Cloud Drive
+    {
+        TransferTracker tracker(megaApi[0].get());
+        MegaUploadOptions options;
+        options.fileName = localFilePath.filename().string();
+        options.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, &options, &tracker);
+        ASSERT_EQ(API_OK, tracker.waitForResult());
+    }
+
+    PitagCommandObserver observer;
+
+    TransferTracker tracker(megaApi[0].get());
+    MegaUploadOptions options;
+    options.fileName = getFilePrefix() + "pitag_remote_copy_dest.bin";
+    options.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    options.pitagTrigger = MegaApi::PITAG_TRIGGER_CAMERA;
+
+    megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, &options, &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    const std::string expected = std::string{"C"} + options.pitagTrigger + "fD.";
+    ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
