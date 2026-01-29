@@ -68,6 +68,8 @@ namespace mega {
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
         // 64-bit math when sampling large files (sparse CRC).
         std::function<void(bool&)> onHookFileFingerprintUseLegacyBuggySparseCrc;
+        // Allow to set device id to a specific value for testing purposes
+        std::function<void(std::string& deviceId)> onHookDeviceId;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -156,7 +158,13 @@ namespace mega {
             globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc((FLAG)); \
         } \
     }
-
+#define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID) \
+    { \
+        if (globalMegaTestHooks.onHookDeviceId) \
+        { \
+            globalMegaTestHooks.onHookDeviceId((DEVICEID)); \
+        } \
+    }
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -173,7 +181,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS)
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
-
+#define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #endif
 
 } // namespace

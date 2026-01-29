@@ -10944,7 +10944,20 @@ TEST_F(SdkTest, SdkDeviceNames)
 
 TEST_F(SdkTest, SdkBackupFolder)
 {
-    /// Run this after SdkDeviceNames test that changes device name.
+#ifdef DEBUG_TEST_HOOK_DEVICE_ID
+    MrProper defer(
+        []
+        {
+            globalMegaTestHooks.onHookDeviceId = nullptr;
+        });
+    // set a fixed device id for testing
+    globalMegaTestHooks.onHookDeviceId = [](std::string& deviceId)
+    {
+        const auto [email, _] = getEnvVarAccounts().getVarValues(0);
+        ASSERT_FALSE(email.empty());
+        deviceId = "TEST_DEVICE_ID_" + email;
+    };
+#endif
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
@@ -10952,26 +10965,10 @@ TEST_F(SdkTest, SdkBackupFolder)
     // get timestamp
     string timestamp = getCurrentTimestamp(true);
 
-    // look for Device Name attr
-    string deviceName;
-    [[maybe_unused]] bool deviceNameWasSetByCurrentTest = false;
-    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
-    {
-        deviceName = "Jenkins " + timestamp;
-        doSetDeviceName(0, nullptr, deviceName.c_str());
-
-        // make sure Device Name attr was set
-        string deviceNameInCloud;
-        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud, nullptr), API_OK) << "Getting device name attr failed";
-        ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
-        deviceNameWasSetByCurrentTest = true;
-    }
-
 #ifdef ENABLE_SYNC
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
     MegaHandle mh = mApi[0].lastSyncBackupId;
-
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
@@ -11000,19 +10997,19 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* deviceIdFromNode = backupNode->getDeviceId();
     ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
 
-    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
-    // TODO: always verify the remote path was created as expected,
-    // even if it needs to create a new public interface that allows
-    // to retrieve the handle of the device-folder
-    if (deviceNameWasSetByCurrentTest)
-    {
-        // Verify that the remote path was created as expected.
-        // Only check this if current test has actually set the device name, otherwise the device name may have changed
-        // since the backup folder has been created.
-        unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-        string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
-        ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
-    }
+    unique_ptr<char[]> actualRemotePath{megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle)};
+    ASSERT_TRUE(actualRemotePath);
+#ifdef DEBUG_TEST_HOOK_DEVICE_ID
+    // verify remote path
+    std::unique_ptr<const char[]> deviceIdHash{megaApi[0]->getDeviceId()};
+    ASSERT_TRUE(deviceIdHash);
+    unique_ptr<char[]> myBackupsFolder{megaApi[0]->getNodePathByNodeHandle(mh)};
+    ASSERT_TRUE(myBackupsFolder);
+    string expectedRemotePath =
+        string(myBackupsFolder.get()) + '/' + string(deviceIdHash.get()) + '/' + backupName;
+    ASSERT_STREQ(expectedRemotePath.c_str(), actualRemotePath.get())
+        << "Wrong remote path for backup";
+#endif
 
     // So we can detect when the node database has been committed.
     PerApi& target = mApi[0];
@@ -11158,16 +11155,6 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     string timestamp = getCurrentTimestamp(true);
 
-    // Set device name if missing
-    string deviceName;
-    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
-    {
-        string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK) << "Setting device name failed";
-        // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
-        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
-    }
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
@@ -11389,17 +11376,6 @@ TEST_F(SdkTest, SdkBackupPauseResume)
 
     const string timestamp = getCurrentTimestamp(true);
 
-    // Set device name if missing
-    string deviceName;
-    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
-    {
-        const string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK)
-            << "Setting device name failed";
-        // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
-        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
-    }
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
@@ -11647,9 +11623,18 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     ASSERT_EQ(API_OK, err) << "sync folder failed (error: " << err << ")";
     auto backupId = mApi[0].lastSyncBackupId;
 
+    // get device id of the external drive
+    handle driveId;
+    err = readDriveId(*fileSystemAccess,
+                      LocalPath::fromAbsolutePath(pathToDriveStr).toPath(false).c_str(),
+                      driveId);
+    ASSERT_EQ(API_OK, err) << "Add backup (external): failed to read drive id";
+    // create the device id from the drive id
+    string deviceId(Base64Str<MegaClient::DRIVEHANDLE>(driveId).chars);
+
     // Verify that the remote path was created as expected
     unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + driveName + '/' + bkpName;
+    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceId + '/' + bkpName;
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(backupFolderHandle) };
     ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
 
