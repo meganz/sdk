@@ -19,6 +19,9 @@
  * program.
  */
 
+#ifndef SDKTEST_TEST_H
+#define SDKTEST_TEST_H
+
 #include "../include/megaapi.h"
 #include "../include/megaapi_impl.h"
 #include "gtest/gtest.h"
@@ -772,7 +775,7 @@ protected:
 
     onNodesUpdateCompletion_t createOnNodesUpdateLambda(const MegaHandle&, int, bool& flag);
 public:
-    //void login(unsigned int apiIndex, int timeout = maxTimeout);
+    void login(unsigned int apiIndex, int timeout = maxTimeout);
     //void loginBySessionId(unsigned int apiIndex, const std::string& sessionId, int timeout = maxTimeout);
     void fetchnodes(unsigned int apiIndex, int timeout = 300);
     void logout(unsigned int apiIndex, bool keepSyncConfigs, int timeout);
@@ -1051,6 +1054,14 @@ public:
     }
 
     template<typename... requestArgs>
+    std::unique_ptr<RequestTracker> asyncGetBanners(unsigned int apiIndex, requestArgs... args)
+    {
+        auto requestTracker{std::make_unique<RequestTracker>(megaApi[apiIndex].get())};
+        megaApi[apiIndex]->getBanners(args..., requestTracker.get());
+        return requestTracker;
+    }
+
+    template<typename... requestArgs>
     int doGetDeviceName(unsigned apiIndex, string* dvc, requestArgs... args)
     {
         RequestTracker rt(megaApi[apiIndex].get());
@@ -1104,24 +1115,60 @@ public:
         return rt.waitForResult();
     }
 
-    template<typename... requestArgs>
-    int doStartUpload(unsigned apiIndex, MegaHandle* newNodeHandleResult, requestArgs... args)
+    int doStartUpload(unsigned apiIndex,
+                      MegaHandle* newNodeHandleResult,
+                      const char* localPath,
+                      MegaNode* parent,
+                      const char* fileName,
+                      int64_t mtime,
+                      const char* appData,
+                      bool isSourceTemporary,
+                      bool startFirst,
+                      MegaCancelToken* cancelToken)
     {
         TransferTracker tt(megaApi[apiIndex].get());
-        megaApi[apiIndex]->startUpload(args..., &tt);
+        MegaUploadOptions uploadOptions;
+        if (fileName)
+        {
+            uploadOptions.fileName = fileName;
+        }
+        uploadOptions.mtime = mtime;
+        uploadOptions.appData = appData;
+        uploadOptions.isSourceTemporary = isSourceTemporary;
+        uploadOptions.startFirst = startFirst;
+
+        const std::string pathStr = localPath ? localPath : "";
+        megaApi[apiIndex]->startUpload(pathStr, parent, cancelToken, &uploadOptions, &tt);
         auto e = tt.waitForResult();
         if (newNodeHandleResult)
             *newNodeHandleResult = tt.resultNodeHandle;
         return e;
     }
 
-    template<typename... requestArgs>
     std::tuple<int, m_off_t, m_off_t> doStartUploadWithSpeed(unsigned apiIndex,
                                                              MegaHandle* newNodeHandleResult,
-                                                             requestArgs... args)
+                                                             const char* localPath,
+                                                             MegaNode* parent,
+                                                             const char* fileName,
+                                                             int64_t mtime,
+                                                             const char* appData,
+                                                             bool isSourceTemporary,
+                                                             bool startFirst,
+                                                             MegaCancelToken* cancelToken)
     {
         TransferTracker tt(megaApi[apiIndex].get());
-        megaApi[apiIndex]->startUpload(args..., &tt);
+        MegaUploadOptions uploadOptions;
+        if (fileName)
+        {
+            uploadOptions.fileName = fileName;
+        }
+        uploadOptions.mtime = mtime;
+        uploadOptions.appData = appData;
+        uploadOptions.isSourceTemporary = isSourceTemporary;
+        uploadOptions.startFirst = startFirst;
+
+        const std::string pathStr = localPath ? localPath : "";
+        megaApi[apiIndex]->startUpload(pathStr, parent, cancelToken, &uploadOptions, &tt);
         auto e = tt.waitForResult();
         if (newNodeHandleResult)
             *newNodeHandleResult = tt.resultNodeHandle;
@@ -1320,7 +1367,13 @@ public:
 
     void explorePath(int account, MegaNode* node, int& files, int& folders);
 
-    void synchronousMediaUpload(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, const char* fileOutput, const char* fileThumbnail, const char* filePreview);
+    void synchronousMediaUpload(unsigned int apiIndex,
+                                int64_t fileSize,
+                                const char* filename,
+                                const char* fileEncrypted,
+                                const char* fileOutput,
+                                const char* fileThumbnail = nullptr,
+                                const char* filePreview = nullptr);
     void synchronousMediaUploadIncomplete(unsigned int apiIndex, int64_t fileSize, const char* filename, const char* fileEncrypted, std::string& fingerprint, std::string& string64UploadToken, std::string& string64FileKey);
 
 #ifdef ENABLE_CHAT
@@ -1879,3 +1932,5 @@ Error setAccountLevel(MegaApi& client, requestArgs... args)
     // Return client's result to caller.
     return tracker.waitForResult();
 }
+
+#endif // SDKTEST_TEST_H

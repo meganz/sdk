@@ -1,6 +1,6 @@
 /**
- * AndroidLogger.java
- * Class for managing logs
+ * @file mega/banner.h
+ * @brief Banner data structure
  *
  * (c) 2013-2014 by Mega Limited, Auckland, New Zealand
  *
@@ -18,16 +18,23 @@
  * You should have received a copy of the license along with this
  * program.
  */
-package nz.mega.android.bindingsample;
 
+#pragma once
 
-import nz.mega.sdk.MegaLoggerInterface;
-import android.util.Log;
+#include "types.h"
 
-
-public class AndroidLogger implements MegaLoggerInterface {
-	
-	 public void log(String time, int loglevel, String source, String message) {
-		Log.d("AndroidLogger", source + ": " + message); 
-	 }
-}
+namespace mega
+{
+struct BannerDetails
+{
+    int id = 0;
+    std::string title;
+    std::string description;
+    std::string image;
+    std::string url;
+    std::string backgroundImage;
+    std::string imageLocation;
+    int variant = 0;
+    std::string button;
+};
+} // namespace

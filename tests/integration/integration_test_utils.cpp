@@ -405,16 +405,23 @@ std::unique_ptr<MegaNode> uploadFile(MegaApi* megaApi,
                 nodeHandle = transfer->getNodeHandle();
                 mtl.markAsFinished(error->getErrorCode() == API_OK);
             });
-    megaApi->startUpload(path_u8string(localPath).c_str(),
-                         parentNode ? parentNode :
-                                      std::unique_ptr<MegaNode>{megaApi->getRootNode()}.get(),
-                         fileName /*fileName*/,
-                         MegaApi::INVALID_CUSTOM_MOD_TIME,
-                         nullptr /*appData*/,
-                         false /*isSourceTemporary*/,
-                         false /*startFirst*/,
-                         nullptr /*cancelToken*/,
-                         &mtl);
+    std::unique_ptr<MegaNode> fallbackParent;
+    MegaNode* uploadParent = parentNode;
+    if (!uploadParent)
+    {
+        fallbackParent.reset(megaApi->getRootNode());
+        uploadParent = fallbackParent.get();
+    }
+
+    MegaUploadOptions uploadOptions;
+    if (fileName)
+    {
+        uploadOptions.fileName = fileName;
+    }
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+    const auto pathString = localPath.string();
+    megaApi->startUpload(pathString, uploadParent, nullptr, &uploadOptions, &mtl);
     EXPECT_TRUE(mtl.waitForFinishOrTimeout(MAX_TIMEOUT)) << "Error uploading file: " << localPath;
     if (nodeHandle == UNDEF)
         return nullptr;

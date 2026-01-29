@@ -111,14 +111,16 @@ public:
         const auto starter = [&filePath, this](auto* transferListener)
         {
             const std::string fileName{getFilePrefix() + ".txt"};
-            megaApi[0]->startUpload(path_u8string(filePath).c_str(),
-                                    std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()}.get(),
-                                    nullptr /*fileName*/,
-                                    MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                    nullptr /*appData*/,
-                                    false /*isSourceTemporary*/,
-                                    false /*startFirst*/,
-                                    nullptr /*cancelToken*/,
+            MegaUploadOptions uploadOptions;
+            uploadOptions.fileName = fileName;
+            uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+            auto rootNode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+            const auto localPath = filePath.string();
+            megaApi[0]->startUpload(localPath,
+                                    rootNode.get(),
+                                    nullptr,
+                                    &uploadOptions,
                                     transferListener);
         };
         return performAndMonitorTransferAux(expectedTime, maxSpeed, std::move(starter));

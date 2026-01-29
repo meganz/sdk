@@ -3514,6 +3514,11 @@ std::optional<string> MegaTransferPrivate::getInboxTarget()
     return inboxTarget;
 }
 
+Pitag MegaTransferPrivate::getPitag() const
+{
+    return mPitag;
+}
+
 void MegaTransferPrivate::updateLocalPathInternal(const LocalPath& newPath)
 {
     if (path)
@@ -5051,7 +5056,7 @@ MegaBannerList* MegaRequestPrivate::getMegaBannerList() const
     return mBannerList.get();
 }
 
-void MegaRequestPrivate::setBanners(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+void MegaRequestPrivate::setBanners(vector<BannerDetails>&& banners)
 {
     mBannerList = std::make_unique<MegaBannerListPrivate>();
 
@@ -5434,8 +5439,8 @@ bool MegaRequestPrivate::causesLocklessRequest(const int type)
     }
 }
 
-MegaBannerPrivate::MegaBannerPrivate(std::tuple<int, std::string, std::string, std::string, std::string, std::string, std::string>&& details)
-                  :mDetails(std::move(details))
+MegaBannerPrivate::MegaBannerPrivate(BannerDetails&& details):
+    mDetails(std::move(details))
 {
 }
 
@@ -5446,37 +5451,47 @@ MegaBanner* MegaBannerPrivate::copy() const
 
 int MegaBannerPrivate::getId() const
 {
-    return std::get<0>(mDetails);
+    return mDetails.id;
 }
 
 const char* MegaBannerPrivate::getTitle() const
 {
-    return std::get<1>(mDetails).c_str();
+    return mDetails.title.c_str();
 }
 
 const char* MegaBannerPrivate::getDescription() const
 {
-    return std::get<2>(mDetails).c_str();
+    return mDetails.description.c_str();
 }
 
 const char* MegaBannerPrivate::getImage() const
 {
-    return std::get<3>(mDetails).c_str();
+    return mDetails.image.c_str();
 }
 
 const char* MegaBannerPrivate::getUrl() const
 {
-    return std::get<4>(mDetails).c_str();
+    return mDetails.url.c_str();
 }
 
 const char* MegaBannerPrivate::getBackgroundImage() const
 {
-    return std::get<5>(mDetails).c_str();
+    return mDetails.backgroundImage.c_str();
 }
 
 const char* MegaBannerPrivate::getImageLocation() const
 {
-    return std::get<6>(mDetails).c_str();
+    return mDetails.imageLocation.c_str();
+}
+
+int MegaBannerPrivate::getVariant() const
+{
+    return mDetails.variant;
+}
+
+const char* MegaBannerPrivate::getButton() const
+{
+    return mDetails.button.c_str();
 }
 
 MegaBannerListPrivate* MegaBannerListPrivate::copy() const
@@ -6749,7 +6764,8 @@ void MegaFilePut::completed(Transfer* t, putsource_t source)
                          NodeHandle(),
                          nullptr,
                          customMtime == MegaApi::INVALID_CUSTOM_MOD_TIME ? nullptr : &customMtime,
-                         false);
+                         false,
+                         getPitag());
 
     delete this;
 }
@@ -10150,26 +10166,23 @@ void MegaApiImpl::abortCurrentScheduledCopy(int tag, MegaRequestListener *listen
     waiter->notify();
 }
 
-MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
-                                                       const LocalPath& localPath,
+MegaTransferPrivate* MegaApiImpl::createUploadTransfer(const LocalPath& localPath,
                                                        MegaNode* parent,
-                                                       const char* fileName,
-                                                       const char* targetUser,
-                                                       int64_t mtime,
-                                                       int folderTransferTag,
-                                                       bool isBackup,
-                                                       const char* appData,
-                                                       bool isSourceFileTemporary,
-                                                       bool forceNewUpload,
-                                                       FileSystemType fsType,
+                                                       const MegaUploadOptionsPrivate& options,
                                                        CancelToken cancelToken,
                                                        MegaTransferListener* listener,
                                                        const FileFingerprint* preFingerprintedFile)
 {
+    FileSystemType fsType = options.mFsType;
     if (fsType == FS_UNKNOWN)
     {
         fsType = fsAccess->getlocalfstype(localPath);
     }
+    const char* fileName =
+        options.mPublicOptions.fileName.empty() ? nullptr : options.mPublicOptions.fileName.c_str();
+    const char* targetUser = options.mTargetUser.empty() ? nullptr : options.mTargetUser.c_str();
+    const int64_t mtime = options.mPublicOptions.mtime;
+    const int folderTransferTag = options.mFolderTransferTag;
 
     MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_UPLOAD, listener);
     if (!localPath.empty())
@@ -10188,11 +10201,11 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
     }
 
     transfer->setMaxRetries(maxRetries);
-    transfer->setAppData(appData);
-    transfer->setSourceFileTemporary(isSourceFileTemporary);
-    transfer->setStartFirst(startFirst);
+    transfer->setAppData(options.mPublicOptions.appData);
+    transfer->setSourceFileTemporary(options.mPublicOptions.isSourceTemporary);
+    transfer->setStartFirst(options.mPublicOptions.startFirst);
     transfer->setCancelToken(cancelToken);
-    transfer->setBackupTransfer(isBackup);
+    transfer->setBackupTransfer(options.mIsBackup);
 
     if (fileName || transfer->getFileName())
     {
@@ -10249,32 +10262,35 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(bool startFirst,
         transfer->setFolderTransferTag(folderTransferTag);
     }
 
-    transfer->setForceNewUpload(forceNewUpload);
+    transfer->setForceNewUpload(options.mForceNewUpload);
     return transfer;
 }
 
-void MegaApiImpl::startUpload(bool startFirst, const char* localPath, MegaNode* parent, const char* fileName, const char* targetUser, int64_t mtime, int folderTransferTag, bool isBackup, const char* appData, bool isSourceFileTemporary, bool forceNewUpload, FileSystemType fsType, CancelToken cancelToken, MegaTransferListener* listener)
+void MegaApiImpl::startUpload(const std::string localPath,
+                              MegaNode* parent,
+                              CancelToken cancelToken,
+                              const MegaUploadOptionsPrivate& options,
+                              MegaTransferListener* listener)
 {
     LocalPath path;
-    if (localPath)
+    if (!localPath.empty())
     {
-        path = LocalPath::fromAbsolutePath(localPath);
+        path = LocalPath::fromAbsolutePath(localPath.c_str());
     }
-    MegaTransferPrivate* transfer = createUploadTransfer(startFirst,
-                                                         path,
-                                                         parent,
-                                                         fileName,
-                                                         targetUser,
-                                                         mtime,
-                                                         folderTransferTag,
-                                                         isBackup,
-                                                         appData,
-                                                         isSourceFileTemporary,
-                                                         forceNewUpload,
-                                                         fsType,
-                                                         cancelToken,
-                                                         listener);
 
+    const PitagTrigger pitagTrigger = pitagTriggerFromChar(options.mPublicOptions.pitagTrigger);
+    const PitagTarget pitagTarget = pitagTargetFromChar(options.mPublicOptions.pitagTarget);
+    MegaTransferPrivate* transfer =
+        createUploadTransfer(path, parent, options, cancelToken, listener);
+
+    const auto nodeType =
+        (transfer->fingerprint_filetype == FILENODE) ? PitagNodeType::File : PitagNodeType::Folder;
+    const Pitag pitag{PitagPurpose::Upload,
+                      pitagTrigger,
+                      nodeType,
+                      pitagTarget,
+                      PitagImportSource::NotApplicable};
+    transfer->setPitag(pitag);
     transferQueue.push(transfer);
     waiter->notify();
 }
@@ -10287,20 +10303,15 @@ void MegaApiImpl::startUploadForSupport(const char* localPath, bool isSourceFile
         path = LocalPath::fromAbsolutePath(localPath);
     }
 
-    MegaTransferPrivate* transfer = createUploadTransfer(true,
-                                                         path,
-                                                         nullptr,
-                                                         nullptr,
-                                                         MegaClient::SUPPORT_USER_HANDLE.c_str(),
-                                                         MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                                         0,
-                                                         false,
-                                                         nullptr,
-                                                         isSourceFileTemporary,
-                                                         false,
-                                                         fsType,
-                                                         CancelToken(),
-                                                         listener);
+    MegaUploadOptionsPrivate options;
+    options.mPublicOptions.startFirst = true;
+    options.mPublicOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    options.mPublicOptions.isSourceTemporary = isSourceFileTemporary;
+    options.mFsType = fsType;
+    options.mTargetUser = MegaClient::SUPPORT_USER_HANDLE;
+
+    MegaTransferPrivate* transfer =
+        createUploadTransfer(path, nullptr, options, CancelToken(), listener);
 
     transferQueue.push(transfer);
     waiter->notify();
@@ -10491,20 +10502,25 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     else
     {
         MegaNode *parent = getNodeByHandle(t->getParentHandle());
-        this->startUpload(true,
-                          t->getPath(),
-                          parent,
-                          t->getFileName(),
-                          nullptr,
-                          t->getTime(),
-                          0,
-                          t->isBackupTransfer(),
-                          t->getAppData(),
-                          t->isSourceFileTemporary(),
-                          t->isForceNewUpload(),
-                          client->fsaccess->getlocalfstype(t->getLocalPath()),
-                          t->accessCancelToken(),
-                          listener);
+        Pitag pitag{t->getPitag()};
+        MegaUploadOptionsPrivate options;
+        if (const char* fileName = t->getFileName())
+        {
+            options.mPublicOptions.fileName = fileName;
+        }
+        options.mPublicOptions.mtime = t->getTime();
+        options.mPublicOptions.appData = t->getAppData();
+        options.mPublicOptions.isSourceTemporary = t->isSourceFileTemporary();
+        options.mPublicOptions.startFirst = true;
+        options.mPublicOptions.pitagTrigger = static_cast<char>(pitag.trigger);
+        options.mIsBackup = t->isBackupTransfer();
+        options.mForceNewUpload = t->isForceNewUpload();
+        options.mFsType = client->fsaccess->getlocalfstype(t->getLocalPath());
+        options.mPitagTarget = pitag.target;
+
+        const char* transferPath = t->getPath();
+        const std::string normalizedPath = transferPath ? transferPath : "";
+        this->startUpload(normalizedPath, parent, t->accessCancelToken(), options, listener);
 
         delete parent;
     }
@@ -17208,7 +17224,7 @@ void MegaApiImpl::getbanners_result(error e)
     }
 }
 
-void MegaApiImpl::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+void MegaApiImpl::getbanners_result(vector<BannerDetails>&& banners)
 {
     auto it = requestMap.find(client->restag);
     if (it == requestMap.end()) return;
@@ -18984,26 +19000,12 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
     }
 
     LOG_debug << "Updating mtime to node(" << toNodeHandle(node->nodeHandle()) << ")";
-    transfer->setState(MegaTransfer::STATE_QUEUED);
-    transferMap[nextTag] = transfer;
-    transfer->setTag(nextTag);
-    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
-    transfer->setStartTime(Waiter::ds);
-    transfer->setUpdateTime(Waiter::ds);
-    fireOnTransferStart(transfer);
-    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
-    transfer->setSpeed(0);
-    transfer->setMeanSpeed(0);
-    transfer->setState(MegaTransfer::STATE_COMPLETING);
-    fireOnTransferUpdate(transfer);
-
     const auto immediateErrCode = client->updateNodeMtime(
         node,
         newMtime,
         [this, nextTag](NodeHandle h, Error e)
         {
-            MegaTransferPrivate* transfer =
-                static_cast<MegaTransferPrivate*>(getTransferByTag(nextTag));
+            MegaTransferPrivate* transfer = getMegaTransferPrivate(nextTag);
             if (!transfer)
             {
                 LOG_debug << "updateNodeMtime for node(" << toNodeHandle(h)
@@ -19036,6 +19038,18 @@ bool MegaApiImpl::updateNodeMtime(std::shared_ptr<Node> node,
         return false;
     }
 
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+    transferMap[nextTag] = transfer;
+    transfer->setTag(nextTag);
+    transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setUpdateTime(Waiter::ds);
+    fireOnTransferStart(transfer);
+    transfer->setDeltaSize(transfer->fingerprint_onDisk.size);
+    transfer->setSpeed(0);
+    transfer->setMeanSpeed(0);
+    transfer->setState(MegaTransfer::STATE_COMPLETING);
+    fireOnTransferUpdate(transfer);
     return true;
 }
 
@@ -19293,8 +19307,9 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 // shortcut in case we have a huge queue
                 // millions of listener callbacks, logging etc takes a while
                 LOG_debug << "Folder transfer is cancelled, skipping remaining subtransfers: " << auxQueue.size();
-                recursiveTransfer->setTransfersTotalCount(recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
-
+                recursiveTransfer->setTransfersTotalCount(
+                    recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
+                // Remove remaining transfers in recursiveTransfer's custom queue
                 auxQueue.clear();
                 // let the pop'd transfer notify the parent, we may be completely finished
                 // otherwise the folder completes when transfers already established in the SDK core finish
@@ -19322,10 +19337,16 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                 std::shared_ptr<Node> parent = client->nodebyhandle(transfer->getParentHandle());
                 bool startFirst = transfer->shouldStartFirst();
 
-                // This bool below is a bit tricky: for example, this would be true for uploadForSupport: targetUser param on createUploadTransfer is populated with MegaClient::SUPPORT_USER_HANDLE (length = 11),
-                // and that param is used to populate transfer->parentPath (i.e.: it's not really a path, but a handle). At the same time, parentHandle is undef. So "uploadToInbox" would be true here.
-                // Later, when creating the MegaFilePut object, the cusertarget constructor param will have the value of inboxTarget (see below), so MegaFilePut::targetuser will have the value of MegaClient::SUPPORT_USER_HANDLE.
-                // This comparison (File::targetuser != MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for support.
+                // This bool below is a bit tricky: for example, this would be true for
+                // uploadForSupport: the MegaUploadOptionsPrivate::mTargetUser is populated with
+                // MegaClient::SUPPORT_USER_HANDLE (length = 11), and that value is used to populate
+                // transfer->parentPath (i.e.: it's not really a path, but a handle). At the same
+                // time, parentHandle is undef. So "uploadToInbox" would be true here. Later, when
+                // creating the MegaFilePut object, the cusertarget constructor param will have the
+                // value of inboxTarget (see below), so MegaFilePut::targetuser will have the value
+                // of MegaClient::SUPPORT_USER_HANDLE. This comparison (File::targetuser !=
+                // MegaClient::SUPPORT_USER_HANDLE) can be used later to check if a transfer is for
+                // support.
                 auto inboxTarget = transfer->getInboxTarget();
 
                 if (wLocalPath.empty() || !fileName || !(*fileName) ||
@@ -19546,7 +19567,6 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                             currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
-                            transferMap[nextTag] = transfer;
                             transfer->setTag(nextTag);
                             transfer->setTotalBytes(transfer->fingerprint_onDisk.size);
                             transfer->setStartTime(Waiter::ds);
@@ -19590,6 +19610,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     f->setTransfer(transfer); // sets internal `megaTransfer`, different from internal `transfer`!
                     f->cancelToken = transfer->accessCancelToken();
+                    f->setPitag(transfer->getPitag());
 
                     error result = API_OK;
                     bool started = client->startxfer(PUT, f, committer, true, startFirst, transfer->isBackupTransfer(), UseLocalVersioningFlag, &result, nextTag);
@@ -25873,6 +25894,21 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
             {
                 return e;
             }
+
+            Pitag pitag{PitagPurpose::Upload,
+                        PitagTrigger::Camera,
+                        PitagNodeType::File,
+                        PitagTarget::CloudDrive,
+                        PitagImportSource::NotApplicable};
+
+            const bool inIncomingShare = parentNode && parentNode->matchesOrHasAncestorMatching(
+                                                           [](const Node& n)
+                                                           {
+                                                               return n.inshare != nullptr;
+                                                           });
+
+            pitag.target = inIncomingShare ? PitagTarget::IncomingShare : pitag.target;
+
             client->queueCommand(new CommandPutNodes(client,
                                                      parentHandle,
                                                      NULL,
@@ -25883,7 +25919,8 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                                                      nullptr,
                                                      nullptr,
                                                      false,
-                                                     {})); // customerIpPort
+                                                     {}, // customerIpPort
+                                                     pitag));
             return e;
 }
 
@@ -29124,7 +29161,12 @@ size_t TransferQueue::size()
 void TransferQueue::clear()
 {
     std::lock_guard<std::mutex> g(mutex);
-    return transfers.clear();
+    for (auto& t: transfers)
+    {
+        delete t;
+        t = nullptr;
+    }
+    transfers.clear();
 }
 
 MegaTransferPrivate *TransferQueue::pop()
@@ -31188,6 +31230,17 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         // use a weak_ptr in case this operation was cancelled, and 'this' object doesn't exist
         // anymore when the request completes
         weak_ptr<MegaFolderUploadController> weak_this = shared_from_this();
+
+        auto parent = megaApi->client->mNodeManager.getNodeByHandle(
+            NodeHandle().set6byte(tree.megaNode->getHandle()));
+        const bool inIncomingShare = parent && parent->matchesOrHasAncestorMatching(
+                                                   [](const Node& node)
+                                                   {
+                                                       return node.inshare != nullptr;
+                                                   });
+        Pitag localPitag = transfer->getPitag();
+        localPitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+
         megaapiThreadClient()->putnodes(
             NodeHandle().set6byte(tree.megaNode->getHandle()),
             UseLocalVersioningFlag,
@@ -31228,7 +31281,8 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                            r == batchResult_batchesComplete);
 
                 }
-            });
+            },
+            localPitag);
 
         unsigned existing = 0, total = 0;
         mUploadTree.recursiveCountFolders(existing, total);
@@ -31245,6 +31299,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
         TransferQueue transferQueue;
         if (!genUploadTransfersForFiles(mUploadTree, transferQueue))
         {
+            transferQueue.clear();
             complete(API_EINCOMPLETE, true);
         }
         else if (transferQueue.empty())
@@ -31270,22 +31325,25 @@ bool MegaFolderUploadController::genUploadTransfersForFiles(Tree& tree, Transfer
 {
     for (const auto& localpath : tree.files)
     {
+        MegaApiImpl::MegaUploadOptionsPrivate subOptions;
+        subOptions.mPublicOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+        subOptions.mFolderTransferTag = tag;
+        subOptions.mPublicOptions.appData = transfer->getAppData();
+        subOptions.mFsType = tree.fsType;
+
         MegaTransferPrivate* subTransfer =
-            megaApi->createUploadTransfer(false,
-                                          localpath.lp,
+            megaApi->createUploadTransfer(localpath.lp,
                                           tree.megaNode.get(),
-                                          nullptr,
-                                          (const char*)NULL,
-                                          MegaApi::INVALID_CUSTOM_MOD_TIME,
-                                          tag,
-                                          false,
-                                          transfer->getAppData(),
-                                          false,
-                                          false,
-                                          tree.fsType,
+                                          subOptions,
                                           transfer->accessCancelToken(),
                                           this,
                                           &localpath.fp);
+        Pitag pitag{PitagPurpose::Upload,
+                    transfer->getPitag().trigger,
+                    PitagNodeType::Folder,
+                    transfer->getPitag().target,
+                    PitagImportSource::NotApplicable};
+        subTransfer->setPitag(pitag);
         transferQueue.push(subTransfer);
 
         if (isCancelledByFolderTransferToken()) return false;
@@ -31996,19 +32054,31 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                         pendingTransfers++;
 
                         totalFiles++;
-                        megaApi->startUpload(false,
-                                             childPath.toPath(false).c_str(),
+                        const auto parentNode =
+                            client->mNodeManager.getNodeByHandle(NodeHandle().set6byte(handle));
+
+                        const bool inIncomingShare =
+                            parentNode && parentNode->matchesOrHasAncestorMatching(
+                                              [](const Node& node)
+                                              {
+                                                  return node.inshare != nullptr;
+                                              });
+
+                        const PitagTarget pitagTarget =
+                            inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+
+                        MegaApiImpl::MegaUploadOptionsPrivate uploadOptions;
+                        uploadOptions.mPublicOptions.mtime = -1;
+                        uploadOptions.mFolderTransferTag = folderTransferTag;
+                        uploadOptions.mIsBackup = true;
+                        uploadOptions.mFsType = fsType;
+                        uploadOptions.mPitagTarget = pitagTarget;
+
+                        const std::string childPathStr = childPath.toPath(false);
+                        megaApi->startUpload(childPathStr,
                                              parent,
-                                             nullptr,
-                                             nullptr,
-                                             -1,
-                                             folderTransferTag,
-                                             true,
-                                             nullptr,
-                                             false,
-                                             false,
-                                             fsType,
                                              CancelToken(),
+                                             uploadOptions,
                                              this);
                     }
                     else
@@ -32583,6 +32653,10 @@ void MegaFolderDownloadController::start(MegaNode *node)
 
                 if (e)
                 {
+                    if (transferQueue)
+                    {
+                        transferQueue->clear();
+                    }
                     complete(e);
                 }
                 else
@@ -32726,7 +32800,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (isStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
         {
             e = API_EINCOMPLETE;
-            return nullptr;
+            return transferQueue;
         }
 
         LocalPath &localpath = it->localPath;
@@ -32739,7 +32813,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
-            return nullptr;
+            return transferQueue;
         }
 
         auto folderAlreadyExist = (e && e == API_EEXIST);
@@ -32747,7 +32821,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType, folderAlreadyExist))
         {
             e = API_EINCOMPLETE;
-            return nullptr;
+            return transferQueue;
         }
 
         ++it;
@@ -35571,8 +35645,17 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
 
             FileSystemType fsType = httpctx->server->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(httpctx->tmpFileName));
-            httpctx->megaApi->startUpload(false, httpctx->tmpFileName.c_str(), newParentNode, newname.c_str(), nullptr,
-                                                -1, 0, true, nullptr, false, false, fsType, CancelToken(), httpctx);
+            MegaApiImpl::MegaUploadOptionsPrivate uploadOptions;
+            uploadOptions.mPublicOptions.fileName = newname;
+            uploadOptions.mPublicOptions.mtime = -1;
+            uploadOptions.mIsBackup = true;
+            uploadOptions.mFsType = fsType;
+
+            httpctx->megaApi->startUpload(httpctx->tmpFileName,
+                                          newParentNode,
+                                          CancelToken(),
+                                          uploadOptions,
+                                          httpctx);
 
             delete node;
             delete baseNode;
@@ -35852,7 +35935,8 @@ int MegaHTTPServer::streamNode(MegaHTTPContext *httpctx)
     string resstr = response.str();
     if (httpctx->parser.method != HTTP_HEAD)
     {
-        httpctx->streamingBuffer.init(std::max(static_cast<size_t>(len), resstr.size()));
+        // Body data can be written to streamingBuffer before the header is sent
+        httpctx->streamingBuffer.init(static_cast<size_t>(len) + resstr.size());
         httpctx->server->setMaxBufferSize(
             static_cast<int>(httpctx->streamingBuffer.getMaxBufferSize()));
         httpctx->server->setMaxOutputSize(
@@ -38329,8 +38413,17 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
                 fds->controlftpctx->tmpFileName = ftpdatactx->tmpFileName;
 
                 FileSystemType fsType = fds->fsAccess->getlocalfstype(LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName));
-                ftpdatactx->megaApi->startUpload(false, ftpdatactx->tmpFileName.c_str(), newParentNode.get(), fds->newNameToUpload.c_str(),
-                                                    nullptr, -1, 0, true, nullptr, false, false, fsType, CancelToken(), fds->controlftpctx);
+                MegaApiImpl::MegaUploadOptionsPrivate uploadOptions;
+                uploadOptions.mPublicOptions.fileName = fds->newNameToUpload;
+                uploadOptions.mPublicOptions.mtime = -1;
+                uploadOptions.mIsBackup = true;
+                uploadOptions.mFsType = fsType;
+
+                ftpdatactx->megaApi->startUpload(ftpdatactx->tmpFileName,
+                                                 newParentNode.get(),
+                                                 CancelToken(),
+                                                 uploadOptions,
+                                                 fds->controlftpctx);
 
                 ftpdatactx->controlRespondedElsewhere = true;
             }

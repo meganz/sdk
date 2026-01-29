@@ -264,7 +264,7 @@ struct DemoApp : public MegaApp
     void smsverificationcheck_result(error, string*) override;
 
     void getbanners_result(error) override;
-    void getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners) override;
+    void getbanners_result(vector<BannerDetails>&& banners) override;
 
     void dismissbanner_result(error) override;
 

@@ -274,6 +274,38 @@ public class MegaApiJava {
     public final static int CLIENT_TYPE_VPN = MegaApi.CLIENT_TYPE_VPN;
     public final static int CLIENT_TYPE_PASSWORD_MANAGER = MegaApi.CLIENT_TYPE_PASSWORD_MANAGER;
 
+
+    /**
+     * PITAG trigger codes exposed at API level.
+     *
+     * Maps 1:1 with PitagTrigger in types.h.
+     */
+    public final static char PITAG_TRIGGER_NOT_APPLICABLE = MegaApi.PITAG_TRIGGER_NOT_APPLICABLE;
+    public final static char PITAG_TRIGGER_PICKER = MegaApi.PITAG_TRIGGER_PICKER;
+    public final static char PITAG_TRIGGER_DRAG_AND_DROP = MegaApi.PITAG_TRIGGER_DRAG_AND_DROP;
+    public final static char PITAG_TRIGGER_CAMERA = MegaApi.PITAG_TRIGGER_CAMERA;
+    public final static char PITAG_TRIGGER_SCANNER = MegaApi.PITAG_TRIGGER_SCANNER;
+    public final static char PITAG_TRIGGER_SYNC_ALGORITHM = MegaApi.PITAG_TRIGGER_SYNC_ALGORITHM;
+    public final static char PITAG_TRIGGER_SHARE_FROM_APP = MegaApi.PITAG_TRIGGER_SHARE_FROM_APP;
+    public final static char PITAG_TRIGGER_CAMERA_CAPTURE = MegaApi.PITAG_TRIGGER_CAMERA_CAPTURE;
+    public final static char PITAG_TRIGGER_EXPLORER_EXTENSION = MegaApi.PITAG_TRIGGER_EXPLORER_EXTENSION;
+
+
+    /**
+     * PITAG target codes exposed at API level.
+     *
+     * Maps 1:1 with PitagTarget in types.h.
+     * Apps uploading to chats should set the appropriate chat target (c, C, or s);
+     * for other uploads keep the default value to avoid interfering with internal logic.
+     */
+    public final static char PITAG_TARGET_NOT_APPLICABLE = MegaApi.PITAG_TARGET_NOT_APPLICABLE;
+    public final static char PITAG_TARGET_CLOUD_DRIVE = MegaApi.PITAG_TARGET_CLOUD_DRIVE;
+    public final static char PITAG_TARGET_CHAT_1TO1 = MegaApi.PITAG_TARGET_CHAT_1TO1;
+    public final static char PITAG_TARGET_CHAT_GROUP = MegaApi.PITAG_TARGET_CHAT_GROUP;
+    public final static char PITAG_TARGET_NOTE_TO_SELF = MegaApi.PITAG_TARGET_NOTE_TO_SELF;
+    public final static char PITAG_TARGET_INCOMING_SHARE = MegaApi.PITAG_TARGET_INCOMING_SHARE;
+    public final static char PITAG_TARGET_MULTIPLE_CHATS = MegaApi.PITAG_TARGET_MULTIPLE_CHATS;
+
     public final static int IMPORT_PASSWORD_SOURCE_GOOGLE = MegaApi.IMPORT_PASSWORD_SOURCE_GOOGLE;
 
     MegaApi getMegaApi() {
@@ -6544,7 +6576,11 @@ public class MegaApiJava {
      *                          This param is required to be able to cancel the transfer safely.
      *                          App retains the ownership of this param.
      * @param listener          MegaTransferListener to track this transfer
+     *
+     * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+     * one.
      */
+    @Deprecated
     public void startUpload(String localPath, MegaNode parent, String fileName, long mtime,
                             String appData, boolean isSourceTemporary, boolean startFirst,
                             MegaCancelToken cancelToken, MegaTransferListenerInterface listener) {
@@ -6605,12 +6641,116 @@ public class MegaApiJava {
      * @param cancelToken       MegaCancelToken to be able to cancel a folder/file upload process.
      *                          This param is required to be able to cancel the transfer safely.
      *                          App retains the ownership of this param.
+     *
+     * @deprecated This version of the function is deprecated. Please, use the non-deprecated
+     * one.
      */
+    @Deprecated
     public void startUpload(String localPath, MegaNode parent, String fileName, long mtime,
                             String appData, boolean isSourceTemporary, boolean startFirst,
                             MegaCancelToken cancelToken) {
         megaApi.startUpload(localPath, parent, fileName, mtime, appData, isSourceTemporary,
                 startFirst, cancelToken);
+    }
+
+    /**
+     * Upload a file or a folder.
+     * <p>
+     * This method starts an upload transfer for a local file or folder into the specified
+     * parent node.
+     * <p>
+     * Business account overdue:
+     * If the status of the business account is expired/overdue,
+     * MegaTransferListener::onTransferFinish() will be called with error code
+     * MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar
+     * to "Your business account is overdue, please contact your administrator."
+     * <p>
+     * Folder batch deadlock considerations:
+     * When uploading a batch of items that contains at least one folder, the SDK mutex will be
+     * partially locked until:
+     * - onTransferStart has been received for every file in the batch, and
+     * - onTransferUpdate has been received with MegaTransfer::getStage() ==
+     * MegaTransfer::STAGE_TRANSFERRING_FILES for every folder in the batch.
+     * <p>
+     * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+     * calling CancelToken::cancel(true). This cancels all transfers (not finished yet)
+     * associated with that cancel token instance.
+     * <p>
+     * Important considerations about cancel tokens:
+     * - A MegaCancelToken instance can be shared by multiple transfers. Calling cancel(true)
+     * affects all transfers that share the token.
+     * - It is the app responsibility to keep the MegaCancelToken instance alive until
+     * MegaTransferListener::onTransferFinish() is received for all MegaTransfers that share
+     * it.
+     * <p>
+     * For more information about MegaTransfer stages please refer to
+     * MegaTransferListener::onTransferUpdate documentation.
+     *
+     * @param localPath   Local path of the file or folder to upload.
+     * @param parent      Parent node where the file/folder will be created in the MEGA account.
+     * @param cancelToken MegaCancelToken used to cancel the upload process safely (required for
+     *                    safe cancellation). App retains ownership and must keep it alive as described above.
+     * @param options     Optional upload customization parameters.
+     * @param listener    Optional MegaTransferListener to track this transfer. The app retains the
+     *                    ownership of the object. It can be deleted after the call returns.
+     * <p>
+     * NOTE In case we find a node in cloud drive with the same content but a different mtime
+     * than the file to be uploaded, this function will try to update it's mtime instead of
+     * starting a new file upload. If setting the mtime fails, the transfer will fail with
+     * API_EWRITE.
+     */
+    public void startUpload(String localPath, MegaNode parent, MegaCancelToken cancelToken,
+                     MegaUploadOptions options, MegaTransferListenerInterface listener) {
+        megaApi.startUpload(localPath, parent, cancelToken, options, createDelegateTransferListener(listener));
+    }
+
+    /**
+     * Upload a file or a folder.
+     * <p>
+     * This method starts an upload transfer for a local file or folder into the specified
+     * parent node.
+     * <p>
+     * Business account overdue:
+     * If the status of the business account is expired/overdue,
+     * MegaTransferListener::onTransferFinish() will be called with error code
+     * MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar
+     * to "Your business account is overdue, please contact your administrator."
+     * <p>
+     * Folder batch deadlock considerations:
+     * When uploading a batch of items that contains at least one folder, the SDK mutex will be
+     * partially locked until:
+     * - onTransferStart has been received for every file in the batch, and
+     * - onTransferUpdate has been received with MegaTransfer::getStage() ==
+     * MegaTransfer::STAGE_TRANSFERRING_FILES for every folder in the batch.
+     * <p>
+     * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+     * calling CancelToken::cancel(true). This cancels all transfers (not finished yet)
+     * associated with that cancel token instance.
+     * <p>
+     * Important considerations about cancel tokens:
+     * - A MegaCancelToken instance can be shared by multiple transfers. Calling cancel(true)
+     * affects all transfers that share the token.
+     * - It is the app responsibility to keep the MegaCancelToken instance alive until
+     * MegaTransferListener::onTransferFinish() is received for all MegaTransfers that share
+     * it.
+     * <p>
+     * For more information about MegaTransfer stages please refer to
+     * MegaTransferListener::onTransferUpdate documentation.
+     *
+     * @param localPath   Local path of the file or folder to upload.
+     * @param parent      Parent node where the file/folder will be created in the MEGA account.
+     * @param cancelToken MegaCancelToken used to cancel the upload process safely (required for
+     *                    safe cancellation). App retains ownership and must keep it alive as described above.
+     * @param options     Optional upload customization parameters.
+     * <p>
+     * NOTE In case we find a node in cloud drive with the same content but a different mtime
+     * than the file to be uploaded, this function will try to update it's mtime instead of
+     * starting a new file upload. If setting the mtime fails, the transfer will fail with
+     * API_EWRITE.
+     */
+    public void startUpload(String localPath, MegaNode parent, MegaCancelToken cancelToken,
+                     MegaUploadOptions options) {
+        megaApi.startUpload(localPath, parent, cancelToken, options);
     }
 
     /**

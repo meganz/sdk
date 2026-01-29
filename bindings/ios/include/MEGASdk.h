@@ -63,6 +63,7 @@
 #import "MEGANotification.h"
 #import "MEGACancelSubscriptionReasonList.h"
 #import "MEGATotpTokenGenResult.h"
+#import "MEGAUploadOptions.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -300,6 +301,34 @@ typedef NS_ENUM(NSInteger, ImportPasswordFileSource) {
 typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
     PasswordManagerNodeTypePassword = 1, // Password node
     PasswordManagerNodeTypeCreditCard = 2 // Credit card node
+};
+
+/**
+ * @brief Upload trigger tag values
+ */
+typedef NS_ENUM(char, MEGAPitagTrigger) {
+    MEGAPitagTriggerNotApplicable = '.',
+    MEGAPitagTriggerPicker = 'p',
+    MEGAPitagTriggerDragAndDrop = 'd',
+    MEGAPitagTriggerCamera = 'c',
+    MEGAPitagTriggerScanner = 's',
+    MEGAPitagTriggerSyncAlgorithm = 'a',
+    MEGAPitagTriggerShareFromApp = 'S',
+    MEGAPitagTriggerCameraCapture = 'C',
+    MEGAPitagTriggerExplorerExtension = 'e'
+};
+
+/**
+ * @brief Upload target tag values
+ */
+typedef NS_ENUM(char, MEGAPitagTarget) {
+    MEGAPitagTargetNotApplicable = '.',
+    MEGAPitagTargetCloudDrive = 'D',
+    MEGAPitagTargetChat1To1 = 'c',
+    MEGAPitagTargetChatGroup = 'C',
+    MEGAPitagTargetNoteToSelf = 's',
+    MEGAPitagTargetIncomingShare = 'i',
+    MEGAPitagTargetMultipleChats = 'M'
 };
 
 /**
@@ -6785,6 +6814,79 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param delegate MEGATransferDelegate to track this transfer
  */
 - (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file or a folder.
+ *
+ * This method starts an upload transfer for a local file or folder into the specified
+ * parent node.
+ *
+ * Business account overdue:
+ * If the status of the business account is expired/overdue,
+ * MEGATransferDelegate::onTransferFinish() will be called with error code
+ * MEGAErrorTypeApiEBusinessPastDue. In this case, apps should show a warning message similar
+ * to "Your business account is overdue, please contact your administrator."
+ *
+ * Folder batch deadlock considerations:
+ * When uploading a batch of items that contains at least one folder, the SDK mutex will be
+ * partially locked until:
+ *  - onTransferStart has been received for every file in the batch, and
+ *  - onTransferUpdate has been received with MEGATransfer::stage ==
+ *    MEGATransferStageTranferringFiles for every folder in the batch.
+ *
+ * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+ * calling [MEGACancelToken cancel:YES]. This cancels all transfers (not finished yet)
+ * associated with that cancel token instance.
+ *
+ * Important considerations about cancel tokens:
+ *  - A MEGACancelToken instance can be shared by multiple transfers. Calling cancel:YES
+ *    affects all transfers that share the token.
+ *  - It is the app responsibility to keep the MEGACancelToken instance alive until
+ *    MEGATransferDelegate::onTransferFinish() is received for all MEGATransfers that share
+ *    it.
+ *
+ * For more information about MEGATransfer stages please refer to
+ * MEGATransferDelegate::onTransferUpdate documentation.
+ *
+ * @param localPath Local path of the file or folder to upload.
+ * @param parent Parent node where the file/folder will be created in the MEGA account.
+ * @param cancelToken MEGACancelToken used to cancel the upload process safely (required for
+ *                    safe cancellation). App retains ownership and must keep it alive as described above.
+ * @param options Optional upload customization parameters (can be nil for default behavior).
+ * @param delegate Optional MEGATransferDelegate to track this transfer.
+ *
+ * @note In case we find a node in cloud drive with the same content but a different mtime
+ * than the file to be uploaded, this function will try to update its mtime instead of
+ * starting a new file upload. If setting the mtime fails, the transfer will fail with
+ * MEGAErrorTypeApiEWrite.
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath
+                           parent:(MEGANode *)parent
+                      cancelToken:(MEGACancelToken *)cancelToken
+                          options:(MEGAUploadOptions *)options
+                         delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Upload a file or a folder.
+ *
+ * This method starts an upload transfer for a local file or folder into the specified
+ * parent node.
+ *
+ * This version of the method does not use a transfer delegate to track the transfer.
+ * You won't receive any callbacks about the transfer. Useful when you only need to use
+ * a global delegate or don't need transfer-specific tracking.
+ *
+ * See the full method documentation in startUploadWithLocalPath:parent:cancelToken:options:delegate:
+ *
+ * @param localPath Local path of the file or folder to upload.
+ * @param parent Parent node where the file/folder will be created in the MEGA account.
+ * @param cancelToken MEGACancelToken used to cancel the upload process safely.
+ * @param options Optional upload customization parameters (can be nil for default behavior).
+ */
+- (void)startUploadWithLocalPath:(NSString *)localPath
+                           parent:(MEGANode *)parent
+                      cancelToken:(MEGACancelToken *)cancelToken
+                          options:(MEGAUploadOptions *)options;
 
 /**
  * @brief Download a file or a folder from MEGA, saving custom app data during the transfer

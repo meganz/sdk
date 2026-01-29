@@ -87,7 +87,8 @@ struct MEGA_API File: public FileFingerprint
                            int tag,
                            const std::map<std::string, std::string>& fileHandles)>&& completion,
         const m_time_t* overrideMtime,
-        bool canChangeVault);
+        bool canChangeVault,
+        std::optional<Pitag> pitag = std::nullopt);
 
     void sendPutnodesToCloneNode(
         MegaClient* client,
@@ -198,11 +199,23 @@ struct MEGA_API File: public FileFingerprint
     // Retrieve this file's logical path.
     LocalPath logicalPath() const;
 
+    std::optional<Pitag> getPitag() const
+    {
+        return mPitag;
+    };
+
+    void setPitag(Pitag pitag)
+    {
+        mPitag = pitag;
+    };
+
 private:
     CollisionResolution mCollisionResolution;
 
     // The file's logical path.
     LocalPath mLogicalPath;
+
+    std::optional<Pitag> mPitag;
 };
 
 class SyncThreadsafeState;

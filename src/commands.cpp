@@ -1117,14 +1117,8 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
 
     if (pitag)
     {
-        std::string pitagString;
-        pitagString += static_cast<char>(pitag->purpose);
-        pitagString += static_cast<char>(pitag->trigger);
-        pitagString += static_cast<char>(pitag->nodeType);
-        pitagString += static_cast<char>(pitag->target);
-        pitagString += static_cast<char>(pitag->importSource);
-
-        arg("p", pitagString.c_str());
+        const auto pitagStr = pitagToString(*pitag);
+        arg("p", pitagStr.c_str());
     }
 
     if (cauth)
@@ -10411,6 +10405,8 @@ bool CommandBackupSyncFetch::procresult(Result r, JSON& json)
 CommandGetBanners::CommandGetBanners(MegaClient* client)
 {
     cmd("gban");
+    constexpr int GBAN_VERSION = 2;
+    arg("v", GBAN_VERSION); // version
 
     tag = client->reqtag;
 }
@@ -10424,24 +10420,25 @@ bool CommandGetBanners::procresult(Result r, JSON& json)
     }
 
     /*
-        {
-            "id": 2, ///The banner id
-            "t": "R2V0IFZlcmlmaWVk", ///Banner title
-            "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4", ///Banner description.
-            "img": "Verified_image.png", ///Image name.
-            "l": "", ///URL
-            "bimg": "Verified_BG.png", ///background image name.
-            "dsp": "https://domain/path" ///Where to get the image.
-        }, {"id":3, ...}, ... ]
-    */
+     *    [{
+     *        "id": 2, ///The banner id
+     *        "t": "R2V0IFZlcmlmaWVk", ///Banner title
+     *        "d": "TWFrZSBpdCBlYXNpZXIgZm9yIHlvdXIgY29udGFjdHMgdG8gZmluZCB5b3Ugb24gTUVHQS4",
+     * ///Banner description.
+     *        "img": "Verified_image.png", ///Image name.
+     *        "l": "", ///URL
+     *        "bimg": "Verified_BG.png", ///background image name.
+     *        "dsp": "https://domain/path" ///Where to get the image.
+     *        "v": 0,  ///variant
+     *        "b": "" ///button
+     *    }, {"id":3, ...}, ... ]
+     */
 
-    vector< tuple<int, string, string, string, string, string, string> > banners;
-
+    vector<BannerDetails> banners;
     // loop array elements
     while (json.enterobject())
     {
-        int id = 0;
-        string title, description, img, url, bimg, dsp;
+        BannerDetails banner;
         bool exit = false;
 
         // loop and read object members
@@ -10450,37 +10447,43 @@ bool CommandGetBanners::procresult(Result r, JSON& json)
             switch (json.getnameid())
             {
             case makeNameid("id"):
-                id = json.getint32();
+                banner.id = json.getint32();
                 break;
 
             case makeNameid("t"):
-                json.storeobject(&title);
-                title = Base64::atob(title);
+                json.storeobject(&banner.title);
+                banner.title = Base64::atob(banner.title);
                 break;
 
             case makeNameid("d"):
-                json.storeobject(&description);
-                description = Base64::atob(description);
+                json.storeobject(&banner.description);
+                banner.description = Base64::atob(banner.description);
                 break;
 
             case makeNameid("img"):
-                json.storeobject(&img);
+                json.storeobject(&banner.image);
                 break;
 
             case makeNameid("l"):
-                json.storeobject(&url);
+                json.storeobject(&banner.url);
                 break;
 
             case makeNameid("bimg"):
-                json.storeobject(&bimg);
+                json.storeobject(&banner.backgroundImage);
                 break;
 
             case makeNameid("dsp"):
-                json.storeobject(&dsp);
+                json.storeobject(&banner.imageLocation);
                 break;
-
+            case makeNameid("v"):
+                banner.variant = json.getint32();
+                break;
+            case makeNameid("b"):
+                json.storeobject(&banner.button);
+                banner.button = Base64::atob(banner.button);
+                break;
             case EOO:
-                if (!id || title.empty() || description.empty())
+                if (!banner.id || banner.title.empty() || banner.description.empty())
                 {
                     LOG_err << "Missing id, title or description in response to gban";
                     client->app->getbanners_result(API_EINTERNAL);
@@ -10500,7 +10503,7 @@ bool CommandGetBanners::procresult(Result r, JSON& json)
             }
         }
 
-        banners.emplace_back(make_tuple(id, std::move(title), std::move(description), std::move(img), std::move(url), std::move(bimg), std::move(dsp)));
+        banners.emplace_back(std::move(banner));
 
         json.leaveobject();
     }

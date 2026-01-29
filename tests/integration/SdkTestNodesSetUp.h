@@ -26,7 +26,7 @@
  *   - keepDifferentCreationTimes()
  *
  */
-class SdkTestNodesSetUp: public SdkTest
+class SdkTestNodesSetUp: public virtual SdkTest
 {
 private:
     std::unique_ptr<MegaNode> rootTestDirNode;

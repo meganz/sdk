@@ -781,14 +781,15 @@ auto SdkTestNodeTagsCommon::uploadFile(MegaApi& client,
 {
     TransferTracker tracker(&client);
 
-    client.startUpload(path_u8string(path).c_str(),
+    MegaUploadOptions uploadOptions;
+    uploadOptions.fileName = path.filename().string();
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+    const auto localPath = path.string();
+    client.startUpload(localPath,
                        const_cast<MegaNode*>(&parent),
-                       path_u8string(path.filename()).c_str(),
-                       MegaApi::INVALID_CUSTOM_MOD_TIME,
                        nullptr,
-                       false,
-                       false,
-                       nullptr,
+                       &uploadOptions,
                        &tracker);
 
     if (auto result = tracker.waitForResult(); result != API_OK)
