@@ -430,6 +430,20 @@ std::string SdkTest::getFilePrefix() const
     return suite + "_" + name + "_";
 }
 
+void SdkTest::cleanupPerApiBackupsMonitorMap(const unsigned i)
+{
+    if (megaApi[i])
+    {
+        mApi[i].clearBackupsMonitorMap();
+    }
+    else
+    {
+        LOG_warn << "[SdkTest::Cleanup]: BackupsMonitorMap Could not be properly cleared as "
+                    "megaApi instance didn't exists at this point. It will be cleared when "
+                    "mApi instance is destroyed";
+    }
+}
+
 void SdkTest::Cleanup()
 {
     LOG_debug << "[SdkTest::Cleanup]";
@@ -438,6 +452,7 @@ void SdkTest::Cleanup()
     cleanupLocalFiles();
     for (unsigned nApi = 0; nApi < mApi.size(); ++nApi)
     {
+        cleanupPerApiBackupsMonitorMap(nApi);
         if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
         {
             continue;
@@ -20393,6 +20408,16 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
  */
 TEST_F(SdkTest, RemoveInshareElementToSynDebris)
 {
+    const MrProper cleanUp(
+        [this]()
+        {
+            // It's a good practise to unregister listeners as soon as test finish
+            for (unsigned i = 0; i < mApi.size(); ++i)
+            {
+                cleanupPerApiBackupsMonitorMap(i);
+            }
+        });
+    MegaHandle testBackupID{INVALID_HANDLE};
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     // --- Create some nodes to share ---
@@ -20493,7 +20518,8 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
     fs::create_directories(localFolderPath);
     MegaHandle newSyncRootNodeHandle = UNDEF;
 
-    int err = synchronousSyncFolder(1,
+    const unsigned monIdx{1};
+    int err = synchronousSyncFolder(monIdx,
                                     &newSyncRootNodeHandle,
                                     MegaSync::TYPE_TWOWAY,
                                     path_u8string(localFolderPath).c_str(),
@@ -20501,9 +20527,17 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
                                     hfolder1,
                                     nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
-    std::unique_ptr<MegaNode> syncFolder(megaApi[1]->getNodeByHandle(hfolder1));
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[1].get(), syncFolder.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
+    std::unique_ptr<MegaNode> syncFolder(megaApi[monIdx]->getNodeByHandle(hfolder1));
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[monIdx].get(),
+                                                      syncFolder.get(),
+                                                      MegaSync::RUNSTATE_RUNNING,
+                                                      MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+
+    testBackupID = sync->getBackupId();
+    ASSERT_NO_FATAL_FAILURE(mApi[monIdx].addsyncMonitor(testBackupID))
+        << "Cannot add sync monitor for AccountIdx: " << monIdx
+        << ", and BackupId: " << testBackupID;
 
     fs::path folder2Path = localFolderPath / foldername2;
     fs::path filePath1 = folder2Path / PUBLICFILE;
@@ -20524,6 +20558,7 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
         << "Files haven't been download at local path";
 
     // Wait one of both files have been deleted from inshare. Copy operation has to be executed before deleting
+    ASSERT_TRUE(mApi[monIdx].waitForBackupSyncUpToDate(testBackupID));
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfile1, MegaNode::CHANGE_TYPE_REMOVED, check1);
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfile1, MegaNode::CHANGE_TYPE_REMOVED, check2);
     deleteFolder(path_u8string(folder2Path));
