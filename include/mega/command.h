@@ -2336,6 +2336,20 @@ private:
     CompletionCallback mCompletion;
 };
 
+class MEGA_API CommandDiscountCodeGetInfo: public Command
+{
+public:
+    using CompletionCallback =
+        std::function<void(const Error& /*e*/, DiscountCodeInfoExtended&& /*info*/)>;
+    CommandDiscountCodeGetInfo(MegaClient*,
+                               const string& discountCode,
+                               CompletionCallback&& completion = nullptr);
+    bool procresult(Result, JSON&) override;
+
+private:
+    CompletionCallback mCompletion;
+};
+
 } // namespace
 
 #endif

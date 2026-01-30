@@ -13092,4 +13092,90 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
     return true;
 }
 
+CommandDiscountCodeGetInfo::CommandDiscountCodeGetInfo(MegaClient* client,
+                                                       const string& discountCode,
+                                                       CompletionCallback&& completion)
+
+{
+    assert(completion);
+    cmd("dci");
+    arg("dc", discountCode.c_str());
+    tag = client->reqtag;
+    mCompletion = std::move(completion);
+}
+
+bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonObject())
+    {
+        if (mCompletion)
+        {
+            if (r.wasErrorOrOK())
+            {
+                mCompletion(r.errorOrOK(), {});
+            }
+            else
+            {
+                mCompletion(API_EINTERNAL, {});
+            }
+        }
+        return true;
+    }
+
+    DiscountCodeInfo dci;
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("it"):
+                dci.item = json.getint32();
+                break;
+            case makeNameid("al"):
+                dci.accountLevel = json.getint32();
+                break;
+            case makeNameid("bt"):
+                dci.behaviourType = json.getint32();
+                break;
+            case makeNameid("pd"):
+                dci.percentageDiscount = json.getuint32();
+                break;
+            case makeNameid("m"):
+                dci.numMonths = static_cast<uint8_t>(json.getuint32());
+                break;
+            case makeNameid("lmp"):
+                dci.localMonthlyPriceAfterDiscount = json.getfloat();
+                break;
+            case makeNameid("lmps"):
+                dci.localMonthlyPriceSavedAfterDiscount = json.getfloat();
+                break;
+            case makeNameid("lmy"):
+                dci.localYearPriceAfterDiscount = json.getfloat();
+                break;
+            case makeNameid("lmys"):
+                dci.localYearPriceSavedAfterDiscount = json.getfloat();
+                break;
+            default:
+                if (!json.storeobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {});
+                    }
+                    return false;
+                }
+                break;
+            case EOO:
+            {
+                finished = true;
+            }
+            break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(dci.isValid() ? API_OK : API_EINTERNAL, std::move(dci));
+    }
+    return true;
+}
 } // namespace

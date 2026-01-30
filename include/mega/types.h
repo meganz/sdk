@@ -1735,4 +1735,47 @@ struct Pitag
     PitagImportSource importSource = PitagImportSource::NotApplicable;
 };
 
+struct DiscountCode
+{
+    std::optional<std::string> alfanumDiscountCode;
+    int item = 0;
+    int accountLevel = 0;
+    int behaviourType = 0;
+    unsigned percentageDiscount = 0;
+    uint8_t numMonths = 0; // (1 or 12), or 0 if applies to any
+
+    virtual ~DiscountCode() = default;
+
+    virtual bool isValidFormat() const
+    {
+        // [TODO_SDK-5927] -> Complete with pending sanity checks
+        return numMonths <= 12;
+    }
+
+    virtual bool hasAlfanumCode() const
+    {
+        return alfanumDiscountCode.has_value();
+    }
+};
+
+struct DiscountCodeInfoExtended: public DiscountCode
+{
+    double localMonthlyPriceAfterDiscount = 0.0;
+    double localMonthlyPriceSavedAfterDiscount = 0.0;
+    double localYearPriceAfterDiscount = 0.0;
+    double localYearPriceSavedAfterDiscount = 0.0;
+
+    bool isValidFormat() const override
+    {
+        return DiscountCode::isValidFormat() && localMonthlyPriceAfterDiscount >= 0.0 &&
+               localMonthlyPriceSavedAfterDiscount >= 0.0 && localYearPriceAfterDiscount >= 0.0 &&
+               localYearPriceSavedAfterDiscount >= 0.0;
+    }
+
+    bool hasAlfanumCode() const override
+    {
+        assert(false && "DiscountCodeInfoExtended no need AlfanumCode");
+        return false;
+    }
+};
 #endif
