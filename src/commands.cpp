@@ -4432,6 +4432,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     BizStatus s = BIZ_STATUS_UNKNOWN;
     std::set<handle> masters;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
+    std::list<DiscountCode> dciList;
 
     if (r.wasErrorOrOK())
     {
@@ -4592,7 +4593,88 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("^!devopt"):
             parseUserAttribute(json, devOpt, devOptVersion);
             break;
+        case makeNameid("mkt"):
+            if (json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (json.getnameid())
+                    {
+                        case makeNameid("dc"):
+                            if (json.enterarray())
+                            {
+                                while (json.enterobject())
+                                {
+                                    DiscountCode dci;
+                                    bool exit = false;
+                                    while (!exit)
+                                    {
+                                        switch (json.getnameid())
+                                        {
+                                            case makeNameid("dc"):
+                                            {
+                                                std::string auxDiscountCode;
+                                                json.storeobject(&auxDiscountCode);
+                                                dci.alfanumDiscountCode =
+                                                    std::move(auxDiscountCode);
+                                            }
+                                            break;
+                                            case makeNameid("it"):
+                                                dci.item = json.getint32();
+                                                break;
+                                            case makeNameid("al"):
+                                                dci.accountLevel = json.getint32();
+                                                break;
+                                            case makeNameid("bt"):
+                                                dci.behaviourType = json.getint32();
+                                                break;
+                                            case makeNameid("pd"):
+                                                dci.percentageDiscount = json.getuint32();
+                                                break;
+                                            case makeNameid("m"):
+                                                dci.numMonths =
+                                                    static_cast<uint8_t>(json.getuint32());
+                                                break;
+                                            case EOO:
+                                                if (dci.isValidFormat() && dci.hasAlfanumCode())
+                                                {
+                                                    dciList.push_back(dci);
+                                                }
+                                                else
+                                                {
+                                                    LOG_warn << "Ill-formed DiscountCode";
+                                                }
+                                                exit = true;
+                                                break;
 
+                                            default:
+                                                if (!json.storeobject())
+                                                {
+                                                    mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                                    json.leaveobject();
+                                                    return false;
+                                                }
+                                        }
+                                    }
+                                }
+                                json.leavearray();
+                            }
+                            break;
+                        case EOO:
+                            endobject = true;
+                            break;
+                        default:
+                            if (!json.storeobject())
+                            {
+                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                return false;
+                            }
+                    }
+                }
+            }
+            break; // [TODO_SDK-5927] -> Now we habe mkt parsed but we need to provide to completion
+                   // function
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
             client->setProFlexi(true);
             [[fallthrough]];
@@ -13122,7 +13204,7 @@ bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
         return true;
     }
 
-    DiscountCodeInfo dci;
+    DiscountCodeInfoExtended dci;
     for (bool finished = false; !finished;)
     {
         switch (json.getnameid())
@@ -13174,7 +13256,7 @@ bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
 
     if (mCompletion)
     {
-        mCompletion(dci.isValid() ? API_OK : API_EINTERNAL, std::move(dci));
+        mCompletion(dci.isValidFormat() ? API_OK : API_EINTERNAL, std::move(dci));
     }
     return true;
 }
