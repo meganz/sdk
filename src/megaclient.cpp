@@ -14821,7 +14821,11 @@ error MegaClient::changepw(const char* password, const char *pin)
 
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
-    string spin = pin ? pin : string();
+    std::optional<std::string> spin;
+    if (pin)
+    {
+        spin.emplace(pin);
+    }
     getuserdata(
         reqtag,
         [this, u, spwd, spin](string* /*name*/, string* /*pubk*/, string* /*privk*/, error e)
@@ -14835,7 +14839,7 @@ error MegaClient::changepw(const char* password, const char *pin)
             switch (accountversion)
             {
                 case 1:
-                    e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                    e = changePasswordV1(u, spwd.c_str(), spin ? spin->c_str() : nullptr);
                     break;
 
                 default:
@@ -14844,7 +14848,7 @@ error MegaClient::changepw(const char* password, const char *pin)
                     [[fallthrough]];
 
                 case 2:
-                    e = changePasswordV2(spwd.c_str(), spin.c_str());
+                    e = changePasswordV2(spwd.c_str(), spin ? spin->c_str() : nullptr);
                     break;
             }
 
