@@ -2098,6 +2098,15 @@ void DirectReadSlot::resetWatchdogPartialValues()
 
 bool DirectReadSlot::watchOverDirectReadPerformance()
 {
+    if (!mDr->hasValidCallback())
+    {
+        LOG_err << "DirectReadSlot Watchdog: Transfer is already deleted."
+                << " [this = " << this << "]";
+        mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
+        delete mDr;
+        return true;
+    }
+
     auto dsSinceLastWatch = Waiter::ds - mDr->drn->partialstarttime;
     if (dsSinceLastWatch <= MEAN_SPEED_INTERVAL_DS)
     {
@@ -2105,18 +2114,6 @@ bool DirectReadSlot::watchOverDirectReadPerformance()
     }
 
     const auto [minTransferspeed, transferMeanspeed] = getMinAndMeanSpeed(dsSinceLastWatch);
-    if (!mDr->hasValidCallback())
-    {
-        LOG_err << "DirectReadSlot Watchdog: Transfer is already deleted."
-                << (transferMeanspeed >= minTransferspeed ?
-                        " Transfer speed too low for streaming, Skipping retry" :
-                        "")
-                << " [this = " << this << "]";
-        mDr->drn->client->sendevent(99472, "DirectRead detected with a null transfer");
-        delete mDr;
-        return false;
-    }
-
     if (!minTransferspeed)
     {
         // no limits set by client, so no performance check is required
