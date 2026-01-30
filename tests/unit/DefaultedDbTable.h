@@ -87,6 +87,17 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+
+    bool listChildNodesLexicographically(
+        const mega::handle,
+        std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&,
+        mega::CancelToken,
+        const size_t,
+        const std::optional<mega::NodeSearchLexicographicalOffset>&) override
+    {
+        return false;
+        // throw NotImplemented(__func__);
+    }
     bool searchNodes(const mega::NodeSearchFilter&, int, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken, const mega::NodeSearchPage&) override
     {
         return false;

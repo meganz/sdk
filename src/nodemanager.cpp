@@ -531,6 +531,47 @@ sharedNode_list NodeManager::getChildren_internal(const Node* parent,
     return childrenList;
 }
 
+sharedNode_vector NodeManager::listChildNodesLexicographically(
+    const handle parenthandle,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<NodeSearchLexicographicalOffset>& offset)
+{
+    LockGuard g(mMutex);
+    return listChildNodesLexicographically_internal(parenthandle, cancelFlag, maxElements, offset);
+}
+
+sharedNode_vector NodeManager::listChildNodesLexicographically_internal(
+    const handle parentHandle,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<NodeSearchLexicographicalOffset>& offset)
+{
+    assert(mMutex.owns_lock());
+
+    // validation
+    if (parentHandle == UNDEF || !mTable || mNodes.empty())
+    {
+        assert(parentHandle != UNDEF && mTable && !mNodes.empty());
+        return sharedNode_vector();
+    }
+
+    // db look-up
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->listChildNodesLexicographically(parentHandle,
+                                                 nodesFromTable,
+                                                 cancelFlag,
+                                                 maxElements,
+                                                 offset))
+    {
+        return sharedNode_vector();
+    }
+
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
+
+    return nodes;
+}
+
 sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);

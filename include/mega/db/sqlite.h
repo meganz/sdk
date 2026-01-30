@@ -82,6 +82,14 @@ public:
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
     bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
+
+    bool listChildNodesLexicographically(
+        const handle parenthandle,
+        vector<pair<NodeHandle, NodeSerialized>>& children,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset) override;
+
     bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
     /*
@@ -185,6 +193,8 @@ private:
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
+    sqlite3_stmt* mStmtGetChildrenLexi = nullptr;
+    sqlite3_stmt* mStmtGetChildrenLexiNoOffset = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
     sqlite3_stmt* mStmtNodeTagsBelow = nullptr;
     sqlite3_stmt* mStmtNodesByFpNoMtime = nullptr;

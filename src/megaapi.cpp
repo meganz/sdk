@@ -4692,6 +4692,18 @@ MegaNodeList *MegaApi::getChildren(MegaNodeList *parentNodes, int order)
     return pImpl->getChildren(parentNodes, order);
 }
 
+MegaNodeList* MegaApi::listChildNodesLexicographically(
+    const MegaHandle parenthandle,
+    MegaCancelToken* cancelToken,
+    const size_t maxElements,
+    const std::optional<MegaSearchLexicographicalOffset>& offset)
+{
+    return pImpl->listChildNodesLexicographically(parenthandle,
+                                                  convertToCancelToken(cancelToken),
+                                                  maxElements,
+                                                  offset);
+}
+
 MegaNodeList *MegaApi::getVersions(MegaNode *node)
 {
     return pImpl->getVersions(node);

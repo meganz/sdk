@@ -136,6 +136,7 @@ public:
 
 class NodeSearchFilter;
 class NodeSearchPage;
+struct NodeSearchLexicographicalOffset;
 
 class MEGA_API DBTableNodes
 {
@@ -156,6 +157,12 @@ public:
 
     virtual uint64_t getNumberOfChildren(NodeHandle parentHandle) = 0;
     virtual bool getChildren(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
+    virtual bool listChildNodesLexicographically(
+        const handle parenthandle,
+        std::vector<std::pair<NodeHandle, NodeSerialized>>& children,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset) = 0;
     virtual bool searchNodes(const NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) = 0;
 
     /**

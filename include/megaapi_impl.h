@@ -4272,6 +4272,11 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFiles(MegaNode* parent);
         int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
+        MegaNodeList* listChildNodesLexicographically(
+            const handle parenthandle,
+            CancelToken cancelFlag,
+            const size_t maxElements,
+            const std::optional<MegaSearchLexicographicalOffset>& offset);
         MegaNodeList* getChildren(const MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
         MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
         MegaNodeList* getVersions(MegaNode *node);
