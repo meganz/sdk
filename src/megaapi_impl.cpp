@@ -19072,6 +19072,7 @@ MegaFilePut*
     *static_cast<FileFingerprint*>(f) =
         megaTransfer.fingerprint_onDisk; // deliberate slicing - startxfer would re-fingerprint if
                                          // we don't supply this info
+    f->setPitag(megaTransfer.getPitag());
 
     f->setTransfer(
         &megaTransfer); // sets internal `megaTransfer`, different from internal `transfer`!
@@ -19564,6 +19565,22 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                       << toNodeHandle(sameNodeFpFound->nodehandle)
                                       << ") with same FP and MAC exists in Cloud. Perform remote "
                                          "copy";
+
+                            Pitag pitag = transfer->getPitag();
+                            pitag.purpose = PitagPurpose::Copy;
+                            pitag.nodeType = PitagNodeType::File;
+                            if (pitag.target == PitagTarget::NotApplicable)
+                            {
+                                const bool inIncomingShare =
+                                    parent && parent->matchesOrHasAncestorMatching(
+                                                  [](const Node& node)
+                                                  {
+                                                      return node.inshare != nullptr;
+                                                  });
+                                pitag.target = inIncomingShare ? PitagTarget::IncomingShare :
+                                                                 PitagTarget::CloudDrive;
+                            }
+                            transfer->setPitag(pitag);
 
                             currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
