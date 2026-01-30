@@ -23,12 +23,14 @@
 #ifndef NODEMANAGER_H
 #define NODEMANAGER_H 1
 
-#include <map>
-#include <limits>
-#include <set>
-#include <vector>
 #include "node.h"
 #include "types.h"
+
+#include <limits>
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <vector>
 
 namespace mega {
 
@@ -486,6 +488,8 @@ public:
 
     bool isFromRootNodeType(const Node& node) const;
 
+    void removeNodePendingApplyKeys(const Node* node);
+
 private:
     class NoKeyLogger
     {
@@ -558,7 +562,7 @@ private:
     sharedNode_vector mNodeNotify;
 
     // Stores nodes pending key application
-    std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
+    std::unordered_map<handle, std::weak_ptr<Node>> mNodePendingApplyKeys;
 
     // tracks how many nodes have had a successful applykey()
     std::atomic<long long> mAppliedKeyNodeCount{0};
@@ -679,6 +683,7 @@ private:
     void insertNodeCacheLRU_internal(std::shared_ptr<Node> node);
     void unLoadNodeFromCacheLRU();
     void removeNodeCacheLRU_internal(Node* node);
+    void removeNodePendingApplyKeys_internal(const Node* node);
 };
 
 } // namespace
