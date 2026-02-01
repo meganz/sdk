@@ -2831,14 +2831,6 @@ std::pair<node_comparison_result, int64_t>
         LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
                   << sameMtime << "]";
 
-        if (debugMode && sameMtime)
-        {
-            areEqualMacs ?
-                client.sendevent(800029, "Node found with same Fp and MAC than local file") :
-                client.sendevent(800030,
-                                 "Node found with same Fp but different MAC than local file");
-        }
-
         if (!areEqualMacs)
         {
             // It doesn't matter that FPs are equal as METAMAC comparison show that they are
