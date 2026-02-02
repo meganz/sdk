@@ -5351,6 +5351,8 @@ const char *MegaRequestPrivate::getRequestString() const
             return "IMPORT_PASSWORDS_FROM_FILE";
         case TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS:
             return "TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS";
+        case TYPE_GET_DISCOUNT_CODE_INFORMATION:
+            return "TYPE_GET_DISCOUNT_CODE_INFORMATION";
 
         // FUSE requests.
         case TYPE_ADD_MOUNT:       return "TYPE_ADD_MOUNT";

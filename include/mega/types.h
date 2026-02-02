@@ -1738,17 +1738,16 @@ struct Pitag
 struct DiscountCode
 {
     std::string alfanumDiscountCode;
-    int item = 0;
-    int accountLevel = 0;
-    int behaviourType = 0;
-    unsigned percentageDiscount = 0;
-    uint8_t numMonths = 0; // (1 or 12), or 0 if applies to any
+    int item{0};
+    int accountLevel{0};
+    int behaviourType{0};
+    unsigned percentageDiscount{0};
+    uint8_t numMonths{0}; // (1 or 12), or 0 if applies to any
 
     virtual ~DiscountCode() = default;
 
     virtual bool isValidFormat() const
     {
-        // [TODO_SDK-5927] -> Complete with pending sanity checks
         return numMonths <= 12;
     }
 

@@ -4689,8 +4689,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     }
                 }
             }
-            break; // [TODO_SDK-5927] -> Now we habe mkt parsed but we need to provide to completion
-                   // function
+            break;
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
             client->setProFlexi(true);
             [[fallthrough]];
