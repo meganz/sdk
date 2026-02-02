@@ -518,4 +518,51 @@ TEST_F(SdkTestPitagPasswordManager, PitagCapturedForPasswordFolderCreation)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitag, PitagCapturedForImportFileLink)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode);
+
+    RequestTracker folderTracker(megaApi[0].get());
+    const std::string targetFolderName = getFilePrefix() + "pitag_import_target";
+    megaApi[0]->createFolder(targetFolderName.c_str(), rootNode.get(), &folderTracker);
+    ASSERT_EQ(API_OK, folderTracker.waitForResult());
+    std::unique_ptr<MegaNode> importParent{
+        megaApi[0]->getNodeByHandle(folderTracker.request->getNodeHandle())};
+    ASSERT_TRUE(importParent);
+
+    const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_import.bin");
+    const sdk_test::LocalTempFile localFile(localFilePath, "pitag-import");
+    const std::string localPathUtf8 = path_u8string(localFilePath);
+
+    {
+        TransferTracker tracker(megaApi[0].get());
+        megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, nullptr, &tracker);
+        ASSERT_EQ(API_OK, tracker.waitForResult());
+    }
+
+    std::unique_ptr<MegaNode> uploaded{
+        megaApi[0]->getNodeByPath((std::string("/") + localFilePath.filename().string()).c_str())};
+    ASSERT_TRUE(uploaded);
+
+    RequestTracker linkTracker(megaApi[0].get());
+    megaApi[0]->exportNode(uploaded.get(), 0, false, false, &linkTracker);
+    ASSERT_EQ(API_OK, linkTracker.waitForResult());
+    const char* link = linkTracker.request->getLink();
+    ASSERT_TRUE(link);
+
+    PitagCommandObserver observer;
+
+    RequestTracker importTracker(megaApi[0].get());
+    megaApi[0]->importFileLink(link, importParent.get(), &importTracker);
+    ASSERT_EQ(API_OK, importTracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("I.fDf", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
