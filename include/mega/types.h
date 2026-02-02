@@ -1758,17 +1758,36 @@ struct DiscountCode
 
 struct DiscountCodeInfoExtended: public DiscountCode
 {
-    std::string localMonthlyPriceAfterDiscount;
-    std::string localMonthlyPriceSavedAfterDiscount;
-    std::string localYearPriceAfterDiscount;
-    std::string localYearPriceSavedAfterDiscount;
+    int expiry{0};
+    int compulsorySubscription{0};
 
-    bool isValidFormat() const override
-    {
-        return DiscountCode::isValidFormat() && !localMonthlyPriceAfterDiscount.empty() &&
-               !localMonthlyPriceSavedAfterDiscount.empty() &&
-               !localYearPriceAfterDiscount.empty() && !localYearPriceSavedAfterDiscount.empty();
-    }
+    std::map<std::string, int> features;
+    int txva{0};
+    int taxExempt{0};
+    int taxRate{0};
+    std::string taxName;
+    std::string taxCountry;
+
+    int multiDiscount{0};
+    double euroTotalPrice{0.0};
+    double euroDiscountAmount{0.0};
+    double euroDiscountedTotalPrice{0.0};
+    double euroDiscountedMonthlyPrice{0.0};
+    double euroTotalPriceNet{0.0};
+    double euroDiscountAmountNet{0.0};
+    double euroDiscountedTotalPriceNet{0.0};
+    double euroDiscountedMonthlyPriceNet{0.0};
+
+    std::string localCurrencyCode;
+    std::string localCurrencySymbol;
+    double localTotalPrice{0.0};
+    double localDiscountAmount{0.0};
+    double localDiscountedTotalPrice{0.0};
+    double localDiscountedMonthlyPrice{0.0};
+    double localTotalPriceNet{0.0};
+    double localDiscountAmountNet{0.0};
+    double localDiscountedTotalPriceNet{0.0};
+    double localDiscountedMonthlyPriceNet{0.0};
 
     bool hasAlfanumCode() const override
     {

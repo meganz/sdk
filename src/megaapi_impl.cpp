@@ -29172,6 +29172,7 @@ void MegaApiImpl::getDiscountCodeInformation(const char* discountCode,
         const char* code = request->getText();
         if (!code)
         {
+            LOG_err << "getDiscountCodeInformation: Invalid discount code provided";
             return API_EARGS;
         }
 
@@ -30280,6 +30281,76 @@ unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
     if ((unsigned)productIndex < products.size())
     {
         return products[static_cast<size_t>(productIndex)].trialDays;
+    }
+
+    return 0;
+}
+
+const char* MegaPricingPrivate::getDiscountCode(int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    {
+        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        if (instantDiscounts.has_value())
+        {
+            return instantDiscounts->discountCode.c_str();
+        }
+    }
+
+    return nullptr;
+}
+
+const char* MegaPricingPrivate::getDiscountName(int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    {
+        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        if (instantDiscounts.has_value())
+        {
+            return instantDiscounts->discountName.c_str();
+        }
+    }
+
+    return nullptr;
+}
+
+int MegaPricingPrivate::getDiscountGroup(int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    {
+        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        if (instantDiscounts.has_value())
+        {
+            return instantDiscounts->discountGroup;
+        }
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getDiscountMonths(int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    {
+        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        if (instantDiscounts.has_value())
+        {
+            return instantDiscounts->discountMonths;
+        }
+    }
+
+    return 0;
+}
+
+unsigned int MegaPricingPrivate::getDiscountPercentage(int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    {
+        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        if (instantDiscounts.has_value())
+        {
+            return instantDiscounts->discountPercentage;
+        }
     }
 
     return 0;
@@ -41528,24 +41599,109 @@ int MegaDiscountCodeInfoPrivate::getBehaviorType() const
     return mDiscountCodeInfo.behaviourType;
 }
 
-const char* MegaDiscountCodeInfoPrivate::getLocalMonthlyPrice() const
+int MegaDiscountCodeInfoPrivate::getExpiry() const
 {
-    return mDiscountCodeInfo.localMonthlyPriceAfterDiscount.c_str();
+    return mDiscountCodeInfo.expiry;
 }
 
-const char* MegaDiscountCodeInfoPrivate::getLocalMonthlyPriceSaved() const
+int MegaDiscountCodeInfoPrivate::getCompulsorySubscription() const
 {
-    return mDiscountCodeInfo.localMonthlyPriceSavedAfterDiscount.c_str();
+    return mDiscountCodeInfo.compulsorySubscription;
 }
 
-const char* MegaDiscountCodeInfoPrivate::getLocalYearlyPrice() const
+int MegaDiscountCodeInfoPrivate::getMultiDiscount() const
 {
-    return mDiscountCodeInfo.localYearPriceAfterDiscount.c_str();
+    return mDiscountCodeInfo.multiDiscount;
 }
 
-const char* MegaDiscountCodeInfoPrivate::getLocalYearlyPriceSaved() const
+double MegaDiscountCodeInfoPrivate::getEuroTotalPrice() const
 {
-    return mDiscountCodeInfo.localYearPriceSavedAfterDiscount.c_str();
+    return mDiscountCodeInfo.euroTotalPrice;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroDiscountAmount() const
+{
+    return mDiscountCodeInfo.euroDiscountAmount;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroDiscountedTotalPrice() const
+{
+    return mDiscountCodeInfo.euroDiscountedTotalPrice;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroDiscountedMonthlyPrice() const
+{
+    return mDiscountCodeInfo.euroDiscountedMonthlyPrice;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroTotalPriceNet() const
+{
+    return mDiscountCodeInfo.euroTotalPriceNet;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroDiscountAmountNet() const
+{
+    return mDiscountCodeInfo.euroDiscountAmountNet;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroDiscountedTotalPriceNet() const
+{
+    return mDiscountCodeInfo.euroDiscountedTotalPriceNet;
+}
+
+double MegaDiscountCodeInfoPrivate::getEuroDiscountedMonthlyPriceNet() const
+{
+    return mDiscountCodeInfo.euroDiscountedMonthlyPriceNet;
+}
+
+const char* MegaDiscountCodeInfoPrivate::getLocalCurrencyCode() const
+{
+    return mDiscountCodeInfo.localCurrencyCode.c_str();
+}
+
+const char* MegaDiscountCodeInfoPrivate::getLocalCurrencySymbol() const
+{
+    return mDiscountCodeInfo.localCurrencySymbol.c_str();
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalTotalPrice() const
+{
+    return mDiscountCodeInfo.localTotalPrice;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalDiscountAmount() const
+{
+    return mDiscountCodeInfo.localDiscountAmount;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalDiscountedTotalPrice() const
+{
+    return mDiscountCodeInfo.localDiscountedTotalPrice;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalDiscountedMonthlyPrice() const
+{
+    return mDiscountCodeInfo.localDiscountedMonthlyPrice;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalTotalPriceNet() const
+{
+    return mDiscountCodeInfo.localTotalPriceNet;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalDiscountAmountNet() const
+{
+    return mDiscountCodeInfo.localDiscountAmountNet;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalDiscountedTotalPriceNet() const
+{
+    return mDiscountCodeInfo.localDiscountedTotalPriceNet;
+}
+
+double MegaDiscountCodeInfoPrivate::getLocalDiscountedMonthlyPriceNet() const
+{
+    return mDiscountCodeInfo.localDiscountedMonthlyPriceNet;
 }
 
 std::unique_ptr<FileSystemAccess> createFSA()
