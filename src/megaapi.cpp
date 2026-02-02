@@ -1263,6 +1263,16 @@ const MegaCancelSubscriptionReasonList* MegaRequest::getMegaCancelSubscriptionRe
     return nullptr;
 }
 
+MegaDiscountCodeList* MegaRequest::getMegaDiscountCodeList() const
+{
+    return nullptr;
+}
+
+const MegaDiscountCodeInfo* MegaRequest::getMegaDiscountCodeInfo() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -6308,6 +6318,11 @@ void MegaApi::getSubscriptionCancellationDetails(unsigned int gatewayId,
     pImpl->getSubscriptionCancellationDetails(originalTransactionId, gatewayId, listener);
 }
 
+void MegaApi::getDiscountCodeInformation(const char* discountCode, MegaRequestListener* listener)
+{
+    pImpl->getDiscountCodeInformation(discountCode, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -8415,5 +8430,92 @@ MegaCancelSubscriptionReasonList* MegaCancelSubscriptionReasonList::create()
 MegaUploadOptions* MegaUploadOptions::createInstance()
 {
     return new MegaUploadOptions();
+}
+
+MegaDiscountCode::MegaDiscountCode() {}
+
+MegaDiscountCode::~MegaDiscountCode() {}
+
+MegaDiscountCode* MegaDiscountCode::copy() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCode::getCode() const
+{
+    return nullptr;
+}
+
+int MegaDiscountCode::getItem() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getAccountLevel() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getMonths() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getPercentageDiscount() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getBehaviorType() const
+{
+    return -1;
+}
+
+MegaDiscountCodeList::MegaDiscountCodeList() {}
+
+MegaDiscountCodeList::~MegaDiscountCodeList() {}
+
+MegaDiscountCodeList* MegaDiscountCodeList::copy() const
+{
+    return nullptr;
+}
+
+const MegaDiscountCode* MegaDiscountCodeList::get(int /*i*/) const
+{
+    return nullptr;
+}
+
+int MegaDiscountCodeList::size() const
+{
+    return 0;
+}
+
+MegaDiscountCodeInfo::MegaDiscountCodeInfo() {}
+
+MegaDiscountCodeInfo::~MegaDiscountCodeInfo() {}
+
+MegaDiscountCodeInfo* MegaDiscountCodeInfo::copy() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getLocalMonthlyPrice() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getLocalMonthlyPriceSaved() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getLocalYearlyPrice() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getLocalYearlyPriceSaved() const
+{
+    return nullptr;
 }
 }

@@ -4919,6 +4919,158 @@ protected:
 };
 
 /**
+ * @brief Represents a set of properties that define discount code
+ */
+class MegaDiscountCode
+{
+public:
+    virtual ~MegaDiscountCode();
+
+    /**
+     * @brief Creates a copy of this MegaDiscountCode object.
+     *
+     * The resulting object is fully independent of the source MegaDiscountCode,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaDiscountCode object
+     */
+    virtual MegaDiscountCode* copy() const;
+
+    /**
+     * @brief Returns the discount code string
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCode object is deleted.
+     */
+    virtual const char* getCode() const;
+
+    /**
+     * @brief Returns the item associated with the discount code
+     */
+    virtual int getItem() const;
+
+    /**
+     * @brief Returns the account level associated with the discount code
+     */
+    virtual int getAccountLevel() const;
+
+    /**
+     * @brief Returns number of months (1 or 12), or 0 if code applies to any number of months
+     */
+    virtual int getMonths() const;
+
+    /**
+     * @brief Returns the percentage discount associated with the discount code
+     */
+    virtual int getPercentageDiscount() const;
+
+    /**
+     * @brief Returns the behavior type associated with the discount code
+     */
+    virtual int getBehaviorType() const;
+
+protected:
+    MegaDiscountCode();
+};
+
+/**
+ * @brief List of MegaDiscountCode objects
+ *
+ * A MegaDiscountCodeList has the ownership of the MegaDiscountCode objects that it contains, so
+ * they will be only valid until the MegaDiscountCodeList is deleted. If you want to retain a
+ * MegaDiscountCode returned by a MegaDiscountCodeList, use MegaDiscountCode::copy.
+ */
+
+class MegaDiscountCodeList
+{
+public:
+    virtual ~MegaDiscountCodeList();
+    /**
+     * @brief Creates a copy of this MegaDiscountCodeList object.
+     *
+     * The resulting object is fully independent of the source MegaDiscountCodeList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaDiscountCodeList object
+     */
+    virtual MegaDiscountCodeList* copy() const;
+    /**
+     * @brief Returns the MegaDiscountCode at position i in the MegaDiscountCodeList
+     *
+     * The MegaDiscountCodeList retains the ownership of the returned MegaDiscountCode. It will be
+     * only valid until the MegaDiscountCodeList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the MegaDiscountCode that we want to get for the list
+     * @return MegaDiscountCode at position i in the list
+     */
+    virtual const MegaDiscountCode* get(int i) const;
+
+    /**
+     * @brief Returns the number of MegaDiscountCode objects in the list
+     * @return Number of MegaDiscountCode objects in the list
+     */
+    virtual int size() const;
+
+protected:
+    MegaDiscountCodeList();
+};
+
+/**
+ * @brief Represents a set of properties that define discount code information
+ * These are used to display discount code details to the user.
+ */
+
+class MegaDiscountCodeInfo: public MegaDiscountCode
+{
+public:
+    virtual ~MegaDiscountCodeInfo();
+
+    /**
+     * @brief Creates a copy of this MegaDiscountCodeInfo object.
+     *
+     * The resulting object is fully independent of the source MegaDiscountCodeInfo,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaDiscountCodeInfo object
+     */
+    virtual MegaDiscountCodeInfo* copy() const;
+
+    /**
+     * @brief Returns the local monthly price after discount
+     */
+    virtual const char* getLocalMonthlyPrice() const;
+
+    /**
+     * @brief Returns the local monthly price saved after discount
+     */
+    virtual const char* getLocalMonthlyPriceSaved() const;
+
+    /**
+     * @brief Returns the local yearly price after discount
+     */
+    virtual const char* getLocalYearlyPrice() const;
+
+    /**
+     * @brief Returns the local yearly price saved after discount
+     */
+    virtual const char* getLocalYearlyPriceSaved() const;
+
+protected:
+    MegaDiscountCodeInfo();
+};
+
+/**
  * @brief Provides information about an asynchronous request
  *
  * Most functions in this API are asynchronous, except the ones that never require to
@@ -5147,7 +5299,8 @@ class MegaRequest
             TYPE_ADD_SYNC_PREVALIDATION = 207,
             TYPE_GET_MAX_CONNECTIONS = 208,
             TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS = 209,
-            TOTAL_OF_REQUEST_TYPES = 210,
+            TYPE_GET_DISCOUNT_CODE_INFORMATION = 210,
+            TOTAL_OF_REQUEST_TYPES = 211,
         };
 
         virtual ~MegaRequest();
@@ -6130,6 +6283,34 @@ class MegaRequest
         virtual const MegaNodeTree* getMegaNodeTree() const;
 
         virtual const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const;
+
+        /**
+         * @brief Get list of discount codes available for current user
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getDiscountCodes
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null
+         * otherwise.
+         */
+        virtual MegaDiscountCodeList* getMegaDiscountCodeList() const;
+
+        /**
+         * @brief Get information about a discount code
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getDiscountCodeInformation
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null
+         * otherwise.
+         */
+        virtual const MegaDiscountCodeInfo* getMegaDiscountCodeInfo() const;
 };
 
 /**
@@ -24179,6 +24360,27 @@ class MegaApi
         void getSubscriptionCancellationDetails(unsigned int gatewayId,
                                                 const char* originalTransactionId = nullptr,
                                                 MegaRequestListener* listener = nullptr);
+
+        /**
+         * @brief Retrieve information about a discount code
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_DISCOUNT_CODE_INFORMATION.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the discount code
+         * - MegaRequest::getDiscountCodeInfo - Returns the discount code information
+         *
+         * Possible errors:
+         * - MegaError::API_EARGS - If the code is not provided or invalid
+         * - MegaError::API_ENOENT - If the provided code does not exist
+         * - MegaError::API_EINTERNAL - If there was an internal error processing the request
+         *
+         * @param code Discount code to get information about
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDiscountCodeInformation(const char* code, MegaRequestListener* listener = nullptr);
 
     protected:
         MegaApiImpl *pImpl = nullptr;

@@ -813,7 +813,10 @@ class MEGA_API CommandGetUserData : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetUserData(MegaClient*, int tag, std::function<void(string*, string*, string*, error)>);
+    CommandGetUserData(
+        MegaClient*,
+        int tag,
+        std::function<void(string*, string*, string*, std::vector<DiscountCode>&&, error)>);
 
 protected:
     void parseUserAttribute(JSON& json, std::string& value, std::string &version, bool asciiToBinary = true);
@@ -821,7 +824,8 @@ protected:
                                              const std::string& value,
                                              const std::string& version,
                                              mega::attr_t at);
-    std::function<void(string*, string*, string*, error)> mCompletion;
+    bool parseDiscountCodes(JSON& json, std::vector<DiscountCode>& dciList);
+    std::function<void(string*, string*, string*, std::vector<DiscountCode>&&, error)> mCompletion;
 };
 
 class MEGA_API CommandGetMiscFlags : public Command

@@ -2247,6 +2247,12 @@ class MegaRequestPrivate : public MegaRequest
         const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
         void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
 
+        MegaDiscountCodeList* getMegaDiscountCodeList() const override;
+        void setMegaDiscountCodes(std::vector<DiscountCode>&& discountCodes);
+
+        const MegaDiscountCodeInfo* getMegaDiscountCodeInfo() const override;
+        void setMegaDiscountCodeInfo(std::unique_ptr<MegaDiscountCodeInfo> discountCodeInfo);
+
         static bool causesLocklessRequest(const int type);
 
     protected:
@@ -2317,6 +2323,9 @@ class MegaRequestPrivate : public MegaRequest
         unique_ptr<MegaNotificationList> mMegaNotifications;
         unique_ptr<MegaNodeTree> mMegaNodeTree;
         unique_ptr<MegaCancelSubscriptionReasonList> mMegaCancelSubscriptionReasons;
+
+        unique_ptr<MegaDiscountCodeList> mMegaDiscountCodeList;
+        unique_ptr<MegaDiscountCodeInfo> mMegaDiscountCodeInfo;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -4748,6 +4757,8 @@ public:
                                                 unsigned int gatewayId,
                                                 MegaRequestListener* listener);
 
+        void getDiscountCodeInformation(const char* discountCode, MegaRequestListener* listener);
+
     private:
         void init(MegaApi* publicApi,
                   std::unique_ptr<GfxProc> gfxproc,
@@ -4891,7 +4902,8 @@ public:
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
         void logout_result(error, MegaRequestPrivate*);
-        void userdata_result(string*, string*, string*, Error) override;
+        void
+            userdata_result(string*, string*, string*, std::vector<DiscountCode>&&, Error) override;
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
@@ -6587,6 +6599,64 @@ public:
 
 private:
     std::vector<std::shared_ptr<MegaCancelSubscriptionReason>> mReasons;
+};
+
+class MegaDiscountCodePrivate: public MegaDiscountCode
+{
+public:
+    MegaDiscountCodePrivate(DiscountCode&& discountCode);
+    ~MegaDiscountCodePrivate() override = default;
+
+    MegaDiscountCode* copy() const override;
+
+    const char* getCode() const override;
+    int getItem() const override;
+    int getAccountLevel() const override;
+    int getMonths() const override;
+    int getPercentageDiscount() const override;
+    int getBehaviorType() const override;
+
+private:
+    DiscountCode mDiscountCode;
+};
+
+class MegaDiscountCodeListPrivate: public MegaDiscountCodeList
+{
+public:
+    MegaDiscountCodeListPrivate();
+    ~MegaDiscountCodeListPrivate() override = default;
+
+    MegaDiscountCodeList* copy() const override;
+    int size() const override;
+    const MegaDiscountCode* get(int i) const override;
+
+    void add(MegaDiscountCodePrivate&& discountCode);
+
+private:
+    std::vector<MegaDiscountCodePrivate> mDiscountCodes;
+};
+
+class MegaDiscountCodeInfoPrivate: public MegaDiscountCodeInfo
+{
+public:
+    MegaDiscountCodeInfoPrivate(DiscountCodeInfoExtended&& discountCodeInfo);
+    ~MegaDiscountCodeInfoPrivate() override = default;
+
+    MegaDiscountCodeInfo* copy() const override;
+    const char* getCode() const override;
+    int getItem() const override;
+    int getAccountLevel() const override;
+    int getMonths() const override;
+    int getPercentageDiscount() const override;
+    int getBehaviorType() const override;
+
+    const char* getLocalMonthlyPrice() const override;
+    const char* getLocalMonthlyPriceSaved() const override;
+    const char* getLocalYearlyPrice() const override;
+    const char* getLocalYearlyPriceSaved() const override;
+
+private:
+    DiscountCodeInfoExtended mDiscountCodeInfo;
 };
 
 std::unique_ptr<FileSystemAccess> createFSA();

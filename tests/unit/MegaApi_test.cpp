@@ -240,6 +240,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             1,
                             std::make_unique<BusinessPlan>(),
                             0,
+                            std::nullopt,
                             std::nullopt});
         pricing.addProduct({1000,
                             1000000,
@@ -257,6 +258,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             1,
                             std::make_unique<BusinessPlan>(),
                             0,
+                            std::nullopt,
                             std::nullopt});
     };
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_LITE, 400, 499);
@@ -281,6 +283,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt}); // only monthly
     pricing.addProduct({1000,
                         1000000,
@@ -298,6 +301,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt});
     pricing.addProduct({1000,
                         1000000,
@@ -315,6 +319,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt});
     pricing.addProduct({1000,
                         1000000,
@@ -332,6 +337,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt});
     Product testProduct = {
         1000,
@@ -350,6 +356,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
         1,
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
         0,
+        std::nullopt,
         std::nullopt};
     pricing.addProduct(testProduct);
     const int testProductIndex = pricing.getNumProducts() - 1;
@@ -516,7 +523,8 @@ TEST(MegaApi, MegaApiImpl_mobileOffer)
         1,
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
         0,
-        MobileOffer{title, uat}};
+        MobileOffer{title, uat},
+        std::nullopt};
     MegaPricingPrivate pricing;
     pricing.addProduct(testProduct);
     int index{0};
