@@ -24,6 +24,35 @@
 NS_ASSUME_NONNULL_BEGIN
 
 /**
+ * @brief Upload trigger tag values
+ */
+typedef NS_ENUM(char, MEGAPitagTrigger) {
+    MEGAPitagTriggerNotApplicable = '.',
+    MEGAPitagTriggerPicker = 'p',
+    MEGAPitagTriggerDragAndDrop = 'd',
+    MEGAPitagTriggerCamera = 'c',
+    MEGAPitagTriggerScanner = 's',
+    MEGAPitagTriggerSyncAlgorithm = 'a',
+    MEGAPitagTriggerShareFromApp = 'S',
+    MEGAPitagTriggerCameraCapture = 'C',
+    MEGAPitagTriggerExplorerExtension = 'e',
+    MEGAPitagTriggerVoiceRecorder = 'v'
+};
+
+/**
+ * @brief Upload target tag values
+ */
+typedef NS_ENUM(char, MEGAPitagTarget) {
+    MEGAPitagTargetNotApplicable = '.',
+    MEGAPitagTargetCloudDrive = 'D',
+    MEGAPitagTargetChat1To1 = 'c',
+    MEGAPitagTargetChatGroup = 'C',
+    MEGAPitagTargetNoteToSelf = 's',
+    MEGAPitagTargetIncomingShare = 'i',
+    MEGAPitagTargetMultipleChats = 'M'
+};
+
+/**
  * @brief Options for uploading files and folders to MEGA.
  *
  * This class encapsulates various configuration options for upload transfers,
@@ -86,7 +115,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * Default value is MEGAPitagTriggerNotApplicable.
  */
-@property (nonatomic) char pitagTrigger;
+@property (nonatomic) MEGAPitagTrigger pitagTrigger;
 
 /**
  * @brief Indicate if the upload is done to a chat.
@@ -113,7 +142,7 @@ NS_ASSUME_NONNULL_BEGIN
  *
  * Default value is MEGAPitagTargetNotApplicable.
  */
-@property (nonatomic) char pitagTarget;
+@property (nonatomic) MEGAPitagTarget pitagTarget;
 
 /**
  * @brief Creates a new instance with default values.
@@ -169,9 +198,9 @@ NS_ASSUME_NONNULL_BEGIN
                          appData:(nullable NSString *)appData
                 isSourceTemporary:(BOOL)isSourceTemporary
                       startFirst:(BOOL)startFirst
-                    pitagTrigger:(char)pitagTrigger
+                    pitagTrigger:(MEGAPitagTrigger)pitagTrigger
                     isChatUpload:(BOOL)isChatUpload
-                     pitagTarget:(char)pitagTarget NS_DESIGNATED_INITIALIZER;
+                     pitagTarget:(MEGAPitagTarget)pitagTarget NS_DESIGNATED_INITIALIZER;
 
 @end
 
