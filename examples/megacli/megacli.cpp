@@ -11806,11 +11806,7 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
     }
 
     const auto [compRes, localFileMac] =
-        CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
-                                                      localPath,
-                                                      localFileFp,
-                                                      node.get(),
-                                                      true /*debugMode*/);
+        CompareLocalFileWithNodeMacAndFpExludingMtime(*client, localPath, localFileFp, node.get());
 
     std::string errMsg{"Node and file content comparisson: "};
     switch (compRes)

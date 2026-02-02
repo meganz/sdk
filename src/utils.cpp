@@ -2793,8 +2793,7 @@ std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(class MegaClient& client,
                                                   const LocalPath& path,
                                                   const FileFingerprint& fp,
-                                                  const Node* node,
-                                                  bool debugMode)
+                                                  const Node* node)
 {
     if (!node || node->type != FILENODE || node->nodekey().empty())
     {

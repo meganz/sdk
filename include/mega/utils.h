@@ -742,8 +742,7 @@ std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(MegaClient& client,
                                                   const LocalPath& path,
                                                   const FileFingerprint& fp,
-                                                  const Node* node,
-                                                  bool debugMode = false);
+                                                  const Node* node);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data
