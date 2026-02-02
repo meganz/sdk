@@ -483,6 +483,7 @@ public:
     // Drop indexes used for search funtionalities
     // These indexes aren't required in some apps (S4)
     void dropSearchDBIndexes();
+    void dropLexicographicDBIndexes();
 
     std::shared_ptr<Node> getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode);
 

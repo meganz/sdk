@@ -12843,6 +12843,18 @@ int MegaApiImpl::enableSearchDBIndexes(bool enable)
     return API_OK;
 }
 
+int MegaApiImpl::enableLexicographicDBIndexes(bool enable)
+{
+    if (client->loggedin() != sessiontype_t::NOTLOGGEDIN)
+    {
+        LOG_warn << "This method should be called before login";
+        return API_EACCESS;
+    }
+
+    client->enableLexicographicDBIndexes(enable);
+    return API_OK;
+}
+
 string MegaApiImpl::generateViewId()
 {
     return MegaClient::generateViewId(client->rng);

@@ -4431,6 +4431,11 @@ int MegaApi::enableSearchDBIndexes(bool enable)
     return pImpl->enableSearchDBIndexes(enable);
 }
 
+int MegaApi::enableLexicographicDBIndexes(bool enable)
+{
+    return pImpl->enableLexicographicDBIndexes(enable);
+}
+
 const char* MegaApi::generateViewId()
 {
     return strdup(pImpl->generateViewId().c_str());

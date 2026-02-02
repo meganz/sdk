@@ -1801,6 +1801,7 @@ public:
     string lang;
 
     std::atomic<bool> mEnableSearchDBIndexes{true};
+    std::atomic<bool> mEnableLexicographicDBIndexes{false};
 
     struct FolderLink {
         // public handle of the folder link ('&n=' param in the POST)
@@ -2694,6 +2695,9 @@ public:
     // Enable create DB indexes for queries used in search functionality
     // By default is true (reset to default value at locallogout)
     void enableSearchDBIndexes(bool enable);
+    // Enable create DB indexes for queries listing nodes using lexicographical oreder
+    // By default is false (reset to default value at locallogout)
+    void enableLexicographicDBIndexes(bool enable);
     // Drop DB indexes for queries used in search functionality
     // It should be call just after open the DB
     void dropSearchDBIndexes();

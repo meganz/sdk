@@ -157,9 +157,13 @@ public:
                                const std::string& /*nodeCounterBlob*/) override
     {}
 
-    void createIndexes(bool /*enableIndexesForSearching*/) override {}
+    void createIndexes(bool /*enableIndexesForSearching*/,
+                       bool /*enableIndexesForLexicographicalList*/) override
+    {}
 
     void dropSearchDBIndexes() override {}
+
+    void dropLexicographicDBIndexes() override {}
 
     bool put(uint32_t, char*, unsigned) override
     {

@@ -20156,6 +20156,30 @@ class MegaApi
         int enableSearchDBIndexes(bool enable);
 
         /**
+         * @brief Enables or disables database indexes used by listChildNodesLexicographically.
+         *
+         * The lexicographical listing API uses a database index to speed up paging in large
+         * folders. If your application doesn't call listChildNodesLexicographically, you can
+         * keep these indexes disabled to reduce database overhead. When disabled, the query
+         * still works but may be slower.
+         *
+         * @note By default, this option is disabled (`false`).
+         *
+         * @note This method must be called before login and fetchnodes and its value is not reset
+         * upon logout. If indexes already exist, they will be removed when the database is opened.
+         * If indexes have been removed or never created, they won't be created unless this option
+         * is enabled before login.
+         *
+         * @param enable Set to `true` to enable indexes for lexicographical listing, or `false`
+         * to disable them.
+         * @return
+         * - `API_OK`      - Operation completed successfully.
+         * - `API_EACCESS` - The operation could not be performed because the user is already logged
+         * in.
+         */
+        int enableLexicographicDBIndexes(bool enable);
+
+        /**
          * @brief Generate an unique ViewID
          *
          * The caller gets the ownership of the object. Use delete[] to release the memory.

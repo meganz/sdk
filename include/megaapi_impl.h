@@ -4421,6 +4421,7 @@ public:
 
         bool setLanguage(const char* languageCode);
         int enableSearchDBIndexes(bool enable);
+        int enableLexicographicDBIndexes(bool enable);
         string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);

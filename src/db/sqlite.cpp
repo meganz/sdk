@@ -1214,7 +1214,8 @@ void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t f
     sqlite3_reset(mStmtUpdateNodeAndFlags);
 }
 
-void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
+void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
+                                       bool enableIndexesForLexicographicalList)
 {
     if (!db)
     {
@@ -1228,14 +1229,6 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
     if (result)
     {
         LOG_err << "Data base error while creating index (parenthandleindex): " << sqlite3_errmsg(db);
-    }
-
-    sql = "CREATE INDEX IF NOT EXISTS lexicopraphicindex on nodes (name, type, nodehandle)";
-    result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
-    if (result)
-    {
-        LOG_err << "Data base error while creating index (lexicopraphicindex): "
-                << sqlite3_errmsg(db);
     }
 
     sql = "CREATE INDEX IF NOT EXISTS fingerprintindex on nodes (fingerprint)";
@@ -1285,9 +1278,29 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
             LOG_err << "Data base error while creating index (ctimeindex): " << sqlite3_errmsg(db);
         }
     }
+    if (enableIndexesForLexicographicalList)
+    {
+        sql = "CREATE INDEX IF NOT EXISTS lexicopraphicindex on nodes (name, type, nodehandle)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (lexicopraphicindex): "
+                    << sqlite3_errmsg(db);
+        }
+    }
 }
 
 void SqliteAccountState::dropSearchDBIndexes()
+{
+    dropDBIndexes({"shareindex", "favindex", "ctimeindex"});
+}
+
+void SqliteAccountState::dropLexicographicDBIndexes()
+{
+    dropDBIndexes({"lexicopraphicindex"});
+}
+
+void SqliteAccountState::dropDBIndexes(const std::vector<std::string>& indicesToDelete)
 {
     if (!db)
     {
@@ -1299,7 +1312,6 @@ void SqliteAccountState::dropSearchDBIndexes()
     finalise();
     begin();
 
-    const std::vector<std::string> indicesToDelete = {"shareindex", "favindex", "ctimeindex"};
     for (const auto& indexName: indicesToDelete)
     {
         sqlite3_stmt* stmt = nullptr;

@@ -141,8 +141,10 @@ public:
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
     void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override;
-    void createIndexes(bool enableIndexesForSearching) override;
+    void createIndexes(bool enableIndexesForSearching,
+                       bool enableIndexesForLexicographicalList) override;
     void dropSearchDBIndexes() override;
+    void dropLexicographicDBIndexes() override;
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
@@ -209,6 +211,9 @@ private:
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
+
+    // Helper method to drop index with the provided names
+    void dropDBIndexes(const std::vector<std::string>& indicesToDelete);
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess
