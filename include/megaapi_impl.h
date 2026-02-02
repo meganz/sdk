@@ -6657,6 +6657,13 @@ public:
     int getExpiry() const override;
     int getCompulsorySubscription() const override;
     int getMultiDiscount() const override;
+    int getTaxValue() const override;
+    MegaStringIntegerMap* getFeatures() const override;
+    bool isTaxExempt() const override;
+    bool isTaxAppliedOnTop() const override;
+    int getTaxRate() const override;
+    const char* getTaxName() const override;
+    const char* getTaxCountry() const override;
     double getEuroTotalPrice() const override;
     double getEuroDiscountAmount() const override;
     double getEuroDiscountedTotalPrice() const override;

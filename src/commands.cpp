@@ -13254,6 +13254,8 @@ CommandDiscountCodeGetInfo::CommandDiscountCodeGetInfo(MegaClient* client,
     assert(completion);
     cmd("dci");
     arg("dc", discountCode.c_str());
+    // [TODO]: For now this will be always true, but in case we want to send false, we may need to
+    // start parsing some fields that will only be received in case extra is false.
     arg("extra", 1); // request extended info
     tag = client->reqtag;
     mCompletion = std::move(completion);
@@ -13319,7 +13321,7 @@ bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
                 string key, value;
                 while (json.storeKeyValueFromObject(key, value))
                 {
-                    dci.features[key] = static_cast<unsigned>(std::stoul(value));
+                    dci.features[key] = static_cast<int>(std::stoul(value));
                 }
 
                 if (!json.leaveobject())

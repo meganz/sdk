@@ -41659,7 +41659,7 @@ const MegaDiscountCode* MegaDiscountCodeListPrivate::get(int i) const
     {
         return nullptr;
     }
-    return &mDiscountCodes[i];
+    return &mDiscountCodes[static_cast<size_t>(i)];
 }
 
 void MegaDiscountCodeListPrivate::add(MegaDiscountCodePrivate&& discountCode)
@@ -41699,7 +41699,7 @@ int MegaDiscountCodeInfoPrivate::getMonths() const
 
 int MegaDiscountCodeInfoPrivate::getPercentageDiscount() const
 {
-    return mDiscountCodeInfo.percentageDiscount;
+    return static_cast<int>(mDiscountCodeInfo.percentageDiscount);
 }
 
 int MegaDiscountCodeInfoPrivate::getBehaviorType() const
@@ -41720,6 +41720,51 @@ int MegaDiscountCodeInfoPrivate::getCompulsorySubscription() const
 int MegaDiscountCodeInfoPrivate::getMultiDiscount() const
 {
     return mDiscountCodeInfo.multiDiscount;
+}
+
+int MegaDiscountCodeInfoPrivate::getTaxValue() const
+{
+    return mDiscountCodeInfo.txva;
+}
+
+MegaStringIntegerMap* MegaDiscountCodeInfoPrivate::getFeatures() const
+{
+    MegaStringIntegerMapPrivate* featuresMap = new MegaStringIntegerMapPrivate();
+    std::for_each(mDiscountCodeInfo.features.begin(),
+                  mDiscountCodeInfo.features.end(),
+                  [featuresMap](const std::pair<const std::string, int>& f)
+                  {
+                      featuresMap->set(f.first.c_str(), f.second);
+                  });
+
+    return featuresMap;
+}
+
+bool MegaDiscountCodeInfoPrivate::isTaxExempt() const
+{
+    constexpr int TAX_EXEMPT_BIT = 1 << 1;
+    return (mDiscountCodeInfo.taxExempt & TAX_EXEMPT_BIT) != 0;
+}
+
+bool MegaDiscountCodeInfoPrivate::isTaxAppliedOnTop() const
+{
+    constexpr int TAX_ON_TOP_BIT = 1 << 2;
+    return (mDiscountCodeInfo.taxExempt & TAX_ON_TOP_BIT) != 0;
+}
+
+int MegaDiscountCodeInfoPrivate::getTaxRate() const
+{
+    return mDiscountCodeInfo.taxRate;
+}
+
+const char* MegaDiscountCodeInfoPrivate::getTaxName() const
+{
+    return mDiscountCodeInfo.taxName.c_str();
+}
+
+const char* MegaDiscountCodeInfoPrivate::getTaxCountry() const
+{
+    return mDiscountCodeInfo.taxCountry.c_str();
 }
 
 double MegaDiscountCodeInfoPrivate::getEuroTotalPrice() const

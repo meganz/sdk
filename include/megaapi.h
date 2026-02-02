@@ -5064,6 +5064,43 @@ public:
     virtual int getMultiDiscount() const = 0;
 
     /*
+     * @brief Returns a MegaStringIntegerMap with all feature names and it's code: {{"vpn", 1},
+     * {"pwm", 2} ...}
+     *You take the ownership of returned value
+     */
+    virtual MegaStringIntegerMap* getFeatures() const = 0;
+
+    /*
+     * @brief Returns the tax value associated with the discount code info
+     */
+    virtual int getTaxValue() const = 0;
+
+    /*
+     * @brief Returns if the user is tax exempt (0% tax)
+     */
+    virtual bool isTaxExempt() const = 0;
+
+    /*
+     * @brief Returns if the tax is applied on top of the base price (PPT)
+     */
+    virtual bool isTaxAppliedOnTop() const = 0;
+
+    /*
+     * @brief Returns the tax rate associated with the discount code info
+     */
+    virtual int getTaxRate() const = 0;
+
+    /*
+     * @brief Returns the tax name associated with the discount code info
+     */
+    virtual const char* getTaxName() const = 0;
+
+    /*
+     * @brief Returns the tax country associated with the discount code info
+     */
+    virtual const char* getTaxCountry() const = 0;
+
+    /*
      * @brief Returns the euro total price associated with the discount code info
      */
     virtual double getEuroTotalPrice() const = 0;
