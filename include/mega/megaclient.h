@@ -649,7 +649,10 @@ public:
     bool validatepwdlocally(const char* pswd);
 
     // get user data
-    void getuserdata(int tag, std::function<void(string*, string*, string*, error)> = nullptr);
+    void getuserdata(
+        int tag,
+        std::function<void(string*, string*, string*, std::vector<DiscountCode>&&, error)> =
+            nullptr);
 
     // get miscelaneous flags
     void getmiscflags();
@@ -1435,6 +1438,10 @@ public:
 
     // shopping basket
     handle_vector purchase_basket;
+
+    // get the information about a discount code
+    void getDiscountCodeInformation(const std::string& code,
+                                    CommandDiscountCodeGetInfo::CompletionCallback completion);
 
     // enumerate Pro account purchase options
     // Optional countryCode to set the desired currency

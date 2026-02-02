@@ -1736,7 +1736,7 @@ struct Pitag
 
 struct DiscountCode
 {
-    std::optional<std::string> alfanumDiscountCode;
+    std::string alfanumDiscountCode;
     int item = 0;
     int accountLevel = 0;
     int behaviourType = 0;
@@ -1753,22 +1753,22 @@ struct DiscountCode
 
     virtual bool hasAlfanumCode() const
     {
-        return alfanumDiscountCode.has_value();
+        return !alfanumDiscountCode.empty();
     }
 };
 
 struct DiscountCodeInfoExtended: public DiscountCode
 {
-    double localMonthlyPriceAfterDiscount = 0.0;
-    double localMonthlyPriceSavedAfterDiscount = 0.0;
-    double localYearPriceAfterDiscount = 0.0;
-    double localYearPriceSavedAfterDiscount = 0.0;
+    std::string localMonthlyPriceAfterDiscount;
+    std::string localMonthlyPriceSavedAfterDiscount;
+    std::string localYearPriceAfterDiscount;
+    std::string localYearPriceSavedAfterDiscount;
 
     bool isValidFormat() const override
     {
-        return DiscountCode::isValidFormat() && localMonthlyPriceAfterDiscount >= 0.0 &&
-               localMonthlyPriceSavedAfterDiscount >= 0.0 && localYearPriceAfterDiscount >= 0.0 &&
-               localYearPriceSavedAfterDiscount >= 0.0;
+        return DiscountCode::isValidFormat() && !localMonthlyPriceAfterDiscount.empty() &&
+               !localMonthlyPriceSavedAfterDiscount.empty() &&
+               !localYearPriceAfterDiscount.empty() && !localYearPriceSavedAfterDiscount.empty();
     }
 
     bool hasAlfanumCode() const override

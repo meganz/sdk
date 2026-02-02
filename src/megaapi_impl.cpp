@@ -4450,6 +4450,10 @@ MegaRequestPrivate::MegaRequestPrivate(MegaRequestPrivate *request)
     this->mMegaNodeTree.reset(request->mMegaNodeTree ? request->mMegaNodeTree->copy() : nullptr);
     this->mStringIntegerMap.reset(request->mStringIntegerMap ? request->mStringIntegerMap->copy() :
                                                                nullptr);
+    this->mMegaDiscountCodeList.reset(
+        request->mMegaDiscountCodeList ? request->mMegaDiscountCodeList->copy() : nullptr);
+    this->mMegaDiscountCodeInfo.reset(
+        request->mMegaDiscountCodeInfo ? request->mMegaDiscountCodeInfo->copy() : nullptr);
 }
 
 std::shared_ptr<AccountDetails> MegaRequestPrivate::getAccountDetails() const
@@ -5423,6 +5427,33 @@ void MegaRequestPrivate::setMegaCancelSubscriptionReasons(
     MegaCancelSubscriptionReasonList* cancelReasons)
 {
     mMegaCancelSubscriptionReasons.reset(cancelReasons);
+}
+
+MegaDiscountCodeList* MegaRequestPrivate::getMegaDiscountCodeList() const
+{
+    return mMegaDiscountCodeList.get();
+}
+
+void MegaRequestPrivate::setMegaDiscountCodes(std::vector<DiscountCode>&& discountCodes)
+{
+    unique_ptr<MegaDiscountCodeListPrivate> tempList =
+        std::make_unique<MegaDiscountCodeListPrivate>();
+    for (auto& dc: discountCodes)
+    {
+        tempList->add(MegaDiscountCodePrivate(std::move(dc)));
+    }
+    mMegaDiscountCodeList = std::move(tempList);
+}
+
+const MegaDiscountCodeInfo* MegaRequestPrivate::getMegaDiscountCodeInfo() const
+{
+    return mMegaDiscountCodeInfo.get();
+}
+
+void MegaRequestPrivate::setMegaDiscountCodeInfo(
+    std::unique_ptr<MegaDiscountCodeInfo> discountCodeInfo)
+{
+    mMegaDiscountCodeInfo = std::move(discountCodeInfo);
 }
 
 bool MegaRequestPrivate::causesLocklessRequest(const int type)
@@ -15861,7 +15892,11 @@ void MegaApiImpl::logout_result(error e, MegaRequestPrivate* request)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, Error result)
+void MegaApiImpl::userdata_result(string* name,
+                                  string* pubk,
+                                  string* privk,
+                                  std::vector<DiscountCode>&& discountCodes,
+                                  Error result)
 {
     // notify apps about the availability/update of user-flags, such as `aplvp`
     // (note that usually the API command is triggered internally, so no request is associated)
@@ -15880,6 +15915,7 @@ void MegaApiImpl::userdata_result(string *name, string* pubk, string* privk, Err
         request->setPassword(pubk->c_str());
         request->setPrivateKey(privk->c_str());
         request->setName(name->c_str());
+        request->setMegaDiscountCodes(std::move(discountCodes));
     }
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(result));
 }
@@ -29122,6 +29158,42 @@ void MegaApiImpl::getSubscriptionCancellationDetails(const char* originalTransac
     waiter->notify();
 }
 
+void MegaApiImpl::getDiscountCodeInformation(const char* discountCode,
+                                             MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_DISCOUNT_CODE_INFORMATION, listener);
+    request->setText(discountCode);
+
+    request->performRequest = [this, request]()
+    {
+        const char* code = request->getText();
+        if (!code)
+        {
+            return API_EARGS;
+        }
+
+        client->getDiscountCodeInformation(
+            code,
+            [this, code, request](const Error& e, DiscountCodeInfoExtended&& info)
+            {
+                if (!e)
+                {
+                    info.alfanumDiscountCode = code;
+                    request->setMegaDiscountCodeInfo(
+                        std::make_unique<MegaDiscountCodeInfoPrivate>(std::move(info)));
+                }
+
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            });
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 /* END MEGAAPIIMPL */
 
 int TransferQueue::getLastPushedTag() const
@@ -41345,6 +41417,133 @@ size_t MegaCancelSubscriptionReasonListPrivate::size() const
 MegaCancelSubscriptionReasonListPrivate* MegaCancelSubscriptionReasonListPrivate::copy() const
 {
     return new MegaCancelSubscriptionReasonListPrivate(*this);
+}
+
+MegaDiscountCodePrivate::MegaDiscountCodePrivate(DiscountCode&& discountCode):
+    mDiscountCode{std::move(discountCode)}
+{}
+
+MegaDiscountCode* MegaDiscountCodePrivate::copy() const
+{
+    return new MegaDiscountCodePrivate(*this);
+}
+
+const char* MegaDiscountCodePrivate::getCode() const
+{
+    return mDiscountCode.alfanumDiscountCode.c_str();
+}
+
+int MegaDiscountCodePrivate::getItem() const
+{
+    return mDiscountCode.item;
+}
+
+int MegaDiscountCodePrivate::getAccountLevel() const
+{
+    return mDiscountCode.accountLevel;
+}
+
+int MegaDiscountCodePrivate::getMonths() const
+{
+    return mDiscountCode.numMonths;
+}
+
+int MegaDiscountCodePrivate::getPercentageDiscount() const
+{
+    return mDiscountCode.percentageDiscount;
+}
+
+int MegaDiscountCodePrivate::getBehaviorType() const
+{
+    return mDiscountCode.behaviourType;
+}
+
+MegaDiscountCodeListPrivate::MegaDiscountCodeListPrivate():
+    mDiscountCodes{}
+{}
+
+MegaDiscountCodeList* MegaDiscountCodeListPrivate::copy() const
+{
+    return new MegaDiscountCodeListPrivate(*this);
+}
+
+int MegaDiscountCodeListPrivate::size() const
+{
+    return static_cast<int>(mDiscountCodes.size());
+}
+
+const MegaDiscountCode* MegaDiscountCodeListPrivate::get(int i) const
+{
+    if (i < 0 || i >= static_cast<int>(mDiscountCodes.size()))
+    {
+        return nullptr;
+    }
+    return &mDiscountCodes[i];
+}
+
+void MegaDiscountCodeListPrivate::add(MegaDiscountCodePrivate&& discountCode)
+{
+    mDiscountCodes.emplace_back(std::move(discountCode));
+}
+
+MegaDiscountCodeInfoPrivate::MegaDiscountCodeInfoPrivate(
+    DiscountCodeInfoExtended&& discountCodeInfo):
+    mDiscountCodeInfo{std::move(discountCodeInfo)}
+{}
+
+MegaDiscountCodeInfo* MegaDiscountCodeInfoPrivate::copy() const
+{
+    return new MegaDiscountCodeInfoPrivate(*this);
+}
+
+const char* MegaDiscountCodeInfoPrivate::getCode() const
+{
+    return mDiscountCodeInfo.alfanumDiscountCode.c_str();
+}
+
+int MegaDiscountCodeInfoPrivate::getItem() const
+{
+    return mDiscountCodeInfo.item;
+}
+
+int MegaDiscountCodeInfoPrivate::getAccountLevel() const
+{
+    return mDiscountCodeInfo.accountLevel;
+}
+
+int MegaDiscountCodeInfoPrivate::getMonths() const
+{
+    return mDiscountCodeInfo.numMonths;
+}
+
+int MegaDiscountCodeInfoPrivate::getPercentageDiscount() const
+{
+    return mDiscountCodeInfo.percentageDiscount;
+}
+
+int MegaDiscountCodeInfoPrivate::getBehaviorType() const
+{
+    return mDiscountCodeInfo.behaviourType;
+}
+
+const char* MegaDiscountCodeInfoPrivate::getLocalMonthlyPrice() const
+{
+    return mDiscountCodeInfo.localMonthlyPriceAfterDiscount.c_str();
+}
+
+const char* MegaDiscountCodeInfoPrivate::getLocalMonthlyPriceSaved() const
+{
+    return mDiscountCodeInfo.localMonthlyPriceSavedAfterDiscount.c_str();
+}
+
+const char* MegaDiscountCodeInfoPrivate::getLocalYearlyPrice() const
+{
+    return mDiscountCodeInfo.localYearPriceAfterDiscount.c_str();
+}
+
+const char* MegaDiscountCodeInfoPrivate::getLocalYearlyPriceSaved() const
+{
+    return mDiscountCodeInfo.localYearPriceSavedAfterDiscount.c_str();
 }
 
 std::unique_ptr<FileSystemAccess> createFSA()
