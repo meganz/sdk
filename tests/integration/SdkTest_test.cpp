@@ -22282,20 +22282,22 @@ void SdkTest::testHashcash(const bool logoutDuringLoging = false)
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     std::mutex m;
     std::condition_variable cv;
-    bool received402 = false;
-    std::atomic_bool hookRegister{true};
+    bool hashcashCalculationStarted = false;
+
+    const MrProper cleanUp(
+        []()
+        {
+            globalMegaTestHooks.onHashcashCalculationStarted = nullptr;
+            ASSERT_TRUE(DebugTestHook::resetForTests());
+        });
     if (logoutDuringLoging)
     {
         ASSERT_TRUE(DebugTestHook::resetForTests());
-        mega::globalMegaTestHooks.onHttpReqFinish =
-            [&](const int httpStatus, const unsigned /*curlCode*/, const bool /*failed*/)
+        globalMegaTestHooks.onHashcashCalculationStarted = [&]()
         {
-            if (hookRegister.load(std::memory_order_relaxed) && httpStatus == 402)
-            {
-                std::lock_guard<std::mutex> lock(m);
-                received402 = true;
-                cv.notify_one();
-            }
+            std::lock_guard<std::mutex> lock(m);
+            hashcashCalculationStarted = true;
+            cv.notify_one();
         };
     }
 
@@ -22323,17 +22325,11 @@ void SdkTest::testHashcash(const bool logoutDuringLoging = false)
                                     std::chrono::seconds(10),
                                     [&]
                                     {
-                                        return received402;
+                                        return hashcashCalculationStarted;
                                     }))
-                << "Did not observe HTTP 402 (hashcash challenge) during login";
+                << "Did not observe hashcash calculation start during login";
         }
 
-        // Restore previous hook immediately to avoid affecting other tests/logic
-        hookRegister.store(false, std::memory_order_relaxed);
-        mega::globalMegaTestHooks.onHttpReqFinish = nullptr;
-        ASSERT_TRUE(DebugTestHook::resetForTests());
-        // Wait until hashCash calculation has started
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
 #else
         std::this_thread::sleep_for(std::chrono::seconds(2));
 #endif
