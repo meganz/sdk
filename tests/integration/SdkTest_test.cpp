@@ -22278,6 +22278,29 @@ void SdkTest::testHashcash(const bool logoutDuringLoging = false)
     std::string ua = "HashcashDemo";
     megaApi[0]->getClient()->httpio->setuseragent(&ua);
     megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    std::mutex m;
+    std::condition_variable cv;
+    bool received402 = false;
+    std::atomic_bool hookRegister{true};
+    if (logoutDuringLoging)
+    {
+        ASSERT_TRUE(DebugTestHook::resetForTests());
+        mega::globalMegaTestHooks.onHttpReqFinish =
+            [&](const int httpStatus, const unsigned /*curlCode*/, const bool /*failed*/)
+        {
+            if (hookRegister.load(std::memory_order_relaxed) && httpStatus == 402)
+            {
+                std::lock_guard<std::mutex> lock(m);
+                received402 = true;
+                cv.notify_one();
+            }
+        };
+    }
+
+#endif
+
     std::unique_ptr<RequestTracker> tracker;
     if (!gResumeSessions || gSessionIDs[0].empty() || gSessionIDs[0] == "invalid")
     {
@@ -22292,7 +22315,28 @@ void SdkTest::testHashcash(const bool logoutDuringLoging = false)
 
     if (logoutDuringLoging)
     {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        // Wait until we observe the hashcash challenge (HTTP 402) during login
+        {
+            std::unique_lock<std::mutex> lock(m);
+            ASSERT_TRUE(cv.wait_for(lock,
+                                    std::chrono::seconds(10),
+                                    [&]
+                                    {
+                                        return received402;
+                                    }))
+                << "Did not observe HTTP 402 (hashcash challenge) during login";
+        }
+
+        // Restore previous hook immediately to avoid affecting other tests/logic
+        hookRegister.store(false, std::memory_order_relaxed);
+        mega::globalMegaTestHooks.onHttpReqFinish = nullptr;
+        ASSERT_TRUE(DebugTestHook::resetForTests());
+        // Wait until hashCash calculation has started
+        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+#else
         std::this_thread::sleep_for(std::chrono::seconds(2));
+#endif
         const auto startTime = std::chrono::steady_clock::now();
         ASSERT_NO_FATAL_FAILURE(locallogout());
         LOG_debug << "[testHashcash] Locallogout during logging completed in "
