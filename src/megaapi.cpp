@@ -8501,4 +8501,149 @@ int MegaDiscountCodeList::size() const
 MegaDiscountCodeInfo::MegaDiscountCodeInfo() {}
 
 MegaDiscountCodeInfo::~MegaDiscountCodeInfo() {}
+
+MegaDiscountCodeInfo* MegaDiscountCodeInfo::copy() const
+{
+    return nullptr;
+}
+
+int MegaDiscountCodeInfo::getExpiry() const
+{
+    return -1;
+}
+
+int MegaDiscountCodeInfo::getCompulsorySubscription() const
+{
+    return -1;
+}
+
+int MegaDiscountCodeInfo::getMultiDiscount() const
+{
+    return -1;
+}
+
+MegaStringIntegerMap* MegaDiscountCodeInfo::getFeatures() const
+{
+    return nullptr;
+}
+
+int MegaDiscountCodeInfo::getTaxValue() const
+{
+    return -1;
+}
+
+bool MegaDiscountCodeInfo::isTaxExempt() const
+{
+    return false;
+}
+
+bool MegaDiscountCodeInfo::isTaxAppliedOnTop() const
+{
+    return false;
+}
+
+int MegaDiscountCodeInfo::getTaxRate() const
+{
+    return -1;
+}
+
+const char* MegaDiscountCodeInfo::getTaxName() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getTaxCountry() const
+{
+    return nullptr;
+}
+
+double MegaDiscountCodeInfo::getEuroTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountAmount() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedMonthlyPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountAmountNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedMonthlyPriceNet() const
+{
+    return 0;
+}
+
+const char* MegaDiscountCodeInfo::getLocalCurrencyCode() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getLocalCurrencySymbol() const
+{
+    return nullptr;
+}
+
+double MegaDiscountCodeInfo::getLocalTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountAmount() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedMonthlyPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountAmountNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedMonthlyPriceNet() const
+{
+    return 0;
+}
 }
