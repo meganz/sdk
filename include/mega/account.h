@@ -232,9 +232,9 @@ struct MEGA_API InstantDiscounts
 {
     std::string discountCode; // The discount code to be applied
     std::string discountName; // The name of the discount
-    int discountPercentage{0}; // The percentage of the discount
+    unsigned int discountPercentage{0}; // The percentage of the discount
     int discountGroup{0}; // The group code of the discount
-    int discountMonths{0}; // The number of months the discount applies to
+    unsigned int discountMonths{0}; // The number of months the discount applies to
 };
 
 struct MEGA_API Product

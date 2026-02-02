@@ -5006,7 +5006,7 @@ public:
      * The MegaDiscountCodeList retains the ownership of the returned MegaDiscountCode. It will be
      * only valid until the MegaDiscountCodeList is deleted.
      *
-     * If the index is >= the size of the list, this function returns NULL.
+     * If the index is >= the size of the list, this function returns nullptr.
      *
      * @param i Position of the MegaDiscountCode that we want to get for the list
      * @return MegaDiscountCode at position i in the list
@@ -5044,27 +5044,120 @@ public:
      *
      * @return Copy of the MegaDiscountCodeInfo object
      */
-    virtual MegaDiscountCodeInfo* copy() const;
+    virtual MegaDiscountCodeInfo* copy() const = 0;
 
-    /**
-     * @brief Returns the local monthly price after discount
+    /*
+     * @brief Returns the expiry time associated with the discount code info
      */
-    virtual const char* getLocalMonthlyPrice() const;
+    virtual int getExpiry() const = 0;
 
-    /**
-     * @brief Returns the local monthly price saved after discount
+    /*
+     * @brief Returns the compulsory subscription associated with the discount code info
+     * Subscription will continue after discount period
      */
-    virtual const char* getLocalMonthlyPriceSaved() const;
+    virtual int getCompulsorySubscription() const = 0;
 
-    /**
-     * @brief Returns the local yearly price after discount
+    /*
+     * @brief Returns the multi discount associated with the discount code info
+     * Turn flag on for using new Multi Discount system (alters UI appearance & behaviour)
      */
-    virtual const char* getLocalYearlyPrice() const;
+    virtual int getMultiDiscount() const = 0;
 
-    /**
-     * @brief Returns the local yearly price saved after discount
+    /*
+     * @brief Returns the euro total price associated with the discount code info
      */
-    virtual const char* getLocalYearlyPriceSaved() const;
+    virtual double getEuroTotalPrice() const = 0;
+
+    /*
+     * @brief Returns the euro discount amount associated with the discount code info
+     */
+    virtual double getEuroDiscountAmount() const = 0;
+
+    /*
+     * @brief Returns the euro discounted total price associated with the discount code info
+     */
+    virtual double getEuroDiscountedTotalPrice() const = 0;
+
+    /*
+     * @brief Returns the euro discounted monthly price associated with the discount code info
+     */
+    virtual double getEuroDiscountedMonthlyPrice() const = 0;
+
+    /*
+     * @brief Returns the euro total price net associated with the discount code info
+     */
+    virtual double getEuroTotalPriceNet() const = 0;
+
+    /*
+     * @brief Returns the euro discount amount net associated with the discount code info
+     */
+    virtual double getEuroDiscountAmountNet() const = 0;
+
+    /*
+     * @brief Returns the euro discounted total price net associated with the discount code info
+     */
+    virtual double getEuroDiscountedTotalPriceNet() const = 0;
+
+    /*
+     * @brief Returns the euro discounted monthly price net associated with the discount code info
+     */
+    virtual double getEuroDiscountedMonthlyPriceNet() const = 0;
+
+    /*
+     * @brief Returns the local currency code associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCode object is deleted.
+     */
+    virtual const char* getLocalCurrencyCode() const = 0;
+
+    /*
+     * @brief Returns the local currency symbol associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCode object is deleted.
+     */
+    virtual const char* getLocalCurrencySymbol() const = 0;
+
+    /*
+     * @brief Returns the local total price associated with the discount code info
+     */
+    virtual double getLocalTotalPrice() const = 0;
+
+    /*
+     * @brief Returns the local discount amount associated with the discount code info
+     */
+    virtual double getLocalDiscountAmount() const = 0;
+
+    /*
+     * @brief Returns the local discounted total price associated with the discount code info
+     */
+    virtual double getLocalDiscountedTotalPrice() const = 0;
+
+    /*
+     * @brief Returns the local discounted monthly price associated with the discount code info
+     */
+    virtual double getLocalDiscountedMonthlyPrice() const = 0;
+
+    /*
+     * @brief Returns the local total price net associated with the discount code info
+     */
+    virtual double getLocalTotalPriceNet() const = 0;
+
+    /*
+     * @brief Returns the local discount amount net associated with the discount code info
+     */
+    virtual double getLocalDiscountAmountNet() const = 0;
+
+    /*
+     * @brief Returns the local discounted total price net associated with the discount code info
+     */
+    virtual double getLocalDiscountedTotalPriceNet() const = 0;
+
+    /*
+     * @brief Returns the local discounted monthly price net associated with the discount code info
+     */
+    virtual double getLocalDiscountedMonthlyPriceNet() const = 0;
 
 protected:
     MegaDiscountCodeInfo();
@@ -24373,9 +24466,11 @@ class MegaApi
          * - MegaRequest::getDiscountCodeInfo - Returns the discount code information
          *
          * Possible errors:
-         * - MegaError::API_EARGS - If the code is not provided or invalid
-         * - MegaError::API_ENOENT - If the provided code does not exist
-         * - MegaError::API_EINTERNAL - If there was an internal error processing the request
+         * - MegaError::API_EARGS - If the provided code is nullptr
+         * - MegaError::API_EEXPIRED - If the discount has expired
+         * - MegaError::API_ENOENT - If the provided code is not found
+         * - MegaError::API_EACCESS - If the discount is for different user
+         * - MegaError::API_EEXIST - If the discount has already been redeemed
          *
          * @param code Discount code to get information about
          * @param listener MegaRequestListener to track this request
@@ -25778,6 +25873,52 @@ public:
      * @return test category bitmap
      */
     virtual unsigned int getTestCategory(int productIndex) const;
+
+    /**
+     * @brief Get the discount code for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount code for the product, or nullptr if there is no discount
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     */
+    virtual const char* getDiscountCode(int productIndex) const;
+
+    /**
+     * @brief Get the discount name for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount name for the product, or nullptr if there is no discount
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     */
+    virtual const char* getDiscountName(int productIndex) const;
+
+    /**
+     * @brief Get the discount group for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount group for the product, or 0 if there is no discount
+     */
+    virtual int getDiscountGroup(int productIndex) const;
+
+    /**
+     * @brief Get the discount duration in months for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount duration in months for the product, or 0 if there is no discount
+     */
+    virtual unsigned int getDiscountMonths(int productIndex) const;
+
+    /**
+     * @brief Get the discount percentage for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount percentage for the product, or 0 if there is no discount
+     */
+    virtual unsigned int getDiscountPercentage(int productIndex) const;
 
     /**
      * @brief Get trial duration in days

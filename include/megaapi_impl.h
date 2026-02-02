@@ -2600,6 +2600,11 @@ public:
     bool hasMobileOffers(int productIndex) const override;
     std::string getMobileOfferId(int productIndex) const override;
     bool hasMobileOfferUat(int productIndex) const override;
+    const char* getDiscountCode(int productIndex) const override;
+    const char* getDiscountName(int productIndex) const override;
+    int getDiscountGroup(int productIndex) const override;
+    unsigned int getDiscountMonths(int productIndex) const override;
+    unsigned int getDiscountPercentage(int productIndex) const override;
     void addProduct(const Product& product);
 
 private:
@@ -6649,11 +6654,27 @@ public:
     int getMonths() const override;
     int getPercentageDiscount() const override;
     int getBehaviorType() const override;
-
-    const char* getLocalMonthlyPrice() const override;
-    const char* getLocalMonthlyPriceSaved() const override;
-    const char* getLocalYearlyPrice() const override;
-    const char* getLocalYearlyPriceSaved() const override;
+    int getExpiry() const override;
+    int getCompulsorySubscription() const override;
+    int getMultiDiscount() const override;
+    double getEuroTotalPrice() const override;
+    double getEuroDiscountAmount() const override;
+    double getEuroDiscountedTotalPrice() const override;
+    double getEuroDiscountedMonthlyPrice() const override;
+    double getEuroTotalPriceNet() const override;
+    double getEuroDiscountAmountNet() const override;
+    double getEuroDiscountedTotalPriceNet() const override;
+    double getEuroDiscountedMonthlyPriceNet() const override;
+    const char* getLocalCurrencyCode() const override;
+    const char* getLocalCurrencySymbol() const override;
+    double getLocalTotalPrice() const override;
+    double getLocalDiscountAmount() const override;
+    double getLocalDiscountedTotalPrice() const override;
+    double getLocalDiscountedMonthlyPrice() const override;
+    double getLocalTotalPriceNet() const override;
+    double getLocalDiscountAmountNet() const override;
+    double getLocalDiscountedTotalPriceNet() const override;
+    double getLocalDiscountedMonthlyPriceNet() const override;
 
 private:
     DiscountCodeInfoExtended mDiscountCodeInfo;

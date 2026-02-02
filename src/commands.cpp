@@ -5648,10 +5648,8 @@ bool CommandGetUserData::parseDiscountCodes(JSON& json, std::vector<DiscountCode
             switch (json.getnameid())
             {
                 case makeNameid("dc"):
-                {
                     json.storeobject(&dci.alfanumDiscountCode);
-                }
-                break;
+                    break;
                 case makeNameid("it"):
                     dci.item = json.getint32();
                     break;
@@ -13256,6 +13254,7 @@ CommandDiscountCodeGetInfo::CommandDiscountCodeGetInfo(MegaClient* client,
     assert(completion);
     cmd("dci");
     arg("dc", discountCode.c_str());
+    arg("extra", 1); // request extended info
     tag = client->reqtag;
     mCompletion = std::move(completion);
 }
@@ -13277,38 +13276,133 @@ bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
         }
         return true;
     }
-
     DiscountCodeInfoExtended dci;
     for (bool finished = false; !finished;)
     {
         switch (json.getnameid())
         {
+            case makeNameid("dc"):
+                json.storeobject(&dci.alfanumDiscountCode);
+                break;
             case makeNameid("it"):
                 dci.item = json.getint32();
                 break;
             case makeNameid("al"):
                 dci.accountLevel = json.getint32();
                 break;
-            case makeNameid("bt"):
-                dci.behaviourType = json.getint32();
+            case makeNameid("m"):
+                dci.numMonths = static_cast<uint8_t>(json.getuint32());
+                break;
+            case makeNameid("ex"):
+                dci.expiry = json.getint32();
+                break;
+            case makeNameid("cs"):
+                dci.compulsorySubscription = json.getint32();
                 break;
             case makeNameid("pd"):
                 dci.percentageDiscount = json.getuint32();
                 break;
-            case makeNameid("m"):
-                dci.numMonths = static_cast<uint8_t>(json.getuint32());
+            case makeNameid("bt"):
+                dci.behaviourType = json.getint32();
                 break;
-            case makeNameid("lmp"):
-                json.storeobject(&dci.localMonthlyPriceAfterDiscount);
+            case makeNameid("f"):
+            {
+                if (!json.enterobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {});
+                    }
+                    return false;
+                }
+
+                string key, value;
+                while (json.storeKeyValueFromObject(key, value))
+                {
+                    dci.features[key] = static_cast<unsigned>(std::stoul(value));
+                }
+
+                if (!json.leaveobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {});
+                    }
+                    return false;
+                }
                 break;
-            case makeNameid("lmps"):
-                json.storeobject(&dci.localMonthlyPriceSavedAfterDiscount);
+            }
+            case makeNameid("txva"):
+                dci.txva = json.getint32();
                 break;
-            case makeNameid("lmy"):
-                json.storeobject(&dci.localYearPriceAfterDiscount);
+            case makeNameid("txe"):
+                dci.taxExempt = json.getint32();
                 break;
-            case makeNameid("lmys"):
-                json.storeobject(&dci.localYearPriceSavedAfterDiscount);
+            case makeNameid("tx"):
+                dci.taxRate = json.getint32();
+                break;
+            case makeNameid("txn"):
+                json.storeobject(&dci.taxName);
+                break;
+            case makeNameid("txcc"):
+                json.storeobject(&dci.taxCountry);
+                break;
+            case makeNameid("md"):
+                dci.multiDiscount = json.getint32();
+                break;
+            case makeNameid("etp"):
+                dci.euroTotalPrice = json.getfloat();
+                break;
+            case makeNameid("eda"):
+                dci.euroDiscountAmount = json.getfloat();
+                break;
+            case makeNameid("edtp"):
+                dci.euroDiscountedTotalPrice = json.getfloat();
+                break;
+            case makeNameid("edmp"):
+                dci.euroDiscountedMonthlyPrice = json.getfloat();
+                break;
+            case makeNameid("etpn"):
+                dci.euroTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("edan"):
+                dci.euroDiscountAmountNet = json.getfloat();
+                break;
+            case makeNameid("edtpn"):
+                dci.euroDiscountedTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("edmpn"):
+                dci.euroDiscountedMonthlyPriceNet = json.getfloat();
+                break;
+            case makeNameid("lcc"):
+                json.storeobject(&dci.localCurrencyCode);
+                break;
+            case makeNameid("lcs"):
+                json.storeobject(&dci.localCurrencySymbol);
+                break;
+            case makeNameid("ltp"):
+                dci.localTotalPrice = json.getfloat();
+                break;
+            case makeNameid("lda"):
+                dci.localDiscountAmount = json.getfloat();
+                break;
+            case makeNameid("ldtp"):
+                dci.localDiscountedTotalPrice = json.getfloat();
+                break;
+            case makeNameid("ldmp"):
+                dci.localDiscountedMonthlyPrice = json.getfloat();
+                break;
+            case makeNameid("ltpn"):
+                dci.localTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("ldan"):
+                dci.localDiscountAmountNet = json.getfloat();
+                break;
+            case makeNameid("ldtpn"):
+                dci.localDiscountedTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("ldmpn"):
+                dci.localDiscountedMonthlyPriceNet = json.getfloat();
                 break;
             default:
                 if (!json.storeobject())

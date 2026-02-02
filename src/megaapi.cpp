@@ -6731,6 +6731,31 @@ unsigned int MegaPricing::getTestCategory(int) const
     return 0;
 }
 
+const char* MegaPricing::getDiscountCode(int) const
+{
+    return nullptr;
+}
+
+const char* MegaPricing::getDiscountName(int) const
+{
+    return nullptr;
+}
+
+int MegaPricing::getDiscountGroup(int) const
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getDiscountMonths(int) const
+{
+    return 0;
+}
+
+unsigned int MegaPricing::getDiscountPercentage(int) const
+{
+    return 0;
+}
+
 #ifdef ENABLE_SYNC
 MegaSync::~MegaSync() { }
 
@@ -8493,29 +8518,4 @@ int MegaDiscountCodeList::size() const
 MegaDiscountCodeInfo::MegaDiscountCodeInfo() {}
 
 MegaDiscountCodeInfo::~MegaDiscountCodeInfo() {}
-
-MegaDiscountCodeInfo* MegaDiscountCodeInfo::copy() const
-{
-    return nullptr;
-}
-
-const char* MegaDiscountCodeInfo::getLocalMonthlyPrice() const
-{
-    return nullptr;
-}
-
-const char* MegaDiscountCodeInfo::getLocalMonthlyPriceSaved() const
-{
-    return nullptr;
-}
-
-const char* MegaDiscountCodeInfo::getLocalYearlyPrice() const
-{
-    return nullptr;
-}
-
-const char* MegaDiscountCodeInfo::getLocalYearlyPriceSaved() const
-{
-    return nullptr;
-}
 }
