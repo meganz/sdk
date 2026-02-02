@@ -16064,7 +16064,28 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        client->putnodes(parenthandle, UseLocalVersioningFlag, std::move(newnodes), nullptr, nextTag, false);
+        Pitag pitag{PitagPurpose::Import,
+                    PitagTrigger::NotApplicable,
+                    PitagNodeType::File,
+                    PitagTarget::CloudDrive,
+                    PitagImportSource::FileLink};
+        if (target->matchesOrHasAncestorMatching(
+                [](const Node& node)
+                {
+                    return node.inshare != nullptr;
+                }))
+        {
+            pitag.target = PitagTarget::IncomingShare;
+        }
+        client->putnodes(parenthandle,
+                         UseLocalVersioningFlag,
+                         std::move(newnodes),
+                         nullptr,
+                         nextTag,
+                         false,
+                         {}, // customerIpPort
+                         nullptr,
+                         pitag);
     }
     else
     {
@@ -21093,6 +21114,11 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
 
                 tc.nn[0].parenthandle = UNDEF;
                 tc.nn[0].ovhandle = ovhandle;
+
+                pitag.purpose = PitagPurpose::Import;
+                pitag.importSource = megaNode->getType() == MegaNode::TYPE_FILE ?
+                                         PitagImportSource::FileLink :
+                                         PitagImportSource::FolderLink;
 
                 if (target)
                 {
