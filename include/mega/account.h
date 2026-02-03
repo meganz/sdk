@@ -286,6 +286,12 @@ struct DiscountCodeInfoExtended: public DiscountCode
     int expiry{-1};
     int compulsorySubscription{-1};
 
+    enum TaxFlags
+    {
+        TAX_EXEMPT = 1 << 1,
+        TAX_ON_TOP = 1 << 2,
+    };
+
     std::map<std::string, int> features;
     int txva{-1};
     int taxExempt{-1};

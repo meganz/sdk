@@ -4983,7 +4983,6 @@ protected:
  * they will be only valid until the MegaDiscountCodeList is deleted. If you want to retain a
  * MegaDiscountCode returned by a MegaDiscountCodeList, use MegaDiscountCode::copy.
  */
-
 class MegaDiscountCodeList
 {
 public:
@@ -5027,7 +5026,6 @@ protected:
  * @brief Represents a set of properties that define discount code information
  * These are used to display discount code details to the user.
  */
-
 class MegaDiscountCodeInfo: public MegaDiscountCode
 {
 public:
@@ -5040,7 +5038,7 @@ public:
      * it contains a copy of all internal attributes, so it will be valid after
      * the original object is deleted.
      *
-     * You are the owner of the returned object
+     * You take the ownership of returned value
      *
      * @return Copy of the MegaDiscountCodeInfo object
      */
@@ -5066,7 +5064,7 @@ public:
     /*
      * @brief Returns a MegaStringIntegerMap with all feature names and it's code: {{"vpn", 1},
      * {"pwm", 2} ...}
-     *You take the ownership of returned value
+     * You take the ownership of returned value
      */
     virtual MegaStringIntegerMap* getFeatures() const;
 
@@ -5092,11 +5090,17 @@ public:
 
     /*
      * @brief Returns the tax name associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCodeInfo object is deleted.
      */
     virtual const char* getTaxName() const;
 
     /*
      * @brief Returns the tax country associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCodeInfo object is deleted.
      */
     virtual const char* getTaxCountry() const;
 
@@ -5144,7 +5148,7 @@ public:
      * @brief Returns the local currency code associated with the discount code info
      *
      * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaDiscountCode object is deleted.
+     * the MegaDiscountCodeInfo object is deleted.
      */
     virtual const char* getLocalCurrencyCode() const;
 
@@ -5152,7 +5156,7 @@ public:
      * @brief Returns the local currency symbol associated with the discount code info
      *
      * The SDK retains the ownership of the returned value. It will be valid until
-     * the MegaDiscountCode object is deleted.
+     * the MegaDiscountCodeInfo object is deleted.
      */
     virtual const char* getLocalCurrencySymbol() const;
 
@@ -24493,6 +24497,10 @@ class MegaApi
 
         /**
          * @brief Retrieve information about a discount code
+         *
+         * The list of valid values for \c code can be retrieved from the
+         * getter MegaDiscountCode::getCode. The list of available discounts
+         * can be retrieved by calling MegaApi::getPricing.
          *
          * The associated request type with this request is
          * MegaRequest::TYPE_GET_DISCOUNT_CODE_INFORMATION.
