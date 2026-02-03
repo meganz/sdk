@@ -30286,26 +30286,32 @@ unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
     return 0;
 }
 
-bool MegaPricingPrivate::hasDiscount(int productIndex) const
+const InstantDiscounts* MegaPricingPrivate::getInstantDiscounts(const int productIndex) const
 {
-    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    if (productIndex < 0 || static_cast<size_t>(productIndex) >= products.size())
     {
-        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
-        return instantDiscounts.has_value();
+        return nullptr;
     }
 
-    return false;
+    if (const auto& opt = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        opt.has_value())
+    {
+        return &opt.value();
+    }
+
+    return nullptr;
+}
+
+bool MegaPricingPrivate::hasDiscount(int productIndex) const
+{
+    return getInstantDiscounts(productIndex);
 }
 
 const char* MegaPricingPrivate::getDiscountCode(int productIndex) const
 {
-    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    if (const auto* discounts = getInstantDiscounts(productIndex))
     {
-        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
-        if (instantDiscounts.has_value())
-        {
-            return instantDiscounts->discountCode.c_str();
-        }
+        return discounts->discountCode.c_str();
     }
 
     return nullptr;
@@ -30313,13 +30319,9 @@ const char* MegaPricingPrivate::getDiscountCode(int productIndex) const
 
 const char* MegaPricingPrivate::getDiscountName(int productIndex) const
 {
-    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    if (const auto* discounts = getInstantDiscounts(productIndex))
     {
-        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
-        if (instantDiscounts.has_value())
-        {
-            return instantDiscounts->discountName.c_str();
-        }
+        return discounts->discountName.c_str();
     }
 
     return nullptr;
@@ -30327,13 +30329,9 @@ const char* MegaPricingPrivate::getDiscountName(int productIndex) const
 
 int MegaPricingPrivate::getDiscountGroup(int productIndex) const
 {
-    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    if (const auto* discounts = getInstantDiscounts(productIndex))
     {
-        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
-        if (instantDiscounts.has_value())
-        {
-            return instantDiscounts->discountGroup;
-        }
+        return discounts->discountGroup;
     }
 
     return -1;
@@ -30341,13 +30339,9 @@ int MegaPricingPrivate::getDiscountGroup(int productIndex) const
 
 int MegaPricingPrivate::getDiscountMonths(int productIndex) const
 {
-    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    if (const auto* discounts = getInstantDiscounts(productIndex))
     {
-        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
-        if (instantDiscounts.has_value())
-        {
-            return instantDiscounts->discountMonths;
-        }
+        return discounts->discountMonths;
     }
 
     return -1;
@@ -30355,13 +30349,9 @@ int MegaPricingPrivate::getDiscountMonths(int productIndex) const
 
 int MegaPricingPrivate::getDiscountPercentage(int productIndex) const
 {
-    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    if (const auto* discounts = getInstantDiscounts(productIndex))
     {
-        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
-        if (instantDiscounts.has_value())
-        {
-            return instantDiscounts->discountPercentage;
-        }
+        return discounts->discountPercentage;
     }
 
     return -1;
@@ -41645,14 +41635,12 @@ MegaStringIntegerMap* MegaDiscountCodeInfoPrivate::getFeatures() const
 
 bool MegaDiscountCodeInfoPrivate::isTaxExempt() const
 {
-    constexpr int TAX_EXEMPT_BIT = 1 << 1;
-    return (mDiscountCodeInfo.taxExempt & TAX_EXEMPT_BIT) != 0;
+    return (mDiscountCodeInfo.taxExempt & DiscountCodeInfoExtended::TaxFlags::TAX_EXEMPT) != 0;
 }
 
 bool MegaDiscountCodeInfoPrivate::isTaxAppliedOnTop() const
 {
-    constexpr int TAX_ON_TOP_BIT = 1 << 2;
-    return (mDiscountCodeInfo.taxExempt & TAX_ON_TOP_BIT) != 0;
+    return (mDiscountCodeInfo.taxExempt & DiscountCodeInfoExtended::TaxFlags::TAX_ON_TOP) != 0;
 }
 
 int MegaDiscountCodeInfoPrivate::getTaxRate() const
