@@ -10959,7 +10959,7 @@ TEST_F(SdkTest, SdkDeviceNames)
 
 TEST_F(SdkTest, SdkBackupFolder)
 {
-#ifdef DEBUG_TEST_HOOK_DEVICE_ID
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     MrProper defer(
         []
         {
@@ -10983,7 +10983,9 @@ TEST_F(SdkTest, SdkBackupFolder)
 #ifdef ENABLE_SYNC
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     MegaHandle mh = mApi[0].lastSyncBackupId;
+#endif
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
@@ -11014,7 +11016,7 @@ TEST_F(SdkTest, SdkBackupFolder)
 
     unique_ptr<char[]> actualRemotePath{megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle)};
     ASSERT_TRUE(actualRemotePath);
-#ifdef DEBUG_TEST_HOOK_DEVICE_ID
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     // verify remote path
     std::unique_ptr<const char[]> deviceIdHash{megaApi[0]->getDeviceId()};
     ASSERT_TRUE(deviceIdHash);
