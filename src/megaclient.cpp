@@ -22618,14 +22618,6 @@ error MegaClient::createPasswordEntries(
                 PitagNodeType::NotApplicable,
                 PitagTarget::CloudDrive,
                 PitagImportSource::NotApplicable};
-    if (nParent && nParent->matchesOrHasAncestorMatching(
-                       [](const Node& node)
-                       {
-                           return node.inshare != nullptr;
-                       }))
-    {
-        pitag.target = PitagTarget::IncomingShare;
-    }
 
     for (const auto& [name, dataAttrMap]: data)
     {
