@@ -1733,4 +1733,5 @@ struct Pitag
     PitagTarget target = PitagTarget::NotApplicable;
     PitagImportSource importSource = PitagImportSource::NotApplicable;
 };
+
 #endif

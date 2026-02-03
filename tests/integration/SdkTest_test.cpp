@@ -22992,19 +22992,16 @@ TEST_F(SdkTest, SdkTestGetPricingAndGetDiscountCode)
         ASSERT_EQ(codeInfo->getPercentageDiscount(), priceDetailRes->getDiscountPercentage(i))
             << "Discount percentage mismatch at getDiscountCodeInformation for code "
             << discountCode;
-        ASSERT_NE(codeInfo->getLocalCurrencyCode(), nullptr)
-            << "No local currency code at getDiscountCodeInformation for code " << discountCode;
-        ASSERT_NE(codeInfo->getLocalCurrencySymbol(), nullptr)
-            << "No local currency symbol at getDiscountCodeInformation for code " << discountCode;
-        ASSERT_GT(codeInfo->getLocalTotalPrice(), 0)
-            << "No local total price at getDiscountCodeInformation for code " << discountCode;
-        ASSERT_GT(codeInfo->getLocalDiscountAmount(), 0)
-            << "No local discount amount at getDiscountCodeInformation for code " << discountCode;
-        ASSERT_GT(codeInfo->getLocalDiscountedTotalPrice(), 0)
-            << "No local discounted total price at getDiscountCodeInformation for code "
+        ASSERT_GE(codeInfo->getMultiDiscount(), 0);
+        ASSERT_GT(codeInfo->getEuroTotalPrice(), 0)
+            << "No euro total price at getDiscountCodeInformation for code " << discountCode;
+        ASSERT_GT(codeInfo->getEuroDiscountAmount(), 0)
+            << "No euro discount amount at getDiscountCodeInformation for code " << discountCode;
+        ASSERT_GT(codeInfo->getEuroDiscountedTotalPrice(), 0)
+            << "No euro discounted total price at getDiscountCodeInformation for code "
             << discountCode;
-        ASSERT_GT(codeInfo->getLocalDiscountedMonthlyPrice(), 0)
-            << "No local discounted monthly price at getDiscountCodeInformation for code "
+        ASSERT_GT(codeInfo->getEuroDiscountedMonthlyPrice(), 0)
+            << "No euro discounted monthly price at getDiscountCodeInformation for code "
             << discountCode;
     }
     ASSERT_TRUE(discountCodeFound) << "No discount code found in pricing";
