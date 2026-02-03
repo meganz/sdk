@@ -33,6 +33,7 @@
 #include "mega/scoped_helpers.h"
 #include "mega/tlv.h"
 #include "mega/user_attribute.h"
+#include "mega/utils_optional.h"
 #include "megaapi.h"
 
 #ifdef ENABLE_ISOLATED_GFX
@@ -12842,6 +12843,18 @@ int MegaApiImpl::enableSearchDBIndexes(bool enable)
     return API_OK;
 }
 
+int MegaApiImpl::enableLexicographicDBIndexes(bool enable)
+{
+    if (client->loggedin() != sessiontype_t::NOTLOGGEDIN)
+    {
+        LOG_warn << "This method should be called before login";
+        return API_EACCESS;
+    }
+
+    client->enableLexicographicDBIndexes(enable);
+    return API_OK;
+}
+
 string MegaApiImpl::generateViewId()
 {
     return MegaClient::generateViewId(client->rng);
@@ -18641,6 +18654,26 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
     const NodeSearchPage& np = searchPage ? NodeSearchPage(searchPage->startingOffset(), searchPage->size()) : NodeSearchPage(0u, 0u);
     sharedNode_vector results = client->mNodeManager.getChildren(nf, order, cancelToken, np);
 
+    return new MegaNodeListPrivate(results);
+}
+
+MegaNodeList* MegaApiImpl::listChildNodesLexicographically(
+    const handle parenthandle,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<MegaSearchLexicographicalOffset>& offset)
+{
+    const auto megaToNodeOffset =
+        [](const MegaSearchLexicographicalOffset& off) -> NodeSearchLexicographicalOffset
+    {
+        return {off.mLastName, off.mLastType, off.mLastHandle};
+    };
+    SdkMutexGuard guard(sdkMutex);
+    sharedNode_vector results =
+        client->mNodeManager.listChildNodesLexicographically(parenthandle,
+                                                             cancelFlag,
+                                                             maxElements,
+                                                             offset | transform(megaToNodeOffset));
     return new MegaNodeListPrivate(results);
 }
 

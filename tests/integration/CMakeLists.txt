@@ -49,6 +49,7 @@ target_sources(test_integration
     sdk_test_lockless_cs_channel.cpp
     sdk_test_pitag.cpp
     SdkTestFolderController_test.cpp
+    SdkTestGetChildrenLexicographic_test.cpp
     sdk_test_share.cpp
     sdk_test_share_nested.cpp
 

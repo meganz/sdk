@@ -270,6 +270,13 @@ private:
     size_t mSize;
 };
 
+struct NodeSearchLexicographicalOffset
+{
+    std::string mLastName;
+    std::optional<int> mLastType;
+    std::optional<handle> mLastHandle;
+};
+
 /**
  * @brief The NodeManager class
  *
@@ -315,6 +322,18 @@ public:
                                      bool excludeSensitives = false);
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
+
+    sharedNode_vector listChildNodesLexicographically(
+        const handle parenthandle,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset);
+
+    sharedNode_vector listChildNodesLexicographically_internal(
+        const handle parentHandle,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset);
 
     /*
      * @brief
@@ -466,6 +485,7 @@ public:
     // Drop indexes used for search funtionalities
     // These indexes aren't required in some apps (S4)
     void dropSearchDBIndexes();
+    void dropLexicographicDBIndexes();
 
     std::shared_ptr<Node> getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode);
 

@@ -82,6 +82,14 @@ public:
     uint64_t getNumberOfChildren(NodeHandle parentHandle) override;
     // If a cancelFlag is passed, it must be kept alive until this method returns.
     bool getChildren(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& children, CancelToken cancelFlag, const NodeSearchPage& page) override;
+
+    bool listChildNodesLexicographically(
+        const handle parenthandle,
+        vector<pair<NodeHandle, NodeSerialized>>& children,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset) override;
+
     bool searchNodes(const mega::NodeSearchFilter& filter, int order, std::vector<std::pair<NodeHandle, NodeSerialized>>& nodes, CancelToken cancelFlag, const NodeSearchPage& page) override;
 
     /*
@@ -133,8 +141,10 @@ public:
 
     void updateCounter(NodeHandle nodeHandle, const std::string& nodeCounterBlob) override;
     void updateCounterAndFlags(NodeHandle nodeHandle, uint64_t flags, const std::string& nodeCounterBlob) override;
-    void createIndexes(bool enableIndexesForSearching) override;
+    void createIndexes(bool enableIndexesForSearching,
+                       bool enableIndexesForLexicographicalList) override;
     void dropSearchDBIndexes() override;
+    void dropLexicographicDBIndexes() override;
 
     void remove() override;
     SqliteAccountState(PrnGen &rng, sqlite3*, FileSystemAccess &fsAccess, const mega::LocalPath &path, const bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack);
@@ -185,6 +195,8 @@ private:
 
     sqlite3_stmt* mStmtNumChildren = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtGetChildren;
+    sqlite3_stmt* mStmtGetChildrenLexi = nullptr;
+    sqlite3_stmt* mStmtGetChildrenLexiNoOffset = nullptr;
     std::map<size_t, sqlite3_stmt*> mStmtSearchNodes;
     sqlite3_stmt* mStmtNodeTagsBelow = nullptr;
     sqlite3_stmt* mStmtNodesByFpNoMtime = nullptr;
@@ -199,6 +211,9 @@ private:
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)
     static const int NUM_VIRTUAL_MACHINE_INSTRUCTIONS = 1000;
+
+    // Helper method to drop index with the provided names
+    void dropDBIndexes(const std::vector<std::string>& indicesToDelete);
 };
 
 class MEGA_API SqliteDbAccess : public DbAccess

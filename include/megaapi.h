@@ -49,6 +49,13 @@ struct MegaTotpTokenGenResult
     MegaTotpTokenLifetime result;
 };
 
+struct MegaSearchLexicographicalOffset
+{
+    std::string mLastName;
+    std::optional<int> mLastType{}; // eg. MegaNode::TYPE_FOLDER
+    std::optional<MegaHandle> mLastHandle{};
+};
+
 #ifdef WIN32
     const char MEGA_DEBRIS_FOLDER[] = "Rubbish";
 #else
@@ -18695,6 +18702,28 @@ class MegaApi
         MegaNodeList* getChildren(MegaNodeList *parentNodes, int order = 1);
 
         /**
+         * @brief List child nodes ordered lexicographically by name.
+         *
+         * Results are ordered by name, then node type (files before folders), then handle.
+         * This makes paging deterministic even when there are duplicate names.
+         *
+         * @param parenthandle Parent node handle.
+         * @param cancelToken Optional cancel token.
+         * @param maxElements Maximum number of elements to return (0 means no limit).
+         * @param offset Optional offset to resume from a previous page. Provide:
+         *  - mLastName to start strictly after all nodes with that name (regardless of type).
+         *  - mLastName + mLastType to start strictly after all nodes with that name and type.
+         *  - mLastName + mLastType + mLastHandle to resume after a specific node among duplicates.
+         *
+         * @return List with the MegaNode matching the query
+         */
+        MegaNodeList* listChildNodesLexicographically(
+            const MegaHandle parenthandle,
+            MegaCancelToken* cancelToken = nullptr,
+            const size_t maxElements = 0,
+            const std::optional<MegaSearchLexicographicalOffset>& offset = {});
+
+        /**
          * @brief Get all versions of a file
          *
          * You take ownership of the returned value.
@@ -20125,6 +20154,30 @@ class MegaApi
          * in.
          */
         int enableSearchDBIndexes(bool enable);
+
+        /**
+         * @brief Enables or disables database indexes used by listChildNodesLexicographically.
+         *
+         * The lexicographical listing API uses a database index to speed up paging in large
+         * folders. If your application doesn't call listChildNodesLexicographically, you can
+         * keep these indexes disabled to reduce database overhead. When disabled, the query
+         * still works but may be slower.
+         *
+         * @note By default, this option is disabled (`false`).
+         *
+         * @note This method must be called before login and fetchnodes and its value is not reset
+         * upon logout. If indexes already exist, they will be removed when the database is opened.
+         * If indexes have been removed or never created, they won't be created unless this option
+         * is enabled before login.
+         *
+         * @param enable Set to `true` to enable indexes for lexicographical listing, or `false`
+         * to disable them.
+         * @return
+         * - `API_OK`      - Operation completed successfully.
+         * - `API_EACCESS` - The operation could not be performed because the user is already logged
+         * in.
+         */
+        int enableLexicographicDBIndexes(bool enable);
 
         /**
          * @brief Generate an unique ViewID

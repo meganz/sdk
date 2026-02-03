@@ -21,6 +21,7 @@
 
 #include "mega.h"
 
+#include <limits>
 #include <numeric>
 
 #ifdef USE_SQLITE
@@ -1213,7 +1214,8 @@ void SqliteAccountState::updateCounterAndFlags(NodeHandle nodeHandle, uint64_t f
     sqlite3_reset(mStmtUpdateNodeAndFlags);
 }
 
-void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
+void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
+                                       bool enableIndexesForLexicographicalList)
 {
     if (!db)
     {
@@ -1276,9 +1278,29 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching)
             LOG_err << "Data base error while creating index (ctimeindex): " << sqlite3_errmsg(db);
         }
     }
+    if (enableIndexesForLexicographicalList)
+    {
+        sql = "CREATE INDEX IF NOT EXISTS lexicopraphicindex on nodes (name, type, nodehandle)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (lexicopraphicindex): "
+                    << sqlite3_errmsg(db);
+        }
+    }
 }
 
 void SqliteAccountState::dropSearchDBIndexes()
+{
+    dropDBIndexes({"shareindex", "favindex", "ctimeindex"});
+}
+
+void SqliteAccountState::dropLexicographicDBIndexes()
+{
+    dropDBIndexes({"lexicopraphicindex"});
+}
+
+void SqliteAccountState::dropDBIndexes(const std::vector<std::string>& indicesToDelete)
 {
     if (!db)
     {
@@ -1290,7 +1312,6 @@ void SqliteAccountState::dropSearchDBIndexes()
     finalise();
     begin();
 
-    const std::vector<std::string> indicesToDelete = {"shareindex", "favindex", "ctimeindex"};
     for (const auto& indexName: indicesToDelete)
     {
         sqlite3_stmt* stmt = nullptr;
@@ -1357,6 +1378,12 @@ void SqliteAccountState::finalise()
         sqlite3_finalize(s.second);
     }
     mStmtGetChildren.clear();
+
+    sqlite3_finalize(mStmtGetChildrenLexi);
+    mStmtGetChildrenLexi = nullptr;
+
+    sqlite3_finalize(mStmtGetChildrenLexiNoOffset);
+    mStmtGetChildrenLexiNoOffset = nullptr;
 
     for (auto& s : mStmtSearchNodes)
     {
@@ -1841,6 +1868,80 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter,
     sqlite3_progress_handler(db, -1, nullptr, nullptr);
 
     errorHandler(sqlResult, "Get children with filter", true);
+
+    sqlite3_reset(stmt);
+
+    return result;
+}
+
+bool SqliteAccountState::listChildNodesLexicographically(
+    const handle parenthandle,
+    std::vector<std::pair<NodeHandle, NodeSerialized>>& children,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<NodeSearchLexicographicalOffset>& offset)
+{
+    if (!db)
+        return false;
+
+    if (cancelFlag.exists())
+        sqlite3_progress_handler(db,
+                                 NUM_VIRTUAL_MACHINE_INSTRUCTIONS,
+                                 SqliteAccountState::progressHandler,
+                                 static_cast<void*>(&cancelFlag));
+
+    // There are multiple criteria used in ORDER BY clause.
+    // For every order type a new statement is created
+
+    int sqlResult = SQLITE_OK;
+    static const QueryTagId idParentHand{1};
+    static const QueryTagId idPageOffName{2};
+    static const QueryTagId idPageOffType{3};
+    static const QueryTagId idPageSize{4};
+    static const QueryTagId idPageOffHandle{5};
+
+    sqlite3_stmt*& stmt = offset ? mStmtGetChildrenLexi : mStmtGetChildrenLexiNoOffset;
+    if (!stmt)
+    {
+        // clang-format off
+        const std::string offsetWhere = offset ?
+             "AND ((name > "s + idPageOffName + ") OR " +
+                  "(name = "  + idPageOffName + " AND type > " + idPageOffType + ") OR " +
+                  "(name = "  + idPageOffName + " AND type = " + idPageOffType + " AND nodehandle > " + idPageOffHandle + "))"
+             : "";
+        const std::string sqlQuery =
+            "SELECT nodehandle, counter, node "s +
+            "FROM nodes "
+            "WHERE (parenthandle = " + idParentHand + ") " // Versions aren't taken in consideration
+            + offsetWhere +
+            "ORDER BY name, type, nodehandle\n"
+            "LIMIT " + idPageSize;
+        // clang-format on
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
+    }
+
+    const sqlite3_int64 pageSize = maxElements == 0 ? -1 : static_cast<sqlite3_int64>(maxElements);
+    bindValue(sqlResult, stmt, idPageSize, pageSize, sqlite3_bind_int64);
+    bindValue(sqlResult, stmt, idParentHand, parenthandle, sqlite3_bind_int64);
+    if (offset)
+    {
+        const auto lastType = offset->mLastType.value_or(std::numeric_limits<int>::max());
+        const auto lastHandle = offset->mLastHandle ?
+                                    static_cast<sqlite3_int64>(*offset->mLastHandle) :
+                                    std::numeric_limits<sqlite3_int64>::max();
+        bindValue(sqlResult, stmt, idPageOffType, lastType, sqlite3_bind_int64);
+        bindValue(sqlResult, stmt, idPageOffHandle, lastHandle, sqlite3_bind_int64);
+        bindText(sqlResult, stmt, idPageOffName, offset->mLastName);
+    }
+
+    bool result = false;
+    if (sqlResult == SQLITE_OK)
+        result = processSqlQueryNodes(stmt, children);
+
+    // unregister the handler (no-op if not registered)
+    sqlite3_progress_handler(db, -1, nullptr, nullptr);
+
+    errorHandler(sqlResult, "List child nodes with Lexicographical order", true);
 
     sqlite3_reset(stmt);
 

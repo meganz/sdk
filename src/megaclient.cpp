@@ -840,6 +840,11 @@ void MegaClient::enableSearchDBIndexes(bool enable)
     mEnableSearchDBIndexes = enable;
 }
 
+void MegaClient::enableLexicographicDBIndexes(bool enable)
+{
+    mEnableLexicographicDBIndexes = enable;
+}
+
 void MegaClient::dropSearchDBIndexes()
 {
     mNodeManager.dropSearchDBIndexes();
@@ -12287,6 +12292,10 @@ void MegaClient::opensctable()
                 if (!mEnableSearchDBIndexes)
                 {
                     mNodeManager.dropSearchDBIndexes();
+                }
+                if (!mEnableLexicographicDBIndexes)
+                {
+                    mNodeManager.dropLexicographicDBIndexes();
                 }
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
