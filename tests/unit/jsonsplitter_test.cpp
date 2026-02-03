@@ -541,6 +541,188 @@ TEST_F(JSONSplitterTest, ProcessNestedFilterWithPauseAtInnerString)
     EXPECT_THAT(capturedInnerValues, testing::ElementsAre("abc"));
 }
 
+TEST_F(JSONSplitterTest, EmptyFiltersChain)
+{
+    JSONSplitter::FiltersChain chain;
+    std::string testJson = R"({"test": "value"})";
+    splitter.processChunk(chain, testJson.c_str());
+
+    EXPECT_FALSE(splitter.isStarting());
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+}
+
+TEST_F(JSONSplitterTest, ProcessChunkWithFiltersChain)
+{
+    std::string testJson = R"({"key1":{"key11":"value11"}, "key2":"value2", "key3":"value3"})";
+    bool startFlag = false;
+    bool firstFlag = false;
+    bool key1Flag = false;
+    bool key2Flag = false;
+    bool key3Flag = false;
+    bool endFlag = false;
+
+    JSONSplitter::FiltersChain chain;
+    std::map<std::string, JSONSplitter::FilterCallback> filters1;
+    std::map<std::string, JSONSplitter::FilterCallback> filters2;
+
+    filters2["<"] = [&startFlag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        startFlag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters2[""] = [&firstFlag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        firstFlag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters2["{{key1"] = [&key1Flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        json->enterobject();
+        json->leaveobject();
+        key1Flag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters2["{\"key2"] = [&key2Flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        key2Flag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters2[">"] = [&endFlag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        endFlag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters1["{\"key3"] = [&key3Flag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        json->enterobject();
+        json->leaveobject();
+        key3Flag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    chain.emplace_back(&filters1);
+    chain.emplace_back(&filters2);
+
+    auto consumed = splitter.processChunk(chain, testJson.c_str());
+
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
+    EXPECT_TRUE(startFlag);
+    EXPECT_TRUE(firstFlag);
+    EXPECT_TRUE(key1Flag);
+    EXPECT_TRUE(key2Flag);
+    EXPECT_TRUE(key3Flag);
+    EXPECT_TRUE(endFlag);
+}
+
+TEST_F(JSONSplitterTest, ProcessChunkWithFiltersChainContainingDuplicatedFilter)
+{
+    std::string testJson = R"({"key":"value"})";
+    bool keyFlag1 = false;
+    bool keyFlag2 = false;
+
+    JSONSplitter::FiltersChain chain;
+    std::map<std::string, JSONSplitter::FilterCallback> filters1;
+    std::map<std::string, JSONSplitter::FilterCallback> filters2;
+
+    filters1["{\"key"] = [&keyFlag1](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        keyFlag1 = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    filters2["{\"key"] = [&keyFlag2](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        keyFlag2 = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    chain.emplace_back(&filters1);
+    chain.emplace_back(&filters2);
+
+    auto consumed = splitter.processChunk(chain, testJson.c_str());
+
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
+    EXPECT_TRUE(keyFlag1);
+    EXPECT_FALSE(keyFlag2);
+}
+
+TEST_F(JSONSplitterTest, ProcessChunkWithFiltersChainContainingNullFilters)
+{
+    std::string testJson = R"({"key":"value"})";
+    bool keyFlag = false;
+
+    JSONSplitter::FiltersChain chain;
+
+    filters["{\"key"] = [&keyFlag](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        EXPECT_NE(json, nullptr);
+        keyFlag = true;
+        return JSONSplitter::CallbackResult::SUCCESS;
+    };
+
+    chain.emplace_back(nullptr);
+    chain.emplace_back(&filters);
+
+    auto consumed = splitter.processChunk(chain, testJson.c_str());
+
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_FALSE(splitter.hasPaused());
+    EXPECT_TRUE(keyFlag);
+}
+
+TEST_F(JSONSplitterTest, ProcessErrorResponseWithFiltersChain)
+{
+    std::string testJson = R"({"err":-1})";
+    Error err;
+
+    JSONSplitter::FiltersChain chain;
+    std::map<std::string, JSONSplitter::FilterCallback> filters1;
+    std::map<std::string, JSONSplitter::FilterCallback> filters2;
+
+    filters2["#"] = [&err](JSON* json) -> JSONSplitter::CallbackResult
+    {
+        if (json && json->pos)
+        {
+            TestCommand cmd;
+            return JSONSplitter::ResultFromBool(cmd.checkError(err, *json));
+        }
+
+        return JSONSplitter::CallbackResult::FAILED;
+    };
+
+    chain.emplace_back(&filters1);
+    chain.emplace_back(&filters2);
+
+    auto consumed = splitter.processChunk(chain, testJson.c_str());
+
+    EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
+    EXPECT_TRUE(splitter.hasFinished());
+    EXPECT_FALSE(splitter.hasFailed());
+    EXPECT_EQ(ErrorCodes::API_EINTERNAL, err);
+}
+
 // Keep in mind, this unit test is added after the JSONSplitter has served well for a long time.
 // So this test is for the supported scenarios, and new features, not for the edge cases.
 // Because JSONSplitter is intended for specific scenarios like streaming parsing the well formed
