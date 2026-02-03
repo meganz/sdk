@@ -5037,101 +5037,101 @@ public:
      *
      * @return Copy of the MegaDiscountCodeInfo object
      */
-    virtual MegaDiscountCodeInfo* copy() const = 0;
+    virtual MegaDiscountCodeInfo* copy() const;
 
     /*
      * @brief Returns the expiry time associated with the discount code info
      */
-    virtual int getExpiry() const = 0;
+    virtual int getExpiry() const;
 
     /*
      * @brief Returns the compulsory subscription associated with the discount code info
      * Subscription will continue after discount period
      */
-    virtual int getCompulsorySubscription() const = 0;
+    virtual int getCompulsorySubscription() const;
 
     /*
      * @brief Returns the multi discount associated with the discount code info
      * Turn flag on for using new Multi Discount system (alters UI appearance & behaviour)
      */
-    virtual int getMultiDiscount() const = 0;
+    virtual int getMultiDiscount() const;
 
     /*
      * @brief Returns a MegaStringIntegerMap with all feature names and it's code: {{"vpn", 1},
      * {"pwm", 2} ...}
      *You take the ownership of returned value
      */
-    virtual MegaStringIntegerMap* getFeatures() const = 0;
+    virtual MegaStringIntegerMap* getFeatures() const;
 
     /*
      * @brief Returns the tax value associated with the discount code info
      */
-    virtual int getTaxValue() const = 0;
+    virtual int getTaxValue() const;
 
     /*
      * @brief Returns if the user is tax exempt (0% tax)
      */
-    virtual bool isTaxExempt() const = 0;
+    virtual bool isTaxExempt() const;
 
     /*
      * @brief Returns if the tax is applied on top of the base price (PPT)
      */
-    virtual bool isTaxAppliedOnTop() const = 0;
+    virtual bool isTaxAppliedOnTop() const;
 
     /*
      * @brief Returns the tax rate associated with the discount code info
      */
-    virtual int getTaxRate() const = 0;
+    virtual int getTaxRate() const;
 
     /*
      * @brief Returns the tax name associated with the discount code info
      */
-    virtual const char* getTaxName() const = 0;
+    virtual const char* getTaxName() const;
 
     /*
      * @brief Returns the tax country associated with the discount code info
      */
-    virtual const char* getTaxCountry() const = 0;
+    virtual const char* getTaxCountry() const;
 
     /*
      * @brief Returns the euro total price associated with the discount code info
      */
-    virtual double getEuroTotalPrice() const = 0;
+    virtual double getEuroTotalPrice() const;
 
     /*
      * @brief Returns the euro discount amount associated with the discount code info
      */
-    virtual double getEuroDiscountAmount() const = 0;
+    virtual double getEuroDiscountAmount() const;
 
     /*
      * @brief Returns the euro discounted total price associated with the discount code info
      */
-    virtual double getEuroDiscountedTotalPrice() const = 0;
+    virtual double getEuroDiscountedTotalPrice() const;
 
     /*
      * @brief Returns the euro discounted monthly price associated with the discount code info
      */
-    virtual double getEuroDiscountedMonthlyPrice() const = 0;
+    virtual double getEuroDiscountedMonthlyPrice() const;
 
     /*
      * @brief Returns the euro total price net associated with the discount code info
      */
-    virtual double getEuroTotalPriceNet() const = 0;
+    virtual double getEuroTotalPriceNet() const;
 
     /*
      * @brief Returns the euro discount amount net associated with the discount code info
      */
-    virtual double getEuroDiscountAmountNet() const = 0;
+    virtual double getEuroDiscountAmountNet() const;
 
     /*
      * @brief Returns the euro discounted total price net associated with the discount code info
      */
-    virtual double getEuroDiscountedTotalPriceNet() const = 0;
+    virtual double getEuroDiscountedTotalPriceNet() const;
 
     /*
      * @brief Returns the euro discounted monthly price net associated with the discount code info
      */
-    virtual double getEuroDiscountedMonthlyPriceNet() const = 0;
+    virtual double getEuroDiscountedMonthlyPriceNet() const;
 
     /*
      * @brief Returns the local currency code associated with the discount code info
@@ -5139,7 +5139,7 @@ public:
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaDiscountCode object is deleted.
      */
-    virtual const char* getLocalCurrencyCode() const = 0;
+    virtual const char* getLocalCurrencyCode() const;
 
     /*
      * @brief Returns the local currency symbol associated with the discount code info
@@ -5147,47 +5147,47 @@ public:
      * The SDK retains the ownership of the returned value. It will be valid until
      * the MegaDiscountCode object is deleted.
      */
-    virtual const char* getLocalCurrencySymbol() const = 0;
+    virtual const char* getLocalCurrencySymbol() const;
 
     /*
      * @brief Returns the local total price associated with the discount code info
      */
-    virtual double getLocalTotalPrice() const = 0;
+    virtual double getLocalTotalPrice() const;
 
     /*
      * @brief Returns the local discount amount associated with the discount code info
      */
-    virtual double getLocalDiscountAmount() const = 0;
+    virtual double getLocalDiscountAmount() const;
 
     /*
      * @brief Returns the local discounted total price associated with the discount code info
      */
-    virtual double getLocalDiscountedTotalPrice() const = 0;
+    virtual double getLocalDiscountedTotalPrice() const;
 
     /*
      * @brief Returns the local discounted monthly price associated with the discount code info
      */
-    virtual double getLocalDiscountedMonthlyPrice() const = 0;
+    virtual double getLocalDiscountedMonthlyPrice() const;
 
     /*
      * @brief Returns the local total price net associated with the discount code info
      */
-    virtual double getLocalTotalPriceNet() const = 0;
+    virtual double getLocalTotalPriceNet() const;
 
     /*
      * @brief Returns the local discount amount net associated with the discount code info
      */
-    virtual double getLocalDiscountAmountNet() const = 0;
+    virtual double getLocalDiscountAmountNet() const;
 
     /*
      * @brief Returns the local discounted total price net associated with the discount code info
      */
-    virtual double getLocalDiscountedTotalPriceNet() const = 0;
+    virtual double getLocalDiscountedTotalPriceNet() const;
 
     /*
      * @brief Returns the local discounted monthly price net associated with the discount code info
      */
-    virtual double getLocalDiscountedMonthlyPriceNet() const = 0;
+    virtual double getLocalDiscountedMonthlyPriceNet() const;
 
 protected:
     MegaDiscountCodeInfo();
@@ -25858,6 +25858,14 @@ public:
     virtual unsigned int getTestCategory(int productIndex) const;
 
     /**
+     * @brief Check whether the product has a discount
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the product has a discount, false otherwise
+     */
+    virtual bool hasDiscount(int productIndex) const;
+
+    /**
      * @brief Get the discount code for the product
      *
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
@@ -25893,7 +25901,7 @@ public:
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Discount duration in months for the product, or 0 if there is no discount
      */
-    virtual unsigned int getDiscountMonths(int productIndex) const;
+    virtual int getDiscountMonths(int productIndex) const;
 
     /**
      * @brief Get the discount percentage for the product
@@ -25901,7 +25909,7 @@ public:
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Discount percentage for the product, or 0 if there is no discount
      */
-    virtual unsigned int getDiscountPercentage(int productIndex) const;
+    virtual int getDiscountPercentage(int productIndex) const;
 
     /**
      * @brief Get trial duration in days

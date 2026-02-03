@@ -2542,7 +2542,7 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(
     MegaClient* client)
 {
     cmd("utqa");
-    arg("nf", 3);
+    arg("nf", 5);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
     arg("ft", 1);   // support for Feature plans
@@ -2615,6 +2615,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                             case makeNameid("cs"): // currency symbol, ie. €
                                 buf = json.getvalue();
                                 JSON::copystring(&currencyData->currencySymbol, buf);
+                                currencyData->currencySymbol =
+                                    Base64::atob(currencyData->currencySymbol);
                                 break;
                             case makeNameid("lc"): // local currency, ie. NZD
                                 buf = json.getvalue();
@@ -2973,13 +2975,6 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                 }
                 case makeNameid("insdis"):
                 {
-                    /*"insdis": {
-                        "dc": Discount Code,
-                        "dn": Discount Name,
-                        "dp": Discount Percent
-                        "dg": Discount Group,
-                        "dm": Discount Months
-                      }*/
                     if (!json.enterobject())
                     {
                         LOG_err << "Failed to parse Enumerate-quota-items response,"
@@ -3000,13 +2995,13 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                 json.storeobject(&tempInsdis.discountName);
                                 break;
                             case makeNameid("dp"):
-                                tempInsdis.discountPercentage = static_cast<int>(json.getint());
+                                tempInsdis.discountPercentage = json.getint32();
                                 break;
                             case makeNameid("dg"):
-                                tempInsdis.discountGroup = static_cast<int>(json.getint());
+                                tempInsdis.discountGroup = json.getint32();
                                 break;
                             case makeNameid("dm"):
-                                tempInsdis.discountMonths = static_cast<int>(json.getint());
+                                tempInsdis.discountMonths = json.getint32();
                                 break;
                             case EOO:
                                 readingInsDis = false;
@@ -5637,7 +5632,7 @@ bool CommandGetUserData::parseDiscountCodes(JSON& json, std::vector<DiscountCode
 {
     if (!json.enterarray())
     {
-        return true;
+        return false;
     }
     while (json.enterobject())
     {
@@ -5660,10 +5655,10 @@ bool CommandGetUserData::parseDiscountCodes(JSON& json, std::vector<DiscountCode
                     dci.behaviourType = json.getint32();
                     break;
                 case makeNameid("pd"):
-                    dci.percentageDiscount = json.getuint32();
+                    dci.percentageDiscount = json.getint32();
                     break;
                 case makeNameid("m"):
-                    dci.numMonths = static_cast<uint8_t>(json.getuint32());
+                    dci.numMonths = json.getint32();
                     break;
                 case EOO:
                     if (dci.isValidFormat() && dci.hasAlfanumCode())
@@ -13293,7 +13288,7 @@ bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
                 dci.accountLevel = json.getint32();
                 break;
             case makeNameid("m"):
-                dci.numMonths = static_cast<uint8_t>(json.getuint32());
+                dci.numMonths = json.getint32();
                 break;
             case makeNameid("ex"):
                 dci.expiry = json.getint32();
@@ -13302,7 +13297,7 @@ bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
                 dci.compulsorySubscription = json.getint32();
                 break;
             case makeNameid("pd"):
-                dci.percentageDiscount = json.getuint32();
+                dci.percentageDiscount = json.getint32();
                 break;
             case makeNameid("bt"):
                 dci.behaviourType = json.getint32();

@@ -6714,6 +6714,11 @@ unsigned int MegaPricing::getTestCategory(int) const
     return 0;
 }
 
+bool MegaPricing::hasDiscount(int) const
+{
+    return false;
+}
+
 const char* MegaPricing::getDiscountCode(int) const
 {
     return nullptr;
@@ -6726,17 +6731,17 @@ const char* MegaPricing::getDiscountName(int) const
 
 int MegaPricing::getDiscountGroup(int) const
 {
-    return 0;
+    return -1;
 }
 
-unsigned int MegaPricing::getDiscountMonths(int) const
+int MegaPricing::getDiscountMonths(int) const
 {
-    return 0;
+    return -1;
 }
 
-unsigned int MegaPricing::getDiscountPercentage(int) const
+int MegaPricing::getDiscountPercentage(int) const
 {
-    return 0;
+    return -1;
 }
 
 #ifdef ENABLE_SYNC
