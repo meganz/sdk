@@ -29286,7 +29286,7 @@ void MegaApiImpl::getDiscountCodeInformation(const char* discountCode,
             {
                 if (!e)
                 {
-                    info.alfanumDiscountCode = code;
+                    assert(info.alfanumDiscountCode == code);
                     request->setMegaDiscountCodeInfo(
                         std::make_unique<MegaDiscountCodeInfoPrivate>(std::move(info)));
                 }
