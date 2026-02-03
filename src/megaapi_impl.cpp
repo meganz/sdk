@@ -30390,6 +30390,17 @@ unsigned int MegaPricingPrivate::getTrialDurationInDays(int productIndex) const
     return 0;
 }
 
+bool MegaPricingPrivate::hasDiscount(int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
+    {
+        auto& instantDiscounts = products[static_cast<size_t>(productIndex)].instantDiscounts;
+        return instantDiscounts.has_value();
+    }
+
+    return false;
+}
+
 const char* MegaPricingPrivate::getDiscountCode(int productIndex) const
 {
     if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
@@ -30429,10 +30440,10 @@ int MegaPricingPrivate::getDiscountGroup(int productIndex) const
         }
     }
 
-    return 0;
+    return -1;
 }
 
-unsigned int MegaPricingPrivate::getDiscountMonths(int productIndex) const
+int MegaPricingPrivate::getDiscountMonths(int productIndex) const
 {
     if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
     {
@@ -30443,10 +30454,10 @@ unsigned int MegaPricingPrivate::getDiscountMonths(int productIndex) const
         }
     }
 
-    return 0;
+    return -1;
 }
 
-unsigned int MegaPricingPrivate::getDiscountPercentage(int productIndex) const
+int MegaPricingPrivate::getDiscountPercentage(int productIndex) const
 {
     if (productIndex >= 0 && static_cast<size_t>(productIndex) < products.size())
     {
@@ -30457,7 +30468,7 @@ unsigned int MegaPricingPrivate::getDiscountPercentage(int productIndex) const
         }
     }
 
-    return 0;
+    return -1;
 }
 
 MegaCurrencyPrivate::~MegaCurrencyPrivate()
@@ -41699,7 +41710,7 @@ int MegaDiscountCodeInfoPrivate::getMonths() const
 
 int MegaDiscountCodeInfoPrivate::getPercentageDiscount() const
 {
-    return static_cast<int>(mDiscountCodeInfo.percentageDiscount);
+    return mDiscountCodeInfo.percentageDiscount;
 }
 
 int MegaDiscountCodeInfoPrivate::getBehaviorType() const
