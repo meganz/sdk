@@ -504,4 +504,18 @@ TEST_F(SdkTestPitagPasswordManager, PitagCapturedForPasswordNodeCreation)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitagPasswordManager, PitagCapturedForPasswordFolderCreation)
+{
+    PitagCommandObserver observer;
+
+    const std::string folderName = getFilePrefix() + "pitag_pwm_folder";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), getBaseNode().get());
+    ASSERT_NE(folderHandle, UNDEF) << "Password manager folder was not created";
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(SdkTestPasswordManager::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("P.FD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
