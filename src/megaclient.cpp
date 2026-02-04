@@ -10064,10 +10064,8 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
     if (canChangeVault)
     {
         pitag.purpose = PitagPurpose::Password;
-        pitag.trigger = PitagTrigger::NotApplicable;
-        pitag.nodeType = PitagNodeType::NotApplicable;
+        pitag.nodeType = PitagNodeType::Folder;
         pitag.target = PitagTarget::CloudDrive;
-        pitag.importSource = PitagImportSource::NotApplicable;
     }
     else
     {
