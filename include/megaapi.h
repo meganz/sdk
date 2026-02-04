@@ -25739,6 +25739,27 @@ public:
     virtual int getLocalPrice(int productIndex);
 
     /**
+     * @brief Get the net base price of the product (without tax)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net base price of the product, without tax
+     */
+    virtual double getPriceNet(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the net base price of the product in local currency (without tax)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net base price of the product in local currency, without tax
+     */
+    virtual double getLocalPriceNet(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the net monthly base price of the product (without tax)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net monthly base price of the product, without tax
+     */
+    virtual double getMonthlyBasePriceNet(const int /*productIndex*/) const;
+
+    /**
      * @brief Get a description of the product
      *
      * The SDK retains the ownership of the returned value. It will be valid until

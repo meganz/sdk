@@ -6611,6 +6611,21 @@ int MegaPricing::getLocalPrice(int /*productIndex*/)
     return 0;
 }
 
+double MegaPricing::getPriceNet(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getLocalPriceNet(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getMonthlyBasePriceNet(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
 const char *MegaPricing::getDescription(int)
 {
     return NULL;

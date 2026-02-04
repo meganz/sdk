@@ -2574,7 +2574,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
         map<string, uint32_t> features;
         string ios_id;
         string android_id;
-
+        double priceNet{0.0};
+        double localPriceNet{0.0};
+        double monthlyBasePriceNet{0.0};
         unique_ptr<BusinessPlan> bizPlan;
         unique_ptr<CurrencyData> currencyData;
         std::optional<MobileOffer> mobileOffer;
@@ -2709,6 +2711,15 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                 case makeNameid("google"):
                     buf = json.getvalue();
                     JSON::copystring(&android_id, buf);
+                    break;
+                case makeNameid("lpn"): // Local price net in local currency (without tax)
+                    localPriceNet = json.getfloat();
+                    break;
+                case makeNameid("pn"): // Price net (without tax)
+                    priceNet = json.getfloat();
+                    break;
+                case makeNameid("mbpn"): // Monthly base price net (without tax)
+                    monthlyBasePriceNet = json.getfloat();
                     break;
                 case makeNameid("mbp"): // monthly price (in cents)
                     amountMonth = static_cast<unsigned>(json.getint());
@@ -3083,6 +3094,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          amount,
                                          amountMonth,
                                          localPrice,
+                                         priceNet,
+                                         localPriceNet,
+                                         monthlyBasePriceNet,
                                          description.c_str(),
                                          std::move(features),
                                          ios_id.c_str(),
