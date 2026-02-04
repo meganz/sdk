@@ -6583,7 +6583,10 @@ void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
 
     mDownloadsPaused = downloadsPaused;
     mUploadsPaused = uploadsPaused;
-    mTransferPauseFlagsChanged = mTransferPauseFlagsChanged || !unchanged;
+    if (!unchanged)
+    {
+        mTransferPauseFlagsChanged.store(true, std::memory_order_relaxed);
+    }
 }
 
 void Syncs::stopSyncsInErrorState()
@@ -13687,10 +13690,8 @@ void Syncs::syncLoop()
             }
         }
 
-        if (mTransferPauseFlagsChanged.load())
+        if (mTransferPauseFlagsChanged.exchange(false, std::memory_order_relaxed))
         {
-            mTransferPauseFlagsChanged = false;
-
             lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             for (auto& us : mSyncVec)
             {
