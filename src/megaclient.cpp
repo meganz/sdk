@@ -10061,9 +10061,20 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
                                                });
 
     Pitag pitag;
-    pitag.purpose = PitagPurpose::CreateFolder;
-    pitag.nodeType = PitagNodeType::Folder;
-    pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    if (canChangeVault)
+    {
+        pitag.purpose = PitagPurpose::Password;
+        pitag.trigger = PitagTrigger::NotApplicable;
+        pitag.nodeType = PitagNodeType::NotApplicable;
+        pitag.target = PitagTarget::CloudDrive;
+        pitag.importSource = PitagImportSource::NotApplicable;
+    }
+    else
+    {
+        pitag.purpose = PitagPurpose::CreateFolder;
+        pitag.nodeType = PitagNodeType::Folder;
+        pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    }
 
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
