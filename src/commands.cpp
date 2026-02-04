@@ -4668,11 +4668,17 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         case makeNameid("dc"):
                             if (!parseDiscountCodes(json, dciList))
                             {
+                                json.leaveobject();
                                 mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
                                 return false;
                             }
                             break;
                         case EOO:
+                            if (!json.leaveobject())
+                            {
+                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
+                                return false;
+                            }
                             endobject = true;
                             break;
                         default:
@@ -5670,6 +5676,10 @@ bool CommandGetUserData::parseDiscountCodes(JSON& json, std::vector<DiscountCode
                         LOG_warn << "Ill-formed DiscountCode";
                     }
                     exit = true;
+                    if (!json.leaveobject())
+                    {
+                        return false;
+                    }
                     break;
 
                 default:
