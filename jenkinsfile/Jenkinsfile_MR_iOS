@@ -123,7 +123,7 @@ pipeline {
                         sh "echo Cloning iOS branch \"${IOS_BRANCH}\""
                         checkout([
                             $class: 'GitSCM',
-                            branches: [[name: "origin/${IOS_BRANCH}"]],
+                            branches: [[name: "${IOS_BRANCH}"]],
                             userRemoteConfigs: [[ url: "${env.GIT_URL_IOS}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                             extensions: [
                                 [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
@@ -143,7 +143,7 @@ pipeline {
                             sh "echo Cloning megachat branch \"${env.MEGACHAT_BRANCH}\""
                             checkout([
                                 $class: 'GitSCM',
-                                branches: [[name: "origin/${env.MEGACHAT_BRANCH}"]],
+                                branches: [[name: "${env.MEGACHAT_BRANCH}"]],
                                 userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                                 extensions: [
                                     [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
