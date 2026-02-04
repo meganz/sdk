@@ -2607,7 +2607,6 @@ public:
     int getDiscountMonths(int productIndex) const override;
     int getDiscountPercentage(int productIndex) const override;
     void addProduct(const Product& product);
-    const InstantDiscounts* getInstantDiscounts(const int productIndex) const;
 
 private:
     enum PlanType : unsigned
@@ -2617,6 +2616,7 @@ private:
         FEATURE,
     };
 
+    const InstantDiscounts* getInstantDiscounts(const int productIndex) const;
     bool isType(int productIndex, unsigned t) const;
 
     vector<Product> products;
