@@ -6425,8 +6425,8 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
 
     totalLocalNodes = 0;
 
-    mSyncsLoaded = false;
-    mSyncsResumed = false;
+    mSyncsLoaded.store(false, std::memory_order_relaxed);
+    mSyncsResumed.store(false, std::memory_order_relaxed);
 }
 
 void Syncs::appendNewSync(const SyncConfig& c, bool startSync, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
@@ -7248,8 +7248,11 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
-    if (mSyncsLoaded) return;
-    mSyncsLoaded = true;
+    if (mSyncsLoaded.load())
+    {
+        return;
+    }
+    mSyncsLoaded.store(true, std::memory_order_relaxed);
 
     queueSync([this, resetSyncConfigStore]()
         {
@@ -7262,9 +7265,12 @@ void Syncs::resumeSyncsOnStateCurrent()
     assert(!onSyncThread());
 
     // Double check the client only calls us once (per session) for this
-    assert(!mSyncsResumed);
-    if (mSyncsResumed) return;
-    mSyncsResumed = true;
+    if (mSyncsResumed.load())
+    {
+        assert(false && "resumeSyncsOnStateCurrent: unexpected mSyncsResumed value `true`");
+        return;
+    }
+    mSyncsResumed.store(true, std::memory_order_relaxed);
 
     queueSync([this]()
         {

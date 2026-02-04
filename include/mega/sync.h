@@ -1818,8 +1818,8 @@ public:
     std::atomic<bool> syncStallState{false};
     std::atomic<bool> syncConflictState{false};
 
-    bool mSyncsLoaded = false;
-    bool mSyncsResumed = false;
+    std::atomic<bool> mSyncsLoaded{false};
+    std::atomic<bool> mSyncsResumed{false};
 
     std::atomic<size_t> totalSyncConflicts{0};
     std::atomic<size_t> totalSyncStalls{0};
