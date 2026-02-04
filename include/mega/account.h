@@ -248,6 +248,9 @@ struct MEGA_API Product
     unsigned int amount = 0;
     unsigned int amountMonth = 0;
     unsigned int localPrice = 0;
+    double priceNet{0.0};
+    double localPriceNet{0.0};
+    double monthlyBasePriceNet{0.0};
     std::string description;
     std::map<std::string, uint32_t> features;
     std::string iosid;
