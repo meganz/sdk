@@ -74,6 +74,13 @@ NS_ASSUME_NONNULL_BEGIN
 */
 @property (nonatomic, readonly, nullable) NSString *URLString;
 
+/**
+* @brief Returns the variant associated with the MEGABanner object
+*
+* @return variant associated with the MEGABanner object
+*/
+@property (nonatomic, readonly) NSInteger variant;
+
 
 @end
 
