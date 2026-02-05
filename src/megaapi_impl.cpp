@@ -30122,7 +30122,7 @@ double MegaPricingPrivate::getPriceNet(const int productIndex) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return static_cast<int>(products[static_cast<size_t>(productIndex)].priceNet);
+        return products[static_cast<size_t>(productIndex)].priceNet;
     }
 
     return 0.0;
@@ -30132,7 +30132,7 @@ double MegaPricingPrivate::getLocalPriceNet(const int productIndex) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return static_cast<int>(products[static_cast<size_t>(productIndex)].localPriceNet);
+        return products[static_cast<size_t>(productIndex)].localPriceNet;
     }
 
     return 0.0;
@@ -30142,7 +30142,7 @@ double MegaPricingPrivate::getMonthlyBasePriceNet(const int productIndex) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return static_cast<int>(products[static_cast<size_t>(productIndex)].monthlyBasePriceNet);
+        return products[static_cast<size_t>(productIndex)].monthlyBasePriceNet;
     }
 
     return 0.0;
