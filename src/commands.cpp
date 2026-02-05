@@ -2677,7 +2677,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     months = static_cast<int>(json.getint());
                     break;
                 case makeNameid("p"): // price (in cents)
-                    amount = static_cast<unsigned>(json.getint());
+                    amount = static_cast<unsigned>(std::round(json.getfloat()));
                     break;
                 case makeNameid("d"):
                     buf = json.getvalue();
@@ -2722,10 +2722,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     monthlyBasePriceNet = json.getfloat();
                     break;
                 case makeNameid("mbp"): // monthly price (in cents)
-                    amountMonth = static_cast<unsigned>(json.getint());
+                    amountMonth = static_cast<unsigned>(std::round(json.getfloat()));
                     break;
                 case makeNameid("lp"): // local price (in cents)
-                    localPrice = static_cast<unsigned>(json.getint());
+                    localPrice = static_cast<unsigned>(std::round(json.getfloat()));
                     break;
                 case makeNameid("bd"): // BusinessPlan
                 {
