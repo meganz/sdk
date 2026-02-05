@@ -10777,12 +10777,12 @@ void DemoApp::enumeratequotaitems_result(const Product& product)
         cout << "\tStorage: " << product.gbStorage << "\n";
         cout << "\tTransfer: " << product.gbTransfer << "\n";
         cout << "\tMonths: " << product.months << "\n";
-        cout << "\tAmount: " << product.amount << "\n";
-        cout << "\tAmount per month: " << product.amountMonth << "\n";
-        cout << "\nPrice net (without tax): " << product.priceNet << "\n";
-        cout << "\tLocal price net (without tax): " << product.localPriceNet << "\n";
+        cout << "\tPrice: " << product.amount << "\n";
+        cout << "\tPrice net (without tax): " << product.priceNet << "\n";
+        cout << "\tMonthly base price: " << product.amountMonth << "\n";
         cout << "\tMonthly base price net (without tax): " << product.monthlyBasePriceNet << "\n";
         cout << "\tLocal price: " << product.localPrice << "\n";
+        cout << "\tLocal price net (without tax): " << product.localPriceNet << "\n";
         cout << "\tFeatures:\n";
         if (product.features.empty())
         {
