@@ -1,6 +1,7 @@
 #include "env_var_accounts.h"
 #include "integration_test_utils.h"
 #include "mega/testhooks.h"
+#include "passwordManager/SdkTestPasswordManager.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
@@ -138,6 +139,9 @@ private:
 };
 
 class SdkTestPitag: public SdkTest
+{};
+
+class SdkTestPitagPasswordManager: public SdkTestPasswordManager
 {};
 
 } // anonymous namespace
@@ -479,6 +483,38 @@ TEST_F(SdkTestPitag, PitagCapturedForRemoteCopyUploadDedup)
         std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
     const std::string expected = std::string{"C"} + options.pitagTrigger + "fD.";
     ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitagPasswordManager, PitagCapturedForPasswordNodeCreation)
+{
+    PitagCommandObserver observer;
+
+    std::unique_ptr<MegaNode::PasswordNodeData> pwdData{
+        MegaNode::PasswordNodeData::createInstance("pwd", "notes", "url", "user", nullptr)};
+    const auto pwdHandle = sdk_test::createPasswordNode(mApi,
+                                                        getFilePrefix() + "pitag_pwd",
+                                                        pwdData.get(),
+                                                        getBaseHandle());
+    ASSERT_NE(pwdHandle, UNDEF) << "Password node was not created";
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(SdkTestPasswordManager::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("P..D.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitagPasswordManager, PitagCapturedForPasswordFolderCreation)
+{
+    PitagCommandObserver observer;
+
+    const std::string folderName = getFilePrefix() + "pitag_pwm_folder";
+    MegaHandle folderHandle = createFolder(0, folderName.c_str(), getBaseNode().get());
+    ASSERT_NE(folderHandle, UNDEF) << "Password manager folder was not created";
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(SdkTestPasswordManager::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("P.FD.", waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 

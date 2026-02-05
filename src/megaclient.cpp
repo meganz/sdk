@@ -10061,9 +10061,18 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
                                                });
 
     Pitag pitag;
-    pitag.purpose = PitagPurpose::CreateFolder;
-    pitag.nodeType = PitagNodeType::Folder;
-    pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    if (canChangeVault)
+    {
+        pitag.purpose = PitagPurpose::Password;
+        pitag.nodeType = PitagNodeType::Folder;
+        pitag.target = PitagTarget::CloudDrive;
+    }
+    else
+    {
+        pitag.purpose = PitagPurpose::CreateFolder;
+        pitag.nodeType = PitagNodeType::Folder;
+        pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    }
 
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
@@ -22617,6 +22626,12 @@ error MegaClient::createPasswordEntries(
     std::vector<NewNode> nn(data.size());
     size_t nodeToFillIndex = 0;
     const bool canChangeVault = true;
+    Pitag pitag{PitagPurpose::Password,
+                PitagTrigger::NotApplicable,
+                PitagNodeType::NotApplicable,
+                PitagTarget::CloudDrive,
+                PitagImportSource::NotApplicable};
+
     for (const auto& [name, dataAttrMap]: data)
     {
         if (name.empty() || !dataAttrMap)
@@ -22649,7 +22664,10 @@ error MegaClient::createPasswordEntries(
              std::move(nn),
              cauth,
              rTag,
-             canChangeVault);
+             canChangeVault,
+             {}, // customerIpPort
+             nullptr,
+             pitag);
     return API_OK;
 }
 
