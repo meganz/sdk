@@ -2567,7 +2567,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-        unsigned amount = 0, amountMonth = 0, localPrice = 0;
+        double amount = 0.0, amountMonth = 0.0, localPrice = 0.0;
         unsigned int testCategory = CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
         unsigned int trialDays = CommandEnumerateQuotaItems::NO_TRIAL_DAYS;
         string description;
@@ -2677,7 +2677,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     months = static_cast<int>(json.getint());
                     break;
                 case makeNameid("p"): // price (in cents)
-                    amount = static_cast<unsigned>(std::round(json.getfloat()));
+                    amount = json.getfloat();
                     break;
                 case makeNameid("d"):
                     buf = json.getvalue();
@@ -2722,10 +2722,10 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     monthlyBasePriceNet = json.getfloat();
                     break;
                 case makeNameid("mbp"): // monthly price (in cents)
-                    amountMonth = static_cast<unsigned>(std::round(json.getfloat()));
+                    amountMonth = json.getfloat();
                     break;
                 case makeNameid("lp"): // local price (in cents)
-                    localPrice = static_cast<unsigned>(std::round(json.getfloat()));
+                    localPrice = json.getfloat();
                     break;
                 case makeNameid("bd"): // BusinessPlan
                 {
@@ -3040,22 +3040,16 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     break;
                 }
                 case EOO:
-                    if (type < 0
-                            || ISUNDEF(product)
-                            || (prolevel < 0)
-                            || (months < 0)
-                            || currency.empty()
-                            || description.empty()
-                            || testCategory == CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY
-                            // only available for Pro plans, not for Business
-                            || (!type && gbstorage < 0)
-                            || (!type && gbtransfer < 0)
-                            || (!type && !amount)
-                            || (!type && !amountMonth)
-                            || (!type && ios_id.empty())
-                            || (!type && android_id.empty())
-                            // only available for Business plan(s)
-                            || (type == 1 && !bizPlan))
+                    if (type < 0 || ISUNDEF(product) || (prolevel < 0) || (months < 0) ||
+                        currency.empty() || description.empty() ||
+                        testCategory == CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY
+                        // only available for Pro plans, not for Business
+                        || (!type && gbstorage < 0) || (!type && gbtransfer < 0) ||
+                        (!type && amount == 0.0) || (!type && amountMonth == 0.0) ||
+                        (!type && ios_id.empty()) ||
+                        (!type && android_id.empty())
+                        // only available for Business plan(s)
+                        || (type == 1 && !bizPlan))
                     {
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return true;

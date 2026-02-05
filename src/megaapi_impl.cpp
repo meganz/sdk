@@ -30102,7 +30102,8 @@ int MegaPricingPrivate::getAmount(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return static_cast<int>(products[static_cast<size_t>(productIndex)].amount);
+        const auto v = products[static_cast<size_t>(productIndex)].amount;
+        return static_cast<int>(std::round(v));
     }
 
     return 0;
@@ -30112,13 +30113,44 @@ int mega::MegaPricingPrivate::getLocalPrice(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return static_cast<int>(products[static_cast<size_t>(productIndex)].localPrice);
+        const auto v = products[static_cast<size_t>(productIndex)].localPrice;
+        return static_cast<int>(std::round(v));
     }
 
     return 0;
 }
 
-double MegaPricingPrivate::getPriceNet(const int productIndex) const
+double mega::MegaPricingPrivate::getAmountWithDecimals(const int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[static_cast<size_t>(productIndex)].amount;
+    }
+
+    return 0.0;
+}
+
+double mega::MegaPricingPrivate::getLocalPriceWithDecimals(const int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[static_cast<size_t>(productIndex)].localPrice;
+    }
+
+    return 0.0;
+}
+
+double mega::MegaPricingPrivate::getAmountMonthWithDecimals(const int productIndex) const
+{
+    if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
+    {
+        return products[static_cast<size_t>(productIndex)].amountMonth;
+    }
+
+    return 0.0;
+}
+
+double MegaPricingPrivate::getPriceNetWithDecimals(const int productIndex) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
@@ -30128,7 +30160,7 @@ double MegaPricingPrivate::getPriceNet(const int productIndex) const
     return 0.0;
 }
 
-double MegaPricingPrivate::getLocalPriceNet(const int productIndex) const
+double MegaPricingPrivate::getLocalPriceNetWithDecimals(const int productIndex) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
@@ -30138,7 +30170,7 @@ double MegaPricingPrivate::getLocalPriceNet(const int productIndex) const
     return 0.0;
 }
 
-double MegaPricingPrivate::getMonthlyBasePriceNet(const int productIndex) const
+double MegaPricingPrivate::getMonthlyBasePriceNetWithDecimals(const int productIndex) const
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
@@ -30234,7 +30266,8 @@ int MegaPricingPrivate::getAmountMonth(int productIndex)
 {
     if (productIndex >= 0 && static_cast<unsigned int>(productIndex) < products.size())
     {
-        return static_cast<int>(products[static_cast<size_t>(productIndex)].amountMonth);
+        const auto v = products[static_cast<size_t>(productIndex)].amountMonth;
+        return static_cast<int>(std::round(v));
     }
 
     return 0;

@@ -222,7 +222,8 @@ TEST(MegaApi, getMimeType)
 TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
 {
     MegaPricingPrivate pricing;
-    std::function<void(int, int, int)> addTestProducts = [&](int proLevel, int gb, int pricedollars)
+    std::function<void(int, int, int)> addTestProducts =
+        [&](int proLevel, int gb, double pricecents)
     {
         pricing.addProduct({1000,
                             1000000,
@@ -230,7 +231,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             gb,
                             gb == -1 ? -1 : gb * 10,
                             1,
-                            static_cast<unsigned int>(pricedollars),
+                            pricecents,
                             10,
                             100,
                             0.0,
@@ -251,7 +252,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             gb,
                             gb == -1 ? -1 : gb * 10,
                             12,
-                            static_cast<unsigned int>(pricedollars * 12),
+                            pricecents * 12,
                             10,
                             100,
                             0.0,
