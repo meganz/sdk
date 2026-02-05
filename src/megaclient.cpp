@@ -734,7 +734,8 @@ void MegaClient::mergenewshare(NewShare *s, bool notify, bool skipWriteInDb)
 
 
 #ifdef ENABLE_SYNC
-        if (n->inshare && s->access != FULL)
+        // "access" is default (ACCESS_UNKNOWN) for pending keys, so let's ignore it.
+        if (n->inshare && s->access != FULL && s->access != ACCESS_UNKNOWN)
         {
             // check if the low(ered) access level is affecting any syncs
             // a) have we just cut off full access to a subtree of a sync?
