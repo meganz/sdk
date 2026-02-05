@@ -518,4 +518,116 @@ TEST_F(SdkTestPitagPasswordManager, PitagCapturedForPasswordFolderCreation)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+TEST_F(SdkTestPitag, PitagCapturedForImportFileLink)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode);
+
+    RequestTracker folderTracker(megaApi[0].get());
+    const std::string targetFolderName = getFilePrefix() + "pitag_import_target";
+    megaApi[0]->createFolder(targetFolderName.c_str(), rootNode.get(), &folderTracker);
+    ASSERT_EQ(API_OK, folderTracker.waitForResult());
+    std::unique_ptr<MegaNode> importParent{
+        megaApi[0]->getNodeByHandle(folderTracker.request->getNodeHandle())};
+    ASSERT_TRUE(importParent);
+
+    const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_import.bin");
+    const sdk_test::LocalTempFile localFile(localFilePath, "pitag-import");
+    const std::string localPathUtf8 = path_u8string(localFilePath);
+
+    {
+        TransferTracker tracker(megaApi[0].get());
+        megaApi[0]->startUpload(localPathUtf8, rootNode.get(), nullptr, nullptr, &tracker);
+        ASSERT_EQ(API_OK, tracker.waitForResult());
+    }
+
+    std::unique_ptr<MegaNode> uploaded{
+        megaApi[0]->getNodeByPath((std::string("/") + localFilePath.filename().string()).c_str())};
+    ASSERT_TRUE(uploaded);
+
+    RequestTracker linkTracker(megaApi[0].get());
+    megaApi[0]->exportNode(uploaded.get(), 0, false, false, &linkTracker);
+    ASSERT_EQ(API_OK, linkTracker.waitForResult());
+    const char* link = linkTracker.request->getLink();
+    ASSERT_TRUE(link);
+
+    PitagCommandObserver observer;
+
+    RequestTracker importTracker(megaApi[0].get());
+    megaApi[0]->importFileLink(link, importParent.get(), &importTracker);
+    ASSERT_EQ(API_OK, importTracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("I.fDf", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitag, PitagCapturedForImportFolderLink)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // Account 0 uploads a file inside a folder, exports the folder link
+    std::unique_ptr<MegaNode> ownerRoot{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(ownerRoot);
+
+    const std::string folderName = getFilePrefix() + "pitag_import_folder";
+    const MegaHandle folderHandle = createFolder(0, folderName.c_str(), ownerRoot.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_TRUE(folder);
+
+    const auto localFilePath =
+        fs::current_path() / (getFilePrefix() + "pitag_import_folder_file.bin");
+    const sdk_test::LocalTempFile localFile(localFilePath, "pitag-import-folder");
+    {
+        TransferTracker tracker(megaApi[0].get());
+        megaApi[0]->startUpload(localFilePath.string(), folder.get(), nullptr, nullptr, &tracker);
+        ASSERT_EQ(API_OK, tracker.waitForResult());
+    }
+
+    RequestTracker linkTracker(megaApi[0].get());
+    megaApi[0]->exportNode(folder.get(),
+                           0 /*expireTime*/,
+                           false /*writable*/,
+                           false /*megaHosted*/,
+                           &linkTracker);
+    ASSERT_EQ(API_OK, linkTracker.waitForResult());
+    const char* folderLink = linkTracker.request->getLink();
+    ASSERT_TRUE(folderLink);
+
+    // Account 1 logs into the folder link (guest), authorizes the folder, then logs back to import
+    RequestTracker loginLinkTracker(megaApi[1].get());
+    megaApi[1]->loginToFolder(folderLink, &loginLinkTracker);
+    ASSERT_EQ(API_OK, loginLinkTracker.waitForResult());
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+
+    std::unique_ptr<MegaNode> linkRoot{megaApi[1]->getRootNode()};
+    ASSERT_TRUE(linkRoot);
+    std::unique_ptr<MegaNode> authorized{megaApi[1]->authorizeNode(linkRoot.get())};
+    ASSERT_TRUE(authorized);
+
+    RequestTracker logoutLink(megaApi[1].get());
+    megaApi[1]->logout(false, &logoutLink);
+    ASSERT_EQ(API_OK, logoutLink.waitForResult());
+
+    ASSERT_NO_FATAL_FAILURE(login(1));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(1));
+
+    std::unique_ptr<MegaNode> destRoot{megaApi[1]->getRootNode()};
+    ASSERT_TRUE(destRoot);
+
+    PitagCommandObserver observer;
+    RequestTracker copyTracker(megaApi[1].get());
+    megaApi[1]->copyNode(authorized.get(), destRoot.get(), nullptr, &copyTracker);
+    ASSERT_EQ(API_OK, copyTracker.waitForResult());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("I.FDF", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED

@@ -16064,7 +16064,28 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
         int nextTag = client->nextreqtag();
         request->setTag(nextTag);
         requestMap[nextTag]=request;
-        client->putnodes(parenthandle, UseLocalVersioningFlag, std::move(newnodes), nullptr, nextTag, false);
+        Pitag pitag{PitagPurpose::Import,
+                    PitagTrigger::NotApplicable,
+                    PitagNodeType::File,
+                    PitagTarget::CloudDrive,
+                    PitagImportSource::FileLink};
+        if (target->matchesOrHasAncestorMatching(
+                [](const Node& node)
+                {
+                    return node.inshare != nullptr;
+                }))
+        {
+            pitag.target = PitagTarget::IncomingShare;
+        }
+        client->putnodes(parenthandle,
+                         UseLocalVersioningFlag,
+                         std::move(newnodes),
+                         nullptr,
+                         nextTag,
+                         false,
+                         {}, // customerIpPort
+                         nullptr,
+                         pitag);
     }
     else
     {
@@ -21024,16 +21045,8 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                                                                  return n.inshare != nullptr;
                                                              });
             Pitag pitag;
-            pitag.purpose = PitagPurpose::Copy;
-            pitag.trigger = PitagTrigger::NotApplicable;
-            pitag.nodeType =
-                node ? (node->type == FOLDERNODE ? PitagNodeType::Folder : PitagNodeType::File) :
-                       (megaNode->getType() == MegaNode::TYPE_FOLDER ? PitagNodeType::Folder :
-                                                                       PitagNodeType::File);
             pitag.target =
                 targetIsIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
-            pitag.importSource = node && node->inshare ? PitagImportSource::IncomingShare :
-                                                         PitagImportSource::CloudDrive;
 
             if (!node)
             {
@@ -21094,6 +21107,13 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 tc.nn[0].parenthandle = UNDEF;
                 tc.nn[0].ovhandle = ovhandle;
 
+                pitag.purpose = PitagPurpose::Import;
+                pitag.nodeType = megaNode->getType() == MegaNode::TYPE_FILE ? PitagNodeType::File :
+                                                                              PitagNodeType::Folder;
+                pitag.importSource = megaNode->getType() == MegaNode::TYPE_FILE ?
+                                         PitagImportSource::FileLink :
+                                         PitagImportSource::FolderLink;
+
                 if (target)
                 {
                     client->putnodes(target->nodeHandle(),
@@ -21113,6 +21133,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
             }
             else
             {
+                pitag.purpose = PitagPurpose::Copy;
+                pitag.nodeType =
+                    node->type == FOLDERNODE ? PitagNodeType::Folder : PitagNodeType::File;
+                pitag.importSource = node->inshare ? PitagImportSource::IncomingShare :
+                                                     PitagImportSource::CloudDrive;
+
                 vector<NewNode> nn;
                 error err = copyTreeFromOwnedNode(node, newName, target, nn);
                 if (err != API_OK)
