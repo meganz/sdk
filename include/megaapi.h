@@ -24454,7 +24454,7 @@ class MegaApi
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getText - Returns the discount code
-         * - MegaRequest::getDiscountCodeInfo - Returns the discount code information
+         * - MegaRequest::getMegaDiscountCodeInfo - Returns the discount code information
          *
          * Possible errors:
          * - MegaError::API_EARGS - If the provided code is nullptr
