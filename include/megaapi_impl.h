@@ -2576,9 +2576,12 @@ public:
     int getMonths(int productIndex) override;
     int getAmount(int productIndex) override;
     int getLocalPrice(int productIndex) override;
-    double getPriceNet(const int productIndex) const override;
-    double getLocalPriceNet(const int productIndex) const override;
-    double getMonthlyBasePriceNet(const int productIndex) const override;
+    double getAmountWithDecimals(const int productIndex) const override;
+    double getLocalPriceWithDecimals(const int productIndex) const override;
+    double getAmountMonthWithDecimals(const int productIndex) const override;
+    double getPriceNetWithDecimals(const int productIndex) const override;
+    double getLocalPriceNetWithDecimals(const int productIndex) const override;
+    double getMonthlyBasePriceNetWithDecimals(const int productIndex) const override;
     const char* getDescription(int productIndex) override;
     const char* getIosID(int productIndex) override;
     const char* getAndroidID(int productIndex) override;

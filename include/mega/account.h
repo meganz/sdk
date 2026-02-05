@@ -245,9 +245,9 @@ struct MEGA_API Product
     int gbStorage = -1;
     int gbTransfer = -1;
     unsigned int months = 0;
-    unsigned int amount = 0;
-    unsigned int amountMonth = 0;
-    unsigned int localPrice = 0;
+    double amount = {0.0};
+    double amountMonth = {0.0};
+    double localPrice = {0.0};
     double priceNet{0.0};
     double localPriceNet{0.0};
     double monthlyBasePriceNet{0.0};

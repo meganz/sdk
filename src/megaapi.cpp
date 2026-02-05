@@ -6594,17 +6594,32 @@ int MegaPricing::getLocalPrice(int /*productIndex*/)
     return 0;
 }
 
-double MegaPricing::getPriceNet(const int /*productIndex*/) const
+double MegaPricing::getPriceNetWithDecimals(const int /*productIndex*/) const
 {
     return 0.0;
 }
 
-double MegaPricing::getLocalPriceNet(const int /*productIndex*/) const
+double MegaPricing::getLocalPriceNetWithDecimals(const int /*productIndex*/) const
 {
     return 0.0;
 }
 
-double MegaPricing::getMonthlyBasePriceNet(const int /*productIndex*/) const
+double MegaPricing::getAmountWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getLocalPriceWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getAmountMonthWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getMonthlyBasePriceNetWithDecimals(const int /*productIndex*/) const
 {
     return 0.0;
 }

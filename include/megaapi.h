@@ -5038,7 +5038,7 @@ public:
     virtual MegaDiscountCodeInfo* copy() const;
 
     /*
-     * @brief Returns the expiry time associated with the discount code info
+     * @brief Returns the expiry time associated with the discount code info (seconds since epoch)
      */
     virtual int getExpiry() const;
 
@@ -25672,6 +25672,7 @@ public:
 
     /**
      * @brief Get the price of the product (in cents)
+     * If you want the price in cents with decimals call MegaPricing::getAmountWithDecimals
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
@@ -25679,31 +25680,57 @@ public:
 
     /**
      * @brief Get the price in the local currency (in cents)
+     * If you want the price in the local currency in cents with decimals call
+     * MegaPricing::getLocalPriceWithDecimals
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
     virtual int getLocalPrice(int productIndex);
 
     /**
-     * @brief Get the net base price of the product (without tax)
+     * @brief Get the net base price of the product without tax (in cents, with decimals)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Net base price of the product, without tax
+     * @return Net base price of the product in cents, including decimal fraction, without tax
      */
-    virtual double getPriceNet(const int /*productIndex*/) const;
+    virtual double getPriceNetWithDecimals(const int /*productIndex*/) const;
 
     /**
-     * @brief Get the net base price of the product in local currency (without tax)
+     * @brief Get the net base price of the product in local currency without tax (in cents, with
+     * decimals)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Net base price of the product in local currency, without tax
+     * @return Net base price of the product in local currency in cents, including decimal fraction,
+     * without tax
      */
-    virtual double getLocalPriceNet(const int /*productIndex*/) const;
+    virtual double getLocalPriceNetWithDecimals(const int /*productIndex*/) const;
 
     /**
-     * @brief Get the net monthly base price of the product (without tax)
+     * @brief Get the price of the product (in cents, with decimals)
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
-     * @return Net monthly base price of the product, without tax
+     * @return Price of the product in cents, including decimal fraction
      */
-    virtual double getMonthlyBasePriceNet(const int /*productIndex*/) const;
+    virtual double getAmountWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the price in the local currency (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Price in the local currency of the product in cents, including decimal fraction
+     */
+    virtual double getLocalPriceWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the monthly price of the product (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Monthly price of the product in cents, including decimal fraction
+     */
+    virtual double getAmountMonthWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the net monthly base price of the product without tax (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net monthly base price of the product in cents, including decimal fraction, without
+     * tax
+     */
+    virtual double getMonthlyBasePriceNetWithDecimals(const int /*productIndex*/) const;
 
     /**
      * @brief Get a description of the product
@@ -25762,6 +25789,8 @@ public:
 
     /**
      * @brief Get the monthly price of the product (in cents)
+     * If you want the monthly price in cents with decimals call
+     * MegaPricing::getAmountMonthWithDecimals
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Monthly price of the product (in cents)
      */
