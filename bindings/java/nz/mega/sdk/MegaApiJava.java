@@ -6466,42 +6466,6 @@ public class MegaApiJava {
         megaApi.createSupportTicket(message, type, createDelegateRequestListener(listener));
     }
 
-    /**
-     * Use HTTPS communications only
-     * <p>
-     * The default behavior is to use HTTP for transfers and the persistent connection
-     * to wait for external events. Those communications don't require HTTPS because
-     * all transfer data is already end-to-end encrypted and no data is transmitted
-     * over the connection to wait for events (it's just closed when there are new events).
-     * <p>
-     * This feature should only be enabled if there are problems to contact MEGA servers
-     * through HTTP because otherwise it doesn't have any benefit and will cause a
-     * higher CPU usage.
-     * <p>
-     * See MegaApi::usingHttpsOnly
-     *
-     * @param httpsOnly True to use HTTPS communications only
-     */
-    public void useHttpsOnly(boolean httpsOnly) {
-        megaApi.useHttpsOnly(httpsOnly);
-    }
-
-    /**
-     * Check if the SDK is using HTTPS communications only
-     * <p>
-     * The default behavior is to use HTTP for transfers and the persistent connection
-     * to wait for external events. Those communications don't require HTTPS because
-     * all transfer data is already end-to-end encrypted and no data is transmitted
-     * over the connection to wait for events (it's just closed when there are new events).
-     * <p>
-     * See MegaApi::useHttpsOnly
-     *
-     * @return True if the SDK is using HTTPS communications only. Otherwise false.
-     */
-    public boolean usingHttpsOnly() {
-        return megaApi.usingHttpsOnly();
-    }
-
     //****************************************************************************************************/
     // TRANSFERS
     //****************************************************************************************************/
