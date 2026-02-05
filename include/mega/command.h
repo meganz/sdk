@@ -198,9 +198,12 @@ private:
 public:
     bool procresult(Result, JSON&) override;
 
-
-    CommandPutFA(NodeOrUploadHandle, fatype, bool usehttps, int tag, size_t size_only,
-                 bool getIP = true, Cb &&completion = nullptr);
+    CommandPutFA(NodeOrUploadHandle,
+                 fatype,
+                 int tag,
+                 size_t size_only,
+                 bool getIP = true,
+                 Cb&& completion = nullptr);
 };
 
 struct MEGA_API HttpReqFA : public HttpReq, public std::enable_shared_from_this<HttpReqFA>
@@ -213,8 +216,12 @@ struct MEGA_API HttpReqFA : public HttpReq, public std::enable_shared_from_this<
     virtual m_off_t transferred(MegaClient*) override;
 
     // either supply only size (to just get the URL) or supply only the data for auto-upload (but not both)
-    HttpReqFA(NodeOrUploadHandle, fatype, bool usehttps, int tag,
-                        std::unique_ptr<string> faData, bool getIP, MegaClient* client);
+    HttpReqFA(NodeOrUploadHandle,
+              fatype,
+              int tag,
+              std::unique_ptr<string> faData,
+              bool getIP,
+              MegaClient* client);
 
     // generator function because the code allows for retries
     std::function<CommandPutFA*()> getURLForFACmd;
@@ -679,7 +686,7 @@ class MEGA_API CommandGetPutUrl : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetPutUrl(m_off_t size, bool forceSSL, bool getIP, Cb completion);
+    CommandGetPutUrl(m_off_t size, bool getIP, Cb completion);
 };
 
 

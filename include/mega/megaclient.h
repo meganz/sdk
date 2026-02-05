@@ -1609,9 +1609,6 @@ public:
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
 
-    // use HTTPS for all communications
-    bool usehttps;
-
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 

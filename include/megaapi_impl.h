@@ -3989,9 +3989,6 @@ class MegaApiImpl : public MegaApp
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
 
-        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
-        bool usingHttpsOnly();
-
         //Backups
         MegaStringList *getBackupFolders(int backuptag);
         void setScheduledCopy(const char* localPath, MegaNode *parent, bool attendPastBackups, int64_t period, string periodstring, int numBackups, MegaRequestListener *listener=NULL);
@@ -4494,14 +4491,18 @@ public:
         bool createAvatar(const char* imagePath, const char *dstPath);
 
         // these two: MEGA proxy use only
-        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        void getUploadURL(int64_t fullFileSize, MegaRequestListener* listener);
         void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 
-        void getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener *listener);
+        void getFileAttributeUploadURL(MegaHandle nodehandle,
+                                       int64_t fullFileSize,
+                                       int faType,
+                                       MegaRequestListener* listener);
 
-
-        void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
+        void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize,
+                                                   MegaBackgroundMediaUpload* state,
+                                                   MegaRequestListener* listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
             const char *string64UploadToken, MegaRequestListener *listener);
 

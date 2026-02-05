@@ -3527,14 +3527,11 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
-void MegaApi::useHttpsOnly(bool httpsOnly, MegaRequestListener *listener)
-{
-    pImpl->useHttpsOnly(httpsOnly, listener);
-}
+void MegaApi::useHttpsOnly(bool, MegaRequestListener*) {}
 
 bool MegaApi::usingHttpsOnly()
 {
-    return pImpl->usingHttpsOnly();
+    return true;
 }
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
@@ -5788,20 +5785,44 @@ void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char*
     return pImpl->completeUpload(utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, string64FileKey, listener);
 }
 
-
-void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApi::getUploadURL(int64_t fullFileSize, bool /*forceSSL*/, MegaRequestListener* listener)
 {
-    return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
+    return getUploadURL(fullFileSize, listener);
 }
 
-void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApi::getUploadURL(int64_t fullFileSize, MegaRequestListener* listener)
 {
-    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, forceSSL, listener);
+    return pImpl->getUploadURL(fullFileSize, listener);
 }
 
-void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle,
+                                    int64_t fullFileSize,
+                                    bool /*forceSSL*/,
+                                    MegaRequestListener* listener)
 {
-    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, forceSSL, listener);
+    return getThumbnailUploadURL(nodeHandle, fullFileSize, listener);
+}
+
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle,
+                                    int64_t fullFileSize,
+                                    MegaRequestListener* listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, listener);
+}
+
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle,
+                                  int64_t fullFileSize,
+                                  bool /*forceSSL*/,
+                                  MegaRequestListener* listener)
+{
+    return getPreviewUploadURL(nodeHandle, fullFileSize, listener);
+}
+
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle,
+                                  int64_t fullFileSize,
+                                  MegaRequestListener* listener)
+{
+    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

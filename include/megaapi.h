@@ -5287,7 +5287,7 @@ class MegaRequest
             TYPE_CHAT_URL                                                   = 60,
             TYPE_CHAT_GRANT_ACCESS                                          = 61,
             TYPE_CHAT_REMOVE_ACCESS                                         = 62,
-            TYPE_USE_HTTPS_ONLY                                             = 63,
+            // TYPE_USE_HTTPS_ONLY                                             = 63,   (obsolete)
             TYPE_SET_PROXY                                                  = 64,
             TYPE_GET_RECOVERY_LINK                                          = 65,
             TYPE_QUERY_RECOVERY_LINK                                        = 66,
@@ -16773,36 +16773,15 @@ class MegaApi
         void reportDebugEvent(const char *text, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Use HTTPS communications only
-         *
-         * The default behavior is to use HTTP for transfers and the persistent connection
-         * to wait for external events. Those communications don't require HTTPS because
-         * all transfer data is already end-to-end encrypted and no data is transmitted
-         * over the connection to wait for events (it's just closed when there are new events).
-         *
-         * This feature should only be enabled if there are problems to contact MEGA servers
-         * through HTTP because otherwise it doesn't have any benefit and will cause a
-         * higher CPU usage.
-         *
-         * See MegaApi::usingHttpsOnly
-         *
-         * @param httpsOnly True to use HTTPS communications only
-         * @param listener MegaRequestListener to track this request
+         * @deprecated HTTPS is always enabled
          */
+        MEGA_DEPRECATED
         void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
 
         /**
-         * @brief Check if the SDK is using HTTPS communications only
-         *
-         * The default behavior is to use HTTP for transfers and the persistent connection
-         * to wait for external events. Those communications don't require HTTPS because
-         * all transfer data is already end-to-end encrypted and no data is transmitted
-         * over the connection to wait for events (it's just closed when there are new events).
-         *
-         * See MegaApi::useHttpsOnly
-         *
-         * @return True if the SDK is using HTTPS communications only. Otherwise false.
+         * @deprecated HTTPS is always enabled
          */
+        MEGA_DEPRECATED
         bool usingHttpsOnly();
 
         ///////////////////   TRANSFERS ///////////////////
@@ -20809,79 +20788,107 @@ class MegaApi
                                           const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener);
 
         /**
+         * @deprecated Use new version without `forceSSL` param
+         */
+        MEGA_DEPRECATED
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener);
+
+        /**
          * @brief Request the URL suitable for uploading a file.
          *
          * Note: added for the use of MEGAproxy and not otherwise supported
-		 *
+         *
          * This function requests the base URL needed for uploading the file.
          * The URL will need the urlSuffix resulting from encryption.
          *
-         * The associated request type with this request is MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL Valid data in the MegaRequest object received
+         * in onRequestFinish when the error code is MegaError::API_OK:
+         * - MegaRequest::getName - The URL to use
+         * - MegaRequest::getLink - The IPv4 of the upload server
+         * - MegaRequest::getText - The IPv6 of the upload server
+         *
+         * Call this function just once (per file) to find out the URL to upload to, and upload all
+         * the pieces to the same URL. If errors are encountered and the operation must be restarted
+         * from scratch, then a new URL should be requested. A new URL could specify a different
+         * upload server for example.
+         *
+         * @param fullFileSize The size of the file
+         * @param listener MegaRequestListener to track this request
+         */
+        void getUploadURL(int64_t fullFileSize, MegaRequestListener* listener);
+
+        /**
+         * @deprecated Use new version without `forceSSL` param
+         */
+        MEGA_DEPRECATED
+        void getThumbnailUploadURL(MegaHandle nodehandle,
+                                   int64_t fullFileSize,
+                                   bool forceSSL,
+                                   MegaRequestListener* listener);
+
+        /**
+         * @brief Request the URL suitable for uploading a thubmnail for a node.
+         *
+         * Note: added for the use of MEGAproxy
+         *
+         * This function requests the base URL needed for uploading the thumbnail.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
          * - MegaRequest::getName - The URL to use
          * - MegaRequest::getLink - The IPv4 of the upload server
          * - MegaRequest::getText - The IPv6 of the upload server
          *
-         * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
-         * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
-         * A new URL could specify a different upload server for example.
+         * Call this function just once (per file) to find out the URL to upload to, and upload all
+         * the pieces to the same URL. If errors are encountered and the operation must be restarted
+         * from scratch, then a new URL should be requested. A new URL could specify a different
+         * upload server for example.
          *
-         * @param fullFileSize The size of the file
-         * @param forceSSL Enforce getting a https URL
+         * @param nodehandle handle of the node
+         * @param fullFileSize The size of the thumbnail
          * @param listener MegaRequestListener to track this request
          */
-         void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        void getThumbnailUploadURL(MegaHandle nodehandle,
+                                   int64_t fullFileSize,
+                                   MegaRequestListener* listener);
 
-         /**
-          * @brief Request the URL suitable for uploading a thubmnail for a node.
-          *
-          * Note: added for the use of MEGAproxy
-          *
-          * This function requests the base URL needed for uploading the thumbnail.
-          *
-          * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
-          * Valid data in the MegaRequest object received in onRequestFinish when the error code
-          * is MegaError::API_OK:
-          * - MegaRequest::getName - The URL to use
-          * - MegaRequest::getLink - The IPv4 of the upload server
-          * - MegaRequest::getText - The IPv6 of the upload server
-          *
-          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
-          * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
-          * A new URL could specify a different upload server for example.
-          *
-          * @param nodehandle handle of the node
-          * @param fullFileSize The size of the thumbnail
-          * @param forceSSL Enforce getting a https URL
-          * @param listener MegaRequestListener to track this request
-          */
-         void getThumbnailUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        /**
+         * @deprecated Use new version without `forceSSL` param
+         */
+        MEGA_DEPRECATED
+        void getPreviewUploadURL(MegaHandle nodehandle,
+                                 int64_t fullFileSize,
+                                 bool forceSSL,
+                                 MegaRequestListener* listener);
 
-         /**
-          * @brief Request the URL suitable for uploading a preview for a node.
-          *
-          * Note: added for the use of MEGAproxy
-          *
-          * This function requests the base URL needed for uploading the preview.
-          *
-          * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
-          * Valid data in the MegaRequest object received in onRequestFinish when the error code
-          * is MegaError::API_OK:
-          * - MegaRequest::getName - The URL to use
-          * - MegaRequest::getLink - The IPv4 of the upload server
-          * - MegaRequest::getText - The IPv6 of the upload server
-          *
-          * Call this function just once (per file) to find out the URL to upload to, and upload all the pieces to the same
-          * URL. If errors are encountered and the operation must be restarted from scratch, then a new URL should be requested.
-          * A new URL could specify a different upload server for example.
-          *
-          * @param nodehandle handle of the node
-          * @param fullFileSize The size of the preview
-          * @param forceSSL Enforce getting a https URL
-          * @param listener MegaRequestListener to track this request
-          */
-         void getPreviewUploadURL(MegaHandle nodehandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        /**
+         * @brief Request the URL suitable for uploading a preview for a node.
+         *
+         * Note: added for the use of MEGAproxy
+         *
+         * This function requests the base URL needed for uploading the preview.
+         *
+         * The associated request type with this request is MegaRequest::TYPE_GET_FA_UPLOAD_URL
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getName - The URL to use
+         * - MegaRequest::getLink - The IPv4 of the upload server
+         * - MegaRequest::getText - The IPv6 of the upload server
+         *
+         * Call this function just once (per file) to find out the URL to upload to, and upload all
+         * the pieces to the same URL. If errors are encountered and the operation must be restarted
+         * from scratch, then a new URL should be requested. A new URL could specify a different
+         * upload server for example.
+         *
+         * @param nodehandle handle of the node
+         * @param fullFileSize The size of the preview
+         * @param listener MegaRequestListener to track this request
+         */
+        void getPreviewUploadURL(MegaHandle nodehandle,
+                                 int64_t fullFileSize,
+                                 MegaRequestListener* listener);
 
         /**
          * @brief Create the node after completing the background upload of the file.

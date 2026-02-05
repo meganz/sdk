@@ -2039,7 +2039,6 @@ MegaClient::MegaClient(MegaApp* a,
 #ifndef EMSCRIPTEN
     autodownport = true;
     autoupport = true;
-    usehttps = false;
     orderdownloadedchunks = false;
 #else
     autodownport = false;
@@ -2563,7 +2562,6 @@ void MegaClient::exec()
                         {
                             LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
                             fc->urltime = 0;
-                            usehttps = true;
                             app->notify_change_to_https();
 
                             sendevent(99436, "Automatic change to HTTPS", 0);
@@ -2613,8 +2611,8 @@ void MegaClient::exec()
                             fc->req.contenttype.find("text/html") != string::npos &&
                             Utils::startswith(fc->req.posturl, "http:"))
                         {
-                            LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
-                            usehttps = true;
+                            LOG_warn << "Invalid Content-Type detected on failed file attr: "
+                                     << fc->req.contenttype;
                             app->notify_change_to_https();
 
                             sendevent(99436, "Automatic change to HTTPS", 0);
@@ -5206,7 +5204,7 @@ void MegaClient::dnsrequest(const char *hostname)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = (usehttps ? string("https://") : string("http://")) + hostname;
+    req->posturl = string("https://") + hostname;
     req->dns(this);
 }
 
@@ -6283,7 +6281,7 @@ error MegaClient::putfa(NodeOrUploadHandle th,
         return API_EKEY;
     }
 
-    queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
+    queuedfa.emplace_back(new HttpReqFA(th, t, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.

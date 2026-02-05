@@ -860,7 +860,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 (reqs[i]->contenttype.find("text/html") != string::npos &&
                                  Utils::startswith(reqs[i]->posturl, "http:")))
                             {
-                                client->usehttps = true;
                                 client->app->notify_change_to_https();
 
                                 if (e == DAEMON_EFAILED)
@@ -872,7 +871,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 }
                                 else
                                 {
-                                    LOG_warn << "Conn " << i << " : Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
+                                    LOG_warn << "Conn " << i
+                                             << " : Invalid Content-Type detected during upload: "
+                                             << reqs[i]->contenttype;
                                 }
                                 client->sendevent(99436, "Automatic change to HTTPS", 0);
 
@@ -981,8 +982,9 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             if (reqs[i]->contenttype.find("text/html") != string::npos &&
                                 Utils::startswith(reqs[i]->posturl, "http:"))
                             {
-                                LOG_warn << "Conn " << i << " : Invalid Content-Type detected during download: " << reqs[i]->contenttype;
-                                client->usehttps = true;
+                                LOG_warn << "Conn " << i
+                                         << " : Invalid Content-Type detected during download: "
+                                         << reqs[i]->contenttype;
                                 client->app->notify_change_to_https();
 
                                 client->sendevent(99436, "Automatic change to HTTPS", 0);
@@ -1628,8 +1630,9 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
     if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos &&
         postUrlStartsWithHttp)
     {
-        LOG_warn << "Conn " << channel << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype << " [httpReq = " << (void*)httpReq.get() << "]";
-        client->usehttps = true;
+        LOG_warn << "Conn " << channel
+                 << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype
+                 << " [httpReq = " << (void*)httpReq.get() << "]";
         client->app->notify_change_to_https();
 
         client->sendevent(99436, "Automatic change to HTTPS", 0);

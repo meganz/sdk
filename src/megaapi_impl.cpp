@@ -5219,8 +5219,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_REMOVE: return "CHAT_REMOVE";
         case TYPE_CHAT_URL: return "CHAT_URL";
         case TYPE_CHAT_GRANT_ACCESS: return "CHAT_GRANT_ACCESS";
-        case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
-        case TYPE_USE_HTTPS_ONLY: return "USE_HTTPS_ONLY";
+        case TYPE_CHAT_REMOVE_ACCESS:
+            return "CHAT_REMOVE_ACCESS";
         case TYPE_SET_PROXY: return "SET_PROXY";
         case TYPE_GET_RECOVERY_LINK: return "GET_RECOVERY_LINK";
         case TYPE_QUERY_RECOVERY_LINK: return "QUERY_RECOVERY_LINK";
@@ -9318,11 +9318,6 @@ char* MegaApiImpl::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsign
     return pwd.empty() ? nullptr : MegaApi::strdup(pwd.c_str());
 }
 
-bool MegaApiImpl::usingHttpsOnly()
-{
-    return client->usehttps;
-}
-
 void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
@@ -11058,11 +11053,10 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_AVATAR[GfxProc::AVATAR250X250], localDstPath);
 }
 
-void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApiImpl::getUploadURL(int64_t fullFileSize, MegaRequestListener* listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
-    req->setFlag(forceSSL);
 
     req->performRequest = [this, req]()
     {
@@ -11104,7 +11098,6 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
-    req->setFlag(true); // always SSL for background uploads
     req->setMegaBackgroundMediaUploadPtr(state);
 
     req->performRequest = [this, req]()
@@ -24729,38 +24722,6 @@ void MegaApiImpl::cleanRubbishBin(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
-    request->setFlag(usehttps);
-
-    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
-        {
-            bool usehttps = request->getFlag();
-            if (client->usehttps != usehttps)
-            {
-                client->usehttps = usehttps;
-                for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-                {
-                    for (auto it = client->multi_transfers[d].begin(); it != client->multi_transfers[d].end(); )
-                    {
-                        Transfer *t = it->second;
-                        it++; // in case the failed() call deletes the transfer (which removes it from the list)
-                        if (t->slot)
-                        {
-                            t->failed(API_EAGAIN, committer);
-                        }
-                    }
-                }
-            }
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            return API_OK;
-        };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener* listener)
 {
     Proxy* localProxySettings = new Proxy();
@@ -25828,12 +25789,14 @@ void MegaApiImpl::getPublicLinkInformation(const char* megaFolderLink, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener* listener)
+void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle,
+                                            int64_t fullFileSize,
+                                            int faType,
+                                            MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_FA_UPLOAD_URL, listener);
     request->setNodeHandle(nodehandle);
     request->setNumber(fullFileSize);
-    request->setFlag(forceSSL);
     request->setParamType(faType);
 
     request->performRequest = [this, request]()
@@ -25842,8 +25805,9 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullF
             uint64_t nodeHandle = request->getNodeHandle();
             int intFaType = request->getParamType();
             assert(intFaType >= 0 && (intFaType < (1 << (sizeof(fatype)*8)))); // Value of intFaType <= (2^(fatype_numbits) - 1)
-            fatype faType = static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine into a fatype (uint16_t)
-            bool forceSSL = request->getFlag();
+            fatype faType =
+                static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine
+                                                // into a fatype (uint16_t)
             size_t fullSize = static_cast<size_t>(request->getNumber());
 
             NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
@@ -25851,7 +25815,6 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullF
             client->queueCommand(new CommandPutFA(
                 std::move(nuh),
                 faType,
-                forceSSL,
                 -1,
                 fullSize,
                 getIp,
@@ -25887,7 +25850,6 @@ error MegaApiImpl::performRequest_getBackgroundUploadURL(MegaRequestPrivate* req
 
             client->queueCommand(new CommandGetPutUrl(
                 request->getNumber(),
-                request->getFlag() | client->usehttps,
                 getIp,
                 [this,
                  request](Error e, const std::string& url, const std::vector<std::string>& ips)
