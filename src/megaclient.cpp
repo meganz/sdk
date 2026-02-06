@@ -23689,6 +23689,7 @@ bool KeyManager::promotePendingShares()
         handle userHandle = it.second.first;
         std::string encryptedShareKey = it.second.second;
 
+        auto skit = mShareKeys.find(nodeHandle);
         if (!verificationRequired(userHandle))
         {
             if (encryptedShareKey.size() > 16)
@@ -23704,7 +23705,6 @@ bool KeyManager::promotePendingShares()
             std::string shareKey = decryptShareKeyFrom(userHandle, encryptedShareKey);
             if (shareKey.size())
             {
-                auto skit = mShareKeys.find(nodeHandle);
                 if (skit != mShareKeys.end() && skit->second.first != shareKey)
                 {
                     LOG_warn << "Updating share key for inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
@@ -23719,6 +23719,23 @@ bool KeyManager::promotePendingShares()
             else
             {
                 LOG_warn << "Unable to decrypt share key to promote pending inshare " << toNodeHandle(nodeHandle) << " uh: " << toHandle(userHandle);
+            }
+        }
+        else
+        {
+            // If the inshare root is already present and decrypted,
+            // do not keep it in pending-inshares
+            // (avoid downgrading established shares)
+            auto node = mClient.mNodeManager.getNodeByHandle(NodeHandle().set6byte(nodeHandle));
+            const bool establishedUsableInshare =
+                node && node->keyApplied() && node->inshare && node->inshare->user &&
+                node->inshare->user->userhandle == userHandle && (skit != mShareKeys.end());
+
+            if (establishedUsableInshare)
+            {
+                keysToDelete.push_back(it.first);
+                attributeUpdated = true;
+                continue;
             }
         }
     }
