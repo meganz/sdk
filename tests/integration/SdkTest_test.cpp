@@ -20237,7 +20237,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
 
     // Check that fileHandle was populated when file download url was fetched
     RequestTracker tracker{megaApi[apiIndex].get()};
-    megaApi[apiIndex]->getDownloadUrl(fileNode.get(), true, &tracker);
+    megaApi[apiIndex]->getDownloadUrl(fileNode.get(), true, true, &tracker);
     ASSERT_EQ(API_OK, tracker.waitForResult());
     MegaStringMap* fileHandle = tracker.request->getMegaStringMap();
     ASSERT_THAT(fileHandle, ::testing::NotNull());

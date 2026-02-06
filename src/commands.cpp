@@ -737,6 +737,7 @@ CommandGetFile::CommandGetFile(MegaClient* /*client*/,
                                const char* publicauth,
                                const char* chatauth,
                                bool singleUrl,
+                               bool forceHTTP,
                                Cb&& completion)
 {
     if (undelete)
@@ -757,7 +758,10 @@ CommandGetFile::CommandGetFile(MegaClient* /*client*/,
         arg("v", 2);  // version 2: server can supply details for cloudraid files
     }
 
-    arg("ssl", 2);
+    if (!forceHTTP)
+    {
+        arg("ssl", 2);
+    }
 
     if (privateauth)
     {

@@ -4549,7 +4549,8 @@ void MegaClient::dispatchTransfers()
                                     privauth,
                                     pubauth,
                                     chatauth,
-                                    false,
+                                    false /*singleURL*/,
+                                    false /*forceHTTP*/,
                                     [this, ts, hprivate, h](
                                         const Error& e,
                                         m_off_t s,

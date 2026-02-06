@@ -21527,10 +21527,14 @@ error MegaApiImpl::performRequest_importLink_getPublicNode(MegaRequestPrivate* r
             return e;
 }
 
-void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener* listener)
+void MegaApiImpl::getDownloadUrl(MegaNode* node,
+                                 bool singleUrl,
+                                 bool forceHTTP,
+                                 MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_DOWNLOAD_URLS, listener);
     request->setFlag(singleUrl);
+    request->setAccess(forceHTTP ? 1 : 0);
     if (node) request->setNodeHandle(node->getHandle());
 
     request->performRequest = [this, request]()
@@ -21552,6 +21556,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                 nullptr,
                 nullptr,
                 request->getFlag() /*singleUrl*/,
+                static_cast<bool>(request->getAccess()) /*forceHTTP*/,
                 [this, request, h = node->nodehandle](const Error& e,
                                                       m_off_t /*size*/,
                                                       dstime /*timeleft*/,

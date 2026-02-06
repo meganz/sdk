@@ -2813,7 +2813,15 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
 
 void MegaApi::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
 {
-    pImpl->getDownloadUrl(node, singleUrl, listener);
+    pImpl->getDownloadUrl(node, singleUrl, true, listener);
+}
+
+void MegaApi::getDownloadUrl(MegaNode* node,
+                             bool singleUrl,
+                             bool forceSSL,
+                             MegaRequestListener* listener)
+{
+    pImpl->getDownloadUrl(node, singleUrl, forceSSL, listener);
 }
 
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)

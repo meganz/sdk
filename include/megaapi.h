@@ -14280,6 +14280,14 @@ class MegaApi
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
 
         /**
+         * @deprecated Use the new signature with forceSSL param
+         */
+        MEGA_DEPRECATED
+        void getDownloadUrl(MegaNode* node,
+                            bool singleUrl,
+                            MegaRequestListener* listener = nullptr);
+
+        /**
          * @brief Get downloads urls for a node
          *
          * The associated request type with this request is MegaRequest::TYPE_GET_DOWNLOAD_URLS
@@ -14297,9 +14305,13 @@ class MegaApi
          *
          * @param node Node to get the downloads URLs
          * @param singleUrl Always return one URL (even for raided files)
+         * @param forceSSL Enforce getting a https URL
          * @param listener MegaRequestListener to track this request
          */
-        void getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener = nullptr);
+        void getDownloadUrl(MegaNode* node,
+                            bool singleUrl,
+                            bool forceSSL,
+                            MegaRequestListener* listener = nullptr);
 
         /**
          * @brief Build the URL for a public link
