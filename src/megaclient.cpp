@@ -15728,40 +15728,59 @@ void MegaClient::resumeTransferFromDB()
         if (!data.sameNodeHandle.isUndef())
         {
             assert(type == PUT);
-            auto [start, end] = multi_cachedtransfers[type].equal_range(file);
-            Transfer* t{nullptr};
-            for (auto& it = start; it != end;)
+            auto parent = mNodeManager.getNodeByHandle(data.parentHandle);
+            if (!parent)
             {
-                requiredStatxfer = false;
-                t = it->second;
-                assert(t->localfilename == file->getLocalname());
-                it = multi_cachedtransfers[type].erase(it);
-                t->tag = tag;
-                file->tag = tag;
-
-                file->file_it = t->files.insert(t->files.end(), file);
-                file->transfer = t;
-                auto parent = mNodeManager.getNodeByHandle(data.parentHandle);
-                if (!parent)
-                {
-                    LOG_err << "Error resuming transfer via copy remote - No parent";
-                    // file is auto removed
-                    t->removeTransferFile(API_ENOENT, file, &committer);
-                    t->removeAndDeleteSelf(transferstate_t::TRANSFERSTATE_FAILED);
-                    continue;
-                }
-
+                LOG_err << "Error resuming transfer via copy remote - No parent";
+                requiredStatxfer = true;
+            }
+            else
+            {
                 auto remoteCopyNode = mNodeManager.getNodeByHandle(data.sameNodeHandle);
                 // It should be valid, obtained in file_resume
                 assert(remoteCopyNode);
-                transferRemoteCopy(file,
-                                   remoteCopyNode,
-                                   data.remoteName,
-                                   parent,
-                                   tag,
-                                   std::nullopt,
-                                   data.inboxTarget);
-                break;
+
+                const auto compareResult = CompareLocalFileWithNodeMacAndFpExludingMtime(*this,
+                                                                           file->getLocalname(),
+                                                                           *file,
+                                                                           remoteCopyNode.get());
+                if (compareResult.first == NODE_COMP_EQUAL)
+                {
+                    auto [start, end] = multi_cachedtransfers[type].equal_range(file);
+                    Transfer* t{nullptr};
+                    for (auto& it = start; it != end;)
+                    {
+                        requiredStatxfer = false;
+                        t = it->second;
+                        assert(t->localfilename == file->getLocalname());
+                        it = multi_cachedtransfers[type].erase(it);
+                        t->tag = tag;
+                        file->tag = tag;
+
+                        file->file_it = t->files.insert(t->files.end(), file);
+                        file->transfer = t;
+
+                        transferRemoteCopy(file,
+                                           remoteCopyNode,
+                                           data.remoteName,
+                                           parent,
+                                           tag,
+                                           std::nullopt,
+                                           data.inboxTarget);
+                        break;
+                    }
+
+                    if (!t)
+                    {
+                        requiredStatxfer = true;
+                    }
+                }
+                else
+                {
+                    LOG_debug << "Fingerprint match found during resume, but MAC mismatch or "
+                                 "read failed. Proceeding with upload.";
+                    requiredStatxfer = true;
+                }
             }
         }
 
