@@ -31,7 +31,6 @@ set(SDKLIB_HEADERS
     include/mega/megaapp.h
     include/mega/console.h
     include/mega/user.h
-    include/mega/mega_evt_queue.h
     include/mega/db.h
     include/mega/megaclient.h
     include/mega/autocomplete.h
@@ -342,13 +341,6 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/mega_glob.h
     src/mega_glob.c
-)
-
-target_sources_conditional(SDKlib
-    FLAG USE_LIBUV
-    PRIVATE
-    include/mega/mega_evt_tls.h
-    src/mega_evt_tls.cpp
 )
 
 # Include directories

@@ -15,7 +15,7 @@
 
 #ifndef QUEUE_H_
 #define QUEUE_H_
-
+// clang-format off
 typedef void *QUEUE[2];
 
 /* Private macros. */
@@ -90,3 +90,4 @@ typedef void *QUEUE[2];
   while (0)
 
 #endif /* QUEUE_H_ */
+

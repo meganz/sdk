@@ -38,9 +38,13 @@
 #include <ccronexpr.h>
 
 #ifdef HAVE_LIBUV
-#include "uv.h"
 #include "mega/mega_http_parser.h"
-#include "mega/mega_evt_tls.h"
+#include "uv.h"
+
+#ifdef USE_OPENSSL
+#include <evt-tls/evt_tls.h>
+#define ENABLE_EVT_TLS 1
+#endif
 
 #endif
 

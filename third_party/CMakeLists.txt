@@ -1,2 +1,5 @@
 add_subdirectory(ccronexpr)
 add_subdirectory(csv)
+if(USE_LIBUV AND USE_OPENSSL)
+    add_subdirectory(evt-tls)
+endif()
