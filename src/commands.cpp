@@ -43,6 +43,7 @@ namespace mega {
 
 CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
                            fatype /*ctype*/,
+                           bool usehttps,
                            int ctag,
                            size_t size,
                            bool getIP,
@@ -57,7 +58,10 @@ CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
         arg("h", cth.nodeHandle());
     }
 
-    arg("ssl", 2);
+    if (usehttps)
+    {
+        arg("ssl", 2);
+    }
 
     if (getIP)
     {
@@ -90,6 +94,7 @@ HttpReqFA::HttpReqFA(NodeOrUploadHandle cth,
         return new CommandPutFA(
             cth,
             ctype,
+            true,
             ctag,
             data->size(),
             getIP,
@@ -219,10 +224,12 @@ CommandGetFA::CommandGetFA(MegaClient* /*client*/, int p, handle fahref)
     part = p;
 
     cmd("ufa");
-
     arg("fah", (byte*)&fahref, sizeof fahref);
+
     arg("ssl", 2);
+
     arg("r", 1);
+
     arg("v", 3);
 }
 
@@ -373,13 +380,14 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot)
+CommandPutFile::CommandPutFile(MegaClient* /*client*/, TransferSlot* ctslot)
 {
     tslot = ctslot;
 
     cmd("u");
 
     arg("ssl", 2);
+
     arg("v", 3);
     arg("s", tslot->fa->size);
 
@@ -507,12 +515,17 @@ bool CommandPutFile::procresult(Result r, JSON& json)
 }
 
 // request upload target URL
-CommandGetPutUrl::CommandGetPutUrl(m_off_t size, bool getIP, CommandGetPutUrl::Cb completion):
+CommandGetPutUrl::CommandGetPutUrl(m_off_t size,
+                                   bool forceSSL,
+                                   bool getIP,
+                                   CommandGetPutUrl::Cb completion):
     mCompletion(completion)
 {
     cmd("u");
-
-    arg("ssl", 2);
+    if (forceSSL)
+    {
+        arg("ssl", 2);
+    }
     if (getIP)
     {
         arg("v", 3);

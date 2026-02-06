@@ -11053,10 +11053,11 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_AVATAR[GfxProc::AVATAR250X250], localDstPath);
 }
 
-void MegaApiImpl::getUploadURL(int64_t fullFileSize, MegaRequestListener* listener)
+void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
+    req->setFlag(forceSSL);
 
     req->performRequest = [this, req]()
     {
@@ -11098,6 +11099,7 @@ void MegaApiImpl::backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, Me
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
+    req->setFlag(true); // always SSL for background uploads
     req->setMegaBackgroundMediaUploadPtr(state);
 
     req->performRequest = [this, req]()
@@ -25792,11 +25794,13 @@ void MegaApiImpl::getPublicLinkInformation(const char* megaFolderLink, MegaReque
 void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle,
                                             int64_t fullFileSize,
                                             int faType,
+                                            bool forceSSL,
                                             MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_FA_UPLOAD_URL, listener);
     request->setNodeHandle(nodehandle);
     request->setNumber(fullFileSize);
+    request->setFlag(forceSSL);
     request->setParamType(faType);
 
     request->performRequest = [this, request]()
@@ -25808,6 +25812,7 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle,
             fatype faType =
                 static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine
                                                 // into a fatype (uint16_t)
+            bool forceSSL = request->getFlag();
             size_t fullSize = static_cast<size_t>(request->getNumber());
 
             NodeOrUploadHandle nuh(NodeHandle().set6byte(nodeHandle));
@@ -25815,6 +25820,7 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle,
             client->queueCommand(new CommandPutFA(
                 std::move(nuh),
                 faType,
+                forceSSL,
                 -1,
                 fullSize,
                 getIp,
@@ -25850,6 +25856,7 @@ error MegaApiImpl::performRequest_getBackgroundUploadURL(MegaRequestPrivate* req
 
             client->queueCommand(new CommandGetPutUrl(
                 request->getNumber(),
+                request->getFlag(),
                 getIp,
                 [this,
                  request](Error e, const std::string& url, const std::vector<std::string>& ips)

@@ -200,6 +200,7 @@ public:
 
     CommandPutFA(NodeOrUploadHandle,
                  fatype,
+                 bool usehttps,
                  int tag,
                  size_t size_only,
                  bool getIP = true,
@@ -686,7 +687,7 @@ class MEGA_API CommandGetPutUrl : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandGetPutUrl(m_off_t size, bool getIP, Cb completion);
+    CommandGetPutUrl(m_off_t size, bool forceSSL, bool getIP, Cb completion);
 };
 
 

@@ -20788,12 +20788,6 @@ class MegaApi
                                           const char *string64UploadToken, const char *string64FileKey,  MegaRequestListener *listener);
 
         /**
-         * @deprecated Use new version without `forceSSL` param
-         */
-        MEGA_DEPRECATED
-        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener);
-
-        /**
          * @brief Request the URL suitable for uploading a file.
          *
          * Note: added for the use of MEGAproxy and not otherwise supported
@@ -20814,18 +20808,10 @@ class MegaApi
          * upload server for example.
          *
          * @param fullFileSize The size of the file
+         * @param forceSSL Enforce getting a https URL
          * @param listener MegaRequestListener to track this request
          */
-        void getUploadURL(int64_t fullFileSize, MegaRequestListener* listener);
-
-        /**
-         * @deprecated Use new version without `forceSSL` param
-         */
-        MEGA_DEPRECATED
-        void getThumbnailUploadURL(MegaHandle nodehandle,
-                                   int64_t fullFileSize,
-                                   bool forceSSL,
-                                   MegaRequestListener* listener);
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener);
 
         /**
          * @brief Request the URL suitable for uploading a thubmnail for a node.
@@ -20848,20 +20834,13 @@ class MegaApi
          *
          * @param nodehandle handle of the node
          * @param fullFileSize The size of the thumbnail
+         * @param forceSSL Enforce getting a https URL
          * @param listener MegaRequestListener to track this request
          */
         void getThumbnailUploadURL(MegaHandle nodehandle,
                                    int64_t fullFileSize,
+                                   bool forceSSL,
                                    MegaRequestListener* listener);
-
-        /**
-         * @deprecated Use new version without `forceSSL` param
-         */
-        MEGA_DEPRECATED
-        void getPreviewUploadURL(MegaHandle nodehandle,
-                                 int64_t fullFileSize,
-                                 bool forceSSL,
-                                 MegaRequestListener* listener);
 
         /**
          * @brief Request the URL suitable for uploading a preview for a node.
@@ -20884,10 +20863,12 @@ class MegaApi
          *
          * @param nodehandle handle of the node
          * @param fullFileSize The size of the preview
+         * @param forceSSL Enforce getting a https URL
          * @param listener MegaRequestListener to track this request
          */
         void getPreviewUploadURL(MegaHandle nodehandle,
                                  int64_t fullFileSize,
+                                 bool forceSSL,
                                  MegaRequestListener* listener);
 
         /**

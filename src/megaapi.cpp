@@ -5785,44 +5785,33 @@ void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char*
     return pImpl->completeUpload(utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, string64FileKey, listener);
 }
 
-void MegaApi::getUploadURL(int64_t fullFileSize, bool /*forceSSL*/, MegaRequestListener* listener)
+void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener)
 {
-    return getUploadURL(fullFileSize, listener);
-}
-
-void MegaApi::getUploadURL(int64_t fullFileSize, MegaRequestListener* listener)
-{
-    return pImpl->getUploadURL(fullFileSize, listener);
+    return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
 }
 
 void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle,
                                     int64_t fullFileSize,
-                                    bool /*forceSSL*/,
+                                    bool forceSSL,
                                     MegaRequestListener* listener)
 {
-    return getThumbnailUploadURL(nodeHandle, fullFileSize, listener);
-}
-
-void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle,
-                                    int64_t fullFileSize,
-                                    MegaRequestListener* listener)
-{
-    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, listener);
+    return pImpl->getFileAttributeUploadURL(nodeHandle,
+                                            fullFileSize,
+                                            GfxProc::THUMBNAIL,
+                                            forceSSL,
+                                            listener);
 }
 
 void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle,
                                   int64_t fullFileSize,
-                                  bool /*forceSSL*/,
+                                  bool forceSSL,
                                   MegaRequestListener* listener)
 {
-    return getPreviewUploadURL(nodeHandle, fullFileSize, listener);
-}
-
-void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle,
-                                  int64_t fullFileSize,
-                                  MegaRequestListener* listener)
-{
-    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, listener);
+    return pImpl->getFileAttributeUploadURL(nodeHandle,
+                                            fullFileSize,
+                                            GfxProc::PREVIEW,
+                                            forceSSL,
+                                            listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

@@ -4491,13 +4491,14 @@ public:
         bool createAvatar(const char* imagePath, const char *dstPath);
 
         // these two: MEGA proxy use only
-        void getUploadURL(int64_t fullFileSize, MegaRequestListener* listener);
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener);
         void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 
         void getFileAttributeUploadURL(MegaHandle nodehandle,
                                        int64_t fullFileSize,
                                        int faType,
+                                       bool forceSSL,
                                        MegaRequestListener* listener);
 
         void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize,
