@@ -2557,19 +2557,7 @@ void MegaClient::exec()
                 switch (static_cast<reqstatus_t>(fc->req.status))
                 {
                     case REQ_SUCCESS:
-                        if (fc->req.contenttype.find("text/html") != string::npos &&
-                            Utils::startswith(fc->req.posturl, "http:"))
-                        {
-                            LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
-                            fc->urltime = 0;
-                            app->notify_change_to_https();
-
-                            sendevent(99436, "Automatic change to HTTPS", 0);
-                        }
-                        else
-                        {
-                            fc->parse(cit->first, true);
-                        }
+                        fc->parse(cit->first, true);
 
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed();
@@ -2606,17 +2594,6 @@ void MegaClient::exec()
                         app->notify_network_activity(NetworkActivityChannel::CS,
                                                      NetworkActivityType::REQUEST_ERROR,
                                                      API_EFAILED);
-
-                        if (fc->req.httpstatus &&
-                            fc->req.contenttype.find("text/html") != string::npos &&
-                            Utils::startswith(fc->req.posturl, "http:"))
-                        {
-                            LOG_warn << "Invalid Content-Type detected on failed file attr: "
-                                     << fc->req.contenttype;
-                            app->notify_change_to_https();
-
-                            sendevent(99436, "Automatic change to HTTPS", 0);
-                        }
 
                         fc->failed();
                         fc->timeout.reset();

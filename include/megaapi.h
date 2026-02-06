@@ -6460,7 +6460,7 @@ public:
     enum {
         EVENT_COMMIT_DB                 = 0,
         EVENT_ACCOUNT_CONFIRMATION      = 1,
-        EVENT_CHANGE_TO_HTTPS           = 2,
+        // EVENT_CHANGE_TO_HTTPS           = 2, (obsolete)
         EVENT_DISCONNECT                = 3,
         EVENT_ACCOUNT_BLOCKED           = 4,
         EVENT_STORAGE                   = 5,
@@ -6553,9 +6553,6 @@ public:
      *
      * - EVENT_ACCOUNT_CONFIRMATION (1):
      *   A new account was confirmed. Use getText() for the email address.
-     *
-     * - EVENT_CHANGE_TO_HTTPS (2):
-     *   SDK switched to HTTPS due to HTTP connection issues or tampering.
      *
      * - EVENT_DISCONNECT (3):
      *   SDK disconnected due to network change or invalid IPs. App should reset its connections.

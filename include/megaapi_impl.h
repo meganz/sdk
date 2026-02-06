@@ -5175,9 +5175,6 @@ public:
         // notify about a storage event
         void notify_storage(int) override;
 
-        // notify about an automatic change to HTTPS
-        void notify_change_to_https() override;
-
         // notify about account confirmation
         void notify_confirmation(const char*) override;
 
