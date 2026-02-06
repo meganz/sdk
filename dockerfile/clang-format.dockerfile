@@ -1,7 +1,7 @@
 # MEGA clang-format Linter
-# mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:latest
+# mega-docker.artifactory.developers.mega.co.nz:8443/clang-format-sdk:24.04_v18
 
-FROM ubuntu:22.04
+FROM ubuntu:24.04
 
 ENV DEBCONF_NOWARNINGS=yes
 ENV DEBIAN_FRONTEND=noninteractive
