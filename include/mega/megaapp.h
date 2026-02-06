@@ -67,7 +67,7 @@ struct MEGA_API MegaApp
     virtual void loggedInStateChanged(sessiontype_t, handle /*me*/, const string& /*email*/) { }
 
     // user data result
-    virtual void userdata_result(string*, string*, string*, Error) { }
+    virtual void userdata_result(string*, string*, string*, std::vector<DiscountCode>&&, Error) {}
 
     // user public key retrieval result
     virtual void pubkey_result(User *) { }

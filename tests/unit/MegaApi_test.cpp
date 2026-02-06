@@ -222,7 +222,8 @@ TEST(MegaApi, getMimeType)
 TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
 {
     MegaPricingPrivate pricing;
-    std::function<void(int, int, int)> addTestProducts = [&](int proLevel, int gb, int pricedollars)
+    std::function<void(int, int, int)> addTestProducts =
+        [&](int proLevel, int gb, double pricecents)
     {
         pricing.addProduct({1000,
                             1000000,
@@ -230,9 +231,12 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             gb,
                             gb == -1 ? -1 : gb * 10,
                             1,
-                            static_cast<unsigned int>(pricedollars),
+                            pricecents,
                             10,
                             100,
+                            0.0,
+                            0.0,
+                            0.0,
                             "monthly",
                             {},
                             "ios id",
@@ -240,6 +244,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             1,
                             std::make_unique<BusinessPlan>(),
                             0,
+                            std::nullopt,
                             std::nullopt});
         pricing.addProduct({1000,
                             1000000,
@@ -247,9 +252,12 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             gb,
                             gb == -1 ? -1 : gb * 10,
                             12,
-                            static_cast<unsigned int>(pricedollars * 12),
+                            pricecents * 12,
                             10,
                             100,
+                            0.0,
+                            0.0,
+                            0.0,
                             "yearly",
                             {},
                             "ios id",
@@ -257,6 +265,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                             1,
                             std::make_unique<BusinessPlan>(),
                             0,
+                            std::nullopt,
                             std::nullopt});
     };
     addTestProducts(MegaAccountDetails::ACCOUNT_TYPE_LITE, 400, 499);
@@ -274,6 +283,9 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         10,
                         100,
+                        0.0,
+                        0.0,
+                        0.0,
                         "monthly",
                         {},
                         "ios id",
@@ -281,6 +293,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt}); // only monthly
     pricing.addProduct({1000,
                         1000000,
@@ -291,6 +304,9 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         2,
                         10,
                         100,
+                        0.0,
+                        0.0,
+                        0.0,
                         "monthly",
                         {},
                         "ios id",
@@ -298,6 +314,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt});
     pricing.addProduct({1000,
                         1000000,
@@ -308,6 +325,9 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         2 * 12,
                         10,
                         100,
+                        0.0,
+                        0.0,
+                        0.0,
                         "yearly",
                         {},
                         "ios id",
@@ -315,6 +335,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt});
     pricing.addProduct({1000,
                         1000000,
@@ -325,6 +346,9 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         3,
                         10,
                         100,
+                        0.0,
+                        0.0,
+                        0.0,
                         "monthly",
                         {},
                         "ios id",
@@ -332,6 +356,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
                         1,
                         std::make_unique<BusinessPlan>(),
                         0,
+                        std::nullopt,
                         std::nullopt});
     Product testProduct = {
         1000,
@@ -343,6 +368,9 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
         3 * 12,
         10,
         100,
+        0.0,
+        0.0,
+        0.0,
         "yearly",
         {},
         "ios id",
@@ -350,6 +378,7 @@ TEST(MegaApi, MegaApiImpl_calcRecommendedProLevel)
         1,
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
         0,
+        std::nullopt,
         std::nullopt};
     pricing.addProduct(testProduct);
     const int testProductIndex = pricing.getNumProducts() - 1;
@@ -509,6 +538,9 @@ TEST(MegaApi, MegaApiImpl_mobileOffer)
         3 * 12,
         10,
         100,
+        0.0,
+        0.0,
+        0.0,
         "yearly",
         {},
         "ios id",
@@ -516,7 +548,8 @@ TEST(MegaApi, MegaApiImpl_mobileOffer)
         1,
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
         0,
-        MobileOffer{title, uat}};
+        MobileOffer{title, uat},
+        std::nullopt};
     MegaPricingPrivate pricing;
     pricing.addProduct(testProduct);
     int index{0};

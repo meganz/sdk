@@ -1263,6 +1263,16 @@ const MegaCancelSubscriptionReasonList* MegaRequest::getMegaCancelSubscriptionRe
     return nullptr;
 }
 
+MegaDiscountCodeList* MegaRequest::getMegaDiscountCodeList() const
+{
+    return nullptr;
+}
+
+const MegaDiscountCodeInfo* MegaRequest::getMegaDiscountCodeInfo() const
+{
+    return nullptr;
+}
+
 MegaTransfer::~MegaTransfer() { }
 
 MegaTransfer *MegaTransfer::copy()
@@ -6291,6 +6301,11 @@ void MegaApi::getSubscriptionCancellationDetails(unsigned int gatewayId,
     pImpl->getSubscriptionCancellationDetails(originalTransactionId, gatewayId, listener);
 }
 
+void MegaApi::getDiscountCodeInformation(const char* discountCode, MegaRequestListener* listener)
+{
+    pImpl->getDiscountCodeInformation(discountCode, listener);
+}
+
 /* END MEGAAPI */
 
 MegaHashSignature::MegaHashSignature(const char *base64Key)
@@ -6579,6 +6594,36 @@ int MegaPricing::getLocalPrice(int /*productIndex*/)
     return 0;
 }
 
+double MegaPricing::getPriceNetWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getLocalPriceNetWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getAmountWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getLocalPriceWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getAmountMonthWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
+double MegaPricing::getMonthlyBasePriceNetWithDecimals(const int /*productIndex*/) const
+{
+    return 0.0;
+}
+
 const char *MegaPricing::getDescription(int)
 {
     return NULL;
@@ -6697,6 +6742,36 @@ const char *MegaCurrency::getLocalCurrencyName()
 unsigned int MegaPricing::getTestCategory(int) const
 {
     return 0;
+}
+
+bool MegaPricing::hasDiscount(int) const
+{
+    return false;
+}
+
+const char* MegaPricing::getDiscountCode(int) const
+{
+    return nullptr;
+}
+
+const char* MegaPricing::getDiscountName(int) const
+{
+    return nullptr;
+}
+
+int MegaPricing::getDiscountGroup(int) const
+{
+    return -1;
+}
+
+int MegaPricing::getDiscountMonths(int) const
+{
+    return -1;
+}
+
+int MegaPricing::getDiscountPercentage(int) const
+{
+    return -1;
 }
 
 #ifdef ENABLE_SYNC
@@ -8398,5 +8473,212 @@ MegaCancelSubscriptionReasonList* MegaCancelSubscriptionReasonList::create()
 MegaUploadOptions* MegaUploadOptions::createInstance()
 {
     return new MegaUploadOptions();
+}
+
+MegaDiscountCode::MegaDiscountCode() {}
+
+MegaDiscountCode::~MegaDiscountCode() {}
+
+MegaDiscountCode* MegaDiscountCode::copy() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCode::getCode() const
+{
+    return nullptr;
+}
+
+int MegaDiscountCode::getItem() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getAccountLevel() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getMonths() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getPercentageDiscount() const
+{
+    return -1;
+}
+
+int MegaDiscountCode::getBehaviorType() const
+{
+    return -1;
+}
+
+MegaDiscountCodeList::MegaDiscountCodeList() {}
+
+MegaDiscountCodeList::~MegaDiscountCodeList() {}
+
+MegaDiscountCodeList* MegaDiscountCodeList::copy() const
+{
+    return nullptr;
+}
+
+const MegaDiscountCode* MegaDiscountCodeList::get(int /*i*/) const
+{
+    return nullptr;
+}
+
+int MegaDiscountCodeList::size() const
+{
+    return 0;
+}
+
+MegaDiscountCodeInfo::MegaDiscountCodeInfo() {}
+
+MegaDiscountCodeInfo::~MegaDiscountCodeInfo() {}
+
+MegaDiscountCodeInfo* MegaDiscountCodeInfo::copy() const
+{
+    return nullptr;
+}
+
+int MegaDiscountCodeInfo::getExpiry() const
+{
+    return -1;
+}
+
+int MegaDiscountCodeInfo::getCompulsorySubscription() const
+{
+    return -1;
+}
+
+int MegaDiscountCodeInfo::getMultiDiscount() const
+{
+    return -1;
+}
+
+MegaStringIntegerMap* MegaDiscountCodeInfo::getFeatures() const
+{
+    return nullptr;
+}
+
+int MegaDiscountCodeInfo::getTaxValue() const
+{
+    return -1;
+}
+
+bool MegaDiscountCodeInfo::isTaxExempt() const
+{
+    return false;
+}
+
+bool MegaDiscountCodeInfo::isTaxAppliedOnTop() const
+{
+    return false;
+}
+
+int MegaDiscountCodeInfo::getTaxRate() const
+{
+    return -1;
+}
+
+const char* MegaDiscountCodeInfo::getTaxName() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getTaxCountry() const
+{
+    return nullptr;
+}
+
+double MegaDiscountCodeInfo::getEuroTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountAmount() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedMonthlyPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountAmountNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getEuroDiscountedMonthlyPriceNet() const
+{
+    return 0;
+}
+
+const char* MegaDiscountCodeInfo::getLocalCurrencyCode() const
+{
+    return nullptr;
+}
+
+const char* MegaDiscountCodeInfo::getLocalCurrencySymbol() const
+{
+    return nullptr;
+}
+
+double MegaDiscountCodeInfo::getLocalTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountAmount() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedTotalPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedMonthlyPrice() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountAmountNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedTotalPriceNet() const
+{
+    return 0;
+}
+
+double MegaDiscountCodeInfo::getLocalDiscountedMonthlyPriceNet() const
+{
+    return 0;
 }
 }

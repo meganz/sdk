@@ -228,6 +228,15 @@ struct MEGA_API MobileOffer
     bool uat{false}; // If true, the mobile offer title should be displayed
 };
 
+struct MEGA_API InstantDiscounts
+{
+    std::string discountCode; // The discount code to be applied
+    std::string discountName; // The name of the discount
+    int discountPercentage{-1}; // The percentage of the discount
+    int discountGroup{-1}; // The group code of the discount
+    int discountMonths{-1}; // The number of months the discount applies to
+};
+
 struct MEGA_API Product
 {
     unsigned int planType = ~(unsigned)0;
@@ -236,9 +245,12 @@ struct MEGA_API Product
     int gbStorage = -1;
     int gbTransfer = -1;
     unsigned int months = 0;
-    unsigned int amount = 0;
-    unsigned int amountMonth = 0;
-    unsigned int localPrice = 0;
+    double amount = {0.0};
+    double amountMonth = {0.0};
+    double localPrice = {0.0};
+    double priceNet{0.0};
+    double localPriceNet{0.0};
+    double monthlyBasePriceNet{0.0};
     std::string description;
     std::map<std::string, uint32_t> features;
     std::string iosid;
@@ -247,6 +259,75 @@ struct MEGA_API Product
     std::shared_ptr<BusinessPlan> businessPlan;
     unsigned int trialDays = 0;
     std::optional<MobileOffer> mobileOffer;
+    std::optional<InstantDiscounts> instantDiscounts;
+};
+
+struct DiscountCode
+{
+    std::string alfanumDiscountCode;
+    int item{-1};
+    int accountLevel{-1};
+    int behaviourType{-1};
+    int percentageDiscount{-1};
+    int numMonths{-1}; // (1 or 12), or 0 if applies to any
+
+    virtual ~DiscountCode() = default;
+
+    virtual bool isValidFormat() const
+    {
+        return numMonths >= 0 && numMonths <= 12;
+    }
+
+    virtual bool hasAlfanumCode() const
+    {
+        return !alfanumDiscountCode.empty();
+    }
+};
+
+struct DiscountCodeInfoExtended: public DiscountCode
+{
+    int expiry{-1};
+    int compulsorySubscription{-1};
+
+    enum TaxFlags
+    {
+        TAX_EXEMPT = 1 << 1,
+        TAX_ON_TOP = 1 << 2,
+    };
+
+    std::map<std::string, int> features;
+    int txva{-1};
+    int taxExempt{-1};
+    int taxRate{-1};
+    std::string taxName;
+    std::string taxCountry;
+
+    int multiDiscount{-1};
+    double euroTotalPrice{0.0};
+    double euroDiscountAmount{0.0};
+    double euroDiscountedTotalPrice{0.0};
+    double euroDiscountedMonthlyPrice{0.0};
+    double euroTotalPriceNet{0.0};
+    double euroDiscountAmountNet{0.0};
+    double euroDiscountedTotalPriceNet{0.0};
+    double euroDiscountedMonthlyPriceNet{0.0};
+
+    std::string localCurrencyCode;
+    std::string localCurrencySymbol;
+    double localTotalPrice{0.0};
+    double localDiscountAmount{0.0};
+    double localDiscountedTotalPrice{0.0};
+    double localDiscountedMonthlyPrice{0.0};
+    double localTotalPriceNet{0.0};
+    double localDiscountAmountNet{0.0};
+    double localDiscountedTotalPriceNet{0.0};
+    double localDiscountedMonthlyPriceNet{0.0};
+
+    bool hasAlfanumCode() const override
+    {
+        assert(false && "DiscountCodeInfoExtended no need AlfanumCode");
+        return false;
+    }
 };
 
 } // namespace

@@ -2542,7 +2542,7 @@ CommandEnumerateQuotaItems::CommandEnumerateQuotaItems(
     MegaClient* client)
 {
     cmd("utqa");
-    arg("nf", 3);
+    arg("nf", 5);
     arg("b", 1);    // support for Business accounts
     arg("p", 1);    // support for Pro Flexi
     arg("ft", 1);   // support for Feature plans
@@ -2567,17 +2567,20 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
     {
         handle product = UNDEF;
         int prolevel = -1, gbstorage = -1, gbtransfer = -1, months = -1, type = -1;
-        unsigned amount = 0, amountMonth = 0, localPrice = 0;
+        double amount = 0.0, amountMonth = 0.0, localPrice = 0.0;
         unsigned int testCategory = CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY; // Bitmap. Bit 0 set (int value 1) is standard plan, other bits are defined by API.
         unsigned int trialDays = CommandEnumerateQuotaItems::NO_TRIAL_DAYS;
         string description;
         map<string, uint32_t> features;
         string ios_id;
         string android_id;
-
+        double priceNet{0.0};
+        double localPriceNet{0.0};
+        double monthlyBasePriceNet{0.0};
         unique_ptr<BusinessPlan> bizPlan;
         unique_ptr<CurrencyData> currencyData;
         std::optional<MobileOffer> mobileOffer;
+        std::optional<InstantDiscounts> instantDiscounts;
 
         bool finished = false;
         bool readingL = false;
@@ -2614,6 +2617,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                             case makeNameid("cs"): // currency symbol, ie. €
                                 buf = json.getvalue();
                                 JSON::copystring(&currencyData->currencySymbol, buf);
+                                currencyData->currencySymbol =
+                                    Base64::atob(currencyData->currencySymbol);
                                 break;
                             case makeNameid("lc"): // local currency, ie. NZD
                                 buf = json.getvalue();
@@ -2672,7 +2677,7 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     months = static_cast<int>(json.getint());
                     break;
                 case makeNameid("p"): // price (in cents)
-                    amount = static_cast<unsigned>(json.getint());
+                    amount = json.getfloat();
                     break;
                 case makeNameid("d"):
                     buf = json.getvalue();
@@ -2707,11 +2712,20 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                     buf = json.getvalue();
                     JSON::copystring(&android_id, buf);
                     break;
+                case makeNameid("lpn"): // Local price net in local currency (without tax)
+                    localPriceNet = json.getfloat();
+                    break;
+                case makeNameid("pn"): // Price net (without tax)
+                    priceNet = json.getfloat();
+                    break;
+                case makeNameid("mbpn"): // Monthly base price net (without tax)
+                    monthlyBasePriceNet = json.getfloat();
+                    break;
                 case makeNameid("mbp"): // monthly price (in cents)
-                    amountMonth = static_cast<unsigned>(json.getint());
+                    amountMonth = json.getfloat();
                     break;
                 case makeNameid("lp"): // local price (in cents)
-                    localPrice = static_cast<unsigned>(json.getint());
+                    localPrice = json.getfloat();
                     break;
                 case makeNameid("bd"): // BusinessPlan
                 {
@@ -2970,23 +2984,72 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
 
                     break;
                 }
+                case makeNameid("insdis"):
+                {
+                    if (!json.enterobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "entering `Instant Discounts` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+                    InstantDiscounts tempInsdis;
+                    bool readingInsDis{true};
+                    while (readingInsDis)
+                    {
+                        switch (json.getnameid())
+                        {
+                            case makeNameid("dc"):
+                                json.storeobject(&tempInsdis.discountCode);
+                                break;
+                            case makeNameid("dn"):
+                                json.storeobject(&tempInsdis.discountName);
+                                break;
+                            case makeNameid("dp"):
+                                tempInsdis.discountPercentage = json.getint32();
+                                break;
+                            case makeNameid("dg"):
+                                tempInsdis.discountGroup = json.getint32();
+                                break;
+                            case makeNameid("dm"):
+                                tempInsdis.discountMonths = json.getint32();
+                                break;
+                            case EOO:
+                                readingInsDis = false;
+                                instantDiscounts = std::move(tempInsdis);
+                                break;
+                            default:
+                                if (!json.storeobject())
+                                {
+                                    LOG_err << "Failed to parse Instant Discounts sub objects";
+                                    client->app->enumeratequotaitems_result(API_EINTERNAL);
+                                    return false;
+                                }
+                                break;
+                        }
+                    }
+
+                    if (!json.leaveobject())
+                    {
+                        LOG_err << "Failed to parse Enumerate-quota-items response,"
+                                << "leaving `Instant Discounts` object";
+                        client->app->enumeratequotaitems_result(API_EINTERNAL);
+                        return false;
+                    }
+
+                    break;
+                }
                 case EOO:
-                    if (type < 0
-                            || ISUNDEF(product)
-                            || (prolevel < 0)
-                            || (months < 0)
-                            || currency.empty()
-                            || description.empty()
-                            || testCategory == CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY
-                            // only available for Pro plans, not for Business
-                            || (!type && gbstorage < 0)
-                            || (!type && gbtransfer < 0)
-                            || (!type && !amount)
-                            || (!type && !amountMonth)
-                            || (!type && ios_id.empty())
-                            || (!type && android_id.empty())
-                            // only available for Business plan(s)
-                            || (type == 1 && !bizPlan))
+                    if (type < 0 || ISUNDEF(product) || (prolevel < 0) || (months < 0) ||
+                        currency.empty() || description.empty() ||
+                        testCategory == CommandEnumerateQuotaItems::INVALID_TEST_CATEGORY
+                        // only available for Pro plans, not for Business
+                        || (!type && gbstorage < 0) || (!type && gbtransfer < 0) ||
+                        (!type && amount == 0.0) || (!type && amountMonth == 0.0) ||
+                        (!type && ios_id.empty()) ||
+                        (!type && android_id.empty())
+                        // only available for Business plan(s)
+                        || (type == 1 && !bizPlan))
                     {
                         client->app->enumeratequotaitems_result(API_EINTERNAL);
                         return true;
@@ -3025,6 +3088,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          amount,
                                          amountMonth,
                                          localPrice,
+                                         priceNet,
+                                         localPriceNet,
+                                         monthlyBasePriceNet,
                                          description.c_str(),
                                          std::move(features),
                                          ios_id.c_str(),
@@ -3032,7 +3098,8 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                                          testCategory,
                                          std::move(bizPlan),
                                          trialDays,
-                                         std::move(mobileOffer)};
+                                         std::move(mobileOffer),
+                                         std::move(instantDiscounts)};
             client->app->enumeratequotaitems_result(productData);
         }
     }
@@ -4293,7 +4360,8 @@ void CommandPubKeyRequest::invalidateUser()
 CommandGetUserData::CommandGetUserData(
     MegaClient*,
     int tag,
-    std::function<void(string*, string*, string*, error)> completion)
+    std::function<void(string*, string*, string*, std::vector<DiscountCode>&& discountCodes, error)>
+        completion)
 {
     cmd("ug");
     arg("v", 1);
@@ -4301,10 +4369,14 @@ CommandGetUserData::CommandGetUserData(
     this->tag = tag;
 
     mCompletion = completion ? std::move(completion) :
-        [this](string* name, string* pubk, string* privk, error e) {
-            this->client->app->userdata_result(name, pubk, privk, e);
-        };
-
+                               [this](string* name,
+                                      string* pubk,
+                                      string* privk,
+                                      std::vector<DiscountCode>&& discountCodes,
+                                      error e)
+    {
+        this->client->app->userdata_result(name, pubk, privk, std::move(discountCodes), e);
+    };
 }
 
 bool CommandGetUserData::updatePrivateEncryptedUserAttribute(User* u,
@@ -4432,10 +4504,11 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
     BizStatus s = BIZ_STATUS_UNKNOWN;
     std::set<handle> masters;
     std::vector<std::pair<BizStatus, m_time_t>> sts;
+    std::vector<DiscountCode> dciList;
 
     if (r.wasErrorOrOK())
     {
-        mCompletion(NULL, NULL, NULL, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
+        mCompletion(NULL, NULL, NULL, {}, r.wasError(API_OK) ? Error(API_ENOENT) : r.errorOrOK());
         return true;
     }
 
@@ -4479,7 +4552,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             {
                 if (client->readmiscflags(&json) != API_OK)
                 {
-                    mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                    mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
                     return false;
                 }
                 json.leaveobject();
@@ -4592,7 +4665,40 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
         case makeNameid("^!devopt"):
             parseUserAttribute(json, devOpt, devOptVersion);
             break;
-
+        case makeNameid("mkt"):
+            if (json.enterobject())
+            {
+                bool endobject = false;
+                while (!endobject)
+                {
+                    switch (json.getnameid())
+                    {
+                        case makeNameid("dc"):
+                            if (!parseDiscountCodes(json, dciList))
+                            {
+                                json.leaveobject();
+                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
+                                return false;
+                            }
+                            break;
+                        case EOO:
+                            if (!json.leaveobject())
+                            {
+                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
+                                return false;
+                            }
+                            endobject = true;
+                            break;
+                        default:
+                            if (!json.storeobject())
+                            {
+                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
+                                return false;
+                            }
+                    }
+                }
+            }
+            break;
         case makeNameid("pf"): // Pro Flexi plan (similar to business)
             client->setProFlexi(true);
             [[fallthrough]];
@@ -4670,7 +4776,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                                         default:
                                             if (!json.storeobject())
                                             {
-                                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
                                                 json.leavearray();
                                                 return false;
                                             }
@@ -4688,7 +4794,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         default:
                             if (!json.storeobject())
                             {
-                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
                                 return false;
                             }
                     }
@@ -4742,7 +4848,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                         default:
                             if (!json.storeobject())
                             {
-                                mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                                mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
                                 return false;
                             }
                     }
@@ -5448,7 +5554,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
 
             client->processStorageStatusFromCmd(storageStatus);
 
-            mCompletion(&name, &pubk, &privk, API_OK);
+            mCompletion(&name, &pubk, &privk, std::move(dciList), API_OK);
             return true;
         }
         default:
@@ -5481,7 +5587,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 default:
                     if (!json.storeobject())
                     {
-                        mCompletion(NULL, NULL, NULL, API_EINTERNAL);
+                        mCompletion(NULL, NULL, NULL, {}, API_EINTERNAL);
                         return false;
                     }
                     break;
@@ -5534,6 +5640,67 @@ void CommandGetUserData::parseUserAttribute(JSON& json, std::string &value, std:
             }
         }
     }
+}
+
+bool CommandGetUserData::parseDiscountCodes(JSON& json, std::vector<DiscountCode>& dciList)
+{
+    if (!json.enterarray())
+    {
+        return false;
+    }
+    while (json.enterobject())
+    {
+        DiscountCode dci;
+        bool exit = false;
+        while (!exit)
+        {
+            switch (json.getnameid())
+            {
+                case makeNameid("dc"):
+                    json.storeobject(&dci.alfanumDiscountCode);
+                    break;
+                case makeNameid("it"):
+                    dci.item = json.getint32();
+                    break;
+                case makeNameid("al"):
+                    dci.accountLevel = json.getint32();
+                    break;
+                case makeNameid("bt"):
+                    dci.behaviourType = json.getint32();
+                    break;
+                case makeNameid("pd"):
+                    dci.percentageDiscount = json.getint32();
+                    break;
+                case makeNameid("m"):
+                    dci.numMonths = json.getint32();
+                    break;
+                case EOO:
+                    if (dci.isValidFormat() && dci.hasAlfanumCode())
+                    {
+                        dciList.push_back(dci);
+                    }
+                    else
+                    {
+                        LOG_warn << "Ill-formed DiscountCode";
+                    }
+                    exit = true;
+                    if (!json.leaveobject())
+                    {
+                        return false;
+                    }
+                    break;
+
+                default:
+                    if (!json.storeobject())
+                    {
+                        json.leaveobject();
+                        return false;
+                    }
+            }
+        }
+    }
+    json.leavearray();
+    return true;
 }
 
 CommandGetMiscFlags::CommandGetMiscFlags(MegaClient *client)
@@ -13092,4 +13259,188 @@ bool CommandGetSubscriptionCancellationDetails::procresult(Command::Result r, JS
     return true;
 }
 
+CommandDiscountCodeGetInfo::CommandDiscountCodeGetInfo(MegaClient* client,
+                                                       const string& discountCode,
+                                                       CompletionCallback&& completion)
+
+{
+    assert(completion);
+    cmd("dci");
+    arg("dc", discountCode.c_str());
+    // [TODO]: For now this will be always true, but in case we want to send false, we may need to
+    // start parsing some fields that will only be received in case extra is false.
+    arg("extra", 1); // request extended info
+    tag = client->reqtag;
+    mCompletion = std::move(completion);
+}
+
+bool CommandDiscountCodeGetInfo::procresult(Command::Result r, JSON& json)
+{
+    if (!r.hasJsonObject())
+    {
+        if (mCompletion)
+        {
+            if (r.wasErrorOrOK())
+            {
+                mCompletion(r.errorOrOK(), {});
+            }
+            else
+            {
+                mCompletion(API_EINTERNAL, {});
+            }
+        }
+        return true;
+    }
+    DiscountCodeInfoExtended dci;
+    for (bool finished = false; !finished;)
+    {
+        switch (json.getnameid())
+        {
+            case makeNameid("dc"):
+                json.storeobject(&dci.alfanumDiscountCode);
+                break;
+            case makeNameid("it"):
+                dci.item = json.getint32();
+                break;
+            case makeNameid("al"):
+                dci.accountLevel = json.getint32();
+                break;
+            case makeNameid("m"):
+                dci.numMonths = json.getint32();
+                break;
+            case makeNameid("ex"):
+                dci.expiry = json.getint32();
+                break;
+            case makeNameid("cs"):
+                dci.compulsorySubscription = json.getint32();
+                break;
+            case makeNameid("pd"):
+                dci.percentageDiscount = json.getint32();
+                break;
+            case makeNameid("bt"):
+                dci.behaviourType = json.getint32();
+                break;
+            case makeNameid("f"):
+            {
+                if (!json.enterobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {});
+                    }
+                    return false;
+                }
+
+                string key, value;
+                while (json.storeKeyValueFromObject(key, value))
+                {
+                    dci.features[key] = static_cast<int>(std::stoul(value));
+                }
+
+                if (!json.leaveobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {});
+                    }
+                    return false;
+                }
+                break;
+            }
+            case makeNameid("txva"):
+                dci.txva = json.getint32();
+                break;
+            case makeNameid("txe"):
+                dci.taxExempt = json.getint32();
+                break;
+            case makeNameid("tx"):
+                dci.taxRate = json.getint32();
+                break;
+            case makeNameid("txn"):
+                json.storeobject(&dci.taxName);
+                break;
+            case makeNameid("txcc"):
+                json.storeobject(&dci.taxCountry);
+                break;
+            case makeNameid("md"):
+                dci.multiDiscount = json.getint32();
+                break;
+            case makeNameid("etp"):
+                dci.euroTotalPrice = json.getfloat();
+                break;
+            case makeNameid("eda"):
+                dci.euroDiscountAmount = json.getfloat();
+                break;
+            case makeNameid("edtp"):
+                dci.euroDiscountedTotalPrice = json.getfloat();
+                break;
+            case makeNameid("edmp"):
+                dci.euroDiscountedMonthlyPrice = json.getfloat();
+                break;
+            case makeNameid("etpn"):
+                dci.euroTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("edan"):
+                dci.euroDiscountAmountNet = json.getfloat();
+                break;
+            case makeNameid("edtpn"):
+                dci.euroDiscountedTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("edmpn"):
+                dci.euroDiscountedMonthlyPriceNet = json.getfloat();
+                break;
+            case makeNameid("lcc"):
+                json.storeobject(&dci.localCurrencyCode);
+                break;
+            case makeNameid("lcs"):
+                json.storeobject(&dci.localCurrencySymbol);
+                break;
+            case makeNameid("ltp"):
+                dci.localTotalPrice = json.getfloat();
+                break;
+            case makeNameid("lda"):
+                dci.localDiscountAmount = json.getfloat();
+                break;
+            case makeNameid("ldtp"):
+                dci.localDiscountedTotalPrice = json.getfloat();
+                break;
+            case makeNameid("ldmp"):
+                dci.localDiscountedMonthlyPrice = json.getfloat();
+                break;
+            case makeNameid("ltpn"):
+                dci.localTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("ldan"):
+                dci.localDiscountAmountNet = json.getfloat();
+                break;
+            case makeNameid("ldtpn"):
+                dci.localDiscountedTotalPriceNet = json.getfloat();
+                break;
+            case makeNameid("ldmpn"):
+                dci.localDiscountedMonthlyPriceNet = json.getfloat();
+                break;
+            default:
+                if (!json.storeobject())
+                {
+                    if (mCompletion)
+                    {
+                        mCompletion(API_EINTERNAL, {});
+                    }
+                    return false;
+                }
+                break;
+            case EOO:
+            {
+                finished = true;
+            }
+            break;
+        }
+    }
+
+    if (mCompletion)
+    {
+        mCompletion(dci.isValidFormat() ? API_OK : API_EINTERNAL, std::move(dci));
+    }
+    return true;
+}
 } // namespace
