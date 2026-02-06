@@ -2956,7 +2956,8 @@ bool Sync::isSyncScanning() const
 
 bool Sync::checkScanningWasComplete()
 {
-    mScanningWasCompletePreviously = mScanningWasComplete && !syncs.mSyncFlags->isInitialPass;
+    mScanningWasCompletePreviously =
+        mScanningWasComplete && !syncs.mSyncFlags->isInitialPass.load();
     mScanningWasComplete = !isSyncScanning();
     return mScanningWasComplete;
 }
@@ -4781,7 +4782,7 @@ void Syncs::startSync_inThread(UnifiedSync& us,
     }
 
     ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
-    mSyncFlags->isInitialPass = true;
+    mSyncFlags->isInitialPass.store(true);
 
     if (completion) completion(API_OK, us.mConfig.mError, us.mConfig.mBackupId);
 }
@@ -8376,7 +8377,7 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
             ProgressingMonitor monitor(*this, row, fullPath);
         }
 
-        syncs.mSyncFlags->reachableNodesAllScannedThisPass = false;
+        syncs.mSyncFlags->reachableNodesAllScannedThisPass.store(false);
         syncHere = row.syncNode->processBackgroundFolderScan(row, fullPath);
     }
     else
@@ -13774,9 +13775,10 @@ void Syncs::syncLoop()
 
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
-
-        if (syncStallState && (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
-            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) && !lastLoopEarlyExit &&
+        const auto auxRecursiveSyncLastCompletedDs =
+            mSyncFlags->recursiveSyncLastCompletedDs.load();
+        if (syncStallState && (waiter->ds < auxRecursiveSyncLastCompletedDs + 10) &&
+            (waiter->ds > auxRecursiveSyncLastCompletedDs) && !lastLoopEarlyExit &&
             !auxSyncVec.empty())
         {
             LOG_debug << "Don't process syncs too often in stall state";
@@ -13790,22 +13792,37 @@ void Syncs::syncLoop()
         if (!lastLoopEarlyExit)
         {
             // we need one pass with recursiveSync() after scanning is complete, to be sure there are no moves left.
-            auto scanningWasCompletePreviously = mSyncFlags->scanningWasComplete && !mSyncFlags->isInitialPass;
-            mSyncFlags->scanningWasComplete = checkSyncsScanningWasComplete_inThread();
-            mSyncFlags->reachableNodesAllScannedLastPass = mSyncFlags->reachableNodesAllScannedThisPass && !mSyncFlags->isInitialPass;
-            mSyncFlags->reachableNodesAllScannedThisPass = true;
+            const auto [scanningWasCompletePreviously, scanningWasCompleted] =
+                checkSyncsScanningWasComplete_inThread();
+            mSyncFlags->scanningWasComplete.store(scanningWasCompleted);
+            mSyncFlags->reachableNodesAllScannedLastPass.store(
+                mSyncFlags->reachableNodesAllScannedThisPass.exchange(true) &&
+                !mSyncFlags->isInitialPass.load());
             auto allSyncsMovesWereComplete = checkSyncsMovesWereComplete();
-            mSyncFlags->movesWereComplete = scanningWasCompletePreviously && allSyncsMovesWereComplete;
-            mSyncFlags->noProgress = mSyncFlags->reachableNodesAllScannedLastPass;
-            if (mSyncFlags->noProgress) mSyncFlags->stall.setNoProgress();
-            if (!scanningWasCompletePreviously || !mSyncFlags->scanningWasComplete || !mSyncFlags->reachableNodesAllScannedLastPass || !allSyncsMovesWereComplete || !mSyncFlags->movesWereComplete)
+            mSyncFlags->movesWereComplete.store(scanningWasCompletePreviously &&
+                                                allSyncsMovesWereComplete);
+
+            const auto auxNoProgress{mSyncFlags->reachableNodesAllScannedLastPass.load()};
+            mSyncFlags->noProgress.store(auxNoProgress);
+            if (auxNoProgress)
+                mSyncFlags->stall.setNoProgress();
+
+            if (const bool scanningCompleted = mSyncFlags->scanningWasComplete.load(),
+                reachableNodesAllScannedLastPass =
+                    mSyncFlags->reachableNodesAllScannedLastPass.load(),
+                movesWereComplete = mSyncFlags->movesWereComplete.load();
+                !scanningWasCompletePreviously || !scanningCompleted ||
+                !reachableNodesAllScannedLastPass || !allSyncsMovesWereComplete ||
+                !movesWereComplete)
             {
-                SYNCS_verbose_timed << "[SyncLoop] scanningWasCompletePreviously = " << scanningWasCompletePreviously
-                            << ", scanningWasComplete = " << mSyncFlags->scanningWasComplete
-                            << ", reachableNodesAllScannedLastPass = " << mSyncFlags->reachableNodesAllScannedLastPass
-                            << ", allSyncsMovesWereComplete = " << allSyncsMovesWereComplete
-                            << ", movesWereComplete = " << mSyncFlags->movesWereComplete
-                            << ", noProgress = " << mSyncFlags->noProgress;
+                SYNCS_verbose_timed
+                    << "[SyncLoop] scanningWasCompletePreviously = "
+                    << scanningWasCompletePreviously
+                    << ", scanningWasComplete = " << scanningCompleted
+                    << ", reachableNodesAllScannedLastPass = " << reachableNodesAllScannedLastPass
+                    << ", allSyncsMovesWereComplete = " << allSyncsMovesWereComplete
+                    << ", movesWereComplete = " << movesWereComplete
+                    << ", noProgress = " << auxNoProgress;
             }
         }
 
@@ -13977,17 +13994,23 @@ void Syncs::syncLoop()
                         std::chrono::high_resolution_clock::now() - recurseStart).count());
 
         const int noProgressCountLoggingFrequency = 500; // Log this every 500 counts
-        if (!skippedForScanning && !earlyExit && mSyncFlags->noProgressCount && (mSyncFlags->noProgressCount % noProgressCountLoggingFrequency == 0))
+        const auto auxNoProgressCount = mSyncFlags->noProgressCount.load();
+        if (!skippedForScanning && !earlyExit && auxNoProgressCount &&
+            (auxNoProgressCount % noProgressCountLoggingFrequency == 0))
         {
             LOG_verbose << "recursiveSync took ms: " << lastRecurseMs
-                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning)+ " skipped due to ongoing scanning)" : "")
-                        << (mSyncFlags->noProgressCount ? " no progress count: " + std::to_string(mSyncFlags->noProgressCount) : "")
+                        << (skippedForScanning ? " (" + std::to_string(skippedForScanning) +
+                                                     " skipped due to ongoing scanning)" :
+                                                 "")
+                        << (auxNoProgressCount ?
+                                " no progress count: " + std::to_string(auxNoProgressCount) :
+                                "")
                         << (earlyExit ? " (earlyExit)" : "");
         }
 
 
         waiter->bumpds();
-        mSyncFlags->recursiveSyncLastCompletedDs = waiter->ds;
+        mSyncFlags->recursiveSyncLastCompletedDs.store(waiter->ds);
 
         if (skippedForScanning > 0)
         {
@@ -13998,12 +14021,12 @@ void Syncs::syncLoop()
         if (earlyExit)
         {
             unsetSyncsScanningWasComplete_inThread();
-            mSyncFlags->scanningWasComplete = false;
-            mSyncFlags->reachableNodesAllScannedThisPass = false;
+            mSyncFlags->scanningWasComplete.store(false);
+            mSyncFlags->reachableNodesAllScannedThisPass.store(false);
         }
         else
         {
-            mSyncFlags->isInitialPass = false;
+            mSyncFlags->isInitialPass.store(false);
 
             // Process name conflicts
             processSyncConflicts();
@@ -14080,9 +14103,11 @@ bool Syncs::isAnySyncScanning_inThread() const
     return false;
 }
 
-bool Syncs::checkSyncsScanningWasComplete_inThread()
+std::pair<bool, bool> Syncs::checkSyncsScanningWasComplete_inThread()
 {
     assert(onSyncThread());
+    const auto scanningWasCompletePreviously =
+        mSyncFlags->scanningWasComplete.load() && !mSyncFlags->isInitialPass.load();
 
     lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
 
@@ -14094,7 +14119,7 @@ bool Syncs::checkSyncsScanningWasComplete_inThread()
             allSyncsScanningWereComplete &= sync->checkScanningWasComplete();
         }
     }
-    return allSyncsScanningWereComplete;
+    return {scanningWasCompletePreviously, allSyncsScanningWereComplete};
 }
 
 void Syncs::unsetSyncsScanningWasComplete_inThread()
@@ -14498,8 +14523,8 @@ void Syncs::processSyncStalls()
 
         // Check immediate stalls and progress lack stalls
         bool immediateStall = hasImmediateStall(stallReport);
-        bool progressLackStall = stallReport.hasProgressLackStall()
-                                      && mSyncFlags->reachableNodesAllScannedThisPass;
+        bool progressLackStall = stallReport.hasProgressLackStall() &&
+                                 mSyncFlags->reachableNodesAllScannedThisPass.load();
 
         stalled = !stallReport.empty()
                     && (immediateStall || progressLackStall);
