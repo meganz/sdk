@@ -481,7 +481,7 @@ TEST_F(SdkTestPitag, PitagCapturedForRemoteCopyUploadDedup)
 
     const auto waitTimeout =
         std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
-    const std::string expected = std::string{"C"} + options.pitagTrigger + "fD.";
+    const std::string expected = std::string{"c"} + options.pitagTrigger + "fD.";
     ASSERT_TRUE(observer.waitForValue(expected, waitTimeout))
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }

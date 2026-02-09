@@ -4132,6 +4132,8 @@ PitagPurpose pitagPurposeFromChar(char c)
             return PitagPurpose::Import;
         case 'C':
             return PitagPurpose::Copy;
+        case 'c':
+            return PitagPurpose::CopyInternal;
         case 'S':
             return PitagPurpose::Sync;
         case 'B':

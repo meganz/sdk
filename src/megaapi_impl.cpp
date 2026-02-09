@@ -19659,7 +19659,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                          "copy";
 
                             Pitag pitag = transfer->getPitag();
-                            pitag.purpose = PitagPurpose::Copy;
+                            pitag.purpose = PitagPurpose::CopyInternal;
                             pitag.nodeType = PitagNodeType::File;
                             if (pitag.target == PitagTarget::NotApplicable)
                             {
