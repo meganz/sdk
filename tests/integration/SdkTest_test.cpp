@@ -11087,7 +11087,23 @@ TEST_F(SdkTest, SdkBackupFolder)
     megaApi[0]->setSyncRunState(bkpId, MegaSync::RUNSTATE_DISABLED, &disableBkpTracker);
     ASSERT_EQ(API_OK, disableBkpTracker.waitForResult());
     // remove local file from backup
-    EXPECT_TRUE(fs::remove(testFile)) << "Failed to remove file " << testFile.string();
+
+    constexpr auto retryTimeout = 1000;
+    ASSERT_TRUE(WaitFor(
+        [testFile]()
+        {
+            std::error_code ec;
+            fs::remove(testFile, ec);
+            if (!ec)
+            {
+                return true;
+            }
+
+            return false;
+        },
+        retryTimeout))
+        << "Failed to remove file " << testFile.string();
+
     // enable backup
     RequestTracker enableBkpTracker(megaApi[0].get());
     megaApi[0]->setSyncRunState(bkpId, MegaSync::RUNSTATE_RUNNING, &enableBkpTracker);
