@@ -1423,7 +1423,8 @@ public:
     void fetchNodesForAccountsSequentially(const unsigned howMany);
     void getAccountsForTest(const unsigned howMany = 1,
                             const bool fetchNodes = true,
-                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT);
+                            const int clientType = MegaApi::CLIENT_TYPE_DEFAULT,
+                            const std::string& apiServer = std::string{});
     void configureTestInstance(unsigned index,
                                const std::string& email,
                                const std::string& pass,

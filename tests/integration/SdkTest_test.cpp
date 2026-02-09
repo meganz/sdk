@@ -2271,7 +2271,8 @@ void SdkTest::fetchNodesForAccountsSequentially(const unsigned howMany)
 
 void SdkTest::getAccountsForTest(const unsigned howMany,
                                  const bool fetchNodes,
-                                 const int clientType)
+                                 const int clientType,
+                                 const std::string& apiServer)
 {
     const std::string prefix{"SdkTest::getAccountsForTest()"};
     const auto maxAccounts = getEnvVarAccounts().size();
@@ -2290,6 +2291,10 @@ void SdkTest::getAccountsForTest(const unsigned howMany,
 
         static const bool checkCredentials = true; // default value
         configureTestInstance(index, email, pass, checkCredentials, clientType);
+        if (!apiServer.empty())
+        {
+            megaApi[index]->changeApiUrl(apiServer.c_str());
+        }
 
         std::unique_ptr<RequestTracker> tracker;
         if (!gResumeSessions || gSessionIDs[index].empty() || gSessionIDs[index] == "invalid")
@@ -22937,19 +22942,11 @@ TEST_F(SdkTest, SdkTransferCopyRemote)
 TEST_F(SdkTest, SdkUtqaMobileOffer)
 {
     CASE_info << " Start";
-    const auto [email, pass] = getEnvVarAccounts().getVarValues(0);
-    ASSERT_FALSE(email.empty() || pass.empty());
-    megaApi.resize(1);
-    mApi.resize(1);
-    uint32_t index = 0;
-    configureTestInstance(index, email, pass, true, MegaApi::CLIENT_TYPE_DEFAULT);
-    megaApi[index]->changeApiUrl("https://staging.api.mega.co.nz/");
-    std::unique_ptr<RequestTracker> tracker;
-    tracker = asyncRequestLogin(index, mApi[index].email.c_str(), mApi[index].pwd.c_str());
-    ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to login to account " << email;
-
-    ASSERT_NO_FATAL_FAILURE(fetchNodesForAccountsSequentially(1));
-
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1,
+                                               true,
+                                               MegaApi::CLIENT_TYPE_DEFAULT,
+                                               "https://staging.api.mega.co.nz/"));
+    uint32_t index{0};
     using namespace testing;
     std::string attributeValue{"{\"utqamo\":1}"};
     ASSERT_NO_FATAL_FAILURE(setDevOptUserAttribute(attributeValue, index));
@@ -22974,6 +22971,70 @@ TEST_F(SdkTest, SdkUtqaMobileOffer)
     ASSERT_TRUE(mobileOffer) << "Received at least one mobile offer";
     ASSERT_TRUE(mobileOfferTitle.size()) << "Title has contain";
 
+    CASE_info << " Finished";
+}
+
+TEST_F(SdkTest, SdkTestGetPricingAndGetDiscountCode)
+{
+    CASE_info << " Start";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1,
+                                               true,
+                                               MegaApi::CLIENT_TYPE_DEFAULT,
+                                               "https://staging.api.mega.co.nz/"));
+    uint32_t index{0};
+    std::string attributeValue = {"{\"insdis\":1}"};
+    ASSERT_NO_FATAL_FAILURE(setDevOptUserAttribute(attributeValue, index));
+
+    auto pricing = getPricing(*megaApi[index]);
+    ASSERT_EQ(::result(pricing), API_OK) << "Error at getPricing";
+
+    auto& priceDetailRes = ::value(pricing);
+    bool discountCodeFound{false};
+    for (int i = 0, j = priceDetailRes->getNumProducts(); i < j; ++i)
+    {
+        if (!priceDetailRes->hasDiscount(i))
+        {
+            continue;
+        }
+        CASE_info << " Product " << i << " has discount ";
+        discountCodeFound = true;
+        ASSERT_NE(priceDetailRes->getDiscountCode(i), nullptr)
+            << "No discount code received for product " << i;
+        ASSERT_NE(priceDetailRes->getDiscountName(i), nullptr)
+            << "No discount name received for product " << i;
+        ASSERT_GE(priceDetailRes->getDiscountGroup(i), 0)
+            << "No discount group received for product " << i;
+        ASSERT_GE(priceDetailRes->getDiscountMonths(i), 0)
+            << "No discount months received for product " << i;
+        ASSERT_GE(priceDetailRes->getDiscountPercentage(i), 0)
+            << "No discount percentage received for product " << i;
+
+        std::string discountCode = priceDetailRes->getDiscountCode(i);
+        RequestTracker listener{megaApi[0].get()};
+        megaApi[index]->getDiscountCodeInformation(discountCode.c_str(), &listener);
+        ASSERT_EQ(listener.waitForResult(), API_OK)
+            << "Error at getDiscountCodeInformation for code " << discountCode;
+        auto codeInfo = listener.request->getMegaDiscountCodeInfo();
+        ASSERT_EQ(std::string(codeInfo->getCode()), discountCode)
+            << "Discount code mismatch at getDiscountCodeInformation for code " << discountCode;
+        ASSERT_EQ(codeInfo->getMonths(), priceDetailRes->getDiscountMonths(i))
+            << "Discount months mismatch at getDiscountCodeInformation for code " << discountCode;
+        ASSERT_EQ(codeInfo->getPercentageDiscount(), priceDetailRes->getDiscountPercentage(i))
+            << "Discount percentage mismatch at getDiscountCodeInformation for code "
+            << discountCode;
+        ASSERT_GE(codeInfo->getMultiDiscount(), 0);
+        ASSERT_GT(codeInfo->getEuroTotalPrice(), 0)
+            << "No euro total price at getDiscountCodeInformation for code " << discountCode;
+        ASSERT_GT(codeInfo->getEuroDiscountAmount(), 0)
+            << "No euro discount amount at getDiscountCodeInformation for code " << discountCode;
+        ASSERT_GT(codeInfo->getEuroDiscountedTotalPrice(), 0)
+            << "No euro discounted total price at getDiscountCodeInformation for code "
+            << discountCode;
+        ASSERT_GT(codeInfo->getEuroDiscountedMonthlyPrice(), 0)
+            << "No euro discounted monthly price at getDiscountCodeInformation for code "
+            << discountCode;
+    }
+    ASSERT_TRUE(discountCodeFound) << "No discount code found in pricing";
     CASE_info << " Finished";
 }
 

@@ -4919,6 +4919,292 @@ protected:
 };
 
 /**
+ * @brief Represents a set of properties that define discount code
+ */
+class MegaDiscountCode
+{
+public:
+    virtual ~MegaDiscountCode();
+
+    /**
+     * @brief Creates a copy of this MegaDiscountCode object.
+     *
+     * The resulting object is fully independent of the source MegaDiscountCode,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaDiscountCode object
+     */
+    virtual MegaDiscountCode* copy() const;
+
+    /**
+     * @brief Returns the discount code string
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCode object is deleted.
+     */
+    virtual const char* getCode() const;
+
+    /**
+     * @brief Returns the item associated with the discount code
+     */
+    virtual int getItem() const;
+
+    /**
+     * @brief Returns the account level associated with the discount code
+     */
+    virtual int getAccountLevel() const;
+
+    /**
+     * @brief Returns number of months (1 or 12), or 0 if code applies to any number of months
+     */
+    virtual int getMonths() const;
+
+    /**
+     * @brief Returns the percentage discount associated with the discount code
+     */
+    virtual int getPercentageDiscount() const;
+
+    /**
+     * @brief Returns the behavior type associated with the discount code
+     */
+    virtual int getBehaviorType() const;
+
+protected:
+    MegaDiscountCode();
+};
+
+/**
+ * @brief List of MegaDiscountCode objects
+ *
+ * A MegaDiscountCodeList has the ownership of the MegaDiscountCode objects that it contains, so
+ * they will be only valid until the MegaDiscountCodeList is deleted. If you want to retain a
+ * MegaDiscountCode returned by a MegaDiscountCodeList, use MegaDiscountCode::copy.
+ */
+class MegaDiscountCodeList
+{
+public:
+    virtual ~MegaDiscountCodeList();
+    /**
+     * @brief Creates a copy of this MegaDiscountCodeList object.
+     *
+     * The resulting object is fully independent of the source MegaDiscountCodeList,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You are the owner of the returned object
+     *
+     * @return Copy of the MegaDiscountCodeList object
+     */
+    virtual MegaDiscountCodeList* copy() const;
+    /**
+     * @brief Returns the MegaDiscountCode at position i in the MegaDiscountCodeList
+     *
+     * The MegaDiscountCodeList retains the ownership of the returned MegaDiscountCode. It will be
+     * only valid until the MegaDiscountCodeList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns nullptr.
+     *
+     * @param i Position of the MegaDiscountCode that we want to get for the list
+     * @return MegaDiscountCode at position i in the list
+     */
+    virtual const MegaDiscountCode* get(int i) const;
+
+    /**
+     * @brief Returns the number of MegaDiscountCode objects in the list
+     * @return Number of MegaDiscountCode objects in the list
+     */
+    virtual int size() const;
+
+protected:
+    MegaDiscountCodeList();
+};
+
+/**
+ * @brief Represents a set of properties that define discount code information
+ * These are used to display discount code details to the user.
+ */
+class MegaDiscountCodeInfo: public MegaDiscountCode
+{
+public:
+    virtual ~MegaDiscountCodeInfo();
+
+    /**
+     * @brief Creates a copy of this MegaDiscountCodeInfo object.
+     *
+     * The resulting object is fully independent of the source MegaDiscountCodeInfo,
+     * it contains a copy of all internal attributes, so it will be valid after
+     * the original object is deleted.
+     *
+     * You take the ownership of returned value
+     *
+     * @return Copy of the MegaDiscountCodeInfo object
+     */
+    virtual MegaDiscountCodeInfo* copy() const;
+
+    /*
+     * @brief Returns the expiry time associated with the discount code info (seconds since epoch)
+     */
+    virtual int getExpiry() const;
+
+    /*
+     * @brief Returns the compulsory subscription associated with the discount code info
+     * Subscription will continue after discount period
+     */
+    virtual int getCompulsorySubscription() const;
+
+    /*
+     * @brief Returns the multi discount associated with the discount code info
+     * Turn flag on for using new Multi Discount system (alters UI appearance & behaviour)
+     */
+    virtual int getMultiDiscount() const;
+
+    /*
+     * @brief Returns a MegaStringIntegerMap with all feature names and it's code: {{"vpn", 1},
+     * {"pwm", 2} ...}
+     * You take the ownership of returned value
+     */
+    virtual MegaStringIntegerMap* getFeatures() const;
+
+    /*
+     * @brief Returns the tax value associated with the discount code info
+     */
+    virtual int getTaxValue() const;
+
+    /*
+     * @brief Returns if the user is tax exempt (0% tax)
+     */
+    virtual bool isTaxExempt() const;
+
+    /*
+     * @brief Returns if the tax is applied on top of the base price (PPT)
+     */
+    virtual bool isTaxAppliedOnTop() const;
+
+    /*
+     * @brief Returns the tax rate associated with the discount code info
+     */
+    virtual int getTaxRate() const;
+
+    /*
+     * @brief Returns the tax name associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCodeInfo object is deleted.
+     */
+    virtual const char* getTaxName() const;
+
+    /*
+     * @brief Returns the tax country associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCodeInfo object is deleted.
+     */
+    virtual const char* getTaxCountry() const;
+
+    /*
+     * @brief Returns the euro total price associated with the discount code info
+     */
+    virtual double getEuroTotalPrice() const;
+
+    /*
+     * @brief Returns the euro discount amount associated with the discount code info
+     */
+    virtual double getEuroDiscountAmount() const;
+
+    /*
+     * @brief Returns the euro discounted total price associated with the discount code info
+     */
+    virtual double getEuroDiscountedTotalPrice() const;
+
+    /*
+     * @brief Returns the euro discounted monthly price associated with the discount code info
+     */
+    virtual double getEuroDiscountedMonthlyPrice() const;
+
+    /*
+     * @brief Returns the euro total price net associated with the discount code info
+     */
+    virtual double getEuroTotalPriceNet() const;
+
+    /*
+     * @brief Returns the euro discount amount net associated with the discount code info
+     */
+    virtual double getEuroDiscountAmountNet() const;
+
+    /*
+     * @brief Returns the euro discounted total price net associated with the discount code info
+     */
+    virtual double getEuroDiscountedTotalPriceNet() const;
+
+    /*
+     * @brief Returns the euro discounted monthly price net associated with the discount code info
+     */
+    virtual double getEuroDiscountedMonthlyPriceNet() const;
+
+    /*
+     * @brief Returns the local currency code associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCodeInfo object is deleted.
+     */
+    virtual const char* getLocalCurrencyCode() const;
+
+    /*
+     * @brief Returns the local currency symbol associated with the discount code info
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaDiscountCodeInfo object is deleted.
+     */
+    virtual const char* getLocalCurrencySymbol() const;
+
+    /*
+     * @brief Returns the local total price associated with the discount code info
+     */
+    virtual double getLocalTotalPrice() const;
+
+    /*
+     * @brief Returns the local discount amount associated with the discount code info
+     */
+    virtual double getLocalDiscountAmount() const;
+
+    /*
+     * @brief Returns the local discounted total price associated with the discount code info
+     */
+    virtual double getLocalDiscountedTotalPrice() const;
+
+    /*
+     * @brief Returns the local discounted monthly price associated with the discount code info
+     */
+    virtual double getLocalDiscountedMonthlyPrice() const;
+
+    /*
+     * @brief Returns the local total price net associated with the discount code info
+     */
+    virtual double getLocalTotalPriceNet() const;
+
+    /*
+     * @brief Returns the local discount amount net associated with the discount code info
+     */
+    virtual double getLocalDiscountAmountNet() const;
+
+    /*
+     * @brief Returns the local discounted total price net associated with the discount code info
+     */
+    virtual double getLocalDiscountedTotalPriceNet() const;
+
+    /*
+     * @brief Returns the local discounted monthly price net associated with the discount code info
+     */
+    virtual double getLocalDiscountedMonthlyPriceNet() const;
+
+protected:
+    MegaDiscountCodeInfo();
+};
+
+/**
  * @brief Provides information about an asynchronous request
  *
  * Most functions in this API are asynchronous, except the ones that never require to
@@ -5147,7 +5433,8 @@ class MegaRequest
             TYPE_ADD_SYNC_PREVALIDATION = 207,
             TYPE_GET_MAX_CONNECTIONS = 208,
             TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS = 209,
-            TOTAL_OF_REQUEST_TYPES = 210,
+            TYPE_GET_DISCOUNT_CODE_INFORMATION = 210,
+            TOTAL_OF_REQUEST_TYPES = 211,
         };
 
         virtual ~MegaRequest();
@@ -6130,6 +6417,34 @@ class MegaRequest
         virtual const MegaNodeTree* getMegaNodeTree() const;
 
         virtual const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const;
+
+        /**
+         * @brief Get list of discount codes available for current user
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getDiscountCodes
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null
+         * otherwise.
+         */
+        virtual MegaDiscountCodeList* getMegaDiscountCodeList() const;
+
+        /**
+         * @brief Get information about a discount code
+         *
+         * This value is valid only for the following requests:
+         * - MegaApi::getDiscountCodeInformation
+         *
+         * The SDK retains the ownership of the returned value. It will be valid until
+         * the MegaRequest object is deleted.
+         *
+         * @return non-null pointer if a valid MegaApi functionality has been called, null
+         * otherwise.
+         */
+        virtual const MegaDiscountCodeInfo* getMegaDiscountCodeInfo() const;
 };
 
 /**
@@ -24180,6 +24495,33 @@ class MegaApi
                                                 const char* originalTransactionId = nullptr,
                                                 MegaRequestListener* listener = nullptr);
 
+        /**
+         * @brief Retrieve information about a discount code
+         *
+         * The list of valid values for \c code can be retrieved from the
+         * getter MegaDiscountCode::getCode. The list of available discounts
+         * can be retrieved by calling MegaApi::getPricing.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_DISCOUNT_CODE_INFORMATION.
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getText - Returns the discount code
+         * - MegaRequest::getMegaDiscountCodeInfo - Returns the discount code information
+         *
+         * Possible errors:
+         * - MegaError::API_EARGS - If the provided code is nullptr
+         * - MegaError::API_EEXPIRED - If the discount has expired
+         * - MegaError::API_ENOENT - If the provided code is not found
+         * - MegaError::API_EACCESS - If the discount is for different user
+         * - MegaError::API_EEXIST - If the discount has already been redeemed
+         *
+         * @param code Discount code to get information about
+         * @param listener MegaRequestListener to track this request
+         */
+        void getDiscountCodeInformation(const char* code, MegaRequestListener* listener = nullptr);
+
     protected:
         MegaApiImpl *pImpl = nullptr;
         friend class MegaApiImpl;
@@ -25384,6 +25726,7 @@ public:
 
     /**
      * @brief Get the price of the product (in cents)
+     * If you want the price in cents with decimals call MegaPricing::getAmountWithDecimals
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
@@ -25391,10 +25734,57 @@ public:
 
     /**
      * @brief Get the price in the local currency (in cents)
+     * If you want the price in the local currency in cents with decimals call
+     * MegaPricing::getLocalPriceWithDecimals
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Price of the product (in cents)
      */
     virtual int getLocalPrice(int productIndex);
+
+    /**
+     * @brief Get the net base price of the product without tax (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net base price of the product in cents, including decimal fraction, without tax
+     */
+    virtual double getPriceNetWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the net base price of the product in local currency without tax (in cents, with
+     * decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net base price of the product in local currency in cents, including decimal fraction,
+     * without tax
+     */
+    virtual double getLocalPriceNetWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the price of the product (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Price of the product in cents, including decimal fraction
+     */
+    virtual double getAmountWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the price in the local currency (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Price in the local currency of the product in cents, including decimal fraction
+     */
+    virtual double getLocalPriceWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the monthly price of the product (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Monthly price of the product in cents, including decimal fraction
+     */
+    virtual double getAmountMonthWithDecimals(const int /*productIndex*/) const;
+
+    /**
+     * @brief Get the net monthly base price of the product without tax (in cents, with decimals)
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Net monthly base price of the product in cents, including decimal fraction, without
+     * tax
+     */
+    virtual double getMonthlyBasePriceNetWithDecimals(const int /*productIndex*/) const;
 
     /**
      * @brief Get a description of the product
@@ -25453,6 +25843,8 @@ public:
 
     /**
      * @brief Get the monthly price of the product (in cents)
+     * If you want the monthly price in cents with decimals call
+     * MegaPricing::getAmountMonthWithDecimals
      * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
      * @return Monthly price of the product (in cents)
      */
@@ -25576,6 +25968,60 @@ public:
      * @return test category bitmap
      */
     virtual unsigned int getTestCategory(int productIndex) const;
+
+    /**
+     * @brief Check whether the product has a discount
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return True if the product has a discount, false otherwise
+     */
+    virtual bool hasDiscount(int productIndex) const;
+
+    /**
+     * @brief Get the discount code for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount code for the product, or nullptr if there is no discount
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     */
+    virtual const char* getDiscountCode(int productIndex) const;
+
+    /**
+     * @brief Get the discount name for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount name for the product, or nullptr if there is no discount
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaPricing object is deleted.
+     */
+    virtual const char* getDiscountName(int productIndex) const;
+
+    /**
+     * @brief Get the discount group for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount group for the product, or 0 if there is no discount
+     */
+    virtual int getDiscountGroup(int productIndex) const;
+
+    /**
+     * @brief Get the discount duration in months for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount duration in months for the product, or 0 if there is no discount
+     */
+    virtual int getDiscountMonths(int productIndex) const;
+
+    /**
+     * @brief Get the discount percentage for the product
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Discount percentage for the product, or 0 if there is no discount
+     */
+    virtual int getDiscountPercentage(int productIndex) const;
 
     /**
      * @brief Get trial duration in days

@@ -2247,6 +2247,12 @@ class MegaRequestPrivate : public MegaRequest
         const MegaCancelSubscriptionReasonList* getMegaCancelSubscriptionReasons() const override;
         void setMegaCancelSubscriptionReasons(MegaCancelSubscriptionReasonList* cancelReasons);
 
+        MegaDiscountCodeList* getMegaDiscountCodeList() const override;
+        void setMegaDiscountCodes(std::vector<DiscountCode>&& discountCodes);
+
+        const MegaDiscountCodeInfo* getMegaDiscountCodeInfo() const override;
+        void setMegaDiscountCodeInfo(std::unique_ptr<MegaDiscountCodeInfo> discountCodeInfo);
+
         static bool causesLocklessRequest(const int type);
 
     protected:
@@ -2317,6 +2323,9 @@ class MegaRequestPrivate : public MegaRequest
         unique_ptr<MegaNotificationList> mMegaNotifications;
         unique_ptr<MegaNodeTree> mMegaNodeTree;
         unique_ptr<MegaCancelSubscriptionReasonList> mMegaCancelSubscriptionReasons;
+
+        unique_ptr<MegaDiscountCodeList> mMegaDiscountCodeList;
+        unique_ptr<MegaDiscountCodeInfo> mMegaDiscountCodeInfo;
 
     public:
         shared_ptr<ExecuteOnce> functionToExecute;
@@ -2567,6 +2576,12 @@ public:
     int getMonths(int productIndex) override;
     int getAmount(int productIndex) override;
     int getLocalPrice(int productIndex) override;
+    double getAmountWithDecimals(const int productIndex) const override;
+    double getLocalPriceWithDecimals(const int productIndex) const override;
+    double getAmountMonthWithDecimals(const int productIndex) const override;
+    double getPriceNetWithDecimals(const int productIndex) const override;
+    double getLocalPriceNetWithDecimals(const int productIndex) const override;
+    double getMonthlyBasePriceNetWithDecimals(const int productIndex) const override;
     const char* getDescription(int productIndex) override;
     const char* getIosID(int productIndex) override;
     const char* getAndroidID(int productIndex) override;
@@ -2591,6 +2606,12 @@ public:
     bool hasMobileOffers(int productIndex) const override;
     std::string getMobileOfferId(int productIndex) const override;
     bool hasMobileOfferUat(int productIndex) const override;
+    bool hasDiscount(int productIndex) const override;
+    const char* getDiscountCode(int productIndex) const override;
+    const char* getDiscountName(int productIndex) const override;
+    int getDiscountGroup(int productIndex) const override;
+    int getDiscountMonths(int productIndex) const override;
+    int getDiscountPercentage(int productIndex) const override;
     void addProduct(const Product& product);
 
 private:
@@ -2601,6 +2622,7 @@ private:
         FEATURE,
     };
 
+    const InstantDiscounts* getInstantDiscounts(const int productIndex) const;
     bool isType(int productIndex, unsigned t) const;
 
     vector<Product> products;
@@ -4748,6 +4770,8 @@ public:
                                                 unsigned int gatewayId,
                                                 MegaRequestListener* listener);
 
+        void getDiscountCodeInformation(const char* discountCode, MegaRequestListener* listener);
+
     private:
         void init(MegaApi* publicApi,
                   std::unique_ptr<GfxProc> gfxproc,
@@ -4891,7 +4915,8 @@ public:
         void prelogin_result(int, string*, string*, error) override;
         void login_result(error) override;
         void logout_result(error, MegaRequestPrivate*);
-        void userdata_result(string*, string*, string*, Error) override;
+        void
+            userdata_result(string*, string*, string*, std::vector<DiscountCode>&&, Error) override;
         void pubkey_result(User *) override;
 
         // ephemeral session creation/resumption result
@@ -6587,6 +6612,87 @@ public:
 
 private:
     std::vector<std::shared_ptr<MegaCancelSubscriptionReason>> mReasons;
+};
+
+class MegaDiscountCodePrivate: public MegaDiscountCode
+{
+public:
+    MegaDiscountCodePrivate(DiscountCode&& discountCode);
+    ~MegaDiscountCodePrivate() override = default;
+
+    MegaDiscountCode* copy() const override;
+
+    const char* getCode() const override;
+    int getItem() const override;
+    int getAccountLevel() const override;
+    int getMonths() const override;
+    int getPercentageDiscount() const override;
+    int getBehaviorType() const override;
+
+private:
+    DiscountCode mDiscountCode;
+};
+
+class MegaDiscountCodeListPrivate: public MegaDiscountCodeList
+{
+public:
+    MegaDiscountCodeListPrivate();
+    ~MegaDiscountCodeListPrivate() override = default;
+
+    MegaDiscountCodeList* copy() const override;
+    int size() const override;
+    const MegaDiscountCode* get(int i) const override;
+
+    void add(MegaDiscountCodePrivate&& discountCode);
+
+private:
+    std::vector<MegaDiscountCodePrivate> mDiscountCodes;
+};
+
+class MegaDiscountCodeInfoPrivate: public MegaDiscountCodeInfo
+{
+public:
+    MegaDiscountCodeInfoPrivate(DiscountCodeInfoExtended&& discountCodeInfo);
+    ~MegaDiscountCodeInfoPrivate() override = default;
+
+    MegaDiscountCodeInfo* copy() const override;
+    const char* getCode() const override;
+    int getItem() const override;
+    int getAccountLevel() const override;
+    int getMonths() const override;
+    int getPercentageDiscount() const override;
+    int getBehaviorType() const override;
+    int getExpiry() const override;
+    int getCompulsorySubscription() const override;
+    int getMultiDiscount() const override;
+    int getTaxValue() const override;
+    MegaStringIntegerMap* getFeatures() const override;
+    bool isTaxExempt() const override;
+    bool isTaxAppliedOnTop() const override;
+    int getTaxRate() const override;
+    const char* getTaxName() const override;
+    const char* getTaxCountry() const override;
+    double getEuroTotalPrice() const override;
+    double getEuroDiscountAmount() const override;
+    double getEuroDiscountedTotalPrice() const override;
+    double getEuroDiscountedMonthlyPrice() const override;
+    double getEuroTotalPriceNet() const override;
+    double getEuroDiscountAmountNet() const override;
+    double getEuroDiscountedTotalPriceNet() const override;
+    double getEuroDiscountedMonthlyPriceNet() const override;
+    const char* getLocalCurrencyCode() const override;
+    const char* getLocalCurrencySymbol() const override;
+    double getLocalTotalPrice() const override;
+    double getLocalDiscountAmount() const override;
+    double getLocalDiscountedTotalPrice() const override;
+    double getLocalDiscountedMonthlyPrice() const override;
+    double getLocalTotalPriceNet() const override;
+    double getLocalDiscountAmountNet() const override;
+    double getLocalDiscountedTotalPriceNet() const override;
+    double getLocalDiscountedMonthlyPriceNet() const override;
+
+private:
+    DiscountCodeInfoExtended mDiscountCodeInfo;
 };
 
 std::unique_ptr<FileSystemAccess> createFSA();
