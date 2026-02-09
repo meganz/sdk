@@ -10,6 +10,9 @@ RUN apt-get update && \
     apt-get install -y git clang-format && \
     useradd clang-format -d /var/lib/clang-format -m -s /bin/bash
 
+COPY clang-format-mr-check.sh /usr/local/bin/clang-format-mr-check
+RUN chmod +x /usr/local/bin/clang-format-mr-check
+
 USER clang-format
 
 WORKDIR /var/lib/clang-format

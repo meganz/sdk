@@ -78,51 +78,17 @@ pipeline {
                     }
                     steps {
                         sh """#!/bin/bash
+                            TARGET_REF="origin/${env.gitlabTargetBranch}"
+                            SOURCE_REF="origin/${env.gitlabSourceBranch}"
 
-                            COMMITS=\$(git log --pretty=format:%H origin/${env.gitlabTargetBranch}..origin/${env.gitlabSourceBranch})
+                            if ! command -v clang-format-mr-check >/dev/null 2>&1; then
+                                echo "ERROR: clang-format-mr-check not found in Docker image." >&2
+                                echo "This job is configured to run the check only inside the Docker image." >&2
+                                echo "Rebuild/push the image (trigger with --rebuild-docker) and retry." >&2
+                                exit 2
+                            fi
 
-                            echo "    ######################"
-                            echo "    # ClangFormat output #"
-                            echo "    ######################"
-                            echo ""
-                            echo "    Commits:" \$COMMITS
-                            echo ""
-
-                            for COMMIT in \$COMMITS
-                            do
-                                OUTPUT=\$(git -c color.ui=always clang-format --diff \
-                                    --extensions "c,c++,c++m,cc,ccm,cp,cpp,cppm,cxx,cxxm,h,hh,hpp,hxx" \
-                                    \$COMMIT^ \$COMMIT)
-
-                                echo "    Commit: " "\$COMMIT"
-                                echo "    ClangFormat:"
-                                echo "    \$OUTPUT"
-                                echo ""
-
-                                if [ -z "\$OUTPUT" ]
-                                then
-                                    continue
-                                fi
-
-                                if echo \$OUTPUT | grep -q 'no modified files to format'
-                                then
-                                    continue
-                                fi
-
-                                if echo \$OUTPUT | grep -q 'clang-format did not modify any files'
-                                then
-                                    continue
-                                fi
-
-                                printf '%s\\n' "\$OUTPUT" '%s\\n'
-
-                                exit 1
-                            done
-
-                            echo "    #############################"
-                            echo "    # End of ClangFormat output #"
-                            echo "    #############################"
-                            echo ""
+                            clang-format-mr-check "\${TARGET_REF}" "\${SOURCE_REF}"
                         """
                     }
                 }
