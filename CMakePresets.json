@@ -56,7 +56,8 @@
                 "ENABLE_SDKLIB_WERROR": "ON",
                 "ENABLE_SYNC": "ON",
                 "ENABLE_TSAN": "OFF",
-                "ENABLE_UBSAN": "OFF"
+                "ENABLE_UBSAN": "OFF",
+                "USE_LIBUV": "ON"
             }
         },
         {
