@@ -73,6 +73,7 @@ NS_ASSUME_NONNULL_BEGIN
  * - MEGANodeFormatTypeSpreadsheet = 10
  * - MEGANodeFormatTypeAllDocs = 11  --> any of {DOCUMENT, PDF, PRESENTATION, SPREADSHEET}
  * - MEGANodeFormatTypeOthers = 12
+ * - MEGANodeFormatTypeAllVisualMedia = 13  --> any of {PHOTO, VIDEO}
  */
 @property (readonly, nonatomic) MEGANodeFormatType category;
 

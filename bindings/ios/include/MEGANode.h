@@ -74,7 +74,8 @@ typedef NS_ENUM (NSInteger, MEGANodeFormatType) {
     MEGANodeFormatTypeMisc,
     MEGANodeFormatTypeSpreadsheet,
     MEGANodeFormatTypeAllDocs,
-    MEGANodeFormatTypeOthers
+    MEGANodeFormatTypeOthers,
+    MEGANodeFormatTypeAllVisualMedia
 };
 
 @class MEGAStringList;
