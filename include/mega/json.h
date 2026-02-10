@@ -245,6 +245,11 @@ public:
     // start with the same data that was not consumed during the previous call.
     m_off_t processChunk(const std::map<std::string, FilterCallback>* filters, const char* data);
 
+    // Process a new chunk of JSON data and triggers callbacks in the list of filters map.
+    // Returns the number of consumed bytes.
+    //
+    // The "filtersList" is a list of map that allows to process the different JSON elements when
+    // they are complete
     m_off_t processChunk(const FiltersChain& filtersList, const char* data);
 
     // Check if the parsing has finished

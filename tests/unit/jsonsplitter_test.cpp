@@ -129,7 +129,7 @@ TEST_F(JSONSplitterTest, ProcessErrorResponse)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
-    EXPECT_EQ(ErrorCodes::API_EINTERNAL, err);
+    EXPECT_EQ(-1, err);
 }
 
 TEST_F(JSONSplitterTest, ProcessSimpleObjectNumber)
@@ -573,6 +573,7 @@ TEST_F(JSONSplitterTest, ProcessChunkWithFiltersChain)
         return JSONSplitter::CallbackResult::SUCCESS;
     };
 
+    // Filter for JSONSpliter start
     filters2[""] = [&firstFlag](JSON* json) -> JSONSplitter::CallbackResult
     {
         EXPECT_NE(json, nullptr);
@@ -720,7 +721,7 @@ TEST_F(JSONSplitterTest, ProcessErrorResponseWithFiltersChain)
     EXPECT_EQ(consumed, static_cast<m_off_t>(testJson.length()));
     EXPECT_TRUE(splitter.hasFinished());
     EXPECT_FALSE(splitter.hasFailed());
-    EXPECT_EQ(ErrorCodes::API_EINTERNAL, err);
+    EXPECT_EQ(-1, err);
 }
 
 // Keep in mind, this unit test is added after the JSONSplitter has served well for a long time.

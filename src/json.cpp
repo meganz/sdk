@@ -1564,7 +1564,7 @@ bool JSONSplitter::chunkProcessingFinishedSuccessfully(const FiltersChain& filte
 const JSONSplitter::FilterCallback* JSONSplitter::findCallback(const FiltersChain& filtersChain,
                                                                const std::string& path)
 {
-    for (const auto filters: filtersChain)
+    for (const auto& filters: filtersChain)
     {
         if (filters == nullptr)
         {
