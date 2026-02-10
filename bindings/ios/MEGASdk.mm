@@ -2642,7 +2642,7 @@ using namespace mega;
 
 - (void)startUploadWithLocalPath:(NSString *)localPath
                           parent:(MEGANode *)parent
-                     cancelToken:(MEGACancelToken *)cancelToken
+                     cancelToken:(nullable MEGACancelToken *)cancelToken
                          options:(MEGAUploadOptions *)options
                         delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
@@ -2657,7 +2657,7 @@ using namespace mega;
 
 - (void)startUploadWithLocalPath:(NSString *)localPath
                           parent:(MEGANode *)parent
-                     cancelToken:(MEGACancelToken *)cancelToken
+                     cancelToken:(nullable MEGACancelToken *)cancelToken
                          options:(MEGAUploadOptions *)options {
     if (self.megaApi) {
         auto cppOptions = [self generateUploadOptionsFrom:options];

@@ -6834,7 +6834,7 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  */
 - (void)startUploadWithLocalPath:(NSString *)localPath
                            parent:(MEGANode *)parent
-                      cancelToken:(MEGACancelToken *)cancelToken
+                      cancelToken:(nullable MEGACancelToken *)cancelToken
                           options:(MEGAUploadOptions *)options
                          delegate:(id<MEGATransferDelegate>)delegate;
 
@@ -6857,7 +6857,7 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  */
 - (void)startUploadWithLocalPath:(NSString *)localPath
                            parent:(MEGANode *)parent
-                      cancelToken:(MEGACancelToken *)cancelToken
+                      cancelToken:(nullable MEGACancelToken *)cancelToken
                           options:(MEGAUploadOptions *)options;
 
 /**
