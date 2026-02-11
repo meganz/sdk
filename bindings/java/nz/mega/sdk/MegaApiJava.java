@@ -9227,6 +9227,53 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Clear the account’s recent actions history up to a given timestamp.
+     *
+     * This method clears the recent actions history on the account by setting a
+     * “recent clear” timestamp. All actions that occurred at or before the given
+     * timestamp are considered cleared.
+     *
+     * The associated request type for this operation is
+     * MegaRequest::TYPE_SET_ATTR_USER.
+     *
+     * Valid data available in the MegaRequest object received in callbacks:
+     * - MegaRequest::getParamType - Returns the user attribute type
+     * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
+     * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
+     * actions history clear timestamp.
+     *
+     * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+     * @param listener  Optional MegaRequestListener to track this request.
+     */
+
+    public void clearRecentActionHistory(long until, MegaRequestListenerInterface listener) {
+        megaApi.clearRecentActionHistory(until, createDelegateRequestListener(listener));
+    }
+
+    /**
+     * @brief Clear the account’s recent actions history up to a given timestamp.
+     *
+     * This method clears the recent actions history on the account by setting a
+     * “recent clear” timestamp. All actions that occurred at or before the given
+     * timestamp are considered cleared.
+     *
+     * The associated request type for this operation is
+     * MegaRequest::TYPE_SET_ATTR_USER.
+     *
+     * Valid data available in the MegaRequest object received in callbacks:
+     * - MegaRequest::getParamType - Returns the user attribute type
+     * MegaApi::USER_ATTR_RECENT_CLEAR_TIMESTAMP
+     * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
+     * actions history clear timestamp.
+     *
+     * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+     */
+
+    public void clearRecentActionHistory(long until) {
+        megaApi.clearRecentActionHistory(until);
+    }
+
+    /**
      * Process a node tree using a MegaTreeProcessor implementation
      *
      * @param node      The parent node of the tree to explore
