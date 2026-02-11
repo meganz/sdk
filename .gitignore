@@ -14,3 +14,8 @@ build-*Release
 /third_party/crashlytics*h
 *.toml
 /CMakeUserPresets.json
+
+# cache and state
+*_statecache*
+file-service/
+jid
