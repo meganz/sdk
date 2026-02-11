@@ -15,7 +15,7 @@ TEST(SharedMemoryZone, OwnerThreadReadIsConst)
     SharedResource<std::vector<int>> zone;
     zone.initOwnerThread();
 
-    const auto guard = zone.getReadOwnerThread();
+    const auto guard = zone.getReadGuardOwnerThread();
     using DataRef = decltype(guard.getData());
     static_assert(std::is_const<std::remove_reference_t<DataRef>>::value,
                   "Read guard should expose const container");
@@ -31,7 +31,7 @@ TEST(SharedMemoryZone, OwnerThreadWriteAllowsMutation)
         guard.getData().push_back(42);
     }
 
-    const auto guard = zone.getReadOwnerThread();
+    const auto guard = zone.getReadGuardOwnerThread();
     ASSERT_EQ(guard.getData().size(), 1u);
     EXPECT_EQ(guard.getData().front(), 42);
 }
@@ -50,7 +50,7 @@ TEST(SharedMemoryZone, OtherThreadReadUsesMutexAndAllowsConstAccess)
     std::thread reader(
         [&]()
         {
-            const auto guard = zone.getReadOtherThread();
+            const auto guard = zone.getReadGuardOtherThread();
             observedSize = guard.getData().size();
         });
 
@@ -66,7 +66,7 @@ TEST(SharedMemoryZone, OtherThreadReadIsConst)
     std::thread reader(
         [&]()
         {
-            const auto guard = zone.getReadOtherThread();
+            const auto guard = zone.getReadGuardOtherThread();
             using DataRef = decltype(guard.getData());
             static_assert(std::is_const<std::remove_reference_t<DataRef>>::value,
                           "Read guard should expose const container");
@@ -88,7 +88,7 @@ TEST(SharedMemoryZone, OtherThreadWaitsForTimedMutex)
             [&]()
             {
                 const auto start = std::chrono::steady_clock::now();
-                const auto guard = zone.getReadOtherThread();
+                const auto guard = zone.getReadGuardOtherThread();
                 const auto end = std::chrono::steady_clock::now();
                 elapsedMs =
                     std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count();
