@@ -7589,6 +7589,11 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return false;
     }
 
+    CommandPutNodes* putnodesCmd = dynamic_cast<CommandPutNodes*>(
+        reqs.getCurrentCommand(mCurrentSeqtagSeen));
+    vector<NewNode>* newNodes = putnodesCmd ? &putnodesCmd->nn : nullptr;
+    bool modifiedByThisClient = putnodesCmd && putnodesCmd->tag != 0;
+
     struct TreeStreamState
     {
         NodeManager::MissingParentNodes missingParentNodes;
@@ -7601,13 +7606,13 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
     JSONSplitter splitter;
     std::map<string, JSONSplitter::FilterCallback> filters;
 
-    auto parseNodeObject = [this, &state](JSON* nodeJson)
+    auto parseNodeObject = [this, &state, newNodes, modifiedByThisClient](JSON* nodeJson)
     {
         if (readnode(nodeJson,
                      1,
                      PUTNODES_APP,
-                     nullptr,
-                     false,
+                     newNodes,
+                     modifiedByThisClient,
                      true,
                      state.missingParentNodes,
                      state.previousHandleForAlert,
@@ -7643,9 +7648,22 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return JSONSplitter::ResultFromBool(arrayJson->leavearray());
     };
 
+    auto finalizeNodesArrayWithPutnodes = [this, &state, putnodesCmd, &finalizeNodesArray](JSON* arrayJson)
+    {
+        if (putnodesCmd)
+        {
+            bool isEmpty = Utils::startswith(arrayJson->pos, "[]");
+            putnodesCmd->emptyResponse = isEmpty;
+            LOG_debug << "processActionPacketTreeStreaming: emptyResponse=" << isEmpty 
+                      << " at pos: " << std::string(arrayJson->pos, std::min(size_t(50), strlen(arrayJson->pos)));
+        }
+
+        return finalizeNodesArray(arrayJson);
+    };
+
     filters.emplace("{[f{", parseNodeObject);
     filters.emplace("{[f2{", parseNodeObject);
-    filters.emplace("{[f", finalizeNodesArray);
+    filters.emplace("{[f", finalizeNodesArrayWithPutnodes);
     filters.emplace("{[f2", finalizeNodesArray);
 
     filters.emplace("{[u{", [this](JSON* userJson)

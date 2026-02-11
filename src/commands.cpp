@@ -1495,6 +1495,10 @@ bool CommandPutNodes::procresult(Result r, JSON& json)
                              Error(API_ENOENT)) :
                         Error(API_OK);
 
+                LOG_debug << "CommandPutNodes::procresult: emptyResponse=" << emptyResponse 
+                          << " newNodeError=" << newNodeError << " finalStatus=" << finalStatus 
+                          << " nn.size()=" << nn.size();
+
                 performAppCallback(finalStatus, nn, targetOverride, fileHandles);
                 return true;
         }
