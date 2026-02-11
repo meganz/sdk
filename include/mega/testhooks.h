@@ -70,6 +70,7 @@ namespace mega {
         std::function<void(bool&)> onHookFileFingerprintUseLegacyBuggySparseCrc;
         // Allow to set device id to a specific value for testing purposes
         std::function<void(std::string& deviceId)> onHookDeviceId;
+        std::function<void()> onHashcashCalculationStarted;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -165,6 +166,14 @@ namespace mega {
             globalMegaTestHooks.onHookDeviceId((DEVICEID)); \
         } \
     }
+
+#define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED \
+    { \
+        if (globalMegaTestHooks.onHashcashCalculationStarted) \
+        { \
+            globalMegaTestHooks.onHashcashCalculationStarted(); \
+        } \
+    }
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -182,6 +191,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
+#define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED
 #endif
 
 } // namespace

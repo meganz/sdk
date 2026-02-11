@@ -8,6 +8,7 @@
 #include "mega/base64.h"
 #include "mega/canceller.h"
 #include "mega/logging.h"
+#include "mega/testhooks.h"
 #include "mega/utils.h"
 
 #if defined(__APPLE__)
@@ -245,6 +246,8 @@ std::string gencash(const std::string& token,
     const auto budget = adjustBudget(initialBudget);
     const auto deadline = start + budget;
     const auto workers = decideWorkers(maxWorkers);
+
+    DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED;
 
     const auto checkCancel =
         [&scopedCanceller, &easiness, &workers, &start](const bool cancelTriggered = false) -> bool

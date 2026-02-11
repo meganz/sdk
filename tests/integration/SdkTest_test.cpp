@@ -22301,6 +22301,31 @@ void SdkTest::testHashcash(const bool logoutDuringLoging = false)
     std::string ua = "HashcashDemo";
     megaApi[0]->getClient()->httpio->setuseragent(&ua);
     megaApi[0]->changeApiUrl("https://staging.api.mega.co.nz/");
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    std::mutex m;
+    std::condition_variable cv;
+    bool hashcashCalculationStarted = false;
+
+    const MrProper cleanUp(
+        []()
+        {
+            globalMegaTestHooks.onHashcashCalculationStarted = nullptr;
+            ASSERT_TRUE(DebugTestHook::resetForTests());
+        });
+    if (logoutDuringLoging)
+    {
+        ASSERT_TRUE(DebugTestHook::resetForTests());
+        globalMegaTestHooks.onHashcashCalculationStarted = [&]()
+        {
+            std::lock_guard<std::mutex> lock(m);
+            hashcashCalculationStarted = true;
+            cv.notify_one();
+        };
+    }
+
+#endif
+
     std::unique_ptr<RequestTracker> tracker;
     if (!gResumeSessions || gSessionIDs[0].empty() || gSessionIDs[0] == "invalid")
     {
@@ -22315,7 +22340,22 @@ void SdkTest::testHashcash(const bool logoutDuringLoging = false)
 
     if (logoutDuringLoging)
     {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        // Wait until we observe the hashcash challenge (HTTP 402) during login
+        {
+            std::unique_lock<std::mutex> lock(m);
+            ASSERT_TRUE(cv.wait_for(lock,
+                                    std::chrono::seconds(10),
+                                    [&]
+                                    {
+                                        return hashcashCalculationStarted;
+                                    }))
+                << "Did not observe hashcash calculation start during login";
+        }
+
+#else
         std::this_thread::sleep_for(std::chrono::seconds(2));
+#endif
         const auto startTime = std::chrono::steady_clock::now();
         ASSERT_NO_FATAL_FAILURE(locallogout());
         LOG_debug << "[testHashcash] Locallogout during logging completed in "
