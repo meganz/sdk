@@ -1674,6 +1674,7 @@ enum class PitagPurpose : char
     CreateFolder = 'F',
     Import = 'I',
     Copy = 'C',
+    CopyInternal = 'c',
     Sync = 'S',
     Backup = 'B',
     Password = 'P',
