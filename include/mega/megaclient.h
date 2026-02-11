@@ -1894,6 +1894,7 @@ public:
 
     // streaming actionpacket processing helpers
     bool processActionPacketObject(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode);
+    bool processActionPacketTreeStreaming(JSON& json);
     void initScStreamingFilters();
     void processPendingActionPackets();
     void finishScStreaming();

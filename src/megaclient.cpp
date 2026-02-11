@@ -7582,6 +7582,92 @@ void MegaClient::readtree(JSON* j)
 }
 
 // server-client newnodes processing
+bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
+{
+    if (!treeJson.pos || *treeJson.pos != '{')
+    {
+        return false;
+    }
+
+    struct TreeStreamState
+    {
+        NodeManager::MissingParentNodes missingParentNodes;
+        handle previousHandleForAlert = UNDEF;
+#ifdef ENABLE_SYNC
+        set<NodeHandle> allParents;
+#endif
+    } state;
+
+    JSONSplitter splitter;
+    std::map<string, JSONSplitter::FilterCallback> filters;
+
+    auto parseNodeObject = [this, &state](JSON* nodeJson)
+    {
+        if (readnode(nodeJson,
+                     1,
+                     PUTNODES_APP,
+                     nullptr,
+                     false,
+                     true,
+                     state.missingParentNodes,
+                     state.previousHandleForAlert,
+#ifdef ENABLE_SYNC
+                     &state.allParents
+#else
+                     nullptr
+#endif
+                     ) != 1)
+        {
+            return JSONSplitter::CallbackResult::FAILED;
+        }
+
+        return JSONSplitter::ResultFromBool(nodeJson->leaveobject());
+    };
+
+    auto finalizeNodesArray = [this, &state](JSON* arrayJson)
+    {
+        mergenewshares(1);
+        mNodeManager.checkOrphanNodes(state.missingParentNodes);
+        state.missingParentNodes.clear();
+        state.previousHandleForAlert = UNDEF;
+
+#ifdef ENABLE_SYNC
+        for (NodeHandle p : state.allParents)
+        {
+            syncs.triggerSync(p);
+        }
+        state.allParents.clear();
+#endif
+
+        arrayJson->enterarray();
+        return JSONSplitter::ResultFromBool(arrayJson->leavearray());
+    };
+
+    filters.emplace("{[f{", parseNodeObject);
+    filters.emplace("{[f2{", parseNodeObject);
+    filters.emplace("{[f", finalizeNodesArray);
+    filters.emplace("{[f2", finalizeNodesArray);
+
+    filters.emplace("{[u{", [this](JSON* userJson)
+    {
+        if (readuser(userJson, true) != 1)
+        {
+            return JSONSplitter::CallbackResult::FAILED;
+        }
+        return JSONSplitter::ResultFromBool(userJson->leaveobject());
+    });
+
+    m_off_t consumedBytes = splitter.processChunk(&filters, treeJson.pos);
+    if (!splitter.hasFinished() || splitter.hasFailed())
+    {
+        return false;
+    }
+
+    treeJson.pos += consumedBytes;
+    return true;
+}
+
+// server-client newnodes processing
 handle MegaClient::sc_newnodes(JSON& json)
 {
     handle originatingUser = UNDEF;
@@ -7590,7 +7676,10 @@ handle MegaClient::sc_newnodes(JSON& json)
         switch (json.getnameid())
         {
             case makeNameid("t"):
-                readtree(&json);
+                if (!processActionPacketTreeStreaming(json))
+                {
+                    return originatingUser;
+                }
                 break;
 
             case name_id::u:
