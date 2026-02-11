@@ -18929,6 +18929,71 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
         }
 
+        if (d == PUT && f->targetuser.empty() && !f->h.isUndef() && !f->name.empty())
+        {
+            if (std::shared_ptr<Node> parent = nodeByHandle(f->h))
+            {
+                FileFingerprint fp_forCloud = *static_cast<FileFingerprint*>(f);
+                sharedNode_vector nodes = mNodeManager.getNodesByFingerprint(fp_forCloud);
+                std::shared_ptr<Node> sameNodeFpFound;
+
+                for (auto& n : nodes)
+                {
+                    if (!n || n->type != FILENODE)
+                        continue;
+
+                    const auto compareResult = CompareLocalFileWithNodeMacAndFpExludingMtime(*this,
+                                                                               f->getLocalname(),
+                                                                               fp_forCloud,
+                                                                               n.get());
+                    if (compareResult.first == NODE_COMP_EQUAL)
+                    {
+                        sameNodeFpFound = n;
+                        break;
+                    }
+                }
+
+                if (sameNodeFpFound)
+                {
+                    LOG_debug << "Another node ("
+                              << Base64Str<MegaClient::NODEHANDLE>(sameNodeFpFound->nodehandle)
+                              << ") with same FP and MAC exists. Perform remote copy.";
+
+                    Transfer* t = new Transfer(this, d);
+                    *(FileFingerprint*)t = *(FileFingerprint*)f;
+                    t->skipserialization = donotpersist;
+                    t->lastaccesstime = m_time();
+                    t->tag = tag;
+                    f->tag = tag;
+                    t->transfers_it = multi_transfers[d].insert(pair<FileFingerprint*, Transfer*>((FileFingerprint*)t, t));
+
+                    f->file_it = t->files.insert(t->files.end(), f);
+                    f->transfer = t;
+                    if (!f->dbid && !donotpersist)
+                    {
+                        filecacheadd(f, committer);
+                    }
+
+                    transferlist.addtransfer(t, committer, startfirst);
+                    app->transfer_added(t);
+                    app->file_added(f);
+
+                    auto copyResult = transferRemoteCopy(f,
+                                                         sameNodeFpFound,
+                                                         f->name,
+                                                         parent,
+                                                         tag,
+                                                         std::nullopt,
+                                                         std::nullopt);
+                    if (copyResult == API_OK)
+                    {
+                        *cause = API_OK;
+                        return true;
+                    }
+                }
+            }
+        }
+
         Transfer* t = NULL;
         auto range = multi_transfers[d].equal_range(f);
         for (auto it = range.first; it != range.second; ++it)
