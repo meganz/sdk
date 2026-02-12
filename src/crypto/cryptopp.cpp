@@ -1021,7 +1021,7 @@ void AsymmCipher::serializeintarray(const Integer* t, int numints, string* d, bo
         if (headers)
         {
             unsigned int bitCount = t[i].ByteCount() * 8;
-            c = (bitCount & 0x0000FF00) >> 8;
+            c = static_cast<unsigned char>((bitCount & 0x0000FF00) >> 8);
             d->append((char*)(&c), sizeof c);
 
             c = bitCount & 0x000000FF;
