@@ -19546,8 +19546,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                 *client,
                                 wLocalPath,
                                 fp_forCloud,
-                                prevNodeSameName.get(),
-                                true /*debugMode*/);
+                                prevNodeSameName.get());
 
                             if (compRes == NODE_COMP_DIFFERS_MTIME)
                             {
@@ -19593,12 +19592,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         {
                             if (!hasToForceUpload(*n.get(), *transfer))
                             {
-                                auto [compRes, _] = CompareLocalFileWithNodeMacAndFpExludingMtime(
-                                    *client,
-                                    wLocalPath,
-                                    fp_forCloud,
-                                    n.get(),
-                                    true /*debugMode*/);
+                                auto [compRes, _] =
+                                    CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
+                                                                                  wLocalPath,
+                                                                                  fp_forCloud,
+                                                                                  n.get());
 
                                 if (compRes == NODE_COMP_EQUAL ||
                                     compRes == NODE_COMP_DIFFERS_MTIME)

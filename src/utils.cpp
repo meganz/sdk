@@ -2793,8 +2793,7 @@ std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(class MegaClient& client,
                                                   const LocalPath& path,
                                                   const FileFingerprint& fp,
-                                                  const Node* node,
-                                                  bool debugMode)
+                                                  const Node* node)
 {
     if (!node || node->type != FILENODE || node->nodekey().empty())
     {
@@ -2830,14 +2829,6 @@ std::pair<node_comparison_result, int64_t>
         auto sameMtime = fp.mtime == node->mtime;
         LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
                   << sameMtime << "]";
-
-        if (debugMode && sameMtime)
-        {
-            areEqualMacs ?
-                client.sendevent(800029, "Node found with same Fp and MAC than local file") :
-                client.sendevent(800030,
-                                 "Node found with same Fp but different MAC than local file");
-        }
 
         if (!areEqualMacs)
         {
