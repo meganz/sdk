@@ -71,6 +71,9 @@ namespace mega {
         // Allow to set device id to a specific value for testing purposes
         std::function<void(std::string& deviceId)> onHookDeviceId;
         std::function<void()> onHashcashCalculationStarted;
+        // Called during generateMetaMac after reading each chunk. Allows tests to modify/lock
+        // the file mid-computation to trigger read errors.
+        std::function<void(const m_off_t currentOffset)> onMacGenerationChunkRead;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -174,6 +177,14 @@ namespace mega {
             globalMegaTestHooks.onHashcashCalculationStarted(); \
         } \
     }
+
+#define DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(OFFSET) \
+    { \
+        if (globalMegaTestHooks.onMacGenerationChunkRead) \
+        { \
+            globalMegaTestHooks.onMacGenerationChunkRead((OFFSET)); \
+        } \
+    }
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -192,6 +203,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED
+#define DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(OFFSET)
 #endif
 
 } // namespace

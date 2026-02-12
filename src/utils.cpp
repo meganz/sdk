@@ -2655,29 +2655,37 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
         current += chunkLength;
         remaining -= chunkLength;
+
+        DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(current);
     }
 
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
 }
 
-std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
-                                                            const std::string& nodeKey,
-                                                            int type,
-                                                            std::optional<std::string> pathStr)
+MacComparisonResult CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
+                                                       const std::string& nodeKey,
+                                                       int type,
+                                                       std::optional<std::string> pathStr)
 {
+    MacComparisonResult result;
     SymmCipher cipher;
     const char* iva = &nodeKey[SymmCipher::KEYLENGTH];
     int64_t remoteIv = MemAccess::get<int64_t>(iva);
-    int64_t remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
+    result.remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
-    auto result = generateMetaMac(cipher, *fa, remoteIv, pathStr);
-    return {(result.first && result.second == remoteMac), result.second};
+
+    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv, pathStr);
+    result.errorCode = succeeded ? 0 : fa->errorcode; // 0 = success, non-zero = OS error code
+    result.localMac = succeeded ? calcMac : INVALID_META_MAC;
+    result.areEqualMacs = succeeded && (calcMac == result.remoteMac);
+
+    return result;
 }
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
 {
     return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type, node->displaypath())
-        .first;
+        .areEqualMacs;
 }
 
 std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
@@ -2821,24 +2829,49 @@ std::pair<node_comparison_result, int64_t>
         fa && fa->fopen(path, OPEN_RDONLY, FSLogging::logOnError) && fa->type == FILENODE)
     {
         LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs BEGIN...";
-        auto [areEqualMacs, mac] = CompareLocalFileMetaMacWithNodeKey(fa.get(),
-                                                                      node->nodekey(),
-                                                                      node->type,
-                                                                      path.toPath(false));
+        MacComparisonResult macResult = CompareLocalFileMetaMacWithNodeKey(fa.get(),
+                                                                           node->nodekey(),
+                                                                           node->type,
+                                                                           path.toPath(false));
 
         auto sameMtime = fp.mtime == node->mtime;
         LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
-                  << sameMtime << "]";
+                  << sameMtime << ", areEqualMacs = " << macResult.areEqualMacs
+                  << ", errorCode = " << macResult.errorCode << "]";
 
-        if (!areEqualMacs)
+        if (sameMtime)
+        {
+            if (macResult.areEqualMacs)
+            {
+                LOG_debug << "Node found with same Fp and MAC than local file. [Path: "
+                          << path.toPath(false) << "]";
+            }
+            else
+            {
+                // Build enriched event message with extra diagnostic fields:
+                // Format: "msg [nodeHandle,nodeFp,localMac,remoteMac,errorCode]"
+                // errorCode: 0 = successful MAC computation (real mismatch),
+                //            non-zero = OS error during read (e.g., EIO, ERROR_HANDLE_EOF)
+                std::ostringstream oss;
+                oss << "Node found with same Fp but different MAC than local file"
+                    << " [" << toNodeHandle(node->nodehandle) << ","
+                    << node->fingerprintDebugString() << ",0x" << std::hex << macResult.localMac
+                    << ",0x" << std::hex << macResult.remoteMac << "," << std::dec
+                    << macResult.errorCode << "]";
+                LOG_debug << oss.str() << " [Path: " << path.toPath(false) << "]";
+                client.sendevent(800030, oss.str().c_str());
+            }
+        }
+
+        if (!macResult.areEqualMacs)
         {
             // It doesn't matter that FPs are equal as METAMAC comparison show that they are
             // different items
-            return {NODE_COMP_DIFFERS_MAC, mac};
+            return {NODE_COMP_DIFFERS_MAC, macResult.localMac};
         }
 
         auto compRes = sameMtime ? NODE_COMP_EQUAL : NODE_COMP_DIFFERS_MTIME;
-        return {compRes, mac};
+        return {compRes, macResult.localMac};
     }
 
     LOG_warn << "CompareLocalFileWithNodeFpAndMac: cannot read local file: " << path.toPath(false);

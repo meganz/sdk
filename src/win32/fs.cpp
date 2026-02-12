@@ -282,6 +282,8 @@ bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, 
         // Latch the error.
         auto error = GetLastError();
 
+        errorcode = static_cast<int>(error);
+
         // Let the caller know if it's worth retrying the read.
         *cretry = WinFileSystemAccess::istransient(error);
 
@@ -295,6 +297,8 @@ bool WinFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset, 
     // Read was successful but didn't get everything we asked for.
     if (length != numRead)
     {
+        errorcode = ERROR_HANDLE_EOF;
+
         // Leave a trail.
         LOG_err << "ReadFile failed (dwRead) " << numRead << " - " << length;
 

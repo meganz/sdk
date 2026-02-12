@@ -19214,7 +19214,7 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
                                               *fileNode->getNodeKey(),
                                               fileNode->getType(),
                                               name)
-        .first;
+        .areEqualMacs;
 }
 
 bool CollisionChecker::fingerprintEqualRelaxed(const FileFingerprint& lhs,
