@@ -16,3 +16,9 @@ class GitHubRepository:  # use github API
             tag_name=f"v{version}", name=f"Version {version}", body=notes
         )
         assert isinstance(release, Release)
+        return getattr(release, "html_url", self.get_release_url(version))
+
+    def get_release_url(self, version: str) -> str:
+        assert isinstance(self._repo, Repository)
+        # Example: https://github.com/owner/repo/releases/tag/v1.2.3
+        return f"{self._repo.html_url}/releases/tag/v{version}"
