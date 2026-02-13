@@ -61,6 +61,8 @@ assert args["tickets"]
 # Validation: Jira, GitLab: Validate new and previous versions
 version = args["release_version"]  # "1.0.1"
 app_descr = release.set_release_version_after_patch(version)
+if args.get("target_apps"):
+    app_descr = args["target_apps"]
 
 
 # STEP 7: Jira: Manage versions
@@ -91,8 +93,5 @@ release.create_rc_tag(1)
 
 # STEP 10: step #8 from make_release: Slack:
 # Post release notes to Slack
-if args["target_apps"]:
-    apps = [a.strip() for a in args["target_apps"].split("/")]
-else:
-    apps = [a.strip() for a in app_descr.split("/")]
+apps = [a.strip() for a in app_descr.split("/")]
 release.post_notes(apps, releaseType="patchRelease")
