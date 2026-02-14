@@ -6951,6 +6951,7 @@ bool MegaClient::processActionPacketObject(JSON& json, std::shared_ptr<Node>& la
 {
     auto actionpacketStart = json.pos;
 
+    // First, check if the sequence tag allows us to process this action packet now
     if (json.enterobject())
     {
         if (!sc_checkActionPacket(json, lastAPDeletedNode.get()))
@@ -6960,30 +6961,10 @@ bool MegaClient::processActionPacketObject(JSON& json, std::shared_ptr<Node>& la
         }
     }
 
+    // Restore position and call the original processing function
     json.pos = actionpacketStart;
-
-    if (!json.enterobject())
-    {
-        return false;
-    }
-
-    if (json.getnameid() == makeNameid("a"))
-    {
-        nameid name = json.getnameidvalue();
-
-        bool isSelfOriginating = Utils::startswith(json.pos, "\"i\":\"") &&
-                                 !memcmp(json.pos + 5, sessionid, sizeof sessionid) &&
-                                 json.pos[5 + sizeof sessionid] == '"';
-
-        // Reuse the existing actionpacket processing logic instead of duplicating it
-        sc_procActionPacketWithoutCommonTags(json, name, isSelfOriginating, lastAPDeletedNode);
-    }
-    else
-    {
-        lastAPDeletedNode.reset();
-    }
-
-    if (!json.leaveobject())
+    
+    if (!sc_procActionPacket(json, lastAPDeletedNode))
     {
         return false;
     }
