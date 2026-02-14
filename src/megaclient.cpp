@@ -6825,6 +6825,24 @@ bool MegaClient::sc_checkActionPacket(JSON& json, const Node* lastAPDeletedNode)
     }
 }
 
+bool MegaClient::sc_checkActionPacketWithoutSt(nameid cmd, const Node* lastAPDeletedNode)
+{
+    if (cmd == makeNameid("t") && lastAPDeletedNode &&
+        dynamic_cast<CommandMoveNode*>(reqs.getCurrentCommand(mCurrentSeqtagSeen)))
+    {
+        // special case for actionpackets from the move command - the 'd'+'t' sequence has the tag
+        // on 'd' but not 't'. However we must process the 't' as part of the move, and only call
+        // the command completion after.
+        LOG_verbose << clientname << "st tag implicitly not changing for moves";
+        return true;
+    }
+    else
+    {
+        // Action Packet with no Sequence Tag.
+        return sc_checkSequenceTag(string());
+    }
+}
+
 void MegaClient::initScStreamingFilters()
 {
     if (!mScFilters.empty())
@@ -6931,7 +6949,6 @@ void MegaClient::startScStreaming()
 
 bool MegaClient::processActionPacketObject(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode)
 {
-    bool moveOperation = false;
     auto actionpacketStart = json.pos;
 
     if (json.enterobject())
@@ -6952,189 +6969,23 @@ bool MegaClient::processActionPacketObject(JSON& json, std::shared_ptr<Node>& la
 
     if (json.getnameid() == makeNameid("a"))
     {
-        if (!statecurrent)
-        {
-            fnstats.actionPackets++;
-        }
-
         nameid name = json.getnameidvalue();
 
-        if (fetchingnodes || !Utils::startswith(json.pos, "\"i\":\"") ||
-            memcmp(json.pos + 5, sessionid, sizeof sessionid) ||
-            json.pos[5 + sizeof sessionid] != '"' || name == name_id::d ||
-            name == 't')
-        {
-#ifdef ENABLE_CHAT
-            bool readingPublicChat = false;
-#endif
-            switch (name)
-            {
-                case name_id::u:
-                    sc_updatenode(json);
-                    break;
+        bool isSelfOriginating = Utils::startswith(json.pos, "\"i\":\"") &&
+                                 !memcmp(json.pos + 5, sessionid, sizeof sessionid) &&
+                                 json.pos[5 + sizeof sessionid] == '"';
 
-                case makeNameid("t"):
-                {
-                    if (!loggedIntoFolder())
-                        useralerts.beginNotingSharedNodes();
-                    handle originatingUser = sc_newnodes(json);
-                    mergenewshares(1);
-                    if (!loggedIntoFolder())
-                        useralerts.convertNotedSharedNodes(true, originatingUser);
-                }
-                break;
-
-                case name_id::d:
-                    lastAPDeletedNode = sc_deltree(json, moveOperation);
-                    break;
-
-                case makeNameid("s"):
-                case makeNameid("s2"):
-                    if (sc_shares(json))
-                    {
-                        int creqtag = reqtag;
-                        reqtag = 0;
-                        mergenewshares(1);
-                        reqtag = creqtag;
-                    }
-                    break;
-
-                case name_id::c:
-                    sc_contacts(json);
-                    break;
-
-                case makeNameid("fa"):
-                    sc_fileattr(json);
-                    break;
-
-                case makeNameid("ua"):
-                    sc_userattr(json);
-                    break;
-
-                case name_id::psts:
-                case name_id::psts_v2:
-                case makeNameid("ftr"):
-                    if (sc_upgrade(json, name))
-                    {
-                        app->account_updated();
-                        abortbackoff(true);
-                    }
-                    break;
-
-                case name_id::pses:
-                    sc_paymentreminder(json);
-                    break;
-
-                case name_id::ipc:
-                    sc_ipc(json);
-                    break;
-
-                case makeNameid("opc"):
-                    sc_opc(json);
-                    break;
-
-                case name_id::upci:
-                    sc_upc(json, true);
-                    break;
-
-                case name_id::upco:
-                    sc_upc(json, false);
-                    break;
-
-                case makeNameid("ph"):
-                    sc_ph(json);
-                    break;
-
-                case makeNameid("se"):
-                    sc_se(json);
-                    break;
-#ifdef ENABLE_CHAT
-                case makeNameid("mcpc"):
-                {
-                    readingPublicChat = true;
-                }
-                // fall-through
-                case makeNameid("mcc"):
-                    sc_chatupdate(json, readingPublicChat);
-                    break;
-
-                case makeNameid("mcfpc"):
-                case makeNameid("mcfc"):
-                    sc_chatflags(json);
-                    break;
-
-                case makeNameid("mcpna"):
-                case makeNameid("mcna"):
-                    sc_chatnode(json);
-                    break;
-
-                case name_id::mcsmp:
-                    sc_scheduledmeetings(json);
-                    break;
-
-                case name_id::mcsmr:
-                    sc_delscheduledmeeting(json);
-                    break;
-#endif
-                case makeNameid("uac"):
-                    sc_uac(json);
-                    break;
-
-                case makeNameid("la"):
-                    sc_la(json);
-                    break;
-
-                case makeNameid("ub"):
-                    sc_ub(json);
-                    break;
-
-                case makeNameid("sqac"):
-                    sc_sqac(json);
-                    break;
-
-                case makeNameid("asp"):
-                    sc_asp(json);
-                    break;
-
-                case makeNameid("ass"):
-                    sc_ass(json);
-                    break;
-
-                case makeNameid("asr"):
-                    sc_asr(json);
-                    break;
-
-                case makeNameid("aep"):
-                    sc_aep(json);
-                    break;
-
-                case makeNameid("aer"):
-                    sc_aer(json);
-                    break;
-
-                case makeNameid("pk"):
-                    sc_pk();
-                    break;
-
-                case makeNameid("uec"):
-                    sc_uec(json);
-                    break;
-
-                case makeNameid("cce"):
-                    sc_cce();
-                    break;
-            }
-        }
+        // Reuse the existing actionpacket processing logic instead of duplicating it
+        sc_procActionPacketWithoutCommonTags(json, name, isSelfOriginating, lastAPDeletedNode);
+    }
+    else
+    {
+        lastAPDeletedNode.reset();
     }
 
     if (!json.leaveobject())
     {
         return false;
-    }
-
-    if (!moveOperation)
-    {
-        lastAPDeletedNode.reset();
     }
 
     return true;
