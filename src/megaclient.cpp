@@ -15550,6 +15550,8 @@ void MegaClient::resumeTransferFromDB()
         bool requiredStatxfer{true};
 
         const int tag = nextreqtag();
+        
+        // Verify MAC before resuming remote copy to ensure file content still matches
         if (!data.sameNodeHandle.isUndef())
         {
             assert(type == PUT);
@@ -15565,10 +15567,12 @@ void MegaClient::resumeTransferFromDB()
                 // It should be valid, obtained in file_resume
                 assert(remoteCopyNode);
 
+                // Verify both fingerprint and MAC match before using remote copy
                 const auto compareResult = CompareLocalFileWithNodeMacAndFpExludingMtime(*this,
                                                                            file->getLocalname(),
                                                                            *file,
                                                                            remoteCopyNode.get());
+                
                 if (compareResult.first == NODE_COMP_EQUAL)
                 {
                     auto [start, end] = multi_cachedtransfers[type].equal_range(file);
@@ -15578,6 +15582,7 @@ void MegaClient::resumeTransferFromDB()
                         requiredStatxfer = false;
                         t = it->second;
                         assert(t->localfilename == file->getLocalname());
+                        
                         it = multi_cachedtransfers[type].erase(it);
                         t->tag = tag;
                         file->tag = tag;
@@ -15602,6 +15607,7 @@ void MegaClient::resumeTransferFromDB()
                 }
                 else
                 {
+                    // MAC mismatch - file content differs, perform full upload
                     LOG_debug << "Fingerprint match found during resume, but MAC mismatch or "
                                  "read failed. Proceeding with upload.";
                     requiredStatxfer = true;
@@ -18789,6 +18795,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
         }
 
+        // Check for duplicate files to use remote copy instead of uploading
         if (d == PUT && f->targetuser.empty() && !f->h.isUndef() && !f->name.empty())
         {
             if (std::shared_ptr<Node> parent = nodeByHandle(f->h))
@@ -18797,6 +18804,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 sharedNode_vector nodes = mNodeManager.getNodesByFingerprint(fp_forCloud);
                 std::shared_ptr<Node> sameNodeFpFound;
 
+                // Verify MAC for each fingerprint match to find truly identical file
                 for (auto& n : nodes)
                 {
                     if (!n || n->type != FILENODE)
@@ -18806,6 +18814,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                                                                                f->getLocalname(),
                                                                                fp_forCloud,
                                                                                n.get());
+                    
                     if (compareResult.first == NODE_COMP_EQUAL)
                     {
                         sameNodeFpFound = n;
@@ -18838,6 +18847,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     app->transfer_added(t);
                     app->file_added(f);
 
+                    // Perform server-side copy (no upload needed)
                     auto copyResult = transferRemoteCopy(f,
                                                          sameNodeFpFound,
                                                          f->name,
