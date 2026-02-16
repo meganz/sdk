@@ -3277,17 +3277,26 @@ void MegaClient::exec()
                     break;
                 }
 
+                // Process server-client actionpackets with streaming JSON parsing
+                // This allows us to handle large responses incrementally without buffering everything
+                // The approach mirrors CommandFetchNodes streaming for 'f' responses
                 if (*pendingsc->in.c_str() == '{')
                 {
+                    // Initialize streaming state and begin parsing
                     startScStreaming();
+                    
+                    // Parse JSON incrementally, triggering filter callbacks as patterns are found
                     size_t consumedBytes = mScJsonSplitter.processChunk(&mScFilters, pendingsc->data());
                     (void)consumedBytes;
+                    
+                    // Process any actionpackets that are ready (not blocked by sequence tags)
                     processPendingActionPackets();
+                    
                     const bool scFinished = mScJsonSplitter.hasFinished();
                     if (scFinished)
                     {
                         mScStreamingFinished = true;
-                        processPendingActionPackets();
+                        processPendingActionPackets();  // Final processing attempt
                     }
                     pendingsc->notifiedbufpos = pendingsc->bufpos;
                     app->notify_network_activity(NetworkActivityChannel::SC,
@@ -3295,6 +3304,7 @@ void MegaClient::exec()
                                                  API_OK);
                     if (!scFinished)
                     {
+                        // Parser didn't finish - this is an error condition
                         LOG_err << "SC streaming parse did not finish cleanly.";
                         scsn.stopScsn();
                         abortScStreaming();
@@ -3448,14 +3458,16 @@ void MegaClient::exec()
                 break;
 
             case REQ_INFLIGHT:
+                // While SC request is in flight, process incoming data incrementally
+                // This allows us to start parsing actionpackets before the full response arrives
                 if (pendingsc->bufpos > pendingsc->notifiedbufpos && !pendingsc->in.empty()
                     && pendingsc->in[0] == '{')
                 {
                     startScStreaming();
                     size_t consumedBytes = mScJsonSplitter.processChunk(&mScFilters, pendingsc->data());
                     (void)consumedBytes;
-                    pendingsc->notifiedbufpos = pendingsc->bufpos;
-                    processPendingActionPackets();
+                    pendingsc->notifiedbufpos = pendingsc->bufpos;  // Mark as processed
+                    processPendingActionPackets();  // Process any complete actionpackets
                     const bool scFinished = mScJsonSplitter.hasFinished();
                     if (scFinished)
                     {
@@ -6843,6 +6855,9 @@ bool MegaClient::sc_checkActionPacketWithoutSt(nameid cmd, const Node* lastAPDel
     }
 }
 
+// Initialize JSON streaming filters for actionpacket parsing
+// This sets up callbacks that are triggered when JSONSplitter encounters specific JSON patterns
+// in the server-client response, allowing incremental parsing without buffering the entire response
 void MegaClient::initScStreamingFilters()
 {
     if (!mScFilters.empty())
@@ -6850,22 +6865,33 @@ void MegaClient::initScStreamingFilters()
         return;
     }
 
+    /* rules below handle keywords that are specified in MegaClient::procsc */
+    
+    // Filter: "{\"w" - Wait URL for long-polling
+    // Captures the "w" field which contains the URL to use for the next sc request
     mScFilters.emplace("{\"w", [this](JSON* json)
     {
         return JSONSplitter::ResultFromBool(json->storeobject(&scnotifyurl));
     });
 
+    // Filter: "{\"sn" - Sequence Number
+    // Updates the client's sequence number to track which actionpackets we've processed
     mScFilters.emplace("{\"sn", [this](JSON* json)
     {
         return JSONSplitter::ResultFromBool(scsn.setScsn(json));
     });
 
+    // Filter: "{\"ir" - Incomplete Result flag
+    // When "ir":1, more actionpackets are coming in subsequent responses (spoon-feeding)
     mScFilters.emplace("{\"ir", [this](JSON* json)
     {
         insca_notlast = json->getint() == 1;
         return JSONSplitter::CallbackResult::SUCCESS;
     });
 
+    // Filter: "{[a{" - Action Packet Object Start
+    // Triggered when we encounter an action packet object in the "a" array
+    // Stores the complete action packet JSON for later processing
     mScFilters.emplace("{[a{", [this](JSON* json)
     {
         insca = true;
@@ -6876,11 +6902,15 @@ void MegaClient::initScStreamingFilters()
             return JSONSplitter::CallbackResult::FAILED;
         }
 
+        // Queue the action packet and try to process pending ones
         mScPendingActionPackets.push_back(std::move(actionPacket));
         processPendingActionPackets();
         return JSONSplitter::CallbackResult::SUCCESS;
     });
 
+    // Filter: "{[a" - Action Packet Array End
+    // Triggered when we finish parsing the action packet array
+    // This is where we check if all actionpackets have been processed
     mScFilters.emplace("{[a", [this](JSON* json)
     {
         insca = false;
@@ -6890,6 +6920,7 @@ void MegaClient::initScStreamingFilters()
             return JSONSplitter::CallbackResult::FAILED;
         }
 
+        // Skip whitespace to find the closing bracket or next array
         const char* ptr = json->pos;
         while (*ptr == ' ' || *ptr == '\n' || *ptr == '\r' || *ptr == '\t')
         {
@@ -6911,6 +6942,8 @@ void MegaClient::initScStreamingFilters()
         return JSONSplitter::CallbackResult::FAILED;
     });
 
+    // Filter: "E" - Parse Error
+    // Triggered when JSONSplitter encounters a parsing error
     mScFilters.emplace("E", [](JSON* json)
     {
         LOG_err << "Error parsing streaming SC JSON. Data: " << json->pos;
@@ -6918,6 +6951,9 @@ void MegaClient::initScStreamingFilters()
     });
 }
 
+// Start streaming actionpacket parsing
+// This initializes the streaming state and prepares to process actionpackets incrementally
+// as data arrives from the server, rather than waiting for the complete response
 void MegaClient::startScStreaming()
 {
     LOG_warn << "Starting SC streaming";
@@ -6928,17 +6964,24 @@ void MegaClient::startScStreaming()
         return;
     }
 
+    // Initialize filters if not already done
     initScStreamingFilters();
+    
+    // Clear any previous streaming state
     mScJsonSplitter.clear();
     mScPendingActionPackets.clear();
     mScLastAPDeletedNode.reset();
     mScStreamingFinished = false;
+    
+    // Save original actionpacketsCurrent state and temporarily disable it
+    // (will be restored when streaming finishes and we're caught up)
     mScOriginalAC = actionpacketsCurrent;
     actionpacketsCurrent = false;
     insca = false;
     insca_notlast = false;
     jsonsc.pos = nullptr;
 
+    // Lock the node tree to prevent sync threads from seeing inconsistent state
     if (!mScNodeTreeLock.owns_lock())
     {
         mScNodeTreeLock = std::unique_lock<recursive_mutex>(nodeTreeMutex);
@@ -6947,21 +6990,28 @@ void MegaClient::startScStreaming()
     mScStreamingActive = true;
 }
 
+// Process a single actionpacket object from the streaming queue
+// This function:
+// 1. Checks the sequence tag to ensure we can process this packet now (or if we must wait)
+// 2. Calls the original sc_procActionPacket to dispatch and execute the actionpacket
+// 3. Returns false if we need to pause (waiting for a command response), true if processed
 bool MegaClient::processActionPacketObject(JSON& json, std::shared_ptr<Node>& lastAPDeletedNode)
 {
     auto actionpacketStart = json.pos;
 
     // First, check if the sequence tag allows us to process this action packet now
+    // Some actionpackets must wait for matching command responses to maintain consistency
     if (json.enterobject())
     {
         if (!sc_checkActionPacket(json, lastAPDeletedNode.get()))
         {
             json.pos = actionpacketStart;
-            return false;
+            return false;  // Must wait for command response
         }
     }
 
     // Restore position and call the original processing function
+    // This reuses all the existing actionpacket dispatch logic
     json.pos = actionpacketStart;
     
     if (!sc_procActionPacket(json, lastAPDeletedNode))
@@ -6972,29 +7022,38 @@ bool MegaClient::processActionPacketObject(JSON& json, std::shared_ptr<Node>& la
     return true;
 }
 
+// Process all queued actionpackets that are ready
+// This is called repeatedly as actionpackets are parsed from the stream
+// and continues until: (1) queue is empty, (2) we hit a packet we must wait for, or (3) sc is paused
 void MegaClient::processPendingActionPackets()
 {
+    // Don't process if server-client updates are paused
     if (scpaused)
     {
         return;
     }
 
+    // Process action packets one by one until we hit one that requires waiting
     while (!mScPendingActionPackets.empty())
     {
         JSON json(mScPendingActionPackets.front().c_str());
         if (!processActionPacketObject(json, mScLastAPDeletedNode))
         {
-            break;
+            break;  // This packet needs to wait for a command response
         }
         mScPendingActionPackets.pop_front();
     }
 
+    // If streaming has finished and all packets are processed, finalize
     if (mScStreamingFinished && mScPendingActionPackets.empty())
     {
         finishScStreaming();
     }
 }
 
+// Finish streaming actionpacket parsing and perform end-of-operations processing
+// This is called when all actionpackets have been parsed and processed successfully
+// It handles state updates, sync resumption, and app notifications - just like the non-streaming procsc()
 void MegaClient::finishScStreaming()
 {
     if (!mScStreamingActive)
@@ -7003,6 +7062,8 @@ void MegaClient::finishScStreaming()
     }
 
     // Reuse the existing end-of-operations logic from sc_procEoo
+    // This handles: fetchnodes completion, statecurrent updates, sync resumption,
+    // app notifications, key management, etc.
     sc_procEoo(mScNodeTreeLock, mScOriginalAC);
 
     // Clean up streaming-specific state
@@ -7018,6 +7079,8 @@ void MegaClient::finishScStreaming()
     mScStreamingFinished = false;
 }
 
+// Abort streaming actionpacket parsing (called on errors or timeouts)
+// Cleans up all streaming state and releases the node tree lock
 void MegaClient::abortScStreaming()
 {
     mScJsonSplitter.clear();
@@ -7267,7 +7330,9 @@ void MegaClient::readtree(JSON* j)
     }
 }
 
-// server-client newnodes processing
+// Process node tree data with streaming JSON parsing (used in 't' actionpackets)
+// This mirrors the CommandFetchNodes streaming approach but for actionpackets containing node trees
+// Benefits: handles large node lists without buffering entire response, processes incrementally
 bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
 {
     if (!treeJson.pos || *treeJson.pos != '{')
@@ -7275,23 +7340,26 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return false;
     }
 
+    // Check if this is from a putnodes command (to track empty responses)
     CommandPutNodes* putnodesCmd = dynamic_cast<CommandPutNodes*>(
         reqs.getCurrentCommand(mCurrentSeqtagSeen));
     vector<NewNode>* newNodes = putnodesCmd ? &putnodesCmd->nn : nullptr;
     bool modifiedByThisClient = putnodesCmd && putnodesCmd->tag != 0;
 
+    // State to track during streaming parse
     struct TreeStreamState
     {
-        NodeManager::MissingParentNodes missingParentNodes;
-        handle previousHandleForAlert = UNDEF;
+        NodeManager::MissingParentNodes missingParentNodes;  // Nodes with missing parents
+        handle previousHandleForAlert = UNDEF;               // For user alert generation
 #ifdef ENABLE_SYNC
-        set<NodeHandle> allParents;
+        set<NodeHandle> allParents;                          // Parents that need sync notification
 #endif
     } state;
 
     JSONSplitter splitter;
     std::map<string, JSONSplitter::FilterCallback> filters;
 
+    // Filter callback: Parse individual node objects from "f" and "f2" arrays
     auto parseNodeObject = [this, &state, newNodes, modifiedByThisClient](JSON* nodeJson)
     {
         if (readnode(nodeJson,
@@ -7315,6 +7383,7 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return JSONSplitter::ResultFromBool(nodeJson->leaveobject());
     };
 
+    // Filter callback: Finalize node array processing
     auto finalizeNodesArray = [this, &state](JSON* arrayJson)
     {
         mergenewshares(1);
@@ -7323,6 +7392,7 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         state.previousHandleForAlert = UNDEF;
 
 #ifdef ENABLE_SYNC
+        // Notify syncs about all affected parent folders
         for (NodeHandle p : state.allParents)
         {
             syncs.triggerSync(p);
@@ -7334,10 +7404,12 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return JSONSplitter::ResultFromBool(arrayJson->leavearray());
     };
 
+    // Filter callback: Finalize "f" array (main nodes) with putnodes tracking
     auto finalizeNodesArrayWithPutnodes = [this, &state, putnodesCmd, &finalizeNodesArray](JSON* arrayJson)
     {
         if (putnodesCmd)
         {
+            // Track if the server returned an empty node list (no new nodes created)
             bool isEmpty = Utils::startswith(arrayJson->pos, "[]");
             putnodesCmd->emptyResponse = isEmpty;
             LOG_debug << "processActionPacketTreeStreaming: emptyResponse=" << isEmpty 
@@ -7347,11 +7419,13 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return finalizeNodesArray(arrayJson);
     };
 
-    filters.emplace("{[f{", parseNodeObject);
-    filters.emplace("{[f2{", parseNodeObject);
-    filters.emplace("{[f", finalizeNodesArrayWithPutnodes);
-    filters.emplace("{[f2", finalizeNodesArray);
+    // Register filters for different JSON array types in the tree response
+    filters.emplace("{[f{", parseNodeObject);              // Main nodes array: "f":[{...},{...}]
+    filters.emplace("{[f2{", parseNodeObject);             // Version nodes array: "f2":[{...}]
+    filters.emplace("{[f", finalizeNodesArrayWithPutnodes); // End of "f" array
+    filters.emplace("{[f2", finalizeNodesArray);           // End of "f2" array
 
+    // Filter for user objects in the tree
     filters.emplace("{[u{", [this](JSON* userJson)
     {
         if (readuser(userJson, true) != 1)
@@ -7361,6 +7435,7 @@ bool MegaClient::processActionPacketTreeStreaming(JSON& treeJson)
         return JSONSplitter::ResultFromBool(userJson->leaveobject());
     });
 
+    // Run the streaming parser
     m_off_t consumedBytes = splitter.processChunk(&filters, treeJson.pos);
     if (!splitter.hasFinished() || splitter.hasFailed())
     {
