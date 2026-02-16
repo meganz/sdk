@@ -3739,16 +3739,63 @@ void MegaApi::startTimer( int64_t period, MegaRequestListener *listener)
 
 void MegaApi::startUpload(const char *localPath, MegaNode *parent, const char *fileName, int64_t mtime, const char *appData,  bool isSourceTemporary, bool startFirst, MegaCancelToken *cancelToken, MegaTransferListener *listener)
 {
-    pImpl->startUpload(startFirst, localPath, parent, fileName, NULL /*targetUser*/, mtime,
-                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
-                       false /*forceNewUpload*/, FS_UNKNOWN, convertToCancelToken(cancelToken), listener);
+    MegaApiImpl::MegaUploadOptionsPrivate options;
+    if (fileName)
+    {
+        options.mPublicOptions.fileName = fileName;
+    }
+    options.mPublicOptions.mtime = mtime;
+    options.mPublicOptions.appData = appData;
+    options.mPublicOptions.isSourceTemporary = isSourceTemporary;
+    options.mPublicOptions.startFirst = startFirst;
+
+    const std::string normalizedLocalPath = localPath ? localPath : "";
+    pImpl->startUpload(normalizedLocalPath,
+                       parent,
+                       convertToCancelToken(cancelToken),
+                       options,
+                       listener);
 }
 
 void MegaApi::startUploadForChat(const char *localPath, MegaNode *parent, const char *appData, bool isSourceTemporary, const char* fileName, MegaTransferListener *listener)
 {
-    pImpl->startUpload(true /*startFirst*/, localPath, parent, fileName, NULL /*targetUser*/, INVALID_CUSTOM_MOD_TIME /*mtime*/,
-                       0 /*folderTransferTag*/, false /*isBackup*/, appData, isSourceTemporary,
-                       true /*forceNewUpload*/, FS_UNKNOWN, CancelToken(), listener);
+    MegaApiImpl::MegaUploadOptionsPrivate options;
+    if (fileName)
+    {
+        options.mPublicOptions.fileName = fileName;
+    }
+    options.mPublicOptions.appData = appData;
+    options.mPublicOptions.isSourceTemporary = isSourceTemporary;
+    options.mPublicOptions.startFirst = true;
+    options.mForceNewUpload = true;
+
+    const std::string normalizedLocalPath = localPath ? localPath : "";
+    pImpl->startUpload(normalizedLocalPath, parent, CancelToken(), options, listener);
+}
+
+void MegaApi::startUpload(const std::string& localPath,
+                          MegaNode* parent,
+                          MegaCancelToken* cancelToken,
+                          const MegaUploadOptions* options,
+                          MegaTransferListener* listener)
+{
+    MegaApiImpl::MegaUploadOptionsPrivate localOptionsPrivate;
+    if (options)
+    {
+        localOptionsPrivate.mPublicOptions = *options;
+    }
+
+    if (localOptionsPrivate.mPublicOptions.isChatUpload)
+    {
+        localOptionsPrivate.mPublicOptions.startFirst = true;
+        localOptionsPrivate.mForceNewUpload = true;
+    }
+
+    pImpl->startUpload(localPath,
+                       parent,
+                       convertToCancelToken(cancelToken),
+                       localOptionsPrivate,
+                       listener);
 }
 
 void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener)
@@ -8093,9 +8140,7 @@ int MegaIntegerList::size() const
     return 0;
 }
 
-MegaBanner::MegaBanner()
-{
-}
+MegaBanner::MegaBanner() {}
 
 MegaBanner::~MegaBanner()
 {
@@ -8141,6 +8186,15 @@ const char* MegaBanner::getImageLocation() const
     return nullptr;
 }
 
+int MegaBanner::getVariant() const
+{
+    return -1;
+}
+
+const char* MegaBanner::getButton() const
+{
+    return nullptr;
+}
 
 MegaBannerList::MegaBannerList()
 {
@@ -8339,5 +8393,10 @@ MegaCancelSubscriptionReason* MegaCancelSubscriptionReason::create(const char* t
 MegaCancelSubscriptionReasonList* MegaCancelSubscriptionReasonList::create()
 {
     return new MegaCancelSubscriptionReasonListPrivate();
+}
+
+MegaUploadOptions* MegaUploadOptions::createInstance()
+{
+    return new MegaUploadOptions();
 }
 }

@@ -122,6 +122,45 @@ NS_ASSUME_NONNULL_BEGIN
  */
 - (unsigned int)trialDurationInDaysAtProductIndex:(NSInteger)index;
 
+/**
+ * @brief Check whether the product has a mobile offer
+ *
+ * Determines if the specified product includes an associated mobile offer.
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return True if the product has a mobile offer, false otherwise
+ */
+- (BOOL)hasMobileOffersAtProductIndex:(NSInteger)index;
+
+/**
+ * @brief Get the mobile offer identifier
+ *
+ * Returns the identifier of the mobile offer associated with the given
+ * product.
+ *
+ * If the product does not have a mobile offer, this method returns a empty
+ * string.
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return A null-terminated string containing the mobile offer ID
+ */
+- (nullable NSString *)mobileOfferIdAtProductIndex:(NSInteger)index;
+
+/**
+ * @brief Check whether the mobile offer title should be used
+ *
+ * Possible values are:
+ *   - false: The mobile offer title should not be displayed.
+ *   - true: The mobile offer title should be displayed.
+ *
+ * If the product does not have a mobile offer, this method returns false.
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return True if the mobile offer title should be displayed, false
+ * otherwise
+ */
+- (BOOL)hasMobileOfferUatAtProductIndex:(NSInteger)index;
+
 NS_ASSUME_NONNULL_END
 
 @end

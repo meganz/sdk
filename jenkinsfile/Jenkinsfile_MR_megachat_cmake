@@ -36,6 +36,9 @@ def setCommitStatus(String pStatus, String errorHint = '') {
     }
     updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
 }
+
+def CUSTOM_TIMEOUT
+
 pipeline {
     agent none
     options {
@@ -77,10 +80,13 @@ pipeline {
                                     TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-sequence" >/dev/null 2>&1 && echo "" || echo "--INSTANCES:10"', returnStdout: true).trim()
                                     GTEST_REPEAT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_repeat=[^ ]*" | awk -F "gtest_repeat="  \'{print "--gtest_repeat="\$2}\'|| :', returnStdout: true).trim()
                                     GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
+                                    CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
+                                    CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "150"
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
+                                    println CUSTOM_TIMEOUT
                                 }
                             }
                         }
@@ -163,9 +169,6 @@ pipeline {
                         AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
                         BUILD_DIR = "build_dir"
                     }
-                    options{
-                        timeout(time: 150, unit: 'MINUTES')
-                    }
                     steps{
                         dir(megachat_sources_workspace){
                             sh "echo Building MEGAchat"
@@ -190,9 +193,6 @@ pipeline {
                         MEGA_PWD2 = credentials('MEGA_PWD_DEFAULT')
                         BUILD_DIR = "build_dir"
                     }
-                    options{
-                        timeout(time: 300, unit: 'MINUTES')
-                    }
                     steps{
                         script {
                             def lockLabel = ''
@@ -203,75 +203,77 @@ pipeline {
                             }
                             lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
                                 dir("${megachat_sources_workspace}"){
-                                    script{
-                                        env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
-                                        echo "${env.ACCOUNTS_COMBINATION}"
+                                    timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
+                                        script{
+                                            env.MEGA_EMAIL0 = "${env.ACCOUNTS_COMBINATION}"
+                                            echo "${env.ACCOUNTS_COMBINATION}"
 
-                                    }
-                                    sh """#!/bin/bash
-                                        set -x
-                                        ulimit -c unlimited
-                                        if [ -z \"${TESTS_PARALLEL}\" ]; then
-                                            # Sequential run
-                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_MEGACHAT} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
-                                            pid=\$!
-                                            wait \$pid || FAILED=1
-                                        else
-                                            # Parallel run
-                                            ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_MEGACHAT} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
-                                            [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
-                                        fi
-
-                                        if [ -n "\$FAILED" ]; then
+                                        }
+                                        sh """#!/bin/bash
+                                            set -x
+                                            ulimit -c unlimited
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
-                                                coreFiles=\"test_pid_\$pid/core\"
+                                                ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_MEGACHAT} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} &
+                                                pid=\$!
+                                                wait \$pid || FAILED=1
                                             else
                                                 # Parallel run
-                                                procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/'`
-                                                if [ -n \"\$procFailed\" ]; then
-                                                    for i in \$procFailed; do
-                                                        coreFiles=\"\$coreFiles test_pid_\$i/core\"
-                                                    done
+                                                ${env.BUILD_DIR}/tests/sdk_test/megachat_tests --USERAGENT:${env.USER_AGENT_TESTS_MEGACHAT} --APIURL:${APIURL_TO_TEST} ${GTEST_FILTER} ${GTEST_REPEAT} ${TESTS_PARALLEL} 2>&1 | tee tests.stdout
+                                                [ \"\${PIPESTATUS[0]}\" != \"0\" ] && FAILED=1
+                                            fi
+
+                                            if [ -n "\$FAILED" ]; then
+                                                if [ -z \"${TESTS_PARALLEL}\" ]; then
+                                                    # Sequential run
+                                                    coreFiles=\"test_pid_\$pid/core\"
+                                                else
+                                                    # Parallel run
+                                                    procFailed=`grep \"<< PROCESS\" tests.stdout | sed 's/.*PID:\\([0-9]*\\).*/\\1/'`
+                                                    if [ -n \"\$procFailed\" ]; then
+                                                        for i in \$procFailed; do
+                                                            coreFiles=\"\$coreFiles test_pid_\$i/core\"
+                                                        done
+                                                    fi
                                                 fi
                                             fi
-                                        fi
 
-                                        if [ -n \"\$coreFiles\" ]; then
-                                            maxTime=10
-                                            startTime=`date +%s`
-                                            coresProcessed=0
-                                            coresTotal=`echo \$coreFiles | wc -w`
-                                            # While there are pending cores
-                                            while [ \$coresProcessed -lt \$coresTotal ] && [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
-                                                echo "Waiting for core dumps..."
-                                                sleep 1
-                                                for i in \$coreFiles; do
-                                                    if [ -e \"\$i\" ] && [ -z \"\$( lsof \$i 2>/dev/null )\" ]; then
-                                                        echo
-                                                        echo
-                                                        echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#test_pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
-                                                        echo thread apply all bt > backtrace
-                                                        echo quit >> backtrace
-                                                        gdb -q ${env.BUILD_DIR}/tests/sdk_test/megachat_tests \$i -x backtrace
-                                                        tar rf core.tar \$i
-                                                        coresProcessed=`expr \$coresProcessed + 1`
-                                                        coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
-                                                    fi
+                                            if [ -n \"\$coreFiles\" ]; then
+                                                maxTime=10
+                                                startTime=`date +%s`
+                                                coresProcessed=0
+                                                coresTotal=`echo \$coreFiles | wc -w`
+                                                # While there are pending cores
+                                                while [ \$coresProcessed -lt \$coresTotal ] && [ \$( expr `date +%s` - \$startTime ) -lt \$maxTime ]; do
+                                                    echo "Waiting for core dumps..."
+                                                    sleep 1
+                                                    for i in \$coreFiles; do
+                                                        if [ -e \"\$i\" ] && [ -z \"\$( lsof \$i 2>/dev/null )\" ]; then
+                                                            echo
+                                                            echo
+                                                            echo \"Processing core dump \$i :: \$(grep `echo \$i | sed 's#test_pid_\\([0-9].*\\)/core#\\1#'` tests.stdout)\"
+                                                            echo thread apply all bt > backtrace
+                                                            echo quit >> backtrace
+                                                            gdb -q ${env.BUILD_DIR}/tests/sdk_test/megachat_tests \$i -x backtrace
+                                                            tar rf core.tar \$i
+                                                            coresProcessed=`expr \$coresProcessed + 1`
+                                                            coreFiles=`echo \$coreFiles | sed -e \"s#\$i##\"`
+                                                        fi
+                                                    done
                                                 done
-                                            done
-                                            if [ -e core.tar ]; then
-                                                tar rf core.tar -C ${env.BUILD_DIR}/tests/sdk_test/ megachat_tests
-                                                gzip core.tar
+                                                if [ -e core.tar ]; then
+                                                    tar rf core.tar -C ${env.BUILD_DIR}/tests/sdk_test/ megachat_tests
+                                                    gzip core.tar
+                                                fi
                                             fi
-                                        fi
 
-                                        gzip -c test.log > test_${BUILD_ID}.log.gz || :
-                                        rm test.log || :
-                                        if [ ! -z "\$FAILED" ]; then
-                                            false
-                                        fi
-                                    """
+                                            gzip -c test.log > test_${BUILD_ID}.log.gz || :
+                                            rm test.log || :
+                                            if [ ! -z "\$FAILED" ]; then
+                                                false
+                                            fi
+                                        """
+                                    }
                                 }
                             }
                         }

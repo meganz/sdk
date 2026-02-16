@@ -97,4 +97,16 @@ using namespace mega;
     return self.pricing ? self.pricing->getTrialDurationInDays((int)index) : 0;
 }
 
+- (BOOL)hasMobileOffersAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->hasMobileOffers((int)index) : NO;
+}
+
+- (NSString *)mobileOfferIdAtProductIndex:(NSInteger)index {
+    return self.pricing ? [[NSString alloc] initWithUTF8String:self.pricing->getMobileOfferId((int)index).c_str()] : nil;
+}
+
+- (BOOL)hasMobileOfferUatAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->hasMobileOfferUat((int)index) : NO;
+}
+
 @end
