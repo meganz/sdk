@@ -22,6 +22,7 @@
 #ifndef MEGA_PROCESS_H
 #define MEGA_PROCESS_H 1
 
+#include "mega/auto_file_handle.h"
 #include "mega/utils.h"
 
 #ifdef WIN32
@@ -78,59 +79,6 @@ public:
     typedef std::function<void(const unsigned char* data, size_t len)> DataReaderFunc;
 
 private:
-    class AutoFileHandle
-    {
-
-    #ifdef WIN32
-        using HandleType = HANDLE;
-        const HandleType UNSET = INVALID_HANDLE_VALUE;
-    #else // _WIN32
-        using HandleType = int;
-        const HandleType UNSET = -1;
-    #endif // ! _WIN32
-
-        HandleType h = UNSET;
-
-    public:
-        AutoFileHandle() {}
-        AutoFileHandle(HandleType ih) : h(ih) {}
-
-        ~AutoFileHandle()
-        {
-            close();
-        }
-
-        void close()
-        {
-            if (h != UNSET)
-            {
-    #ifdef WIN32
-                ::CloseHandle(h);
-    #else
-                ::close(h);
-    #endif
-            }
-
-            h = UNSET;
-        }
-
-        AutoFileHandle& operator=(HandleType ih)
-        {
-            // avoid to leak a handle if changed
-            if (ih != h) close();
-
-            h = ih;
-            return *this;
-        }
-
-        bool isSet() const { return h != UNSET; }
-
-        // implicit conversion, so can pass into OS API
-        operator HandleType() const { return h; }
-        HandleType* ptr() { return &h; }
-        HandleType get() const { return h; }
-    };
-
 #ifdef WIN32
     DWORD childPid = (DWORD)-1;
 #else

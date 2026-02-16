@@ -11129,18 +11129,20 @@ void DemoApp::getbanners_result(error e)
     cout << "Getting Smart Banners failed: " << e << endl;
 }
 
-void DemoApp::getbanners_result(vector< tuple<int, string, string, string, string, string, string> >&& banners)
+void DemoApp::getbanners_result(vector<BannerDetails>&& banners)
 {
     for (auto& b : banners)
     {
         cout << "Smart Banner:" << endl
-             << "\tid         : " << std::get<0>(b) << endl
-             << "\ttitle      : " << std::get<1>(b) << endl
-             << "\tdescription: " << std::get<2>(b) << endl
-             << "\timage      : " << std::get<3>(b) << endl
-             << "\turl        : " << std::get<4>(b) << endl
-             << "\tbkgr image : " << std::get<5>(b) << endl
-             << "\tdsp        : " << std::get<6>(b) << endl;
+             << "\tid         : " << b.id << endl
+             << "\ttitle      : " << b.title << endl
+             << "\tdescription: " << b.description << endl
+             << "\timage      : " << b.image << endl
+             << "\turl        : " << b.url << endl
+             << "\tbkgr image : " << b.backgroundImage << endl
+             << "\tdsp        : " << b.imageLocation << endl
+             << "\tvariant    : " << b.variant << endl
+             << "\tbutton     : " << b.button << endl;
     }
 }
 

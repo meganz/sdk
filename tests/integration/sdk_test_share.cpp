@@ -1,46 +1,9 @@
-#include "SdkTest_test.h"
+#include "sdk_test_share.h"
 
 #include <gmock/gmock.h>
 
 #include <chrono>
 #include <thread>
-
-class SdkTestShare: public SdkTest
-{
-protected:
-    struct Party
-    {
-        unsigned apiIndex;
-        bool wait; // wait for response
-    };
-
-    void createShareAtoB(MegaNode* node,
-                         const Party& partyA,
-                         const Party& partyB,
-                         int accessType = MegaShare::ACCESS_READWRITE);
-
-    // Use mApi[0] as party A and mApi[1] as party B
-    void createShareAtoB(MegaNode* node,
-                         bool waitForA = true,
-                         bool waitForB = true,
-                         int accessType = MegaShare::ACCESS_READWRITE);
-
-    // Remove a share ensuring node changes are notified.
-    // Use mApi[0] and mApi[1]
-    void removeShareAtoB(MegaNode* node);
-
-    // Reset credential between two accounts if contact found
-    void resetCredentialsIfContactFound(const unsigned i, const unsigned j);
-
-    // Reset credential between two accounts
-    void resetCredential(unsigned apiIndexA, unsigned apiIndexB);
-
-    void addContactsAndVerifyCredential(unsigned apiIndexA, unsigned apiIndexB);
-
-    std::pair<MegaHandle, std::unique_ptr<MegaNode>> createFolder(unsigned int apiIndex,
-                                                                  const char* name,
-                                                                  MegaNode* parent);
-};
 
 class SdkTestShareOrder: public SdkTestShare
 {
@@ -119,21 +82,32 @@ void SdkTestShare::createShareAtoB(MegaNode* node, bool waitForA, bool waitForB,
     createShareAtoB(node, {0, waitForA}, {1, waitForB}, accessType);
 }
 
-void SdkTestShare::removeShareAtoB(MegaNode* node)
+void SdkTestShare::removeShareAtoB(MegaNode* node, unsigned apiIndexA, unsigned apiIndexB)
 {
-    mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                 MegaNode::CHANGE_TYPE_OUTSHARE,
-                                                                 mApi[0].nodeUpdated);
-    mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(node->getHandle(),
-                                                                 MegaNode::CHANGE_TYPE_REMOVED,
-                                                                 mApi[1].nodeUpdated);
-    ASSERT_NO_FATAL_FAILURE(shareFolder(node, mApi[1].email.c_str(), MegaShare::ACCESS_UNKNOWN));
-    ASSERT_TRUE(waitForResponse(&mApi[0].nodeUpdated))
+    assert(apiIndexA < mApi.size());
+    assert(apiIndexB < mApi.size());
+
+    mApi[apiIndexA].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(node->getHandle(),
+                                  MegaNode::CHANGE_TYPE_OUTSHARE,
+                                  mApi[apiIndexA].nodeUpdated);
+    mApi[apiIndexB].mOnNodesUpdateCompletion =
+        createOnNodesUpdateLambda(node->getHandle(),
+                                  MegaNode::CHANGE_TYPE_REMOVED,
+                                  mApi[apiIndexB].nodeUpdated);
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(node, mApi[apiIndexB].email.c_str(), MegaShare::ACCESS_UNKNOWN, apiIndexA));
+    ASSERT_TRUE(waitForResponse(&mApi[apiIndexA].nodeUpdated))
         << "Node update not received after " << maxTimeout << " seconds";
-    ASSERT_TRUE(waitForResponse(&mApi[1].nodeUpdated))
+    ASSERT_TRUE(waitForResponse(&mApi[apiIndexB].nodeUpdated))
         << "Node update not received after " << maxTimeout << " seconds";
     resetOnNodeUpdateCompletionCBs();
-    mApi[0].nodeUpdated = mApi[1].nodeUpdated = false;
+    mApi[apiIndexA].nodeUpdated = mApi[apiIndexB].nodeUpdated = false;
+}
+
+void SdkTestShare::removeShareAtoB(MegaNode* node)
+{
+    removeShareAtoB(node, 0, 1);
 }
 
 void SdkTestShare::resetCredentialsIfContactFound(const unsigned i, const unsigned j)
@@ -161,6 +135,21 @@ void SdkTestShare::resetCredential(unsigned apiIndexA, unsigned apiIndexB)
     }
 }
 
+void SdkTestShare::verifyContactCredentials(unsigned apiIndexA, unsigned apiIndexB)
+{
+    if (!areCredentialsVerified(apiIndexA, mApi[apiIndexB].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(verifyCredentials(apiIndexA, mApi[apiIndexB].email));
+        ASSERT_NO_FATAL_FAILURE(areCredentialsVerified(apiIndexA, mApi[apiIndexB].email));
+    }
+
+    if (!areCredentialsVerified(apiIndexB, mApi[apiIndexA].email))
+    {
+        ASSERT_NO_FATAL_FAILURE(verifyCredentials(apiIndexB, mApi[apiIndexA].email));
+        ASSERT_NO_FATAL_FAILURE(areCredentialsVerified(apiIndexB, mApi[apiIndexA].email));
+    }
+}
+
 void SdkTestShare::addContactsAndVerifyCredential(unsigned fromApiIndex, unsigned toApiIndex)
 {
     mApi[fromApiIndex].contactRequestUpdated = mApi[toApiIndex].contactRequestUpdated = false;
@@ -185,10 +174,7 @@ void SdkTestShare::addContactsAndVerifyCredential(unsigned fromApiIndex, unsigne
 
     // Verify credentials:
     LOG_verbose << "TestSharesContactVerification :  Verify A and B credentials";
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(fromApiIndex, mApi[toApiIndex].email));
-    ASSERT_NO_FATAL_FAILURE(verifyCredentials(toApiIndex, mApi[fromApiIndex].email));
-    ASSERT_TRUE(areCredentialsVerified(fromApiIndex, mApi[toApiIndex].email));
-    ASSERT_TRUE(areCredentialsVerified(toApiIndex, mApi[fromApiIndex].email));
+    verifyContactCredentials(fromApiIndex, toApiIndex);
 }
 
 std::pair<MegaHandle, std::unique_ptr<MegaNode>> SdkTestShare::createFolder(unsigned int apiIndex,

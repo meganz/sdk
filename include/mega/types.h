@@ -107,6 +107,7 @@ struct AccountDetails;
 struct AchievementsDetails;
 struct AttrMap;
 class BackoffTimer;
+struct BannerDetails;
 class Command;
 class CommandPubKeyRequest;
 struct BusinessPlan;
@@ -1664,6 +1665,73 @@ private:
     std::unordered_map<Key, typename std::list<std::pair<Key, Value>>::iterator> mMap;
 
     std::size_t mCapacity{1};
+};
+
+enum class PitagPurpose : char
+{
+    Unknown = '.',
+    Upload = 'U',
+    CreateFolder = 'F',
+    Import = 'I',
+    Copy = 'C',
+    Sync = 'S',
+    Backup = 'B',
+    Password = 'P',
+    Fuse = 'f',
+    Helpdesk = 'H'
+};
+
+enum class PitagTrigger : char
+{
+    NotApplicable = '.',
+    Picker = 'p',
+    DragAndDrop = 'd',
+    Camera = 'c',
+    Scanner = 's',
+    SyncAlgorithm = 'a',
+    ShareFromApp = 'S',
+    CameraCapture = 'C',
+    ExplorerExtension = 'e'
+};
+
+enum class PitagNodeType : char
+{
+    NotApplicable = '.',
+    Folder = 'F',
+    File = 'f'
+};
+
+enum class PitagTarget : char
+{
+    NotApplicable = '.',
+    CloudDrive = 'D',
+    Chat1To1 = 'c',
+    ChatGroup = 'C',
+    NoteToSelf = 's',
+    IncomingShare = 'i',
+    MultipleChats = 'M'
+};
+
+enum class PitagImportSource : char
+{
+    NotApplicable = '.',
+    FolderLink = 'F',
+    FileLink = 'f',
+    AlbumLink = 'A',
+    CloudDrive = 'D',
+    Chat1To1 = 'c',
+    ChatGroup = 'C',
+    NoteToSelf = 's',
+    IncomingShare = 'i'
+};
+
+struct Pitag
+{
+    PitagPurpose purpose = PitagPurpose::Unknown;
+    PitagTrigger trigger = PitagTrigger::NotApplicable;
+    PitagNodeType nodeType = PitagNodeType::NotApplicable;
+    PitagTarget target = PitagTarget::NotApplicable;
+    PitagImportSource importSource = PitagImportSource::NotApplicable;
 };
 
 #endif

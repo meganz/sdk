@@ -402,6 +402,5 @@ void Command::closeobject()
 {
     jsonWriter.closeobject();
 }
-
 } // namespace
 

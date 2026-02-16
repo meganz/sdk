@@ -1815,6 +1815,21 @@ storagestatus_t getStorageStatusFromString(const std::string& storageStateStr);
  */
 std::optional<bool> isCaseInsensitive(const LocalPath& path, FileSystemAccess* fsaccess);
 
+template<typename E>
+constexpr std::underlying_type_t<E> getEnumValue(E e)
+{
+    static_assert(std::is_enum_v<E>, "E must be an enum");
+    return static_cast<std::underlying_type_t<E>>(e);
+}
+
+PitagPurpose pitagPurposeFromChar(char c);
+PitagTrigger pitagTriggerFromChar(char c);
+PitagNodeType pitagNodeTypeFromChar(char c);
+PitagTarget pitagTargetFromChar(char c);
+PitagImportSource pitagImportSourceFromChar(char c);
+std::string pitagToString(const Pitag& pitag);
+std::optional<Pitag> pitagFromString(const std::string& pitagString);
+
 } // namespace mega
 
 #endif // MEGA_UTILS_H

@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
 
-    <string name="app_name">DemoAndroid</string>
+    <string name="app_name">Android Demo</string>
     <string name="action_logout">Logout</string>
     <string name="login_text">Login</string>
     <string name="email_text">Email</string>

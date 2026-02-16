@@ -226,7 +226,10 @@ bool Transfer::serialize(string *d) const
     std::string combinedUrls;
     for (std::vector<std::string>::const_iterator i = tempurls.begin(); i != tempurls.end(); ++i)
     {
-        combinedUrls.append("", i == tempurls.begin() ? 0 : 1); // '\0' separator
+        if (i != tempurls.begin())
+        {
+            combinedUrls += '\0'; // '\0' separator
+        }
         combinedUrls.append(*i);
     }
     ll = (unsigned short)combinedUrls.size();
@@ -347,10 +350,17 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     size_t ll = combinedUrls.size();
     for (size_t p = 0; p < ll; )
     {
-        size_t n = combinedUrls.find('\0');
-        t->tempurls.push_back(combinedUrls.substr(p, n));
+        if (size_t n = combinedUrls.find('\0', p); n == std::string::npos)
+        {
+            t->tempurls.push_back(combinedUrls.substr(p));
+            p = ll;
+        }
+        else
+        {
+            t->tempurls.push_back(combinedUrls.substr(p, n - p));
+            p = n + 1;
+        }
         assert(!t->tempurls.back().empty());
-        p += (n == std::string::npos) ? ll : (n + 1);
     }
 
     assert(!t->discardedTempUrlsSize || !t->tempurls.empty());

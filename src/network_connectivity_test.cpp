@@ -49,10 +49,9 @@ bool NetworkConnectivityTest::start(UdpSocketTester::TestSuite&& testSuite,
 
     // Build a list of unique ports and keep DNS port separate
     unordered_set<int> ports(serverInfo.ports.begin(), serverInfo.ports.end());
-    static constexpr int DNS_PORT = 53;
-    ports.erase(DNS_PORT);
 
     // Initiate test suite on all sockets
+    static constexpr int DNS_PORT = 53;
     mSocketTesterIPv4Dns = std::make_shared<UdpSocketTester>(serverInfo.ipv4, DNS_PORT);
     mSocketTesterIPv4Dns->startSuite(testSuite);
     mSocketTesterIPv6Dns = std::make_shared<UdpSocketTester>(serverInfo.ipv6, DNS_PORT);
