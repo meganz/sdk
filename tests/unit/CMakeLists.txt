@@ -52,6 +52,7 @@ target_sources(test_unit
     pwm_file_parser_test.cpp
     pwm_import_validation.cpp
     LRUCache_test.cpp
+    MacComparison_test.cpp
     totp_test.cpp
     localpath_test.cpp
     shared_mutex_tests.cpp

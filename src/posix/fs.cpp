@@ -558,10 +558,20 @@ bool PosixFileAccess::sysread(void* buffer, unsigned long length, m_off_t offset
 
     // Read failed.
     if (result < 0)
+    {
+        errorcode = errno;
         return false;
+    }
 
-    // Read was successful if all bytes were read.
-    return static_cast<unsigned long>(result) == length;
+    // Short read - file was likely truncated
+    if (static_cast<unsigned long>(result) != length)
+    {
+        errorcode = EIO;
+        return false;
+    }
+
+    // Read was successful.
+    return true;
 }
 
 void PosixFileAccess::fclose()
