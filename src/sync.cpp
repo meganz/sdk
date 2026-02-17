@@ -11034,30 +11034,52 @@ bool Sync::resolve_upsync(SyncRow& row,
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
-                        mc.putnodes(targethandle,
-                                    NoVersioning,
-                                    std::move(nn),
-                                    nullptr,
-                                    0,
-                                    canChangeVault,
-                                    {}, // customerIpPort
-                                    [createFolderPtr](const Error& e,
-                                                      targettype_t,
-                                                      vector<NewNode>& v,
-                                                      bool /*targetOverride*/,
-                                                      int /*tag*/,
-                                                      const map<string, string>& /*fileHandles*/)
+
+                        Pitag pitag{canChangeVault ? PitagPurpose::Backup : PitagPurpose::Sync,
+                                    PitagTrigger::SyncAlgorithm,
+                                    PitagNodeType::Folder,
+                                    PitagTarget::NotApplicable,
+                                    PitagImportSource::NotApplicable};
+
+                        if (pitag.target == PitagTarget::NotApplicable)
+                        {
+                            if (std::shared_ptr<Node> parent = mc.nodeByHandle(targethandle))
+                            {
+                                const bool inIncomingShare = parent->matchesOrHasAncestorMatching(
+                                    [](const Node& node)
                                     {
-                                        if (!e && !v.empty())
-                                        {
-                                            createFolderPtr->succeededHandle.set6byte(
-                                                v[0].mAddedHandle);
-                                        }
-                                        if (createFolderPtr->succeededHandle.isUndef())
-                                        {
-                                            createFolderPtr->failed = true;
-                                        }
+                                        return node.inshare != nullptr;
                                     });
+                                pitag.target = inIncomingShare ? PitagTarget::IncomingShare :
+                                                                 PitagTarget::CloudDrive;
+                            }
+                        }
+
+                        mc.putnodes(
+                            targethandle,
+                            NoVersioning,
+                            std::move(nn),
+                            nullptr,
+                            0,
+                            canChangeVault,
+                            {}, // customerIpPort
+                            [createFolderPtr](const Error& e,
+                                              targettype_t,
+                                              vector<NewNode>& v,
+                                              bool /*targetOverride*/,
+                                              int /*tag*/,
+                                              const map<string, string>& /*fileHandles*/)
+                            {
+                                if (!e && !v.empty())
+                                {
+                                    createFolderPtr->succeededHandle.set6byte(v[0].mAddedHandle);
+                                }
+                                if (createFolderPtr->succeededHandle.isUndef())
+                                {
+                                    createFolderPtr->failed = true;
+                                }
+                            },
+                            pitag);
                     });
             }
             else
