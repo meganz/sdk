@@ -61,6 +61,7 @@ target_sources(test_unit
     file_access_tests.cpp
     jsonsplitter_test.cpp
     megaclient_test.cpp
+    SharedMemoryZone_test.cpp
 )
 
 target_sources_conditional(test_unit

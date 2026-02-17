@@ -1558,8 +1558,204 @@ public:
 static constexpr size_t MAX_NODE_ATTRIBUTE_SIZE = 64 * 1024; // 64kB
 static constexpr size_t MAX_FILE_ATTRIBUTE_SIZE = 16 * 1024 * 1024; // 16MB
 
-
 using detail::CheckableMutex;
+
+/**
+ * @brief Thread safe access to shared resource - accessing with scoped locking.
+ *
+ * The owner thread must call to initOwnerThread() before using shared resource.
+ * Methods to access to shared resource:
+ * - getReadGuardOwnerThread(): owner thread read access, no mutex held.
+ * - getReadGuardOtherThread(): non-owner thread read access, mutex held.
+ * - getWriteGuardOwnerThread(): owner thread write access, mutex held (for mutation).
+ *
+ * Returned guards control the lifetime of access, references obtained from getData()
+ * are only valid while the guard lives.
+ *
+ * Keep guard lifetimes as short as possible.
+ *
+ * @note This class does not provide `getWriteGuardOtherThread`, as all write access to
+ * SharedResource must be performed from the owner thread. It is the caller's responsibility to
+ * switch to the owner thread before performing any write operation.
+ *
+ * @tparam SharedData Templatized data type stored inside the critical section.
+ * @tparam MutexType  Mutex type used to protect cross-thread access.
+ */
+template<typename SharedData, typename MutexType = std::mutex>
+class SharedResource
+{
+public:
+    SharedResource() = default;
+
+    /**
+     * @brief Initializes the owner thread for this SharedResource instance.
+     *
+     * Must be called exactly once by the thread that will be considered the "owner".
+     * The owner thread is allowed to call getReadGuardOwnerThread() and getWriteGuardOwnerThread().
+     *
+     * @note This function must be called before calling other access method; otherwise it will be
+     * considered as an error
+     */
+    void initOwnerThread()
+    {
+        assert(!mOwnerThreadId.has_value() &&
+               "SharedResource::initOwnerThread can be called only once");
+        mOwnerThreadId = std::this_thread::get_id();
+    }
+
+    /**
+     * @brief Obtain read-only access on the owner thread without taking the mutex.
+     *
+     * Intended for quick access when running on the owner thread. No mutex is acquired, as write
+     * access can be done only from ownder thread by contract.
+     *
+     * @return A read guard. The reference returned by the guard's getData() is only valid while
+     * the returned guard object remains alive.
+     */
+    [[nodiscard]] auto getReadGuardOwnerThread() const
+    {
+        ensureExpectedThread(true);
+        return ReadGuard(mData, nullptr);
+    }
+
+    /**
+     * @brief Obtain read-only access from a non-owner thread while holding the mutex.
+     *
+     * Intended for any thread other than the owner thread. A mutex lock is acquired and held
+     * for the lifetime of the returned guard, preventing concurrent access protected by the
+     * same mutex.
+     *
+     * @return A read guard holding the mutex. The reference returned by by the guard's getData() is
+     * only valid while the returned guard object remains alive (and thus the lock is held).
+     */
+    [[nodiscard]] auto getReadGuardOtherThread() const
+    {
+        ensureExpectedThread(false);
+        return ReadGuard(mData, &mMutex);
+    }
+
+    /**
+     * @brief Obtain mutable access on the owner thread while holding the mutex.
+     *
+     * Intended for performing mutations of the shared data. A mutex lock is acquired and held
+     * for the lifetime of the returned guard to synchronize with other threads that access the
+     * resource under the same mutex.
+     *
+     * @return A write guard holding the mutex. The reference returned by by the guard's getData()
+     * is only valid while the returned guard object remains alive (and thus the lock is held).
+     */
+    [[nodiscard]] auto getWriteGuardOwnerThread()
+    {
+        ensureExpectedThread(true);
+        return WriteGuard(mData, &mMutex);
+    }
+
+private:
+    /**
+     * @brief Validates that the calling thread matches the expected ownership relationship.
+     *
+     * @note If expectedOwnerThread is `true`, the current thread must be the owner thread,
+     * otherwise the current thread must not be the owner thread
+     *
+     * @param expectedOwnerThread Whether the calling context expects the owner thread `true`
+     *                            or a non-owner thread `false`.
+     */
+    void ensureExpectedThread(bool expectedOwnerThread) const
+    {
+        assert(mOwnerThreadId.has_value() && "SharedResource used without init");
+        assert((expectedOwnerThread ? std::this_thread::get_id() == *mOwnerThreadId :
+                                      std::this_thread::get_id() != *mOwnerThreadId) &&
+               "SharedResource unexpected threadId");
+    }
+
+    /**
+     * @brief Base class for RAII guards providing scoped access to the owned data.
+     *
+     * The guard optionally acquires and holds a mutex lock for the lifetime of the guard
+     * instance. Access to the underlying data is provided via getData().
+     *
+     * @tparam DataType Data type exposed by this guard (const SharedData for read guards,
+     *                  SharedData for write guards).
+     */
+    template<typename DataType>
+    class GuardBase
+    {
+    public:
+        /**
+         * @brief Constructs a guard over the provided data, optionally locking a mutex.
+         *
+         * If a non-null mutex pointer is provided, a lock is acquired and held for the guard's
+         * lifetime. If the mutex pointer is null, no locking is performed.
+         *
+         * @param data  Reference to the data being protected / exposed.
+         * @param mutex Pointer to a mutex to lock, or nullptr to avoid locking.
+         */
+        GuardBase(DataType& data, MutexType* mutex):
+            mOwner(data)
+        {
+            if (mutex)
+            {
+                mLock = std::unique_lock<MutexType>(*mutex);
+            }
+        }
+
+        /// @brief Non-copyable: guards represent unique scoped access.
+        GuardBase(const GuardBase&) = delete;
+
+        /// @brief Non-copyable: guards represent unique scoped access.
+        GuardBase& operator=(const GuardBase&) = delete;
+
+        /**
+         * @brief Returns a const reference to the owned data.
+         *
+         * The returned reference remains valid only while this guard is alive.
+         */
+        const DataType& getData() const
+        {
+            return mOwner;
+        }
+
+        /**
+         * @brief Returns a mutable reference to the owned data (only for non-const DataType).
+         *
+         * The returned reference remains valid only while this guard is alive.
+         */
+        DataType& getData()
+        {
+            return mOwner;
+        }
+
+    private:
+        /// Reference to the data owned by the enclosing SharedResource.
+        DataType& mOwner;
+
+        /// Lock held for the lifetime of the guard when constructed with a mutex.
+        std::unique_lock<MutexType> mLock;
+    };
+
+    /**
+     * @brief Read guard type: exposes const access to SharedData.
+     *
+     * Used by getReadGuardOwnerThread() and getReadGuardOtherThread().
+     */
+    using ReadGuard = GuardBase<const SharedData>;
+
+    /**
+     * @brief Write guard type: exposes mutable access to SharedData.
+     *
+     * Used by getWriteGuardOwnerThread().
+     */
+    using WriteGuard = GuardBase<SharedData>;
+
+    /// Mutex protecting cross-thread access paths that require synchronization.
+    mutable MutexType mMutex;
+
+    /// The shared data protected by the guard/mutex contract.
+    SharedData mData;
+
+    /// Thread id of the owner thread; set by initOwnerThread().
+    std::optional<std::thread::id> mOwnerThreadId{};
+};
 
 // For convenience.
 #ifdef USE_IOS
