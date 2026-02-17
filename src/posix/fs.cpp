@@ -1437,44 +1437,7 @@ bool PosixFileSystemAccess::chdirlocal(LocalPath& name) const
 
 bool PosixFileSystemAccess::expanselocalpath(const LocalPath& source, LocalPath& destination)
 {
-    // Sanity.
-    assert(!source.empty());
-
-    // At worst, the destination mirrors the source.
-    destination = source;
-
-    // Are we dealing with a relative path?
-    if (!source.isAbsolute())
-    {
-        // Sanity.
-        assert(source.toPath(false)[0] != '/');
-
-        // Retrieve current working directory.
-        if (!cwd(destination))
-        {
-            return false;
-        }
-
-        // Compute absolute path.
-        destination.appendWithSeparator(source, false);
-    }
-
-    // Sanity.
-    assert(destination.isAbsolute());
-    assert(destination.toPath(false)[0] == '/');
-
-    // Canonicalize the path.
-    char buffer[PATH_MAX];
-
-    if (!realpath(destination.toPath(false).c_str(), buffer))
-    {
-        destination = source;
-        return false;
-    }
-
-    destination = LocalPath::fromAbsolutePath(buffer);
-
-    return true;
+    return expandLocalPathFileSystem(source, destination);
 }
 
 #ifdef __linux__

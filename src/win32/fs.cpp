@@ -1410,42 +1410,7 @@ bool WinFileSystemAccess::chdirlocal(LocalPath& namePath) const
 
 bool WinFileSystemAccess::expanselocalpath(const LocalPath& pathArg, LocalPath& absolutepathArg)
 {
-    int len = GetFullPathNameW(pathArg.asPlatformEncoded(false).c_str(), 0, NULL, NULL);
-    // just get size including NUL terminator
-    if (len <= 0)
-    {
-        absolutepathArg = pathArg;
-        return false;
-    }
-
-    std::wstring newAbsolutepathStr{absolutepathArg.asPlatformEncoded(false)};
-    newAbsolutepathStr.resize(len);
-    int newlen = GetFullPathNameW(pathArg.asPlatformEncoded(false).c_str(),
-                                  len,
-                                  const_cast<wchar_t*>(newAbsolutepathStr.data()),
-                                  NULL);
-    // length not including terminating NUL
-    if (newlen <= 0 || newlen >= len)
-    {
-        absolutepathArg = pathArg;
-        return false;
-    }
-    newAbsolutepathStr.resize(newlen);
-
-    if (!Utils::startswith(newAbsolutepathStr, L"\\\\?\\"))
-    {
-        if (Utils::startswith(newAbsolutepathStr, L"\\\\")) // network location
-        {
-            newAbsolutepathStr.insert(0, L"\\\\?\\UNC\\");
-        }
-        else
-        {
-            newAbsolutepathStr.insert(0, L"\\\\?\\");
-        }
-    }
-
-    absolutepathArg = LocalPath::fromPlatformEncodedAbsolute(std::move(newAbsolutepathStr));
-    return true;
+    return expandLocalPathFileSystem(pathArg, absolutepathArg);
 }
 
 bool WinFileSystemAccess::exists(const LocalPath& path) const
