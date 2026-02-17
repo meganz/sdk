@@ -653,7 +653,7 @@ static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
  * @brief Result of MAC comparison between local file and node.
  *
  * Used by CompareLocalFileMetaMacWithNodeKey to return extended information
- * for diagnostics and event reporting (e.g., event 800030).
+ * for diagnostics and event reporting (e.g., event 800036).
  * @note errorCode: 0 = success, non-zero = OS error code during MAC generation
  *       (e.g., EIO on POSIX, ERROR_HANDLE_EOF on Windows)
  */

@@ -2859,7 +2859,7 @@ std::pair<node_comparison_result, int64_t>
                     << ",0x" << std::hex << macResult.remoteMac << "," << std::dec
                     << macResult.errorCode << "]";
                 LOG_debug << oss.str() << " [Path: " << path.toPath(false) << "]";
-                client.sendevent(800030, oss.str().c_str());
+                client.sendevent(800036, oss.str().c_str());
             }
         }
 

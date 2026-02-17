@@ -3576,7 +3576,7 @@ TEST_F(SdkTest, SdkTestUploadDuplicatedFiles)
 /**
  * @brief TEST_F SdkTestUploadMacReadError
  *
- * Tests that event 800030 correctly reports a read error during MAC computation
+ * Tests that event 800036 correctly reports a read error during MAC computation
  * when attempting to deduplicate an upload. Uses the onMacGenerationChunkRead hook
  * to truncate the file mid-computation, simulating an I/O error.
  *
