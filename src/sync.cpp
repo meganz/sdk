@@ -6515,7 +6515,13 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
         lock_guard<std::mutex> guard(stallReportMutex);
         stallReport = SyncStallInfo();
     }
-    triggerHandles.clear();
+
+    {
+        lock_guard<mutex> g(triggerMutex);
+        triggerHandles.clear();
+        triggerLocalpaths.clear();
+    }
+
     localnodeByScannedFsid.clear();
     localnodeBySyncedFsid.clear();
     localnodeByNodeHandle.clear();
