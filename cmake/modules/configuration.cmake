@@ -23,11 +23,11 @@ if (MSVC)
     # Create a separated PDB file with debug symbols.
     add_compile_options($<$<CONFIG:Release>:/Zi>)
 
-    # Define _WIN32_WINNT to specify the minimum supported Windows version. 0x0602 corresponds to
-    # Windows 8. Refer to sdkddkver.h in the Windows SDK for other possible values. WINVER and
+    # Define _WIN32_WINNT to specify the minimum supported Windows version. 0x0A00 corresponds to
+    # Windows 10. Refer to sdkddkver.h in the Windows SDK for other possible values. WINVER and
     # NTDDI_VERSION are set automatically in sdkddkver.h.
     add_compile_definitions(
-        _WIN32_WINNT=0x0602
+        _WIN32_WINNT=0x0A00
     )
 else()
     include(CheckIncludeFile)

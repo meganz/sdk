@@ -153,8 +153,8 @@ To run the example app `megacli`, go to the `examples/megacli` directory in the 
 
 ### Windows
 
-- Windows 8
-- Windows Server 2012
+- Windows 10
+- Windows Server 2019
 
 ## Usage
 
