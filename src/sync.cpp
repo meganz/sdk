@@ -8312,7 +8312,8 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
         }
         if (ignoreFile && row.syncNode->rareRO().filterChain)
         {
-            if (row.syncNode->rareRO().filterChain->mFingerprint != ignoreFile->fingerprint)
+            if (!row.syncNode->rareRO().filterChain->mFingerprint.equalExceptMtime(
+                    ignoreFile->fingerprint))
             {
                 LOG_debug << syncname << "loading .megaignore file inside " << logTriplet(row, fullPath);
                 auto ignorepath = fullPath.localPath;
