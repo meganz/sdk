@@ -130,6 +130,7 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
+    src/gfx/GfxProcCG.mm
     src/hashcash.cpp
     src/http.cpp
     src/json.cpp
