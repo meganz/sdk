@@ -130,7 +130,6 @@ set(SDKLIB_SOURCES
     src/gfx/external.cpp
     src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
-    src/gfx/GfxProcCG.mm
     src/hashcash.cpp
     src/http.cpp
     src/json.cpp
@@ -283,6 +282,7 @@ target_sources_conditional(SDKlib
 
     src/osx/osxutils.mm
     src/osx/fs.cpp
+    src/gfx/GfxProcCG.mm
 )
 
 target_sources_conditional(SDKlib
