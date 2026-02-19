@@ -278,6 +278,10 @@ struct SyncDownload_inClient: public SyncTransfer_inClient
     // True if we could copy (or move) the download into place.
     bool wasDistributed = false;
 
+    // Set in clientDownload when completing an mtime-only download.
+    // True if setmtimelocal succeeded on the final target path.
+    bool mtimeAppliedOnDisk{false};
+
     FileFingerprint okToOverwriteFF;
 };
 
