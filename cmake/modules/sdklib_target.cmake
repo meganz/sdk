@@ -128,7 +128,6 @@ set(SDKLIB_SOURCES
     src/filesystem.cpp
     src/gfx.cpp
     src/gfx/external.cpp
-    src/gfx/freeimage.cpp
     src/gfx/gfx_pdfium.cpp
     src/hashcash.cpp
     src/http.cpp
@@ -282,6 +281,11 @@ target_sources_conditional(SDKlib
 
     src/osx/osxutils.mm
     src/osx/fs.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG IOS
+    PRIVATE
     src/gfx/GfxProcCG.mm
 )
 
@@ -319,6 +323,12 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/posix/drivenotifyposix.h
     src/posix/drivenotifyposix.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG USE_FREEIMAGE
+    PRIVATE
+    src/gfx/freeimage.cpp
 )
 
 target_sources_conditional(SDKlib
