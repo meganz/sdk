@@ -239,6 +239,8 @@ public class MegaApiJava {
     public final static int FILE_TYPE_SPREADSHEET = MegaApi.FILE_TYPE_SPREADSHEET;
     public final static int FILE_TYPE_ALL_DOCS = MegaApi.FILE_TYPE_ALL_DOCS;
     public final static int FILE_TYPE_OTHERS = MegaApi.FILE_TYPE_OTHERS;
+    public final static int FILE_TYPE_ALL_VISUAL_MEDIA = MegaApi.FILE_TYPE_ALL_VISUAL_MEDIA;
+    public final static int FILE_TYPE_LAST = MegaApi.FILE_TYPE_LAST;
 
     public final static int SEARCH_TARGET_INSHARE = MegaApi.SEARCH_TARGET_INSHARE;
     public final static int SEARCH_TARGET_OUTSHARE = MegaApi.SEARCH_TARGET_OUTSHARE;
