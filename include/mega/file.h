@@ -338,14 +338,14 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
                          const m_time_t newMtime,
                          std::function<void(NodeHandle, Error)>&& completion);
 
-    std::optional<Pitag> buildSyncUploadPitag() const;
-    std::optional<Pitag> buildSyncClonePitag() const;
+    Pitag buildSyncUploadPitag() const;
+    Pitag buildSyncClonePitag() const;
 
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
     void sendPutnodesToCloneNode(MegaClient* client,
                                  NodeHandle ovHandle,
                                  Node* nodeToClone,
-                                 std::optional<Pitag> pitag = std::nullopt);
+                                 Pitag pitag);
 
 #ifdef ENABLE_SYNC
     /**
