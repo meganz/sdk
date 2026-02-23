@@ -1,6 +1,7 @@
 macro(load_sdklib_libraries)
 
     target_link_libraries(SDKlib PUBLIC ccronexpr)
+    target_link_libraries(SDKlib PUBLIC csv)
 
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)

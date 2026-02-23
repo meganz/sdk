@@ -51,6 +51,7 @@ let package = Package(
                 .headerSearchPath("src/file_service"),
                 .headerSearchPath("src/fuse/unsupported"),
                 .headerSearchPath("third_party/ccronexpr"),
+                .headerSearchPath("third_party/csv"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))

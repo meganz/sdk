@@ -158,4 +158,5 @@ License: MIT
 https://github.com/vincentlaucsb/csv-parser/blob/master/LICENSE
 
 Files included in this repository based on `vincentlaucsb/csv-parser`:
-- `include/mega/mega_csv.h` (based on `csv.hpp`)
+- `third_party/csv/csv.h` (based on `csv.hpp`)
+- `third_party/csv/LICENSE` (copy of the licence of `csv`)
