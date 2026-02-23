@@ -422,6 +422,35 @@ class ReleaseProcess:
             self._wiki = Confluence(url=url, token=token)
             print("v Confluence configured", flush=True)
 
+    @staticmethod
+    def build_close_announcement_message(
+        *,
+        project_name: str,
+        version_v_prefixed: str,
+        apps: list[str] | None,
+        gitlab_url: str = "",
+        github_url: str = "",
+    ) -> str:
+        lines: list[str] = []
+        header = (
+            f"\U0001F4E3 \U0001F4E3 *{project_name} version  -->  `{version_v_prefixed}` published*"
+        )
+        lines.append(header)
+        lines.append("")  # empty line between header and release links
+        if gitlab_url or github_url:
+            lines.append("Releases")
+            if gitlab_url:
+                lines.append(f"\U00002022 GitLab: {gitlab_url}")
+            if github_url:
+                lines.append(f"\U00002022 GitHub: {github_url}")
+        lines.append("")  # empty line between release links and target apps
+        if apps:
+            lines.append("Target apps")
+            for app in apps:
+                lines.append(f"\U00002022 {app}")
+
+        return "\n".join(lines)
+
     # STEP 1 (close): GitLab: Create tag "vX.Y.Z" from last commit of branch "release/vX.Y.Z"
     def create_release_tag(self):
         last_commit = self._remote_private_repo.get_last_commit_in_branch(
@@ -446,7 +475,7 @@ class ReleaseProcess:
         assert self._jira is not None
         release_notes = self._jira.get_release_notes_for_gitlab([])
         print("Creating release", release_name, flush=True)
-        self._remote_private_repo.create_release(
+        self._gitlab_release_url = self._remote_private_repo.create_release(
             release_name, self._version_v_prefixed, release_notes
         )
         print("v Created release", release_name, flush=True)
@@ -499,16 +528,65 @@ class ReleaseProcess:
     # STEP 5 (close): GitHub: Create release in public repo from new tag
     def create_release_in_public_repo(self, version: str):
         assert self._jira is not None
-        self._public_repo.create_release(
+        self._github_release_url = self._public_repo.create_release(
             version, self._jira.get_release_notes_for_github()
         )
 
-    # STEP 6 (close): Jira: mark version as Released, set release date
+    # STEP 6 (close): Post release announcement to Slack
+    def post_close_announcement(self):
+        """Post a Slack message announcing the release is published/closed.
+
+        Target apps are derived from the Jira Version description for vX.Y.Z.
+        Optionally include GitLab/GitHub release links if available.
+        """
+
+        assert self._new_version is not None
+        assert self._version_v_prefixed
+
+        if self._jira is not None:
+            apps = self._jira.get_target_apps()
+        else:
+            apps = []
+
+        gitlab_url = getattr(self, "_gitlab_release_url", "")
+        if not gitlab_url and self._remote_private_repo is not None:
+            gitlab_url = self._remote_private_repo.get_release_url(self._version_v_prefixed)
+
+        github_url = getattr(self, "_github_release_url", "")
+        if not github_url and getattr(self, "_public_repo", None) is not None:
+            github_url = self._public_repo.get_release_url(self._new_version)
+
+        msg = self.build_close_announcement_message(
+            project_name=self._project_name,
+            version_v_prefixed=self._version_v_prefixed,
+            apps=apps,
+            gitlab_url=gitlab_url,
+            github_url=github_url,
+        )
+
+        if not getattr(self, "_slack", None) or not getattr(
+            self, "_slack_channel_announce", ""
+        ):
+            print("Close release:\n\n" + msg, flush=True)
+            return
+
+        self._slack.post_message(
+            self._slack_channel_announce,
+            getattr(self, "_slack_thread_announce", ""),
+            msg,
+        )
+        print(
+            f"v Posted close announcement to #{self._slack_channel_announce}",
+            flush=True,
+        )
+
+
+    # STEP 7 (close): Jira: mark version as Released, set release date
     def mark_version_as_released(self):
         assert self._jira is not None, "Init Jira connection first"
         self._jira.update_version_close_release()
 
-    # STEP 7 (close): Confluence: Rotate the first name to the end of the list of release captains
+    # STEP 8 (close): Confluence: Rotate the first name to the end of the list of release captains
     def move_release_captain_last(self, page_id: str):
         if self._wiki is None:
             print("Wiki connection not available, rotate Release Captain yourself !")

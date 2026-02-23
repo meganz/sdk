@@ -52,6 +52,39 @@ class JiraProject:
         self._check_all_tickets_are_resolved_or_closed()
         self._check_all_tickets_have_release_number_affected()
 
+    @staticmethod
+    def _parse_target_apps_from_version_description(description: str) -> list[str]:
+        """Extract target apps from a Jira Version description.
+
+        Expected format created by this automation:
+          "Version X.Y.Z - iOS A.B / Android C.D / MEGAsync E.F.G"
+
+        If the separator is missing, this is treated as "no apps".
+        """
+
+        if not description:
+            return []
+
+        trimmed = description.strip()
+
+        _, sep, tail = trimmed.partition(" - ")
+        if not sep:
+            return []
+
+        app_part = tail.strip()
+        if not app_part:
+            return []
+
+        return [a.strip() for a in app_part.split("/") if a.strip()]
+
+    def get_target_apps(self) -> list[str]:
+        """Return target apps for the currently selected version (after setup_release())."""
+
+        assert self._version is not None
+        return self._parse_target_apps_from_version_description(
+            self._version.description or ""
+        )
+
     def update_current_version(self, to_version: str, used_by_apps: str):
         from datetime import date
 
@@ -125,8 +158,7 @@ class JiraProject:
         if len(apps) == 0:
             # get apps from description
             assert self._version is not None
-            app_descr: str = self._version.description.partition(" - ")[2]
-            apps = [a.strip() for a in app_descr.split("/")]
+            apps = self.get_target_apps()
 
         # get issues
         issues_found = self._jira.search_issues(
@@ -194,7 +226,7 @@ class JiraProject:
             return False, False, ""
         assert not v.archived, f"Archived v{version} version already exists"
         # get apps from description
-        app_descr: str = v.description.partition(" - ")[2]
+        app_descr: str = (v.description or "").partition(" - ")[2]
         return True, v.released, app_descr
 
     def earlier_versions_are_closed(self):

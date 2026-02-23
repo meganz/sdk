@@ -54,8 +54,15 @@ release.setup_public_repo(os.environ["GITHUB_TOKEN"], args["github_repo_owner"])
 release.confirm_all_earlier_versions_are_closed()
 slack_token = os.environ.get("SLACK_TOKEN", "")
 slack_channel_dev = args.get("slack_channel_dev_requests", "")
-if slack_token and slack_channel_dev:
-    release.setup_chat(slack_token, slack_channel_dev)
+slack_channel_announce = args.get("slack_channel_announce", "")
+if slack_token and (slack_channel_dev or slack_channel_announce):
+    slack_thread_announce = args.get("slack_thread_announce", "")
+    release.setup_chat(
+        slack_token,
+        slack_channel_dev,
+        slack_channel_announce,
+        slack_thread_announce,
+    )
 release.setup_wiki(
     args["confluence_url"],
     os.environ["CONFLUENCE_TOKEN"],
@@ -87,9 +94,12 @@ elif type_of_release == "hotfix" or type_of_release == "old_release":
 # STEP 5: GitHub: Create release in public repo from new tag
 release.create_release_in_public_repo(args["release_version"])
 
-# STEP 6: Jira: mark version as Released, set release date
+# STEP 6: Notify in Slack thread that the release is published/closed
+release.post_close_announcement()
+
+# STEP 7: Jira: mark version as Released, set release date
 release.mark_version_as_released()
 
-# STEP 7: Confluence: Rotate the first name to the end of the list of release captains
+# STEP 8: Confluence: Rotate the first name to the end of the list of release captains
 # Disabled, we rotate the release captain once a month now
 # release.move_release_captain_last(args["confluence_page_id"])
