@@ -2109,7 +2109,7 @@ private:
 
     // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
     mutable std::recursive_mutex mSyncVecMutex;
-    vector<unique_ptr<UnifiedSync>> mSyncVec;
+    vector<shared_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     bool unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig&);

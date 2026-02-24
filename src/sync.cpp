@@ -5264,7 +5264,7 @@ error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
             if (!skip)
             {
                 // Create the unified sync.
-                mSyncVec.emplace_back(new UnifiedSync(*this, config));
+                mSyncVec.emplace_back(std::make_shared<UnifiedSync>(*this, config));
 
                 // Track how many configs we've restored.
                 ++numRestored;
@@ -6510,7 +6510,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
 
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
+        mSyncVec.push_back(std::make_shared<UnifiedSync>(*this, c));
     }
 
     ensureDriveOpenedAndMarkDirty(c.mExternalDrivePath);
@@ -7312,7 +7312,7 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
 
     for (auto& config: configs)
     {
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
+        mSyncVec.push_back(std::make_shared<UnifiedSync>(*this, config));
     }
 
     for (auto& us : mSyncVec)
@@ -12285,7 +12285,11 @@ void Syncs::processTriggerHandles()
         triggers.swap(triggerHandles);
     }
 
-    if (mSyncVec.empty()) return;
+    {
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+        if (mSyncVec.empty())
+            return;
+    }
 
     for (auto& t : triggers)
     {
@@ -13345,10 +13349,17 @@ void Syncs::syncLoop()
 
         waiter->bumpds();
 
-        // Process filesystem notifications.
-        std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
-        for (auto& us : mSyncVec)
+        // Make a copy of mSyncVec to avoid locking mutex so many time in SyncLoop
+        vector<shared_ptr<UnifiedSync>> auxSyncVec;
         {
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
+            auxSyncVec = mSyncVec;
+        }
+
+        // Process filesystem notifications.
+        for (auto& us: auxSyncVec)
+        {
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
             if (Sync* sync = us->mSync.get())
             {
                 if (sync->dirnotify)
@@ -13357,7 +13368,6 @@ void Syncs::syncLoop()
                 }
             }
         }
-        syncVecMutexlock.unlock();
 
         processTriggerHandles();
         processTriggerLocalpaths();
@@ -13377,9 +13387,9 @@ void Syncs::syncLoop()
 
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
-        syncVecMutexlock.lock();
-        for (auto& us : mSyncVec)
+        for (auto& us: auxSyncVec)
         {
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
             vector<pair<handle, int>> sdsBackups;
             CloudNode cloudNode;
             string cloudRootPath;
@@ -13534,18 +13544,15 @@ void Syncs::syncLoop()
                 }
             }
         };
-        syncVecMutexlock.unlock();
 
         stopSyncsInErrorState();
 
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
 
-        if (syncStallState &&
-            (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
-            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
-            !lastLoopEarlyExit &&
-            !mSyncVec.empty())
+        if (syncStallState && (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
+            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) && !lastLoopEarlyExit &&
+            !auxSyncVec.empty())
         {
             LOG_debug << "Don't process syncs too often in stall state";
             continue;
@@ -13578,10 +13585,9 @@ void Syncs::syncLoop()
         }
 
         unsigned skippedForScanning = 0;
-
-        syncVecMutexlock.lock();
-        for (auto& us : mSyncVec)
+        for (auto& us: auxSyncVec)
         {
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
             Sync* sync = us->mSync.get();
 
             if (sync && !us->mConfig.mError)
@@ -13719,13 +13725,12 @@ void Syncs::syncLoop()
                 }
             }
         }
-        syncVecMutexlock.unlock();
 
         if (mTransferPauseFlagsChanged.exchange(false, std::memory_order_relaxed))
         {
-            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-            for (auto& us : mSyncVec)
+            for (auto& us: auxSyncVec)
             {
+                std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
                 mHeartBeatMonitor->updateOrRegisterSync(*us);
             }
         }
