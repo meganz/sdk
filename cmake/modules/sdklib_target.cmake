@@ -336,13 +336,6 @@ target_sources_conditional(SDKlib
     src/thread/cppthread.cpp
 )
 
-target_sources_conditional(SDKlib
-    FLAG NOT HAVE_GLOB_H AND NOT WIN32
-    PRIVATE
-    include/mega/mega_glob.h
-    src/mega_glob.c
-)
-
 # Include directories
 target_include_directories(SDKlib
     PUBLIC
