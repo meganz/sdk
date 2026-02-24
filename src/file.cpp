@@ -531,7 +531,8 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
                                    putsource_t source,
                                    NodeHandle ovHandle,
                                    CommandPutNodes::Completion&& completion,
-                                   bool canChangeVault)
+                                   bool canChangeVault,
+                                   Pitag pitag)
 {
     vector<NewNode> newnodes(1);
     NewNode* newnode = &newnodes[0];
@@ -581,6 +582,17 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
         NodeHandle th = h;
         assert(syncxfer);
         newnode->ovhandle = ovHandle;
+        if (pitag.target == PitagTarget::NotApplicable)
+        {
+            const std::shared_ptr<Node> parentNode = client->nodeByHandle(th);
+            const bool inIncomingShare = parentNode && parentNode->matchesOrHasAncestorMatching(
+                                                           [](const Node& node)
+                                                           {
+                                                               return node.inshare != nullptr;
+                                                           });
+            pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+        }
+
         client->queueCommand(new CommandPutNodes(client,
                                                  th,
                                                  NULL,
@@ -591,7 +603,8 @@ void File::sendPutnodesToCloneNode(MegaClient* client,
                                                  nullptr,
                                                  std::move(completion),
                                                  canChangeVault,
-                                                 {})); // customerIpPort
+                                                 {}, // customerIpPort
+                                                 pitag));
     }
 }
 
@@ -720,7 +733,10 @@ void SyncUpload_inClient::cloneNode(MegaClient& client,
               << sourceLocalname;
 
     // completion function is supplied to putNodes command
-    sendPutnodesToCloneNode(&client, ovHandleIfShortcut, cloneNodeCandidate.get());
+    sendPutnodesToCloneNode(&client,
+                            ovHandleIfShortcut,
+                            cloneNodeCandidate.get(),
+                            buildSyncClonePitag());
     // Set `true` even though no actual data transfer occurred, we're sending putnodes to clone
     // node instead
     wasFileTransferCompleted = true;
@@ -733,6 +749,26 @@ bool SyncUpload_inClient::updateNodeMtime(MegaClient* client,
                                           std::function<void(NodeHandle, Error)>&& completion)
 {
     return client->updateNodeMtime(node, newMtime, std::move(completion));
+}
+
+Pitag SyncUpload_inClient::buildSyncUploadPitag() const
+{
+    Pitag pitag{syncThreadSafeState->mCanChangeVault ? PitagPurpose::Backup : PitagPurpose::Sync,
+                PitagTrigger::SyncAlgorithm,
+                PitagNodeType::File,
+                PitagTarget::NotApplicable,
+                PitagImportSource::NotApplicable};
+    return pitag;
+}
+
+Pitag SyncUpload_inClient::buildSyncClonePitag() const
+{
+    Pitag pitag{PitagPurpose::CopyInternal,
+                PitagTrigger::SyncAlgorithm,
+                PitagNodeType::File,
+                PitagTarget::NotApplicable,
+                PitagImportSource::NotApplicable};
+    return pitag;
 }
 
 void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle)
@@ -801,10 +837,14 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
             client->app->putnodes_result(e, t, nn, targetOverride, ownTag, fileHandles);
         },
         nullptr,
-        syncThreadSafeState->mCanChangeVault);
+        syncThreadSafeState->mCanChangeVault,
+        buildSyncUploadPitag());
 }
 
-void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone)
+void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client,
+                                                  NodeHandle ovHandle,
+                                                  Node* nodeToClone,
+                                                  Pitag pitag)
 {
     // Always called from the client thread
     weak_ptr<SyncThreadsafeState> stts = syncThreadSafeState;
@@ -863,7 +903,8 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client, NodeHandle
                 }
             }
         },
-        syncThreadSafeState->mCanChangeVault);
+        syncThreadSafeState->mCanChangeVault,
+        pitag);
 }
 
 SyncUpload_inClient::SyncUpload_inClient(NodeHandle targetFolder,

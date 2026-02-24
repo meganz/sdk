@@ -101,7 +101,8 @@ struct MEGA_API File: public FileFingerprint
                            bool targetOverride,
                            int tag,
                            const std::map<std::string, std::string>& fileHandles)>&& completion,
-        bool canChangeVault);
+        bool canChangeVault,
+        Pitag pitag);
 
     void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }
 
@@ -341,8 +342,14 @@ struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this
                          const m_time_t newMtime,
                          std::function<void(NodeHandle, Error)>&& completion);
 
+    Pitag buildSyncUploadPitag() const;
+    Pitag buildSyncClonePitag() const;
+
     void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
-    void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
+    void sendPutnodesToCloneNode(MegaClient* client,
+                                 NodeHandle ovHandle,
+                                 Node* nodeToClone,
+                                 Pitag pitag);
 
 #ifdef ENABLE_SYNC
     /**
