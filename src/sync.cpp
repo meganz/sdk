@@ -4216,7 +4216,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
     // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
     // deadlocks; in this case at`lookupCloudNode` and explicit lock of `nodeTreeMutex` some lines
-    // below, so we need to relase mutex before.
+    // below, so we need to release mutex before.
     syncVecMutexLock.unlock();
 
     if (setOriginalPath)
@@ -4452,7 +4452,7 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
 {
     assert(onSyncThread());
 
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     const auto it = std::find_if(std::begin(mSyncVec),
                                  std::end(mSyncVec),
                                  [backupId](const auto& unifSync)
@@ -4515,6 +4515,10 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
     {
         unifSync->suspendSync();
         renameDbAndNotifyServer();
+
+        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+        // generate deadlocks; in this case at `resumeSync`, so we need to release mutex before.
+        syncVecMutexLock.unlock();
         unifSync->resumeSync(
             [completion = std::move(completion)](error err, SyncError serr, handle)
             {
@@ -4558,7 +4562,7 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
 {
     assert(onSyncThread());
 
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     const auto it = std::find_if(std::begin(mSyncVec),
                                  std::end(mSyncVec),
                                  [backupId](const auto& unifSync)
@@ -4594,10 +4598,18 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
     if (const auto syncErr = unifSync->changeConfigLocalRoot(newValidLocalRootPath);
         syncErr != NO_SYNC_ERROR)
     {
+        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+        // generate deadlocks; in this case at `resumeSync`, so we need to release mutex before.
+        syncVecMutexLock.unlock();
+
         const error apiErr = syncErr == SYNC_CONFIG_WRITE_FAILURE ? API_EWRITE : API_EARGS;
         return exitResumingIfNeeded(apiErr, syncErr);
     }
     mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+    // generate deadlocks; in this case at `resumeSync`, so we need to release mutex before.
+    syncVecMutexLock.unlock();
     exitResumingIfNeeded(API_OK, NO_SYNC_ERROR);
 }
 
