@@ -102,7 +102,7 @@ struct MEGA_API File: public FileFingerprint
                            int tag,
                            const std::map<std::string, std::string>& fileHandles)>&& completion,
         bool canChangeVault,
-        std::optional<Pitag> pitag = std::nullopt);
+        Pitag pitag);
 
     void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }
 
