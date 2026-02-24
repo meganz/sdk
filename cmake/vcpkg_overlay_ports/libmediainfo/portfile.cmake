@@ -7,6 +7,7 @@ vcpkg_from_github(
     HEAD_REF master
     PATCHES
         dependencies.diff
+        features.diff
 )
 file(REMOVE_RECURSE "${SOURCE_PATH}/Source/ThirdParty/tinyxml2")
 
