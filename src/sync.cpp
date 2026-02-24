@@ -4265,8 +4265,18 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         return;
     }
 
+    auto auxConfig = us.mConfig;
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at`hasIgnoreFile`, so we need to release mutex before.
+    syncVecMutexLock.unlock();
+
     // Does this sync already contain an ignore file?
-    if (!hasIgnoreFile(us.mConfig))
+    const auto auxHasIgnoreFileAux = hasIgnoreFile(auxConfig);
+
+    // Lock `syncVecMutex` again
+    syncVecMutexLock.lock();
+
+    if (!auxHasIgnoreFileAux)
     {
         // Create a new chain so that we can add custom rules if necessary.
         unique_ptr<DefaultFilterChain> resultIfDfc;
