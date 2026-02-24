@@ -4135,7 +4135,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
     UnifiedSync* usPtr = nullptr;
 
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
@@ -4214,26 +4214,45 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         us.mConfig.mLocalPathFsid = UNDEF;
     }
 
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at`lookupCloudNode` and explicit lock of `nodeTreeMutex` some lines
+    // below, so we need to relase mutex before.
+    syncVecMutexLock.unlock();
+
     if (setOriginalPath)
     {
         CloudNode cloudNode;
         string cloudNodePath;
-        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY)
-            &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
+        const auto lookupCloudNodeSuccess = lookupCloudNode(us.mConfig.mRemoteNode,
+                                                            cloudNode,
+                                                            &cloudNodePath,
+                                                            nullptr,
+                                                            nullptr,
+                                                            nullptr,
+                                                            nullptr,
+                                                            Syncs::FOLDER_ONLY);
+
+        syncVecMutexLock.lock();
+        if (lookupCloudNodeSuccess && us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
         {
             us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
             ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
         }
+        syncVecMutexLock.unlock();
     }
 
     error e;
     {
         // todo: even better thead safety
         lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
+        syncVecMutexLock.lock();
         std::tie(e, us.mConfig.mError, us.mConfig.mWarning) = mClient.checkSyncConfig(us.mConfig);
         us.mConfig.mEnabled = e == API_OK && us.mConfig.mError == NO_SYNC_ERROR;
+        syncVecMutexLock.unlock();
     }
 
+    // Lock `syncVecMutex` again
+    syncVecMutexLock.lock();
     if (e)
     {
         // error and enable flag were already changed
@@ -7324,10 +7343,9 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
 void Syncs::resumeSyncsOnStateCurrent_inThread()
 {
     assert(onSyncThread());
-
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-    for (auto& unifiedSync : mSyncVec)
+    for (auto& unifiedSync: mSyncVec)
     {
+        std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (!unifiedSync->mSync)
         {
             if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty())
@@ -7335,7 +7353,22 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 // this should only happen on initial migraion from from old caches
                 CloudNode cloudNode;
                 string cloudNodePath;
-                if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+                // generate deadlocks, in this case by calling `lookupCloudNode` this could happen
+                // if we do not release `mSyncVecMutex` before
+                syncVecMutexLock.unlock();
+                const auto lookupCloudNodeSuccess =
+                    lookupCloudNode(unifiedSync->mConfig.mRemoteNode,
+                                    cloudNode,
+                                    &cloudNodePath,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    Syncs::FOLDER_ONLY);
+                syncVecMutexLock.lock();
+                if (lookupCloudNodeSuccess)
                 {
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
                     ensureDriveOpenedAndMarkDirty(unifiedSync->mConfig.mExternalDrivePath);
@@ -13389,23 +13422,31 @@ void Syncs::syncLoop()
         // (this covers mountovers, some device removals and some failures)
         for (auto& us: auxSyncVec)
         {
-            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
+            NodeHandle remoteNodeHandle;
+            {
+                std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
+                remoteNodeHandle = us->mConfig.mRemoteNode;
+            }
             vector<pair<handle, int>> sdsBackups;
             CloudNode cloudNode;
             string cloudRootPath;
             bool inTrash = false;
             unsigned rootDepth;
-            bool foundRootNode = lookupCloudNode(us->mConfig.mRemoteNode,
-                                                    cloudNode,
-                                                    &cloudRootPath,
-                                                    &inTrash,
-                                                    nullptr,
-                                                    nullptr,
-                                                    &rootDepth,
-                                                    Syncs::FOLDER_ONLY,
-                                                    nullptr,
-                                                    &sdsBackups);
 
+            // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+            // generate deadlocks
+            bool foundRootNode = lookupCloudNode(remoteNodeHandle,
+                                                 cloudNode,
+                                                 &cloudRootPath,
+                                                 &inTrash,
+                                                 nullptr,
+                                                 nullptr,
+                                                 &rootDepth,
+                                                 Syncs::FOLDER_ONLY,
+                                                 nullptr,
+                                                 &sdsBackups);
+
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
             if (processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups))
             {
                 continue;
@@ -14306,12 +14347,15 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     vector<pair<NodeHandle, Sync*>> activeSyncHandles;
     vector<pair<std::shared_ptr<Node>, Sync*>> activeSyncRoots;
 
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks
+    lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
     if (nodeIsInActiveSyncQuery)
     {
         *nodeIsInActiveSyncQuery = false;
 
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-        for (auto & us : mSyncVec)
+        for (auto& us: mSyncVec)
         {
             if (us->mSync && !us->mConfig.mError)
             {
@@ -14319,8 +14363,6 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
             }
         }
     }
-
-    lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
 
     if (nodeIsInActiveSyncQuery)
     {
