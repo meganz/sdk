@@ -7431,6 +7431,11 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << unifiedSync->mConfig.mError;
 
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+                // generate deadlocks; in this case at `enableSyncByBackupId_inThread`, so we need
+                // to release mutex before.
+                syncVecMutexLock.unlock();
+
                 enableSyncByBackupId_inThread(
                     unifiedSync->mConfig.mBackupId,
                     false,
@@ -7442,6 +7447,9 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                                   << " error = " << se;
                     },
                     "");
+
+                // Lock `syncVecMutexLock` again
+                syncVecMutexLock.unlock();
             }
             else
             {
@@ -13643,8 +13651,21 @@ void Syncs::syncLoop()
                     }
                     else
                     {
-                        LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, nullptr, "", "");
+                        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+                        // deadlocks; in this case at `enableSyncByBackupId_inThread`, so we need to release mutex before.
+                        syncVecMutexlock.unlock();
+
+                        LOG_debug << "Auto-starting sync that was suspended when the local path "
+                                     "was unavailable: "
+                                  << us->mConfig.mLocalPath;
+                        enableSyncByBackupId_inThread(us->mConfig.mBackupId,
+                                                      false,
+                                                      nullptr,
+                                                      "",
+                                                      "");
+
+                        // Lock `syncVecMutexlock` again
+                        syncVecMutexlock.lock();
                     }
                 }
             }
