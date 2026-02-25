@@ -3,6 +3,7 @@
  * @brief This file defines tests related with nested shares
  */
 
+#include "integration_test_utils.h"
 #include "sdk_test_share.h"
 #include "SdkTestNodesSetUp.h"
 
@@ -352,4 +353,120 @@ TEST_F(SdkTestShareNested, DISABLED_UploadFileInNestedShare)
     ASSERT_NO_FATAL_FAILURE(matchTree(sharerFolderBNode->getHandle(), sharerIndex, shareeBobIndex));
     ASSERT_NO_FATAL_FAILURE(
         matchTree(sharerFolderBNode->getHandle(), shareeAliceIndex, shareeBobIndex));
+}
+
+/**
+ * @brief Verify sync state transitions for nested shares.
+ *
+ * Steps:
+ *  1. sharer uses existing folders "folderA/folderB"
+ *  2. sharer shares "folderA" with shareeAlice as FULL_ACCESS
+ *  3. shareeAlice creates a sync on "folderA"
+ *  4. sharer shares "folderB" with shareeAlice as FULL_ACCESS
+ *  5. sharer unshares "folderB" from shareeAlice
+ *  6. sharer shares "folderB" with shareeAlice as READ_ACCESS
+ *
+ * Result:
+ *  - sync stays RUNNING after steps 4 and 5
+ *  - sync becomes SUSPENDED with SHARE_NON_FULL_ACCESS after step 6
+ */
+TEST_F(SdkTestShareNested, SyncStateWithNestedShareFolders)
+{
+    const auto logPre = getLogPrefix();
+    LOG_info << "Starting body of " << logPre;
+
+    // Enable manual verification mode
+    megaApi[sharerIndex]->setManualVerificationFlag(true);
+    megaApi[shareeAliceIndex]->setManualVerificationFlag(true);
+
+    ASSERT_NO_FATAL_FAILURE(
+        inviteTestAccount(sharerIndex, shareeAliceIndex, "Sharer inviting Alice"))
+        << "Failure inviting Alice";
+    ASSERT_NO_FATAL_FAILURE(verifyContactCredentials(sharerIndex, shareeAliceIndex));
+
+    LOG_info << logPre << "1) Use existing fixture folders folderA/folderB";
+    auto parentFolder = getNodeByPath(FOLDER_A);
+    ASSERT_TRUE(parentFolder) << "folder \"folderA\" not found.";
+    auto childFolder = getNodeByPath(std::string(FOLDER_A) + "/" + FOLDER_B);
+    ASSERT_TRUE(childFolder) << "folder \"folderB\" not found.";
+
+    LOG_info << logPre << "2) Share folderA to shareeAlice with FULL access";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(parentFolder.get(),
+                                            {sharerIndex, true},
+                                            {shareeAliceIndex, true},
+                                            MegaShare::ACCESS_FULL));
+
+    LOG_info << logPre << "3) Create sync on shareeAlice for folderA";
+    fs::path localBasePath = makeNewTestRoot();
+    fs::path localSyncPath = localBasePath / "folderA_sync";
+    fs::create_directories(localSyncPath);
+
+    MegaHandle newSyncRootNodeHandle = UNDEF;
+    int err = synchronousSyncFolder(shareeAliceIndex,
+                                    &newSyncRootNodeHandle,
+                                    MegaSync::TYPE_TWOWAY,
+                                    path_u8string(localSyncPath).c_str(),
+                                    nullptr,
+                                    parentFolder->getHandle(),
+                                    nullptr);
+    ASSERT_EQ(err, API_OK);
+
+    std::unique_ptr<MegaNode> shareeParentFolder{
+        megaApi[shareeAliceIndex]->getNodeByHandle(parentFolder->getHandle())};
+    ASSERT_TRUE(shareeParentFolder);
+
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[shareeAliceIndex].get(),
+                                                      shareeParentFolder.get(),
+                                                      MegaSync::RUNSTATE_RUNNING,
+                                                      MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync);
+    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
+    MegaHandle backupId = sync->getBackupId();
+
+    LOG_info << logPre << "4) Share folderB to shareeAlice with FULL access";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(childFolder.get(),
+                                            {sharerIndex, true},
+                                            {shareeAliceIndex, true},
+                                            MegaShare::ACCESS_FULL));
+
+    // Sync should remain RUNNING.
+    sync = waitForSyncState(megaApi[shareeAliceIndex].get(),
+                            backupId,
+                            MegaSync::RUNSTATE_RUNNING,
+                            MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync);
+    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
+
+    LOG_info << logPre << "5) Unshare folderB from shareeAlice";
+    ASSERT_NO_FATAL_FAILURE(shareFolder(childFolder.get(),
+                                        mApi[shareeAliceIndex].email.c_str(),
+                                        MegaShare::ACCESS_UNKNOWN,
+                                        sharerIndex));
+
+    // Sync should remain RUNNING.
+    sync = waitForSyncState(megaApi[shareeAliceIndex].get(),
+                            backupId,
+                            MegaSync::RUNSTATE_RUNNING,
+                            MegaSync::NO_SYNC_ERROR);
+    ASSERT_TRUE(sync);
+    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_RUNNING);
+    ASSERT_EQ(sync->getError(), MegaSync::NO_SYNC_ERROR);
+
+    LOG_info << logPre << "6) Share folderB to shareeAlice with READ access";
+    ASSERT_NO_FATAL_FAILURE(createShareAtoB(childFolder.get(),
+                                            {sharerIndex, true},
+                                            {shareeAliceIndex, true},
+                                            MegaShare::ACCESS_READ));
+
+    // Sync should become SUSPENDED due to non-full access in nested share.
+    sync = waitForSyncState(megaApi[shareeAliceIndex].get(),
+                            backupId,
+                            MegaSync::RUNSTATE_SUSPENDED,
+                            MegaSync::SHARE_NON_FULL_ACCESS);
+    ASSERT_TRUE(sync);
+    ASSERT_EQ(sync->getRunState(), MegaSync::RUNSTATE_SUSPENDED);
+    ASSERT_EQ(sync->getError(), MegaSync::SHARE_NON_FULL_ACCESS);
+
+    LOG_info << logPre << "Cleanup: remove sync";
+    ASSERT_EQ(API_OK, synchronousRemoveSync(shareeAliceIndex, backupId));
 }
