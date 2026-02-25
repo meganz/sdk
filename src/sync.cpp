@@ -14073,7 +14073,7 @@ bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
     size_t totalConflicts{};
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     for (auto& us: mSyncVec)
     {
         if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
@@ -14088,7 +14088,16 @@ bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
                 conflicts.clear();
                 break;
             }
+
+            // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+            // otherwise we may generate deadlocks; in this case at
+            // `recursiveCollectNameConflicts->lookupCloudChildren` `nodeTreeMutex` is locked,
+            // so we need to release `mSyncVecMutex`
+            syncVecMutexLock.unlock();
             sync->recursiveCollectNameConflicts(&it->second);
+
+            // Lock `syncVecMutex` again
+            syncVecMutexLock.lock();
             totalConflicts += it->second.size();
         }
     }
@@ -14107,7 +14116,7 @@ size_t Syncs::conflictsDetectedCount(size_t limit) const
     assert(onSyncThread());
 
     size_t count = 0;
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     for (auto& us : mSyncVec)
     {
         if (Sync* sync = us->mSync.get())
@@ -14119,8 +14128,20 @@ size_t Syncs::conflictsDetectedCount(size_t limit) const
                     count = limit;
                     break;
                 }
+
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+                // otherwise we may generate deadlocks; in this case at
+                // `recursiveCollectNameConflicts->lookupCloudChildren` `nodeTreeMutex` is locked,
+                // so we need to release `mSyncVecMutex`
+                syncVecMutexLock.unlock();
                 sync->recursiveCollectNameConflicts(nullptr, &count, limit ? &limit : nullptr);
-                if (count >= limit) break;
+                if (count >= limit)
+                {
+                    break;
+                }
+
+                // Lock `syncVecMutex` again
+                syncVecMutexLock.lock();
             }
         }
     }
@@ -14147,12 +14168,20 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
     queueSync([=]()
         {
             list<NameConflict> nc;
-            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+            std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
             for (auto& us : mSyncVec)
             {
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
                 {
+                    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+                    // otherwise we may generate deadlocks; in this case at
+                    // `recursiveCollectNameConflicts->lookupCloudChildren` `nodeTreeMutex` is
+                    // locked, so we need to release `mSyncVecMutex`
+                    syncVecMutexLock.unlock();
                     us->mSync->recursiveCollectNameConflicts(&nc);
+
+                    // Lock `syncVecMutex` again
+                    syncVecMutexLock.lock();
                 }
             }
             finalcompletion(std::move(nc));
