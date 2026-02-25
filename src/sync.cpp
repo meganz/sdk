@@ -8637,9 +8637,17 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 auto result = childRow.syncNode->watch(newPath.localPath,
                                                                        childRow.fsNode->fsid);
 
-                                // Any fatal errors while adding the watch?
-                                if (result == WR_FATAL)
-                                    changestate(UNABLE_TO_ADD_WATCH, false, true, true);
+                                {
+                                    // lock `mSyncVecMutex` to protect config change but release as
+                                    // soon as we have done
+                                    lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+
+                                    // Any fatal errors while adding the watch?
+                                    if (result == WR_FATAL)
+                                    {
+                                        changestate(UNABLE_TO_ADD_WATCH, false, true, true);
+                                    }
+                                }
                             }
 
                             if (!recursiveSync(
@@ -13739,6 +13747,13 @@ void Syncs::syncLoop()
                     SyncRow row{&sync->cloudRoot, sync->localroot.get(), &rootFsNode};
 
                     {
+                        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+                        // otherwise we may generate deadlocks; in this case at `recursiveSync`
+                        // `nodeTreeMutex` is locked, so we need to release `mSyncVecMutex`
+                        //
+                        // Also `mSyncVecMutex` cannot be locked before locking `mLocalNodeChangeMutex`,
+                        syncVecMutexlock.unlock();
+
                         // later we can make this lock much finer-grained
                         std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
@@ -13748,6 +13763,9 @@ void Syncs::syncLoop()
                         {
                             earlyExit = true;
                         }
+
+                        // Lock syncVecMutexlock again
+                        syncVecMutexlock.lock();
 
                         sync->cachenodes();
                     }
