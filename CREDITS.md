@@ -126,9 +126,9 @@ License: MIT
 https://github.com/tsyrogit/zxcvbn-c/blob/master/LICENSE.txt
 
 Files included in this repository based on `zxcvbn-c`:
-- `src/mega_zxcvbn.cpp` (based on `zxcvbn.c`)
-- `include/mega/mega_zxcvbn.h` (based on `zxcvbn.h`)
-- `include/mega/mega_dict-src.h` (dictionary file generated with the same wordlist as our webclient)
+- `third_party/zxcvbn-c/zxcvbn.cpp` (based on `zxcvbn.c`)
+- `third_party/zxcvbn-c/zxcvbn.h` (based on `zxcvbn.h`)
+- `third_party/zxcvbn-c/dict-src.h` (dictionary file generated with the same wordlist as our webclient)
 - `third_party/zxcvbn-c/README.md` (copy of the `README.MD` file of `zxcvbn-c`)
 - `third_party/zxcvbn-c/LICENSE.txt` (copy of the licence of `zxcvbn-c`)
 

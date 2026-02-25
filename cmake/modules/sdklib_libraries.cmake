@@ -11,6 +11,7 @@ macro(load_sdklib_libraries)
     endif()
     target_link_libraries(SDKlib PUBLIC http_parser)
     target_link_libraries(SDKlib PUBLIC utf8proc)
+    target_link_libraries(SDKlib PUBLIC zxcvbn_c)
 
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)

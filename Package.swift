@@ -55,6 +55,7 @@ let package = Package(
                 .headerSearchPath("third_party/evt-tls"),
                 .headerSearchPath("third_party/http_parser"),
                 .headerSearchPath("third_party/utf8proc"),
+                .headerSearchPath("third_party"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))
