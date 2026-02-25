@@ -9,6 +9,7 @@ macro(load_sdklib_libraries)
     if(NOT HAVE_GLOB_H AND NOT WIN32)
         target_link_libraries(SDKlib PUBLIC glob)
     endif()
+    target_link_libraries(SDKlib PUBLIC http_parser)
 
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)

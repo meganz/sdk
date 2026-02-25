@@ -45,7 +45,6 @@ set(SDKLIB_HEADERS
     include/mega/gfx/gfx_pdfium.h
     include/mega/gfx/external.h
     include/mega/pubkeyaction.h
-    include/mega/mega_http_parser.h
     include/mega/waiter.h
     include/mega/db/sqlite.h
     include/mega/types.h
@@ -133,7 +132,6 @@ set(SDKLIB_SOURCES
     src/logging.cpp
     src/localpath.cpp
     src/mediafileattribute.cpp
-    src/mega_http_parser.cpp
     src/mega_utf8proc.cpp
     src/mega_zxcvbn.cpp
     src/megaclient.cpp
@@ -466,7 +464,6 @@ if(ENABLE_SDKLIB_WERROR)
     endif()
     if(APPLE)
         set_source_files_properties(
-            src/mega_http_parser.cpp
             src/mega_utf8proc.cpp
             src/mega_zxcvbn.cpp
             PROPERTIES 

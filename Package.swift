@@ -53,6 +53,7 @@ let package = Package(
                 .headerSearchPath("third_party/ccronexpr"),
                 .headerSearchPath("third_party/csv"),
                 .headerSearchPath("third_party/evt-tls"),
+                .headerSearchPath("third_party/http_parser"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))

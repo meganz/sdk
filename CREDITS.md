@@ -111,8 +111,8 @@ License: MIT
 https://github.com/nodejs/http-parser/blob/master/LICENSE-MIT
 
 Files included in this repository based on `http_parser`:
-- `src/mega_http_parser.cpp` (based on `http_parser.c`)
-- `include/mega/mega_http_parser.h` (based on `http_parser.h`)
+- `third_party/http_parser/http_parser/http_parser.cpp` (based on `http_parser.c`)
+- `third_party/http_parser/http_parser/http_parser.h` (based on `http_parser.h`)
 - `third_party/http_parser/AUTHORS` (copy of the `AUTHORS` file of `http_parser`)
 - `third_party/http_parser/LICENSE-MIT` (copy of the licence of `http_parser`)
 
