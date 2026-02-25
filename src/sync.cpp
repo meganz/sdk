@@ -4534,7 +4534,8 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
         renameDbAndNotifyServer();
 
         // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
-        // generate deadlocks; in this case at `resumeSync`, so we need to release mutex before.
+        // generate deadlocks; in this case at `resumeSync->enableSyncByBackupId_inThread`, so we
+        // need to release mutex before.
         syncVecMutexLock.unlock();
         unifSync->resumeSync(
             [completion = std::move(completion)](error err, SyncError serr, handle)
@@ -4703,11 +4704,11 @@ void Syncs::startSync_inThread(UnifiedSync& us,
     // deadlocks; in this case at `Sync::Sync->lookupCloudNode`, so we need to
     // release mutex before.
     syncVecMutexLock.unlock();
-
-    us.mSync.reset(new Sync(us, logname, constructResult));
+    auto auxSync = std::make_unique<Sync>(us, logname, constructResult);
 
     // Lock `syncVecMutexLock` again
     syncVecMutexLock.lock();
+    us.mSync = std::move(auxSync);
 
     if (constructResult != NO_SYNC_ERROR)
     {
@@ -7402,13 +7403,14 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 // this should only happen on initial migraion from from old caches
                 CloudNode cloudNode;
                 string cloudNodePath;
+                const auto remoteNodeHandle = unifiedSync->mConfig.mRemoteNode;
 
                 // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
                 // generate deadlocks, in this case by calling `lookupCloudNode` this could happen
                 // if we do not release `mSyncVecMutex` before
                 syncVecMutexLock.unlock();
                 const auto lookupCloudNodeSuccess =
-                    lookupCloudNode(unifiedSync->mConfig.mRemoteNode,
+                    lookupCloudNode(remoteNodeHandle,
                                     cloudNode,
                                     &cloudNodePath,
                                     nullptr,
@@ -13665,12 +13667,13 @@ void Syncs::syncLoop()
                     {
                         // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
                         // deadlocks; in this case at `enableSyncByBackupId_inThread`, so we need to release mutex before.
+                        const auto auxBackupId = us->mConfig.mBackupId;
                         syncVecMutexlock.unlock();
 
                         LOG_debug << "Auto-starting sync that was suspended when the local path "
                                      "was unavailable: "
                                   << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId,
+                        enableSyncByBackupId_inThread(auxBackupId,
                                                       false,
                                                       nullptr,
                                                       "",
