@@ -2198,6 +2198,7 @@ void MegaClient::maybeStartWsUploadEngine()
     if (loggedin() == NOTLOGGEDIN)
         return;
 
+    m_wsEngine->setMaxConnections(connections[PUT]);
     m_wsEngine->start();
     installWsEngineCallbacks();
     mWsEngineStarted = true;
@@ -2223,35 +2224,86 @@ void MegaClient::installWsEngineCallbacks()
     cb.onStart = [this](Transfer& t)
     {
         // Bounce to client thread: set pos/progress/state and notify app.
-        wsPostTransferUpdate(&t,
-                             [](Transfer& t, TransferDbCommitter&)
-                             {
-                                 LOG_debug
-                                     << "[MegaClient::wsPostTransferUpdate] onStart t.pos = 0 && "
-                                        "t.setProgresscompleted(0) && t.state = "
-                                        "TRANSFERSTATE_ACTIVE [t.localfilename = "
-                                     << t.localfilename << "]";
-                                 t.pos = 0;
-                                 t.setProgresscompleted(0);
-                                 t.state = TRANSFERSTATE_ACTIVE;
-                             });
+        wsPostTransferUpdate(
+            &t,
+            [this](Transfer& t, TransferDbCommitter& committer)
+            {
+                LOG_debug << "[MegaClient::wsPostTransferUpdate] onStart -> t.state = "
+                             "TRANSFERSTATE_ACTIVE [t.localfilename = "
+                          << t.localfilename << "]";
+
+                // Keep any existing pos/progress/chunkmacs so resumed transfers
+                // can continue without losing their persisted state.
+                t.state = TRANSFERSTATE_ACTIVE;
+                t.failcount = 0;
+                t.lastaccesstime = m_time();
+
+                if (wsEngine())
+                {
+                    std::string sessionUrl;
+                    if (wsEngine()->getSessionUrl(t, sessionUrl))
+                    {
+                        if (!t.ws_session_url.empty() && t.ws_session_url != sessionUrl)
+                        {
+                            // Session endpoint changed (or was invalidated): restart progress for
+                            // safety.
+                            t.chunkmacs.clear();
+                            t.pos = 0;
+                            t.setProgresscompleted(0);
+                        }
+                        t.ws_session_url = std::move(sessionUrl);
+                    }
+                }
+                transfercacheadd(&t, &committer);
+            });
     };
 
     cb.onProgress = [this](Transfer& t, const m_off_t confirmed)
     {
         wsPostTransferUpdate(&t,
-                             [confirmed](Transfer& t, TransferDbCommitter&)
+                             [this, confirmed](Transfer& t, TransferDbCommitter& committer)
                              {
                                  LOG_debug << "[MegaClient::wsPostTransferUpdate] onProgress -> "
                                               "t.setProgresscompleted(confirmed="
                                            << confirmed
                                            << ") [t.localfilename = " << t.localfilename << "]";
+
+                                 // Apply any server-confirmed chunk MAC updates accumulated on the
+                                 // WS worker threads before persisting.
+                                 if (auto* wse = wsEngine())
+                                 {
+                                     std::vector<chunkmac_map> macUpdates;
+                                     wse->drainConfirmedChunkMacs(t, macUpdates);
+                                     bool mergedChunkMacs = false;
+                                     for (auto& m: macUpdates)
+                                     {
+                                         if (m.size())
+                                         {
+                                             t.chunkmacs.finishedUploadChunks(m);
+                                             mergedChunkMacs = true;
+                                         }
+                                     }
+
+                                     // Keep WS behavior aligned with legacy uploads: once new chunkmacs
+                                     // are merged, advance contiguous/macsmac consolidation before
+                                     // persisting transfer state.
+                                     if (mergedChunkMacs)
+                                     {
+                                         t.chunkmacs.updateContiguousProgress(t.size);
+                                         t.chunkmacs.updateMacsmacProgress(t.transfercipher());
+                                     }
+                                 }
+
                                  const auto diff = confirmed - t.progresscompleted;
                                  if (diff > 0 && t.client && t.client->httpio)
                                  {
                                      t.client->httpio->updateuploadspeed(diff);
                                  }
+
+                                 t.failcount = 0;
+                                 t.lastaccesstime = m_time();
                                  t.setProgresscompleted(confirmed);
+                                 transfercacheadd(&t, &committer);
                              });
     };
 
@@ -2374,14 +2426,40 @@ void MegaClient::installWsEngineCallbacks()
                     LOG_warn << "[MegaClient::installWsEngineCallbacks] onComplete -> "
                                 "missing/invalid upload token (len="
                              << len << ") [t.localfilename = " << tt.localfilename << "]";
-                    tt.state = TRANSFERSTATE_RETRYING;
-                    if (c.app)
-                        c.app->transfer_update(tPtr);
+                    if (c.wsEngine())
+                    {
+                        // Reset WS per-attempt state so this transfer can retry instead of getting
+                        // stuck in a completed-attempt state with no valid upload token.
+                        c.wsEngine()->markFailed(tt, 0);
+                    }
+                    tt.failed(API_EAGAIN, committer);
                     return;
                 }
 
                 tt.ultoken.reset(new UploadToken);
                 memcpy(tt.ultoken->data(), payloadCopy.data(), UPLOADTOKENLEN);
+
+                // Apply any confirmed chunk MAC updates before computing the final macsmac.
+                if (c.wsEngine())
+                {
+                    std::vector<chunkmac_map> confirmedChunkMacs;
+                    c.wsEngine()->drainConfirmedChunkMacs(tt, confirmedChunkMacs);
+                    bool mergedChunkMacs = false;
+                    for (auto& m: confirmedChunkMacs)
+                    {
+                        if (m.size())
+                        {
+                            tt.chunkmacs.finishedUploadChunks(m);
+                            mergedChunkMacs = true;
+                        }
+                    }
+
+                    if (mergedChunkMacs)
+                    {
+                        tt.chunkmacs.updateContiguousProgress(tt.size);
+                        tt.chunkmacs.updateMacsmacProgress(tt.transfercipher());
+                    }
+                }
 
                 memcpy(&tt.filekey.key, tt.transferkey.data(), SymmCipher::KEYLENGTH);
                 tt.filekey.iv_u64 = static_cast<uint64_t>(tt.ctriv);
@@ -2639,6 +2717,47 @@ bool MegaClient::wsCanStartAnotherFile() const
 
 bool MegaClient::prepareUploadForWs(Transfer& t)
 {
+    auto failWsPreflightRead = [this, &t](const char* reason)
+    {
+        LOG_warn << "[MegaClient::prepareUploadForWs] preflight failed (" << reason
+                 << ") [t.localfilename = " << t.localfilename << "]";
+
+        // Prevent hot-loop retries in the WS worker thread while the client thread
+        // processes the failure and applies standard transfer backoff.
+        if (wsEngine())
+        {
+            wsEngine()->markFailed(t, 0);
+        }
+
+        Transfer* tp = &t;
+        const direction_t type = t.type;
+        const UploadHandle th = t.uploadhandle;
+        wsPostToClientThread(
+            [tp, type, th](MegaClient& c, TransferDbCommitter& committer)
+            {
+                if (!tp)
+                {
+                    return;
+                }
+
+                auto& transfers = c.multi_transfers[type];
+                const auto it = transfers.find(tp);
+                if (it == transfers.end())
+                {
+                    return;
+                }
+
+                // If we had a defined upload handle when scheduling the task, ensure we still
+                // target the same transfer generation.
+                if (!th.isUndef() && !(tp->uploadhandle == th))
+                {
+                    return;
+                }
+
+                tp->failed(API_EREAD, committer);
+            });
+    };
+
     // Idempotent WS preflight: mirror the non-network work done by the legacy path
     // at openfinished, without TransferSlot/HttpReq:
     //
@@ -2676,7 +2795,31 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
         app->transfer_prepare(&t);
     }
 
-    // 2) First-activation only: create uploadhandle and enqueue FA imagery once
+    // 2) Early local-file validation (legacy parity):
+    //    verify the local file still matches the queued transfer metadata before
+    //    starting any WS handshake/chunking work.
+    {
+        auto fa = fsaccess->newfileaccess();
+        if (!fa->fopen(t.localfilename, OPEN_RDONLY, FSLogging::logOnError))
+        {
+            failWsPreflightRead("cannot open local file");
+            return false;
+        }
+
+        if (fa->mtime != t.mtime || fa->size != t.size)
+        {
+            LOG_warn << "[MegaClient::prepareUploadForWs] Modification detected before WS upload."
+                     << " Path: " << t.localfilename
+                     << " Size: " << t.size
+                     << " Mtime: " << t.mtime
+                     << " FaSize: " << fa->size
+                     << " FaMtime: " << fa->mtime;
+            failWsPreflightRead("mtime/size mismatch");
+            return false;
+        }
+    }
+
+    // 3) First-activation only: create uploadhandle and enqueue FA imagery once
     if (t.uploadhandle.isUndef())
     {
         t.uploadhandle = mUploadHandle.next();
@@ -2684,7 +2827,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                      "= mUploadHandle.next() = "
                   << t.uploadhandle << " [t.localfilename = " << t.localfilename << "]";
 
-        // 3) Enqueue thumbnail/preview FAs if applicable
+        // 4) Enqueue thumbnail/preview FAs if applicable
         if (!gfxdisabled && gfx && gfx->isgfx(t.localfilename))
         {
             LOG_debug << "[MegaClient::prepareUploadForWs] !gfxdisabled && gfx && "
@@ -3801,13 +3944,13 @@ void MegaClient::exec()
                                                     this,
                                                     idempotenceId);
 
-		    LOG_debug << "Lockless req: " << *mPendingLocklessCS->out;
+                    LOG_debug << "Lockless req: " << *mPendingLocklessCS->out;
                     mPendingLocklessCS->posturl = httpio->APIURL;
-		    if (*mPendingLocklessCS->out == "[{\"a\":\"usc\"}]")
-	            {
-			mPendingLocklessCS->posturl = "https://staging.api.mega.co.nz/";
+                    if (*mPendingLocklessCS->out == "[{\"a\":\"usc\"}]")
+                    {
+                        mPendingLocklessCS->posturl = "https://staging.api.mega.co.nz/";
 			LOG_warn << "[USC] Lockless req is USC !!! APIURL set to staging: " << mPendingLocklessCS->posturl;
-		    }
+                    }
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
@@ -3824,8 +3967,8 @@ void MegaClient::exec()
                         mPendingLocklessCS->posturl.append("&j=");
                         mPendingLocklessCS->posturl.append(mJourneyId->getValue());
                     }
-                    
-		    mPendingLocklessCS->type = REQ_JSON;
+
+                    mPendingLocklessCS->type = REQ_JSON;
 
                     mPendingLocklessCS->post(this);
                     continue;
@@ -5544,6 +5687,15 @@ void MegaClient::freeq(direction_t d)
     TransferDbCommitter committer(tctable);
     for (auto transferPtr : multi_transfers[d])
     {
+#ifdef MEGA_USE_WSUPLOAD
+        if (d == PUT && wsEngine() && transferPtr.second->channel == Transfer::Channel::WebSocket &&
+            transferPtr.second)
+        {
+            // freeq() bypasses TransferList::removetransfer(), so explicitly detach
+            // from WS engine before deleting the Transfer.
+            wsEngine()->remove(*transferPtr.second);
+        }
+#endif
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
         app->transfer_removed(transferPtr.second);
         delete transferPtr.second;
@@ -5602,6 +5754,13 @@ void MegaClient::disconnect()
     {
         (*it)->disconnect();
     }
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (wsEngine())
+    {
+        wsEngine()->notifyNetworkDisconnect();
+    }
+#endif
 
     for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
     {
@@ -15716,6 +15875,26 @@ void MegaClient::block(bool fromServerClientResponse)
 {
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (wsEngine())
+    {
+        // Legacy uploads are effectively stopped while blocked (doio gate).
+        // Mirror that for WS uploads by pausing active WS transfers and nudging
+        // worker threads to drop current socket sessions.
+        for (auto& it: multi_transfers[PUT])
+        {
+            Transfer* t = it.second;
+            if (!t || t->channel != Transfer::Channel::WebSocket)
+            {
+                continue;
+            }
+            wsEngine()->pause(*t);
+        }
+        wsEngine()->notifyNetworkDisconnect();
+    }
+#endif
+
 #ifdef ENABLE_SYNC
     syncs.disableSyncs(ACCOUNT_BLOCKED, false, true);
 #endif
@@ -15725,6 +15904,27 @@ void MegaClient::unblock()
 {
     LOG_verbose << "Unblocking MegaClient";
     setBlocked(false);
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (wsEngine() && !xferpaused[PUT])
+    {
+        // Restore WS uploads that were paused because of account blocked state.
+        // Respect explicit user-per-transfer pauses and global PUT pause.
+        for (auto& it: multi_transfers[PUT])
+        {
+            Transfer* t = it.second;
+            if (!t || t->channel != Transfer::Channel::WebSocket)
+            {
+                continue;
+            }
+            if (t->state == TRANSFERSTATE_PAUSED)
+            {
+                continue;
+            }
+            wsEngine()->unpause(*t);
+        }
+    }
+#endif
 }
 
 error MegaClient::changepw(const char* password, const char *pin)
@@ -20018,6 +20218,22 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 }
             }
 
+#ifdef MEGA_USE_WSUPLOAD
+            if (d == PUT && wsEngine() && t->ws_fileno == 0 && t->ws_session_url.empty() &&
+                !t->tempurls.empty())
+            {
+                // Legacy HTTP resume metadata detected while this client will upload via WS.
+                // Clear once (guarded by !tempurls.empty()) before the WS attempt starts, so we
+                // will not mix old HTTP resume state into WS state.
+                t->tempurls.clear();
+                t->discardedTempUrlsSize = 0;
+                t->chunkmacs.clear();
+                t->ultoken.reset();
+                t->pos = 0;
+                t->setProgresscompleted(0);
+            }
+#endif
+
             t->skipserialization = donotpersist;
 
             t->lastaccesstime = currentTime;
@@ -20118,6 +20334,34 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbComm
             }
         }
     }
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (d == PUT && wsEngine())
+    {
+        for (auto& it: multi_transfers[d])
+        {
+            Transfer* t = it.second;
+            if (!t || t->channel != Transfer::Channel::WebSocket)
+            {
+                continue;
+            }
+
+            if (pause)
+            {
+                wsEngine()->pause(*t);
+            }
+            else
+            {
+                wsEngine()->unpause(*t);
+            }
+        }
+
+        if (pause && hard)
+        {
+            wsEngine()->notifyNetworkDisconnect();
+        }
+    }
+#endif
 
 #ifdef ENABLE_SYNC
     syncs.transferPauseFlagsUpdated(xferpaused[GET], xferpaused[PUT]);
@@ -20348,6 +20592,14 @@ void MegaClient::applymaxconnections(const direction_t d, const uint8_t num)
     LOG_debug << "[MegaClient::applymaxconnections] Set max parallel " << connDirectionToStr(d)
               << " connections per transfer to " << +num << " [prev: " << +connections[d] << "]";
     connections[d] = static_cast<unsigned char>(num);
+
+#ifdef MEGA_USE_WSUPLOAD
+            if (d == PUT && wsEngine())
+            {
+                wsEngine()->setMaxConnections(static_cast<unsigned char>(num));
+            }
+#endif
+    
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end();)
     {
         TransferSlot* slot = *it++;

@@ -242,12 +242,17 @@ bool Transfer::serialize(string *d) const
 
     CacheableWriter cw(*d);
     // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
-    cw.serializeu8(1);
+    // Version 2 adds extra optional fields for WS resume states
+    cw.serializeu8(2);
 
     // 8 expansion flags, in the normal manner. First flag is for whether downloadFileHandle is
     // present. Second flag is for amount of discarded temp URLs. Third Flag is for marking if
     // localfilename is serialized as LocalPath
-    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1, 1);
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1,
+                               1,
+                               1,
+                               ws_fileno ? 1 : 0,
+                               ws_session_url.empty() ? 0 : 1);
 
     if (!downloadFileHandle.isUndef())
     {
@@ -256,6 +261,16 @@ bool Transfer::serialize(string *d) const
 
     cw.serializeu8(discardedTempUrlsSize);
 
+    if (ws_fileno)
+    {
+        cw.serializeu32(ws_fileno);
+    }
+
+    if (!ws_session_url.empty())
+    {
+        cw.serializestring(ws_session_url);
+    }
+
 #ifdef DEBUG
     // very quick debug only double check
     string tempstr = *d;
@@ -263,6 +278,8 @@ bool Transfer::serialize(string *d) const
     unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
     assert(t);
     assert(t->localfilename == localfilename);
+    assert(t->ws_fileno == ws_fileno);
+    assert(t->ws_session_url == ws_session_url);
     assert(t->tempurls == tempurls);
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
@@ -322,9 +339,11 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
         !r.unserializestring(combinedUrls) || !r.unserializei8(state) ||
         !r.unserializeu64(t->priority) || !r.unserializei8(version) ||
-        (version > 0 && !r.unserializeexpansionflags(expansionflags, 3)) ||
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, version > 1 ? 5 : 3)) ||
         (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)) ||
-        (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)))
+        (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)) ||
+        (expansionflags[3] && !r.unserializeu32(t->ws_fileno)) ||
+        (expansionflags[4] && !r.unserializestring(t->ws_session_url)))
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;

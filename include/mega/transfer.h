@@ -28,6 +28,8 @@
 #include "http.h"
 #include "raid.h"
 
+#include <cstdint>
+#include <string>
 #include <variant>
 
 namespace mega
@@ -166,6 +168,15 @@ struct MEGA_API Transfer : public FileFingerprint
         WebSocket
     };
     Channel channel = Channel::LegacyHTTP;
+
+    // WebSocket resume metadata (PUT only).
+    //
+    // ws_fileno identifies this file within the WS upload session (the WSS URL).
+    // ws_session_url is the exact WSS endpoint used for the current upload attempt.
+    //
+    // Together with chunkmacs/progresscompleted/pos these allow best-effort resume after restart.
+    std::uint32_t ws_fileno = 0;
+    std::string ws_session_url;
 
     // WebSocket composition (PUT only)
     // (No ownership cycles: engine keeps no owning ptrs to Transfer)

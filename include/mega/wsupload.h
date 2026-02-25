@@ -5,6 +5,8 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <string>
+#include <vector>
 
 namespace mega
 {
@@ -82,12 +84,33 @@ public:
     // status
     bool isUploading(Transfer& t) const;
 
+    // Drain any server-confirmed chunk MAC updates accumulated on the WS worker threads.
+    //
+    // The legacy HTTP PUT path updates Transfer::chunkmacs and persists them via
+    // MegaClient::transfercacheadd() as chunks are confirmed. WS uploads must do
+    // the same work, but without mutating Transfer from worker threads.
+    //
+    // Returns false if the transfer is not currently tracked by the engine.
+    bool drainConfirmedChunkMacs(Transfer& t, std::vector<chunkmac_map>& out);
+
+    // Get the WSS session URL currently used by this transfer (if any).
+    //
+    // Returns false if the transfer is not tracked or has not been assigned to a pool yet.
+    bool getSessionUrl(Transfer& t, std::string& outUrl) const;
+
     // integration
     void setCallbacks(Callbacks cb);
     bool getTransferStats(const Transfer& t, WsTransferStats& stats) const;
 
     // Hint the engine that conditions may have changed (e.g. FA queue).
     void kick();
+
+    // Hint WS worker threads to drop current socket sessions and reconnect later.
+    // Useful to keep disconnect semantics aligned with legacy HTTP transfers.
+    void notifyNetworkDisconnect();
+
+    // Set desired WS per-transfer upload concurrency (worker threads per non-pinned pool).
+    void setMaxConnections(unsigned char maxConnections);
 
     class Impl; // pImpl keeps heavy includes out of headers
 

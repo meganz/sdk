@@ -523,9 +523,6 @@ struct DynamicMessageNotification
 class MEGA_API MegaClient
 {
 #ifdef MEGA_USE_WSUPLOAD
-    std::unique_ptr<ws::UploadEngine> m_wsEngine;
-    bool mWsEngineStarted{false};
-
     // WS client-thread actions (processed in MegaClient::exec()).
     std::mutex mWsClientActionsMutex;
     std::deque<std::function<void(MegaClient&, TransferDbCommitter&)>> mWsClientActions;
@@ -547,6 +544,11 @@ class MEGA_API MegaClient
     };
 
     std::deque<std::unique_ptr<WsVerifyPending>> mWsVerifyPending;
+
+    // Keep engine declared after WS action queues/mutex so engine threads are stopped
+    // before those members are destroyed (member destruction is reverse declaration order).
+    std::unique_ptr<ws::UploadEngine> m_wsEngine;
+    bool mWsEngineStarted{false};
 
     WsVerifyResult wsVerifyUploadUnchanged(Transfer& t, TransferDbCommitter& committer);
     void wsFinalizeUploadCompletion(Transfer& t);
