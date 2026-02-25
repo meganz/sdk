@@ -1,3 +1,4 @@
+// clang-format off
 /* -*- mode: c; c-basic-offset: 2; tab-width: 2; indent-tabs-mode: nil -*- */
 /*
  *  Copyright (c) 2015 Steven G. Johnson, Jiahao Chen, Peter Colberg, Tony Kelman, Scott P. Jones, and other contributors.
@@ -41,8 +42,8 @@
  */
 
 
-#include "mega/mega_utf8proc.h"
-#include "mega_utf8proc_data.c"
+#include "utf8proc.h"
+#include "utf8proc_data.c"
 
 
 UTF8PROC_DLLEXPORT const utf8proc_int8_t utf8proc_utf8class[256] = {

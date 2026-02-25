@@ -19,7 +19,6 @@ set(SDKLIB_HEADERS
     include/mega/thread.h
     include/mega/json.h
     include/mega/base64.h
-    include/mega/mega_utf8proc.h
     include/mega/gfx.h
     include/mega/proxy.h
     include/mega/crypto/sodium.h
@@ -132,7 +131,6 @@ set(SDKLIB_SOURCES
     src/logging.cpp
     src/localpath.cpp
     src/mediafileattribute.cpp
-    src/mega_utf8proc.cpp
     src/mega_zxcvbn.cpp
     src/megaclient.cpp
     src/node.cpp
@@ -464,7 +462,6 @@ if(ENABLE_SDKLIB_WERROR)
     endif()
     if(APPLE)
         set_source_files_properties(
-            src/mega_utf8proc.cpp
             src/mega_zxcvbn.cpp
             PROPERTIES 
             COMPILE_FLAGS "-Wno-sign-conversion"

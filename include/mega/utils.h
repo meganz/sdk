@@ -32,7 +32,7 @@
 #include <thread>
 #include <type_traits>
 #undef SSIZE_MAX
-#include "mega/mega_utf8proc.h"
+#include <utf8proc/utf8proc.h>
 #undef SSIZE_MAX
 
 // Include ICU headers

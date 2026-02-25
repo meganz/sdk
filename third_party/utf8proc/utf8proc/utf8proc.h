@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * Copyright (c) 2015 Steven G. Johnson, Jiahao Chen, Peter Colberg, Tony Kelman, Scott P. Jones, and other contributors.
  * Copyright (c) 2009 Public Software Group e. V., Berlin, Germany

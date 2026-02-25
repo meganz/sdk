@@ -38,7 +38,7 @@ let package = Package(
                 "src/common/platform/windows",
                 "src/file_service/documentation",
                 "src/fuse/supported",
-                "src/mega_utf8proc_data.c",
+                "third_party/utf8proc/utf8proc/utf8proc_data.c",
                 "src/win32",
                 "tests",
                 "tools"
@@ -54,6 +54,7 @@ let package = Package(
                 .headerSearchPath("third_party/csv"),
                 .headerSearchPath("third_party/evt-tls"),
                 .headerSearchPath("third_party/http_parser"),
+                .headerSearchPath("third_party/utf8proc"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))

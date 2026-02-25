@@ -84,9 +84,9 @@ License: MIT "expat" license
 https://github.com/JuliaLang/utf8proc/blob/master/LICENSE.md
 
 Files included in this repository based on `utf8proc`:
-- `src/mega_utf8proc.cpp` (based on `utf8proc.c`)
-- `src/mega_utf8proc_data.c` (based on `utf8proc_data.c`)
-- `include/mega/mega_utf8proc.h` (based on `utf8proc.h`)
+- `third_party/utf8proc/utf8proc/utf8proc.cpp` (based on `utf8proc.c`)
+- `third_party/utf8proc/utf8proc/utf8proc_data.c` (based on `utf8proc_data.c`)
+- `third_party/utf8proc/utf8proc/utf8proc.h` (based on `utf8proc.h`)
 - `third_party/utf8proc/LICENSE` (copy of the licence of `utf8proc`)
 
 #### Cron expression parsing in ANSI C
