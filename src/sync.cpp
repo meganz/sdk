@@ -4600,6 +4600,7 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
     const auto exitResumingIfNeeded =
         [syncWasRunning, completion = std::move(completion), &unifSync](error e, SyncError se)
     {
+        // `mSyncVecMutex` is unlocked in all places before calling `exitResumingIfNeeded`
         if (!syncWasRunning)
             return completion(e, se);
         unifSync->resumeSync(
@@ -7449,7 +7450,7 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                     "");
 
                 // Lock `syncVecMutexLock` again
-                syncVecMutexLock.unlock();
+                syncVecMutexLock.lock();
             }
             else
             {
@@ -13515,9 +13516,20 @@ void Syncs::syncLoop()
             {
                 continue;
             }
-            else if (foundRootNode && processPauseResumeSyncBySds(*us.get(), sdsBackups))
+            else
             {
-                continue;
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+                // generate deadlocks; in this case
+                // at`processPauseResumeSyncBySds->enableSyncByBackupId_inThread`, so we need to
+                // release mutex before.
+                syncVecMutexlock.unlock();
+                const auto success =
+                    foundRootNode && processPauseResumeSyncBySds(*us.get(), sdsBackups);
+                syncVecMutexlock.lock();
+                if (success)
+                {
+                    continue;
+                }
             }
 
             if (Sync* sync = us->mSync.get())
