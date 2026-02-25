@@ -4214,6 +4214,8 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         us.mConfig.mLocalPathFsid = UNDEF;
     }
 
+    const auto remoteNodeHandle = us.mConfig.mRemoteNode;
+
     // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
     // deadlocks; in this case at`lookupCloudNode` and explicit lock of `nodeTreeMutex` some lines
     // below, so we need to release mutex before.
@@ -4223,7 +4225,7 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     {
         CloudNode cloudNode;
         string cloudNodePath;
-        const auto lookupCloudNodeSuccess = lookupCloudNode(us.mConfig.mRemoteNode,
+        const auto lookupCloudNodeSuccess = lookupCloudNode(remoteNodeHandle,
                                                             cloudNode,
                                                             &cloudNodePath,
                                                             nullptr,
@@ -8237,8 +8239,12 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 {
     assert(syncs.onSyncThread());
 
-    // in case of sync failing while we recurse
-    if (getConfig().mError) return false;
+    {
+        // in case of sync failing while we recurse
+        lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+        if (getConfig().mError)
+            return false;
+    }
 
     assert(row.syncNode);
     assert(row.syncNode->type > FILENODE);
@@ -8476,8 +8482,12 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     // Convenience.
                     auto& childRow = childRows[i];
 
-                    // in case of sync failing while we recurse
-                    if (getConfig().mError) return false;
+                    {
+                        // in case of sync failing while we recurse
+                        lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+                        if (getConfig().mError)
+                            return false;
+                    }
 
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
