@@ -679,9 +679,12 @@ Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
 
     localroot.reset(new LocalNode(this));
 
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(syncs.mSyncVecMutex);
     const SyncConfig& config = us.mConfig;
+    const auto remoteNodeHandle = config.mRemoteNode;
+    syncVecMutexLock.unlock();
 
-    syncs.lookupCloudNode(config.mRemoteNode,
+    syncs.lookupCloudNode(remoteNodeHandle,
                           cloudRoot,
                           &cloudRootPath,
                           nullptr,
@@ -691,6 +694,8 @@ Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
                           Syncs::FOLDER_ONLY,
                           &cloudRootOwningUser);
     inshare = syncs.isCloudNodeInShare(cloudRoot);
+
+    syncVecMutexLock.lock();
     tmpfa = NULL;
     syncname = logname; // can be updated to be more specific in logs
 
