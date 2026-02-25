@@ -4408,7 +4408,14 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at`startSync_inThread->Sync::Sync->lookupCloudNode`, so we need to
+    // release mutex before.
+    syncVecMutexLock.unlock();
     startSync_inThread(us, completion, logname);
+
+    // Lock `syncVecMutexLock` again
+    syncVecMutexLock.lock();
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
@@ -4659,6 +4666,7 @@ void Syncs::startSync_inThread(UnifiedSync& us,
                                const string& logname)
 {
     assert(onSyncThread());
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     assert(!us.mSync);
 
     auto fail = [&us, &completion](Error e, SyncError se) -> void {
@@ -4680,7 +4688,16 @@ void Syncs::startSync_inThread(UnifiedSync& us,
     us.changedConfigState(false, true);
 
     SyncError constructResult = NO_SYNC_ERROR;
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at `Sync::Sync->lookupCloudNode`, so we need to
+    // release mutex before.
+    syncVecMutexLock.unlock();
+
     us.mSync.reset(new Sync(us, logname, constructResult));
+
+    // Lock `syncVecMutexLock` again
+    syncVecMutexLock.lock();
 
     if (constructResult != NO_SYNC_ERROR)
     {
