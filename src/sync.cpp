@@ -7393,7 +7393,10 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
 void Syncs::resumeSyncsOnStateCurrent_inThread()
 {
     assert(onSyncThread());
-    for (auto& unifiedSync: mSyncVec)
+
+    // Make a copy of mSyncVec to avoid locking mutex so many time
+    auto auxSyncVec = getSyncVecCopy();
+    for (auto& unifiedSync: auxSyncVec)
     {
         std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (!unifiedSync->mSync)
@@ -13377,6 +13380,15 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
+std::vector<std::shared_ptr<UnifiedSync>> Syncs::getSyncVecCopy() const
+{
+    std::vector<std::shared_ptr<UnifiedSync>> auxSyncVec;
+    {
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+        auxSyncVec = mSyncVec;
+    }
+    return auxSyncVec;
+}
 
 void Syncs::syncLoop()
 {
@@ -13449,17 +13461,13 @@ void Syncs::syncLoop()
 
         waiter->bumpds();
 
-        // Make a copy of mSyncVec to avoid locking mutex so many time in SyncLoop
-        vector<shared_ptr<UnifiedSync>> auxSyncVec;
-        {
-            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
-            auxSyncVec = mSyncVec;
-        }
+        // Make a copy of mSyncVec to avoid locking mutex so many time
+        auto auxSyncVec = getSyncVecCopy();
 
         // Process filesystem notifications.
         for (auto& us: auxSyncVec)
         {
-            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             if (Sync* sync = us->mSync.get())
             {
                 if (sync->dirnotify)
@@ -13491,7 +13499,7 @@ void Syncs::syncLoop()
         {
             NodeHandle remoteNodeHandle;
             {
-                std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
+                lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
                 remoteNodeHandle = us->mConfig.mRemoteNode;
             }
             vector<pair<handle, int>> sdsBackups;
@@ -13881,7 +13889,7 @@ void Syncs::syncLoop()
         {
             for (auto& us: auxSyncVec)
             {
-                std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
+                lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
                 mHeartBeatMonitor->updateOrRegisterSync(*us);
             }
         }
@@ -14076,9 +14084,12 @@ bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
     size_t totalConflicts{};
-    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
-    for (auto& us: mSyncVec)
+
+    // Make a copy of mSyncVec to avoid locking mutex so many time
+    auto auxSyncVec = getSyncVecCopy();
+    for (auto& us: auxSyncVec)
     {
+        std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
         {
             auto [it, success] = conflicts.emplace(us->mConfig.mBackupId, list<NameConflict>());
@@ -14119,9 +14130,11 @@ size_t Syncs::conflictsDetectedCount(size_t limit) const
     assert(onSyncThread());
 
     size_t count = 0;
-    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
-    for (auto& us : mSyncVec)
+    // Make a copy of mSyncVec to avoid locking mutex so many time
+    auto auxSyncVec = getSyncVecCopy();
+    for (auto& us : auxSyncVec)
     {
+        std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (Sync* sync = us->mSync.get())
         {
             if (sync->localroot->conflictsDetected())
@@ -14171,9 +14184,11 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
     queueSync([=]()
         {
             list<NameConflict> nc;
-            std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
+            // Make a copy of mSyncVec to avoid locking mutex so many time
+            auto auxSyncVec = getSyncVecCopy();
             for (auto& us : mSyncVec)
             {
+                std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
                 {
                     // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,

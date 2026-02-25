@@ -1921,6 +1921,17 @@ private:
     void processSyncConflicts();
     void processSyncStalls();
 
+    /**
+     * @brief Returns a thread-safe copy of `mSyncVec`.
+     *
+     * This method returns a thread-safe (by locking `mSyncVecMutex`) copy of the current vector of
+     * UnifiedSync shared pointers.
+     *
+     * @note The returned vector is a snapshot of the internal state
+     * at the time of the call. Subsequent modifications to the
+     * original container will not affect the returned copy.
+     */
+    std::vector<std::shared_ptr<UnifiedSync>> getSyncVecCopy() const;
     void syncLoop();
 
     enum WhichCloudVersion
