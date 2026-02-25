@@ -4930,10 +4930,10 @@ void exec_proxyget(autocomplete::ACState&)
         return std::cout << "No proxy configured" << std::endl, void();
 
     // Display proxy settings.
-    std::cout << "Proxy URI: " << settings->getProxyURL() << "\n"
+    std::cout << "Proxy Type: " << *proxyTypeToString(settings->getProxyType()) << "\n"
+              << "Proxy URI: " << settings->getProxyURL() << "\n"
               << "Proxy Username: " << settings->getUsername() << "\n"
-              << "Proxy Password: " << settings->getPassword() << "\n"
-              << "Proxy Type: " << *proxyTypeToString(settings->getProxyType()) << std::endl;
+              << "Proxy Password: " << settings->getPassword() << "\n";
 }
 
 void exec_proxyset(autocomplete::ACState& state)

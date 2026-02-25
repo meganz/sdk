@@ -375,7 +375,7 @@ CurlHttpIO::CurlHttpIO()
     proxyinflight = 0;
     waiter = NULL;
     proxyport = 0;
-    proxytype = Proxy::NONE;
+    proxytype = Proxy::AUTO;
 }
 
 void CurlHttpIO::addcurlevents(Waiter* eventWaiter, direction_t d)
@@ -1026,6 +1026,10 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         {
             curl_easy_setopt(curl, CURLOPT_PROXY, "");
         }
+        else if (httpio->proxytype == Proxy::AUTO)
+        {
+            curl_easy_setopt(curl, CURLOPT_PROXY, nullptr);
+        }
 
         if (!httpio->dnsservers.empty())
         {
@@ -1191,7 +1195,7 @@ void CurlHttpIO::post(HttpReq* req, const char* data, unsigned len)
 std::optional<Proxy> CurlHttpIO::getproxy() const
 {
     // No prior proxy configuration.
-    if (proxyurl.empty())
+    if (proxytype == Proxy::NONE)
         return std::nullopt;
 
     Proxy proxy;
@@ -1212,14 +1216,16 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
 
     if (proxy.getProxyType() != Proxy::CUSTOM || !proxy.getProxyURL().size())
     {
-        LOG_debug << "CurlHttpIO::setproxy: Invalid arguments. type: " << proxy.getProxyType()
-                  << " url: " << proxy.getProxyURL() << " Invalidating inflight proxy changes";
+        LOG_debug << "CurlHttpIO::setproxy:"
+                  << (proxy.getProxyType() == Proxy::CUSTOM ? " Invalid arguments." : "")
+                  << " type: " << proxy.getProxyType() << " url: " << proxy.getProxyURL()
+                  << " Invalidating inflight proxy changes";
         proxyschema.clear();
         proxyhost.clear();
         proxyport = 0;
         proxyusername.clear();
         proxypassword.clear();
-        proxytype = Proxy::NONE;
+        proxytype = proxy.getProxyType() == Proxy::AUTO ? Proxy::AUTO : Proxy::NONE;
         proxyurl.clear();
 
         // send pending requests without a proxy
