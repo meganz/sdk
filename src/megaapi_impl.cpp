@@ -596,7 +596,7 @@ char *MegaNodePrivate::serialize()
     }
 
     char *ret = new char[d.size()*4/3+3];
-    Base64::btoa((byte*) d.data(), int(d.size()), ret);
+    Base64::btoa((byte*)d.data(), d.size(), ret);
 
     return ret;
 }
@@ -1111,7 +1111,7 @@ string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_
     byte bsize[sizeof(nodeSize) + 1];
     int l = Serialize64::serialize(bsize, static_cast<uint64_t>(nodeSize));
     unique_ptr<char[]> buf(new char[static_cast<size_t>(l * 4 / 3 + 4)]);
-    char ssize = static_cast<char>('A' + Base64::btoa(bsize, l, buf.get()));
+    char ssize = static_cast<char>('A' + Base64::btoa(bsize, static_cast<size_t>(l), buf.get()));
 
     string result(1, ssize);
     result.append(buf.get());
@@ -5566,7 +5566,7 @@ MegaStringMapPrivate::MegaStringMapPrivate(const string_map *map, bool toBase64)
         for (it = strMap.begin(); it != strMap.end(); it++)
         {
             buf = new char[it->second.length() * 4 / 3 + 4];
-            Base64::btoa((const byte *) it->second.data(), int(it->second.length()), buf);
+            Base64::btoa((const byte*)it->second.data(), it->second.length(), buf);
 
             it->second.assign(buf);
 
@@ -7536,7 +7536,7 @@ const char* MegaApiImpl::backupIdToBase64(MegaHandle backupId)
 char *MegaApiImpl::binaryToBase64(const char *binaryData, size_t length)
 {
     char *ret = new char[length * 4 / 3 + 3];
-    Base64::btoa((byte*)binaryData, int(length), ret);
+    Base64::btoa((byte*)binaryData, length, ret);
     return ret;
 }
 
@@ -13500,8 +13500,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
     string result;
     result.resize((sizeof fp.crc) * 4 / 3 + 4);
-    result.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)fp.crc.data(), sizeof fp.crc, (char*)result.c_str())));
+    result.resize(Base64::btoa((const byte*)fp.crc.data(), sizeof fp.crc, (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13515,8 +13514,7 @@ char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
 
     string result;
     result.resize((sizeof fp->crc) * 4 / 3 + 4);
-    result.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)fp->crc.data(), sizeof fp->crc, (char*)result.c_str())));
+    result.resize(Base64::btoa((const byte*)fp->crc.data(), sizeof fp->crc, (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13533,9 +13531,9 @@ char *MegaApiImpl::getCRC(MegaNode *n)
 
     string result;
     result.resize((sizeof node->crc) * 4 / 3 + 4);
-    result.resize(static_cast<size_t>(Base64::btoa((const byte*)node->crc.data(),
-                                                   sizeof node->crc.data(),
-                                                   (char*)result.c_str())));
+    result.resize(Base64::btoa((const byte*)node->crc.data(),
+                               sizeof node->crc.data(),
+                               (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -15955,7 +15953,7 @@ void MegaApiImpl::pubkey_result(User *u)
     string key;
     u->pubk.serializekey(&key, AsymmCipher::PUBKEY);
     char pubkbuf[AsymmCipher::MAXKEYLENGTH * 4 / 3 + 4];
-    Base64::btoa((byte *)key.data(), int(key.size()), pubkbuf);
+    Base64::btoa((byte*)key.data(), key.size(), pubkbuf);
     request->setPassword(pubkbuf);
 
     char jid[16];
@@ -16027,8 +16025,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     string attrstring;
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
+    attrstring.resize(Base64::btoa((const byte*)a->data(), a->length(), (char*)attrstring.data()));
 
     bool isNodeKeyDecrypted;
     string keystring;
@@ -16532,8 +16529,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         {
             string str;
             str.resize(len * 4 / 3 + 4);
-            str.resize(
-                static_cast<size_t>(Base64::btoa(data, static_cast<int>(len), (char*)str.data())));
+            str.resize(Base64::btoa(data, len, (char*)str.data()));
             request->setText(str.c_str());
         }
         break;
@@ -24144,8 +24140,8 @@ void MegaApiImpl::reportEvent(const char* details, MegaRequestListener* listener
             }
 
             string event = "A"; //Application event
-            int size = int(strlen(details));
-            char* base64details = new char[static_cast<size_t>(size * 4 / 3 + 4)];
+            size_t size = strlen(details);
+            char* base64details = new char[size * 4 / 3 + 4];
             Base64::btoa((byte *)details, size, base64details);
             client->reportevent(event.c_str(), base64details);
             delete [] base64details;
@@ -24219,10 +24215,10 @@ void MegaApiImpl::submitPurchaseReceipt(int gateway, const char* receipt, MegaHa
             if (type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                     || type == MegaApi::PAYMENT_METHOD_WINDOWS_STORE || type == MegaApi::PAYMENT_METHOD_HUAWEI_WALLET)
             {
-                int len = int(strlen(receipt));
-                base64receipt.resize(static_cast<size_t>(len * 4 / 3 + 4));
-                base64receipt.resize(static_cast<size_t>(
-                    Base64::btoa((byte*)receipt, len, (char*)base64receipt.data())));
+                size_t len = strlen(receipt);
+                base64receipt.resize(len * 4 / 3 + 4);
+                base64receipt.resize(
+                    Base64::btoa((byte*)receipt, len, (char*)base64receipt.data()));
             }
             else // MegaApi::PAYMENT_METHOD_ITUNES
             {

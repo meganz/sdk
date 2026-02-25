@@ -1049,7 +1049,7 @@ const char* CommandSetAttr::getJSON(MegaClient* clientOfRequest)
     }
 
     arg("n", (byte*)&h, MegaClient::NODEHANDLE);
-    arg("at", (byte*)at.c_str(), int(at.size()));
+    arg("at", (byte*)at.c_str(), at.size());
 
     if (mCanChangeVault)
     {
@@ -1218,7 +1218,7 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
         nn[i].mVersioningOption = vo;
 
         arg("t", nn[i].type);
-        arg("a", (byte*)nn[i].attrstring->data(), int(nn[i].attrstring->size()));
+        arg("a", (byte*)nn[i].attrstring->data(), nn[i].attrstring->size());
 
         if (!client->loggedIntoWritableFolder())
         {
@@ -1227,11 +1227,11 @@ CommandPutNodes::CommandPutNodes(MegaClient* client,
             {
                 client->key.ecb_encrypt((byte*)nn[i].nodekey.data(), key, nn[i].nodekey.size());
                 assert(!SymmCipher::isZeroKey(key, FILENODEKEYLENGTH));
-                arg("k", key, int(nn[i].nodekey.size()));
+                arg("k", key, nn[i].nodekey.size());
             }
             else
             {
-                arg("k", (const byte*)nn[i].nodekey.data(), int(nn[i].nodekey.size()));
+                arg("k", (const byte*)nn[i].nodekey.data(), nn[i].nodekey.size());
             }
         }
         endobject();
@@ -1781,12 +1781,12 @@ bool CommandPrelogin::procresult(Result r, JSON& json)
 CommandLogin::CommandLogin(MegaClient* client,
                            Completion completion,
                            const char* email,
-                           const byte *emailhash,
-                           int emailhashsize,
-                           const byte *sessionkey,
+                           const byte* emailhash,
+                           size_t emailhashsize,
+                           const byte* sessionkey,
                            int csessionversion,
-                           const char *pin)
-  : mCompletion(std::move(completion))
+                           const char* pin):
+    mCompletion(std::move(completion))
 {
     // Sanity.
     assert(mCompletion);
@@ -1978,10 +1978,10 @@ bool CommandLogin::procresult(Result r, JSON& json)
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
                         client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
-                        client->mSerializedPrivateRsaKey.resize(static_cast<size_t>(
+                        client->mSerializedPrivateRsaKey.resize(
                             Base64::btoa(privkbuf,
-                                         len_privk,
-                                         (char*)client->mSerializedPrivateRsaKey.data())));
+                                         static_cast<size_t>(len_privk),
+                                         (char*)client->mSerializedPrivateRsaKey.data()));
 
                         if (!client->mPrivateRsaKey.setkey(AsymmCipher::PRIVKEY,
                                                            privkbuf,
@@ -3322,7 +3322,7 @@ CommandPutMultipleUAVer::CommandPutMultipleUAVer(MegaClient *client, const usera
 
         beginarray(User::attr2string(type).c_str());
 
-        element((const byte *) it->second.data(), int(it->second.size()));
+        element((const byte*)it->second.data(), it->second.size());
 
         const UserAttribute* attribute = client->ownuser()->getAttribute(type);
         if (attribute && !attribute->version().empty())
@@ -3450,7 +3450,7 @@ CommandPutUAVer::CommandPutUAVer(MegaClient* client, attr_t at, const byte* av, 
     }
     else
     {
-        element(av, static_cast<int>(avl));
+        element(av, avl);
     }
 
     const UserAttribute* attribute = client->ownuser()->getAttribute(at);
@@ -3583,7 +3583,7 @@ CommandPutUA::CommandPutUA(MegaClient* /*client*/, attr_t at, const byte* av, un
     }
     else
     {
-        arg(an.c_str(), av, static_cast<int>(avl));
+        arg(an.c_str(), av, avl);
     }
 
     if (!ISUNDEF(lph))
@@ -4196,7 +4196,7 @@ CommandNodeKeyUpdate::CommandNodeKeyUpdate(MegaClient* client, handle_vector* v)
             assert(!n->hasZeroKey());
 
             element(h, MegaClient::NODEHANDLE);
-            element(nodekey, int(n->nodekey().size()));
+            element(nodekey, n->nodekey().size());
         }
     }
 
@@ -4219,7 +4219,7 @@ CommandSingleKeyCR::CommandSingleKeyCR(handle sh, handle nh, const byte* key, si
     beginarray();
     element(0);
     element(0);
-    element(key, static_cast<int>(keylen));
+    element(key, keylen);
     endarray();
 
     endarray();
@@ -4957,7 +4957,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                 client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
                 privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
                 privk.resize(
-                    static_cast<size_t>(Base64::btoa(privkbuf, len_privk, (char*)privk.data())));
+                    Base64::btoa(privkbuf, static_cast<size_t>(len_privk), (char*)privk.data()));
 
                 // RSA private key should be already assigned at login
                 assert(privk == client->mSerializedPrivateRsaKey);
@@ -6727,7 +6727,13 @@ bool CommandGetPH::procresult(Result r, JSON& json)
     }
 }
 
-CommandSetMasterKey::CommandSetMasterKey(MegaClient* client, const byte* newkey, const byte *hash, int hashsize, const byte *clientrandomvalue, const char *pin, string *salt)
+CommandSetMasterKey::CommandSetMasterKey(MegaClient* client,
+                                         const byte* newkey,
+                                         const byte* hash,
+                                         size_t hashsize,
+                                         const byte* clientrandomvalue,
+                                         const char* pin,
+                                         string* salt)
 {
     mSeqtagArray = true;
 
@@ -6781,9 +6787,9 @@ CommandAccountVersionUpgrade::CommandAccountVersionUpgrade(vector<byte>&& clRand
 {
     cmd("avu");
 
-    arg("emk", mEncryptedMasterKey.data(), static_cast<int>(mEncryptedMasterKey.size()));
-    arg("hak", reinterpret_cast<const byte*>(hashedAuthKey.c_str()), static_cast<int>(hashedAuthKey.size()));
-    arg("crv", clRandValue.data(), static_cast<int>(clRandValue.size()));
+    arg("emk", mEncryptedMasterKey.data(), mEncryptedMasterKey.size());
+    arg("hak", reinterpret_cast<const byte*>(hashedAuthKey.c_str()), hashedAuthKey.size());
+    arg("crv", clRandValue.data(), clRandValue.size());
 
     tag = ctag;
 }
@@ -6980,8 +6986,8 @@ bool CommandWhyAmIblocked::procresult(Result r, JSON& json)
 CommandSendSignupLink2::CommandSendSignupLink2(MegaClient* client, const char* email, const char* name)
 {
     cmd("uc2");
-    arg("n", (byte*)name, int(strlen(name)));
-    arg("m", (byte*)email, int(strlen(email)));
+    arg("n", (byte*)name, strlen(name));
+    arg("m", (byte*)email, strlen(email));
     arg("v", 2);
     tag = client->reqtag;
 }
@@ -6995,8 +7001,8 @@ CommandSendSignupLink2::CommandSendSignupLink2(MegaClient*,
                                                int ctag)
 {
     cmd("uc2");
-    arg("n", (byte*)name, int(strlen(name)));
-    arg("m", (byte*)email, int(strlen(email)));
+    arg("n", (byte*)name, strlen(name));
+    arg("m", (byte*)email, strlen(email));
     arg("crv", clientrandomvalue, SymmCipher::KEYLENGTH);
     arg("hak", hashedauthkey, SymmCipher::KEYLENGTH);
     arg("k", encmasterkey, SymmCipher::KEYLENGTH);
@@ -7018,7 +7024,7 @@ CommandConfirmSignupLink2::CommandConfirmSignupLink2(MegaClient* client,
     mSeqtagArray = true;
 
     cmd("ud2");
-    arg("c", code, static_cast<int>(len));
+    arg("c", code, len);
 
     tag = client->reqtag;
 }
@@ -7064,8 +7070,8 @@ CommandSetKeyPair::CommandSetKeyPair(MegaClient* client, const byte* privk,
     mSeqtagArray = true;
 
     cmd("up");
-    arg("privk", privk, static_cast<int>(privklen));
-    arg("pubk", pubk, static_cast<int>(pubklen));
+    arg("privk", privk, privklen);
+    arg("pubk", pubk, pubklen);
 
     tag = client->reqtag;
 }
@@ -7814,8 +7820,7 @@ bool CommandCopySession::procresult(Result r, JSON& json)
                 }
 
                 session.resize(MegaClient::SIDLEN * 4 / 3 + 4);
-                session.resize(static_cast<size_t>(
-                    Base64::btoa(sidbuf, MegaClient::SIDLEN, (char*)session.data())));
+                session.resize(Base64::btoa(sidbuf, MegaClient::SIDLEN, (char*)session.data()));
                 client->app->copysession_result(&session, API_OK);
                 return true;
 
@@ -7957,7 +7962,7 @@ CommandSupportTicket::CommandSupportTicket(MegaClient *client, const char *messa
     cmd("sse");
     arg("t", type);
     arg("b", 1);    // base64 encoding for `msg`
-    arg("m", (const byte*)message, int(strlen(message)));
+    arg("m", (const byte*)message, strlen(message));
 
     tag = client->reqtag;
 }
@@ -8114,7 +8119,13 @@ bool CommandGetPrivateKey::procresult(Result r, JSON& json)
     }
 }
 
-CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient *client, const char *code, const byte *hash, int hashsize, const byte *clientrandomvalue, const byte *encMasterKey, const byte *initialSession)
+CommandConfirmRecoveryLink::CommandConfirmRecoveryLink(MegaClient* client,
+                                                       const char* code,
+                                                       const byte* hash,
+                                                       size_t hashsize,
+                                                       const byte* clientrandomvalue,
+                                                       const byte* encMasterKey,
+                                                       const byte* initialSession)
 {
     cmd("erx");
     mSeqtagArray = true;
@@ -8206,7 +8217,7 @@ CommandValidatePassword::CommandValidatePassword(MegaClient *client, const char 
 {
     cmd("us");
     arg("user", email);
-    arg("uh", authKey.data(), (int)authKey.size());
+    arg("uh", authKey.data(), authKey.size());
 
     tag = client->reqtag;
 }
@@ -10842,7 +10853,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
 
     if (mSet->id() == UNDEF) // create new
     {
-        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        arg("k", (byte*)encrKey.c_str(), encrKey.size());
         arg("t", static_cast<m_off_t>(mSet->type()));
     }
     else // update
@@ -10852,7 +10863,7 @@ CommandPutSet::CommandPutSet(MegaClient* cl, Set&& s, unique_ptr<string> encrAtt
 
     if (encrAttrs)
     {
-        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
+        arg("at", (byte*)encrAttrs->c_str(), encrAttrs->size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -11016,12 +11027,12 @@ CommandPutSetElements::CommandPutSetElements(MegaClient* cl, vector<SetElement>&
 
         auto& ed = encrDetails[i];
         const byte* keyBytes = reinterpret_cast<const byte*>(ed.second.c_str());
-        arg("k", keyBytes, static_cast<int>(ed.second.size()));
+        arg("k", keyBytes, ed.second.size());
 
         if (!ed.first.empty())
         {
             const byte* attrBytes = reinterpret_cast<const byte*>(ed.first.c_str());
-            arg("at", attrBytes, static_cast<int>(ed.first.size()));
+            arg("at", attrBytes, ed.first.size());
         }
         endobject();
     }
@@ -11126,7 +11137,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
     {
         arg("s", (byte*)&mElement->set(), MegaClient::SETHANDLE);
         arg("h", (byte*)&mElement->node(), MegaClient::NODEHANDLE);
-        arg("k", (byte*)encrKey.c_str(), (int)encrKey.size());
+        arg("k", (byte*)encrKey.c_str(), encrKey.size());
     }
 
     else // update
@@ -11142,7 +11153,7 @@ CommandPutSetElement::CommandPutSetElement(MegaClient* cl, SetElement&& el, uniq
 
     if (encrAttrs)
     {
-        arg("at", (byte*)encrAttrs->c_str(), (int)encrAttrs->size());
+        arg("at", (byte*)encrAttrs->c_str(), encrAttrs->size());
     }
 
     notself(cl); // don't process its Action Packet after sending this
@@ -12245,7 +12256,7 @@ CommandPutVpnCredential::CommandPutVpnCredential(MegaClient* client,
     mCompletion(std::move(completion))
 {
     cmd("vpnp");
-    arg("k", (byte*)mUserKeyPair.pubKey.c_str(), static_cast<int>(mUserKeyPair.pubKey.size()));
+    arg("k", (byte*)mUserKeyPair.pubKey.c_str(), mUserKeyPair.pubKey.size());
     arg("v", 5); // include the DNS targets for each cluster in each region in response
 
     tag = client->reqtag;
@@ -12553,12 +12564,12 @@ CommandCreatePasswordManagerBase::CommandCreatePasswordManagerBase(MegaClient* c
 
     assert(mNewNode);
 
-    arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()),
-        static_cast<int>(mNewNode->nodekey.size()));
+    arg("k", reinterpret_cast<const byte*>(mNewNode->nodekey.data()), mNewNode->nodekey.size());
     if (mNewNode->attrstring)
     {
-        arg("at", reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
-            static_cast<int>(mNewNode->attrstring->size()));
+        arg("at",
+            reinterpret_cast<const byte*>(mNewNode->attrstring->data()),
+            mNewNode->attrstring->size());
     }
 
     // although these won't be used, they are updated for integrity

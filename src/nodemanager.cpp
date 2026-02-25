@@ -238,7 +238,7 @@ void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector
             // report a "NO_KEY" event
 
             char* buf = new char[n->nodekey().size() * 4 / 3 + 4];
-            Base64::btoa((byte *)n->nodekey().data(), int(n->nodekey().size()), buf);
+            Base64::btoa((byte*)n->nodekey().data(), n->nodekey().size(), buf);
 
             int changed = 0;
             changed |= (int)n->changed.removed;
@@ -257,17 +257,24 @@ void NodeManager::notifyNode_internal(std::shared_ptr<Node> n, sharedNode_vector
             changed |= n->changed.sensitive << 13;
             changed |= n->changed.pwd << 14;
 
-            int attrlen = int(n->attrstring->size());
+            auto attrlen = n->attrstring->size();
             string base64attrstring;
             base64attrstring.resize(static_cast<size_t>(attrlen * 4 / 3 + 4));
-            base64attrstring.resize(
-                static_cast<size_t>(Base64::btoa((byte*)n->attrstring->data(),
-                                                 int(n->attrstring->size()),
-                                                 (char*)base64attrstring.data())));
+            base64attrstring.resize(Base64::btoa((byte*)n->attrstring->data(),
+                                                 n->attrstring->size(),
+                                                 (char*)base64attrstring.data()));
 
             char report[512];
             Base64::btoa((const byte *)&n->nodehandle, MegaClient::NODEHANDLE, report);
-            snprintf(report + 8, sizeof(report)-8, " %d %" PRIu64 " %d %X %.200s %.200s", n->type, n->size, attrlen, changed, buf, base64attrstring.c_str());
+            snprintf(report + 8,
+                     sizeof(report) - 8,
+                     " %d %" PRIu64 " %zu %X %.200s %.200s",
+                     n->type,
+                     n->size,
+                     attrlen,
+                     changed,
+                     buf,
+                     base64attrstring.c_str());
 
             mClient.reportevent("NK", report, 0);
             mClient.sendevent(99400, report, 0);

@@ -584,8 +584,7 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
 
     string dbname;
     dbname.resize(sizeof tableid * 4 / 3 + 3);
-    dbname.resize(
-        static_cast<size_t>(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str())));
+    dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
     return dbname;
 }
 

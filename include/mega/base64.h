@@ -32,9 +32,9 @@ class MEGA_API Base64
     static byte from64(byte);
 
 public:
-    static int btoa(const string&, string&);
+    static size_t btoa(const string&, string&);
     static string btoa(const string &in);   // use Base64Str<size> instead when `size` is known at compile time (more efficient)
-    static int btoa(const byte*, int, char*);   // deprecated
+    static size_t btoa(const byte*, size_t, char*); // deprecated
     static int atob(const string&, string&);
     static string atob(const string&);
     static int atob(const char*, byte*, int);   // deprecated
@@ -62,10 +62,10 @@ struct Base64Str
         Base64Str(b, BINARYSIZE)
     {}
 
-    Base64Str(const void* b, int size)
+    Base64Str(const void* b, size_t size)
     {
-        [[maybe_unused]] int n = Base64::btoa(reinterpret_cast<const byte*>(b), size, chars);
-        assert(static_cast<size_t>(n + 1) <= sizeof(chars));
+        [[maybe_unused]] auto n = Base64::btoa(reinterpret_cast<const byte*>(b), size, chars);
+        assert(n + 1 <= sizeof(chars));
     }
 
     Base64Str(const handle& h):

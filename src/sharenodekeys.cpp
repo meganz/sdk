@@ -77,7 +77,7 @@ void ShareNodeKeys::add(const string& nodekey, handle nodehandle, std::shared_pt
             sn->sharekey->ecb_encrypt((byte*)nodekey.data(), key, nodekey.size());
 
             ptr = strchr(buf + 5, 0);
-            ptr += Base64::btoa(key, int(nodekey.size()), ptr);
+            ptr += Base64::btoa(key, nodekey.size(), ptr);
             *ptr++ = '"';
 
             keys.append(buf, static_cast<size_t>(ptr - buf));
@@ -122,7 +122,7 @@ void ShareNodeKeys::get(Command* c, bool skiphandles)
         {
             for (unsigned i = 0; i < items.size(); i++)
             {
-                c->element((const byte*)items[i].c_str(), int(items[i].size()));
+                c->element((const byte*)items[i].c_str(), items[i].size());
             }
         }
 

@@ -10374,8 +10374,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     string attrstring;
 
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
+    attrstring.resize(Base64::btoa((const byte*)a->data(), a->length(), (char*)attrstring.data()));
 
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);

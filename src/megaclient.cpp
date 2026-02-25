@@ -12231,8 +12231,7 @@ string MegaClient::sessiontransferdata(const char *url, string *session)
     string json = ss.str();
     string base64;
     base64.resize(json.size() * 4 / 3 + 4);
-    base64.resize(static_cast<size_t>(
-        Base64::btoa((byte*)json.data(), int(json.size()), (char*)base64.data())));
+    base64.resize(Base64::btoa((byte*)json.data(), json.size(), (char*)base64.data()));
     std::replace(base64.begin(), base64.end(), '-', '+');
     std::replace(base64.begin(), base64.end(), '_', '/');
     return base64;
@@ -12259,16 +12258,16 @@ void MegaClient::opensctable()
         if (sid.size() >= SIDLEN)
         {
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
-                                                           SIDLEN - sizeof key.key,
-                                                           (char*)dbname.c_str())));
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                       SIDLEN - sizeof key.key,
+                                       (char*)dbname.c_str()));
         }
         else if (loggedIntoFolder())
         {
             dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
-            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
-                                                           NODEHANDLE,
-                                                           (char*)dbname.c_str())));
+            dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                       NODEHANDLE,
+                                       (char*)dbname.c_str()));
         }
 
         if (dbname.size())
@@ -12331,16 +12330,16 @@ void MegaClient::doOpenStatusTable()
         if (sid.size() >= SIDLEN)
         {
             dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
-                                                           SIDLEN - sizeof key.key,
-                                                           (char*)dbname.c_str())));
+            dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                       SIDLEN - sizeof key.key,
+                                       (char*)dbname.c_str()));
         }
         else if (loggedIntoFolder())
         {
             dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
-            dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
-                                                           NODEHANDLE,
-                                                           (char*)dbname.c_str())));
+            dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                       NODEHANDLE,
+                                       (char*)dbname.c_str()));
         }
         else
         {
@@ -13382,8 +13381,7 @@ error MegaClient::creditcardstore(const char *ccplain)
 
     string base64cc;
     base64cc.resize(ccenc.size()*4/3+4);
-    base64cc.resize(static_cast<size_t>(
-        Base64::btoa((byte*)ccenc.data(), int(ccenc.size()), (char*)base64cc.data())));
+    base64cc.resize(Base64::btoa((byte*)ccenc.data(), ccenc.size(), (char*)base64cc.data()));
     std::replace( base64cc.begin(), base64cc.end(), '-', '+');
     std::replace( base64cc.begin(), base64cc.end(), '_', '/');
 
@@ -15553,16 +15551,16 @@ string MegaClient::getTransferDBName()
     if (sid.size() >= SIDLEN)
     {
         dbname.resize((SIDLEN - sizeof key.key) * 4 / 3 + 3);
-        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)sid.data() + sizeof key.key,
-                                                       SIDLEN - sizeof key.key,
-                                                       (char*)dbname.c_str())));
+        dbname.resize(Base64::btoa((const byte*)sid.data() + sizeof key.key,
+                                   SIDLEN - sizeof key.key,
+                                   (char*)dbname.c_str()));
     }
     else if (loggedIntoFolder())
     {
         dbname.resize(static_cast<size_t>(NODEHANDLE * 4 / 3 + 3));
-        dbname.resize(static_cast<size_t>(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
-                                                       NODEHANDLE,
-                                                       (char*)dbname.c_str())));
+        dbname.resize(Base64::btoa((const byte*)&mFolderLink.mPublicHandle,
+                                   NODEHANDLE,
+                                   (char*)dbname.c_str()));
     }
     else
     {
@@ -19642,7 +19640,7 @@ void MegaClient::userfeedbackstore(const char *message)
 
     string base64userAgent;
     base64userAgent.resize(useragent.size() * 4 / 3 + 4);
-    Base64::btoa((byte *)useragent.data(), int(useragent.size()), (char *)base64userAgent.data());
+    Base64::btoa((byte*)useragent.data(), useragent.size(), (char*)base64userAgent.data());
     type.append(base64userAgent);
 
     queueCommand(new CommandSendReport(this, type.c_str(), message, NULL));

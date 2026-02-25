@@ -85,7 +85,7 @@ public:
     virtual void cancel(void);
 
     void arg(const char*, const char*, int = 1);
-    void arg(const char*, const byte*, int);
+    void arg(const char*, const byte*, size_t);
     void arg(const char*, NodeHandle);
     void arg(const char*, m_off_t);
     void addcomma();
@@ -98,8 +98,8 @@ public:
     void beginobject(const char*);
     void endobject();
     void element(int);
-    void element(handle, int = sizeof(handle));
-    void element(const byte*, int);
+    void element(handle, size_t = sizeof(handle));
+    void element(const byte*, size_t);
     void element(const char*);
 
     void openobject();
@@ -265,7 +265,7 @@ public:
                  Completion completion,
                  const char* email,
                  const byte* emailhash,
-                 int emailhashsize,
+                 size_t emailhashsize,
                  const byte* sessionkey = NULL,
                  int csessionversion = 0,
                  const char* pin = NULL);
@@ -279,7 +279,13 @@ class MEGA_API CommandSetMasterKey : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandSetMasterKey(MegaClient*, const byte*, const byte *, int, const byte* clientrandomvalue = NULL, const char* = NULL, string* = NULL);
+    CommandSetMasterKey(MegaClient*,
+                        const byte*,
+                        const byte*,
+                        size_t,
+                        const byte* clientrandomvalue = NULL,
+                        const char* = NULL,
+                        string* = NULL);
 };
 
 class MEGA_API CommandAccountVersionUpgrade : public Command
@@ -1170,7 +1176,13 @@ class MEGA_API CommandConfirmRecoveryLink : public Command
 public:
     bool procresult(Result, JSON&) override;
 
-    CommandConfirmRecoveryLink(MegaClient*, const char*, const byte*, int, const byte*, const byte*, const byte*);
+    CommandConfirmRecoveryLink(MegaClient*,
+                               const char*,
+                               const byte*,
+                               size_t,
+                               const byte*,
+                               const byte*,
+                               const byte*);
 };
 
 class MEGA_API CommandConfirmCancelLink : public Command

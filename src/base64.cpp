@@ -202,32 +202,30 @@ int64_t Base64::atoi(string *val)
     return res;
 }
 
-int Base64::btoa(const string &in, string &out)
+size_t Base64::btoa(const string& in, string& out)
 {
     out.resize(in.size() * 4 / 3 + 4);
-    out.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)in.data(), (int)in.size(), (char*)out.data())));
+    out.resize(Base64::btoa((const byte*)in.data(), in.size(), (char*)out.data()));
 
-    return (int)out.size();
+    return out.size();
 }
 
 std::string Base64::btoa(const string &in)
 {
     string out;
     out.resize(in.size() * 4 / 3 + 4);
-    out.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)in.data(), (int)in.size(), (char*)out.data())));
+    out.resize(Base64::btoa((const byte*)in.data(), in.size(), (char*)out.data()));
 
     return out;
 }
 
-int Base64::btoa(const byte* b, int blen, char* a)
+size_t Base64::btoa(const byte* b, size_t blen, char* a)
 {
-    int p = 0;
+    size_t p = 0;
 
     for (;;)
     {
-        if (blen <= 0)
+        if (blen == 0)
         {
             break;
         }

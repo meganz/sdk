@@ -4526,12 +4526,17 @@ char *MegaApi::base32ToBase64(const char *base32)
         return NULL;
     }
 
-    unsigned binarylen = unsigned(strlen(base32) * 5/8 + 8);
+    size_t binarylen = strlen(base32) * 5 / 8 + 8;
     byte *binary = new byte[binarylen];
-    binarylen = static_cast<unsigned>(Base32::atob(base32, binary, static_cast<int>(binarylen)));
+    int decodedLen = Base32::atob(base32, binary, static_cast<int>(binarylen));
+    if (decodedLen < 0)
+    {
+        return nullptr;
+    }
+    binarylen = static_cast<size_t>(decodedLen);
 
     char *result = new char[binarylen * 4/3 + 4];
-    Base64::btoa(binary, static_cast<int>(binarylen), result);
+    Base64::btoa(binary, binarylen, result);
     delete [] binary;
 
     return result;
