@@ -4632,6 +4632,7 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
 
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const
 {
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     // Currently, we don't support movements for backup roots
     if (sync.isBackup())
     {
@@ -4642,13 +4643,21 @@ void Syncs::manageRemoteRootLocationChange(Sync& sync) const
     }
     // we need to check if the node in its new location is syncable
     const auto& config = sync.getConfig();
-    const auto [e, syncError] = std::invoke(
-        [this, &config]() -> std::pair<error, SyncError>
-        {
-            std::lock_guard g(mClient.nodeTreeMutex);
-            return mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(config.mRemoteNode),
-                                          true);
-        });
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; so we need to release mutex before.
+    syncVecMutexLock.unlock();
+    error e;
+    SyncError syncError;
+    {
+        std::lock_guard g(mClient.nodeTreeMutex);
+        std::tie(e, syncError) =
+            mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(config.mRemoteNode), true);
+    }
+
+    // Lock `syncVecMutexLock` again
+    syncVecMutexLock.lock();
+
     if (e)
     {
         LOG_debug << "Node is not syncable after moving to a new location: " << syncError;
@@ -13579,7 +13588,15 @@ void Syncs::syncLoop()
                 }
                 else if (remoteRootHasChanged)
                 {
+                    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we
+                    // may generate
+                    // deadlocks; in this case at`lookupCloudNode` and explicit lock of
+                    // `nodeTreeMutex` some lines below, so we need to release mutex before.
+                    syncVecMutexlock.unlock();
                     manageRemoteRootLocationChange(*sync);
+
+                    // Lock `mSyncVecMutex` again
+                    syncVecMutexlock.lock();
                 }
 
                 if (!us->mConfig.mEnabled && us->mConfig.mError != NO_SYNC_ERROR)
