@@ -28,10 +28,10 @@
 
 namespace mega {
 
+std::atomic<Logger*> SimpleLogger::logger{nullptr};
+
 ExternalLogger g_externalLogger;
 ExclusiveLogger g_exclusiveLogger;
-
-std::atomic<Logger*> SimpleLogger::logger{&g_externalLogger};
 
 // by the default, display logs with level equal or less than logInfo
 std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
@@ -70,6 +70,7 @@ std::ostream& operator<< (std::ostream& ostr, const std::system_error &se)
 ExternalLogger::ExternalLogger()
 {
     logToConsole = false;
+    SimpleLogger::setOutputClass(this);
 }
 
 ExternalLogger::~ExternalLogger()
