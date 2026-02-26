@@ -22,49 +22,89 @@
 #ifndef MEGA_RAID_H
 #define MEGA_RAID_H 1
 
+#define ISNEWRAID_DEFVALUE 1
+
 #include "http.h"
 #include "utils.h"
 
 namespace mega {
 
-    enum { RAIDPARTS = 6 };
-    enum { RAIDSECTOR = 16 };
-    enum { RAIDLINE = ((RAIDPARTS - 1)*RAIDSECTOR) };
+enum
+{
+    RAIDPARTS = 6
+};
 
+enum
+{
+    EFFECTIVE_RAIDPARTS = 5 // A file is divided by 5 parts plus parity part (to assemble the other
+                            // parts if one of them is missing)
+};
 
-    // Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct streaming.
-    // For non-raid files, supplies the received buffer back to the same connection for writing to file (having decrypted and mac'd it),
-    // effectively the same way it worked before raid.
-    // For raid files, collects up enough input buffers until it can combine them to make a piece of the output file.
-    // Once a piece of the output is reconstructed the caller can access it with getAsyncOutputBufferPointer().
-    // Once that piece is no longer needed, call bufferWriteCompleted to indicate that it can be deallocated.
-    class MEGA_API RaidBufferManager
+enum
+{
+    RAIDSECTOR = 16
+};
+
+static constexpr int RAIDLINE =
+    static_cast<int>(EFFECTIVE_RAIDPARTS) * static_cast<int>(RAIDSECTOR);
+
+// Holds the latest download data received.   Raid-aware.   Suitable for file transfers, or direct
+// streaming. For non-raid files, supplies the received buffer back to the same connection for
+// writing to file (having decrypted and mac'd it), effectively the same way it worked before raid.
+// For raid files, collects up enough input buffers until it can combine them to make a piece of the
+// output file. Once a piece of the output is reconstructed the caller can access it with
+// getAsyncOutputBufferPointer(). Once that piece is no longer needed, call bufferWriteCompleted to
+// indicate that it can be deallocated.
+class MEGA_API RaidBufferManager
+{
+public:
+    struct FilePiece
     {
-    public:
+        m_off_t pos;
+        HttpReq::http_buf_t buf; // owned here
+        chunkmac_map chunkmacs;
 
-        struct FilePiece {
-            m_off_t pos;
-            HttpReq::http_buf_t buf;  // owned here
-            chunkmac_map chunkmacs;
+        std::condition_variable finalizedCV;
+        bool finalized = false;
 
-            std::condition_variable finalizedCV;
-            bool finalized = false;
+        FilePiece();
+        FilePiece(m_off_t p, size_t len); // makes a buffer of the specified size (with extra space
+                                          // for SymmCipher::ctr_crypt padding)
+        FilePiece(m_off_t p, HttpReq::http_buf_t* b); // takes ownership of the buffer
+        void swap(FilePiece& other);
 
-            FilePiece();
-            FilePiece(m_off_t p, size_t len);    // makes a buffer of the specified size (with extra space for SymmCipher::ctr_crypt padding)
-            FilePiece(m_off_t p, HttpReq::http_buf_t* b); // takes ownership of the buffer
-            void swap(FilePiece& other);
+        // decrypt & mac
+        bool finalize(bool parallel,
+                      m_off_t filesize,
+                      int64_t ctriv,
+                      SymmCipher* cipher,
+                      chunkmac_map* source_chunkmacs);
+    };
 
-            // decrypt & mac
-            bool finalize(bool parallel, m_off_t filesize, int64_t ctriv, SymmCipher *cipher, chunkmac_map* source_chunkmacs);
+    // Min last request chunk (to avoid small chunks to be requested)
+#if defined(__ANDROID__) || defined(USE_IOS)
+        static constexpr size_t MIN_LAST_CHUNK = 512 * 1024;
+#else
+        static constexpr size_t MIN_LAST_CHUNK = 10 * 1024 * 1024;
+#endif
+        // Max last request chunk (otherwise split it in two)
+#if defined(__ANDROID__) || defined(USE_IOS)
+        static constexpr size_t MAX_LAST_CHUNK = 1 * 1024 * 1024;
+#else
+        static constexpr size_t MAX_LAST_CHUNK = 16 * 1024 * 1024;
+#endif
 
-        };
+        // To be called within CloudRaid tests when a lower speed is needed or we need to trigger 403/404/timeout errors
+        void disableAvoidSmallLastRequest();
 
         // call this before starting a transfer. Extracts the vector content
-        void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize);
+        void setIsRaid(const std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t readtopos, m_off_t filesize, m_off_t maxDownloadRequestSize, bool isNewRaid = ISNEWRAID_DEFVALUE);
 
         // indicate if the file is raid or not.  Most variation due to raid/non-raid is captured in this class
         bool isRaid() const;
+
+        // indicate if the file is new raid (CloudRaidProxy) or not
+        bool isNewRaid() const;
 
         // Is this the connection we are not using
         bool isUnusedRaidConection(unsigned connectionNum) const;
@@ -105,11 +145,20 @@ namespace mega {
         // calculate the exact size of each of the 6 parts of a raid file.  Some may not have a full last sector
         static m_off_t raidPartSize(unsigned part, m_off_t fullfilesize);
 
+        // calculates the module between a given offset and a RAIDLINE.
+        static m_off_t offsetToRaidLine(const m_off_t offset);
+
         // report a failed connection.  The function tries to switch to 5 connection raid or a different 5 connections.  Two fails without progress and we should fail the transfer as usual
         bool tryRaidHttpGetErrorRecovery(unsigned errorConnectionNum, bool incrementErrors);
 
         // indicate that this connection has responded with headers, and see if we now know which is the slowest connection, and make that the unused one
         bool detectSlowestRaidConnection(unsigned thisConnection, unsigned& slowestConnection);
+
+        // Set the unused raid connection [0 - RAIDPARTS)
+        bool setUnusedRaidConnection(unsigned newUnusedRaidConnection);
+
+        // Which raid connection is not being used for downloading
+        unsigned getUnusedRaidConnection() const;
 
         // returns how far we are through the file on average, including uncombined data
         m_off_t progress() const;
@@ -124,11 +173,13 @@ namespace mega {
         enum { RaidReadAheadChunksPausePoint = 8 };
         enum { RaidReadAheadChunksUnpausePoint = 4 };
 
-        bool is_raid;
-        bool raidKnown;
-        m_off_t deliverlimitpos;   // end of the data that the client requested
-        m_off_t acquirelimitpos;   // end of the data that we need to deliver that (can be up to the next raidline boundary)
-        m_off_t fullfilesize;      // end of the file
+        bool is_raid{};
+        bool is_newRaid{};
+        bool raidKnown{};
+        m_off_t deliverlimitpos{}; // end of the data that the client requested
+        m_off_t acquirelimitpos{}; // end of the data that we need to deliver that (can be up to the
+                                   // next raidline boundary)
+        m_off_t fullfilesize{}; // end of the file
 
         // controls buffer sizes used
         unsigned raidLinesPerChunk;
@@ -149,7 +200,7 @@ namespace mega {
         // for raid, the http requested data before combining
         std::deque<FilePiece*> raidinputparts[RAIDPARTS];
 
-        // the data to output currently, per connection, raid or non-raid.  re-accessible in case retries are needed
+        // the data to output currently, per connection, raid or non-raid. Re-accessible in case retries are needed
         std::map<unsigned, std::shared_ptr<FilePiece>> asyncoutputbuffers;
 
         // piece to carry over to the next combine operation, when we don't get pieces that match the chunkceil boundaries
@@ -173,6 +224,9 @@ namespace mega {
 
         bool connectionStarted[RAIDPARTS];
 
+        // For test hooks, disable avoid small requests when we need a lower speed and trigger 404/403/timeout errors
+        bool mDisableAvoidSmallLastRequest;
+
         // take raid input part buffers and combine to form the asyncoutputbuffers
         void combineRaidParts(unsigned connectionNum);
         FilePiece* combineRaidParts(size_t partslen, size_t bufflen, m_off_t filepos, FilePiece& prevleftoverchunk);
@@ -187,34 +241,42 @@ namespace mega {
         virtual m_off_t calcOutputChunkPos(m_off_t acquiredpos) = 0;
 
         friend class DebugTestHook;
-    };
+};
 
+class MEGA_API TransferBufferManager: public RaidBufferManager
+{
+public:
+    // call this before starting a transfer. Extracts the vector content
+    void setIsRaid(Transfer* transfer,
+                   const std::vector<std::string>& tempUrls,
+                   m_off_t resumepos,
+                   m_off_t maxDownloadRequestSize,
+                   bool isNewRaid = ISNEWRAID_DEFVALUE);
 
-    class MEGA_API TransferBufferManager : public RaidBufferManager
-    {
-    public:
-        // call this before starting a transfer. Extracts the vector content
-        void setIsRaid(Transfer* transfer, std::vector<std::string>& tempUrls, m_off_t resumepos, m_off_t maxDownloadRequestSize);
+    // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise,
+    // uses the full file position in the Transfer object, as it used to prior to raid.
+    m_off_t& transferPos(unsigned connectionNum) override;
 
-        // Track the progress of http requests sent.  For raid download, tracks the parts.  Otherwise, uses the full file position in the Transfer object, as it used to prior to raid.
-        m_off_t& transferPos(unsigned connectionNum) override;
+    // Get the file position to upload/download to on the specified connection
+    std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum,
+                                                      m_off_t maxDownloadRequestSize,
+                                                      unsigned connectionCount,
+                                                      bool& newBufferSupplied,
+                                                      bool& pauseConnectionForRaid,
+                                                      m_off_t uploadspeed);
 
-        // Get the file position to upload/download to on the specified connection
-        std::pair<m_off_t, m_off_t> nextNPosForConnection(unsigned connectionNum, m_off_t maxDownloadRequestSize, unsigned connectionCount, bool& newBufferSupplied, bool& pauseConnectionForRaid, m_off_t uploadspeed);
+    TransferBufferManager();
 
-        TransferBufferManager();
+private:
+    Transfer* transfer;
 
-    private:
+    // decrypt and mac downloaded chunk
+    void finalize(FilePiece& r) override;
+    m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
+    void bufferWriteCompletedAction(FilePiece& r) override;
 
-        Transfer* transfer;
-
-        // decrypt and mac downloaded chunk
-        void finalize(FilePiece& r) override;
-        m_off_t calcOutputChunkPos(m_off_t acquiredpos) override;
-        void bufferWriteCompletedAction(FilePiece& r) override;
-
-        friend class DebugTestHook;
-    };
+    friend class DebugTestHook;
+};
 
     class MEGA_API DirectReadBufferManager : public RaidBufferManager
     {
@@ -236,7 +298,46 @@ namespace mega {
         friend class DebugTestHook;
     };
 
+    class MEGA_API CloudRaid
+    {
+    private:
+        class CloudRaidImpl;
+        const CloudRaidImpl* mPimpl() const { return m_pImpl.get(); }
+        CloudRaidImpl* mPimpl() { return m_pImpl.get(); }
 
+        std::unique_ptr<CloudRaidImpl> m_pImpl{};
+        bool mShown{};
+
+    public:
+        CloudRaid();
+        CloudRaid(TransferSlot* tslot, MegaClient* client, int connections);
+        ~CloudRaid();
+
+        /* Instance control functionality */
+        bool isShown() const;
+
+        /* TransferSlot functionality for RaidProxy */
+        bool disconnect(const std::shared_ptr<HttpReqXfer>& req);
+        bool prepareRequest(const std::shared_ptr<HttpReqXfer>& req, const string& tempURL, m_off_t pos, m_off_t npos);
+        bool post(const std::shared_ptr<HttpReqXfer>& req);
+        bool onRequestFailure(const std::shared_ptr<HttpReqXfer>& req, uint8_t part, dstime& backoff);
+        bool setTransferFailure(::mega::error e = API_EAGAIN, dstime backoff = 0);
+        std::pair<::mega::error, dstime> checkTransferFailure();
+        bool setUnusedRaidConnection(uint8_t part, bool addToFaultyServers);
+        uint8_t getUnusedRaidConnection() const;
+        m_off_t transferred(const std::shared_ptr<HttpReqXfer>& req) const;
+        bool processRequestLatency(const std::shared_ptr<HttpReqXfer>& req);
+
+        /* RaidProxy functionality for TransferSlot */
+        bool init(TransferSlot* tslot, MegaClient* client, int connections);
+        bool balancedRequest(int connection, const std::vector<std::string>& tempUrls, size_t cfilesize, m_off_t cstart, size_t creqlen);
+        bool removeRaidReq(int connection);
+        bool resumeAllConnections();
+        bool raidReqDoio(int connection);
+        bool stop();
+        m_off_t progress() const;
+        m_off_t readData(int connection, byte* buf, m_off_t len);
+    };
 
 } // namespace
 

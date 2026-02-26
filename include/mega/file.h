@@ -22,15 +22,36 @@
 #ifndef MEGA_FILE_H
 #define MEGA_FILE_H 1
 
-#include "filefingerprint.h"
+#include "filesystem.h"
+
+#include <cstdint>
+
+#ifdef ENABLE_SYNC
+#include "syncinternals/mac_computation_state.h"
+#endif
 
 namespace mega {
 
-// file to be transferred
+enum class CollisionResolution : uint8_t
+{
+    Begin = 1,
+    Overwrite = 1,
+    RenameNewWithN = 2,
+    RenameExistingToOldN = 3,
+    End = 4,
+};
+
+constexpr unsigned FILE_MAX_RETRIES = 16;
+constexpr unsigned FILE_IO_MAX_RETRIES = 6;
+constexpr unsigned FILE_SYNC_MAX_RETRIES = 8;
+class TransferDbCommitter; // Forward declaration
+
+// File is the base class for an upload or download, as managed by the SDK core.
+// Each Transfer consists of a list of File that all have the same content and fingerprint
 struct MEGA_API File: public FileFingerprint
 {
     // set localfilename in attached transfer
-    virtual void prepare();
+    virtual void prepare(FileSystemAccess&);
 
     // file transfer dispatched, expect updates/completion/failure
     virtual void start();
@@ -39,32 +60,77 @@ struct MEGA_API File: public FileFingerprint
     virtual void progress();
 
     // transfer completion
-    virtual void completed(Transfer*, LocalNode*);
+    virtual void completed(Transfer*, putsource_t source);
 
     // transfer terminated before completion (cancelled, failed too many times)
-    virtual void terminated();
+    virtual void terminated(error e);
 
-    // transfer failed
-    virtual bool failed(error);
+    // return true if the transfer should keep trying (limited to 16)
+    // return false to delete the transfer
+    virtual bool failed(error, MegaClient*);
 
     // update localname
-    virtual void updatelocalname() { }
+    virtual void updatelocalname() {}
+
+    void sendPutnodesOfUpload(
+        MegaClient* client,
+        UploadHandle fileAttrMatchHandle,
+        std::string&& fileAttr,
+        const UploadToken& ultoken,
+        const FileNodeKey& newFileKey,
+        putsource_t source,
+        NodeHandle ovHandle,
+        std::function<void(const Error&,
+                           targettype_t,
+                           vector<NewNode>&,
+                           bool targetOverride,
+                           int tag,
+                           const std::map<std::string, std::string>& fileHandles)>&& completion,
+        const m_time_t* overrideMtime,
+        bool canChangeVault,
+        std::optional<Pitag> pitag = std::nullopt);
+
+    void sendPutnodesToCloneNode(
+        MegaClient* client,
+        Node* nodeToClone,
+        putsource_t source,
+        NodeHandle ovHandle,
+        std::function<void(const Error&,
+                           targettype_t,
+                           vector<NewNode>&,
+                           bool targetOverride,
+                           int tag,
+                           const std::map<std::string, std::string>& fileHandles)>&& completion,
+        bool canChangeVault);
+
+    void setCollisionResolution(CollisionResolution collisionResolution) { mCollisionResolution = collisionResolution; }
+
+    CollisionResolution getCollisionResolution() const { return mCollisionResolution; }
 
     // generic filename for this transfer
     void displayname(string*);
+    string displayname();
 
     // normalized name (UTF-8 with unescaped special chars)
     string name;
 
     // local filename (must be set upon injection for uploads, can be set in start() for downloads)
-    LocalPath localname;
+    // now able to be updated from the syncs thread, should the nodes move during upload/download
+    static mutex localname_mutex;
+    LocalPath localname_multithreaded;
+    LocalPath getLocalname() const;
+    void setLocalname(const LocalPath&);
 
     // source/target node handle
     NodeHandle h;
 
     // previous node, if any
-    Node *previousNode = nullptr;
+    std::shared_ptr<Node> previousNode;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+#pragma warning(disable: 4201) // nameless struct
+#endif
     struct
     {
         // source handle private?
@@ -78,7 +144,15 @@ struct MEGA_API File: public FileFingerprint
 
         // is the source file temporary?
         bool temporaryfile : 1;
+
+        // remember if the sync is from an inshare
+        bool fromInsycShare : 1;
     };
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
+
+    VersioningOption mVersioningOption = NoVersioning;
 
     // private auth to access the node
     string privauth;
@@ -103,34 +177,227 @@ struct MEGA_API File: public FileFingerprint
     virtual ~File();
 
     // serialize the File object
-    bool serialize(string*) override;
+    bool serialize(string*) const override;
 
     static File* unserialize(string*);
 
-    // tag of the file
+    // tag of the file transfer
     int tag;
+
+    // set the token true to cause cancellation of this transfer (this file of the transfer)
+    CancelToken cancelToken;
+
+    // True if this is a FUSE transfer.
+    virtual bool isFuseTransfer() const;
+
+    // relevant only for downloads (GET); do not override anywhere else
+    virtual bool undelete() const { return false; }
+
+    // Set this file's logical path.
+    void logicalPath(LocalPath logicalPath);
+
+    // Retrieve this file's logical path.
+    LocalPath logicalPath() const;
+
+    std::optional<Pitag> getPitag() const
+    {
+        return mPitag;
+    };
+
+    void setPitag(Pitag pitag)
+    {
+        mPitag = pitag;
+    };
+
+private:
+    CollisionResolution mCollisionResolution;
+
+    // The file's logical path.
+    LocalPath mLogicalPath;
+
+    std::optional<Pitag> mPitag;
 };
 
-struct MEGA_API SyncFileGet: public File
+class SyncThreadsafeState;
+struct CloudNode;
+
+struct SyncTransfer_inClient: public File
 {
-    Sync* sync;
-    Node* n;
+    // self-destruct after completion
+    void completed(Transfer*, putsource_t) override;
+    void terminated(error) override;
+
+    // We will be passing a raw pointer to this object
+    // into the tranfer system on the client thread.
+    // this member prevents that becoming a dangling pointer
+    // should the sync no longer require it.  So we set this
+    // member just before startxfer, and reset it on completed()/terminated()
+    shared_ptr<SyncTransfer_inClient> selfKeepAlive;
+
+    shared_ptr<SyncThreadsafeState> syncThreadSafeState;
+
+    // Why was the transfer failed/terminated?
+    error mError = API_OK;
+
+    std::atomic<bool> wasTerminated{false};
+    std::atomic<bool> wasFileTransferCompleted{false};
+    std::atomic<bool> wasRequesterAbandoned{false};
+
+    enum class AttributeOnlyUpdate : std::uint8_t
+    {
+        None = 0,
+        MtimeOnly,
+        CrcOnly,
+    };
+
+    std::atomic<AttributeOnlyUpdate> attributeOnlyUpdate{AttributeOnlyUpdate::None};
+
+    // Whether the terminated SyncTransfer_inClient was already notified to the apps/in the logs
+    std::atomic<bool> terminatedReasonAlreadyKnown{false};
+    std::optional<int64_t> mMetaMac{std::nullopt};
+};
+
+struct SyncDownload_inClient: public SyncTransfer_inClient
+{
+    shared_ptr<FileDistributor> downloadDistributor;
 
     // set sync-specific temp filename, update treestate
-    void prepare();
-    bool failed(error);
-    void progress();
+    void prepare(FileSystemAccess&) override;
+    bool failed(error, MegaClient*) override;
 
-    // update localname (may have changed due to renames/moves of the synced files)
-    void updatelocalname();
+    SyncDownload_inClient(CloudNode& n,
+                          const LocalPath&,
+                          bool fromInshare,
+                          shared_ptr<SyncThreadsafeState> stss,
+                          const FileFingerprint& overwriteFF,
+                          const int64_t metamac,
+                          const AttributeOnlyUpdate attributeOnlyUpdate);
 
-    // self-destruct after completion
-    void completed(Transfer*, LocalNode*);
+    ~SyncDownload_inClient();
 
-    void terminated();
+    // True if we could copy (or move) the download into place.
+    bool wasDistributed = false;
 
-    SyncFileGet(Sync*, Node*, const LocalPath&);
-    ~SyncFileGet();
+    FileFingerprint okToOverwriteFF;
+};
+
+struct SyncUpload_inClient : SyncTransfer_inClient, std::enable_shared_from_this<SyncUpload_inClient>
+{
+    // This class is part of the client's Transfer system (ie, works in the client's thread)
+    // The sync system keeps a shared_ptr to it.  Whichever system finishes with it last actually deletes it
+    SyncUpload_inClient(NodeHandle targetFolder,
+                        const LocalPath& fullPath,
+                        const string& nodeName,
+                        const FileFingerprint& ff,
+                        shared_ptr<SyncThreadsafeState> stss,
+                        handle fsid,
+                        const LocalPath& localname,
+                        bool fromInshare,
+                        const int64_t metamac,
+                        const AttributeOnlyUpdate attributeOnlyUpdate);
+    ~SyncUpload_inClient();
+
+    void prepare(FileSystemAccess&) override;
+    void completed(Transfer*, putsource_t) override;
+    void updateFingerprintMtime(const m_time_t newMtime);
+    void updateFingerprint(const FileFingerprint& newFingerprint);
+
+    /* UpSync operation can be one of the following:
+     *  - putnodes of upload
+     *  - put nodes of clone
+     *  - update mtime of node in cloud
+     */
+    std::atomic<bool> upsyncStarted{false};
+    std::atomic<bool> upsyncFailed{false};
+    std::atomic<bool> wasStarted{false};
+    std::atomic<bool> wasUpsyncCompleted{false};
+    // Valid when wasUpsyncCompleted is true.
+    NodeHandle upsyncResultHandle;
+
+    handle sourceFsid = UNDEF;
+    LocalPath sourceLocalname;
+
+    // once the upload completes these are set.  todo: should we dynamically allocate space for these, save RAM for mass transfer cases?
+    UploadHandle uploadHandle;
+    UploadToken uploadToken;
+    FileNodeKey fileNodeKey;
+    std::string fileAttr;
+
+    void fullUpload(MegaClient& client,
+                    mega::TransferDbCommitter& committer,
+                    const VersioningOption vo,
+                    const bool queueFirst);
+
+    void cloneNode(MegaClient& client,
+                   std::shared_ptr<Node> cloneNodeCandidate,
+                   const NodeHandle ovHandleIfShortcut);
+
+    bool updateNodeMtime(MegaClient* client,
+                         std::shared_ptr<Node> node,
+                         const m_time_t newMtime,
+                         std::function<void(NodeHandle, Error)>&& completion);
+
+    void sendPutnodesOfUpload(MegaClient* client, NodeHandle ovHandle);
+    void sendPutnodesToCloneNode(MegaClient* client, NodeHandle ovHandle, Node* nodeToClone);
+
+#ifdef ENABLE_SYNC
+    /**
+     * @brief State for async MAC computation when looking for clone candidates.
+     *
+     * Used to pre-compute MAC before calling findCloneNodeCandidate, avoiding
+     * blocking the client thread for large files.
+     */
+    std::shared_ptr<MacComputationState> macComputation;
+#endif
+};
+
+/**
+ * @struct DelayedSyncUpload
+ * @brief Represents an upload task that is delayed for throttling purposes.
+ *
+ * This struct encapsulates the details of an upload task that is queued for later
+ * processing due to throttling conditions.
+ */
+struct DelayedSyncUpload
+{
+    /**
+     * @brief Weak pointer to the upload client responsible for this task.
+     *
+     * This prevents holding a strong reference to the upload, allowing it to be safely
+     * cleaned up if no longer valid before the task is processed.
+     */
+    std::weak_ptr<SyncUpload_inClient> mWeakUpload;
+
+    /**
+     * @brief Versioning option for the upload task.
+     */
+    VersioningOption mVersioningOption;
+
+    /**
+     * @brief Flag indicating if this upload should be queued first in the client.
+     */
+    bool mQueueFirst;
+
+    /**
+     * @brief Node handle representing a shortcut for the upload.
+     */
+    NodeHandle mOvHandleIfShortcut;
+
+    /**
+     * @brief Constructs a DelayedUpload instance.
+     *
+     * @param upload Shared pointer to the upload owned by the LocalNode.
+     * For the other params, see LocalNode::queueClientUpload()
+     */
+    DelayedSyncUpload(std::shared_ptr<SyncUpload_inClient> upload,
+                      const VersioningOption vo,
+                      const bool queueFirst,
+                      const NodeHandle ovHandleIfShortcut):
+        mWeakUpload(std::move(upload)),
+        mVersioningOption(vo),
+        mQueueFirst(queueFirst),
+        mOvHandleIfShortcut(ovHandleIfShortcut)
+    {}
 };
 
 } // namespace

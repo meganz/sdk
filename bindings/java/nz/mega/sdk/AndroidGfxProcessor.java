@@ -1,12 +1,5 @@
 package nz.mega.sdk;
 
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.net.URLConnection;
-
 import android.content.ContentResolver;
 import android.content.Context;
 import android.database.Cursor;
@@ -22,6 +15,15 @@ import android.provider.BaseColumns;
 import android.provider.MediaStore;
 
 import androidx.exifinterface.media.ExifInterface;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.InputStream;
+import java.net.URLConnection;
+import java.util.Objects;
 
 public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
@@ -42,12 +44,30 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         }
     }
 
+    // Return file extensions for all supported formats: images,videos,pdf and etc, must end with .
+    public String supportedImageFormats() {
+        return ".jpg.png.bmp.jpeg.cut.dds.g3.gif.hdr.ico.iff.ilbm" +
+                ".jbig.jng.jif.koala.pcd.mng.pcx.pbm.pgm.ppm.pfm.pds.raw.3fr.ari" +
+                ".arw.bay.crw.cr2.cap.dcs.dcr.dng.drf.eip.erf.fff.iiq.k25.kdc.mdc.mef.mos.mrw" +
+                ".nef.nrw.obm.orf.pef.ptx.pxn.r3d.raf.raw.rwl.rw2.rwz.sr2.srf.srw.x3f.ras.tga" +
+                ".xbm.xpm.jp2.j2k.jpf.jpx.webp" +
+                ".cur.heic.jc2.pnm.psd.tif.tiff.3g2.3gp.avi.m4v.mov.mp4.mqv.qt.jxl.avif.pdf.";
+    }
+
+    // Return null to skip extra checking
+    public String supportedVideoFormats() {
+        return null;
+    }
+
     public static boolean isVideoFile(String path) {
         try {
             String mimeType = URLConnection.guessContentTypeFromName(path);
+            if (mimeType == null) {
+                Uri uri = Uri.parse(path);
+                mimeType = context.getContentResolver().getType(uri);
+            }
             return mimeType != null && mimeType.startsWith("video");
-        }
-        catch(Exception e){
+        } catch (Exception e) {
             return false;
         }
     }
@@ -55,34 +75,44 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public static Rect getImageDimensions(String path, int orientation) {
         Rect rect = new Rect();
 
-        if(isVideoFile(path)){
-            try {
+        if (isVideoFile(path)) {
+            MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                retriever.setDataSource(path);
+            try {
+                setMediaMetadataRetrieverDataSource(retriever, path);
                 int width;
                 int height;
-                int interchangeOrientation = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION));
+                int interchangeOrientation = Integer.parseInt(Objects.<String>requireNonNull(
+                        retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_ROTATION)));
                 if (interchangeOrientation == 90 || interchangeOrientation == 270) {
-                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
-                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
+                    width = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
+                    height = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
+                } else {
+                    width = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH)));
+                    height = Integer.parseInt(Objects.<String>requireNonNull(retriever.extractMetadata(
+                            MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT)));
                 }
-                else {
-                    width = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_WIDTH));
-                    height = Integer.valueOf(retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_VIDEO_HEIGHT));
-                }
-                retriever.release();
 
                 rect.right = width;
                 rect.bottom = height;
             } catch (Exception e) {
+                System.out.println("Error in getImageDimensions for video: " + e);
+            } finally {
+                try {
+                    retriever.release();
+                } catch (IOException e) {
+                    System.out.println("Error releasing MediaMetadataRetriever for video: " + e);
+                }
             }
-        }
-        else{
+        } else {
             try {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = true;
-                BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                InputStream inputStream = getInputStreamFromPath(path);
+                BitmapFactory.decodeStream(inputStream, null, options);
 
                 if ((options.outWidth > 0) && (options.outHeight > 0)) {
                     if ((orientation < 5) || (orientation > 8)) {
@@ -100,14 +130,39 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         return rect;
     }
 
+    private static InputStream getInputStreamFromPath(String path) {
+        try {
+            Uri uri = Uri.parse(path);
+            String scheme = uri == null ? null : uri.getScheme();
+
+            if (scheme != null) {
+                return context.getContentResolver().openInputStream(uri);
+            } else {
+                return new FileInputStream(path);
+            }
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    private static void setMediaMetadataRetrieverDataSource(MediaMetadataRetriever retriever,
+                                                            String path) {
+        Uri uri = Uri.parse(path);
+        String scheme = uri == null ? null : uri.getScheme();
+        if (scheme != null) {
+            retriever.setDataSource(context, uri);
+        } else {
+            retriever.setDataSource(path);
+        }
+    }
+
     public boolean readBitmap(String path) {
 
-        if(isVideoFile(path)){
+        if (isVideoFile(path)) {
             srcPath = path;
             size = getImageDimensions(srcPath, orientation);
             return (size.right != 0) && (size.bottom != 0);
-        }
-        else{
+        } else {
             srcPath = path;
             orientation = getExifOrientation(path);
             size = getImageDimensions(srcPath, orientation);
@@ -128,75 +183,91 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int height;
 
         if (isVideoFile(path)) {
+            Uri uri = Uri.parse(path);
+            String scheme = uri == null ? null : uri.getScheme();
+            boolean isContentUri = scheme != null && scheme.equals("content");
 
             Bitmap bmThumbnail = null;
+            Cursor cursor = null;
 
-            try{
-                bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
-                if(context != null && bmThumbnail == null) {
-
-                    String SELECTION = MediaStore.MediaColumns.DATA + "=?";
-                    String[] PROJECTION = {BaseColumns._ID};
-
-                    Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
-                    String[] selectionArgs = {path};
-                    ContentResolver cr = context.getContentResolver();
-                    Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
-                    if (cursor.moveToFirst()) {
-                        long videoId = cursor.getLong(0);
-                        bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
-                    }
-                    cursor.close();
-                }
-            }
-            catch(Exception e){}
-
-            if(bmThumbnail==null){
-
-                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
-                try{
-                    retriever.setDataSource(path);
-                    bmThumbnail = retriever.getFrameAtTime();
-                }
-                catch(Exception e1){
-                }
-                finally {
-                    try {
-                        retriever.release();
-                    } catch (Exception ex) {}
-                }
-            }
-
-            if(bmThumbnail==null){
-                try{
-                    bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
-                    if(context != null && bmThumbnail == null) {
+            if (!isContentUri) {
+                try {
+                    bmThumbnail = ThumbnailUtils.createVideoThumbnail(
+                            path, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND);
+                    if (context != null && bmThumbnail == null) {
 
                         String SELECTION = MediaStore.MediaColumns.DATA + "=?";
                         String[] PROJECTION = {BaseColumns._ID};
 
-                        Uri uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
                         String[] selectionArgs = {path};
                         ContentResolver cr = context.getContentResolver();
-                        Cursor cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
-                        if (cursor.moveToFirst()) {
+                        cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor != null && cursor.moveToFirst()) {
                             long videoId = cursor.getLong(0);
-                            bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.MINI_KIND, null);
+                            bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(
+                                    cr, videoId, MediaStore.Video.Thumbnails.FULL_SCREEN_KIND, null);
                         }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                } finally {
+                    if (cursor != null) {
                         cursor.close();
                     }
                 }
-                catch (Exception e2){}
+            }
+
+            if (bmThumbnail == null) {
+
+                MediaMetadataRetriever retriever = new MediaMetadataRetriever();
+                try {
+                    setMediaMetadataRetrieverDataSource(retriever, path);
+                    bmThumbnail = retriever.getFrameAtTime();
+                } catch (Exception e1) {
+                    e1.printStackTrace();
+                } finally {
+                    try {
+                        retriever.release();
+                    } catch (Exception ex) {
+                        ex.printStackTrace();
+                    }
+                }
+            }
+
+            if (!isContentUri && bmThumbnail == null) {
+                try {
+                    bmThumbnail = ThumbnailUtils.createVideoThumbnail(path, MediaStore.Video.Thumbnails.MINI_KIND);
+                    if (context != null && bmThumbnail == null) {
+
+                        String SELECTION = MediaStore.MediaColumns.DATA + "=?";
+                        String[] PROJECTION = {BaseColumns._ID};
+
+                        uri = MediaStore.Video.Media.EXTERNAL_CONTENT_URI;
+                        String[] selectionArgs = {path};
+                        ContentResolver cr = context.getContentResolver();
+                        cursor = cr.query(uri, PROJECTION, SELECTION, selectionArgs, null);
+                        if (cursor != null && cursor.moveToFirst()) {
+                            long videoId = cursor.getLong(0);
+                            bmThumbnail = MediaStore.Video.Thumbnails.getThumbnail(cr, videoId, MediaStore.Video.Thumbnails.MINI_KIND, null);
+                        }
+                    }
+                } catch (Exception e2) {
+                    e2.printStackTrace();
+                } finally {
+                    if (cursor != null) {
+                        cursor.close();
+                    }
+                }
             }
 
             try {
                 if (bmThumbnail != null) {
                     return Bitmap.createScaledBitmap(bmThumbnail, w, h, true);
                 }
-            }catch (Exception e){
+            } catch (Exception e) {
             }
-        }
-        else{
+        } else {
             if ((orientation < 5) || (orientation > 8)) {
                 width = rect.right;
                 height = rect.bottom;
@@ -213,7 +284,8 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
                 BitmapFactory.Options options = new BitmapFactory.Options();
                 options.inJustDecodeBounds = false;
                 options.inSampleSize = scale;
-                Bitmap tmp = BitmapFactory.decodeStream(new FileInputStream(path), null, options);
+                InputStream inputStream = getInputStreamFromPath(path);
+                Bitmap tmp = BitmapFactory.decodeStream(inputStream, null, options);
                 tmp = fixExifOrientation(tmp, orientation);
                 return Bitmap.createScaledBitmap(tmp, w, h, true);
             } catch (Exception e) {
@@ -228,14 +300,27 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         int orientation = ExifInterface.ORIENTATION_UNDEFINED;
 
         int i = 0;
+        boolean isError = false;
         while ((i < 5) && (orientation == ExifInterface.ORIENTATION_UNDEFINED)) {
             try {
                 ExifInterface exif = new ExifInterface(srcPath);
                 orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, orientation);
+                isError = false;
             } catch (IOException e) {
+                isError = true;
                 try {
                     Thread.sleep(100);
-                } catch (InterruptedException e1) {}
+                } catch (InterruptedException e1) {
+                }
+            } finally {
+                if (isError) {
+                    InputStream inputStream = getInputStreamFromPath(srcPath);
+                    try {
+                        ExifInterface exif = new ExifInterface(inputStream);
+                        orientation = exif.getAttributeInt(ExifInterface.TAG_ORIENTATION, orientation);
+                        isError = false;
+                    } catch (Exception e) {}
+                }
             }
 
             i++;
@@ -257,20 +342,20 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
 
         Matrix matrix = new Matrix();
         switch (orientation) {
-        case ExifInterface.ORIENTATION_TRANSPOSE:
-        case ExifInterface.ORIENTATION_ROTATE_90:
-            matrix.postRotate(90);
-            break;
-        case ExifInterface.ORIENTATION_ROTATE_180:
-        case ExifInterface.ORIENTATION_FLIP_VERTICAL:
-            matrix.postRotate(180);
-            break;
-        case ExifInterface.ORIENTATION_TRANSVERSE:
-        case ExifInterface.ORIENTATION_ROTATE_270:
-            matrix.postRotate(270);
-            break;
-        default:
-            break;
+            case ExifInterface.ORIENTATION_TRANSPOSE:
+            case ExifInterface.ORIENTATION_ROTATE_90:
+                matrix.postRotate(90);
+                break;
+            case ExifInterface.ORIENTATION_ROTATE_180:
+            case ExifInterface.ORIENTATION_FLIP_VERTICAL:
+                matrix.postRotate(180);
+                break;
+            case ExifInterface.ORIENTATION_TRANSVERSE:
+            case ExifInterface.ORIENTATION_ROTATE_270:
+                matrix.postRotate(270);
+                break;
+            default:
+                break;
         }
 
         if ((orientation == ExifInterface.ORIENTATION_FLIP_HORIZONTAL)
@@ -303,20 +388,15 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         if (bitmap == null)
             return false;
 
-        FileOutputStream stream;
-        try {
-            stream = new FileOutputStream(file);
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream))
-                return false;
-
-            stream.close();
-            return true;
+        try (FileOutputStream stream = new FileOutputStream(file)) {
+            return bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream);
         } catch (Exception e) {
+            e.printStackTrace();
         }
         return false;
     }
 
-    public int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh) {
+    public int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh, int hint) {
         if (bitmap == null)
             bitmap = getBitmap(srcPath, size, orientation, w, h);
         else
@@ -327,8 +407,18 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
             return 0;
 
         try {
+            Bitmap.CompressFormat targetFormat = Bitmap.CompressFormat.JPEG;
+            int targetQuality = 85;
+            if (hint == MegaGfxProcessor.GFX_HINT_FORMAT_PNG) {
+                boolean hasTransparency = bitmap.hasAlpha();
+                if (hasTransparency) {
+                    targetFormat = Bitmap.CompressFormat.PNG;
+                    targetQuality = 75;
+                }
+            }
+
             ByteArrayOutputStream stream = new ByteArrayOutputStream();
-            if (!bitmap.compress(Bitmap.CompressFormat.JPEG, 85, stream))
+            if (!bitmap.compress(targetFormat, targetQuality, stream))
                 return 0;
 
             bitmapData = stream.toByteArray();

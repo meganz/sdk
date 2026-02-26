@@ -49,15 +49,11 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaUser ? [[MEGAUser alloc] initWithMegaUser:self.megaUser->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaUser *)getCPtr {
     return self.megaUser;
 }
 
-- (NSString *)email{
+- (nullable NSString *)email {
     if (!self.megaUser) return nil;
     
     return self.megaUser->getEmail() ? [[NSString alloc] initWithUTF8String:self.megaUser->getEmail()] : nil;
@@ -79,7 +75,7 @@ using namespace mega;
     return self.megaUser ? self.megaUser->isOwnChange() : 0;
 }
 
-- (NSDate *)timestamp {
+- (nullable NSDate *)timestamp {
     return self.megaUser ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaUser->getTimestamp()] : nil;
 }
 

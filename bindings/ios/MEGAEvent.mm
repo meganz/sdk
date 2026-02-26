@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaEvent ? [[MEGAEvent alloc] initWithMegaEvent:self.megaEvent->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaEvent *)getCPtr {
     return self.megaEvent;
 }
@@ -62,12 +58,28 @@ using namespace mega;
     return (Event) (self.megaEvent ? self.megaEvent->getType() : 0);
 }
 
-- (NSString *)text {
-    return self.megaEvent ? [[NSString alloc] initWithUTF8String:self.megaEvent->getText()] : nil;
+- (nullable NSString *)text {
+    if (self.megaEvent) {
+        const char *val = self.megaEvent->getText();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
 }
 
 - (NSInteger)number {
     return self.megaEvent ? self.megaEvent->getNumber() : -1;
+}
+
+- (nullable NSString *)eventString {
+    if (self.megaEvent) {
+        const char *val = self.megaEvent->getEventString();
+        if (val) {
+            return [NSString stringWithUTF8String:val];
+        }
+    }
+    return nil;
 }
 
 

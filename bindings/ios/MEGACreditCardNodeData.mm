@@ -1,0 +1,96 @@
+/**
+ * @file MEGACreditCardNodeData.mm
+ * @brief Object Data for Password Node attributes
+ *
+ * (c) 2025 by Mega Limited, Auckland, New Zealand
+ *
+ * This file is part of the MEGA SDK - Client Access Engine.
+ *
+ * Applications using the MEGA API must present a valid application key
+ * and comply with the the rules set forth in the Terms of Service.
+ *
+ * The MEGA SDK is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * @copyright Simplified (2-clause) BSD License.
+ *
+ * You should have received a copy of the license along with this
+ * program.
+ */
+#import "MEGACreditCardNodeData.h"
+#import "MEGACreditCardNodeData+init.h"
+
+@interface MEGACreditCardNodeData()
+
+@property MegaCreditCardNodeData *megaCreditCardNodeData;
+@property BOOL cMemoryOwn;
+
+@end
+
+@implementation MEGACreditCardNodeData
+
+- (instancetype)initWithCardNumber:(NSString *)cardNumber
+                             notes:(nullable NSString *)notes
+                    cardHolderName:(nullable NSString *)cardHolderName
+                               cvv:(nullable NSString *)cvv
+                    expirationDate:(nullable NSString *)expirationDate {
+    self = [super init];
+    if (self) {
+        _megaCreditCardNodeData = MegaCreditCardNodeData::createInstance(cardNumber.UTF8String,
+                                                                         notes.UTF8String,
+                                                                         cardHolderName.UTF8String,
+                                                                         cvv.UTF8String,
+                                                                         expirationDate.UTF8String);
+        _cMemoryOwn = YES;
+    }
+    return self;
+}
+
+- (instancetype)initWithMegaCreditCardNodeData:(MegaCreditCardNodeData *)megaCreditCardNodeData cMemoryOwn:(BOOL)cMemoryOwn {
+    self = [super init];
+
+    if (self != nil) {
+        _megaCreditCardNodeData = megaCreditCardNodeData;
+        _cMemoryOwn = cMemoryOwn;
+    }
+
+    return self;
+}
+
+- (void)dealloc {
+    if (self.cMemoryOwn) {
+        delete _megaCreditCardNodeData;
+    }
+}
+
+- (MegaCreditCardNodeData *)getCPtr {
+    return self.megaCreditCardNodeData;
+}
+
+- (nullable NSString *)cardNumber {
+    const char *cardNumber = self.megaCreditCardNodeData ? self.megaCreditCardNodeData->cardNumber() : nullptr;
+    return cardNumber ? [[NSString alloc] initWithUTF8String:cardNumber] : nil;
+}
+
+- (nullable NSString *)notes {
+    const char *notes = self.megaCreditCardNodeData ? self.megaCreditCardNodeData->notes() : nullptr;
+    return notes ? [[NSString alloc] initWithUTF8String:notes] : nil;
+}
+
+- (nullable NSString *)cardHolderName {
+    const char *cardHolderName = self.megaCreditCardNodeData ? self.megaCreditCardNodeData->cardHolderName() : nullptr;
+    return cardHolderName ? [[NSString alloc] initWithUTF8String:cardHolderName] : nil;
+}
+
+- (nullable NSString *)cvv {
+    const char *cvv = self.megaCreditCardNodeData ? self.megaCreditCardNodeData->cvv() : nullptr;
+    return cvv ? [[NSString alloc] initWithUTF8String:cvv] : nil;
+}
+
+- (nullable NSString *)expirationDate {
+    const char *expirationDate = self.megaCreditCardNodeData ? self.megaCreditCardNodeData->expirationDate() : nullptr;
+    return expirationDate ? [[NSString alloc] initWithUTF8String:expirationDate] : nil;
+}
+
+@end

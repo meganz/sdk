@@ -52,11 +52,7 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaUserAlertList ? [[MEGAUserAlertList alloc] initWithMegaUserAlertList:self.megaUserAlertList->copy() cMemoryOwn:YES] : nil;
-}
-
-- (MEGAUserAlert *)usertAlertAtIndex:(NSInteger)index {
+- (nullable MEGAUserAlert *)usertAlertAtIndex:(NSInteger)index {
     return self.megaUserAlertList ? [[MEGAUserAlert alloc] initWithMegaUserAlert:self.megaUserAlertList->get((int)index)->copy() cMemoryOwn:YES] : nil;
 }
 

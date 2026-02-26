@@ -1,0 +1,185 @@
+pipeline {
+    agent { label 'docker' }
+
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '25', daysToKeepStr: '30'))
+        gitLabConnection('GitLabConnectionJenkins')
+    }
+    parameters {
+        choice(name: 'ACTION', choices: ['Create_Release', 'Create_Release_Candidate', 'Close_Release', 'Patch_Release'], description: 'Pick an action')
+        string(name: 'SLACK_THREAD_ANNOUNCE', defaultValue: '', description: 'Id of thread root message (only required for creating new releases or RCs).')
+        string(name: 'TARGET_APPS', defaultValue: '', description: 'e.g. Android 1.0.1 / iOS 1.2 / MEGAsync 9.9.9 RC1 (only required for creating releases, not for closing)')
+        string(name: 'RELEASE_VERSION', defaultValue: '', description: 'Define release version (ie. 8.5.0). Optional for Create Release, mandatory for other actions.')
+        string(name: 'TICKETS', defaultValue: '', description: 'Comma separated tickets. Required for Patch release or Create RC.')
+        password(name: 'GPG_PASSWORD', defaultValue: '', description: 'Enter the password. Only required for creating new releases and patched releases.')
+    }
+    environment {
+        //JIRA_SDK_CREDS = credentials('SDK_JIRA')
+        SLACK_TOKEN = credentials('sdk_slack_bot_releases')
+        GITLAB_TOKEN = credentials('SDK_releases_gitlab_token')
+        GPG_KEYGRIP = credentials('sdk_gpg_keygrip_release_management')
+        gpg_key = credentials('sdk_gpg_key_release_management')
+        GITHUB_TOKEN = credentials('sdk_github_token')
+        GITHUB_USER = credentials('sdk_github_username')
+        COMMIT_EMAIL = 'sdkdev+releases@mega.co.nz'
+        COMMIT_NAME = 'SDK Releases'
+        project_name = "SDK"
+        slack_channel = "sdk"
+        slack_channel_dev_requests = "sdk_devs_only"
+        gitlab_url = "${env.GITLAB_BASE_URL}"
+        jira_url = "${env.JIRA_BASE_URL}"
+        confluence_url = "${env.CONFLUENCE_BASE_URL}"
+        confluence_page_id = "3640225"
+        GNUPGHOME = "${WORKSPACE}/.gnupg"
+        JIRA_TOKEN = credentials('SDK_JIRA_PERSONAL_ACCESS_TOKEN')
+        CONFLUENCE_TOKEN = credentials('SDK_CONFLUENCE_PERSONAL_ACCESS_TOKEN')
+    }
+
+    stages {
+        stage('Replace config file'){
+            steps {
+                dir("automation"){
+                    sh 'cp config.toml.template config.toml'
+                    script {
+                        sh """
+                            export github_push_remote_url="https://\${GITHUB_USER}:\${GITHUB_TOKEN}@github.com/meganz/sdk.git"
+                            sed -i 's|project_name = ""|project_name = "${env.project_name}"|' config.toml
+                            sed -i 's|target_apps = ""|target_apps = "${params.TARGET_APPS}"|' config.toml
+                            sed -i 's|gitlab_url = ""|gitlab_url = "${env.gitlab_url}"|' config.toml
+                            sed -i 's|jira_url = ""|jira_url = "${env.jira_url}"|' config.toml
+                            sed -i 's|slack_channel_dev_requests = ""|slack_channel_dev_requests = "${env.slack_channel_dev_requests}"|' config.toml
+                            sed -i 's|slack_channel_announce = ""|slack_channel_announce = "${env.slack_channel}"|' config.toml
+                            sed -i 's|slack_thread_announce = ""|slack_thread_announce = "${params.SLACK_THREAD_ANNOUNCE}"|' config.toml
+                            sed -i 's|release_version = ""|release_version = "${params.RELEASE_VERSION}"|' config.toml
+                            sed -i 's|github_push_remote_url = ""|github_push_remote_url = "'\${github_push_remote_url}'"|' config.toml
+                            sed -i 's|confluence_url = ""|confluence_url = "${env.confluence_url}"|' config.toml
+                            sed -i 's|tickets = ""|tickets = "${params.TICKETS}"|' config.toml
+                        """
+                    }
+                }
+                // Configure GPG Agent
+                sh """
+                    mkdir -m 700 $GNUPGHOME
+                    touch $GNUPGHOME/gpg-agent.conf
+                    echo 'allow-preset-passphrase' >> $GNUPGHOME/gpg-agent.conf
+                    echo 'default-cache-ttl 3600' >> $GNUPGHOME/gpg-agent.conf
+                    echo 'max-cache-ttl 3600' >> $GNUPGHOME/gpg-agent.conf
+                """
+                // Configure gitlab
+                sh "git remote remove origin"
+                sh """
+                    set +x
+                    export gitlab_push_remote_url="https://gitlab-ci-token:\${GITLAB_TOKEN}@${GIT_URL_SDK_FOR_HTTPS_TOKEN}"
+                    git remote add origin \${gitlab_push_remote_url}
+                """
+            }
+        }
+        stage('Build docker image') {
+            steps {
+                sh "cp automation/requirements.txt dockerfile/requirements.txt"
+                dir ("dockerfile") {
+                    sh """
+                        docker build \
+                            --build-arg USER_ID=\$(id -u) \
+                            --build-arg GROUP_ID=\$(id -g) \
+                            -f release-management.dockerfile \
+                            -t meganz/sdk-release-management:${env.BUILD_NUMBER} \
+                            .
+                    """
+                }
+            }
+        }
+        stage('Create Release'){
+            when {
+                beforeAgent true
+                expression { params.ACTION == "Create_Release" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                }
+            }
+            steps {
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'set +x; /usr/lib/gnupg2/gpg-preset-passphrase --preset --passphrase $GPG_PASSWORD $GPG_KEYGRIP'
+                    sh """
+                          git config --global user.email "${COMMIT_EMAIL}"
+                          git config --global user.name "${COMMIT_NAME}"
+                    """
+                    sh 'python3 ./make_release.py config.toml'
+                }
+            }
+        }
+        stage ('Create Release Candidate'){
+            when {
+                beforeAgent true
+                expression { params.ACTION == "Create_Release_Candidate" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                }
+            }
+            steps {
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./make_another_rc.py config.toml'
+                }
+            }
+        }
+        stage ('Close Release'){
+            when {
+                beforeAgent true
+                expression { params.ACTION == "Close_Release" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                }
+            }
+            steps {
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'python3 ./close_release.py config.toml'
+                }
+            }
+        }
+        stage ('Patch Release'){
+            when {
+                beforeAgent true
+                expression { params.ACTION == "Patch_Release" }
+            }
+            agent {
+                docker {
+                    image "meganz/sdk-release-management:${env.BUILD_NUMBER}"
+                    reuseNode true
+                }
+            }
+            steps {
+                dir("automation"){
+                    sh 'gpg --batch --import $gpg_key'
+                    sh 'gpg --list-secret-keys'
+                    sh 'set +x; /usr/lib/gnupg2/gpg-preset-passphrase --preset --passphrase $GPG_PASSWORD $GPG_KEYGRIP'
+                    sh """
+                          git config --global user.email "${COMMIT_EMAIL}"
+                          git config --global user.name "${COMMIT_NAME}"
+                    """
+                    sh 'python3 ./patch_release.py config.toml'
+                }
+            }
+        }
+    }
+    post {
+        always {
+            sh "docker image rm meganz/sdk-release-management:${env.BUILD_NUMBER}"
+            deleteDir() /* clean up our workspace */
+        }
+    }
+}

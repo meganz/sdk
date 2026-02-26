@@ -29,7 +29,9 @@
 namespace mega
 {
 
+#ifdef ENABLE_SYNC
 struct UnifiedSync;
+struct Syncs;
 
 /**
  * @brief The HeartBeatBackupInfo class
@@ -38,18 +40,13 @@ struct UnifiedSync;
 
 class HeartBeatBackupInfo
 {
+    bool mModified = false;
+
 public:
     HeartBeatBackupInfo();
-    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = default;
-    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = default;
+    HeartBeatBackupInfo(HeartBeatBackupInfo&&) = delete;
+    HeartBeatBackupInfo& operator=(HeartBeatBackupInfo&&) = delete;
     virtual ~HeartBeatBackupInfo() = default;
-
-    MEGA_DISABLE_COPY(HeartBeatBackupInfo)
-
-    virtual int status() const;
-
-    virtual double progress(m_off_t inflightProgress) const;
-    virtual void invalidateProgress();
 
     virtual m_time_t lastAction() const;
 
@@ -58,157 +55,74 @@ public:
     virtual m_time_t lastBeat() const;
     virtual void setLastBeat(const m_time_t &lastBeat);
     virtual void setLastAction(const m_time_t &lastAction);
-    virtual void setStatus(const int &status);
-    virtual void setProgress(const double &progress);
     virtual void setLastSyncedItem(const handle &lastItemUpdated);
 
-    virtual void updateStatus(UnifiedSync& us) {}
-
-    bool mModified = false;
-    bool mSending = false;
+    std::atomic<bool> mSending{false};
 
 protected:
-    int mStatus = 0;
-    double mProgress = 0;
-    bool mProgressInvalid = true;
-
-    friend class BackupMonitor;
-    int32_t mPendingUps = 0;
-    int32_t mPendingDowns = 0;
-
     handle mLastItemUpdated = UNDEF; // handle of node most recently updated
 
     m_time_t mLastAction = -1;   //timestamps of the last action
     m_time_t mLastBeat = -1;     //timestamps of the last beat
 
     void updateLastActionTime();
-};
 
-/**
- * @brief Backup info controlled by transfers
- * progress is advanced with transfer progress
- * by holding the count of total and transferred bytes
- *
- */
-class HeartBeatTransferProgressedInfo : public HeartBeatBackupInfo
-{
-public:
-    double progress(m_off_t inflightProgress) const override;
-
-    void adjustTransferCounts(int32_t upcount, int32_t downcount, long long totalBytes, long long transferBytes);
-
-private:
     friend class BackupMonitor;
-    long long mTotalBytes = 0;
-    long long mTransferredBytes = 0;
 };
 
-#ifdef ENABLE_SYNC
-class HeartBeatSyncInfo : public HeartBeatTransferProgressedInfo
+class HeartBeatSyncInfo : public HeartBeatBackupInfo
 {
 public:
-    enum Status
-    {
-        UPTODATE = 1, // Up to date: local and remote paths are in sync
-        SYNCING = 2, // The sync engine is working, transfers are in progress
-        PENDING = 3, // The sync engine is working, e.g: scanning local folders
-        INACTIVE = 4, // Sync is not active. A state != ACTIVE should have been sent through '''sp'''
-        UNKNOWN = 5, // Unknown status
-    };
+    void updateSPHBStatus(UnifiedSync& us);
 
-    HeartBeatSyncInfo();
-    MEGA_DISABLE_COPY(HeartBeatSyncInfo)
+    using SPHBStatus = CommandBackupPutHeartBeat::SPHBStatus;
+    SPHBStatus sphbStatus() { return mSPHBStatus; }
 
-    virtual void updateStatus(UnifiedSync& us) override;
-};
-#endif
-
-/**
- * @brief Information for registration/update of a backup
- */
-class BackupInfo
-{
-public:
-    BackupInfo(BackupType type, string backupName, LocalPath localFolder, handle megaHandle, int state, int substate, string extra);
-
-    BackupType type() const;
-
-    string backupName() const;
-
-    LocalPath localFolder() const;
-
-    handle megaHandle() const;
-
-    int state() const;
-
-    int subState() const;
-
-    string extra() const;
-
-protected:
-    BackupType mType;
-    string mBackupName;
-    LocalPath mLocalFolder;
-    handle mMegaHandle;
-    int mState;
-    int mSubState;
-    string mExtra;
+    SyncTransferCounts mSnapshotTransferCounts;
+    SyncTransferCounts mResolvedTransferCounts;
+private:
+    SPHBStatus mSPHBStatus = CommandBackupPutHeartBeat::STATE_NOT_INITIALIZED;
 };
 
-#ifdef ENABLE_SYNC
-class BackupInfoSync : public BackupInfo
+class BackupInfoSync : public CommandBackupPut::BackupInfo
 {
 public:
-    enum State
-    {
-        ACTIVE = 1,             // Working fine (enabled)
-        FAILED = 2,             // Failed (permanently disabled)
-        TEMPORARY_DISABLED = 3, // Temporarily disabled due to a transient situation (e.g: account blocked). Will be resumed when the condition passes
-        DISABLED = 4,           // Disabled by the user
-        PAUSE_UP = 5,           // Active but upload transfers paused in the SDK
-        PAUSE_DOWN = 6,         // Active but download transfers paused in the SDK
-        PAUSE_FULL = 7,         // Active but transfers paused in the SDK
-    };
 
-    BackupInfoSync(UnifiedSync&);
+    BackupInfoSync(const SyncConfig& config, const string& device, handle drive, CommandBackupPut::SPState calculatedState);
+    BackupInfoSync(const UnifiedSync& us, bool pauseDown, bool pauseUp);
 
     static BackupType getSyncType(const SyncConfig& config);
-    static int getSyncState (UnifiedSync&);
-    static int getSyncState(SyncError error, syncstate_t state, MegaClient *client);
-    static int getSyncState(const SyncConfig& config, MegaClient *client);
-    static int getSyncSubstatus (UnifiedSync&);
-    string getSyncExtraData(UnifiedSync&);
+    static CommandBackupPut::SPState getSyncState (const UnifiedSync &, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState(SyncError error, SyncRunState, bool pauseDown, bool pauseUp);
+    static CommandBackupPut::SPState getSyncState(const SyncConfig& config, bool pauseDown, bool pauseUp);
+    static handle getDriveId(const UnifiedSync&);
 
     bool operator==(const BackupInfoSync& o) const;
     bool operator!=(const BackupInfoSync& o) const;
 
 private:
-    static int calculatePauseActiveState(MegaClient *client);
+    static CommandBackupPut::SPState calculatePauseActiveState(bool pauseDown, bool pauseUp);
 };
-#endif
+
 
 class BackupMonitor
 {
 public:
-    explicit BackupMonitor(MegaClient * client);
+    explicit BackupMonitor(Syncs&);
 
     void beat(); // produce heartbeats!
 
-    void onSyncConfigChanged();
     void updateOrRegisterSync(UnifiedSync&);
 
 private:
-    void digestPutResult(handle backupId, UnifiedSync* syncPtr);
-
     static constexpr int MAX_HEARBEAT_SECS_DELAY = 60*30; // max time to wait before a heartbeat for unchanged backup
 
-    mega::MegaClient *mClient = nullptr;
+    Syncs& syncs;
 
-    void updateBackupInfo(handle backupId, const BackupInfo &info);
-
-#ifdef ENABLE_SYNC
     void beatBackupInfo(UnifiedSync& us);
-#endif
 };
+
+#endif
+
 }
 

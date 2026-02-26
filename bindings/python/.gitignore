@@ -1,7 +1,0 @@
-# binding Python: only SWIG auto-generated files
-mega.py
-megaapi_wrap.cpp
-megaapi_wrap.h
-build/
-dist/
-megasdk.egg-info/

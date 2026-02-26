@@ -66,10 +66,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaPushNotificationSettings ? [MEGAPushNotificationSettings.alloc initWithMegaPushNotificationSettings:self.megaPushNotificationSettings->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaPushNotificationSettings *)getCPtr {
     return self.megaPushNotificationSettings;
 }
@@ -94,19 +90,19 @@ using namespace mega;
 
 #pragma mark - Interface methods.
 
-- (BOOL)isChatDndEnabledForChatId:(int64_t)chatId {
+- (BOOL)isChatDndEnabledForChatId:(uint64_t)chatId {
     return self.megaPushNotificationSettings->isChatDndEnabled(chatId);
 }
 
-- (void)setChatEnabled:(BOOL)enabled forChatId:(int64_t)chatId {
+- (void)setChatEnabled:(BOOL)enabled forChatId:(uint64_t)chatId {
     self.megaPushNotificationSettings->enableChat(chatId, enabled);
 }
 
-- (int64_t)timestampForChatId:(int64_t)chatId {
+- (int64_t)timestampForChatId:(uint64_t)chatId {
     return self.megaPushNotificationSettings->getChatDnd(chatId);
 }
 
-- (void)setChatDndForChatId:(int64_t)chatId untilTimestamp:(int64_t)timestamp {
+- (void)setChatDndForChatId:(uint64_t)chatId untilTimestamp:(int64_t)timestamp {
     self.megaPushNotificationSettings->setChatDnd(chatId, timestamp);
 }
 

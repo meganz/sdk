@@ -1,5 +1,0 @@
-# binding PHP: only SWIG auto-generated files
-mega.php
-megaapi_wrap.cpp
-megaapi_wrap.h
-php_mega.h

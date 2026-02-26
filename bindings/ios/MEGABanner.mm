@@ -49,10 +49,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaBanner ? [[MEGABanner alloc] initWithMegaBanner:self.megaBanner->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaBanner *)getCPtr {
     return self.megaBanner;
 }

@@ -1,0 +1,146 @@
+Name:		megasdk
+Version:	megasdk_VERSION
+Release:	%(cat MEGA_BUILD_ID || echo "1").1
+Summary:	MEGA SDK - Client Access Engine
+License:	https://github.com/meganz/megacmd/blob/master/LICENSE
+Group:		Unspecified
+Url:		https://mega.io/developers
+Source0:	megasdk_%{version}.tar.gz
+Vendor:		MEGA Limited
+Packager:	MEGA Linux Team <linux@mega.co.nz>
+
+%global __requires_exclude ^lib(avcodec|avformat|avutil|swresample|swscale)\\.so\\.
+
+BuildRequires: autoconf, autoconf-archive, automake, libtool, gcc-c++
+BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
+
+#OpenSUSE
+%if 0%{?suse_version} || 0%{?sle_version}
+    # disabling post-build-checks that ocassionally prevent opensuse rpms from being generated
+    # plus it speeds up building process
+    #!BuildIgnore: post-build-checks
+        BuildRequires: libqt5-qtbase-devel, libqt5-linguist-devel, libqt5-qtsvg-devel, libqt5-qtx11extras-devel, libqt5-qtdeclarative-devel
+        Requires: libQt5Core5 libqt5-qtquickcontrols libqt5-qtquickcontrols2
+        BuildRequires: kernel-devel
+%else
+    BuildRequires: python3, kernel-headers
+%endif
+
+%if 0%{?suse_version} && 0%{?suse_version} <= 1500
+    BuildRequires: gcc14-c++
+%else
+    BuildRequires: gcc-c++
+%endif
+
+# OpenSuse Leap 15.6 -> python311
+# OpenSuse Leap 16.0 -> python313
+# OpenSuse Tumbleweed -> python313
+%if 0%{?sle_version} && 0%{?suse_version} < 1600
+    BuildRequires: python311
+%endif
+%if (0%{?sle_version} || 0%{?is_opensuse}) && 0%{?suse_version} >= 1600
+    BuildRequires: python313
+%endif
+
+#Fedora specific
+%if 0%{?fedora}
+    # allowing for rpaths (taken as invalid, as if they were not absolute paths when they are)
+    %if 0%{?fedora_version} >= 40
+        %define __brp_check_rpaths QA_RPATHS=0x0002 /usr/lib/rpm/check-rpaths
+        BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel, wget2, wget2-wget
+        Requires: qt5-qtbase >= 5.15, qt5-qtsvg, qt5-qtdeclarative, qqc2-desktop-style, qt5-qtquickcontrols, qt5-qtquickcontrols2
+    %endif
+%endif
+
+# RHEL/CentOS/Alma/Rocky/Oracle >= 9: allow $ORIGIN
+%if (0%{?rhel} >= 9) || (0%{?rhel_version} >= 900) || (0%{?centos_version} >= 900)
+    %define __brp_check_rpaths QA_RPATHS=$(( 0x0002|0x0008 )) /usr/lib/rpm/check-rpaths
+%endif
+
+#CentOS/RedHat/AlmaLinux
+%if 0%{?centos_version} || 0%{?rhel_version}
+    BuildRequires: desktop-file-utils
+    BuildRequires: qt5-qtbase-devel qt5-qttools-devel, qt5-linguist, qt5-qtsvg-devel, qt5-qtx11extras-devel, qt5-qtdeclarative-devel
+    Requires: qt5-qtbase qt5-qtquickcontrols qt5-qtquickcontrols2 qt5-qtdeclarative
+%endif
+
+%description
+This SDK brings you all the power of our client applications and let you create
+your own or analyze the security of our products. 
+
+%prep
+%global debug_package %{nil}
+%setup -q
+
+if [ -f /opt/vcpkg.tar.gz ]; then
+    export VCPKG_DEFAULT_BINARY_CACHE=/opt/persistent/vcpkg_cache
+    mkdir -p ${VCPKG_DEFAULT_BINARY_CACHE}
+    tar xzf /opt/vcpkg.tar.gz
+    vcpkg_root="-DVCPKG_ROOT=vcpkg"
+fi
+
+# use a custom cmake if required/available:
+if [ -f /opt/cmake.tar.gz ]; then
+    echo "8dc99be7ba94ad6e14256b049e396b40  /opt/cmake.tar.gz" | md5sum -c -
+    tar xzf /opt/cmake.tar.gz
+    ln -s cmake-*-Linux* cmake_inst
+    export PATH="${PWD}/cmake_inst/bin:${PATH}"
+fi
+
+# OpenSuse Leap 15.x defaults to gcc7.
+# Python>=10 needed for VCPKG pkgconf
+%if 0%{?suse_version} && 0%{?suse_version} <= 1500
+    export CC=gcc-14
+    export CXX=g++-14
+    mkdir python311
+    ln -sf /usr/bin/python3.11 python311/python3
+    export PATH=$PWD/python311:$PATH
+%endif
+
+cmake --version
+cmake ${vcpkg_root} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_QT_BINDINGS=ON -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -S . -B %{_builddir}/build_dir
+
+%build
+
+if [ -f /opt/cmake.tar.gz ]; then
+    export PATH="${PWD}/cmake_inst/bin:${PATH}"
+fi
+
+cmake --build %{_builddir}/build_dir %{?_smp_mflags}
+
+%install
+
+
+if [ -f /opt/cmake.tar.gz ]; then
+    export PATH="${PWD}/cmake_inst/bin:${PATH}"
+fi
+
+cmake --install %{_builddir}/build_dir --prefix %{buildroot}
+ls -l %{buildroot}
+pwd
+
+%post
+
+
+%preun
+
+
+%postun
+
+
+%posttrans
+
+
+%clean
+
+
+%{?buildroot:%__rm -rf "%{buildroot}"}
+
+
+%files
+
+
+%defattr(-,root,root)
+
+
+%changelog

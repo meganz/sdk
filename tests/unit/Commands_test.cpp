@@ -31,118 +31,6 @@ using namespace mega;
 
 namespace {
 
-class MockApp_CommandGetRegisteredContacts : public MegaApp
-{
-public:
-    using DataType = vector<tuple<string, string, string>>;
-
-    int mCallCount = 0;
-    ErrorCodes mLastError = ErrorCodes::API_EINTERNAL;
-    std::unique_ptr<DataType> mRegisteredContacts;
-
-    void getregisteredcontacts_result(const ErrorCodes e, DataType* const data) override
-    {
-        ++mCallCount;
-        mLastError = e;
-        if (data)
-        {
-            mRegisteredContacts = std::unique_ptr<DataType>{new DataType{*data}};
-        }
-        else
-        {
-            assert(e != ErrorCodes::API_OK);
-        }
-    }
-};
-
-} // anonymous
-
-/*TEST(Commands, CommandGetRegisteredContacts_processResult_happyPath)
-{
-    MockApp_CommandGetRegisteredContacts app;
-
-    JSON json;
-    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","ud":"Zm9vQG1lZ2EuY28ubno"},{"eud":"KzY0MjcxMjM0NTY3","id":"42","ud":"KzY0IDI3IDEyMyA0NTY3"})";
-    const auto jsonBegin = json.pos;
-    const auto jsonLength = strlen(json.pos);
-
-    CommandGetRegisteredContacts::processResult(app, json);
-
-    const vector<tuple<string, string, string>> expected{
-        {"foo@mega.co.nz", "13", "foo@mega.co.nz"},
-        {"+64271234567", "42", "+64 27 123 4567"},
-    };
-
-    ASSERT_EQ(1, app.mCallCount);
-    ASSERT_EQ(API_OK, app.mLastError);
-    ASSERT_NE(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ((long)jsonLength, std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
-
-TEST(Commands, CommandGetRegisteredContacts_processResult_onlyOneContact)
-{
-    MockApp_CommandGetRegisteredContacts app;
-
-    JSON json;
-    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","ud":"Zm9vQG1lZ2EuY28ubno"})";
-    const auto jsonBegin = json.pos;
-    const auto jsonLength = strlen(json.pos);
-
-    CommandGetRegisteredContacts::processResult(app, json);
-
-    const vector<tuple<string, string, string>> expected{
-        {"foo@mega.co.nz", "13", "foo@mega.co.nz"},
-    };
-
-    ASSERT_EQ(1, app.mCallCount);
-    ASSERT_EQ(API_OK, app.mLastError);
-    ASSERT_NE(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
-
-TEST(Commands, CommandGetRegisteredContacts_processResult_extraFieldShouldBeIgnored)
-{
-    MockApp_CommandGetRegisteredContacts app;
-
-    JSON json;
-    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","ud":"Zm9vQG1lZ2EuY28ubno","YmxhaA":"42"})";
-    const auto jsonBegin = json.pos;
-    const auto jsonLength = strlen(json.pos);
-
-    CommandGetRegisteredContacts::processResult(app, json);
-
-    const vector<tuple<string, string, string>> expected{
-        {"foo@mega.co.nz", "13", "foo@mega.co.nz"},
-    };
-
-    ASSERT_EQ(1, app.mCallCount);
-    ASSERT_EQ(API_OK, app.mLastError);
-    ASSERT_NE(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(expected, *app.mRegisteredContacts);
-    ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}
-
-TEST(Commands, CommandGetRegisteredContacts_processResult_invalidResponse)
-{
-    MockApp_CommandGetRegisteredContacts app;
-
-    JSON json;
-    json.pos = R"({"eud":"Zm9vQG1lZ2EuY28ubno","id":"13","YmxhaA":"42"})";
-    const auto jsonBegin = json.pos;
-    const auto jsonLength = strlen(json.pos);
-
-    CommandGetRegisteredContacts::processResult(app, json);
-
-    ASSERT_EQ(1, app.mCallCount);
-    ASSERT_EQ(API_EINTERNAL, app.mLastError);
-    ASSERT_EQ(nullptr, app.mRegisteredContacts);
-    ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}*/
-
-namespace {
-
 class MockApp_CommandGetCountryCallingCodes : public MegaApp
 {
 public:
@@ -252,7 +140,7 @@ TEST(Commands, CommandGetCountryCallingCodes_processResult_invalidResponse)
     ASSERT_EQ(API_EINTERNAL, app.mLastError);
     ASSERT_EQ(nullptr, app.mCountryCallingCodes);
     ASSERT_EQ(ptrdiff_t(jsonLength), std::distance(jsonBegin, json.pos)); // assert json has been parsed all the way
-}*/
+}
 
 class FileSystemAccessMockup : public ::mega::FileSystemAccess
 {
@@ -316,7 +204,7 @@ public:
 };
 
 
-TEST(Commands, CommandCommandFetchGoogleAds)
+TEST(Commands, CommandFetchAds)
 {
     FileSystemAccessMockup fileSystem;
     HttpIOMockup httpIO;
@@ -327,7 +215,7 @@ TEST(Commands, CommandCommandFetchGoogleAds)
     handle h = UNDEF;
     int adFlags = 512;
 
-    ::mega::CommandFetchGoogleAds command(&client, adFlags, v, h, [](::mega::Error e, ::mega::string_map value)
+    ::mega::CommandFetchAds command(&client, adFlags, v, h, [](::mega::Error e, ::mega::string_map value)
     {
         ASSERT_EQ(e, API_OK);
         ASSERT_EQ(value.size(), 3);
@@ -345,7 +233,7 @@ TEST(Commands, CommandCommandFetchGoogleAds)
     command.procresult(r);
 }
 
-TEST(Commands, CommandQueryGoogleAds)
+TEST(Commands, CommandQueryAds)
 {
     FileSystemAccessMockup fileSystem;
     HttpIOMockup httpIO;
@@ -355,7 +243,7 @@ TEST(Commands, CommandQueryGoogleAds)
     handle h = UNDEF;
     int adFlags = 512;
 
-    ::mega::CommandQueryGoogleAds command(&client, adFlags, h, [](::mega::Error e, int value)
+    ::mega::CommandQueryAds command(&client, adFlags, h, [](::mega::Error e, int value)
     {
         ASSERT_EQ(e, API_OK);
         ASSERT_EQ(value, 1);
@@ -366,3 +254,4 @@ TEST(Commands, CommandQueryGoogleAds)
     ::mega::Command::Result r(::mega::Command::Outcome::CmdArray);
     command.procresult(r);
 }
+*/

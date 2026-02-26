@@ -94,28 +94,7 @@
 - (void)tableView:(UITableView *)tableView didSelectRowAtIndexPath:(NSIndexPath *)indexPath {
     MEGANode *node = [[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kMEGANode];
     NSString *name = [node name];
-    if (isImage(name.lowercaseString.pathExtension)) {
-        MWPhotoBrowser *browser = [[MWPhotoBrowser alloc] initWithDelegate:self];
-        
-        browser.displayActionButton = YES;
-        browser.displayNavArrows = YES;
-        browser.displaySelectionButtons = NO;
-        browser.zoomPhotosToFill = YES;
-        browser.alwaysShowControls = YES;
-        browser.enableGrid = YES;
-        browser.startOnGrid = NO;
-        
-        // Optionally set the current visible photo before displaying
-        //    [browser setCurrentPhotoIndex:1];
-        
-        [self.navigationController pushViewController:browser animated:YES];
-        
-        [browser showNextPhotoAnimated:YES];
-        [browser showPreviousPhotoAnimated:YES];
-        NSInteger selectedIndexPhoto = [[[self.offlineDocuments objectAtIndex:indexPath.row] objectForKey:kIndex] integerValue];
-        [browser setCurrentPhotoIndex:selectedIndexPhoto];
-        
-    } else if (isVideo(name.lowercaseString.pathExtension)) {
+    if (isVideo(name.lowercaseString.pathExtension)) {
         NSString *documentDirectory = [NSSearchPathForDirectoriesInDomains(NSDocumentDirectory, NSUserDomainMask, YES) objectAtIndex:0];
         NSMutableString *filePath = [NSMutableString new];
         [filePath appendFormat:@"%@/%@.%@", documentDirectory, [node base64Handle], [name pathExtension]];
@@ -125,18 +104,6 @@
         [self presentMoviePlayerViewControllerAnimated:videoPlayerView];
         [videoPlayerView.moviePlayer play];
     }
-}
-
-#pragma mark - MWPhotoBrowserDelegate
-
-- (NSUInteger)numberOfPhotosInPhotoBrowser:(MWPhotoBrowser *)photoBrowser {
-    return self.offlineImages.count;
-}
-
-- (id <MWPhoto>)photoBrowser:(MWPhotoBrowser *)photoBrowser photoAtIndex:(NSUInteger)index {
-    if (index < self.offlineImages.count)
-        return [self.offlineImages objectAtIndex:index];
-    return nil;
 }
 
 #pragma mark - Private methods
@@ -164,13 +131,6 @@
             [tempDictionary setValue:node forKey:kMEGANode];
             [tempDictionary setValue:[NSNumber numberWithInt:offsetIndex] forKey:kIndex];
             [self.offlineDocuments addObject:tempDictionary];
-            
-            if (isImage([node name].lowercaseString.pathExtension)) {
-                offsetIndex++;
-                MWPhoto *photo = [MWPhoto photoWithURL:[NSURL fileURLWithPath:filePath]];
-                photo.caption = [node name];
-                [self.offlineImages addObject:photo];
-            } 
         }
     }
     [self.tableView reloadData];

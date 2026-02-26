@@ -1,0 +1,23 @@
+{
+  "pins" : [
+    {
+      "identity" : "megadesigntoken",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/meganz/MEGADesignToken",
+      "state" : {
+        "branch" : "main",
+        "revision" : "11ee50eed976c628aa5c8f2a0bb54e6cc28887a9"
+      }
+    },
+    {
+      "identity" : "swift-syntax",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-syntax",
+      "state" : {
+        "revision" : "74203046135342e4a4a627476dd6caf8b28fe11b",
+        "version" : "509.0.0"
+      }
+    }
+  ],
+  "version" : 2
+}

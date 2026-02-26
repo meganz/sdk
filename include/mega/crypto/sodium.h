@@ -23,6 +23,7 @@
 #define SODIUM_H 1
 
 #include <sodium.h>
+#include <vector>
 
 namespace mega {
 
@@ -39,7 +40,7 @@ public:
 
     // TLV key to access to the corresponding value in the TLV records
     static const std::string TLV_KEY;
-    bool initializationOK;
+    bool initializationOK = false;
 
     EdDSA(PrnGen &rng, unsigned char* keySeed = NULL);
     ~EdDSA();
@@ -90,16 +91,34 @@ class MEGA_API ECDH
 public:
     static const int PRIVATE_KEY_LENGTH = crypto_box_SECRETKEYBYTES;
     static const int PUBLIC_KEY_LENGTH = crypto_box_PUBLICKEYBYTES;
+    static const int DERIVED_KEY_LENGTH = crypto_scalarmult_BYTES;
 
     // TLV key to access to the corresponding value in the TLV records
     static const std::string TLV_KEY;
-    bool initializationOK;
+    bool initializationOK = false;
 
-    unsigned char privKey[PRIVATE_KEY_LENGTH];
-    unsigned char pubKey[PUBLIC_KEY_LENGTH];
-
-    ECDH(unsigned char * privKey = NULL);
+    ECDH(); // constructs an instance of ECDH and generates a new x25519 key pair
+    ECDH(const std::string &privKey); // initialize the private key (and derive public key)
+    ECDH(const unsigned char *privk, const std::string &pubk); // initialize the private key and public key
+    ECDH(const ECDH& aux);
+    ECDH* copy() const { return new ECDH(*this); }
+    ECDH& operator=(const ECDH& aux) = delete;
+    ECDH(ECDH&& aux) = delete;
+    ECDH& operator=(ECDH&& aux) = delete;
     ~ECDH();
+
+    const unsigned char* getPrivKey() const { return mPrivKey; }
+    const unsigned char* getPubKey()  const { return mPubKey;  }
+    bool deriveSharedKeyWithSalt(const unsigned char* pubkey, const unsigned char* salt, size_t saltSize, std::string& output) const;
+
+    /**
+     * @brief Compute symetric key using the stored private and public keys
+     *
+     * @param output Generated symetric key
+     *
+     * @return 1 on success, 0 on failure.
+     */
+    int computeSymmetricKey(std::string& output) const { return !doComputeSymmetricKey(mPrivKey, mPubKey, output); }
 
     /**
      * @brief encrypt Encrypt a message using the public key of recipient, the
@@ -140,8 +159,12 @@ public:
     int decrypt(unsigned char* msg, const unsigned char* encmsg,
                  const unsigned long long encmsglen, const unsigned char* nonce,
                  const unsigned char* pubKey, const unsigned char* privKey);
-};
 
+private:
+    int doComputeSymmetricKey(const unsigned char* privk, const unsigned char* pubk, std::string& output) const;
+    unsigned char mPrivKey[PRIVATE_KEY_LENGTH];
+    unsigned char mPubKey[PUBLIC_KEY_LENGTH];
+};
 } // namespace
 
 #endif

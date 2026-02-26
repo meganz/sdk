@@ -19,14 +19,15 @@
  * program.
  */
 
-#include "mega/filefingerprint.h"
-#include "mega/serialize64.h"
 #include "mega/base64.h"
+#include "mega/filesystem.h"
 #include "mega/logging.h"
+#include "mega/serialize64.h"
+#include "mega/testhooks.h"
 #include "mega/utils.h"
 
-namespace {
-
+namespace
+{
 constexpr int MAXFULL = 8192;
 
 } // anonymous
@@ -41,31 +42,58 @@ bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs)
         return false;
     }
 
-#ifndef __ANDROID__
-    // mtime check disabled on Android due to this bug:
-    // https://code.google.com/p/android/issues/detail?id=18624
-
-#ifndef WINDOWS_PHONE
-    // disabled on Windows Phone too because SetFileTime() isn't available
-
     // mtime differs - cannot be equal
-    if (abs(lhs.mtime-rhs.mtime) > 2)
+    if (abs(lhs.mtime - rhs.mtime) > FS_MTIME_TOLERANCE_SECS)
     {
         return false;
     }
-#endif
-#endif
 
-    // FileFingerprints not fully available - give it the benefit of the doubt
+    // FileFingerprints not fully available - we can't ensure that they are equal
     if (!lhs.isvalid || !rhs.isvalid)
     {
-        return true;
+        return false;
     }
 
     return !memcmp(lhs.crc.data(), rhs.crc.data(), sizeof lhs.crc);
 }
 
-bool FileFingerprint::serialize(string *d)
+bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs)
+{
+    return !(lhs == rhs);
+}
+
+
+bool FileFingerprint::EqualExceptValidFlag(const FileFingerprint& rhs) const
+{
+    // same as == but not checking valid
+    if (size != rhs.size) return false;
+    if (abs(mtime - rhs.mtime) > FS_MTIME_TOLERANCE_SECS)
+        return false;
+    return !memcmp(crc.data(), rhs.crc.data(), sizeof crc);
+}
+
+bool FileFingerprint::equalExceptMtime(const FileFingerprint& rhs) const
+{
+    if (this->size != rhs.size)
+    {
+        return false;
+    }
+
+    if (!this->isvalid || !rhs.isvalid)
+    {
+        return false;
+    }
+
+    return !memcmp(this->crc.data(), rhs.crc.data(), sizeof this->crc);
+}
+
+bool FileFingerprint::equalExceptMtimeAndIsValid(const FileFingerprint& rhs) const
+{
+    return (memcmp(this->crc.data(), rhs.crc.data(), sizeof rhs.crc) == 0 &&
+            this->size == rhs.size);
+}
+
+bool FileFingerprint::serialize(string *d) const
 {
     d->append((const char*)&size, sizeof(size));
     d->append((const char*)&mtime, sizeof(mtime));
@@ -75,18 +103,25 @@ bool FileFingerprint::serialize(string *d)
     return true;
 }
 
-FileFingerprint *FileFingerprint::unserialize(string *d)
+bool FileFingerprint::serializeExcludingMtime(string* d) const
 {
-    const char* ptr = d->data();
-    const char* end = ptr + d->size();
+    d->reserve(sizeof(size) + sizeof(crc) + sizeof(isvalid));
+    d->append((const char*)&size, sizeof(size));
+    d->append((const char*)crc.data(), sizeof(crc));
+    d->append((const char*)&isvalid, sizeof(isvalid));
 
+    return true;
+}
+
+unique_ptr<FileFingerprint> FileFingerprint::unserialize(const char*& ptr, const char* end)
+{
     if (ptr + sizeof(m_off_t) + sizeof(m_time_t) + 4 * sizeof(int32_t) + sizeof(bool) > end)
     {
         LOG_err << "FileFingerprint unserialization failed - serialized string too short";
         return NULL;
     }
 
-    FileFingerprint *fp = new FileFingerprint();
+    unique_ptr<FileFingerprint> fp(new FileFingerprint());
 
     fp->size = MemAccess::get<m_off_t>(ptr);
     ptr += sizeof(m_off_t);
@@ -100,7 +135,6 @@ FileFingerprint *FileFingerprint::unserialize(string *d)
     fp->isvalid = MemAccess::get<bool>(ptr);
     ptr += sizeof(bool);
 
-    d->erase(0, ptr - d->data());
     return fp;
 }
 
@@ -121,6 +155,37 @@ FileFingerprint& FileFingerprint::operator=(const FileFingerprint& other)
     return *this;
 }
 
+// Helper: compute sparse window offset with 64-bit math and clamp to [0, size - blockBytes]
+static inline m_off_t computeSparseOffset64(const m_off_t size,
+                                            const unsigned lane_i,
+                                            const unsigned block_j,
+                                            const unsigned blocks,
+                                            const size_t crcCount,
+                                            const size_t blockBytes)
+{
+#ifndef NDEBUG
+    bool useLegacyBuggySparseCrc = false;
+    DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(useLegacyBuggySparseCrc);
+    LOG_warn << "computeSparseOffset64: useLegacyBuggySparseCrc = " << useLegacyBuggySparseCrc;
+    if (useLegacyBuggySparseCrc)
+    {
+        // For test-only simulations: emulate the historical 32-bit overflow bug.
+        // This is equivalent to using the buggy math for the sparse offset calculation.
+        return legacySparseOffset32Bug(size, lane_i, block_j);
+    }
+#endif
+
+    const auto sz = static_cast<uint64_t>(size);
+    const auto idx64 = static_cast<uint64_t>(lane_i) * static_cast<uint64_t>(blocks) +
+                       static_cast<uint64_t>(block_j); // 0..(crcCount*blocks-1)
+    const auto numer = (sz - static_cast<uint64_t>(blockBytes)) * idx64; // 64-bit multiply
+    const auto denom =
+        static_cast<uint64_t>(crcCount) * static_cast<uint64_t>(blocks) - 1; // e.g. 127
+    const auto off64 = denom ? (numer / denom) : 0;
+    const auto clampMax = sz - static_cast<uint64_t>(blockBytes);
+    return static_cast<m_off_t>(off64 > clampMax ? clampMax : off64);
+}
+
 bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 {
     bool changed = false;
@@ -139,7 +204,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         changed = true;
     }
 
-    if (!fa->openf())
+    if (!fa->openf(FSLogging::logOnError))
     {
         size = -1;
         return true;
@@ -148,7 +213,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     if (size <= (m_off_t)sizeof crc)
     {
         // tiny file: read verbatim, NUL pad
-        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true))
+        if (!fa->frawread((byte*)newcrc.data(), static_cast<unsigned>(size), 0, true, FSLogging::logOnError))
         {
             size = -1;
             fa->closef();
@@ -157,7 +222,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
         if (size < (m_off_t)sizeof(crc))
         {
-            memset((byte*)newcrc.data() + size, 0, size_t(sizeof(crc) - size));
+            memset((byte*)newcrc.data() + size, 0, sizeof(crc) - static_cast<size_t>(size));
         }
     }
     else if (size <= MAXFULL)
@@ -166,7 +231,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true))
+        if (!fa->frawread(buf, static_cast<unsigned>(size), 0, true, FSLogging::logOnError))
         {
             size = -1;
             fa->closef();
@@ -175,13 +240,13 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
 
         for (unsigned i = 0; i < crc.size(); i++)
         {
-            int begin = int(i * size / crc.size());
-            int end = int((i + 1) * size / crc.size());
+            int begin = int(i * static_cast<size_t>(size) / crc.size());
+            int end = int((i + 1) * static_cast<size_t>(size) / crc.size());
 
-            crc32.add(buf + begin, end - begin);
+            crc32.add(buf + begin, static_cast<unsigned>(end - begin));
             crc32.get((byte*)&crcval);
 
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
     else
@@ -195,10 +260,10 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                if (!fa->frawread(block, sizeof block,
-                                  (size - sizeof block)
-                                  * (i * blocks + j)
-                                  / (crc.size() * blocks - 1), true))
+                const auto offset =
+                    computeSparseOffset64(size, i, j, blocks, crc.size(), sizeof block);
+
+                if (!fa->frawread(block, sizeof block, offset, true, FSLogging::logOnError))
                 {
                     size = -1;
                     fa->closef();
@@ -209,7 +274,7 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
             }
 
             crc32.get((byte*)&crcval);
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
 
@@ -226,6 +291,8 @@ bool FileFingerprint::genfingerprint(FileAccess* fa, bool ignoremtime)
     }
 
     fa->closef();
+
+    LOG_debug << "[FileFingerprint::genfingerprint] FA debug fp: " << fingerprintDebugString();
     return changed;
 }
 
@@ -264,7 +331,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
 
         if (size < (m_off_t)sizeof(crc))
         {
-            memset((byte*)newcrc.data() + size, 0, size_t(sizeof(crc) - size));
+            memset((byte*)newcrc.data() + size, 0, sizeof(crc) - static_cast<size_t>(size));
         }
     }
     else if (size <= MAXFULL)
@@ -273,7 +340,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         HashCRC32 crc32;
         byte buf[MAXFULL];
 
-        if (!is->read(buf, int(size)))
+        if (!is->read(buf, static_cast<unsigned>(size)))
         {
             size = -1;
             return true;
@@ -281,13 +348,13 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
 
         for (unsigned i = 0; i < crc.size(); i++)
         {
-            int begin = int(i * size / crc.size());
-            int end = int((i + 1) * size / crc.size());
+            int begin = int(i * static_cast<size_t>(size) / crc.size());
+            int end = int((i + 1) * static_cast<size_t>(size) / crc.size());
 
-            crc32.add(buf + begin, end - begin);
+            crc32.add(buf + begin, static_cast<unsigned>(end - begin));
             crc32.get((byte*)&crcval);
 
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
     else
@@ -302,9 +369,8 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         {
             for (unsigned j = 0; j < blocks; j++)
             {
-                m_off_t offset = (size - sizeof block)
-                        * (i * blocks + j)
-                        / (crc.size() * blocks - 1);
+                const auto offset =
+                    computeSparseOffset64(size, i, j, blocks, crc.size(), sizeof block);
 
                 //Seek
                 for (m_off_t fullstep = offset - current; fullstep > 0; )  // 500G or more and the step doesn't fit in 32 bits
@@ -331,7 +397,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
             }
 
             crc32.get((byte*)&crcval);
-            newcrc[i] = htonl(crcval);
+            newcrc[i] = static_cast<int32_t>(htonl(static_cast<uint32_t>(crcval)));
         }
     }
 
@@ -347,6 +413,7 @@ bool FileFingerprint::genfingerprint(InputStreamAccess *is, m_time_t cmtime, boo
         changed = true;
     }
 
+    LOG_debug << "[FileFingerprint::genfingerprint] IA debug fp: " << fingerprintDebugString();
     return changed;
 }
 
@@ -357,36 +424,44 @@ void FileFingerprint::serializefingerprint(string* d) const
     int l;
 
     memcpy(buf, crc.data(), sizeof crc);
-    l = Serialize64::serialize(buf + sizeof crc, mtime);
+    l = Serialize64::serialize(buf + sizeof crc, static_cast<uint64_t>(mtime));
 
-    d->resize((sizeof crc + l) * 4 / 3 + 4);
-    d->resize(Base64::btoa(buf, sizeof crc + l, (char*)d->c_str()));
+    d->resize((sizeof crc + static_cast<size_t>(l)) * 4 / 3 + 4);
+    d->resize(static_cast<size_t>(
+        Base64::btoa(buf,
+                     static_cast<int>(sizeof crc + static_cast<unsigned long>(l)),
+                     (char*)d->c_str())));
 }
 
 // decode and set base64-encoded fingerprint
-int FileFingerprint::unserializefingerprint(string* d)
+int FileFingerprint::unserializefingerprint(const string* d)
 {
     byte buf[sizeof crc + sizeof mtime + 1];
     unsigned l;
     uint64_t t;
 
-    if ((l = Base64::atob(d->c_str(), buf, sizeof buf)) < sizeof crc + 1)
+    if ((l = static_cast<unsigned>(Base64::atob(d->c_str(), buf, sizeof buf))) < sizeof crc + 1)
     {
         return 0;
     }
 
-    if (Serialize64::unserialize(buf + sizeof crc, l - sizeof crc, &t) < 0)
+    if (Serialize64::unserialize(buf + sizeof crc, static_cast<int>(l - sizeof crc), &t) < 0)
     {
         return 0;
     }
 
     memcpy(crc.data(), buf, sizeof crc);
 
-    mtime = t;
+    mtime = static_cast<m_time_t>(t);
 
     isvalid = true;
 
     return 1;
+}
+
+string FileFingerprint::fingerprintDebugString() const
+{
+    return std::to_string(size) + ":" + std::to_string(mtime) + ":" + (const char*)Base64Str<sizeof(crc)>((byte*)crc.data()) + (isvalid ? ":1" : ":0");
 }
 
 bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerprint* b) const
@@ -414,35 +489,24 @@ bool FileFingerprintCmp::operator()(const FileFingerprint* a, const FileFingerpr
     return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
 
-bool LightFileFingerprint::genfingerprint(const m_off_t filesize, const m_time_t filemtime)
+bool FileFingerprintCmp::operator()(const FileFingerprint &a, const FileFingerprint &b) const
 {
-    bool changed = false;
-
-    if (mtime != filemtime)
-    {
-        mtime = filemtime;
-        changed = true;
-    }
-
-    if (size != filesize)
-    {
-        size = filesize;
-        changed = true;
-    }
-
-    return changed;
+     return operator()(&a, &b);
 }
 
-bool LightFileFingerprintCmp::operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const
+bool FileFingerprintCmpNoMtime::operator()(const FileFingerprint* a, const FileFingerprint* b) const
 {
-    assert(a);
-    assert(b);
-    return std::tie(a->mtime, a->size) < std::tie(b->mtime, b->size);
+    if (a->size < b->size)
+        return true;
+
+    if (a->size > b->size)
+        return false;
+
+    return memcmp(a->crc.data(), b->crc.data(), sizeof a->crc) < 0;
 }
 
-bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs)
+bool FileFingerprintCmpNoMtime::operator()(const FileFingerprint& a, const FileFingerprint& b) const
 {
-    return std::tie(lhs.mtime, lhs.size) == std::tie(rhs.mtime, rhs.size);
+    return operator()(&a, &b);
 }
-
 } // mega

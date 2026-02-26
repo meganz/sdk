@@ -24,42 +24,102 @@
 
 namespace mt {
 
-class DefaultedFileAccess : public mega::FileAccess
+using ::mega::FSLogging;
+
+class DefaultedFileAccess: public mega::FileAccess
 {
 public:
-    DefaultedFileAccess()
-    : mega::FileAccess{nullptr}
+    DefaultedFileAccess():
+        mega::FileAccess{nullptr}
     {}
 
-    bool fopen(mega::LocalPath&, bool, bool, mega::DirAccess* iteratingDir = nullptr, bool = false) override
+    virtual bool fopen(const ::mega::LocalPath&,
+                       bool,
+                       bool,
+                       FSLogging,
+                       ::mega::DirAccess* = nullptr,
+                       bool = false,
+                       bool = false,
+                       ::mega::LocalPath* = nullptr) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    void updatelocalname(const ::mega::LocalPath&, bool) override
     {
         throw NotImplemented{__func__};
     }
-    void updatelocalname(const mega::LocalPath&, bool force) override
+
+    virtual bool frawread(void*, unsigned long, m_off_t, bool, FSLogging, bool* = nullptr) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual bool openf(FSLogging) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual void fclose() override
     {
         throw NotImplemented{__func__};
     }
-    bool fwrite(const mega::byte *, unsigned, m_off_t) override
+
+    virtual bool fwrite(const void*,
+                        unsigned long,
+                        m_off_t,
+                        unsigned long* = nullptr,
+                        bool* = nullptr) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual bool fstat(::mega::m_time_t&, m_off_t&) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual bool ftruncate(m_off_t = 0) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual bool setSparse() override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual std::optional<std::pair<std::uint64_t, std::uint64_t>> getFileSize() const override
+    {
+        throw NotImplemented{__func__};
+        return std::nullopt;
+    }
+
+    virtual bool sysread(void*, unsigned long, m_off_t, bool*) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
+    virtual bool sysstat(::mega::m_time_t*, m_off_t*, FSLogging) override
     {
         throw NotImplemented{__func__};
     }
-    bool ftruncate() override
+
+    virtual bool sysopen(bool, FSLogging) override
     {
         throw NotImplemented{__func__};
+        return false;
     }
-    bool sysread(mega::byte *, unsigned, m_off_t) override
-    {
-        throw NotImplemented{__func__};
-    }
-    bool sysstat(mega::m_time_t*, m_off_t*) override
-    {
-        throw NotImplemented{__func__};
-    }
-    bool sysopen(bool async = false) override
-    {
-        throw NotImplemented{__func__};
-    }
-    void sysclose() override
+
+    virtual void sysclose() override
     {
         throw NotImplemented{__func__};
     }

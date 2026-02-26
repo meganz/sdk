@@ -1,5 +1,12 @@
 # Java Example App
 
+**NOTE**: the Java Example App and the instructions in this page are out of date.
+
+The **example is phased out and it will be eventually retired from the repository**.
+If you want to keep it, feel free to make a fork.
+
+## Introduction
+
 There are two examples provided for the Java bindings:
 
 * A simple GUI (Swing) to allow the user log into MEGA. If login is successfull, it retrieves the MEGA filesystem and lists files/folders in the root folder.

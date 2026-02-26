@@ -51,10 +51,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaAchievementsDetails ? [[MEGAAchievementsDetails alloc] initWithMegaAchievementsDetails:self.megaAchievementsDetails->copy() cMemoryOwn:YES] : nil;
-}
-
 - (mega::MegaAchievementsDetails *)getCPtr {
     return self.megaAchievementsDetails;
 }
@@ -85,6 +81,10 @@ using namespace mega;
 
 - (NSInteger)rewardsCount {
     return self.megaAchievementsDetails ? self.megaAchievementsDetails->getRewardsCount() : -1;
+}
+
+- (bool)isValidClass:(NSInteger)classId {
+    return self.megaAchievementsDetails ? self.megaAchievementsDetails->isValidClass((int)classId) : NO;
 }
 
 - (long long)classStorageForClassId:(NSInteger)classId {

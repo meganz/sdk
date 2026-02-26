@@ -16,15 +16,12 @@
  * program.
  */
 
-#include <gtest/gtest.h>
-
-#include <mega/megaclient.h>
-#include <mega/megaapp.h>
-#include <mega/transfer.h>
-
-#include "DefaultedFileSystemAccess.h"
+#include "mega/megaapp.h"
+#include "mega/raid.h"
+#include "mega/transfer.h"
 #include "utils.h"
-#include "mega.h"
+
+#include <gtest/gtest.h>
 
 namespace
 {
@@ -33,39 +30,53 @@ void checkTransfers(const mega::Transfer& exp, const mega::Transfer& act)
 {
     ASSERT_EQ(exp.type, act.type);
     ASSERT_EQ(exp.localfilename, act.localfilename);
-    ASSERT_TRUE(std::equal(exp.filekey, exp.filekey + mega::FILENODEKEYLENGTH, act.filekey));
+    ASSERT_EQ(exp.filekey.bytes, act.filekey.bytes);
     ASSERT_EQ(exp.ctriv, act.ctriv);
     ASSERT_EQ(exp.metamac, act.metamac);
     ASSERT_TRUE(std::equal(exp.transferkey.data(),
                            exp.transferkey.data() + mega::SymmCipher::KEYLENGTH,
                            act.transferkey.data()));
     ASSERT_EQ(exp.lastaccesstime, act.lastaccesstime);
-    ASSERT_TRUE(std::equal(exp.ultoken.get(), exp.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, act.ultoken.get()));
+    ASSERT_EQ(exp.ultoken != nullptr, act.ultoken != nullptr); // Both NULLs OR both valid
+    if (exp.ultoken && act.ultoken)
+    {
+        ASSERT_EQ(*exp.ultoken, *act.ultoken);
+    }
     ASSERT_EQ(exp.tempurls, act.tempurls);
     ASSERT_EQ(exp.state, act.state);
     ASSERT_EQ(exp.priority, act.priority);
 }
 
-}
-
-TEST(Transfer, serialize_unserialize)
+void setupTransfer(mega::Transfer& tf,
+                   const std::string& localfilename,
+                   char filekeyChar,
+                   int64_t ctriv,
+                   int64_t metamac,
+                   char transferkeyChar,
+                   int64_t lastaccesstime)
 {
-    mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
-
-    mega::Transfer tf{client.get(), mega::GET};
-    std::string lfn = "foo";
-    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
-    std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
-    tf.ctriv = 1;
-    tf.metamac = 2;
+    tf.localfilename = ::mega::LocalPath::fromAbsolutePath(localfilename);
+    std::fill(&tf.filekey.bytes[0], &tf.filekey.bytes[0] + sizeof(tf.filekey), filekeyChar);
+    tf.ctriv = ctriv;
+    tf.metamac = metamac;
     std::fill(tf.transferkey.data(),
               tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
-              'Y');
-    tf.lastaccesstime = 3;
-    tf.ultoken.reset(new mega::byte[mega::NewNode::UPLOADTOKENLEN]);
-    std::fill(tf.ultoken.get(), tf.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, 'Z');
+              transferkeyChar);
+    tf.lastaccesstime = lastaccesstime;
+}
+}
+
+TEST(Transfer, serialize_unserialize_raid_urls_same_length)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    mega::Transfer tf{client.get(), mega::GET};
+    setupTransfer(tf, "foo", 'X', 1, 2, 'Y', 3);
+    tf.ultoken.reset(new mega::UploadToken);
+    std::fill((::mega::byte*)tf.ultoken.get(),
+              (::mega::byte*)tf.ultoken.get() + mega::UPLOADTOKENLEN,
+              'Z');
     tf.tempurls = {
         "http://bar1.com",
         "http://bar2.com",
@@ -80,75 +91,175 @@ TEST(Transfer, serialize_unserialize)
     std::string d;
     ASSERT_TRUE(tf.serialize(&d));
 
-    mega::transfer_map tfMap;
-    auto newTf = std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, &tfMap)};
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
     checkTransfers(tf, *newTf);
 }
 
-#ifndef WIN32
-TEST(Transfer, unserialize_32bit)
+// Test that URLs with different lengths are correctly parsed (e.g., sandbox3 RAID)
+TEST(Transfer, serialize_unserialize_raid_urls_different_lengths)
 {
     mega::MegaApp app;
-    ::mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     mega::Transfer tf{client.get(), mega::GET};
-    std::string lfn = "foo";
-    tf.localfilename = ::mega::LocalPath::fromPath(lfn, fsaccess);
-    std::fill(tf.filekey, tf.filekey + mega::FILENODEKEYLENGTH, 'X');
-    tf.ctriv = 1;
-    tf.metamac = 2;
-    std::fill(tf.transferkey.data(),
-              tf.transferkey.data() + mega::SymmCipher::KEYLENGTH,
-              'Y');
-    tf.lastaccesstime = 3;
-    tf.ultoken.reset(new mega::byte[mega::NewNode::UPLOADTOKENLEN]);
-    std::fill(tf.ultoken.get(), tf.ultoken.get() + mega::NewNode::UPLOADTOKENLEN, 'Z');
+    setupTransfer(tf, "test_file", 'A', 10, 20, 'B', 30);
+    // Test with URLs of different lengths (simulating sandbox3 or different storage servers)
     tf.tempurls = {
-        "http://bar1.com",
-        "http://bar2.com",
-        "http://bar3.com",
-        "http://bar4.com",
-        "http://bar5.com",
-        "http://bar6.com",
+        "http://gfs270n406.userstorage.mega.co.nz/dl/short",
+        "http://gfs262n309.userstorage.mega.co.nz/dl/verylongtoken12345678901234567890",
+        "http://gfs214n115.userstorage.mega.co.nz/dl/mediumtoken12345",
+        "http://gfs204n127.userstorage.mega.co.nz/dl/"
+        "extremelylongtokenabcdefghijklmnopqrstuvwxyz1234567890",
+        "http://gfs208n116.userstorage.mega.co.nz/dl/normaltoken",
+        "http://gfs206n167.userstorage.mega.co.nz/dl/anothermediumtoken67890",
     };
-    tf.state = mega::TRANSFERSTATE_PAUSED;
-    tf.priority = 4;
+    ASSERT_EQ(tf.tempurls.size(), mega::RAIDPARTS);
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 100;
 
-    // This is the result of serialization on 32bit Windows
-    const std::array<unsigned char, 293> rawData = {
-        0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x66, 0x6f, 0x6f, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58, 0x58,
-        0x58, 0x58, 0x58, 0x58, 0x58, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x59, 0x59, 0x59,
-        0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59, 0x59,
-        0x59, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0xff, 0xff, 0xff,
-        0xff, 0xff, 0xff,
-        0xff, 0xff, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a,
-        0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a,
-        0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a,
-        0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5a, 0x5f, 0x00, 0x68, 0x74, 0x74, 0x70,
-        0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x31, 0x2e, 0x63, 0x6f, 0x6d, 0x00,
-        0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x32, 0x2e,
-        0x63, 0x6f, 0x6d, 0x00, 0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62,
-        0x61, 0x72, 0x33, 0x2e, 0x63, 0x6f, 0x6d, 0x00, 0x68, 0x74, 0x74, 0x70,
-        0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x34, 0x2e, 0x63, 0x6f, 0x6d, 0x00,
-        0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62, 0x61, 0x72, 0x35, 0x2e,
-        0x63, 0x6f, 0x6d, 0x00, 0x68, 0x74, 0x74, 0x70, 0x3a, 0x2f, 0x2f, 0x62,
-        0x61, 0x72, 0x36, 0x2e, 0x63, 0x6f, 0x6d, 0x03, 0x04, 0x00, 0x00, 0x00,
-        0x00, 0x00, 0x00, 0x00, 0x00
-    };
-    std::string d(reinterpret_cast<const char*>(rawData.data()), rawData.size());
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
 
-    mega::transfer_map tfMap;
-    auto newTf = std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, &tfMap)};
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
+    ASSERT_NE(newTf, nullptr);
     checkTransfers(tf, *newTf);
 }
-#endif
+
+// Test single URL (non-RAID download)
+TEST(Transfer, serialize_unserialize_single_url)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    mega::Transfer tf{client.get(), mega::GET};
+    setupTransfer(tf, "single_file", 'C', 5, 10, 'D', 15);
+    tf.tempurls = {
+        "http://gfs123n456.userstorage.mega.co.nz/dl/"
+        "verylongsingletokenabcdefghijklmnopqrstuvwxyz1234567890abcdefghijklmnopqrstuvwxyz"};
+    ASSERT_EQ(tf.tempurls.size(), 1u);
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 50;
+
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
+
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
+    ASSERT_NE(newTf, nullptr);
+    checkTransfers(tf, *newTf);
+}
+
+// Test empty URLs (transfer before URLs are fetched)
+TEST(Transfer, serialize_unserialize_empty_urls)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    mega::Transfer tf{client.get(), mega::GET};
+    setupTransfer(tf, "pending_file", 'E', 7, 14, 'F', 21);
+    tf.tempurls = {}; // Empty URLs
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 25;
+
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
+
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
+    ASSERT_NE(newTf, nullptr);
+    checkTransfers(tf, *newTf);
+}
+
+// Test with very long URLs (edge case for buffer handling)
+TEST(Transfer, serialize_unserialize_very_long_urls)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    mega::Transfer tf{client.get(), mega::GET};
+    setupTransfer(tf, "large_file", 'G', 8, 16, 'H', 24);
+    std::string longToken(200, 'x');
+    std::string mediumToken(150, 'y');
+    std::string shortToken(100, 'z');
+    tf.tempurls = {
+        "http://gfs270n406.userstorage.mega.co.nz/dl/" + longToken,
+        "http://gfs262n309.userstorage.mega.co.nz/dl/" + mediumToken,
+        "http://gfs214n115.userstorage.mega.co.nz/dl/" + shortToken,
+        "http://gfs204n127.userstorage.mega.co.nz/dl/" + longToken + "extra",
+        "http://gfs208n116.userstorage.mega.co.nz/dl/" + mediumToken + "more",
+        "http://gfs206n167.userstorage.mega.co.nz/dl/" + shortToken + "data",
+    };
+    ASSERT_EQ(tf.tempurls.size(), mega::RAIDPARTS);
+    tf.state = mega::TRANSFERSTATE_PAUSED;
+    tf.priority = 200;
+
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
+
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
+    ASSERT_NE(newTf, nullptr);
+    checkTransfers(tf, *newTf);
+}
+
+// Test PUT transfer (upload) with single URL
+TEST(Transfer, serialize_unserialize_put_single_url)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    mega::Transfer tf{client.get(), mega::PUT};
+    setupTransfer(tf, "upload_file", 'I', 9, 18, 'J', 27);
+    tf.tempurls = {"http://gfs999n999.userstorage.mega.co.nz/ul/"
+                   "uploadtoken1234567890abcdefghijklmnopqrstuvwxyz"};
+    ASSERT_EQ(tf.tempurls.size(), 1u);
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 75;
+
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
+
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
+    ASSERT_NE(newTf, nullptr);
+    checkTransfers(tf, *newTf);
+}
+
+// Test edge case: first URL is shortest, last URL is longest
+TEST(Transfer, serialize_unserialize_extreme_length_variation)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    mega::Transfer tf{client.get(), mega::GET};
+    setupTransfer(tf, "extreme_file", 'K', 11, 22, 'L', 33);
+    tf.tempurls = {
+        "http://a.co/x",
+        "http://gfs262n309.userstorage.mega.co.nz/dl/medium12345",
+        "http://gfs214n115.userstorage.mega.co.nz/dl/anothermedium67890",
+        "http://gfs204n127.userstorage.mega.co.nz/dl/longertokenabcdefghijklmnopqrstuvwxyz",
+        "http://gfs208n116.userstorage.mega.co.nz/dl/verylongtoken123456789012345678901234567890",
+        "http://gfs206n167.userstorage.mega.co.nz/dl/"
+        "extremelylongtokenabcdefghijklmnopqrstuvwxyz1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ",
+    };
+    ASSERT_EQ(tf.tempurls.size(), mega::RAIDPARTS);
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 300;
+
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
+
+    mega::transfer_multimap tfMap[2];
+    auto newTf =
+        std::unique_ptr<mega::Transfer>{mega::Transfer::unserialize(client.get(), &d, tfMap)};
+    ASSERT_NE(newTf, nullptr);
+    checkTransfers(tf, *newTf);
+}

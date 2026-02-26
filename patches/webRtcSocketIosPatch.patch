@@ -1,0 +1,201 @@
+diff --git a/rtc_base/physical_socket_server.cc b/rtc_base/physical_socket_server.cc
+index 7c01815d30..c6464ee1dc 100644
+--- a/rtc_base/physical_socket_server.cc
++++ b/rtc_base/physical_socket_server.cc
+@@ -1072,6 +1072,10 @@ PhysicalSocketServer::PhysicalSocketServer()
+     RTC_LOG_E(LS_WARNING, EN, errno) << "epoll_create";
+     // Note that -1 == INVALID_SOCKET, the alias used by later checks.
+   }
++#else
++  mKqueue = kqueue();
++  RTC_LOG_E(LS_WARNING, EN, errno) << "kqueue";
++
+ #endif
+   // The `fWait_` flag to be cleared by the Signaler.
+   signal_wakeup_ = new Signaler(this, fWait_);
+@@ -1265,6 +1269,9 @@ bool PhysicalSocketServer::WaitSelect(int cmsWait, bool process_io) {
+ 
+   struct timeval* ptvWait = nullptr;
+   struct timeval tvWait;
++  struct timespec timeOut;
++  struct timespec* ptvTimeout = nullptr;
++
+   int64_t stop_us;
+   if (cmsWait != kForeverMs) {
+     // Calculate wait timeval
+@@ -1274,26 +1281,21 @@ bool PhysicalSocketServer::WaitSelect(int cmsWait, bool process_io) {
+ 
+     // Calculate when to return
+     stop_us = rtc::TimeMicros() + cmsWait * 1000;
++
++    timeOut.tv_sec = cmsWait / 1000;
++    timeOut.tv_nsec = (cmsWait % 1000) * 1000000;
++
++    ptvTimeout = &timeOut;
++
+   }
+ 
+-  fd_set fdsRead;
+-  fd_set fdsWrite;
+-// Explicitly unpoison these FDs on MemorySanitizer which doesn't handle the
+-// inline assembly in FD_ZERO.
+-// http://crbug.com/344505
+-#ifdef MEMORY_SANITIZER
+-  __msan_unpoison(&fdsRead, sizeof(fdsRead));
+-  __msan_unpoison(&fdsWrite, sizeof(fdsWrite));
+-#endif
++  std::vector<struct kevent> fds;
++
+ 
+   fWait_ = true;
+ 
+   while (fWait_) {
+-    // Zero all fd_sets. Although select() zeros the descriptors not signaled,
+-    // we may need to do this for dispatchers that were deleted while
+-    // iterating.
+-    FD_ZERO(&fdsRead);
+-    FD_ZERO(&fdsWrite);
++    fds.clear();
+     int fdmax = -1;
+     {
+       CritScope cr(&crit_);
+@@ -1306,30 +1308,40 @@ bool PhysicalSocketServer::WaitSelect(int cmsWait, bool process_io) {
+           continue;
+         current_dispatcher_keys_.push_back(key);
+         int fd = pdispatcher->GetDescriptor();
+-        // "select"ing a file descriptor that is equal to or larger than
+-        // FD_SETSIZE will result in undefined behavior.
+-        RTC_DCHECK_LT(fd, FD_SETSIZE);
+         if (fd > fdmax)
+           fdmax = fd;
+ 
+         uint32_t ff = pdispatcher->GetRequestedEvents();
++        struct kevent event;
++        uint32_t filter = 0;
+         if (ff & (DE_READ | DE_ACCEPT))
+-          FD_SET(fd, &fdsRead);
++        {
++           filter = EVFILT_READ;
++        }
+         if (ff & (DE_WRITE | DE_CONNECT))
+-          FD_SET(fd, &fdsWrite);
++        {
++           filter |= EVFILT_WRITE;
++        }
++
++        if (filter)
++        {
++            EV_SET(&event, fd, filter, EV_ADD | EV_ENABLE | EV_ONESHOT, 0, 0, nullptr);
++            fds.push_back(event);
++        }
+       }
+     }
+ 
++    std::unique_ptr<struct kevent[]> eventsReceived(new struct kevent[fds.size()]);
+     // Wait then call handlers as appropriate
+     // < 0 means error
+     // 0 means timeout
+     // > 0 means count of descriptors ready
+-    int n = select(fdmax + 1, &fdsRead, &fdsWrite, nullptr, ptvWait);
++    int n = kevent(mKqueue, fds.data(), fds.size(), eventsReceived.get(), fds.size(), ptvTimeout);
+ 
+     // If error, return error.
+     if (n < 0) {
+       if (errno != EINTR) {
+-        RTC_LOG_E(LS_ERROR, EN, errno) << "select";
++        RTC_LOG_E(LS_ERROR, EN, errno) << "kevent";
+         return false;
+       }
+       // Else ignore the error and keep going. If this EINTR was for one of the
+@@ -1352,19 +1364,24 @@ bool PhysicalSocketServer::WaitSelect(int cmsWait, bool process_io) {
+ 
+         int fd = pdispatcher->GetDescriptor();
+ 
+-        bool readable = FD_ISSET(fd, &fdsRead);
+-        if (readable) {
+-          FD_CLR(fd, &fdsRead);
++        struct kevent* e = nullptr;
++        for (int i = 0; i < n; i++)
++        {
++            if (static_cast<uintptr_t>(fd) == eventsReceived[i].ident)
++            {
++              e = &eventsReceived[i];
++              break;
++            }
+         }
+ 
+-        bool writable = FD_ISSET(fd, &fdsWrite);
+-        if (writable) {
+-          FD_CLR(fd, &fdsWrite);
++        if (e)
++        {
++            bool readable = e->filter & EVFILT_READ;
++            bool writable = e->filter & EVFILT_WRITE;
++            // The error code can be signaled through reads or writes.
++            ProcessEvents(pdispatcher, readable, writable, /*error_event=*/false, readable || writable);
+         }
+ 
+-        // The error code can be signaled through reads or writes.
+-        ProcessEvents(pdispatcher, readable, writable, /*error_event=*/false,
+-                      readable || writable);
+       }
+     }
+ 
+@@ -1373,14 +1390,31 @@ bool PhysicalSocketServer::WaitSelect(int cmsWait, bool process_io) {
+     if (ptvWait) {
+       ptvWait->tv_sec = 0;
+       ptvWait->tv_usec = 0;
++      timeOut.tv_sec = 0;
++      timeOut.tv_nsec = 0;
++
+       int64_t time_left_us = stop_us - rtc::TimeMicros();
+       if (time_left_us > 0) {
+         ptvWait->tv_sec = time_left_us / rtc::kNumMicrosecsPerSec;
+         ptvWait->tv_usec = time_left_us % rtc::kNumMicrosecsPerSec;
++        timeOut.tv_sec = ptvWait->tv_sec;
++        timeOut.tv_nsec = ptvWait->tv_usec * 1000;
++
+       }
+     }
+   }
+ 
++  std::vector<struct kevent> fdsDelete;
++  for (unsigned int i = 0; i < fds.size(); i++)
++  {
++    struct kevent event;
++    EV_SET(&event, fds[i].ident, 0, EV_DELETE, 0, 0, nullptr);
++    fdsDelete.push_back(event);
++  }
++
++  kevent(mKqueue, fdsDelete.data(), fdsDelete.size(), nullptr, 0, nullptr);
++
++
+   return true;
+ }
+ 
+diff --git a/rtc_base/physical_socket_server.h b/rtc_base/physical_socket_server.h
+index f97271f422..a2726139ed 100644
+--- a/rtc_base/physical_socket_server.h
++++ b/rtc_base/physical_socket_server.h
+@@ -15,6 +15,9 @@
+ #if defined(WEBRTC_POSIX) && defined(WEBRTC_LINUX)
+ #include <sys/epoll.h>
+ #define WEBRTC_USE_EPOLL 1
++#else
++#include <sys/types.h>
++#include <sys/event.h>
+ #endif
+ 
+ #include <array>
+@@ -105,7 +108,10 @@ class RTC_EXPORT PhysicalSocketServer : public SocketServer {
+   // to have to reset the sequence checker on Wait calls.
+   std::array<epoll_event, kNumEpollEvents> epoll_events_;
+   const int epoll_fd_ = INVALID_SOCKET;
+-#endif  // WEBRTC_USE_EPOLL
++#else // WEBRTC_USE_EPOLL
++  int mKqueue = 0;
++#endif
++
+   // uint64_t keys are used to uniquely identify a dispatcher in order to avoid
+   // the ABA problem during the epoll loop (a dispatcher being destroyed and
+   // replaced by one with the same address).

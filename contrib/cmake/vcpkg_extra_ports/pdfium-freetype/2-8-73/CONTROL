@@ -1,6 +1,0 @@
-Source: pdfium-freetype
-Version: VER-2-8-73
-Homepage: http://www.freetype.org/
-Description: freetype library
-Build-Depends: 
-#freetype, but the one from pdfium (since we only need it because pdfium does, supplied in its 3rd party folder)

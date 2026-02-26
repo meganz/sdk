@@ -20,19 +20,19 @@
  */
 
 #include "mega/command.h"
+
 #include "mega/base64.h"
 #include "mega/megaclient.h"
+#include "mega/tlv.h"
 
 namespace mega {
 Command::Command()
 {
-    persistent = false;
     canceled = false;
     result = API_OK;
     client = NULL;
     tag = 0;
     batchSeparately = false;
-    suppressSID = false;
 }
 
 Command::~Command()
@@ -44,8 +44,26 @@ void Command::cancel()
     canceled = true;
 }
 
+void Command::addToNodePendingCommands(Node* node)
+{
+    node->mPendingChanges.push_back(this);
+}
+
+void Command::removeFromNodePendingCommands(NodeHandle h)
+{
+    if (auto node = client->nodeByHandle(h))
+    {
+        node->mPendingChanges.erase(this);
+    }
+}
+
+bool Command::isLockless() const
+{
+    return mLockless;
+}
+
 // returns completed command JSON string
-const char* Command::getstring()
+const char* Command::getJSON(MegaClient*)
 {
     return jsonWriter.getstring().c_str();
 }
@@ -77,14 +95,14 @@ bool Command::checkError(Error& errorDetails, JSON& json)
             {
                 switch (json.getnameid())
                 {
-                    case MAKENAMEID3('e', 'r', 'r'):
+                    case makeNameid("err"):
                         errorDetails.setErrorCode(static_cast<error>(json.getint()));
                         errorDetected = true;
                         break;
-                    case 'u':
+                    case makeNameid("u"):
                         errorDetails.setUserStatus(json.getint());
                         break;
-                    case 'l':
+                    case makeNameid("l"):
                         errorDetails.setLinkStatus(json.getint());
                         break;
                     case EOO:
@@ -106,24 +124,172 @@ bool Command::checkError(Error& errorDetails, JSON& json)
         client->activateoverquota(0, true);
     }
 
-#ifdef ENABLE_SYNC
     if (errorDetected && errorDetails == API_EBUSINESSPASTDUE)
     {
-        client->syncs.disableSyncs(BUSINESS_EXPIRED, true);  // keep enabled for auto-resume
+        client->setBusinessStatus(BIZ_STATUS_EXPIRED);
     }
-#endif
+
     return errorDetected;
+}
+
+#ifdef ENABLE_CHAT
+void Command::createSchedMeetingJson(const ScheduledMeeting* schedMeeting)
+{
+    if (!schedMeeting)
+    {
+        assert(false);
+        return;
+    }
+
+    // note: we need to B64 encode the following params: timezone(tz), title(t), description(d), attributes(at)
+    handle chatid = schedMeeting->chatid();
+    handle schedId = schedMeeting->schedId();
+    handle parentSchedId = schedMeeting->parentSchedId();
+
+    // chatid is only required when we create a scheduled meeting for an existing chat
+    if (!ISUNDEF(chatid))	{ arg("cid", (byte*)& chatid, MegaClient::CHATHANDLE); }
+
+    // required params
+    arg("tz", Base64::btoa(schedMeeting->timezone()).c_str());
+    arg("s", schedMeeting->startDateTime());
+    arg("e", schedMeeting->endDateTime());
+    arg("t", Base64::btoa(schedMeeting->title()).c_str());
+    arg("d", Base64::btoa(schedMeeting->description()).c_str());
+
+    // optional params
+    if (!ISUNDEF(schedId))                          { arg("id", (byte*)&schedId, MegaClient::CHATHANDLE); } // scheduled meeting ID
+    if (!ISUNDEF(parentSchedId))                    { arg("p", (byte*)&parentSchedId, MegaClient::CHATHANDLE); } // parent scheduled meeting ID
+    if (schedMeeting->cancelled() >= 0)             { arg("c", schedMeeting->cancelled()); }
+    if (!schedMeeting->attributes().empty())        { arg("at", Base64::btoa(schedMeeting->attributes()).c_str()); }
+
+    if (schedMeeting->flags() && !schedMeeting->flags()->isEmpty())
+    {
+        arg("f", static_cast<m_off_t>(schedMeeting->flags()->getNumericValue()));
+    }
+
+    if (MegaClient::isValidMegaTimeStamp(schedMeeting->overrides()))
+    {
+        arg("o", schedMeeting->overrides());
+    }
+
+    // rules are not mandatory to create a scheduled meeting, but if provided, frequency is required
+    if (schedMeeting->rules())
+    {
+        const ScheduledRules* rules = schedMeeting->rules();
+        beginobject("r");
+
+        if (rules->isValidFreq(rules->freq()))
+        {
+            arg("f", rules->freqToString()); // required
+        }
+
+        if (rules->isValidInterval(rules->interval()))
+        {
+            arg("i", rules->interval());
+        }
+
+        if (MegaClient::isValidMegaTimeStamp(rules->until()))
+        {
+            arg("u", rules->until());
+        }
+
+        if (rules->byWeekDay() && !rules->byWeekDay()->empty())
+        {
+            beginarray("wd");
+            for (auto i: *rules->byWeekDay())
+            {
+                element(static_cast<int>(i));
+            }
+            endarray();
+        }
+
+        if (rules->byMonthDay() && !rules->byMonthDay()->empty())
+        {
+            beginarray("md");
+            for (auto i: *rules->byMonthDay())
+            {
+                element(static_cast<int>(i));
+            }
+            endarray();
+        }
+
+        if (rules->byMonthWeekDay() && !rules->byMonthWeekDay()->empty())
+        {
+            beginarray("mwd");
+            for (auto i: *rules->byMonthWeekDay())
+            {
+                beginarray();
+                element(static_cast<int>(i.first));
+                element(static_cast<int>(i.second));
+                endarray();
+            }
+            endarray();
+        }
+        endobject();
+    }
+}
+#endif
+
+// cache urls and ips given in response to avoid further waiting for dns resolution
+void Command::cacheresolvedurls(const std::string& command,
+                                const std::vector<string>& urls,
+                                const std::vector<string>& ips)
+{
+    // Try and update the DNS cache.
+    auto updated = client->httpio->cacheresolvedurls(urls, ips);
+
+    // Not enough IPs for each URI.
+    if (updated < 0)
+    {
+        LOG_err << "Unpaired IPs received for URLs in `" << command << "`. URLs: " << urls.size()
+                << " IPs: " << ips.size();
+
+        return;
+    }
+
+    // Each URI was associated with two valid IP addresses.
+    if (!updated)
+        return;
+
+    // One or more URIs were associated with an invalid IP address.
+    std::ostringstream ostream;
+
+    ostream << "Detected one or more invalid IPs while processing `" << command << "` command";
+
+    // Report that we've detected one or more invalid IP addresses.
+    client->sendevent(800034, ostream.str().c_str());
+}
+
+// Store ips from response in the vector passed
+bool Command::loadIpsFromJson(std::vector<string>& ips, JSON& json)
+{
+    if (json.enterarray()) // for each URL, there will be 2 IPs (IPv4 first, IPv6 second)
+    {
+        for (;;)
+        {
+            std::string ti;
+            if (!json.storeobject(&ti))
+            {
+                break;
+            }
+            ips.emplace_back(std::move(ti));
+        }
+        json.leavearray();
+        return true;
+    }
+    return false;
 }
 
 // add opcode
 void Command::cmd(const char* cmd)
 {
     jsonWriter.cmd(cmd);
+    commandStr = cmd;
 }
 
-void Command::notself(MegaClient *client)
+void Command::notself(MegaClient* clientToIgnoreActionPackets)
 {
-    jsonWriter.notself(client);
+    jsonWriter.notself(clientToIgnoreActionPackets);
 }
 
 // add comma separator unless first element
@@ -142,6 +308,11 @@ void Command::arg(const char* name, const char* value, int quotes)
 void Command::arg(const char* name, const byte* value, int len)
 {
     jsonWriter.arg(name, value, len);
+}
+
+void Command::arg(const char* name, NodeHandle h)
+{
+    jsonWriter.arg(name, h);
 }
 
 // 64-bit signed integer
@@ -231,6 +402,5 @@ void Command::closeobject()
 {
     jsonWriter.closeobject();
 }
-
 } // namespace
 

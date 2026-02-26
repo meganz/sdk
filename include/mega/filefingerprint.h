@@ -24,16 +24,31 @@
 #include <array>
 
 #include "types.h"
-#include "filesystem.h"
 
 namespace mega {
+
+struct MEGA_API InputStreamAccess
+{
+    virtual m_off_t size() = 0;
+    virtual bool read(byte *, unsigned) = 0;
+    virtual ~InputStreamAccess() { }
+};
+
+// Tolerance threshold (in seconds) for filesystem modification time comparisons
+constexpr unsigned FS_MTIME_TOLERANCE_SECS = 2;
+
+/* IMPORTANT:
+ * In case we want to perform a `mtime` update, the new value must be greater than
+ * `FS_MTIME_TOLERANCE_SECS` respect the previous one, otherwise it won't be detected
+ */
+constexpr unsigned MIN_ALLOW_MTIME_DIFFERENCE = FS_MTIME_TOLERANCE_SECS + 1;
 
 // sparse file fingerprint, including size and mtime
 struct MEGA_API FileFingerprint : public Cacheable
 {
     m_off_t size = -1;
     m_time_t mtime = 0;
-    std::array<int32_t, 4> crc{};
+    FingerprintCrc crc{};
 
     // if true, represents actual file data
     // if false, is constructed from node ctime/key
@@ -45,46 +60,52 @@ struct MEGA_API FileFingerprint : public Cacheable
     // Generates a fingerprint by iterating through `is`
     bool genfingerprint(InputStreamAccess* is, m_time_t cmtime, bool ignoremtime = false);
 
+    // Includes CRC and mtime
+    // Be wary that these must be used in pair; do not mix with serialize pair
     void serializefingerprint(string* d) const;
-    int unserializefingerprint(string* d);
+    int unserializefingerprint(const string* d);
 
     FileFingerprint() = default;
 
     FileFingerprint(const FileFingerprint&);
     FileFingerprint& operator=(const FileFingerprint& other);
 
-    bool serialize(string* d) override;
-    static FileFingerprint* unserialize(string* d);
+    // Includes size, CRC, mtime, and isvalid
+    // Be wary that these must be used in pair; do not mix with serializefingerprint pair
+    bool serialize(string* d) const override;
+
+    // Includes size, CRC, and isvalid (mtime is not included)
+    // This method can be used to serialize a file fingerprint without mtime, that could be used to
+    // find nodes with same content but only differs in mtime.
+    // Note: This method should not be used to serialize fingerprints that will be stored on Db
+    bool serializeExcludingMtime(string* d) const;
+    static unique_ptr<FileFingerprint> unserialize(const char*& ptr, const char* end);
+
+    // convenience function for clear comparisons etc, referring to (this) base class
+    const FileFingerprint& fingerprint() const { return *this; }
+
+    string fingerprintDebugString() const;
+
+    bool EqualExceptValidFlag(const FileFingerprint& rhs) const;
+    bool equalExceptMtime(const FileFingerprint& rhs) const;
+    bool equalExceptMtimeAndIsValid(const FileFingerprint& rhs) const;
 };
 
 // orders transfers by file fingerprints, ordered by size / mtime / sparse CRC
 struct MEGA_API FileFingerprintCmp
 {
     bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
+    bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;
+};
+
+struct MEGA_API FileFingerprintCmpNoMtime
+{
+    bool operator()(const FileFingerprint* a, const FileFingerprint* b) const;
+    bool operator()(const FileFingerprint& a, const FileFingerprint& b) const;
 };
 
 bool operator==(const FileFingerprint& lhs, const FileFingerprint& rhs);
+bool operator!=(const FileFingerprint& lhs, const FileFingerprint& rhs);
 
-// A light-weight fingerprint only based on size and mtime
-struct MEGA_API LightFileFingerprint
-{
-    m_off_t size = -1;
-    m_time_t mtime = 0;
-
-    LightFileFingerprint() = default;
-
-    MEGA_DEFAULT_COPY_MOVE(LightFileFingerprint)
-
-    // Establishes a new fingerprint not involving I/O
-    bool genfingerprint(m_off_t filesize, m_time_t filemtime);
-};
-
-// Orders light file fingerprints by size and mtime in terms of "<"
-struct MEGA_API LightFileFingerprintCmp
-{
-    bool operator()(const LightFileFingerprint* a, const LightFileFingerprint* b) const;
-};
-
-bool operator==(const LightFileFingerprint& lhs, const LightFileFingerprint& rhs);
 
 } // mega

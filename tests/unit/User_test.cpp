@@ -16,15 +16,16 @@
  * program.
  */
 
-#include <gtest/gtest.h>
-
-#include <mega/megaclient.h>
-#include <mega/megaapp.h>
-#include <mega/user.h>
-
 #include "DefaultedFileSystemAccess.h"
-#include "utils.h"
 #include "mega.h"
+#include "utils.h"
+
+#include <gmock/gmock.h>
+#include <gtest/gtest.h>
+#include <mega/megaapp.h>
+#include <mega/megaclient.h>
+#include <mega/user.h>
+#include <mega/user_attribute.h>
 
 namespace
 {
@@ -33,7 +34,7 @@ namespace
 //{
 //};
 
-void checkUsers(mega::User& exp, mega::User& act)
+void checkUsers(const mega::User& exp, const mega::User& act)
 {
     ASSERT_EQ(exp.userhandle, act.userhandle);
     ASSERT_EQ(exp.email, act.email);
@@ -46,9 +47,19 @@ void checkUsers(mega::User& exp, mega::User& act)
     act.pubk.serializekey(&actKey, mega::AsymmCipher::PUBKEY);
     ASSERT_FALSE(actKey.empty());
     ASSERT_EQ(expKey, actKey);
-    ASSERT_EQ(*exp.getattr(mega::ATTR_FIRSTNAME), *act.getattr(mega::ATTR_FIRSTNAME));
-    ASSERT_EQ(*exp.getattrversion(mega::ATTR_FIRSTNAME), *act.getattrversion(mega::ATTR_FIRSTNAME));
-    ASSERT_EQ(*exp.getattr(mega::ATTR_LASTNAME), *act.getattr(mega::ATTR_LASTNAME));
+
+    const mega::UserAttribute* attribute1 = exp.getAttribute(mega::ATTR_FIRSTNAME);
+    const mega::UserAttribute* attribute2 = act.getAttribute(mega::ATTR_FIRSTNAME);
+    ASSERT_THAT(attribute1, testing::NotNull());
+    ASSERT_THAT(attribute2, testing::NotNull());
+    ASSERT_EQ(attribute1->value(), attribute2->value());
+    ASSERT_EQ(attribute1->version(), attribute2->version());
+
+    attribute1 = exp.getAttribute(mega::ATTR_LASTNAME);
+    attribute2 = act.getAttribute(mega::ATTR_LASTNAME);
+    ASSERT_THAT(attribute1, testing::NotNull());
+    ASSERT_THAT(attribute2, testing::NotNull());
+    ASSERT_EQ(attribute1->value(), attribute2->value());
 }
 
 }
@@ -56,8 +67,7 @@ void checkUsers(mega::User& exp, mega::User& act)
 TEST(User, serialize_unserialize)
 {
     mega::MegaApp app;
-    mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
     const std::string email = "foo@bar.com";
     mega::User user{email.c_str()};
@@ -67,8 +77,8 @@ TEST(User, serialize_unserialize)
     std::string firstname1 = "f";
     std::string firstname2 = "f2";
     std::string lastname = "oo";
-    user.setattr(mega::ATTR_FIRSTNAME, &firstname1, &firstname2);
-    user.setattr(mega::ATTR_LASTNAME, &lastname, nullptr);
+    user.setAttribute(mega::ATTR_FIRSTNAME, firstname1, firstname2);
+    user.setAttribute(mega::ATTR_LASTNAME, lastname, {});
     std::string key(128, 1);
     user.pubk.setkey(mega::AsymmCipher::PUBKEY, reinterpret_cast<const mega::byte*>(key.c_str()), static_cast<int>(key.size()));
     ASSERT_TRUE(user.pubk.isvalid(mega::AsymmCipher::PUBKEY));
@@ -83,8 +93,7 @@ TEST(User, serialize_unserialize)
 TEST(User, unserialize_32bit)
 {
     mega::MegaApp app;
-    mega::FSACCESS_CLASS fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
     const std::string email = "foo@bar.com";
     mega::User user{email.c_str()};
     user.userhandle = 13;
@@ -93,8 +102,8 @@ TEST(User, unserialize_32bit)
     std::string firstname1 = "f";
     std::string firstname2 = "f2";
     std::string lastname = "oo";
-    user.setattr(mega::ATTR_FIRSTNAME, &firstname1, &firstname2);
-    user.setattr(mega::ATTR_LASTNAME, &lastname, nullptr);
+    user.setAttribute(mega::ATTR_FIRSTNAME, firstname1, firstname2);
+    user.setAttribute(mega::ATTR_LASTNAME, lastname, {});
     std::string key(128, 1);
     user.pubk.setkey(mega::AsymmCipher::PUBKEY, reinterpret_cast<const mega::byte*>(key.c_str()), static_cast<int>(key.size()));
     ASSERT_TRUE(user.pubk.isvalid(mega::AsymmCipher::PUBKEY));

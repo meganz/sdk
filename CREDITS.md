@@ -4,17 +4,6 @@
 #### Dependencies of the MEGA C++ SDK
 Here is a brief description of all of them:
 
-#### c-ares:
-Copyright 1998 by the Massachusetts Institute of Technology.
-
-c-ares is a C library for asynchronous DNS requests (including name resolves)
-
-http://c-ares.haxx.se/
-
-License: MIT license
-
-http://c-ares.haxx.se/license.html
-
 #### libcurl
 Copyright (C) 1998 - 2016, Daniel Stenberg, <daniel@haxx.se>, et al.
 
@@ -108,8 +97,8 @@ https://github.com/staticlibs/ccronexpr
 License:  Apache License 2.0
 
 Files included in this repository based on `ccronexpr`:
-- `src/mega_ccronexpr.cpp` (based on `ccronexpr.c`)
-- `include/mega/mega_ccronexpr.h` (based on `ccronexpr.h`)
+- `third_party/ccronexpr/ccronexpr.cpp` (based on `ccronexpr.c`)
+- `third_party/ccronexpr/ccronexpr.h` (based on `ccronexpr.h`)
 - `third_party/ccronexpr/LICENSE` (copy of the licence of `ccronexpr`)
 
 #### http_parser
@@ -158,3 +147,15 @@ Files included in this repository based on `evt-tls`:
 - `src/mega_evt_tls.cpp` (based on `evt_tls.c`)
 - `include/mega/mega_evt_tls.h` (based on `evt_tls.h`)
 - `include/mega/mega_evt_queue.h` (based on `queue.h`)
+
+#### vincentlaucsb/csv-parser
+A high-performance, fully-featured CSV parser and serializer for modern C++.
+
+https://github.com/vincentlaucsb/csv-parser
+
+License: MIT
+
+https://github.com/vincentlaucsb/csv-parser/blob/master/LICENSE
+
+Files included in this repository based on `vincentlaucsb/csv-parser`:
+- `include/mega/mega_csv.h` (based on `csv.hpp`)

@@ -20,11 +20,23 @@
  */
 
 #include "mega/waiter.h"
+#include "mega/utils.h"
 
 namespace mega {
-void Waiter::init(dstime ds)
+
+std::atomic<dstime> Waiter::ds{0};
+std::mutex Waiter::dsMutex;
+
+// update monotonously increasing timestamp in deciseconds
+void Waiter::bumpds()
 {
-    maxds = ds;
+    std::lock_guard<std::mutex> lock(dsMutex);
+    ds = m_clock_getmonotonictimeDS();
+}
+
+void Waiter::init(dstime timeout)
+{
+    maxds = timeout;
 }
 
 // add events to wakeup criteria
@@ -32,4 +44,5 @@ void Waiter::wakeupby(EventTrigger* et, int flags)
 {
     et->addevents(this, flags);
 }
+
 } // namespace

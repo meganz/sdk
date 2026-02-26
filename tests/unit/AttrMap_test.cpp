@@ -17,13 +17,36 @@
  */
 
 #include <gtest/gtest.h>
-
 #include <mega/attrmap.h>
+
+#include <map>
+#include <string>
+#include <string_view>
+
+using namespace mega;
+
+AttrMap toAttrMap(const std::map<std::string_view, std::string>& m)
+{
+    AttrMap result;
+    for (const auto& [k, v]: m)
+        result.map[AttrMap::string2nameid(k)] = v;
+    return result;
+}
+
+std::string toJson(const std::map<std::string_view, std::string>& m)
+{
+    return toAttrMap(m).getjson();
+}
+
+std::string toJsonObject(const std::map<std::string_view, std::string>& m)
+{
+    return toAttrMap(m).getJsonObject();
+}
 
 TEST(AttrMap, serialize_unserialize)
 {
     mega::AttrMap map;
-    map.map = {
+    map.map = std::map<mega::nameid, std::string>{
         {13, "foo"},
         {42, "blah"},
     };
@@ -48,7 +71,7 @@ TEST(AttrMap, unserialize_32bit)
     const std::string d(rawData.data(), rawData.size());
 
     mega::AttrMap expMap;
-    expMap.map = {
+    expMap.map = std::map<mega::nameid, std::string>{
         {13, "foo"},
         {42, "blah"},
     };
@@ -59,3 +82,34 @@ TEST(AttrMap, unserialize_32bit)
     ASSERT_EQ(expMap.map, newMap.map);
 }
 #endif
+
+TEST(AttrMap, applyUpdates)
+{
+    auto baseMap =
+        toAttrMap({{"a", "hello"}, {"b", "world"}, {"n", toJson({{"a", "hi"}, {"b", "foo"}})}});
+    const auto updateMap = toAttrMap(
+        {{"a", ""}, {"b", "hello"}, {"c", "world"}, {"n", toJson({{"a", ""}, {"c", "hi"}})}});
+    baseMap.applyUpdates(updateMap.map);
+    const auto expected =
+        toAttrMap({{"b", "hello"}, {"c", "world"}, {"n", toJson({{"a", ""}, {"c", "hi"}})}});
+    EXPECT_EQ(baseMap.map, expected.map);
+}
+
+TEST(AttrMap, applyUpdatesWithNestedFields)
+{
+    using namespace std::literals;
+    auto baseMap = toAttrMap(
+        {{"a", "hello"}, {"b", "world"}, {"n", toJsonObject({{"a", "hi"}, {"b", "foo"}})}});
+    auto updateMap = toAttrMap(
+        {{"a", ""}, {"b", "hello"}, {"c", "world"}, {"n", toJsonObject({{"a", ""}, {"c", "hi"}})}});
+    baseMap.applyUpdatesWithNestedFields(updateMap, std::array{"n"sv});
+    auto expected = toAttrMap(
+        {{"b", "hello"}, {"c", "world"}, {"n", toJsonObject({{"b", "foo"}, {"c", "hi"}})}});
+    EXPECT_EQ(baseMap.map, expected.map);
+
+    // Now remove the nested field
+    updateMap = toAttrMap({{"n", ""}});
+    baseMap.applyUpdatesWithNestedFields(updateMap, std::array{"n"sv});
+    expected = toAttrMap({{"b", "hello"}, {"c", "world"}});
+    EXPECT_EQ(baseMap.map, expected.map);
+}

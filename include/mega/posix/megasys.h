@@ -23,7 +23,7 @@
 #define MEGA_POSIX_OS_H 1
 
 // platform dependent constants
-#ifdef __ANDROID__
+#if defined(__ANDROID__) && !defined(HAVE_SDK_CONFIG_H)
 #include "mega/config-android.h"
 #else
 #ifndef MEGA_GENERATED_CONFIG_H
@@ -95,11 +95,12 @@
 #include <arpa/inet.h>
 #include <termios.h>
 
-#if defined(__linux__)
+#if defined(__linux__) || defined(__OpenBSD__)
 #include <endian.h>
 #endif
 
-#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__minix)
+#if defined(__FreeBSD__) || defined(__NetBSD__) || defined(__DragonFly__) || defined(__minix) || \
+    defined(__OpenBSD__)
 #include <sys/endian.h>
 #endif
 

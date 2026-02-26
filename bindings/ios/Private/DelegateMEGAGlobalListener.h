@@ -20,17 +20,20 @@
  */
 #import "megaapi.h"
 #import "MEGASdk.h"
+#import "ListenerDispatch.h"
 
 class DelegateMEGAGlobalListener : public mega::MegaGlobalListener {
     
 public:
     
-    DelegateMEGAGlobalListener(MEGASdk *megaSDK, id<MEGAGlobalDelegate> listener);
+    DelegateMEGAGlobalListener(MEGASdk *megaSDK, id<MEGAGlobalDelegate> listener, ListenerQueueType queueType);
     id<MEGAGlobalDelegate> getUserListener();
     
     void onUsersUpdate(mega::MegaApi* api, mega::MegaUserList* userList);
     void onUserAlertsUpdate(mega::MegaApi* api, mega::MegaUserAlertList *userAlertList);
     void onNodesUpdate(mega::MegaApi* api, mega::MegaNodeList* nodeList);
+    void onSetsUpdate(mega::MegaApi* api, mega::MegaSetList* setList);
+    void onSetElementsUpdate(mega::MegaApi* api, mega::MegaSetElementList* setElementList);
     void onAccountUpdate(mega::MegaApi *api);
     void onContactRequestsUpdate(mega::MegaApi* api, mega::MegaContactRequestList* contactRequestList);
     void onReloadNeeded(mega::MegaApi* api);
@@ -38,5 +41,6 @@ public:
     
 private:
     MEGASdk *megaSDK;
-    id<MEGAGlobalDelegate> listener;
+    __weak id<MEGAGlobalDelegate> listener;
+    ListenerQueueType queueType;
 };

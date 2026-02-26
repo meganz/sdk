@@ -1,0 +1,98 @@
+{
+    "$schema": "https://raw.githubusercontent.com/microsoft/vcpkg-tool/main/docs/vcpkg.schema.json",
+    "name": "sdklib",
+    "homepage": "https://github.com/meganz/sdk",
+    "features": {
+        "use-openssl": {
+            "description": "OpenSSL library",
+            "dependencies": [
+                "openssl"
+            ]
+        },
+        "use-mediainfo": {
+            "description": "MediaInfo library",
+            "dependencies": [
+                "libmediainfo"
+            ]
+        },
+        "use-freeimage": {
+            "description": "FreeImage library",
+            "dependencies": [
+                "freeimage",
+                {
+                    "name": "jasper",
+                    "default-features": false
+                }
+            ]
+        },
+        "use-ffmpeg": {
+            "description": "FFMpeg library",
+            "dependencies": [
+                {
+                    "name": "ffmpeg",
+                    "default-features": false,
+                    "features": [
+                        "avcodec",
+                        "avformat",
+                        "swresample",
+                        "swscale"
+                    ]
+                }
+            ]
+        },
+        "use-libuv": {
+            "description": "libuv library",
+            "dependencies": [
+                "libuv"
+            ]
+        },
+        "use-pdfium": {
+            "description": "pdfium library",
+            "dependencies": [
+                "pdfium"
+            ]
+        },
+        "use-readline": {
+            "description": "Readline library",
+            "dependencies": [
+                "readline"
+            ]
+        },
+        "sdk-tests": {
+            "description": "gtests library for the integration and unit tests",
+            "dependencies": [ "gtest" ]
+        },
+        "c-ares-backend-curl": {
+            "description": "Enable c-ares backend for curl",
+            "dependencies": [
+                {
+                    "name": "curl",
+                    "features": [
+                        "c-ares"
+                    ]
+                }
+            ]
+        }
+    },
+    "dependencies": [
+        "cryptopp",
+        {
+          "name": "curl",
+          "features": [ "zstd" ]
+        },
+        "icu",
+        "libsodium",
+        "sqlite3"
+    ],
+    "builtin-baseline": "ef7dbf94b9198bc58f45951adcf1f041fcbc5ea0",
+    "overrides": [
+        {
+            "name": "icu",
+            "version": "74.2#4"
+        },
+        {
+            "name": "libuv",
+            "version": "1.49.2"
+        }
+    ]
+}

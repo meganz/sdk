@@ -20,7 +20,7 @@
  */
 
 #import "MEGAPushNotificationSettings.h"
-#import "MegaApi.h"
+#import "megaapi.h"
 
 NS_ASSUME_NONNULL_BEGIN
 

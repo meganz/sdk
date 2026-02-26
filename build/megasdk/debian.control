@@ -1,0 +1,24 @@
+Source: megasdk
+Section: Tools
+Priority: normal
+Maintainer: MEGA Linux Team <linux@mega.co.nz>
+Build-Depends:  debhelper,
+                wget,
+                libtool,
+                dh-autoreconf,
+                cdbs,
+                autoconf, autoconf-archive, nasm, cmake
+
+Package: megasdk
+Architecture: any
+Depends: ${shlibs:Depends}, apt-transport-https, gpg
+Description: MEGA SDK - Client Access Engine
+    This SDK brings you all the power of our client applications and let you create
+    your own or analyze the security of our products. 
+
+Package: megasdk-dbg
+Architecture: any
+Section: debug
+Priority: extra
+Depends: megasdk
+Description: debugging symbols for sdk

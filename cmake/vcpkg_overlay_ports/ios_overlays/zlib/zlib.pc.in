@@ -1,0 +1,10 @@
+prefix=/Applications/Xcode.app/Contents/Developer/Platforms/@target_environment@.platform/Developer/SDKs/@target_environment@.sdk
+exec_prefix=${prefix}/usr
+libdir=${exec_prefix}/lib
+includedir=${prefix}/usr/include
+
+Name: zlib
+Description: zlib compression library
+Version: system
+Libs: -L${libdir} -lz
+Cflags: -I${includedir}

@@ -41,19 +41,8 @@
 
 - (IBAction)tapLogin:(id)sender {
     if ([self validateForm]) {
-        NSOperationQueue *operationQueue = [NSOperationQueue new];
-        
-        NSInvocationOperation *operation = [[NSInvocationOperation alloc] initWithTarget:self
-                                                                                selector:@selector(generateKeys)
-                                                                                  object:nil];
-        
-        [operationQueue addOperation:operation];
+        [[MEGASdkManager sharedMEGASdk] loginWithEmail:self.emailTextField.text password:self.passwordTextField.text delegate:self];
     }
-    
-}
-
-- (void)generateKeys {
-    [[MEGASdkManager sharedMEGASdk] loginWithEmail:self.emailTextField.text password:self.passwordTextField.text delegate:self];
 }
 
 - (BOOL)validateForm {

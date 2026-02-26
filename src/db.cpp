@@ -24,8 +24,9 @@
 #include "mega/logging.h"
 
 namespace mega {
-DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted)
+DbTable::DbTable(PrnGen &rng, bool checkAlwaysTransacted, DBErrorCallback dBErrorCallBack)
     : rng(rng), mCheckAlwaysTransacted(checkAlwaysTransacted)
+    , mDBErrorCallBack(std::move(dBErrorCallBack))
 {
     nextid = 0;
 }
@@ -41,19 +42,32 @@ bool DbTable::put(uint32_t type, Cacheable* record, SymmCipher* key)
 {
     string data;
 
+    if (!record->dbid)
+    {
+        uint32_t previousNextid = nextid;
+        record->dbid = (nextid += IDSPACING) | type;
+        if (nextid < previousNextid)
+        {
+            LOG_err << "Overflow at nextid " << type;
+            if (mDBErrorCallBack)
+            {
+                mDBErrorCallBack(DBError::DB_ERROR_INDEX_OVERFLOW);
+            }
+            assert(nextid >= previousNextid);
+        }
+    }
+
     if (!record->serialize(&data))
     {
-        //Don't return false if there are errors in the serialization
-        //to let the SDK continue and save the rest of records
+        // Don't return false if there are errors in the serialization
+        // to let the SDK continue and save the rest of records
         LOG_warn << "Serialization failed: " << type;
         return true;
     }
 
-    PaddedCBC::encrypt(rng, &data, key);
-
-    if (!record->dbid)
+    if (!PaddedCBC::encrypt(rng, &data, key))
     {
-        record->dbid = (nextid += IDSPACING) | type;
+        LOG_err << "Failed to CBC encrypt data"; // continue with unencrypted data intentionally
     }
 
     return put(record->dbid, &data);
@@ -71,7 +85,7 @@ bool DbTable::next(uint32_t* type, string* data, SymmCipher* key)
 
         if (*type > nextid)
         {
-            nextid = *type & - IDSPACING;
+            nextid = *type & ~(static_cast<unsigned>(IDSPACING) - 1);
         }
 
         return PaddedCBC::decrypt(data, key);
@@ -118,8 +132,11 @@ void DbTable::checkCommitter(DBTableTransactionCommitter*)
     assert(mTransactionCommitter);
 }
 
-const int DbAccess::LEGACY_DB_VERSION = 11;
+const int DbAccess::LEGACY_DB_VERSION = 14;
 const int DbAccess::DB_VERSION = DbAccess::LEGACY_DB_VERSION + 1;
+const int DbAccess::LAST_DB_VERSION_WITHOUT_NOD = 12;
+const int DbAccess::LAST_DB_VERSION_WITHOUT_SRW = 13;
+const int DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT = 14;
 
 DbAccess::DbAccess()
 {

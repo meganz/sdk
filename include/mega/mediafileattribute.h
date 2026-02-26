@@ -71,7 +71,11 @@ struct MEGA_API MediaProperties
     static MediaProperties decodeMediaPropertiesAttributes(const std::string& attrs, uint32_t filekey[4]);
 
 #ifdef USE_MEDIAINFO
+    static const char* supportedformatsMediaInfoAudio();
+    static const char* supportedformatsMediaInfo();
+
     // return true if the filename extension is one that mediainfoLib can process
+    static bool isMediaFilenameExtAudio(const std::string& ext);
     static bool isMediaFilenameExt(const std::string& ext);
 
     // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
@@ -79,6 +83,10 @@ struct MEGA_API MediaProperties
 
     // Look up the IDs of the codecs and container, and encode and encrypt all the info into a string with file attribute 8, and possibly file attribute 9.
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
+
+    // get binary data and synthetic extension ("jpg" or "png") for cover data in ID3v2 tag
+    template<class T>
+    static StringPair getCoverFromId3v2(const T& file);
 #endif
 
     std::string serialize();
@@ -119,20 +127,20 @@ struct MEGA_API MediaFileInfo
     // In case we don't have the MediaCodecs yet, remember the media attributes until we can add them to the file.
     struct queuedvp;
     std::vector< queuedvp > queuedForDownloadTranslation;
-    std::map<handle, queuedvp> uploadFileAttributes;
+    std::map<UploadHandle, queuedvp> uploadFileAttributes;
 
     // request MediaCodecs from Mega.  Only do this the first time we know we will need them.
-    void requestCodecMappingsOneTime(MegaClient* client, LocalPath* ifSuitableFilename);
-    static void onCodecMappingsReceiptStatic(MegaClient* client, int codecListVersion);
-    void onCodecMappingsReceipt(MegaClient* client, int codecListVersion);
+    void requestCodecMappingsOneTime(MegaClient* client, const LocalPath& ifSuitableFilename);
+    static void onCodecMappingsReceiptStatic(MegaClient* client, JSON& json, int codecListVersion);
+    void onCodecMappingsReceipt(MegaClient* client, JSON& json, int codecListVersion);
     void ReadIdRecords(std::map<std::string, unsigned>&  data, JSON& json);
 
     // get the cached media attributes for a file just before sending CommandPutNodes (for a newly uploaded file)
-    void addUploadMediaFileAttributes(handle& fh, std::string* s);
+    void addUploadMediaFileAttributes(UploadHandle fh, std::string* s);
 
     // we figured out the properties, now attach them to a file.  Queues the action if we don't have the MediaCodecs yet.  Works for uploaded or downloaded files.
-    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle uploadHandle);
-    void sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, handle fileHandle);
+    unsigned queueMediaPropertiesFileAttributesForUpload(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, UploadHandle uploadHandle, Transfer*);
+    void sendOrQueueMediaPropertiesFileAttributesForExistingFile(MediaProperties& vp, uint32_t fakey[4], MegaClient* client, NodeHandle fileHandle);
 
     // Check if we should retry video property extraction, due to previous failure with older library
     bool timeToRetryMediaPropertyExtraction(const std::string& fileattributes, uint32_t fakey[4]);
@@ -143,7 +151,7 @@ struct MEGA_API MediaFileInfo
 struct MediaFileInfo::queuedvp
 {
     // for a download it is the handle of the node of the file.  For uploads that doesn't exist yet and it is the uploadHandle of the transfer
-    ::mega::handle handle;
+    NodeOrUploadHandle handle;
 
     // The properties to upload. These still need translation from strings to enums, plus file attribute encoding and encryption with XXTEA
     MediaProperties vp;

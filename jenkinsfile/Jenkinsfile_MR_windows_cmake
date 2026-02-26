@@ -1,0 +1,291 @@
+def setCommitStatus(String pStatus, String errorHint = '') {
+    switch (pStatus) {
+        case 'running':
+            pState = 'running'
+            pMessage = ""
+            break
+        case 'success':
+            pState = 'success'
+            pMessage = ":white_check_mark: ${env.JOB_NAME} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'aborted':
+            pState = 'canceled'
+            pMessage = ":interrobang: ${env.JOB_NAME} <b>Windows</b> ABORTED :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'build_failure':
+            pState = 'failed'
+            pMessage = ":red_circle: ${env.JOB_NAME} <b>Windows</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'tests_failure':
+            pState = 'failed'
+            pMessage = "🟠 ${env.JOB_NAME} <b>Windows</b> FAILURE :worried:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        case 'unstable':
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} <b>Windows</b> UNSTABLE :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+            break
+        default:
+            pState = 'failed'
+            pMessage = ":interrobang: ${env.JOB_NAME} <b>Windows</b> UNKNOWN :confused:<br/>Build results: [Jenkins [${env.BUILD_DISPLAY_NAME}]](${env.RUN_DISPLAY_URL})<br/>Commit: ${env.GIT_COMMIT}"
+    }
+    if (pMessage) {
+        if (errorHint) {
+            pMessage += '<br/> ' + errorHint
+        }
+        addGitLabMRComment(comment: pMessage)
+    }
+    updateGitlabCommitStatus(name: "${PIPELINE_NAME}", state: pState)
+}
+
+def BUILD_OPTIONS
+def TESTS_PARALLEL
+def GTEST_REPEAT
+def GTEST_FILTER
+def WIN32_FLAG
+def CUSTOM_TIMEOUT
+
+pipeline {
+    agent none
+    options {
+        buildDiscarder(logRotator(numToKeepStr: '135', daysToKeepStr: '21'))
+        gitLabConnection('GitLabConnectionJenkins')
+    }
+
+    environment {
+        PIPELINE_NAME = 'Build & test windows'
+        BUILD_OPTIONS = ''
+        TESTS_PARALLEL = ''
+        APIURL_TO_TEST = ''
+    }
+
+    stages {
+        stage('Update Gitlab commitStatus') {
+            agent any
+            steps {
+                updateGitlabCommitStatus(name: 'Build & test windows', state: 'running')
+                script{
+                    COMMIT_ID = env.GIT_COMMIT
+                    println GIT_COMMIT
+                }
+            }
+        }
+        stage('Build') {
+            agent { label 'windows && amd64' }
+            stages {
+                stage('clean previous runs and update gitlab commit status'){
+                    steps{
+                        deleteDir()
+                    }
+                }
+                stage('Get parameters'){
+                    parallel{
+                        stage('Get build and run paramters'){
+                            steps {
+                                script{
+                                    BUILD_OPTIONS = sh(script: 'echo "$gitlabTriggerPhrase" | grep BUILD_OPTIONS | awk -F "BUILD_OPTIONS="  \'{print \$2}\' | cut -d"\\"" -f2 || :', returnStdout: true).trim()
+                                    TESTS_PARALLEL = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-sequence" >/dev/null 2>&1 && echo "" || echo "--INSTANCES:10"', returnStdout: true).trim()
+                                    GTEST_REPEAT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_repeat=[^ ]*" | awk -F "gtest_repeat="  \'{print "--gtest_repeat="\$2}\'|| :', returnStdout: true).trim()
+                                    GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
+                                    WIN32_FLAG = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-windows-32bits" || :', returnStdout: true).trim()
+                                    CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
+                                    CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
+                                    println BUILD_OPTIONS
+                                    println TESTS_PARALLEL
+                                    println GTEST_REPEAT
+                                    println GTEST_FILTER
+                                    println WIN32_FLAG
+                                    println CUSTOM_TIMEOUT
+                                }
+                            }
+                        }
+
+                        stage('Get API URL'){
+                            steps {
+                                script{
+                                    APIURL_TO_TEST = sh(script: 'echo "$gitlabMergeRequestDescription" | grep USE_APIURL_TO_TEST | awk -F "USE_APIURL_TO_TEST="  \'{print \$2}\' | cut -d" " -f1', returnStdout: true).trim()
+                                    println APIURL_TO_TEST
+                                    if (APIURL_TO_TEST == ""){
+                                        APIURL_TO_TEST = "https://g.api.mega.co.nz/"
+                                        echo "APIURL_TO_TEST was not found on description so ${APIURL_TO_TEST} will be used by default"
+                                    }
+                                    echo "APIURL_TO_TEST will be ${APIURL_TO_TEST}"
+                                }
+                            }
+                        }
+                    }
+                }
+                stage('Checkout Windows'){
+                    steps {
+                        checkout([
+                            $class: 'GitSCM',
+                            branches: [[name: "${env.gitlabSourceBranch}"]],
+                            userRemoteConfigs: [[ url: "${env.GIT_URL_SDK}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
+                            extensions: [
+                                [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"],
+                                [$class: 'PreBuildMerge', options: [fastForwardMode: 'FF', mergeRemote: "origin", mergeStrategy: 'DEFAULT', mergeTarget: "${env.gitlabTargetBranch}"]]
+                                ]
+                        ])
+                        script{
+                            windows_sources_workspace = WORKSPACE
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':warning: Checkout failed')
+                            }
+                            echo 'Error: Checkout stage failed'
+                        }
+                    }
+                }
+                stage('Build Windows'){
+                    environment{
+                        VCPKGPATH  = "${windows_sources_workspace}\\..\\vcpkg"
+                        /*
+                         * VCPKG cache in S4 commented out because it takes too long time.
+                         * See CID-839 
+                         * VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+                         * AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+                         * AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+                         * AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
+                         */
+                        _MSPDBSRV_ENDPOINT_ = "${BUILD_TAG}"
+                        TMP       = "${windows_sources_workspace}\\tmp"
+                        TEMP      = "${windows_sources_workspace}\\tmp"
+                        TMPDIR    = "${windows_sources_workspace}\\tmp"
+                        MEGAQTPATH_X64 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x64"
+                        MEGAQTPATH_X86 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x86"
+                        CMAKE_COMMON = "-DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_VERBOSE_MAKEFILE=ON"
+                    }
+                    options{
+                        timeout(time: 150, unit: 'MINUTES')
+                    }
+                    steps{
+                        dir(windows_sources_workspace){
+                            //Build SDK
+                            sh "echo Building SDK x64"
+                            sh "mkdir build_dir"
+                            sh "mkdir tmp"
+                            sh "cmake -DCMAKE_PREFIX_PATH='${MEGAQTPATH_X64}' -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${CMAKE_COMMON} ${BUILD_OPTIONS} -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir\\\\"
+                            sh "cmake --build '${windows_sources_workspace}'\\\\build_dir\\\\ --config Debug -j 1"
+                            sh "echo Building SDK x86"
+                            sh "mkdir build_dir_x86"
+                            sh "cmake -DCMAKE_PREFIX_PATH='${MEGAQTPATH_X86}' -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${CMAKE_COMMON} ${BUILD_OPTIONS} -DCMAKE_GENERATOR_PLATFORM=Win32 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_x86\\\\"
+                            sh "cmake --build '${windows_sources_workspace}'\\\\build_dir_x86\\\\ --config Debug -j 1"
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('build_failure', ':warning: Build failed. Tests won`t run')
+                            }
+                            echo "Error: Build stage failed. Tests won't run."
+                        }
+                    }
+                }
+
+                stage('Run Windows tests'){
+                    environment {
+                        PATH = "${windows_sources_workspace}\\\\vcpkg_installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_REAL_PWD=credentials('MEGA_REAL_PWD_TEST')
+                        SYMBOL_PATH = "srv*C:\\symcache*;http://msdl.microsoft.com/download/symbols;${WORKSPACE}\\build_dir;${WORKSPACE}\\build_dir_x86;${WORKSPACE}\\build_dir\\tests\\integration\\Debug;${WORKSPACE}\\build_dir_x86\\tests\\integration\\Debug"
+                        USER_AGENT_TESTS_SDK = "${USER_AGENT_TESTS_SDK}"
+                        APIURL_TO_TEST = "${APIURL_TO_TEST}"
+                        GTEST_FILTER = "${GTEST_FILTER}"
+                        GTEST_REPEAT = "${GTEST_REPEAT}"
+                        TESTS_PARALLEL = "${TESTS_PARALLEL}"
+                    }
+                    steps{
+                        script {
+                            def lockLabel = ''
+                            if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts'
+                            } else  {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                            }
+                            env.BUILD_DIR = WIN32_FLAG ? "build_dir_x86" : "build_dir"
+                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                dir("${windows_sources_workspace}") {
+                                    timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
+                                        script{
+                                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                            echo "${env.ACCOUNTS_COMBINATION}"
+                                        }
+                                        bat """
+
+                                        cd %BUILD_DIR%
+
+                                        tests\\\\unit\\\\Debug\\\\test_unit.exe
+                                        if %ERRORLEVEL% NEQ 0 exit 1
+                                        set gfxworkerTestIntegration=tools\\\\gfxworker\\\\tests\\\\integration\\\\Debug\\\\gfxworker_test_integration.exe
+                                        if exist %gfxworkerTestIntegration% (
+                                            %gfxworkerTestIntegration%
+                                            gzip -c gfxworker_test_integration.log > gfxworker_test_integration_${BUILD_ID}.log.gz
+                                            rm gfxworker_test_integration.log
+                                        )
+                                        if %ERRORLEVEL% NEQ 0 exit 1
+                                        """
+                                        def integration_tests_error = powershell script: 'jenkinsfile\\windows-integration-tests.ps1', returnStatus: true
+                                        sh """
+                                            if [ -z "${TESTS_PARALLEL}" ]; then
+                                                tar czf test_integration_${BUILD_ID}.tgz pid_*/test_integration*.log || true
+                                            fi
+                                            gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || true
+                                        """
+                                        if (integration_tests_error) {
+                                            sh """
+                                                tar czf dumps.tgz dumps || true
+                                                tar czf procdump.tgz procdump*.log || true
+                                                tar czf pdbs.tgz $BUILD_DIR/Debug/*.pdb $BUILD_DIR/tests/integration/Debug/*.pdb
+                                                exit ${integration_tests_error}
+                                            """
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        failure {
+                            script {
+                                setCommitStatus('tests_failure', ':warning: Build succeed. Tests failed')
+                            }
+                            echo 'Error: Test stage failed'
+                        }
+                    }
+                }
+            }
+            post{
+                always {
+                    archiveArtifacts artifacts: "build_dir/*.log", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir/*.log.gz", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir_x86/*.log", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: "build_dir_x86/*.log.gz", allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'dumps.tgz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'pdbs.tgz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'procdump.tgz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'test_integration*.log.gz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'test_integration*.tgz', allowEmptyArchive: true, fingerprint: true
+                    deleteDir()
+                }
+            }
+        }
+    }
+    post {
+        success {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'success')
+            addGitLabMRComment(comment: ":white_check_mark: ${currentBuild.projectName} <b>Windows</b> SUCCEEDED :muscle:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+        unstable {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'failed')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> UNSTABLE  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )      
+        }
+        aborted {
+            updateGitlabCommitStatus(name: 'Build & test windows', state: 'canceled')
+            addGitLabMRComment(comment: ":interrobang: ${currentBuild.projectName} <b>Windows</b> ABORTED  :confused:<br/>Build results: [Jenkins [${currentBuild.displayName}]](${currentBuild.absoluteUrl})<br/>Commit: ${COMMIT_ID}" )
+        }
+    }
+}

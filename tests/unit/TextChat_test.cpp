@@ -36,18 +36,18 @@ class MockFileSystemAccess : public mt::DefaultedFileSystemAccess
 
 void checkTextChats(const mega::TextChat& exp, const mega::TextChat& act)
 {
-    ASSERT_EQ(exp.id, act.id);
-    ASSERT_EQ(exp.priv, act.priv);
-    ASSERT_EQ(exp.shard, act.shard);
-    ASSERT_EQ(*exp.userpriv, *act.userpriv);
-    ASSERT_EQ(exp.group, act.group);
-    ASSERT_EQ(exp.title, act.title);
-    ASSERT_EQ(exp.ou, act.ou);
-    ASSERT_EQ(exp.ts, act.ts);
-    ASSERT_EQ(exp.attachedNodes, act.attachedNodes);
+    ASSERT_EQ(exp.getChatId(), act.getChatId());
+    ASSERT_EQ(exp.getOwnPrivileges(), act.getOwnPrivileges());
+    ASSERT_EQ(exp.getShard(), act.getShard());
+    ASSERT_EQ(*exp.getUserPrivileges(), *act.getUserPrivileges());
+    ASSERT_EQ(exp.getGroup(), act.getGroup());
+    ASSERT_EQ(exp.getTitle(), act.getTitle());
+    ASSERT_EQ(exp.getOwnUser(), act.getOwnUser());
+    ASSERT_EQ(exp.getTs(), act.getTs());
+    ASSERT_EQ(exp.getAttachments(), act.getAttachments());
     ASSERT_EQ(exp.isFlagSet(0), act.isFlagSet(0));
-    ASSERT_EQ(exp.publicchat, act.publicchat);
-    ASSERT_EQ(exp.unifiedKey, act.unifiedKey);
+    ASSERT_EQ(exp.publicChat(), act.publicChat());
+    ASSERT_EQ(exp.getUnifiedKey(), act.getUnifiedKey());
 }
 
 }
@@ -55,26 +55,23 @@ void checkTextChats(const mega::TextChat& exp, const mega::TextChat& act)
 TEST(TextChat, serialize_unserialize)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
-    mega::TextChat tc;
-    tc.id = 1;
-    tc.priv = mega::PRIV_STANDARD;
-    tc.shard = 2;
-    tc.userpriv = new mega::userpriv_vector;
-    tc.userpriv->emplace_back(3, mega::PRIV_MODERATOR);
-    tc.userpriv->emplace_back(4, mega::PRIV_RO);
-    tc.group = true;
-    tc.title = "foo";
-    tc.ou = 5;
-    tc.ts = 6;
-    tc.attachedNodes[7].insert(8);
-    tc.attachedNodes[7].insert(9);
-    tc.attachedNodes[8].insert(10);
+    mega::TextChat tc(true);
+    tc.setChatId(1);
+    tc.setOwnPrivileges(mega::PRIV_STANDARD);
+    tc.setShard(2);
+    tc.addUserPrivileges(3, mega::PRIV_MODERATOR);
+    tc.addUserPrivileges(4, mega::PRIV_RO);
+    tc.setGroup(true);
+    tc.setTitle("foo");
+    tc.setOwnUser(5);
+    tc.setTs(6);
+    tc.addUserForAttachment(7, 8);
+    tc.addUserForAttachment(7, 9);
+    tc.addUserForAttachment(8, 10);
     tc.setFlag(true, 0);
-    tc.publicchat = true;
-    tc.unifiedKey = "bar";
+    tc.setUnifiedKey("bar");
 
     std::string d;
     ASSERT_TRUE(tc.serialize(&d));
@@ -86,26 +83,23 @@ TEST(TextChat, serialize_unserialize)
 TEST(TextChat, unserialize_32bit)
 {
     mega::MegaApp app;
-    MockFileSystemAccess fsaccess;
-    auto client = mt::makeClient(app, fsaccess);
+    auto client = mt::makeClient(app);
 
-    mega::TextChat tc;
-    tc.id = 1;
-    tc.priv = mega::PRIV_STANDARD;
-    tc.shard = 2;
-    tc.userpriv = new mega::userpriv_vector;
-    tc.userpriv->emplace_back(3, mega::PRIV_MODERATOR);
-    tc.userpriv->emplace_back(4, mega::PRIV_RO);
-    tc.group = true;
-    tc.title = "foo";
-    tc.ou = 5;
-    tc.ts = 6;
-    tc.attachedNodes[7].insert(8);
-    tc.attachedNodes[7].insert(9);
-    tc.attachedNodes[8].insert(10);
+    mega::TextChat tc(true);
+    tc.setChatId(1);
+    tc.setOwnPrivileges(mega::PRIV_STANDARD);
+    tc.setShard(2);
+    tc.addUserPrivileges(3, mega::PRIV_MODERATOR);
+    tc.addUserPrivileges(4, mega::PRIV_RO);
+    tc.setGroup(true);
+    tc.setTitle("foo");
+    tc.setOwnUser(5);
+    tc.setTs(6);
+    tc.addUserForAttachment(7, 8);
+    tc.addUserForAttachment(7, 9);
+    tc.addUserForAttachment(8, 10);
     tc.setFlag(true, 0);
-    tc.publicchat = true;
-    tc.unifiedKey = "bar";
+    tc.setUnifiedKey("bar");
 
     // This is the result of serialization on 32bit Windows
     const std::array<char, 125> rawData = {

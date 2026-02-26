@@ -2,129 +2,239 @@
 
 ZENLIB_VERSION="6694a744d82d942c4a410f25f916561270381889"
 MEDIAINFO_VERSION="4ee7f77c087b29055f48d539cd679de8de6f9c48"
-SDKVERSION=`xcrun -sdk iphoneos --show-sdk-version`
+source common.sh
 
-##############################################
-CURRENTPATH=`pwd`
-ARCHS="i386 x86_64 armv7 armv7s arm64"
-DEVELOPER=`xcode-select -print-path`
+# Build zenlib and mediainfo for a specific architecture and platform
+build_arch_platform() {
+  ARCH="$1"
+  PLATFORM="$2"
+  CATALYST="${3:-false}"
 
-if [ ! -d "$DEVELOPER" ]; then
-  echo "xcode path is not set correctly $DEVELOPER does not exist (most likely because of xcode > 4.3)"
-  echo "run"
-  echo "sudo xcode-select -switch <xcode path>"
-  echo "for default installation:"
-  echo "sudo xcode-select -switch /Applications/Xcode.app/Contents/Developer"
-  exit 1
-fi
+  rm -rf ZenLib-${ZENLIB_VERSION}
+  tar zxf ${ZENLIB_VERSION}.tar.gz
+  pushd "ZenLib-${ZENLIB_VERSION}/Project/GNU/Library"
 
-case $DEVELOPER in
-     *\ * )
-           echo "Your Xcode path contains whitespaces, which is not supported."
-           exit 1
-          ;;
-esac
+  export BUILD_TOOLS="${DEVELOPER}"
+  export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
+  export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
 
-case $CURRENTPATH in
-     *\ * )
-           echo "Your path contains whitespaces, which is not supported by 'make install'."
-           exit 1
-          ;;
-esac
+  RUNTARGET=""
+  PREFIX_MEDIAINFO=""
+  PREFIX_ZENLIB=""
+  if [ "${CATALYST}" == "true" ]; then
+    RUNTARGET="-target ${ARCH}-apple-ios15.0-macabi"
+    PREFIX_ZENLIB="${CURRENTPATH}/bin/zenlib/${PLATFORM}${SDKVERSION}-catalyst-${ARCH}.sdk"
+    PREFIX_MEDIAINFO="${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-catalyst-${ARCH}.sdk"
+  else
+    PREFIX_ZENLIB="${CURRENTPATH}/bin/zenlib/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+    PREFIX_MEDIAINFO="${CURRENTPATH}/bin/mediainfo/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+  fi
+  
+  if [ "${PLATFORM}" == "MacOSX" ]; then
+    BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}.sdk"
+  fi
 
-set -e
+  if [[ "${ARCH}" == "arm64" && "$PLATFORM" == "iPhoneSimulator" ]]; then
+    RUNTARGET="-target ${ARCH}-apple-ios15.0-simulator"
+  fi
 
-if [ ! -e "${ZENLIB_VERSION}.tar.gz" ]
-then
-curl -LO "https://github.com/MediaArea/ZenLib/archive/${ZENLIB_VERSION}.tar.gz"
-fi
+  echo "${bold}Building zenlib for $PLATFORM (catalyst=$CATALYST) $ARCH $BUILD_SDKROOT ${normal}"
+  
+  export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
+  
+  mkdir -p ${PREFIX_ZENLIB}
+  mkdir -p ${PREFIX_MEDIAINFO}
+  
+  # Build
+  if [[ "${CATALYST}" == "true" || "${PLATFORM}" == "iPhoneOS" || "${PLATFORM}" == "iPhoneSimulator" ]]; then
+    export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=15.0"
+    export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=15.0 -DMEDIAINFO_ADVANCED_NO ${RUNTARGET}"
+    export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include -DNDEBUG"
+    export CXXFLAGS="${CPPFLAGS}"
+  else # macOS
+      export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -mmacosx-version-min=10.15 -L${BUILD_SDKROOT}/usr/lib"
+      export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -mmacosx-version-min=10.15 -DMEDIAINFO_ADVANCED_NO"
+      export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include -DNDEBUG"
+      export CXXFLAGS="${CPPFLAGS}"
+  fi
+  
+  sh autogen.sh
 
-if [ ! -e "${MEDIAINFO_VERSION}.tar.gz" ]
-then
-curl -LO "https://github.com/meganz/MediaInfoLib/archive/${MEDIAINFO_VERSION}.tar.gz"
-fi
+  if [ "${ARCH}" == "arm64" ]; then
+    HOST="arm-apple-darwin"
+  else
+    HOST="${ARCH}-apple-darwin"
+  fi
+  
+  ./configure --prefix=${PREFIX_ZENLIB} --host=${HOST} --disable-shared --disable-archive
 
-for ARCH in ${ARCHS}
-do
-if [[ "${ARCH}" == "i386" || "${ARCH}" == "x86_64" ]];
-then
-PLATFORM="iPhoneSimulator"
-else
-PLATFORM="iPhoneOS"
-fi
+  make -j${CORES}
+  make install
+  
+  popd
+  
+  rm -rf ZenLib
+  mv ZenLib-${ZENLIB_VERSION} ZenLib
+  
+  rm -rf MediaInfoLib-${MEDIAINFO_VERSION}
+  tar zxf ${MEDIAINFO_VERSION}.tar.gz
+  pushd "MediaInfoLib-${MEDIAINFO_VERSION}/Project/GNU/Library"
+  
+  echo "${bold}Building mediainfo for $PLATFORM (catalyst=$CATALYST) $ARCH $BUILD_SDKROOT ${normal}"
+  
+  sh autogen.sh
+    
+  ./configure --prefix=${PREFIX_MEDIAINFO} \
+  --host=${HOST} --disable-shared --enable-minimize-size --enable-minimal --disable-archive \
+  --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m \
+  --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf \
+  --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf \
+  --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw \
+  --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus \
+  --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m \
+  --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la \
+  --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a \
+  --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
+  
+  make -j${CORES}
+  make install
+  make clean
+  
+  popd
+}
 
-rm -rf ZenLib-${ZENLIB_VERSION}
-tar zxf ${ZENLIB_VERSION}.tar.gz
-pushd "ZenLib-${ZENLIB_VERSION}/Project/GNU/Library"
+# Build Catalyst (macOS) targets for arm64 and x86_64
+build_catalyst() {
+  build_arch_platform "arm64" "MacOSX" true
+  build_arch_platform "x86_64" "MacOSX" true
+  
+  echo "${bold}Lipo library for x86_64 and arm64 catalyst ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/zenlib/catalyst"
+  mkdir -p "${CURRENTPATH}/bin/mediainfo/catalyst"
+  
+  lipo -create "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-catalyst-x86_64.sdk/lib/libzen.a" \
+    "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-catalyst-arm64.sdk/lib/libzen.a" \
+    -output "${CURRENTPATH}/bin/zenlib/catalyst/libzen.a"
+  
+  lipo -create "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-catalyst-x86_64.sdk/lib/libmediainfo.a" \
+    "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-catalyst-arm64.sdk/lib/libmediainfo.a" \
+    -output "${CURRENTPATH}/bin/mediainfo/catalyst/libmediainfo.a"
+}
 
-export BUILD_TOOLS="${DEVELOPER}"
-export BUILD_DEVROOT="${DEVELOPER}/Platforms/${PLATFORM}.platform/Developer"
-export BUILD_SDKROOT="${BUILD_DEVROOT}/SDKs/${PLATFORM}${SDKVERSION}.sdk"
+# Build macOS targets for arm64 and x86_64
+build_mac() {
+  build_arch_platform "arm64" "MacOSX"
+  build_arch_platform "x86_64" "MacOSX"
+  
+  echo "${bold}Lipo library for x86_64 and arm64 mac ${normal}"
+    
+  mkdir -p "${CURRENTPATH}/bin/zenlib/mac"
+  mkdir -p "${CURRENTPATH}/bin/mediainfo/mac"
+  
+  lipo -create "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-x86_64.sdk/lib/libzen.a" \
+    "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-arm64.sdk/lib/libzen.a" \
+    -output "${CURRENTPATH}/bin/zenlib/mac/libzen.a"
+  
+  lipo -create "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a" \
+    "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" \
+    -output "${CURRENTPATH}/bin/mediainfo/mac/libmediainfo.a"
+}
 
-export CC="${BUILD_TOOLS}/usr/bin/gcc -arch ${ARCH}"
-mkdir -p "${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk"
+# Build iOS target for arm64
+build_iOS() {
+  build_arch_platform "arm64" "iPhoneOS"
+}
 
-# Build
-export LDFLAGS="-Os -arch ${ARCH} -Wl,-dead_strip -miphoneos-version-min=9.0 -L${BUILD_SDKROOT}/usr/lib"
-export CFLAGS="-Os -arch ${ARCH} -pipe -no-cpp-precomp -isysroot ${BUILD_SDKROOT} -miphoneos-version-min=9.0 -DMEDIAINFO_ADVANCED_NO"
-export CPPFLAGS="${CFLAGS} -I${BUILD_SDKROOT}/usr/include"
-export CXXFLAGS="${CPPFLAGS}"
+# Build iOS Simulator targets for arm64 and x86_64
+build_iOS_simulator() {
+  build_arch_platform "arm64" "iPhoneSimulator"
+  build_arch_platform "x86_64" "iPhoneSimulator"
+  
+  echo "${bold}Lipo library for x86_64 and arm64 simulators ${normal}"
+  
+  mkdir -p "${CURRENTPATH}/bin/zenlib/iPhoneSimulator"
+  mkdir -p "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator"
+  
+  lipo -create "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libzen.a" \
+    "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libzen.a" \
+    -output "${CURRENTPATH}/bin/zenlib/iPhoneSimulator/libzen.a"
+  
+  lipo -create "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-x86_64.sdk/lib/libmediainfo.a" \
+    "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" \
+    -output "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator/libmediainfo.a"
+}
 
-sh autogen.sh
+create_XCFramework() {
+  mkdir -p xcframework || true
+  
+  echo "${bold}Creating xcframework ${normal}"
+  
+  xcodebuild -create-xcframework \
+    -library "${CURRENTPATH}/bin/zenlib/iPhoneSimulator/libzen.a" \
+    -headers "${CURRENTPATH}/bin/zenlib/iPhoneSimulator${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/zenlib/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libzen.a" \
+    -headers "${CURRENTPATH}/bin/zenlib/iPhoneOS${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/zenlib/catalyst/libzen.a" \
+    -headers "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-catalyst-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/zenlib/mac/libzen.a" \
+    -headers "${CURRENTPATH}/bin/zenlib/MacOSX${SDKVERSION}-arm64.sdk/include" \
+    -output "${CURRENTPATH}/xcframework/libzen.xcframework"
+      
+  
+  xcodebuild -create-xcframework \
+    -library "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator/libmediainfo.a" \
+    -headers "${CURRENTPATH}/bin/mediainfo/iPhoneSimulator${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/mediainfo/iPhoneOS${SDKVERSION}-arm64.sdk/lib/libmediainfo.a" \
+    -headers "${CURRENTPATH}/bin/mediainfo/iPhoneOS${SDKVERSION}-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/mediainfo/catalyst/libmediainfo.a" \
+    -headers "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-catalyst-arm64.sdk/include" \
+    -library "${CURRENTPATH}/bin/mediainfo/mac/libmediainfo.a" \
+    -headers "${CURRENTPATH}/bin/mediainfo/MacOSX${SDKVERSION}-arm64.sdk/include" \
+    -output "${CURRENTPATH}/xcframework/libmediainfo.xcframework"
+}
 
-if [ "${ARCH}" == "arm64" ]; then
-./configure --host=aarch64-apple-darwin --disable-shared --disable-archive
-else
-./configure --host=${ARCH}-apple-darwin --disable-shared --disable-archive
-fi
+clean_up() {
+  echo "${bold}Cleaning up ${normal}"
 
-make -j8
+  rm -rf bin
+  rm -rf MediaInfoLib-${MEDIAINFO_VERSION}
+  rm -rf ZenLib
+  rm -rf ${ZENLIB_VERSION}.tar.gz
+  rm -rf ${MEDIAINFO_VERSION}.tar.gz
 
-cp -f .libs/libzen.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
+  echo "${bold}Done.${normal}"
+}
 
-popd
+download_zenlib() {
+  if [ ! -e "${ZENLIB_VERSION}.tar.gz" ]; then
+    curl -LO "https://github.com/MediaArea/ZenLib/archive/${ZENLIB_VERSION}.tar.gz"
+  fi
+}
 
-rm -rf ZenLib
-mv ZenLib-${ZENLIB_VERSION} ZenLib
+download_mediainfo() {
+  if [ ! -e "${MEDIAINFO_VERSION}.tar.gz" ]; then
+    curl -LO "https://github.com/meganz/MediaInfoLib/archive/${MEDIAINFO_VERSION}.tar.gz"
+  fi
+}
 
-rm -rf MediaInfoLib-${MEDIAINFO_VERSION}
-tar zxf ${MEDIAINFO_VERSION}.tar.gz
-pushd "MediaInfoLib-${MEDIAINFO_VERSION}/Project/GNU/Library"
+# Main build process
+main() {
+  check_xcode_path
+  check_for_spaces
+  
+  download_zenlib
+  download_mediainfo
 
-sh autogen.sh
+  build_mac
+  build_catalyst
+  build_iOS
+  build_iOS_simulator
+  
+  create_XCFramework
+  clean_up
+}
 
-if [ "${ARCH}" == "arm64" ]; then
-./configure --host=aarch64-apple-darwin --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
-else
-./configure --host=${ARCH}-apple-darwin --disable-shared --enable-minimize-size --enable-minimal --disable-archive --disable-image --disable-tag --disable-text --disable-swf --disable-flv --disable-hdsf4m --disable-cdxa --disable-dpg --disable-pmp --disable-rm --disable-wtv --disable-mxf --disable-dcp --disable-aaf --disable-bdav --disable-bdmv --disable-dvdv --disable-gxf --disable-mixml --disable-skm --disable-nut --disable-tsp --disable-hls --disable-dxw --disable-dvdif --disable-dashmpd --disable-aic --disable-avsv --disable-canopus --disable-ffv1 --disable-flic --disable-huffyuv --disable-prores --disable-y4m --disable-adpcm --disable-amr --disable-amv --disable-ape --disable-au --disable-la --disable-celt --disable-midi --disable-mpc --disable-openmg --disable-pcm --disable-ps2a --disable-rkau --disable-speex --disable-tak --disable-tta --disable-twinvq --disable-references
-fi
-
-make -j8
-
-cp -f .libs/libmediainfo.a ${CURRENTPATH}/bin/${PLATFORM}${SDKVERSION}-${ARCH}.sdk/
-
-popd
-
-done
-
-
-mkdir lib || true
-
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libzen.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libzen.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libzen.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libzen.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libzen.a -output ${CURRENTPATH}/lib/libzen.a
-
-lipo -create ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-i386.sdk/libmediainfo.a ${CURRENTPATH}/bin/iPhoneSimulator${SDKVERSION}-x86_64.sdk/libmediainfo.a  ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7.sdk/libmediainfo.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-armv7s.sdk/libmediainfo.a ${CURRENTPATH}/bin/iPhoneOS${SDKVERSION}-arm64.sdk/libmediainfo.a -output ${CURRENTPATH}/lib/libmediainfo.a
-
-rm -rf include/ZenLib
-mkdir include/ZenLib
-cp -fR ZenLib/Source/ZenLib/*.h include/ZenLib/
-
-rm -rf include/MediaInfo
-mkdir include/MediaInfo
-cp -fR MediaInfoLib-${MEDIAINFO_VERSION}/Source/MediaInfo/*.h include/MediaInfo
-
-rm -rf bin
-rm -rf MediaInfoLib-${MEDIAINFO_VERSION}
-rm -rf ZenLib
-
-echo "Done."
+# Run the main build process
+main
 

@@ -87,6 +87,9 @@ namespace autocomplete {
         bool extractflag(const string& flag);
         bool extractflagparam(const string& flag, string& param);
 
+        // More convenient than the above.
+        std::optional<std::string> extractflagparam(const std::string& flag);
+
         ACN selectedSyntax;
     };
 
@@ -181,7 +184,8 @@ namespace autocomplete {
     struct MEGA_API WholeNumber : public ACNode
     {
         size_t defaultvalue;
-        WholeNumber(size_t def_val);
+        std::string description;
+        WholeNumber(const std::string& description, size_t defaultValue);
         bool addCompletions(ACState& s) override;
         std::ostream& describe(std::ostream& s) const override;
         bool match(ACState& s) const override;
@@ -220,6 +224,37 @@ namespace autocomplete {
         bool match(ACState& s) const override;
     };
 
+#ifdef ENABLE_SYNC
+
+    class MEGA_API BackupID
+      : public ACNode
+    {
+    public:
+        BackupID(MegaClient& client, bool onlyActive);
+
+        bool addCompletions(ACState& state) override;
+
+        std::ostream& describe(std::ostream& ostream) const override;
+
+        bool match(ACState& state) const override;
+
+    private:
+        struct DontValidate {};
+
+        string_vector backupIDs() const;
+
+        string_vector& filter(string_vector& ids, const ACState& state) const;
+
+        bool match(const string_vector& ids, ACState& state) const;
+
+        MegaClient& mClient;
+        bool mOnlyActive;
+    }; // BackupID
+
+    ACN backupID(MegaClient& client, bool onlyActive = false);
+
+#endif // ENABLE_SYNC
+
     struct MEGA_API CompletionState
     {
         std::string line;
@@ -251,14 +286,43 @@ namespace autocomplete {
     bool autoExec(const std::string line, size_t insertPos, ACN syntax, bool unixStyle, string& consoleOutput, bool reportNoMatch);
 
     // functions to bulid command descriptions
-    ACN either(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr, ACN n11 = nullptr, ACN n12 = nullptr, ACN n13 = nullptr);
-    ACN sequence(ACN n1 = nullptr, ACN n2 = nullptr, ACN n3 = nullptr, ACN n4 = nullptr, ACN n5 = nullptr, ACN n6 = nullptr, ACN n7 = nullptr, ACN n8 = nullptr, ACN n9 = nullptr, ACN n10 = nullptr);
+
+    template<typename... Args>
+    ACN either(Args&&... args)
+    {
+        static_assert((std::is_same_v<std::decay_t<Args>, ACN> && ...),
+                      "All arguments must be of type ACN");
+        auto n = std::make_shared<Either>();
+        (n->Add(std::forward<Args>(args)), ...);
+        return n;
+    }
+
+    template<typename... Args>
+    ACN sequence(ACN n1, Args&&... args)
+    {
+        static_assert((std::is_same_v<std::decay_t<Args>, ACN> && ...),
+                      "All arguments must be of type ACN");
+        if constexpr (sizeof...(args) == 0)
+        {
+            return n1;
+        }
+        else
+        {
+            static const auto sequenceBuilder = [](ACN n1, ACN n2) -> ACN
+            {
+                return n2 ? std::make_shared<Sequence>(n1, n2) : n1;
+            };
+            return sequenceBuilder(n1, sequence(std::forward<Args>(args)...));
+        }
+    }
+
     ACN text(const std::string s);
     ACN param(const std::string s);
     ACN flag(const std::string s);
     ACN opt(ACN n);
     ACN repeat(ACN n);
     ACN exportedLink(bool file = true, bool folder = true);
+    ACN wholenumber(const std::string& description, size_t defaultValue);
     ACN wholenumber(size_t defaultvalue);
     ACN localFSPath(const std::string descriptionPrefix = "");
     ACN localFSFile(const std::string descriptionPrefix = "");

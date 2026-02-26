@@ -92,13 +92,14 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     upgrade_pending_to_full = cupgrade_pending_to_full;
     remove_key = okremoved;
 
-    if (ckey)
+    if (ckey && !SymmCipher::isZeroKey(ckey, SymmCipher::BLOCKSIZE))
     {
         memcpy(key, ckey, sizeof key);
         have_key = 1;
     }
     else
     {
+        memset(key, 0, sizeof key);
         have_key = 0;
     }
 
@@ -109,6 +110,7 @@ NewShare::NewShare(handle ch, int coutgoing, handle cpeer, accesslevel_t caccess
     }
     else
     {
+        memset(auth, 0, sizeof auth);
         have_auth = 0;
     }
 }

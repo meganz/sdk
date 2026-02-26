@@ -1,0 +1,29 @@
+diff --git a/image/encode/strenc.c b/image/encode/strenc.c
+index d6e970e..1a7e0b2 100644
+--- a/image/encode/strenc.c
++++ b/image/encode/strenc.c
+@@ -482,11 +482,22 @@ Int StrIOEncInit(CWMImageStrCodec* pSC)
+                 pSC->ppTempFile[i] = (char *)malloc(FILENAME_MAX * sizeof(char));
+                 if(pSC->ppTempFile[i] == NULL) return ICERR_ERROR;
+ 
+-                if ((pFilename = tmpnam(NULL)) == NULL)
++                char tmpnambuf[] = {'f', 'i', 'l', 'e', 'X', 'X', 'X', 'X', 'X', 'X', '\0'};
++                int fileDescriptor = mkstemp(tmpnambuf);
++                if (fileDescriptor == -1)
+                     return ICERR_ERROR;                
++                close(fileDescriptor);
+                 strcpy(pSC->ppTempFile[i], pFilename);
+ #endif
+-                if(CreateWS_File(pSC->ppWStream + i, pFilename, "w+b") != ICERR_OK) return ICERR_ERROR;                
++                if(CreateWS_File(pSC->ppWStream + i, pFilename, "w+b") != ICERR_OK)
++                {
++                #ifdef _WINDOWS_
++                    DeleteFileA(pFilename);
++                #else
++                    remove(pFilename);
++                #endif
++                    return ICERR_ERROR;
++                }
+ 
+             }
+             else {

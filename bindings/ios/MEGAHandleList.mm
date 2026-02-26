@@ -43,6 +43,17 @@ using namespace mega;
     return self;
 }
 
+- (instancetype)initWithMemoryOwn:(BOOL)cMemoryOwn {
+    self = [super init];
+    
+    if (self != nil) {
+        _megaHandleList = MegaHandleList::createInstance();
+        _cMemoryOwn = cMemoryOwn;
+    }
+    
+    return self;
+}
+
 - (instancetype)initWithMegaHandleList:(MegaHandleList *)megaHandleList cMemoryOwn:(BOOL)cMemoryOwn {
     self = [super init];
     
@@ -58,10 +69,6 @@ using namespace mega;
     if (self.cMemoryOwn) {
         delete _megaHandleList;
     }
-}
-
-- (instancetype)clone {
-    return self.megaHandleList ? [[MEGAHandleList alloc] initWithMegaHandleList:self.megaHandleList cMemoryOwn:YES] : nil;
 }
 
 - (MegaHandleList *)getCPtr {

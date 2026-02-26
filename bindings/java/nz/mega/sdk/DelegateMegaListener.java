@@ -15,10 +15,6 @@
  */
 package nz.mega.sdk;
 
-import nz.mega.sdk.MegaApi;
-import nz.mega.sdk.MegaApiJava;
-import nz.mega.sdk.MegaRequest;
-
 import java.util.ArrayList;
 
 /**
@@ -317,27 +313,6 @@ class DelegateMegaListener extends MegaListener {
         }
     }
     
-    /**
-     * This function is called when an inconsistency is detected in the local cache.
-     * <p>
-     * You should call MegaApiJava.fetchNodes() when this callback is received.
-     *
-     * @param api
-     *            API object that started the request.
-     * @see MegaGlobalListenerInterface#onReloadNeeded(MegaApiJava api)
-     * @see MegaListener#onReloadNeeded(MegaApi api)
-     */
-    @Override
-    public void onReloadNeeded(MegaApi api) {
-        if (listener != null) {
-            megaApi.runCallback(new Runnable() {
-                public void run() {
-                    listener.onReloadNeeded(megaApi);
-                }
-            });
-        }
-    }
-
     @Override
     public void onAccountUpdate(MegaApi api) {
         if (listener != null) {
@@ -368,6 +343,67 @@ class DelegateMegaListener extends MegaListener {
             megaApi.runCallback(new Runnable() {
                 public void run() {
                     listener.onEvent(megaApi, megaEvent);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onSetsUpdate(MegaApi api, MegaSetList setList){
+        if (listener != null) {
+            final ArrayList<MegaSet> sets = MegaApiJava.megaSetListToArray(setList);
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSetsUpdate(megaApi, sets);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onSetElementsUpdate(MegaApi api, MegaSetElementList elementList){
+        if (listener != null) {
+            final ArrayList<MegaSetElement> elements = MegaApiJava.megaSetElementListToArray(elementList);
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSetElementsUpdate(megaApi, elements);
+                }
+            });
+        }
+    }
+
+
+    @Override
+    public void onSyncDeleted(MegaApi api, MegaSync sync) {
+        if (listener != null) {
+            final MegaSync megaSync = sync.copy();
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSyncDeleted(megaApi, megaSync);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onSyncStatsUpdated(MegaApi api, MegaSyncStats stats) {
+        if (listener != null) {
+            final MegaSyncStats megaStats = stats.copy();
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSyncStatsUpdated(megaApi, megaStats);
+                }
+            });
+        }
+    }
+
+    @Override
+    public void onSyncStateChanged(MegaApi api, MegaSync sync) {
+        if (listener != null) {
+            final MegaSync megaSync = sync.copy();
+            megaApi.runCallback(new Runnable() {
+                public void run() {
+                    listener.onSyncStateChanged(megaApi, megaSync);
                 }
             });
         }

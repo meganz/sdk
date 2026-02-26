@@ -19,9 +19,8 @@
  * program.
  */
 #import <UIKit/UIKit.h>
-#import "MWPhotoBrowser.h"
 #import "MEGASdkManager.h"
 
-@interface OfflineTableViewController : UITableViewController <MWPhotoBrowserDelegate, MEGATransferDelegate>
+@interface OfflineTableViewController : UITableViewController <MEGATransferDelegate>
 
 @end

@@ -6,9 +6,7 @@
  * Created: 2015-07-09 Guy K. Kloss <gk@mega.co.nz>
  * Changed:
  *
- * (c) 2015 by Mega Limited, Auckland, New Zealand
- *     https://mega.nz/
- *     Simplified (2-clause) BSD License.
+ * (c) Simplified (2-clause) BSD License.
  *
  * You should have received a copy of the license along with this
  * program.
@@ -56,7 +54,7 @@ public class CrudExample implements MegaRequestListenerInterface,
 
     /**
      * Mega SDK application key.
-     * Generate one for free here: https://mega.nz/#sdk
+     * Generate one for free here: https://mega.io/developers
      */
     static final String APP_KEY = "YYJwAIRI";
     
@@ -163,7 +161,16 @@ public class CrudExample implements MegaRequestListenerInterface,
         // Upload a file (create).
         log.info("*** start: upload ***");
         synchronized(myListener.continueEvent) {
-            megaApi.startUpload("README.md", cwd, myListener);
+            megaApi.startUpload("README.md"
+            , cwd   /*parent node*/
+            , null  /*filename*/
+            , 0     /*mtime*/
+            , null  /*appData*/
+            , false /*isSourceTemporary*/
+            , false /*startFirst*/
+            , null  /*cancelToken*/
+            , myListener);
+
             while (!myListener.wasSignalled) {
                 try {
                     myListener.continueEvent.wait();
@@ -180,7 +187,16 @@ public class CrudExample implements MegaRequestListenerInterface,
         node = megaApi.getNodeByPath("README.md", cwd);
         if (node != null) {
             synchronized(myListener.continueEvent) {
-                megaApi.startDownload(node, "README_returned.md", myListener);
+                megaApi.startDownload(node
+                , "README_returned.md" /*local path*/
+                , null 		/*custom name*/
+                , null			/*app data*/
+                , false		/*start first*/
+                , null			/*cancel token*/
+                , MegaTransfer.COLLISION_CHECK_FINGERPRINT /* collisionCheck*/
+                , MegaTransfer.COLLISION_RESOLUTION_NEW_WITH_N /* collisionResolution*/
+                , myListener);
+
                 while (!myListener.wasSignalled) {
                     try {
                         myListener.continueEvent.wait();
@@ -201,7 +217,16 @@ public class CrudExample implements MegaRequestListenerInterface,
         log.info("*** start: update ***");
         MegaNode oldNode = megaApi.getNodeByPath("README.md", cwd);
         synchronized(myListener.continueEvent) {
-            megaApi.startUpload("README.md", cwd, myListener);
+            megaApi.startUpload("README.md"
+            , cwd   /*parent node*/
+            , null  /*filename*/
+            , 0     /*mtime*/
+            , null  /*appData*/
+            , false /*isSourceTemporary*/
+            , false /*startFirst*/
+            , null  /*cancelToken*/
+            , myListener);
+
             while (!myListener.wasSignalled) {
                 try {
                     myListener.continueEvent.wait();

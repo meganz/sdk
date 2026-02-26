@@ -27,6 +27,8 @@
 #import "MEGAUserAlertList+init.h"
 #import "MEGAContactRequestList+init.h"
 #import "MEGAEvent+init.h"
+#import "MEGASet+init.h"
+#import "MEGASetElement+init.h"
 
 using namespace mega;
 
@@ -173,6 +175,66 @@ void DelegateMEGAListener::onNodesUpdate(mega::MegaApi *api, mega::MegaNodeList 
             [tempListener onNodesUpdate:tempMegaSDK nodeList:(tempNodesList ? [[MEGANodeList alloc] initWithNodeList:tempNodesList cMemoryOwn:YES] : nil)];
         });
     }
+}
+
+void DelegateMEGAListener::onSetsUpdate(mega::MegaApi *api, mega::MegaSetList *setList) {
+    if (listener == nil || ![listener respondsToSelector:@selector(onSetsUpdate:sets:)]) {
+        return;
+    }
+
+    MEGASdk *tempMegaSDK = this->megaSDK;
+    id<MEGADelegate> tempListener = this->listener;
+
+    int size = 0;
+    if (setList) {
+        size = setList->size();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [tempListener onSetsUpdate:tempMegaSDK sets:nil];
+        });
+        return;
+    }
+
+    NSMutableArray<MEGASet *> *sets = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        MEGASet *megaSet = [[MEGASet alloc] initWithMegaSet:setList->get(i)->copy() cMemoryOwn:YES];
+        [sets addObject:megaSet];
+    }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [tempListener onSetsUpdate:tempMegaSDK sets:[sets copy]];
+    });
+}
+
+void DelegateMEGAListener::onSetElementsUpdate(mega::MegaApi* api, mega::MegaSetElementList* setElementList) {
+    if (listener == nil || ![listener respondsToSelector:@selector(onSetElementsUpdate:setElements:)]) {
+        return;
+    }
+
+    MEGASdk *tempMegaSDK = this->megaSDK;
+    id<MEGADelegate> tempListener = this->listener;
+
+    int size = 0;
+    if (setElementList) {
+        size = setElementList->size();
+    } else {
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [tempListener onSetElementsUpdate:tempMegaSDK setElements:nil];
+        });
+        return;
+    }
+
+    NSMutableArray<MEGASetElement *> *setsElements = [[NSMutableArray alloc] initWithCapacity:size];
+    
+    for (int i = 0; i < size; i++) {
+        MEGASetElement *megaSetElement = [[MEGASetElement alloc] initWithMegaSetElement:setElementList->get(i)->copy() cMemoryOwn:YES];
+        [setsElements addObject:megaSetElement];
+    }
+    
+    dispatch_async(dispatch_get_main_queue(), ^{
+        [tempListener onSetElementsUpdate:tempMegaSDK setElements:[setsElements copy]];
+    });
 }
 
 void DelegateMEGAListener::onAccountUpdate(mega::MegaApi *api) {

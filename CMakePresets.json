@@ -1,0 +1,187 @@
+{
+    "version": 2,
+    "configurePresets": [
+        {
+            "name": "default",
+            "hidden": true,
+            "binaryDir": "${sourceParentDir}/build-${sourceDirName}-${presetName}",
+            "cacheVariables": {
+                "VCPKG_ROOT": "${sourceParentDir}/vcpkg"
+            }
+        },
+        {
+            "name": "unix",
+            "hidden": true,
+            "generator": "Unix Makefiles"
+        },
+        {
+            "name": "windows",
+            "hidden": true,
+            "generator": "Visual Studio 17 2022"
+        },
+        {
+            "name": "android",
+            "hidden": true,
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_SYSTEM_NAME": "Android",
+                "VCPKG_CHAINLOAD_TOOLCHAIN_FILE": "$env{ANDROID_NDK_HOME}/build/cmake/android.toolchain.cmake",
+                "ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY": "ON"
+            }
+        },
+        {
+            "name": "ios",
+            "hidden": true,
+            "inherits": "unix",
+            "cacheVariables": {
+                "CMAKE_SYSTEM_NAME": "iOS"
+            }
+        },
+        {
+            "name": "dev",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ASAN": "OFF",
+                "ENABLE_C_ARES_BACKEND": "OFF",
+                "ENABLE_CHAT": "OFF",
+                "ENABLE_DRIVE_NOTIFICATIONS": "OFF",
+                "ENABLE_ISOLATED_GFX": "ON",
+                "ENABLE_JAVA_BINDINGS": "OFF",
+                "ENABLE_LOG_PERFORMANCE": "OFF",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
+                "ENABLE_QT_BINDINGS": "OFF",
+                "ENABLE_SDKLIB_EXAMPLES": "ON",
+                "ENABLE_SDKLIB_TESTS": "ON",
+                "ENABLE_SDKLIB_WERROR": "ON",
+                "ENABLE_SYNC": "ON",
+                "ENABLE_TSAN": "OFF",
+                "ENABLE_UBSAN": "OFF"
+            }
+        },
+        {
+            "name": "mega",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_MEDIA_FILE_METADATA" : "ON"
+            }
+        },
+        {
+            "name": "megasync",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "ON",
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
+                "ENABLE_QT_BINDINGS": "ON",
+                "USE_LIBUV": "ON"
+            }
+        },
+        {
+            "name": "megacmd",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "OFF",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
+                "USE_LIBUV": "ON",
+                "WITH_FUSE": "ON"
+            }
+        },
+        {
+            "name": "megaproxy",
+            "hidden": true,
+            "inherits": "default",
+            "cacheVariables": {
+                "ENABLE_ISOLATED_GFX": "OFF",
+                "ENABLE_LOG_PERFORMANCE": "ON",
+                "ENABLE_MEDIA_FILE_METADATA" : "ON",
+                "ENABLE_SYNC": "OFF",
+                "USE_LIBUV": "OFF",
+                "USE_READLINE": "OFF"
+            }
+        },
+        {
+            "name": "megavpn",
+            "hidden": true,
+            "inherits": "default"
+        },
+        {
+            "name": "dev-unix",
+            "inherits": [
+                "dev",
+                "unix"
+            ]
+        },
+        {
+            "name": "dev-windows",
+            "inherits": [
+                "dev",
+                "windows"
+            ]
+        },
+        {
+            "name": "mega-android",
+            "inherits": [
+                "mega",
+                "android"
+            ]
+        },
+        {
+            "name": "mega-ios",
+            "inherits": [
+                "mega",
+                "ios"
+            ]
+        },
+        {
+            "name": "megasync-unix",
+            "inherits": [
+                "megasync",
+                "unix"
+            ]
+        },
+        {
+            "name": "megasync-windows",
+            "inherits": [
+                "megasync",
+                "windows"
+            ]
+        },
+        {
+            "name": "megacmd-unix",
+            "inherits": [
+                "megacmd",
+                "unix"
+            ]
+        },
+        {
+            "name": "megacmd-windows",
+            "inherits": [
+                "megacmd",
+                "windows"
+            ]
+        },
+        {
+            "name": "megaproxy-unix",
+            "inherits": [
+                "megaproxy",
+                "unix"
+            ]
+        },
+        {
+            "name": "megavpn-android",
+            "inherits": [
+                "megavpn",
+                "android"
+            ],
+            "cacheVariables": {
+                "ENABLE_CHAT": "OFF",
+                "ENABLE_SYNC": "OFF",
+                "USE_LIBUV": "OFF"
+            }
+        }
+    ]
+}

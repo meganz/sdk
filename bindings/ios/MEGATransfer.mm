@@ -50,10 +50,6 @@ using namespace mega;
     }
 }
 
-- (instancetype)clone {
-    return self.megaTransfer ? [[MEGATransfer alloc] initWithMegaTransfer:self.megaTransfer->copy() cMemoryOwn:YES] : nil;
-}
-
 - (MegaTransfer *)getCPtr {
     return self.megaTransfer;
 }
@@ -62,33 +58,33 @@ using namespace mega;
     return (MEGATransferType) (self.megaTransfer ? self.megaTransfer->getType() : 0);
 }
 
-- (NSString *)transferString {
+- (nullable NSString *)transferString {
     if (!self.megaTransfer) return nil;
-    
+
     return self.megaTransfer->getTransferString() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getTransferString()] : nil;
 }
 
-- (NSDate *)startTime {
+- (nullable NSDate *)startTime {
     return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getStartTime()] : nil;
 }
 
-- (NSNumber *)transferredBytes {
-    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getTransferredBytes()] : nil;
+- (long long)transferredBytes {
+    return self.megaTransfer ? self.megaTransfer->getTransferredBytes() : 0;
 }
 
-- (NSNumber *)totalBytes {
-    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getTotalBytes()] : nil;
+- (long long)totalBytes {
+    return self.megaTransfer ? self.megaTransfer->getTotalBytes() : 0;
 }
 
-- (NSString *)path {
+- (nullable NSString *)path {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer->getPath() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getPath()] : nil;
 }
 
-- (NSString *)parentPath {
+- (nullable NSString *)parentPath {
     if (!self.megaTransfer) return nil;
-    
+
     return self.megaTransfer->getParentPath() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getParentPath()] : nil;
 }
 
@@ -100,17 +96,17 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getParentHandle() : ::mega::INVALID_HANDLE;
 }
 
-- (NSNumber *)startPos {
-    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getStartPos()] : nil;
+- (long long)startPos {
+    return self.megaTransfer ? self.megaTransfer->getStartPos() : 0;
 }
 
-- (NSNumber *)endPos {
-    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getEndPos()] : nil;
+- (long long)endPos {
+    return self.megaTransfer ? self.megaTransfer->getEndPos() : 0;
 }
 
-- (NSString *)fileName {
+- (nullable NSString *)fileName {
     if (!self.megaTransfer) return nil;
-    
+
     return self.megaTransfer->getFileName() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getFileName()] : nil;
 }
 
@@ -126,27 +122,42 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getTag() : 0;
 }
 
-- (NSNumber *)speed {
-    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getSpeed()] : nil;
+- (long long)speed {
+    return self.megaTransfer ? self.megaTransfer->getSpeed() : 0;
 }
 
-- (NSNumber *)deltaSize {
-    return self.megaTransfer ? [[NSNumber alloc] initWithLongLong:self.megaTransfer->getDeltaSize()] : nil;
+- (long long)deltaSize {
+    return self.megaTransfer ? self.megaTransfer->getDeltaSize() : 0;
 }
 
-- (NSDate *)updateTime {
+- (nullable NSDate *)updateTime {
     return self.megaTransfer ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaTransfer->getUpdateTime()] : nil;
 }
 
-- (MEGANode *)publicNode {
-    return (self.megaTransfer && self.megaTransfer->getPublicMegaNode()) ? [[MEGANode alloc] initWithMegaNode:self.megaTransfer->getPublicMegaNode() cMemoryOwn:YES] : nil;
+- (nullable MEGANode *)publicNode {
+    if (self.megaTransfer) {
+        MegaNode *n = self.megaTransfer->getPublicMegaNode();
+        if (n) {
+            MEGANode *node = [[MEGANode alloc] initWithMegaNode:n cMemoryOwn:YES];
+            return node;
+        }
+    }
+    return nil;
 }
 
 - (BOOL)isStreamingTransfer {
     return self.megaTransfer ? (BOOL) self.megaTransfer->isStreamingTransfer() : NO;
 }
 
-- (MEGAError *)lastErrorExtended {
+- (BOOL)isFinished {
+    return self.megaTransfer ? self.megaTransfer->isFinished() : NO;
+}
+
+- (BOOL)isForeignOverquota {
+    return self.megaTransfer ? self.megaTransfer->isForeignOverquota() : NO;
+}
+
+- (nullable MEGAError *)lastErrorExtended {
     mega::MegaError *e = (mega::MegaError *)self.megaTransfer->getLastErrorExtended();
     return e ? [[MEGAError alloc] initWithMegaError:e cMemoryOwn:NO] : nil;
 }
@@ -159,7 +170,7 @@ using namespace mega;
     return self.megaTransfer ? self.megaTransfer->getFolderTransferTag() : 0;
 }
 
-- (NSString *)appData {
+- (nullable NSString *)appData {
     if (!self.megaTransfer) return nil;
     
     return self.megaTransfer->getAppData() ? [[NSString alloc] initWithUTF8String:self.megaTransfer->getAppData()] : nil;
@@ -169,8 +180,25 @@ using namespace mega;
     return (MEGATransferState) (self.megaTransfer ? self.megaTransfer->getState() : 0);
 }
 
+- (MEGATransferStage)stage {
+    return (MEGATransferStage) (self.megaTransfer ? self.megaTransfer->getStage() : 0);
+}
+
 - (unsigned long long)priority {
     return self.megaTransfer ? self.megaTransfer->getPriority() : 0;
+}
+
++ (nullable NSString *)stringForTransferStage:(MEGATransferStage)stage {
+    const char *stageString = MegaTransfer::stageToString((unsigned) stage);
+    return stageString ? [NSString stringWithUTF8String:stageString] : nil;
+}
+
+- (long long)notificationNumber {
+    return self.megaTransfer ? self.megaTransfer->getNotificationNumber() : 0;
+}
+
+- (BOOL)targetOverride {
+    return self.megaTransfer ? self.megaTransfer->getTargetOverride() : NO;
 }
 
 @end

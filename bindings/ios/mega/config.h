@@ -28,6 +28,9 @@
 /* Define to 1 if you have the `inotify_init' function.
 #define HAVE_INOTIFY_INIT 1*/
 
+/* Defined if std::int64_t and time_t are distinct. */
+#define HAVE_DISTINCT_TIME_T 1
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
@@ -139,8 +142,6 @@
 
 #define USE_PTHREAD 1
 
-#define USE_ARES 1
-
 #define USE_IOS 1
 
 #define HAVE_LIBUV 1
@@ -151,14 +152,8 @@
 
 #define UNICODE 1
 
-/* Define to use Berkeley DB */
-#define USE_DB 0
-
 /* Use inotify API
 #define USE_INOTIFY 1*/
-
-/* Define to use OpenSSL */
-#define USE_OPENSSL 1
 
 /* Define to use SQLite */
 #define USE_SQLITE 1
