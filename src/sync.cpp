@@ -11314,8 +11314,11 @@ bool Sync::resolve_downsync(SyncRow& row,
                                   << "Insufficient space available for download: "
                                   << logTriplet(row, fullPath);
 
-                        changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
-                        syncs.mHeartBeatMonitor->updateOrRegisterSync(mUnifiedSync);
+                        {
+                            lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+                            changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
+                            syncs.mHeartBeatMonitor->updateOrRegisterSync(mUnifiedSync);
+                        }
 
                         return false;
                     }
