@@ -751,26 +751,17 @@ struct LoggerVoidify
     void operator&(SimpleLogger&) {}
 };
 
-#define LOG_verbose \
-    ::mega::SimpleLogger::getLogLevel() < ::mega::logMax ? (void)0 : \
-        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logVerbose, ::mega::log_file_leafname(__FILE__), __LINE__)
+#define LOG_level(LOG_LEVEL) \
+    ::mega::SimpleLogger::getLogLevel() < (LOG_LEVEL) ? \
+        (void)0 : \
+        ::mega::LoggerVoidify() & \
+            ::mega::SimpleLogger((LOG_LEVEL), ::mega::log_file_leafname(__FILE__), __LINE__)
 
-#define LOG_debug \
-    ::mega::SimpleLogger::getLogLevel() < ::mega::logDebug ? (void)0 : \
-        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logDebug, ::mega::log_file_leafname(__FILE__), __LINE__)
-
-#define LOG_info \
-    ::mega::SimpleLogger::getLogLevel() < ::mega::logInfo ? (void)0 : \
-        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logInfo, ::mega::log_file_leafname(__FILE__), __LINE__)
-
-#define LOG_warn \
-    ::mega::SimpleLogger::getLogLevel() < ::mega::logWarning ? (void)0 : \
-        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logWarning, ::mega::log_file_leafname(__FILE__), __LINE__)
-
-#define LOG_err \
-    ::mega::SimpleLogger::getLogLevel() < ::mega::logError ? (void)0 : \
-        ::mega::LoggerVoidify() & ::mega::SimpleLogger(::mega::logError, ::mega::log_file_leafname(__FILE__), __LINE__)
-
+#define LOG_verbose LOG_level(::mega::logVerbose)
+#define LOG_debug LOG_level(::mega::logDebug)
+#define LOG_info LOG_level(::mega::logInfo)
+#define LOG_warn LOG_level(::mega::logWarning)
+#define LOG_err LOG_level(::mega::logError)
 #define LOG_fatal \
     ::mega::SimpleLogger(::mega::logFatal, ::mega::log_file_leafname(__FILE__), __LINE__)
 
