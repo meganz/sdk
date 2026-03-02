@@ -240,6 +240,29 @@ std::optional<std::vector<std::string>> getCloudFirstChildrenNames(MegaApi* mega
     return toNamesVector(*childrenNodeList);
 }
 
+std::pair<std::optional<std::vector<ChildNameAndFingerprint>>, std::unique_ptr<MegaNodeList>>
+    getCloudFirstChildrenNamesAndFingerprints(MegaApi* megaApi, const MegaHandle nodeHandle)
+{
+    if (!megaApi || nodeHandle == UNDEF)
+        return {std::nullopt, nullptr};
+    std::unique_ptr<MegaNode> rootNode{megaApi->getNodeByHandle(nodeHandle)};
+    if (!rootNode)
+        return {std::nullopt, nullptr};
+    std::unique_ptr<MegaNodeList> childrenNodeList{megaApi->getChildren(rootNode.get())};
+    if (!childrenNodeList)
+        return {std::nullopt, nullptr};
+
+    auto namesFpsVector = toNamesAndFingerprintVector(*childrenNodeList);
+    if (namesFpsVector.size() != static_cast<size_t>(childrenNodeList->size()))
+    {
+        assert(false &&
+               "getCloudFirstChildrenNameAndFingerprint: invalid names and size vector length ");
+        return {std::nullopt, nullptr};
+    }
+
+    return {std::move(namesFpsVector), std::move(childrenNodeList)};
+}
+
 void getDeviceNames(MegaApi* megaApi, std::unique_ptr<MegaStringMap>& output)
 {
     NiceMock<MockRequestListener> rl{megaApi};

@@ -333,4 +333,34 @@ std::vector<std::string>
     std::for_each(begin(children), end(children), pushName);
     return result;
 }
+
+std::vector<ChildNameAndFingerprint>
+    getLocalFirstChildrenNamesAndFingerprints_if(::mega::MegaApi* megaApi,
+                                                 const std::filesystem::path& localPath,
+                                                 std::function<bool(const std::string&)> filter)
+{
+    if (!std::filesystem::is_directory(localPath))
+        return {};
+    std::vector<ChildNameAndFingerprint> result;
+    const auto pushNameAndFp = [&result, &filter, megaApi](const std::filesystem::path& path)
+    {
+        const auto name = path.filename().string();
+        if (!filter || filter(name))
+        {
+            std::optional<std::string> fingerprint;
+
+            std::error_code ec;
+            if (std::filesystem::is_regular_file(path, ec) && !ec)
+            {
+                std::unique_ptr<char[]> fp{megaApi->getFingerprint(path_u8string(path).c_str())};
+                fingerprint = std::string(fp.get());
+            }
+
+            result.emplace_back(std::move(name), std::move(fingerprint));
+        }
+    };
+    std::filesystem::directory_iterator children{localPath};
+    std::for_each(begin(children), end(children), pushNameAndFp);
+    return result;
+}
 }

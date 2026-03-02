@@ -76,17 +76,35 @@ public:
 
     /**
      * @brief Waits until all direct successors from both remote and local roots of the sync match.
+     * Name and fingerprint are compared for the match by default.
      *
      * Asserts false if a timeout is exceeded.
+     *
+     * @param useFingerprint If false, the nodes are matched only using the name.
      */
-    void waitForSyncToMatchCloudAndLocal() const
+    void waitForSyncToMatchCloudAndLocal(const bool useFingerprint = true) const
     {
-        const auto areLocalAndCloudSynched = [this]() -> bool
+        const auto areLocalAndCloudSynched = [this, useFingerprint]() -> bool
         {
-            const auto childrenCloudName =
-                getCloudFirstChildrenNames(megaApi[0].get(), getSync()->getMegaHandle());
-            return childrenCloudName && Value(getLocalFirstChildrenNames(),
-                                              UnorderedElementsAreArray(*childrenCloudName));
+            if (!useFingerprint)
+            {
+                const auto childrenCloudNames =
+                    getCloudFirstChildrenNames(megaApi[0].get(), getSync()->getMegaHandle());
+                const auto childrenLocalNames = getLocalFirstChildrenNames();
+                return childrenCloudNames &&
+                       Value(childrenLocalNames, UnorderedElementsAreArray(*childrenCloudNames));
+            }
+            else
+            {
+                const auto [childrenCloudNamesAndFingerprints, _] =
+                    getCloudFirstChildrenNamesAndFingerprints(megaApi[0].get(),
+                                                              getSync()->getMegaHandle());
+                const auto childrenLocalNamesAndFingerprints =
+                    getLocalFirstChildrenNamesAndFingerprints(megaApi[0].get());
+                return childrenCloudNamesAndFingerprints &&
+                       Value(childrenLocalNamesAndFingerprints,
+                             UnorderedElementsAreArray(*childrenCloudNamesAndFingerprints));
+            }
         };
         ASSERT_TRUE(waitFor(areLocalAndCloudSynched, MAX_TIMEOUT, 10s));
     }
@@ -104,6 +122,24 @@ public:
                                              {
                                                  return name.front() != '.' && name != DEBRISFOLDER;
                                              });
+    }
+
+    /**
+     * @brief Returns a vector with the names and fingerprints of the first successor
+     * files/directories inside the local root.
+     *
+     * Hidden files (starting with .) and the debris folder are excluded
+     */
+    std::vector<ChildNameAndFingerprint>
+        getLocalFirstChildrenNamesAndFingerprints(MegaApi* megaApi) const
+    {
+        return getLocalFirstChildrenNamesAndFingerprints_if(
+            megaApi,
+            getLocalSyncRoot().value_or(getLocalTmpDir()),
+            [](const std::string& name)
+            {
+                return name.front() != '.' && name != DEBRISFOLDER;
+            });
     }
 
     /**
@@ -567,7 +603,8 @@ TEST_F(SdkTestSyncLocalRootChange, OKSyncDisabledToSimilarRoot)
     ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId())) << "Error resuming the sync";
     ASSERT_EQ(getSyncRunState(), std::optional{MegaSync::RUNSTATE_RUNNING});
 
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal());
+    // Do not use fingerprints for the match. An stall is expected.
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocal(false));
 
     LOG_verbose << logPre << "Validating expectations";
     ASSERT_NO_FATAL_FAILURE(checkCurrentLocalMatchesMirror());
