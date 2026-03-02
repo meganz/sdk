@@ -1130,6 +1130,7 @@ struct MEGA_API LocalNode
 
     void setnameparent(LocalNode*, const LocalPath& newlocalpath, std::unique_ptr<LocalPath>);
     void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain);
+    void moveContentTo(LocalNode*, LocalPath&, bool setScanAgain, bool moveTransfer);
 
     LocalNode(Sync*);
     void init(nodetype_t, LocalNode*, const LocalPath&, std::unique_ptr<LocalPath>);

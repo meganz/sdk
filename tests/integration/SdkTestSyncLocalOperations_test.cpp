@@ -237,14 +237,13 @@ public:
         const auto targetOriginalHash = hashFileHex(localTmpPath() / target);
 
         std::filesystem::rename(localTmpPath() / source, localTmpPath() / target);
+        const std::filesystem::path sourcePath = localTmpPath() / source;
+        sdk_test::createRandomFile(sourcePath, 950);
+        const auto sourceNewHash = hashFileHex(localTmpPath() / source);
+
         auto rnFut = finishedRename.get_future();
         auto futureRnStatus = rnFut.wait_for(COMMON_TIMEOUT);
         ASSERT_EQ(futureRnStatus, std::future_status::ready) << "Timeout rename";
-
-        const std::filesystem::path sourcePath = localTmpPath() / source;
-        sdk_test::createRandomFile(sourcePath, 950);
-
-        const auto sourceNewHash = hashFileHex(localTmpPath() / source);
 
         auto trFut = finishedTransfer.get_future();
         auto trFilenameFut = gotFileName.get_future();
