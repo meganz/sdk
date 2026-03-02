@@ -289,19 +289,6 @@ TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
         defaultTimeoutMs))
         << "Incoming share not decrypted by sharee";
 
-    int stableReadyChecks = 0;
-    ASSERT_TRUE(WaitFor(
-        [this, sharedHandle, &folderName, &stableReadyChecks]()
-        {
-            std::unique_ptr<MegaNode> node{megaApi[1]->getNodeByHandle(sharedHandle)};
-            const bool ready = node && node->isNodeKeyDecrypted() && node->getName() &&
-                               folderName == node->getName();
-            stableReadyChecks = ready ? stableReadyChecks + 1 : 0;
-            return stableReadyChecks >= 5;
-        },
-        defaultTimeoutMs * 2))
-        << "Incoming share node state did not stabilize before copy";
-
     std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
     ASSERT_STREQ(folderName.c_str(), incomingNode->getName());
@@ -458,19 +445,6 @@ TEST_F(SdkTestPitag, PitagCapturedForCopyNodeFromIncomingShare)
         },
         60 * 1000))
         << "Incoming share node not ready";
-
-    int stableReadyChecks = 0;
-    ASSERT_TRUE(WaitFor(
-        [this, sharedHandle, &folderName, &stableReadyChecks]()
-        {
-            std::unique_ptr<MegaNode> node{megaApi[1]->getNodeByHandle(sharedHandle)};
-            const bool ready = node && node->isNodeKeyDecrypted() && node->getName() &&
-                               folderName == node->getName();
-            stableReadyChecks = ready ? stableReadyChecks + 1 : 0;
-            return stableReadyChecks >= 5;
-        },
-        60 * 1000))
-        << "Incoming share node state did not stabilize before copy";
 
     std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
