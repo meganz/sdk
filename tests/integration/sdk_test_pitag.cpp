@@ -308,11 +308,20 @@ TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
     ASSERT_TRUE(WaitFor(inShareAvailable, defaultTimeoutMs))
         << "Incoming share not received by sharee";
 
-    std::unique_ptr<MegaShareList> inShares{megaApi[1]->getInSharesList()};
-    ASSERT_TRUE(inShares && inShares->size() > 0);
-    const MegaHandle sharedHandle = inShares->get(0)->getNodeHandle();
+    const MegaHandle sharedHandle = folderNode->getHandle();
+    ASSERT_TRUE(WaitFor(
+        [this, sharedHandle, &folderName]()
+        {
+            std::unique_ptr<MegaNode> node{megaApi[1]->getNodeByHandle(sharedHandle)};
+            return node && node->isNodeKeyDecrypted() && node->getName() &&
+                   folderName == node->getName();
+        },
+        defaultTimeoutMs))
+        << "Incoming share not decrypted by sharee";
+
     std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
+    ASSERT_STREQ(folderName.c_str(), incomingNode->getName());
 
     const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_inshare.bin");
     const std::string localPathUtf8 = path_u8string(localFilePath);
@@ -456,11 +465,20 @@ TEST_F(SdkTestPitag, PitagCapturedForCopyNodeFromIncomingShare)
     ASSERT_TRUE(WaitFor(inShareAvailable, defaultTimeoutMs))
         << "Incoming share not received by sharee";
 
-    std::unique_ptr<MegaShareList> inShares{megaApi[1]->getInSharesList()};
-    ASSERT_TRUE(inShares && inShares->size() > 0);
-    const MegaHandle sharedHandle = inShares->get(0)->getNodeHandle();
+    const MegaHandle sharedHandle = folderNode->getHandle();
+    ASSERT_TRUE(WaitFor(
+        [this, sharedHandle, &folderName]()
+        {
+            std::unique_ptr<MegaNode> node{megaApi[1]->getNodeByHandle(sharedHandle)};
+            return node && node->isNodeKeyDecrypted() && node->getName() &&
+                   folderName == node->getName();
+        },
+        60 * 1000))
+        << "Incoming share node not ready";
+
     std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
+    ASSERT_STREQ(folderName.c_str(), incomingNode->getName());
 
     std::unique_ptr<MegaNode> shareeRoot{megaApi[1]->getRootNode()};
     ASSERT_TRUE(shareeRoot) << "Unable to get sharee root node";
