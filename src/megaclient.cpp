@@ -2208,6 +2208,8 @@ void MegaClient::installWsEngineCallbacks()
 {
     if (!m_wsEngine)
         return;
+
+    wsRefreshCanStartAnotherFileSnapshot();
     ws::UploadEngine::Callbacks cb;
 
     // Phase 2: minimal mutation + app notification
@@ -2218,7 +2220,7 @@ void MegaClient::installWsEngineCallbacks()
 
     cb.preflightStart = [this](Transfer& t) -> bool
     {
-        return prepareUploadForWs(t);
+        return wsPrepareUploadForWsSync(t);
     };
 
     cb.onStart = [this](Transfer& t)
@@ -2433,6 +2435,22 @@ void MegaClient::installWsEngineCallbacks()
                         c.wsEngine()->markFailed(tt, 0);
                     }
                     tt.failed(API_EAGAIN, committer);
+
+                    if (c.wsEngine())
+                    {
+                        // After failed(), align WS retry time to Transfer backoff.
+                        const auto afterIt = c.multi_transfers[type].find(tPtr);
+                        if (afterIt != c.multi_transfers[type].end() && afterIt->second &&
+                            (afterIt->second->uploadhandle == th))
+                        {
+                            dstime retryAt = afterIt->second->bt.nextset();
+                            if (!retryAt || retryAt == 1)
+                            {
+                                retryAt = c.waiter->ds;
+                            }
+                            c.wsEngine()->setRetryUntil(*afterIt->second, retryAt);
+                        }
+                    }
                     return;
                 }
 
@@ -2569,6 +2587,9 @@ void MegaClient::wsDrainClientActions(dstime maxExecTimeDs)
         LOG_debug << "Processed " << ctr_N << " WS requests in " << (waiter->ds - ctr_start)
                   << "ms, " << n << " WS requests outstanding";
     }
+
+    wsCleanupPreflightRequests();
+    wsRefreshCanStartAnotherFileSnapshot();
 }
 
 MegaClient::WsVerifyPending::WsVerifyPending(PrnGen& rng, Transfer& t):
@@ -2707,12 +2728,115 @@ void MegaClient::wsProcessVerifyUploads()
 
 bool MegaClient::wsCanStartAnotherFile() const
 {
-    if (ststatus == STORAGE_RED || ststatus == STORAGE_PAYWALL)
+    return mWsCanStartAnotherFile.load(std::memory_order_relaxed);
+}
+
+bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
+{
+    // Called by WS worker threads. Execute preflight on MegaClient thread and
+    // wait a short time for the result to keep WS worker behavior simple.
+    // Reuse a single in-flight future per (Transfer*, uploadhandle) so repeated
+    // checks don't enqueue duplicate preflight jobs.
+    Transfer* tp = &t;
+    const direction_t type = t.type;
+    const UploadHandle th = t.uploadhandle;
+
+    std::shared_future<bool> resultFuture;
+    std::shared_ptr<std::promise<bool>> resultPromise;
+
+    {
+        std::lock_guard<std::mutex> g(mWsPreflightMutex);
+        auto it = mWsPreflightRequests.find(tp);
+        const bool reuseRequest = (it != mWsPreflightRequests.end()) &&
+                                  (it->second.uploadHandle == th);
+        if (reuseRequest)
+        {
+            resultFuture = it->second.future;
+        }
+        else
+        {
+            if (it != mWsPreflightRequests.end())
+            {
+                mWsPreflightRequests.erase(it);
+            }
+
+            resultPromise = std::make_shared<std::promise<bool>>();
+            resultFuture = resultPromise->get_future().share();
+            mWsPreflightRequests.emplace(tp, WsPreflightRequest{th, resultFuture});
+        }
+    }
+
+    if (resultPromise)
+    {
+        wsPostToClientThread(
+            [tp, type, th, resultPromise](MegaClient& c, TransferDbCommitter&) mutable
+            {
+                bool ok = false;
+                if (tp)
+                {
+                    auto& transfers = c.multi_transfers[type];
+                    const auto it = transfers.find(tp);
+                    if (it != transfers.end() && (th.isUndef() || (tp->uploadhandle == th)))
+                    {
+                        ok = c.prepareUploadForWs(*tp);
+                    }
+                }
+                resultPromise->set_value(ok);
+            });
+    }
+
+    if (resultFuture.wait_for(std::chrono::milliseconds(50)) != std::future_status::ready)
+    {
         return false;
-    // Same semantics as legacy FA back‑pressure.
-    LOG_debug << "[MegaClient::wsCanStartAnotherFile] queuedfa.size() < MAXQUEUEDFA -> "
-              << queuedfa.size() << " < " << MAXQUEUEDFA;
-    return queuedfa.size() < MAXQUEUEDFA;
+    }
+
+    // Consume ready result atomically with map erase so only one caller can
+    // use this preflight outcome.
+    bool canConsume = false;
+    {
+        std::lock_guard<std::mutex> g(mWsPreflightMutex);
+        const auto it = mWsPreflightRequests.find(tp);
+        const bool mapFutureReady =
+            (it != mWsPreflightRequests.end()) &&
+            (it->second.uploadHandle == th) &&
+            it->second.future.valid();
+        if (mapFutureReady)
+        {
+            mWsPreflightRequests.erase(it);
+            canConsume = true;
+        }
+    }
+
+    if (!canConsume)
+    {
+        return false;
+    }
+    return resultFuture.get();
+}
+
+void MegaClient::wsCleanupPreflightRequests()
+{
+    std::lock_guard<std::mutex> g(mWsPreflightMutex);
+    for (auto it = mWsPreflightRequests.begin(); it != mWsPreflightRequests.end();)
+    {
+        Transfer* tp = it->first;
+        const bool alive = multi_transfers[PUT].find(tp) != multi_transfers[PUT].end();
+        if (!alive)
+        {
+            it = mWsPreflightRequests.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+}
+
+void MegaClient::wsRefreshCanStartAnotherFileSnapshot()
+{
+    const bool canStart = (ststatus != STORAGE_RED && ststatus != STORAGE_PAYWALL) &&
+                          (queuedfa.size() < MAXQUEUEDFA);
+    mWsCanStartAnotherFile.store(canStart, std::memory_order_relaxed);
 }
 
 bool MegaClient::prepareUploadForWs(Transfer& t)
@@ -2721,13 +2845,6 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
     {
         LOG_warn << "[MegaClient::prepareUploadForWs] preflight failed (" << reason
                  << ") [t.localfilename = " << t.localfilename << "]";
-
-        // Prevent hot-loop retries in the WS worker thread while the client thread
-        // processes the failure and applies standard transfer backoff.
-        if (wsEngine())
-        {
-            wsEngine()->markFailed(t, 0);
-        }
 
         Transfer* tp = &t;
         const direction_t type = t.type;
@@ -2754,7 +2871,100 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                     return;
                 }
 
+                // Mark the WS attempt as failed on the client thread.
+                // Calling wsEngine()->markFailed() from the WS worker thread can
+                // re-enter uploadMutex and deadlock.
+                if (c.wsEngine())
+                {
+                    c.wsEngine()->markFailed(*tp, 0);
+                }
+
                 tp->failed(API_EREAD, committer);
+
+                if (c.wsEngine())
+                {
+                    // After failed(), align WS retry time to Transfer backoff.
+                    const auto afterIt = transfers.find(tp);
+                    if (afterIt != transfers.end() && afterIt->second &&
+                        (th.isUndef() || (afterIt->second->uploadhandle == th)))
+                    {
+                        dstime retryAt = afterIt->second->bt.nextset();
+                        if (!retryAt || retryAt == 1)
+                        {
+                            retryAt = c.waiter->ds;
+                        }
+                        c.wsEngine()->setRetryUntil(*afterIt->second, retryAt);
+                    }
+                }
+            });
+    };
+
+    auto restartWsPreflightForModifiedFile = [this, &t]()
+    {
+        LOG_warn << "[MegaClient::prepareUploadForWs] local file changed before WS upload; "
+                    "resetting upload state and restarting without backoff"
+                 << " [t.localfilename = " << t.localfilename << "]";
+
+        Transfer* tp = &t;
+        const direction_t type = t.type;
+        const UploadHandle th = t.uploadhandle;
+        wsPostToClientThread(
+            [tp, type, th](MegaClient& c, TransferDbCommitter& committer)
+            {
+                if (!tp)
+                {
+                    return;
+                }
+
+                auto& transfers = c.multi_transfers[type];
+                const auto it = transfers.find(tp);
+                if (it == transfers.end())
+                {
+                    return;
+                }
+
+                if (!th.isUndef() && !(tp->uploadhandle == th))
+                {
+                    return;
+                }
+
+                if (c.wsEngine())
+                {
+                    // Reset worker-side per-attempt state and allow immediate retry.
+                    c.wsEngine()->markFailed(*tp, 0);
+                    c.wsEngine()->setRetryUntil(*tp, c.waiter->ds);
+                }
+
+                // Legacy-style restart: discard resume state instead of failing transfer.
+                tp->tempurls.clear();
+                tp->discardedTempUrlsSize = 0;
+                tp->chunkmacs.clear();
+                tp->setProgresscompleted(0);
+                tp->ultoken.reset();
+                tp->pos = 0;
+                tp->ws_session_url.clear();
+
+                // Refresh fingerprint once from transfer local file, then mirror
+                // to all attached file entries (same source content).
+                auto fa = c.fsaccess->newfileaccess();
+                if (fa->fopen(tp->localfilename, OPEN_RDONLY, FSLogging::logOnError))
+                {
+                    tp->genfingerprint(fa.get());
+
+                    for (auto fit = tp->files.begin(); fit != tp->files.end(); ++fit)
+                    {
+                        auto* f = *fit;
+                        if (!f)
+                        {
+                            continue;
+                        }
+
+                        static_cast<FileFingerprint&>(*f) =
+                            static_cast<const FileFingerprint&>(*tp);
+                    }
+                }
+
+                c.transfercacheadd(tp, &committer);
             });
     };
 
@@ -2814,7 +3024,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                      << " Mtime: " << t.mtime
                      << " FaSize: " << fa->size
                      << " FaMtime: " << fa->mtime;
-            failWsPreflightRead("mtime/size mismatch");
+            restartWsPreflightForModifiedFile();
             return false;
         }
     }
@@ -4999,8 +5209,9 @@ void MegaClient::dispatchTransfers()
             return maxSize;
         }
 
-        // Use an expontential function to obtain a very low growth rate before the threshold
-        m_off_t throughputInKBPerSec = std::min<m_off_t>(httpio->downloadSpeed / 1024, minScalingFactor); // KB/s
+        // Keep throughput within the calibrated range for this model.
+        const m_off_t throughputInKBPerSec =
+            std::clamp<m_off_t>((httpio ? httpio->downloadSpeed : 0) / 1024, minScalingFactor, maxScalingFactor); // KB/s
         const double reductiveGrowthMultiplier = 0.12; // This allows us to keep the scaling factor within a very low growth rate
         double scaleFactor = (static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor)) * reductiveGrowthMultiplier;
         double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));

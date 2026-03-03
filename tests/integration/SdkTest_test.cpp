@@ -19028,6 +19028,127 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
 
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
 }
+
+TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool)
+{
+    LOG_info << "___TEST SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_invalid_pinned_detach_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    ASSERT_TRUE(createFile(fileName, true)) << "Couldn't create " << fileName;
+
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    megaApi[0]->setMaxUploadSpeed(500000);
+    onTransferUpdate_progress = 0;
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName,
+                            rootnode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &ut /*listener*/);
+
+    second_timer timer;
+    while (!ut.finished && !ut.started && timer.elapsed() < 90)
+    {
+        WaitMillisec(100);
+    }
+
+    ASSERT_TRUE(ut.started) << "Upload did not start in time";
+    ASSERT_FALSE(ut.finished) << "Upload ended too early, with " << ut.waitForResult();
+
+    WsUploadTransferSnapshot beforeOverride{};
+    bool gotBeforeOverride = false;
+    second_timer snapshotTimer;
+    while (snapshotTimer.elapsed() < 20)
+    {
+        if (fetchFirstUploadTransferSnapshot(*megaApi[0], beforeOverride, 1) &&
+            beforeOverride.found && beforeOverride.wsFileno > 0)
+        {
+            gotBeforeOverride = true;
+            break;
+        }
+        WaitMillisec(200);
+    }
+    if (!gotBeforeOverride)
+    {
+        GTEST_SKIP() << "No active WS upload transfer metadata observable before URL override";
+    }
+
+    const std::string invalidPinnedUrl = "wss://127.0.0.1:1/ul/invalid-pinned-session-url";
+    ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 10));
+
+    WsUploadTransferSnapshot forced;
+    ASSERT_TRUE(fetchFirstUploadTransferSnapshot(*megaApi[0], forced, 1));
+    ASSERT_TRUE(forced.found);
+    ASSERT_EQ(forced.wsSessionUrl, invalidPinnedUrl);
+    ASSERT_EQ(forced.wsFileno, beforeOverride.wsFileno);
+
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    const int uploadInterruptedCode = ut.waitForResult();
+    ASSERT_TRUE(uploadInterruptedCode == API_EACCESS || uploadInterruptedCode == API_EINCOMPLETE)
+        << "Upload interrupted with unexpected code: " << uploadInterruptedCode;
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    WsUploadTransferSnapshot failover{};
+    bool switchedToFreshUrl = false;
+    second_timer failoverTimer;
+    while (failoverTimer.elapsed() < 210)
+    {
+        if (fetchFirstUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
+            !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
+        {
+            switchedToFreshUrl = true;
+            break;
+        }
+        WaitMillisec(1000);
+    }
+
+    ASSERT_TRUE(switchedToFreshUrl)
+        << "Transfer did not switch away from invalid pinned URL within timeout";
+    ASSERT_GT(failover.wsFileno, 0u);
+    ASSERT_EQ(failover.wsFileno, beforeOverride.wsFileno);
+    ASSERT_NE(failover.wsSessionUrl, invalidPinnedUrl);
+
+    // Remove throttling so completion is not dominated by test speed caps.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    second_timer completionTimer;
+    while (!cloudNode && completionTimer.elapsed() < 240)
+    {
+        WaitMillisec(500);
+        cloudNode.reset(
+            megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    }
+
+    ASSERT_TRUE(cloudNode)
+        << "Transfer switched URL but did not complete upload on a fresh pool in time";
+
+    deleteFile(fileName);
+}
 #endif // MEGA_USE_WSUPLOAD
 
 auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)

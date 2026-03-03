@@ -55,7 +55,9 @@
 #include <mega/file_service/file_service.h>
 #include <mega/fuse/common/service.h>
 
+#include <future>
 #include <optional>
+#include <unordered_map>
 
 namespace mega {
 
@@ -544,6 +546,14 @@ class MEGA_API MegaClient
     };
 
     std::deque<std::unique_ptr<WsVerifyPending>> mWsVerifyPending;
+    std::atomic<bool> mWsCanStartAnotherFile{true};
+    struct WsPreflightRequest
+    {
+        UploadHandle uploadHandle{};
+        std::shared_future<bool> future;
+    };
+    std::mutex mWsPreflightMutex;
+    std::unordered_map<Transfer*, WsPreflightRequest> mWsPreflightRequests;
 
     // Keep engine declared after WS action queues/mutex so engine threads are stopped
     // before those members are destroyed (member destruction is reverse declaration order).
@@ -555,6 +565,8 @@ class MEGA_API MegaClient
     void wsScheduleVerifyUpload(Transfer& t);
     void wsDrainClientActions(dstime maxExecTimeDs = 5);
     void wsProcessVerifyUploads();
+    void wsCleanupPreflightRequests();
+    void wsRefreshCanStartAnotherFileSnapshot();
     void maybeStartWsUploadEngine();
 #endif
 
@@ -618,6 +630,7 @@ public:
 
     void installWsEngineCallbacks();
     bool wsCanStartAnotherFile() const;
+    bool wsPrepareUploadForWsSync(Transfer& t);
     bool prepareUploadForWs(Transfer& t);
 
     // ---- Phase 3.0: bounce WS callbacks to client thread ----

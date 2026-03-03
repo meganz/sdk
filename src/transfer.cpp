@@ -3021,6 +3021,16 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
     assert(fit == transfers[transfer->type].end() || fit->transfer->priority != transfer->priority);
+
+#ifdef MEGA_USE_WSUPLOAD
+    Transfer* wsBefore = nullptr;
+    if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine() &&
+        fit != transfers[transfer->type].end())
+    {
+        wsBefore = fit->transfer;
+    }
+#endif
+
     transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer, &committer);
     client->app->transfer_update(transfer);
@@ -3028,9 +3038,7 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
 #ifdef MEGA_USE_WSUPLOAD
     if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
     {
-        // resolve the 'before' Transfer* depending on the method:
-        Transfer* before = fit->transfer; /* compute per method, or nullptr for end */
-        client->wsEngine()->reposition(*transfer, before);
+        client->wsEngine()->reposition(*transfer, wsBefore);
     }
 #endif
 }

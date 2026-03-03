@@ -1099,7 +1099,24 @@ struct WsPoolMgr
         curlm = curl_multi_init();
     }
 
-    ~WsPoolMgr() = default;
+    ~WsPoolMgr()
+    {
+        for (auto& kv: mCurlProcs)
+        {
+            if (curlm && kv.first)
+            {
+                curl_multi_remove_handle(curlm, kv.first);
+            }
+            delete kv.second;
+        }
+        mCurlProcs.clear();
+
+        if (curlm)
+        {
+            curl_multi_cleanup(curlm);
+            curlm = nullptr;
+        }
+    }
 
     void curlIO(std::unique_lock<std::mutex>& lk); // defined later
     void checkPools(class UploadEngine::Impl& impl); // defined later
@@ -1111,6 +1128,12 @@ struct WsPoolMgr
 
     // Ensure a dedicated pool exists for a pinned (resumed) session URL.
     void ensurePinnedPool(const std::string& url);
+
+    void markPoolRetiring(WsPool& pool);
+    bool poolHasNoWork(const WsPool& pool) const;
+    bool pinnedPoolHasReference(const WsPool& pool, const UploadEngine::Impl& impl) const;
+    void retireUnusedPinnedPools(UploadEngine::Impl& impl);
+    void cleanupRetiringPools();
 
     void setCurlResponseProc(CURL* curl, CurlResponseProc* proc)
     {
@@ -1287,7 +1310,7 @@ public:
     explicit Impl(MegaClient& c):
         client(c)
     {
-        curl_global_init(CURL_GLOBAL_ALL);
+        //curl_global_init(CURL_GLOBAL_ALL);
         LOG_debug << "[UploadEngine::Impl] constructed";
     }
 
@@ -1603,7 +1626,23 @@ public:
                 const auto it = files.find(v.transfer);
                 if (it != files.end() && it->second)
                 {
-                    it->second->clearSessionUrlHintAndRestart();
+                    WsUploadFile* uf = it->second.get();
+                    uf->clearSessionUrlHintAndRestart();
+
+                    // If the transfer was already bound to the soon-to-be-retired pinned pool,
+                    // detach it so it can be picked by fresh (non-pinned) pools.
+                    WsPool* const pool = uf->mPool;
+                    if (pool && pool->mPinned && pool->mUrl == url)
+                    {
+                        if (pool->mUploadingFile == uf)
+                        {
+                            pool->mUploadingFile = nullptr;
+                            pool->mUFTQversion = queueVersion;
+                        }
+
+                        pool->purgeFileLocked(uf->fileno());
+                        uf->unsetPool();
+                    }
                 }
             }
 
@@ -1612,8 +1651,7 @@ public:
             {
                 if (pool && pool->mPinned && pool->mUrl == url)
                 {
-                    pool->mRetiring = true;
-                    pool->setPoolNumConn(0);
+                    poolMgr.markPoolRetiring(*pool);
                 }
             }
 
@@ -3161,6 +3199,76 @@ void WsPoolMgr::ensurePinnedPool(const std::string& url)
     bumpAllPools(SteadyTime::ds());
 }
 
+void WsPoolMgr::markPoolRetiring(WsPool& pool)
+{
+    if (pool.mRetiring)
+    {
+        return;
+    }
+
+    pool.mRetiring = true;
+    pool.setPoolNumConn(0);
+}
+
+bool WsPoolMgr::poolHasNoWork(const WsPool& pool) const
+{
+    return (pool.mNumPoolFiles == 0) && (pool.mUploadingFile == nullptr) &&
+           (pool.mNumChunksInFlight == 0) && pool.mToResend.empty();
+}
+
+bool WsPoolMgr::pinnedPoolHasReference(const WsPool& pool, const UploadEngine::Impl& impl) const
+{
+    for (const auto& entry: impl.files)
+    {
+        const auto& uf = entry.second;
+        if (!uf)
+        {
+            continue;
+        }
+
+        if (uf->mPool == &pool || uf->sessionUrlHint() == pool.mUrl)
+        {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+void WsPoolMgr::retireUnusedPinnedPools(UploadEngine::Impl& impl)
+{
+    for (int i = static_cast<int>(mPools.size()) - 1; i >= 0; --i)
+    {
+        WsPool* const pool = mPools[i].get();
+        if (!pool || !pool->mPinned || pool->mRetiring)
+        {
+            continue;
+        }
+
+        const bool hasReference = pinnedPoolHasReference(*pool, impl);
+        const bool hasNoWork = poolHasNoWork(*pool);
+        const bool idleLongEnough =
+            SteadyTime::difference(impl.currentTime, pool->mLastActive) > POOLCONNKEEPALIVE;
+
+        if (!hasReference && hasNoWork && idleLongEnough)
+        {
+            markPoolRetiring(*pool);
+        }
+    }
+}
+
+void WsPoolMgr::cleanupRetiringPools()
+{
+    for (int i = static_cast<int>(mPools.size()) - 1; i >= 0; --i)
+    {
+        if (mPools[i] && mPools[i]->mRetiring && !mPools[i]->stillActive())
+        {
+            LOG_info << "WsUpload: closing idle pool " << i << " (" << mPools[i]->mUrl << ")";
+            mPools.erase(mPools.begin() + i);
+        }
+    }
+}
+
 void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 {
     // update last net read from pools
@@ -3169,12 +3277,9 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
             mLastNetRead = mPools[i]->mLastServerResponse;
 
     // close idle retiring pools
-    for (int i = static_cast<int>(mPools.size()); i-- && mPools[i]->mRetiring;)
-        if (!mPools[i]->stillActive())
-        {
-            LOG_info << "WsUpload: closing idle pool " << i << " (" << mPools[i]->mUrl << ")";
-            mPools.erase(mPools.begin() + i);
-        }
+    retireUnusedPinnedPools(impl);
+
+    cleanupRetiringPools();
 
     // trim connections / refresh stale or stalled pools
     for (int i = static_cast<int>(mPools.size()) - 1; i >= 0; --i)
@@ -3322,7 +3427,7 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
     const dstime oldest = SteadyTime::ds() - POOLFRESHNESS;
 
     // Mark all currently-active pools as retiring; we'll unretire those that still match.
-    for (int i = 0; i < static_cast<int>(mPools.size()) && !mPools[i]->mRetiring; ++i)
+    for (int i = 0; i < static_cast<int>(mPools.size()); ++i)
     {
         if (!mPools[i]->mPinned)
         {
