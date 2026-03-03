@@ -380,7 +380,7 @@ bool CommandAttachFA::procresult(Result r, JSON& json)
 }
 
 // request upload target URL
-CommandPutFile::CommandPutFile(MegaClient* /*client*/, TransferSlot* ctslot)
+CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot)
 {
     tslot = ctslot;
 
