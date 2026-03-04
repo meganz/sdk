@@ -6425,8 +6425,8 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
 
     totalLocalNodes = 0;
 
-    mSyncsLoaded = false;
-    mSyncsResumed = false;
+    mSyncsLoaded.store(false, std::memory_order_relaxed);
+    mSyncsResumed.store(false, std::memory_order_relaxed);
 }
 
 void Syncs::appendNewSync(const SyncConfig& c, bool startSync, std::function<void(error, SyncError, handle)> completion, bool completionInClient, const string& logname, const string& excludedPath)
@@ -6583,7 +6583,10 @@ void Syncs::transferPauseFlagsUpdated(bool downloadsPaused, bool uploadsPaused)
 
     mDownloadsPaused = downloadsPaused;
     mUploadsPaused = uploadsPaused;
-    mTransferPauseFlagsChanged = mTransferPauseFlagsChanged || !unchanged;
+    if (!unchanged)
+    {
+        mTransferPauseFlagsChanged.store(true, std::memory_order_relaxed);
+    }
 }
 
 void Syncs::stopSyncsInErrorState()
@@ -7245,8 +7248,11 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete(bool resetSyncConfigStore)
 {
     assert(!onSyncThread());
 
-    if (mSyncsLoaded) return;
-    mSyncsLoaded = true;
+    if (mSyncsLoaded.load())
+    {
+        return;
+    }
+    mSyncsLoaded.store(true, std::memory_order_relaxed);
 
     queueSync([this, resetSyncConfigStore]()
         {
@@ -7259,9 +7265,12 @@ void Syncs::resumeSyncsOnStateCurrent()
     assert(!onSyncThread());
 
     // Double check the client only calls us once (per session) for this
-    assert(!mSyncsResumed);
-    if (mSyncsResumed) return;
-    mSyncsResumed = true;
+    if (mSyncsResumed.load())
+    {
+        assert(false && "resumeSyncsOnStateCurrent: unexpected mSyncsResumed value `true`");
+        return;
+    }
+    mSyncsResumed.store(true, std::memory_order_relaxed);
 
     queueSync([this]()
         {
@@ -13687,10 +13696,8 @@ void Syncs::syncLoop()
             }
         }
 
-        if (mTransferPauseFlagsChanged.load())
+        if (mTransferPauseFlagsChanged.exchange(false, std::memory_order_relaxed))
         {
-            mTransferPauseFlagsChanged = false;
-
             lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             for (auto& us : mSyncVec)
             {

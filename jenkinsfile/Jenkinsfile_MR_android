@@ -238,7 +238,7 @@ pipeline {
                                         sh "echo Cloning android branch \"${ANDROID_BRANCH}\""
                                         checkout([
                                             $class: 'GitSCM',
-                                            branches: [[name: "origin/${ANDROID_BRANCH}"]],
+                                            branches: [[name: "${ANDROID_BRANCH}"]],
                                             userRemoteConfigs: [[ url: "${env.GIT_URL_ANDROID}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                                             extensions: [
                                                 [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]
@@ -249,7 +249,7 @@ pipeline {
                                             sh "echo Cloning megachat branch \"${MEGACHAT_BRANCH}\""
                                             checkout([
                                                 $class: 'GitSCM',
-                                                branches: [[name: "origin/${MEGACHAT_BRANCH}"]],
+                                                branches: [[name: "${MEGACHAT_BRANCH}"]],
                                                 userRemoteConfigs: [[ url: "${env.GIT_URL_MEGACHAT}", credentialsId: "12492eb8-0278-4402-98f0-4412abfb65c1" ]],
                                                 extensions: [
                                                     [$class: "UserIdentity",name: "jenkins", email: "jenkins@jenkins"]

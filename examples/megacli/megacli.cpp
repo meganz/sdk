@@ -3554,6 +3554,60 @@ void exec_getuserquota(autocomplete::ACState& s)
     client->getaccountdetails(std::make_shared<AccountDetails>(), storage, transfer, pro, false, false, false, -1);
 }
 
+void exec_getdiscountcodeinfo(autocomplete::ACState& ac)
+{
+    string code = ac.words[1].s;
+    if (code.empty())
+    {
+        cout << "Please provide a discount code" << endl;
+        return;
+    }
+    client->getDiscountCodeInformation(
+        code,
+        [code](const Error& e, DiscountCodeInfoExtended&& info)
+        {
+            if (e == API_OK)
+            {
+                cout << "Discount code info for '" << info.alfanumDiscountCode << "': valid"
+                     << endl;
+                cout << "discount code: " << info.alfanumDiscountCode << endl;
+                cout << "item: " << info.item << endl;
+                cout << "accountLevel:" << info.accountLevel << endl;
+                cout << "behaviourType: " << info.behaviourType << endl;
+                cout << "percentageDiscount: " << info.percentageDiscount << endl;
+                cout << "numMonths: " << (int)info.numMonths << endl;
+                cout << "expiry: " << info.expiry << endl;
+                cout << "compulsorySubscription: " << info.compulsorySubscription << endl;
+                cout << "multiDiscount: " << info.multiDiscount << endl;
+                cout << "euroTotalPrice: " << info.euroTotalPrice << endl;
+                cout << "euroDiscountAmount: " << info.euroDiscountAmount << endl;
+                cout << "euroDiscountedTotalPrice: " << info.euroDiscountedTotalPrice << endl;
+                cout << "euroDiscountedMonthlyPrice: " << info.euroDiscountedMonthlyPrice << endl;
+                cout << "euroTotalPriceNet: " << info.euroTotalPriceNet << endl;
+                cout << "euroDiscountAmountNet: " << info.euroDiscountAmountNet << endl;
+                cout << "euroDiscountedTotalPriceNet: " << info.euroDiscountedTotalPriceNet << endl;
+                cout << "euroDiscountedMonthlyPriceNet: " << info.euroDiscountedMonthlyPriceNet
+                     << endl;
+                cout << "localCurrencyCode: " << info.localCurrencyCode << endl;
+                cout << "localCurrencySymbol: " << info.localCurrencySymbol << endl;
+                cout << "localTotalPrice: " << info.localTotalPrice << endl;
+                cout << "localDiscountAmount: " << info.localDiscountAmount << endl;
+                cout << "localDiscountedTotalPrice: " << info.localDiscountedTotalPrice << endl;
+                cout << "localDiscountedMonthlyPrice: " << info.localDiscountedMonthlyPrice << endl;
+                cout << "localTotalPriceNet: " << info.localTotalPriceNet << endl;
+                cout << "localDiscountAmountNet: " << info.localDiscountAmountNet << endl;
+                cout << "localDiscountedTotalPriceNet: " << info.localDiscountedTotalPriceNet
+                     << endl;
+                cout << "localDiscountedMonthlyPriceNet: " << info.localDiscountedMonthlyPriceNet
+                     << endl;
+            }
+            else
+            {
+                cout << "Discount code info for '" << code << "': invalid, error " << e << endl;
+            }
+        });
+}
+
 void exec_getuserdata(autocomplete::ACState&)
 {
     if (client->loggedin()) client->getuserdata(client->reqtag);
@@ -5470,6 +5524,7 @@ autocomplete::ACN autocompleteSyntax()
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
     p->Add(exec_getuserdata, text("getuserdata"));
+    p->Add(exec_getdiscountcodeinfo, sequence(text("getdiscountcodeinfo"), param("code")));
 
     p->Add(exec_showattributes, sequence(text("showattributes"), remoteFSPath(client, &cwd)));
 
@@ -10722,9 +10777,12 @@ void DemoApp::enumeratequotaitems_result(const Product& product)
         cout << "\tStorage: " << product.gbStorage << "\n";
         cout << "\tTransfer: " << product.gbTransfer << "\n";
         cout << "\tMonths: " << product.months << "\n";
-        cout << "\tAmount: " << product.amount << "\n";
-        cout << "\tAmount per month: " << product.amountMonth << "\n";
+        cout << "\tPrice: " << product.amount << "\n";
+        cout << "\tPrice net (without tax): " << product.priceNet << "\n";
+        cout << "\tMonthly base price: " << product.amountMonth << "\n";
+        cout << "\tMonthly base price net (without tax): " << product.monthlyBasePriceNet << "\n";
         cout << "\tLocal price: " << product.localPrice << "\n";
+        cout << "\tLocal price net (without tax): " << product.localPriceNet << "\n";
         cout << "\tFeatures:\n";
         if (product.features.empty())
         {
@@ -11806,11 +11864,7 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
     }
 
     const auto [compRes, localFileMac] =
-        CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
-                                                      localPath,
-                                                      localFileFp,
-                                                      node.get(),
-                                                      true /*debugMode*/);
+        CompareLocalFileWithNodeMacAndFpExludingMtime(*client, localPath, localFileFp, node.get());
 
     std::string errMsg{"Node and file content comparisson: "};
     switch (compRes)

@@ -1,4 +1,4 @@
-﻿/**
+/**
  * @file mega/utils.h
  * @brief Mega SDK various utilities and helper classes
  *
@@ -648,6 +648,23 @@ bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs);
 *   METAMAC UTILS   *
 \*******************/
 static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
+
+/**
+ * @brief Result of MAC comparison between local file and node.
+ *
+ * Used by CompareLocalFileMetaMacWithNodeKey to return extended information
+ * for diagnostics and event reporting (e.g., event 800036).
+ * @note errorCode: 0 = success, non-zero = OS error code during MAC generation
+ *       (e.g., EIO on POSIX, ERROR_HANDLE_EOF on Windows)
+ */
+struct MacComparisonResult
+{
+    bool areEqualMacs{false};
+    int64_t localMac{INVALID_META_MAC};
+    int64_t remoteMac{INVALID_META_MAC};
+    int errorCode{0};
+};
+
 std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
                                          FileAccess& ifAccess,
                                          const int64_t iv,
@@ -655,10 +672,19 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
-std::pair<bool, int64_t> CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
-                                                            const std::string& nodeKey,
-                                                            int type,
-                                                            std::optional<std::string> pathStr);
+/**
+ * @brief Compares local file MAC with node's MAC from its key.
+ *
+ * @param fa Pointer to FileAccess object for reading the local file.
+ * @param nodeKey The node's encryption key containing the MAC.
+ * @param type The node type for cipher initialization.
+ * @param pathStr Optional path string for logging.
+ * @return MacComparisonResult with comparison details including both MACs and error status.
+ */
+MacComparisonResult CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
+                                                       const std::string& nodeKey,
+                                                       int type,
+                                                       std::optional<std::string> pathStr);
 
 bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
 
@@ -742,8 +768,7 @@ std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(MegaClient& client,
                                                   const LocalPath& path,
                                                   const FileFingerprint& fp,
-                                                  const Node* node,
-                                                  bool debugMode = false);
+                                                  const Node* node);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data

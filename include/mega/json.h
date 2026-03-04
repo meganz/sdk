@@ -204,6 +204,7 @@ public:
     };
 
     typedef std::function<CallbackResult(JSON*)> FilterCallback;
+    typedef std::list<const std::map<std::string, FilterCallback>*> FiltersChain;
 
     inline static CallbackResult ResultFromBool(bool result)
     {
@@ -242,7 +243,14 @@ public:
     // call, which is at "data" + consumed_bytes (the return value of the previous call).
     // It is allowed to pass a different buffer for the next call, but it must
     // start with the same data that was not consumed during the previous call.
-    m_off_t processChunk(std::map<std::string, FilterCallback>* filters, const char* data);
+    m_off_t processChunk(const std::map<std::string, FilterCallback>* filters, const char* data);
+
+    // Process a new chunk of JSON data and triggers callbacks in the list of filters map.
+    // Returns the number of consumed bytes.
+    //
+    // The "filtersList" is a list of map that allows to process the different JSON elements when
+    // they are complete
+    m_off_t processChunk(const FiltersChain& filtersList, const char* data);
 
     // Check if the parsing has finished
     bool hasFinished();
@@ -264,10 +272,13 @@ protected:
     int numEnd();
 
     // Called when there is a parsing error
-    void parseError(std::map<std::string, FilterCallback>* filters);
+    void parseError(const FiltersChain& filters);
 
     // Check if there are any pending filter markers indicating that processing failed
-    bool chunkProcessingFinishedSuccessfully(std::map<std::string, FilterCallback>* filters);
+    bool chunkProcessingFinishedSuccessfully(const FiltersChain& filters);
+
+    // Find a filter callback for a given path in the filters chain
+    const FilterCallback* findCallback(const FiltersChain& filtersChain, const std::string& path);
 
     // Position of the character being processed (not owned by this object)
     const char* mPos = nullptr;

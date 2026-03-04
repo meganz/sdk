@@ -10061,9 +10061,18 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
                                                });
 
     Pitag pitag;
-    pitag.purpose = PitagPurpose::CreateFolder;
-    pitag.nodeType = PitagNodeType::Folder;
-    pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    if (canChangeVault)
+    {
+        pitag.purpose = PitagPurpose::Password;
+        pitag.nodeType = PitagNodeType::Folder;
+        pitag.target = PitagTarget::CloudDrive;
+    }
+    else
+    {
+        pitag.purpose = PitagPurpose::CreateFolder;
+        pitag.nodeType = PitagNodeType::Folder;
+        pitag.target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    }
 
     // newNode.nodekey will be encrypted with user's MK in Command construction
     // using existing logic with default client->app->putnodes_result as callback for completion
@@ -11921,7 +11930,9 @@ void MegaClient::fastlogin(const char* email, const byte* pwkey, uint64_t emailh
                                   sek));
 }
 
-void MegaClient::getuserdata(int tag, std::function<void(string*, string*, string*, error)> completion)
+void MegaClient::getuserdata(
+    int tag,
+    std::function<void(string*, string*, string*, std::vector<DiscountCode>&&, error)> completion)
 {
     cachedug = false;
 
@@ -13223,6 +13234,13 @@ void MegaClient::updatepcr(handle p, ipcactions_t action, CommandUpdatePendingCo
     queueCommand(new CommandUpdatePendingContact(this, p, action, std::move(completion)));
 }
 
+void MegaClient::getDiscountCodeInformation(
+    const std::string& code,
+    CommandDiscountCodeGetInfo::CompletionCallback completion)
+{
+    queueCommand(new CommandDiscountCodeGetInfo(this, code, std::move(completion)));
+}
+
 // enumerate Pro account purchase options (not fully implemented)
 void MegaClient::purchase_enumeratequotaitems(const std::optional<std::string>& countryCode)
 {
@@ -13724,7 +13742,11 @@ void MegaClient::loginResult(CommandLogin::Completion completion,
                             // upgrade done in the meantime by different client; get account details again
                             getuserdata(
                                 restag,
-                                [completion, onLoginOk](string*, string*, string*, error e)
+                                [completion, onLoginOk](string*,
+                                                        string*,
+                                                        string*,
+                                                        std::vector<DiscountCode>&&,
+                                                        error e)
                                 {
                                     error loginErr = e == API_OK ? API_OK : API_EINTERNAL;
                                     completion(loginErr); // if error, report for login too because user data is inconsistent now
@@ -14835,37 +14857,40 @@ error MegaClient::changepw(const char* password, const char *pin)
     {
         spin.emplace(pin);
     }
-    getuserdata(
-        reqtag,
-        [this, u, spwd, spin](string* /*name*/, string* /*pubk*/, string* /*privk*/, error e)
-        {
-            if (e != API_OK)
-            {
-                app->changepw_result(e);
-                return;
-            }
+    getuserdata(reqtag,
+                [this, u, spwd, spin](string* /*name*/,
+                                      string* /*pubk*/,
+                                      string* /*privk*/,
+                                      std::vector<DiscountCode>&&,
+                                      error e)
+                {
+                    if (e != API_OK)
+                    {
+                        app->changepw_result(e);
+                        return;
+                    }
 
-            switch (accountversion)
-            {
-                case 1:
-                    e = changePasswordV1(u, spwd.c_str(), spin ? spin->c_str() : nullptr);
-                    break;
+                    switch (accountversion)
+                    {
+                        case 1:
+                            e = changePasswordV1(u, spwd.c_str(), spin ? spin->c_str() : nullptr);
+                            break;
 
-                default:
-                    LOG_warn << "Unexpected account version v" << accountversion
-                             << " processed as v2";
-                    [[fallthrough]];
+                        default:
+                            LOG_warn << "Unexpected account version v" << accountversion
+                                     << " processed as v2";
+                            [[fallthrough]];
 
-                case 2:
-                    e = changePasswordV2(spwd.c_str(), spin ? spin->c_str() : nullptr);
-                    break;
-            }
+                        case 2:
+                            e = changePasswordV2(spwd.c_str(), spin ? spin->c_str() : nullptr);
+                            break;
+                    }
 
-            if (e != API_OK)
-            {
-                app->changepw_result(e);
-            }
-        });
+                    if (e != API_OK)
+                    {
+                        app->changepw_result(e);
+                    }
+                });
 
     return API_OK;
 }
@@ -15977,7 +16002,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                                          ,
                                      loadSyncs
 #endif
-        ](string*, string*, string*, error e)
+        ](string*, string*, string*, std::vector<DiscountCode>&&, error e)
         {
             // upon ug completion
             if (e != API_OK)
@@ -16004,7 +16029,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
         }
         else
         {
-            onuserdataCompletion(nullptr, nullptr, nullptr, API_OK);
+            onuserdataCompletion(nullptr, nullptr, nullptr, {}, API_OK);
         }
     }
     else if (!fetchingnodes)
@@ -16095,7 +16120,7 @@ void MegaClient::fetchnodes(bool nocache, bool loadSyncs, bool forceLoadFromServ
                                               ,
                                           loadSyncs
 #endif
-            ](string*, string*, string*, error e)
+            ](string*, string*, string*, std::vector<DiscountCode>&&, error e)
             {
                 if (e != API_OK)
                 {
@@ -22617,6 +22642,12 @@ error MegaClient::createPasswordEntries(
     std::vector<NewNode> nn(data.size());
     size_t nodeToFillIndex = 0;
     const bool canChangeVault = true;
+    Pitag pitag{PitagPurpose::Password,
+                PitagTrigger::NotApplicable,
+                PitagNodeType::NotApplicable,
+                PitagTarget::CloudDrive,
+                PitagImportSource::NotApplicable};
+
     for (const auto& [name, dataAttrMap]: data)
     {
         if (name.empty() || !dataAttrMap)
@@ -22649,7 +22680,10 @@ error MegaClient::createPasswordEntries(
              std::move(nn),
              cauth,
              rTag,
-             canChangeVault);
+             canChangeVault,
+             {}, // customerIpPort
+             nullptr,
+             pitag);
     return API_OK;
 }
 
@@ -23333,8 +23367,8 @@ string KeyManager::tagHeader(const byte tag, size_t len) const
 
     res.push_back(tag);
     res.push_back(static_cast<byte>((len & 0xFF0000) >> 16));
-    res.push_back((len & 0xFF00) >> 8);
-    res.push_back(len & 0xFF);
+    res.push_back(static_cast<byte>((len & 0xFF00) >> 8));
+    res.push_back(static_cast<byte>(len & 0xFF));
 
     return string((const char*)res.data(), res.size());
 }
