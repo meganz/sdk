@@ -1691,7 +1691,8 @@ enum class PitagTrigger : char
     SyncAlgorithm = 'a',
     ShareFromApp = 'S',
     CameraCapture = 'C',
-    ExplorerExtension = 'e'
+    ExplorerExtension = 'e',
+    VoiceRecorder = 'v'
 };
 
 enum class PitagNodeType : char

@@ -117,10 +117,6 @@
 #include "mega/log_level.h"
 #include "mega/utils.h"
 
-#if ((defined(ANDROID) || defined(__ANDROID__)) && defined(ENABLE_CRASHLYTICS))
-#include "../../third_party/crashlytics.h"
-#endif
-
 namespace mega {
 
 // Output Log Interface
@@ -806,17 +802,6 @@ inline bool isWithinActivePeriod(const TimeUnit sleepDuration, const TimeUnit ac
 #define LOG_warn_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logWarning, SLEEP, ACTIVE)
 #define LOG_err_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logError, SLEEP, ACTIVE)
 #define LOG_fatal_timed(SLEEP, ACTIVE) LOG_generic_timed(::mega::logFatal, SLEEP, ACTIVE)
-
-#if (defined(ANDROID) || defined(__ANDROID__))
-inline void crashlytics_log(const char* msg)
-{
-#ifdef ENABLE_CRASHLYTICS
-    firebase::crashlytics::Log(msg);
-#else
-    (void)msg;
-#endif
-}
-#endif
 
 // moved from the intermediate layer
 class ExternalLogger : public Logger

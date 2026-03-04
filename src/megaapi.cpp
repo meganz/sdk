@@ -4431,6 +4431,11 @@ int MegaApi::enableSearchDBIndexes(bool enable)
     return pImpl->enableSearchDBIndexes(enable);
 }
 
+int MegaApi::enableLexicographicDBIndexes(bool enable)
+{
+    return pImpl->enableLexicographicDBIndexes(enable);
+}
+
 const char* MegaApi::generateViewId()
 {
     return strdup(pImpl->generateViewId().c_str());
@@ -4690,6 +4695,18 @@ MegaNodeList *MegaApi::getChildren(MegaNode* p, int order, MegaCancelToken* canc
 MegaNodeList *MegaApi::getChildren(MegaNodeList *parentNodes, int order)
 {
     return pImpl->getChildren(parentNodes, order);
+}
+
+MegaNodeList* MegaApi::listChildNodesLexicographically(
+    const MegaHandle parenthandle,
+    MegaCancelToken* cancelToken,
+    const size_t maxElements,
+    const std::optional<MegaSearchLexicographicalOffset>& offset)
+{
+    return pImpl->listChildNodesLexicographically(parenthandle,
+                                                  convertToCancelToken(cancelToken),
+                                                  maxElements,
+                                                  offset);
 }
 
 MegaNodeList *MegaApi::getVersions(MegaNode *node)

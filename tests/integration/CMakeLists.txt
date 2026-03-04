@@ -49,6 +49,7 @@ target_sources(test_integration
     sdk_test_lockless_cs_channel.cpp
     sdk_test_pitag.cpp
     SdkTestFolderController_test.cpp
+    SdkTestGetChildrenLexicographic_test.cpp
     sdk_test_share.cpp
     sdk_test_share_nested.cpp
 
@@ -64,6 +65,8 @@ target_sources(test_integration
 target_sources_conditional(test_integration
     FLAG USE_LIBUV
     PRIVATE
+    sdk_server_test_utils.h
+    sdk_server_test_utils.cpp
     sdk_test_ftp_server.cpp
     sdk_test_http_server.cpp
 )

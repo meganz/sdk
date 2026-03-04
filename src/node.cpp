@@ -105,6 +105,10 @@ Node::~Node()
         // If that is the case, the app should reset the shared pointer before
         // the logout.
     }
+    else
+    {
+        client->mNodeManager.removeNodePendingApplyKeys(this);
+    }
 
     // abort pending direct reads
     client->preadabort(this);
@@ -1246,6 +1250,7 @@ bool Node::applykey()
         std::string undecryptedKey = nodekeydata;
         client->mNodeManager.increaseNumNodesAppliedKey();
         nodekeydata.assign((const char*)key, keylength);
+        bool keyApplied{true};
         setattr();
         if (attrstring)
         {
@@ -1256,8 +1261,14 @@ bool Node::applykey()
                 // share key can be received later.
                 client->mNodeManager.decreaseNumNodesAppliedKey();
                 nodekeydata = undecryptedKey;
+                keyApplied = false;
             }
             LOG_warn << "Failed to decrypt attributes for node: " << toNodeHandle(nodehandle);
+        }
+
+        if (keyApplied)
+        {
+            client->mNodeManager.removeNodePendingApplyKeys(this);
         }
     }
 

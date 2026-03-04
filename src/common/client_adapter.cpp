@@ -1910,7 +1910,8 @@ void ClientUpload::bind(BoundCallback callback,
                                        std::placeholders::_4,
                                        std::placeholders::_1),
                              nullptr,
-                             false);
+                             false,
+                             getPitag());
     }; // bind
 
     // Called when our content has been bound to a name.
@@ -2072,6 +2073,12 @@ ClientUpload::ClientUpload(ClientAdapter& client,
 
     // What shall our new node be called?
     this->name = name;
+
+    setPitag(Pitag{PitagPurpose::Fuse,
+                   PitagTrigger::NotApplicable,
+                   PitagNodeType::NotApplicable,
+                   PitagTarget::NotApplicable,
+                   PitagImportSource::NotApplicable});
 }
 
 ClientUpload::~ClientUpload()
@@ -2232,4 +2239,3 @@ Error ClientUploadAdapter::result() const
 
 } // common
 } // mega
-

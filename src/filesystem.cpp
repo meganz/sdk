@@ -787,7 +787,7 @@ handle FileSystemAccess::fsidOf(const LocalPath& path, bool follow, bool skipcas
 {
     auto fileAccess = newfileaccess(follow);
 
-    if (fileAccess->fopen(path, true, false, fsl, nullptr, false, skipcasecheck))
+    if (fileAccess->fopen(path, OPEN_RDONLY, fsl, nullptr, false, skipcasecheck))
         return fileAccess->fsid;
 
     return UNDEF;
@@ -1233,6 +1233,25 @@ void AsyncIOContext::finish()
     }
 }
 
+OpenFlag AsyncIOContext::toOpenFlag(int access)
+{
+    bool read = access & AsyncIOContext::ACCESS_READ;
+    bool write = access & AsyncIOContext::ACCESS_WRITE;
+    if (read && write)
+    {
+        return OPEN_RDWR;
+    }
+    else if (write)
+    {
+        return OPEN_WRONLY;
+    }
+    else
+    {
+        // Includes (read && !write) and (!read && !write)
+        return OPEN_RDONLY;
+    }
+}
+
 FileInputStream::FileInputStream(FileAccess *fileAccess)
 {
     this->fileAccess = fileAccess;
@@ -1304,8 +1323,7 @@ LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& loc
     // We need to get current name, in case of unsensitive case systems, suffix is added to current
     // name without any change case
     fa->fopen(localname,
-              true,
-              false,
+              OPEN_RDONLY,
               FSLogging::logExceptFileNotFound,
               nullptr,
               false,
@@ -1920,7 +1938,13 @@ unique_ptr<FSNode> FSNode::fromPath(FileSystemAccess& fsAccess, const LocalPath&
 
     LocalPath actualLeafNameIfDifferent;
 
-    if (!fileAccess->fopen(path, true, false, fsl, nullptr, false, skipCaseCheck, &actualLeafNameIfDifferent))
+    if (!fileAccess->fopen(path,
+                           OPEN_RDONLY,
+                           fsl,
+                           nullptr,
+                           false,
+                           skipCaseCheck,
+                           &actualLeafNameIfDifferent))
         return nullptr;
 
     auto fsNode = fromFOpened(*fileAccess, path, fsAccess);
@@ -1975,7 +1999,7 @@ auto FileSystemAccess::getFileSize(const LocalPath& path)
         return std::nullopt;
 
     // Couldn't open the file.
-    if (!fileAccess->fopen(path, true, false, FSLogging::logOnError))
+    if (!fileAccess->fopen(path, OPEN_RDONLY, FSLogging::logOnError))
         return std::nullopt;
 
     // Return the file's allocated and reported size to our caller.

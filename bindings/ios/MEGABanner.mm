@@ -94,4 +94,10 @@ using namespace mega;
     return self.megaBanner->getUrl() ? @(self.megaBanner->getUrl()) : nil;
 }
 
+- (NSInteger)variant {
+    if (!self.megaBanner) return 0;
+    
+    return self.megaBanner->getVariant();
+}
+
 @end

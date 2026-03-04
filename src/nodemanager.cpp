@@ -531,6 +531,47 @@ sharedNode_list NodeManager::getChildren_internal(const Node* parent,
     return childrenList;
 }
 
+sharedNode_vector NodeManager::listChildNodesLexicographically(
+    const handle parenthandle,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<NodeSearchLexicographicalOffset>& offset)
+{
+    LockGuard g(mMutex);
+    return listChildNodesLexicographically_internal(parenthandle, cancelFlag, maxElements, offset);
+}
+
+sharedNode_vector NodeManager::listChildNodesLexicographically_internal(
+    const handle parentHandle,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<NodeSearchLexicographicalOffset>& offset)
+{
+    assert(mMutex.owns_lock());
+
+    // validation
+    if (parentHandle == UNDEF || !mTable || mNodes.empty())
+    {
+        assert(parentHandle != UNDEF && mTable && !mNodes.empty());
+        return sharedNode_vector();
+    }
+
+    // db look-up
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodesFromTable;
+    if (!mTable->listChildNodesLexicographically(parentHandle,
+                                                 nodesFromTable,
+                                                 cancelFlag,
+                                                 maxElements,
+                                                 offset))
+    {
+        return sharedNode_vector();
+    }
+
+    sharedNode_vector nodes = processUnserializedNodes(nodesFromTable, cancelFlag);
+
+    return nodes;
+}
+
 sharedNode_vector NodeManager::getChildren(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page)
 {
     LockGuard g(mMutex);
@@ -1510,12 +1551,27 @@ void NodeManager::applyKeys()
 void NodeManager::addNodePendingApplykey(std::shared_ptr<Node> node)
 {
     LockGuard g(mMutex);
-    if (isFromRootNodeType(*node.get()))
+    if (isFromRootNodeType(*node))
     {
         return;
     }
 
-    mNodePendingApplyKeys.push_back(node);
+    auto [it, inserted] = mNodePendingApplyKeys.emplace(node->nodehandle, node);
+    if (!inserted)
+    {
+        if (auto existing = it->second.lock())
+        {
+            // Same handle already tracked; ensure it's the same instance.
+            assert(existing.get() == node.get() &&
+                   "Same handle with different Node instance in mNodePendingApplyKeys");
+        }
+        else
+        {
+            // Expired entry: replace with current node.
+            assert(false && "Element removed at ~Node, no empty element should be present");
+            it->second = node;
+        }
+    }
 }
 
 void NodeManager::applyKeys_internal()
@@ -1524,13 +1580,24 @@ void NodeManager::applyKeys_internal()
 
     for (auto it = mNodePendingApplyKeys.begin(); it != mNodePendingApplyKeys.end();)
     {
-        if (it->get()->applykey() || it->get()->keyApplied())
+        auto& [_, pendingNode] = *it;
+        auto currentIt = it;
+        ++it;
+        if (auto sharedNode = pendingNode.lock())
         {
-            it = mNodePendingApplyKeys.erase(it);
+            if (sharedNode->keyApplied())
+            {
+                mNodePendingApplyKeys.erase(currentIt);
+                continue;
+            }
+
+            // Node::applykey already remove element from mNodePendingApplyKeys if key has been
+            // applied
+            sharedNode->applykey();
         }
         else
         {
-            it++;
+            mNodePendingApplyKeys.erase(currentIt);
         }
     }
 
@@ -1541,8 +1608,20 @@ void NodeManager::applyKeys_internal()
     unsigned noKeyExpected = rootNodeUndecrypted + (getRootNodeVault().isUndef() ? 0 : 1) +
                              (getRootNodeRubbish().isUndef() ? 0 : 1);
 
-    assert(mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) ==
-           mNodePendingApplyKeys.size());
+    if (const auto unexpectedCount =
+            mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) !=
+            mNodePendingApplyKeys.size();
+        unexpectedCount)
+    {
+        LOG_warn << "applyKeys_internal: "
+                 << " Nodes in Ram: " << mNodesInRam << ", Applied Keys: " << mAppliedKeyNodeCount
+                 << ", NoKeys: " << noKeyExpected
+                 << ", mNodePendingApplyKeys: " << mNodePendingApplyKeys.size();
+
+        assert(mNodesInRam - (static_cast<uint64_t>(mAppliedKeyNodeCount) + noKeyExpected) ==
+                   mNodePendingApplyKeys.size() &&
+               "Unexpected num nodes with key pending to be applied in RAM");
+    }
 #endif
 }
 
@@ -1627,7 +1706,6 @@ void NodeManager::notifyPurge()
 
                 removeFingerprint(n.get());
                 removeNodeCacheLRU_internal(n.get());
-
                 mNodes.erase(n->mNodePosition);
                 n->mNodePosition = mNodes.end();
 
@@ -1855,6 +1933,18 @@ void NodeManager::dropSearchDBIndexes()
     mTable->dropSearchDBIndexes();
 }
 
+void NodeManager::dropLexicographicDBIndexes()
+{
+    assert(mNodeNotify.empty());
+    if (!mTable || mNodesInRam > 0)
+    {
+        LOG_err << "DB isn't opened yet or nodes has been already loaded";
+        return;
+    }
+
+    mTable->dropLexicographicDBIndexes();
+}
+
 std::shared_ptr<Node> NodeManager::getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode)
 {
     LockGuard g(mMutex);
@@ -1935,7 +2025,7 @@ void NodeManager::initCompleted_internal()
         }
     }
 
-    mTable->createIndexes(mClient.mEnableSearchDBIndexes);
+    mTable->createIndexes(mClient.mEnableSearchDBIndexes, mClient.mEnableLexicographicDBIndexes);
     mInitialized = true;
 }
 
@@ -1947,6 +2037,12 @@ bool NodeManager::ready()
 bool NodeManager::isFromRootNodeType(const Node& node) const
 {
     return node.type == ROOTNODE || node.type == RUBBISHNODE || node.type == VAULTNODE;
+}
+
+void NodeManager::removeNodePendingApplyKeys(const Node* node)
+{
+    LockGuard g(mMutex);
+    removeNodePendingApplyKeys_internal(node);
 }
 
 void NodeManager::insertNodeCacheLRU_internal(std::shared_ptr<Node> node)
@@ -1986,6 +2082,12 @@ void NodeManager::removeNodeCacheLRU_internal(Node* node)
 
     mCacheLRU.erase(node->mNodePosition->second.mLRUPosition);
     node->mNodePosition->second.mLRUPosition = invalidCacheLRUPos();
+}
+
+void NodeManager::removeNodePendingApplyKeys_internal(const Node* node)
+{
+    assert(mMutex.owns_lock() && "Mutex should be locked by this thread");
+    mNodePendingApplyKeys.erase(node->nodehandle);
 }
 
 NodeCounter NodeManager::getCounterOfRootNodes()
@@ -2160,7 +2262,7 @@ void NodeManager::dumpNodes_internal()
         }
     }
 
-    mTable->createIndexes(mClient.mEnableSearchDBIndexes);
+    mTable->createIndexes(mClient.mEnableSearchDBIndexes, mClient.mEnableLexicographicDBIndexes);
     mInitialized = true;
 }
 

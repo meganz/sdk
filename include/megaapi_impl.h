@@ -4272,6 +4272,11 @@ class MegaApiImpl : public MegaApp
 		int getNumChildFiles(MegaNode* parent);
         int getNumChildFolders(MegaNode* parent);
         MegaNodeList* getChildren(const MegaSearchFilter* filter, int order, CancelToken cancelToken, const MegaSearchPage* searchPage);
+        MegaNodeList* listChildNodesLexicographically(
+            const handle parenthandle,
+            CancelToken cancelFlag,
+            const size_t maxElements,
+            const std::optional<MegaSearchLexicographicalOffset>& offset);
         MegaNodeList* getChildren(const MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
         MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
         MegaNodeList* getVersions(MegaNode *node);
@@ -4416,6 +4421,7 @@ public:
 
         bool setLanguage(const char* languageCode);
         int enableSearchDBIndexes(bool enable);
+        int enableLexicographicDBIndexes(bool enable);
         string generateViewId();
         void setLanguagePreference(const char* languageCode, MegaRequestListener *listener = NULL);
         void getLanguagePreference(MegaRequestListener *listener = NULL);
@@ -5475,12 +5481,7 @@ public:
     MegaApiImpl *megaApi;
     m_off_t bytesWritten;
     m_off_t size;
-    char *lastBuffer;
-    size_t lastBufferLen;
-    bool nodereceived;
     bool finished;
-    bool failed;
-    bool pause;
 
 #ifdef ENABLE_EVT_TLS
     //tls stuff:
@@ -5488,20 +5489,6 @@ public:
     bool invalid;
 #endif
     std::list<char*> writePointers;
-
-    // Request information
-    bool range;
-    m_off_t rangeStart;
-    m_off_t rangeEnd;
-    m_off_t rangeWritten;
-    MegaNode *node;
-    std::string path;
-    std::string nodehandle;
-    std::string nodekey;
-    std::string nodename;
-    m_off_t nodesize;
-    int resultCode;
-
 };
 
 class MegaTCPServer
@@ -6028,8 +6015,11 @@ public:
     MegaNode *node;
 
     m_off_t rangeStart;
+    m_off_t rangeEnd;
     m_off_t rangeWritten;
 
+    std::string nodename;
+    std::string nodehandle;
     std::string tmpFileName;
     std::unique_ptr<FileAccess> tmpFileAccess;
     size_t tmpFileSize;

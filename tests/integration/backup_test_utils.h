@@ -28,7 +28,6 @@ public:
     {
         SdkTest::SetUp();
         ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
-        ASSERT_NO_FATAL_FAILURE(ensureAccountDeviceNamesAttrExists(megaApi[0].get()));
         auto [succeeded, name] =
             ensureMyBackupsFolderExists(megaApi[0].get(), mMyBackupsFolderName);
         ASSERT_TRUE(succeeded) << "`My Backups` Folder could not be created/retrieved";

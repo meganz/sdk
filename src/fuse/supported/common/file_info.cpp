@@ -64,7 +64,7 @@ ErrorOr<FileAccessSharedPtr> FileInfo::open(LocalPath& path) const
     auto path_ = this->path();
 
     // Couldn't open the file for reading and writing.
-    if (!fileAccess->fopen(path_, true, true, FSLogging::logOnError))
+    if (!fileAccess->fopen(path_, OPEN_RDWR, FSLogging::logOnError))
         return unexpected(API_EREAD);
 
     // Make sure the file's attributes have been loaded.

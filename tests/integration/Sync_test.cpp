@@ -1857,83 +1857,6 @@ bool StandardClient::isUserAttributeSet(attr_t attr, unsigned int numSeconds, er
     return attrIsSet;
 }
 
-bool StandardClient::waitForAttrDeviceIdIsSet(unsigned int numSeconds, bool& updated)
-{
-    error err = API_EINTERNAL;
-    isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
-
-    string_map records;
-    std::string deviceIdHash = client.getDeviceidHash();
-    if (err == API_OK)
-    {
-        if (const UserAttribute* attribute = client.ownuser()->getAttribute(ATTR_DEVICE_NAMES))
-        {
-            if (std::unique_ptr<string_map> oldRecords{
-                    tlv::containerToRecords(attribute->value(), client.key)})
-            {
-                if (oldRecords->find(deviceIdHash) != oldRecords->end())
-                {
-                    return true; // Device id is found
-                }
-                records.swap(*oldRecords);
-            }
-        }
-    }
-    else if (err != API_ENOENT)
-    {
-        return false; // Unexpected error has been detected
-    }
-
-    std::string timestamp = getCurrentTimestamp(true);
-    std::string deviceName = "Jenkins " + timestamp;
-
-    records.emplace(deviceIdHash, deviceName);
-    bool attrDeviceNamePut = false;
-    std::recursive_mutex attrDeviceNamePut_mutex;
-    std::condition_variable_any attrDeviceNamePut_cv;
-    std::atomic_bool replyReceived{false};
-    std::unique_lock<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-    resultproc.prepresult(
-        COMPLETION,
-        ++next_request_tag,
-        [&]()
-        {
-            client.putua(attr_t::ATTR_DEVICE_NAMES,
-                         std::move(records),
-                         -1,
-                         UNDEF,
-                         0,
-                         0,
-                         [&](Error e)
-                         {
-                             std::lock_guard<std::recursive_mutex> g(attrDeviceNamePut_mutex);
-                             if (e == API_OK)
-                             {
-                                 attrDeviceNamePut = true;
-                             }
-                             else
-                             {
-                                 LOG_err << "Error setting device id user attribute";
-                             }
-
-                             replyReceived = true;
-                             attrDeviceNamePut_cv.notify_one();
-                         });
-        },
-        nullptr);
-
-    attrDeviceNamePut_cv.wait_for(g, std::chrono::seconds(numSeconds), [&replyReceived](){ return replyReceived.load(); });
-
-    if (!attrDeviceNamePut) // Error setting device id
-    {
-        return false;
-    }
-
-    updated = true;
-    // Check if attribute has been established properly
-    return isUserAttributeSet(attr_t::ATTR_DEVICE_NAMES, numSeconds, err);
-}
-
 bool StandardClient::waitForAttrMyBackupIsSet(unsigned int numSeconds, bool& newBackupIsSet)
 {
     error err  = API_EINTERNAL;
@@ -5307,7 +5230,7 @@ FileFingerprint StandardClient::fingerprint(const fs::path& fsPath)
     FileFingerprint fingerprint;
 
     // Try and open file for reading.
-    if (fileAccess->fopen(path, true, false, FSLogging::logOnError))
+    if (fileAccess->fopen(path, OPEN_RDONLY, FSLogging::logOnError))
     {
         // Generate fingerprint.
         fingerprint.genfingerprint(fileAccess.get());
@@ -6642,20 +6565,6 @@ TEST_F(SyncTest, BasicSync_MoveLocalFolderBetweenSyncs)
     {
        return receivedDeviceIdName(user, ownUserClient3);
     });
-
-    bool deviceIdUpdated = false;
-    ASSERT_TRUE(clientA1->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client1";
-    if (deviceIdUpdated)  // only wait for action package if atribute has been set or updated
-    {
-        // Waiting period finished when callback register at createsOnUserUpdateLamda returns true
-        ASSERT_TRUE(clientA2->waitForUserUpdated(60)) << "User update doesn't arrive at client2 (device id)";
-        ASSERT_TRUE(clientA3->waitForUserUpdated(60)) << "User update doesn't arrive at client3 (device id)";
-        deviceIdUpdated = false;
-        ASSERT_TRUE(clientA2->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client2";
-        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
-        ASSERT_TRUE(clientA3->waitForAttrDeviceIdIsSet(60, deviceIdUpdated)) << "Error User attr device id isn't establised client3";
-        ASSERT_EQ(deviceIdUpdated, false); // It has already updated
-    }
 
     clientA2->removeOnUserUpdateLamda();
     clientA3->removeOnUserUpdateLamda();
@@ -8925,6 +8834,7 @@ TEST_F(SyncTest, DoesntDownloadFilesWithClashingNames)
         // Upload ff once.
         ASSERT_TRUE(cu->uploadFile(root / "ff", node.get()));
     }
+    ASSERT_TRUE(CatchupClients(cd, cu));
 
     // Add and start sync.
     handle backupId1 = cd->setupSync_mainthread("sd", "x", false, false);
@@ -17107,7 +17017,7 @@ TEST_F(SyncTest, BasicSync_EditAndMove_MoveAndEdit)
         auto fsAccess = actor->client.fsaccess->newfileaccess(false);
 
         auto localPath = LocalPath::fromAbsolutePath(path.string());
-        fsAccess->fopen(localPath, true, false, FSLogging::logExceptFileNotFound);
+        fsAccess->fopen(localPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound);
 
         return fsAccess->fsid;
     };

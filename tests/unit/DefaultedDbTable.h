@@ -87,6 +87,17 @@ public:
         return false;
         //throw NotImplemented(__func__);
     }
+
+    bool listChildNodesLexicographically(
+        const mega::handle,
+        std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&,
+        mega::CancelToken,
+        const size_t,
+        const std::optional<mega::NodeSearchLexicographicalOffset>&) override
+    {
+        return false;
+        // throw NotImplemented(__func__);
+    }
     bool searchNodes(const mega::NodeSearchFilter&, int, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>&, mega::CancelToken, const mega::NodeSearchPage&) override
     {
         return false;
@@ -146,9 +157,13 @@ public:
                                const std::string& /*nodeCounterBlob*/) override
     {}
 
-    void createIndexes(bool /*enableIndexesForSearching*/) override {}
+    void createIndexes(bool /*enableIndexesForSearching*/,
+                       bool /*enableIndexesForLexicographicalList*/) override
+    {}
 
     void dropSearchDBIndexes() override {}
+
+    void dropLexicographicDBIndexes() override {}
 
     bool put(uint32_t, char*, unsigned) override
     {

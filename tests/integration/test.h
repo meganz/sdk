@@ -755,8 +755,6 @@ struct StandardClient : public MegaApp
 
     SynchronizedFunction<void(Transfer*)> onTransferCompleted;
 
-
-    bool waitForAttrDeviceIdIsSet(unsigned numSeconds, bool& updated);
     bool waitForAttrMyBackupIsSet(unsigned numSeconds, bool& newBackupIsSet);
 
     bool isUserAttributeSet(attr_t attr, unsigned numSeconds, error& err);

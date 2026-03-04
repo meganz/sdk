@@ -33,9 +33,9 @@ using namespace mega;
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'
+                     pitagTrigger:MEGAPitagTriggerNotApplicable
                      isChatUpload:NO
-                     pitagTarget:'.'];
+                     pitagTarget:MEGAPitagTargetNotApplicable];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName {
@@ -44,9 +44,9 @@ using namespace mega;
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'
+                     pitagTrigger:MEGAPitagTriggerNotApplicable
                      isChatUpload:NO
-                     pitagTarget:'.'];
+                     pitagTarget:MEGAPitagTargetNotApplicable];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName mtime:(int64_t)mtime {
@@ -55,9 +55,9 @@ using namespace mega;
                           appData:nil
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'
+                     pitagTrigger:MEGAPitagTriggerNotApplicable
                      isChatUpload:NO
-                     pitagTarget:'.'];
+                     pitagTarget:MEGAPitagTargetNotApplicable];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName
@@ -68,9 +68,9 @@ using namespace mega;
                           appData:appData
                  isSourceTemporary:NO
                        startFirst:NO
-                     pitagTrigger:'.'
+                     pitagTrigger:MEGAPitagTriggerNotApplicable
                      isChatUpload:NO
-                     pitagTarget:'.'];
+                     pitagTarget:MEGAPitagTargetNotApplicable];
 }
 
 - (instancetype)initWithFileName:(nullable NSString *)fileName
@@ -78,9 +78,9 @@ using namespace mega;
                          appData:(nullable NSString *)appData
                 isSourceTemporary:(BOOL)isSourceTemporary
                       startFirst:(BOOL)startFirst
-                    pitagTrigger:(char)pitagTrigger
+                    pitagTrigger:(MEGAPitagTrigger)pitagTrigger
                     isChatUpload:(BOOL)isChatUpload
-                     pitagTarget:(char)pitagTarget {
+                     pitagTarget:(MEGAPitagTarget)pitagTarget {
     self = [super init];
     if (self) {
         _fileName = [fileName copy];

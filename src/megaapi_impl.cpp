@@ -33,6 +33,7 @@
 #include "mega/scoped_helpers.h"
 #include "mega/tlv.h"
 #include "mega/user_attribute.h"
+#include "mega/utils_optional.h"
 #include "megaapi.h"
 
 #ifdef ENABLE_ISOLATED_GFX
@@ -1280,7 +1281,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
     std::unique_ptr<FileAccess> fain(api->fsAccess->newfileaccess());
     auto localfilename = LocalPath::fromAbsolutePath(inputFilepath);
 
-    if (fain->fopen(localfilename, true, false, FSLogging::logOnError) || fain->type != FILENODE)
+    if (fain->fopen(localfilename, OPEN_RDONLY, FSLogging::logOnError) || fain->type != FILENODE)
     {
         if (*length == -1)
         {
@@ -1311,7 +1312,7 @@ char *MegaBackgroundMediaUploadPrivate::encryptFile(const char* inputFilepath, i
                 auto localencryptedfilename = LocalPath::fromAbsolutePath(outputFilepath);
 
                 std::unique_ptr<FileAccess> faout(api->fsAccess->newfileaccess());
-                if (faout->fopen(localencryptedfilename, false, true, FSLogging::logOnError))
+                if (faout->fopen(localencryptedfilename, OPEN_WRONLY, FSLogging::logOnError))
                 {
                     SymmCipher cipher;
                     cipher.setkey(filekey);
@@ -8081,8 +8082,7 @@ Error MegaApiImpl::createLocalFolder_unlocked(LocalPath& localPath,
     // (unless collision resolution is Overwrite, in which case open insensitive case (merge
     // folders))
     bool opened = da->fopen(localPath,
-                            true,
-                            false,
+                            OPEN_RDONLY,
                             FSLogging::logOnError,
                             nullptr,
                             false,
@@ -10229,7 +10229,7 @@ MegaTransferPrivate* MegaApiImpl::createUploadTransfer(const LocalPath& localPat
         assert(fingerprintingFsAccess); // somehow ::init() wasn't evaluated
         auto fa = fingerprintingFsAccess->newfileaccess();
 
-        if (localPath.empty() || !fa->fopen(localPath, true, false, FSLogging::logOnError))
+        if (localPath.empty() || !fa->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         {
             transfer->fingerprint_error = API_EREAD;
         }
@@ -12843,6 +12843,18 @@ int MegaApiImpl::enableSearchDBIndexes(bool enable)
     return API_OK;
 }
 
+int MegaApiImpl::enableLexicographicDBIndexes(bool enable)
+{
+    if (client->loggedin() != sessiontype_t::NOTLOGGEDIN)
+    {
+        LOG_warn << "This method should be called before login";
+        return API_EACCESS;
+    }
+
+    client->enableLexicographicDBIndexes(enable);
+    return API_OK;
+}
+
 string MegaApiImpl::generateViewId()
 {
     return MegaClient::generateViewId(client->rng);
@@ -13292,7 +13304,7 @@ char *MegaApiImpl::getFingerprint(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
+    if (!fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -13445,7 +13457,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
     auto localpath = LocalPath::fromAbsolutePath(filePath);
 
     auto fa = fsAccess->newfileaccess();
-    if(!fa->fopen(localpath, true, false, FSLogging::logOnError))
+    if (!fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
         return NULL;
 
     FileFingerprint fp;
@@ -15200,8 +15212,8 @@ void MegaApiImpl::fa_complete(handle, fatype, const char* data, uint32_t len)
         auto localPath = LocalPath::fromAbsolutePath(filePath);
         fsAccess->unlinklocal(localPath);
 
-        bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
-                    && f->fwrite((const byte*)data, len, 0);
+        bool success = f->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError) &&
+                       f->fwrite((const byte*)data, len, 0);
 
         f.reset();
 
@@ -15596,7 +15608,7 @@ void MegaApiImpl::http_result(error e, int httpCode, byte* data, m_off_t size)
             auto localPath = LocalPath::fromAbsolutePath(filePath);
 
             fsAccess->unlinklocal(localPath);
-            if (!f->fopen(localPath, false, true, FSLogging::logOnError))
+            if (!f->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 e = API_EWRITE;
             }
@@ -16298,8 +16310,8 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
 
                 fsAccess->unlinklocal(localPath);
 
-                bool success = f->fopen(localPath, false, true, FSLogging::logOnError)
-                            && f->fwrite((const byte*)data, len, 0);
+                bool success = f->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError) &&
+                               f->fwrite((const byte*)data, len, 0);
 
                 f.reset();
 
@@ -18645,6 +18657,26 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
     return new MegaNodeListPrivate(results);
 }
 
+MegaNodeList* MegaApiImpl::listChildNodesLexicographically(
+    const handle parenthandle,
+    CancelToken cancelFlag,
+    const size_t maxElements,
+    const std::optional<MegaSearchLexicographicalOffset>& offset)
+{
+    const auto megaToNodeOffset =
+        [](const MegaSearchLexicographicalOffset& off) -> NodeSearchLexicographicalOffset
+    {
+        return {off.mLastName, off.mLastType, off.mLastHandle};
+    };
+    SdkMutexGuard guard(sdkMutex);
+    sharedNode_vector results =
+        client->mNodeManager.listChildNodesLexicographically(parenthandle,
+                                                             cancelFlag,
+                                                             maxElements,
+                                                             offset | transform(megaToNodeOffset));
+    return new MegaNodeListPrivate(results);
+}
+
 MegaNodeList *MegaApiImpl::getChildren(const MegaNode* p, int order, CancelToken cancelToken)
 {
     if (!p || p->getType() == MegaNode::TYPE_FILE)
@@ -19073,6 +19105,7 @@ MegaFilePut*
     *static_cast<FileFingerprint*>(f) =
         megaTransfer.fingerprint_onDisk; // deliberate slicing - startxfer would re-fingerprint if
                                          // we don't supply this info
+    f->setPitag(megaTransfer.getPitag());
 
     f->setTransfer(
         &megaTransfer); // sets internal `megaTransfer`, different from internal `transfer`!
@@ -19227,11 +19260,12 @@ CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, con
 {
     auto fa = fsaccess->newfileaccess();
     auto fap = fa.get();
-    auto faGetter = [fap, &fileLocalPath]() {
-        return fap->fopen(fileLocalPath,
-                          true/*read*/,
-                          false/*write*/,
-                          FSLogging::logExceptFileNotFound) && fap->type == FILENODE ? fap : nullptr;
+    auto faGetter = [fap, &fileLocalPath]()
+    {
+        return fap->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                       fap->type == FILENODE ?
+                   fap :
+                   nullptr;
     };
     return CollisionChecker::check(std::move(faGetter), fileNode, option);
 }
@@ -19565,6 +19599,22 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                       << ") with same FP and MAC exists in Cloud. Perform remote "
                                          "copy";
 
+                            Pitag pitag = transfer->getPitag();
+                            pitag.purpose = PitagPurpose::Copy;
+                            pitag.nodeType = PitagNodeType::File;
+                            if (pitag.target == PitagTarget::NotApplicable)
+                            {
+                                const bool inIncomingShare =
+                                    parent && parent->matchesOrHasAncestorMatching(
+                                                  [](const Node& node)
+                                                  {
+                                                      return node.inshare != nullptr;
+                                                  });
+                                pitag.target = inIncomingShare ? PitagTarget::IncomingShare :
+                                                                 PitagTarget::CloudDrive;
+                            }
+                            transfer->setPitag(pitag);
+
                             currentTransfer = transfer;
                             transfer->setState(MegaTransfer::STATE_QUEUED);
                             transfer->setTag(nextTag);
@@ -19780,10 +19830,10 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                     // collision check if hasn't been checked yet
                     auto fa = fsAccess->newfileaccess();
-                    if (fa
-                        && (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet)
-                        && fa->fopen(wLocalPath, true, false, FSLogging::logExceptFileNotFound)
-                        && fa->type == FILENODE)
+                    if (fa &&
+                        (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) &&
+                        fa->fopen(wLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                        fa->type == FILENODE)
                     {
                         auto fap = fa.get();
                         if (node)
@@ -20968,6 +21018,23 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                 }
             }
 
+            const bool targetIsIncomingShare = target && target->matchesOrHasAncestorMatching(
+                                                             [](const Node& n)
+                                                             {
+                                                                 return n.inshare != nullptr;
+                                                             });
+            Pitag pitag;
+            pitag.purpose = PitagPurpose::Copy;
+            pitag.trigger = PitagTrigger::NotApplicable;
+            pitag.nodeType =
+                node ? (node->type == FOLDERNODE ? PitagNodeType::Folder : PitagNodeType::File) :
+                       (megaNode->getType() == MegaNode::TYPE_FOLDER ? PitagNodeType::Folder :
+                                                                       PitagNodeType::File);
+            pitag.target =
+                targetIsIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+            pitag.importSource = node && node->inshare ? PitagImportSource::IncomingShare :
+                                                         PitagImportSource::CloudDrive;
+
             if (!node)
             {
                 if (!megaNode->getNodeKey()->size())
@@ -21034,7 +21101,10 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                                      std::move(tc.nn),
                                      privateNode ? privateNode->getChatAuth() : nullptr,
                                      request->getTag(),
-                                     false);
+                                     false,
+                                     {},
+                                     nullptr,
+                                     pitag);
                 }
                 else
                 {
@@ -21063,7 +21133,15 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
 
                 if (target)
                 {
-                    client->putnodes(target->nodeHandle(), UseLocalVersioningFlag, std::move(nn), nullptr, request->getTag(), false);
+                    client->putnodes(target->nodeHandle(),
+                                     UseLocalVersioningFlag,
+                                     std::move(nn),
+                                     nullptr,
+                                     request->getTag(),
+                                     false,
+                                     {},
+                                     nullptr,
+                                     pitag);
                 }
                 else
                 {
@@ -21991,7 +22069,7 @@ error MegaApiImpl::performRequest_setAttrUser(MegaRequestPrivate* request)
                     auto localpath = LocalPath::fromAbsolutePath(file);
 
                     auto f = fsAccess->newfileaccess();
-                    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
+                    if (!f->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
                     {
                         return API_EREAD;
                     }
@@ -22307,7 +22385,7 @@ error MegaApiImpl::performRequest_setAttrFile(MegaRequestPrivate* request)
 
     std::unique_ptr<string> attributedata(new string);
     std::unique_ptr<FileAccess> f(fsAccess->newfileaccess());
-    if (!f->fopen(localpath, 1, 0, FSLogging::logOnError))
+    if (!f->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError))
     {
         return API_EREAD;
     }
@@ -31127,7 +31205,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // Do the fingerprinting for uploads on the scan thread, so we don't lock the main mutex for so long
             FileFingerprint fp;
             auto fa = fsaccess->newfileaccess();
-            if (fa->fopen(childPath, true, false, FSLogging::logOnError))
+            if (fa->fopen(childPath, OPEN_RDONLY, FSLogging::logOnError))
             {
                 fp.genfingerprint(fa.get());
             }
@@ -32046,7 +32124,7 @@ void MegaScheduledCopyController::onFolderAvailable(MegaHandle handle)
                 //TODO: add exclude filters here
 
                 auto fa = client->fsaccess->newfileaccess();
-                if (fa->fopen(childPath, true, false, FSLogging::logOnError))
+                if (fa->fopen(childPath, OPEN_RDONLY, FSLogging::logOnError))
                 {
                     string name = localname.toName(*client->fsaccess);
                     if(fa->type == FILENODE)
@@ -32859,7 +32937,8 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
         if (folderExists)
         {
             auto fa = fsaccess->newfileaccess();
-            if (fa && fa->fopen(fileLocalPath, true, false, FSLogging::logExceptFileNotFound) && fa->type == FILENODE)
+            if (fa && fa->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                fa->type == FILENODE)
             {
                 decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
             }
@@ -34559,7 +34638,7 @@ int MegaHTTPServer::onBody(http_parser *parser, const char *b, size_t n)
             httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
             LocalPath localPath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
             httpctx->server->fsAccess->unlinklocal(localPath);
-            if (!httpctx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
+            if (!httpctx->tmpFileAccess->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 returnHttpCode(httpctx, 500); //is it ok to have a return here (not int onMessageComplete)?
                 return 0;
@@ -35634,7 +35713,9 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 httpctx->tmpFileAccess = httpctx->server->fsAccess->newfileaccess();
                 auto tmpFileNamePath = LocalPath::fromAbsolutePath(httpctx->tmpFileName);
                 httpctx->server->fsAccess->unlinklocal(tmpFileNamePath);
-                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath, false, true, FSLogging::logOnError))
+                if (!httpctx->tmpFileAccess->fopen(tmpFileNamePath,
+                                                   OPEN_WRONLY,
+                                                   FSLogging::logOnError))
                 {
                     returnHttpCode(httpctx, 500);
                     delete node;
@@ -38372,7 +38453,7 @@ void MegaFTPDataServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nrea
             LocalPath localPath = LocalPath::fromAbsolutePath(ftpdatactx->tmpFileName);
             fds->fsAccess->unlinklocal(localPath);
 
-            if (!ftpdatactx->tmpFileAccess->fopen(localPath, false, true, FSLogging::logOnError))
+            if (!ftpdatactx->tmpFileAccess->fopen(localPath, OPEN_WRONLY, FSLogging::logOnError))
             {
                 ftpdatactx->setControlCodeUponDataClose(450);
                 remotePathToUpload = ""; //empty, so that we don't read in the next connections
@@ -38699,10 +38780,11 @@ MegaFTPDataContext::MegaFTPDataContext()
     node = NULL;
     rangeWritten = 0;
     rangeStart = 0;
+    rangeEnd = 0;
     tmpFileAccess = NULL;
     tmpFileSize = 0;
-    this->controlRespondedElsewhere = false;
-    this->controlResponseCode = 426;
+    controlRespondedElsewhere = false;
+    controlResponseCode = 426;
 }
 
 MegaFTPDataContext::~MegaFTPDataContext()

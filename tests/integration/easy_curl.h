@@ -4,7 +4,9 @@
 
 #include <curl/curl.h>
 
-#include <memory>
+#include <map>
+#include <string>
+#include <vector>
 
 namespace sdk_test
 {
@@ -61,6 +63,67 @@ public:
 
 private:
     CURL* mCurl{nullptr}; ///< The underlying libcurl handle
+};
+
+/**
+ * @brief RAII wrapper for libcurl's curl_slist handle
+ *
+ * EasyCurl provides a safe, modern C++ interface for managing libcurl's curl_slist handles.
+ * It ensures proper cleanup of resources and follows RAII principles.
+ *
+ * This class is move-only to prevent accidental copying of curl_slist handles.
+ */
+class EasyCurlSlist final
+{
+public:
+    /**
+     * @brief Constructs an empty EasyCurlSlist
+     */
+    EasyCurlSlist();
+
+    /**
+     * @brief Destructor - cleans up the curl_slist handle
+     */
+    ~EasyCurlSlist();
+
+    /**
+     * @brief Copy constructor - deleted to prevent copying
+     */
+    EasyCurlSlist(const EasyCurlSlist&) = delete;
+
+    /**
+     * @brief Copy assignment operator - deleted to prevent copying
+     */
+    EasyCurlSlist& operator=(const EasyCurlSlist&) = delete;
+
+    /**
+     * @brief Move constructor
+     * @param other The EasyCurlSlist to move from
+     */
+    EasyCurlSlist(EasyCurlSlist&& other) noexcept;
+
+    /**
+     * @brief Move assignment operator
+     * @param other The EasyCurlSlist to move from
+     * @return Reference to this EasyCurlSlist
+     */
+    EasyCurlSlist& operator=(EasyCurlSlist&& other) noexcept;
+
+    /**
+     * @brief Appends a single value to the curl_slist
+     * @param value The string value to append
+     * @return true on success, false on failure
+     */
+    bool append(const std::string& value);
+
+    /**
+     * @brief Get the underlying curl_slist handle
+     * @return Raw pointer to the curl_slist handle
+     */
+    curl_slist* slist() const;
+
+private:
+    curl_slist* mSlist{nullptr}; ///< The underlying libcurl curl_slist handle
 };
 
 } // namespace sdk_test

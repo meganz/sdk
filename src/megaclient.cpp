@@ -238,7 +238,7 @@ bool MegaClient::JourneyID::loadValuesFromCache()
         return false;
     }
     auto fileAccess = mClientFsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, true, false, FSLogging::logOnError);
+    bool success = fileAccess->fopen(mCacheFilePath, OPEN_RDONLY, FSLogging::logOnError);
     if (success)
     {
         string cachedJidValue, cachedTrackValue;
@@ -295,7 +295,7 @@ bool MegaClient::JourneyID::storeValuesToCache(bool storeJidValue, bool storeTra
         return false;
     }
     auto fileAccess = mClientFsaccess->newfileaccess(false);
-    bool success = fileAccess->fopen(mCacheFilePath, false, true, FSLogging::logOnError);
+    bool success = fileAccess->fopen(mCacheFilePath, OPEN_WRONLY, FSLogging::logOnError);
     if (success)
     {
         if (storeJidValue)
@@ -838,6 +838,11 @@ bool MegaClient::setlang(string *code)
 void MegaClient::enableSearchDBIndexes(bool enable)
 {
     mEnableSearchDBIndexes = enable;
+}
+
+void MegaClient::enableLexicographicDBIndexes(bool enable)
+{
+    mEnableLexicographicDBIndexes = enable;
 }
 
 void MegaClient::dropSearchDBIndexes()
@@ -1743,6 +1748,7 @@ std::string MegaClient::getDeviceidHash()
     }
 
     string id = MegaClient::statsid;
+    DEBUG_TEST_HOOK_DEVICE_ID(id);
     if (id.size())
     {
         string hash;
@@ -4429,9 +4435,11 @@ void MegaClient::dispatchTransfers()
                     LOG_debug << "Sync open: "
                               << nexttransfer->localfilename;
 
-                    openok = (nexttransfer->type == PUT)
-                        ? ts->fa->fopen(nexttransfer->localfilename, FSLogging::logOnError)
-                        : ts->fa->fopen(nexttransfer->localfilename, false, true, FSLogging::logOnError);
+                    openok = (nexttransfer->type == PUT) ?
+                                 ts->fa->fopen(nexttransfer->localfilename, FSLogging::logOnError) :
+                                 ts->fa->fopen(nexttransfer->localfilename,
+                                               OPEN_WRONLY,
+                                               FSLogging::logOnError);
                     openfinished = true;
                 }
 
@@ -12285,6 +12293,10 @@ void MegaClient::opensctable()
                 {
                     mNodeManager.dropSearchDBIndexes();
                 }
+                if (!mEnableLexicographicDBIndexes)
+                {
+                    mNodeManager.dropLexicographicDBIndexes();
+                }
 
                 // DB connection always has a transaction started (applies to both tables, statecache and nodes)
                 // We only commit once we have an up to date SCSN and the table state matches it.
@@ -14818,7 +14830,11 @@ error MegaClient::changepw(const char* password, const char *pin)
 
     // Confirm account version, not rely on cached values
     string spwd = password ? password : string();
-    string spin = pin ? pin : string();
+    std::optional<std::string> spin;
+    if (pin)
+    {
+        spin.emplace(pin);
+    }
     getuserdata(
         reqtag,
         [this, u, spwd, spin](string* /*name*/, string* /*pubk*/, string* /*privk*/, error e)
@@ -14832,7 +14848,7 @@ error MegaClient::changepw(const char* password, const char *pin)
             switch (accountversion)
             {
                 case 1:
-                    e = changePasswordV1(u, spwd.c_str(), spin.c_str());
+                    e = changePasswordV1(u, spwd.c_str(), spin ? spin->c_str() : nullptr);
                     break;
 
                 default:
@@ -14841,7 +14857,7 @@ error MegaClient::changepw(const char* password, const char *pin)
                     [[fallthrough]];
 
                 case 2:
-                    e = changePasswordV2(spwd.c_str(), spin.c_str());
+                    e = changePasswordV2(spwd.c_str(), spin ? spin->c_str() : nullptr);
                     break;
             }
 
@@ -17777,8 +17793,7 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
     // we do allow, eg. mounting an exFAT drive over an NTFS folder, and making a sync at that path
     bool reparsePointOkAtRoot = true;
     if (!openedLocalFolder->fopen(rootPathWithoutEndingSeparator,
-                                  true,
-                                  false,
+                                  OPEN_RDONLY,
                                   FSLogging::logOnError,
                                   nullptr,
                                   reparsePointOkAtRoot,
@@ -18216,54 +18231,34 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
         attrs.map[attrId] = deviceId;
     };
 
-    // search for remote folder "My Backups"/`DEVICE_NAME`/
-    std::shared_ptr<Node> deviceNameNode = childnodebyattribute(myBackupsNode.get(), attrId, deviceId.c_str());
-    if (deviceNameNode) // validate this node
+    // search for remote folder "My Backups"/`DEVICE_ID`/
+    std::shared_ptr<Node> deviceBackupNode =
+        childnodebyattribute(myBackupsNode.get(), attrId, deviceId.c_str());
+    if (deviceBackupNode) // validate this node
     {
-        if (deviceNameNode->type != FOLDERNODE)
+        if (deviceBackupNode->type != FOLDERNODE)
         {
-            LOG_err << "Add backup: device-name node did not have FOLDERNODE type";
+            LOG_err << "Add backup: device-id node did not have FOLDERNODE type";
             return completion(API_EACCESS, sc, nullptr);
         }
 
         // make sure there is no folder with the same name as the backup
-        std::shared_ptr<Node> backupNameNode = childnodebyname(deviceNameNode.get(), sc.mName.c_str());
+        std::shared_ptr<Node> backupNameNode =
+            childnodebyname(deviceBackupNode.get(), sc.mName.c_str());
         if (backupNameNode)
         {
             LOG_err << "Add backup: a backup with the same name (" << sc.mName << ") already existed";
             return completion(API_EACCESS, sc, nullptr);
         }
     }
-    else // create `DEVICE_NAME` remote dir
+    else // create `DEVICE_ID` remote dir
     {
-        // get `DEVICE_NAME`, from user attributes
-        attr_t attrType = ATTR_DEVICE_NAMES;
-        attribute = u->getAttribute(attrType);
-        if (!attribute || !attribute->isValid())
+        // is there a folder with the same device-id already?
+        deviceBackupNode = childnodebyname(myBackupsNode.get(), deviceId.c_str());
+        if (deviceBackupNode)
         {
-            LOG_err << "Add backup: device/drive name not set";
-            return completion(API_EINCOMPLETE, sc, nullptr);
-        }
-        if (attribute->value().empty())
-        {
-            LOG_err << "Add backup: empty attribute value for device/drive name";
-            return completion(API_EINCOMPLETE, sc, nullptr);
-        }
-
-        std::unique_ptr<string_map> records(tlv::containerToRecords(attribute->value(), key));
-        const string& deviceNameKey = isInternalDrive ? deviceId : User::attributePrefixInTLV(ATTR_DEVICE_NAMES, true) + deviceId;
-        const string& deviceName = records ? (*records)[deviceNameKey] : string {};
-        if (deviceName.empty())
-        {
-            LOG_err << "Add backup: device/drive name not found";
-            return completion(API_EINCOMPLETE, sc, nullptr);
-        }
-
-        // is there a folder with the same device-name already?
-        deviceNameNode = childnodebyname(myBackupsNode.get(), deviceName.c_str());
-        if (deviceNameNode)
-        {
-            LOG_err << "Add backup: new device, but a folder with the same device-name (" << deviceName << ") already existed";
+            LOG_err << "Add backup: new device, but a folder with the same device-id (" << deviceId
+                    << ") already existed";
             return completion(API_EEXIST, sc, nullptr);
         }
 
@@ -18271,7 +18266,7 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
         newnodes.emplace_back();
         NewNode& newNode = newnodes.back();
 
-        putnodes_prepareOneFolder(&newNode, deviceName, true, addAttrsFunc);
+        putnodes_prepareOneFolder(&newNode, deviceId, true, addAttrsFunc);
         newNode.nodehandle = AttrMap::string2nameid("dummy"); // any value should do, let's make it somewhat "readable"
     }
 
@@ -18280,14 +18275,14 @@ void MegaClient::preparebackup(SyncConfig sc, std::function<void(Error, SyncConf
     NewNode& backupNameNode = newnodes.back();
 
     putnodes_prepareOneFolder(&backupNameNode, sc.mName, true);    // backup node should not include dev-id/drv-id
-    if (!deviceNameNode)
+    if (!deviceBackupNode)
     {
         // Set parent handle if part of the new nodes array (it cannot be from an existing node)
         backupNameNode.parenthandle = newnodes[0].nodehandle;
     }
 
     // create the new node(s)
-    putnodes(deviceNameNode ? deviceNameNode->nodeHandle() : myBackupsNode->nodeHandle(),
+    putnodes(deviceBackupNode ? deviceBackupNode->nodeHandle() : myBackupsNode->nodeHandle(),
              NoVersioning,
              std::move(newnodes),
              nullptr,
@@ -18739,7 +18734,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                 // missing FileFingerprint for local file - generate
                 auto fa = fsaccess->newfileaccess();
 
-                if (fa->fopen(f->getLocalname(), d == PUT, d == GET, FSLogging::logOnError))
+                if (fa->fopen(f->getLocalname(), OPEN_RDONLY, FSLogging::logOnError))
                 {
                     f->genfingerprint(fa.get());
                 }
@@ -19116,6 +19111,17 @@ error MegaClient::transferRemoteCopy(File* file,
     attrs.getjson(&attrstring);
     makeattr(&nodeKey, tc.nn[0].attrstring, attrstring.c_str());
 
+    auto pitag = file->getPitag();
+    if (pitag && pitag->target == PitagTarget::NotApplicable)
+    {
+        const bool inIncomingShare = parent && parent->matchesOrHasAncestorMatching(
+                                                   [](const Node& node)
+                                                   {
+                                                       return node.inshare != nullptr;
+                                                   });
+        pitag->target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
+    }
+
     if (tc.nn[0].type == FILENODE)
     {
         if (std::shared_ptr<Node> ovn = getovnode(parent.get(), &sname))
@@ -19142,7 +19148,10 @@ error MegaClient::transferRemoteCopy(File* file,
                  std::move(tc.nn),
                  nullptr,
                  tag,
-                 false);
+                 false,
+                 {}, // customerIpPort
+                 nullptr,
+                 pitag);
     }
 
     // Delete Transfer and File
@@ -19376,7 +19385,7 @@ bool MegaClient::treatAsIfFileDataEqual(const FileFingerprint& node1,
 
     FileFingerprint fp;
     auto fa = fsaccess->newfileaccess();
-    if (fa->fopen(file2, true, false, FSLogging::logOnError))
+    if (fa->fopen(file2, OPEN_RDONLY, FSLogging::logOnError))
     {
 
         if (!fp.genfingerprint(fa.get())) return false;
@@ -24208,11 +24217,10 @@ bool KeyManager::unserialize(KeyManager& km, const string &keysContainer)
         {
             string buf(blob + offset, len);
             if (!deserializePendingInshares(km, buf)) return false;
-            // Commented to trace possible issues with pending inshares.
-            //if (mDebugContents)
-            //{
+            if (mDebugContents)
+            {
                 LOG_verbose << pendingInsharesToString(km);
-            //}
+            }
             break;
         }
         case TAG_BACKUPS:

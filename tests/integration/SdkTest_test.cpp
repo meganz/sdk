@@ -26,6 +26,7 @@
 #include "gtest_common.h"
 #include "integration_test_utils.h"
 #include "mega/account.h"
+#include "mega/filesystem.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
@@ -429,6 +430,20 @@ std::string SdkTest::getFilePrefix() const
     return suite + "_" + name + "_";
 }
 
+void SdkTest::cleanupPerApiBackupsMonitorMap(const unsigned i)
+{
+    if (megaApi[i])
+    {
+        mApi[i].clearBackupsMonitorMap();
+    }
+    else
+    {
+        LOG_warn << "[SdkTest::Cleanup]: BackupsMonitorMap Could not be properly cleared as "
+                    "megaApi instance didn't exists at this point. It will be cleared when "
+                    "mApi instance is destroyed";
+    }
+}
+
 void SdkTest::Cleanup()
 {
     LOG_debug << "[SdkTest::Cleanup]";
@@ -437,6 +452,7 @@ void SdkTest::Cleanup()
     cleanupLocalFiles();
     for (unsigned nApi = 0; nApi < mApi.size(); ++nApi)
     {
+        cleanupPerApiBackupsMonitorMap(nApi);
         if (!megaApi[nApi] || !megaApi[nApi]->isLoggedIn())
         {
             continue;
@@ -7113,7 +7129,7 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
         auto localdir = fspathToLocal(iteratePath);
 
         std::unique_ptr<FileAccess> fopen_directory(fsa->newfileaccess(false));  // false = don't follow symlinks
-        ASSERT_TRUE(fopen_directory->fopen(localdir, true, false, FSLogging::logOnError));
+        ASSERT_TRUE(fopen_directory->fopen(localdir, OPEN_RDONLY, FSLogging::logOnError));
 
         // now open and iterate the directory, not following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da(fsa->newdiraccess());
@@ -7131,16 +7147,19 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
+                ASSERT_TRUE(plain_fopen_fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError));
                 plain_fopen[leafNameUtf8] = *plain_fopen_fa;
 
-                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da.get()));
+                ASSERT_TRUE(iterate_fopen_fa->fopen(localpath,
+                                                    OPEN_RDONLY,
+                                                    FSLogging::logOnError,
+                                                    da.get()));
                 iterate_fopen[leafNameUtf8] = *iterate_fopen_fa;
             }
         }
 
         std::unique_ptr<FileAccess> fopen_directory2(fsa->newfileaccess(true));  // true = follow symlinks
-        ASSERT_TRUE(fopen_directory2->fopen(localdir, true, false, FSLogging::logOnError));
+        ASSERT_TRUE(fopen_directory2->fopen(localdir, OPEN_RDONLY, FSLogging::logOnError));
 
         // now open and iterate the directory, following symlinks (either by name or fopen'd directory)
         std::unique_ptr<DirAccess> da_follow(fsa->newdiraccess());
@@ -7158,10 +7177,14 @@ TEST_F(SdkTest, DISABLED_SdkTestFolderIteration)
                 LocalPath localpath = localdir;
                 localpath.appendWithSeparator(itemlocalname, true);
 
-                ASSERT_TRUE(plain_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError));
+                ASSERT_TRUE(
+                    plain_follow_fopen_fa->fopen(localpath, OPEN_RDONLY, FSLogging::logOnError));
                 plain_follow_fopen[leafNameUtf8] = *plain_follow_fopen_fa;
 
-                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath, true, false, FSLogging::logOnError, da_follow.get()));
+                ASSERT_TRUE(iterate_follow_fopen_fa->fopen(localpath,
+                                                           OPEN_RDONLY,
+                                                           FSLogging::logOnError,
+                                                           da_follow.get()));
                 iterate_follow_fopen[leafNameUtf8] = *iterate_follow_fopen_fa;
             }
         }
@@ -10074,7 +10097,7 @@ TEST_F(SdkTest, SdkTestStreaming)
 
     // Read three slices from disk
     std::unique_ptr<FileAccess> fa(fsAccess->newfileaccess(false));
-    ASSERT_TRUE(fa->fopen(localPath, true, false, FSLogging::logOnError))
+    ASSERT_TRUE(fa->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         << "Failed to open local file";
 
     std::string bufHead;
@@ -10936,7 +10959,20 @@ TEST_F(SdkTest, SdkDeviceNames)
 
 TEST_F(SdkTest, SdkBackupFolder)
 {
-    /// Run this after SdkDeviceNames test that changes device name.
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    MrProper defer(
+        []
+        {
+            globalMegaTestHooks.onHookDeviceId = nullptr;
+        });
+    // set a fixed device id for testing
+    globalMegaTestHooks.onHookDeviceId = [](std::string& deviceId)
+    {
+        const auto [email, _] = getEnvVarAccounts().getVarValues(0);
+        ASSERT_FALSE(email.empty());
+        deviceId = "TEST_DEVICE_ID_" + email;
+    };
+#endif
 
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     LOG_info << "___TEST BackupFolder___";
@@ -10944,26 +10980,12 @@ TEST_F(SdkTest, SdkBackupFolder)
     // get timestamp
     string timestamp = getCurrentTimestamp(true);
 
-    // look for Device Name attr
-    string deviceName;
-    [[maybe_unused]] bool deviceNameWasSetByCurrentTest = false;
-    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
-    {
-        deviceName = "Jenkins " + timestamp;
-        doSetDeviceName(0, nullptr, deviceName.c_str());
-
-        // make sure Device Name attr was set
-        string deviceNameInCloud;
-        ASSERT_EQ(doGetDeviceName(0, &deviceNameInCloud, nullptr), API_OK) << "Getting device name attr failed";
-        ASSERT_EQ(deviceName, deviceNameInCloud) << "Getting device name attr failed (wrong value)";
-        deviceNameWasSetByCurrentTest = true;
-    }
-
 #ifdef ENABLE_SYNC
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     MegaHandle mh = mApi[0].lastSyncBackupId;
-
+#endif
     // Create a test root directory
     fs::path localBasePath = makeNewTestRoot();
 
@@ -10992,19 +11014,19 @@ TEST_F(SdkTest, SdkBackupFolder)
     const char* deviceIdFromNode = backupNode->getDeviceId();
     ASSERT_TRUE(!deviceIdFromNode || !*deviceIdFromNode);
 
-    unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle) };
-    // TODO: always verify the remote path was created as expected,
-    // even if it needs to create a new public interface that allows
-    // to retrieve the handle of the device-folder
-    if (deviceNameWasSetByCurrentTest)
-    {
-        // Verify that the remote path was created as expected.
-        // Only check this if current test has actually set the device name, otherwise the device name may have changed
-        // since the backup folder has been created.
-        unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-        string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceName + '/' + backupName;
-        ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
-    }
+    unique_ptr<char[]> actualRemotePath{megaApi[0]->getNodePathByNodeHandle(newSyncRootNodeHandle)};
+    ASSERT_TRUE(actualRemotePath);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    // verify remote path
+    std::unique_ptr<const char[]> deviceIdHash{megaApi[0]->getDeviceId()};
+    ASSERT_TRUE(deviceIdHash);
+    unique_ptr<char[]> myBackupsFolder{megaApi[0]->getNodePathByNodeHandle(mh)};
+    ASSERT_TRUE(myBackupsFolder);
+    string expectedRemotePath =
+        string(myBackupsFolder.get()) + '/' + string(deviceIdHash.get()) + '/' + backupName;
+    ASSERT_STREQ(expectedRemotePath.c_str(), actualRemotePath.get())
+        << "Wrong remote path for backup";
+#endif
 
     // So we can detect when the node database has been committed.
     PerApi& target = mApi[0];
@@ -11150,16 +11172,6 @@ TEST_F(SdkTest, SdkBackupMoveOrDelete)
 
     string timestamp = getCurrentTimestamp(true);
 
-    // Set device name if missing
-    string deviceName;
-    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
-    {
-        string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK) << "Setting device name failed";
-        // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
-        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
-    }
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
@@ -11381,17 +11393,6 @@ TEST_F(SdkTest, SdkBackupPauseResume)
 
     const string timestamp = getCurrentTimestamp(true);
 
-    // Set device name if missing
-    string deviceName;
-    if (doGetDeviceName(0, &deviceName, nullptr) != API_OK || deviceName.empty())
-    {
-        const string newDeviceName = "Jenkins " + timestamp;
-        ASSERT_EQ(doSetDeviceName(0, nullptr, newDeviceName.c_str()), API_OK)
-            << "Setting device name failed";
-        // make sure Device Name attr was set
-        ASSERT_EQ(doGetDeviceName(0, &deviceName, nullptr), API_OK) << "Getting device name failed";
-        ASSERT_EQ(deviceName, newDeviceName) << "Getting device name failed (wrong value)";
-    }
     // Make sure My Backups folder was created
     ASSERT_NO_FATAL_FAILURE(syncTestEnsureMyBackupsRemoteFolderExists(0));
 
@@ -11639,9 +11640,18 @@ TEST_F(SdkTest, SdkExternalDriveFolder)
     ASSERT_EQ(API_OK, err) << "sync folder failed (error: " << err << ")";
     auto backupId = mApi[0].lastSyncBackupId;
 
+    // get device id of the external drive
+    handle driveId;
+    err = readDriveId(*fileSystemAccess,
+                      LocalPath::fromAbsolutePath(pathToDriveStr).toPath(false).c_str(),
+                      driveId);
+    ASSERT_EQ(API_OK, err) << "Add backup (external): failed to read drive id";
+    // create the device id from the drive id
+    string deviceId(Base64Str<MegaClient::DRIVEHANDLE>(driveId).chars);
+
     // Verify that the remote path was created as expected
     unique_ptr<char[]> myBackupsFolder{ megaApi[0]->getNodePathByNodeHandle(mh) };
-    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + driveName + '/' + bkpName;
+    string expectedRemotePath = string(myBackupsFolder.get()) + '/' + deviceId + '/' + bkpName;
     unique_ptr<char[]> actualRemotePath{ megaApi[0]->getNodePathByNodeHandle(backupFolderHandle) };
     ASSERT_EQ(expectedRemotePath, actualRemotePath.get()) << "Wrong remote path for backup";
 
@@ -18443,20 +18453,20 @@ TEST_F(SdkTest, SdkTestFilePermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFile = [&filename](bool readF, bool writeF) -> bool
+    auto openFile = [&filename](OpenFlag flag) -> bool
     {
         auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path filePath = fs::current_path() / filename.c_str();
         LocalPath localfilePath = fspathToLocal(filePath);
 
         std::unique_ptr<FileAccess> plain_fopen_fa(fsa->newfileaccess(false));
-        return plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
+        return plain_fopen_fa->fopen(localfilePath, flag, FSLogging::logOnError);
     };
 
     // TEST 1: Control test. Default file permissions (0600).
     // Expected: successful download and successul file opening for reading and writing.
     ASSERT_EQ(API_OK, downloadFile());
-    ASSERT_TRUE(openFile(true, true)) << "Couldn't open file for read|write";
+    ASSERT_TRUE(openFile(OPEN_RDWR)) << "Couldn't open file for read|write";
     deleteFile(filename.c_str());
 
     auto minimumPermissions = makeScopedMinimumPermissions(0700, 0400);
@@ -18466,13 +18476,13 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
         ASSERT_EQ(API_OK, downloadFile());
-        ASSERT_TRUE(openFile(true, false)) << "Couldn't open file for read";
+        ASSERT_TRUE(openFile(OPEN_RDONLY)) << "Couldn't open file for read";
 #ifdef _WIN32
         // Files should be able to be opened: posix file permissions don't have any effect on
         // Windows.
-        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFile(OPEN_RDWR)) << "Couldn't open files for read|write";
 #else
-        ASSERT_FALSE(openFile(true, true))
+        ASSERT_FALSE(openFile(OPEN_RDWR))
             << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
         deleteFile(filename.c_str());
@@ -18483,7 +18493,7 @@ TEST_F(SdkTest, SdkTestFilePermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0700);
         ASSERT_EQ(API_OK, downloadFile());
-        ASSERT_TRUE(openFile(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFile(OPEN_RDWR)) << "Couldn't open files for read|write";
         deleteFile(filename.c_str());
     }
 }
@@ -18561,7 +18571,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
         return downloadListener.waitForResult();
     };
 
-    auto openFolderAndFiles = [this, &foldername, &nimported](bool readF, bool writeF) -> bool
+    auto openFolderAndFiles = [this, &foldername, &nimported](OpenFlag flag) -> bool
     {
         auto fsa = std::make_unique<FSACCESS_CLASS>();
         fs::path dirPath = fs::current_path() / foldername.c_str();
@@ -18580,7 +18590,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
                     fs::path filePath = dirPath / childrenList->get(childIndex)->getName();
                     auto localfilePath = fspathToLocal(filePath);
                     std::unique_ptr<FileAccess> plain_fopen_fa(filesa->newfileaccess(false));
-                    openResult &= plain_fopen_fa->fopen(localfilePath, readF, writeF, FSLogging::logOnError);
+                    openResult &= plain_fopen_fa->fopen(localfilePath, flag, FSLogging::logOnError);
                 }
             }
         }
@@ -18590,7 +18600,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     // TEST 1. Control test. Default folder permissions. Default file permissions.
     // Expected a successful download and no issues when accessing the folder.
     ASSERT_EQ(API_OK, downloadFolder());
-    ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+    ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
     deleteFolder(foldername.c_str());
 
     auto minimumPermissions = makeScopedMinimumPermissions(0400, 0400);
@@ -18604,15 +18614,15 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
         // Folder and files should be able to be opened: posix file/folder permissions don't have
         // any effect on Windows.
         ASSERT_EQ(API_OK, downloadFolder());
-        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
-        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDONLY)) << "Couldn't open files for read";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
 #else
         ASSERT_EQ(API_EINCOMPLETE, downloadFolder())
             << "Download should have failed as there are not enough permissions to write in the "
                "folder";
-        ASSERT_FALSE(openFolderAndFiles(true, false))
+        ASSERT_FALSE(openFolderAndFiles(OPEN_RDONLY))
             << "Could open files for read, while it shouldn't due to permissions";
-        ASSERT_FALSE(openFolderAndFiles(true, true))
+        ASSERT_FALSE(openFolderAndFiles(OPEN_RDWR))
             << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
         deleteFolder(foldername.c_str());
@@ -18624,11 +18634,11 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0400);
         ASSERT_EQ(API_OK, downloadFolder());
-        ASSERT_TRUE(openFolderAndFiles(true, false)) << "Couldn't open files for read";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDONLY)) << "Couldn't open files for read";
 #ifdef _WIN32
-        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
 #else
-        ASSERT_FALSE(openFolderAndFiles(true, true))
+        ASSERT_FALSE(openFolderAndFiles(OPEN_RDWR))
             << "Could open files for read|write, while it shouldn't due to permissions";
 #endif
         deleteFolder(foldername.c_str());
@@ -18640,7 +18650,7 @@ TEST_F(SdkTest, SdkTestFolderPermissions)
     {
         auto permissions = makeScopedDefaultPermissions(*megaApi[0], 0700, 0600);
         ASSERT_EQ(API_OK, downloadFolder());
-        ASSERT_TRUE(openFolderAndFiles(true, true)) << "Couldn't open files for read|write";
+        ASSERT_TRUE(openFolderAndFiles(OPEN_RDWR)) << "Couldn't open files for read|write";
         deleteFolder(foldername.c_str());
     }
 }
@@ -20400,6 +20410,16 @@ TEST_F(SdkTest, CreateNodeTreeVersionUsingDifferentSourceFile)
  */
 TEST_F(SdkTest, RemoveInshareElementToSynDebris)
 {
+    const MrProper cleanUp(
+        [this]()
+        {
+            // It's a good practise to unregister listeners as soon as test finish
+            for (unsigned i = 0; i < mApi.size(); ++i)
+            {
+                cleanupPerApiBackupsMonitorMap(i);
+            }
+        });
+    MegaHandle testBackupID{INVALID_HANDLE};
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     // --- Create some nodes to share ---
@@ -20500,7 +20520,8 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
     fs::create_directories(localFolderPath);
     MegaHandle newSyncRootNodeHandle = UNDEF;
 
-    int err = synchronousSyncFolder(1,
+    const unsigned monIdx{1};
+    int err = synchronousSyncFolder(monIdx,
                                     &newSyncRootNodeHandle,
                                     MegaSync::TYPE_TWOWAY,
                                     path_u8string(localFolderPath).c_str(),
@@ -20508,9 +20529,17 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
                                     hfolder1,
                                     nullptr);
     ASSERT_TRUE(err == API_OK) << "Backup folder failed (error: " << err << ")";
-    std::unique_ptr<MegaNode> syncFolder(megaApi[1]->getNodeByHandle(hfolder1));
-    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[1].get(), syncFolder.get(), MegaSync::RUNSTATE_RUNNING, MegaSync::NO_SYNC_ERROR);
+    std::unique_ptr<MegaNode> syncFolder(megaApi[monIdx]->getNodeByHandle(hfolder1));
+    std::unique_ptr<MegaSync> sync = waitForSyncState(megaApi[monIdx].get(),
+                                                      syncFolder.get(),
+                                                      MegaSync::RUNSTATE_RUNNING,
+                                                      MegaSync::NO_SYNC_ERROR);
     ASSERT_TRUE(sync && sync->getRunState() == MegaSync::RUNSTATE_RUNNING);
+
+    testBackupID = sync->getBackupId();
+    ASSERT_NO_FATAL_FAILURE(mApi[monIdx].addsyncMonitor(testBackupID))
+        << "Cannot add sync monitor for AccountIdx: " << monIdx
+        << ", and BackupId: " << testBackupID;
 
     fs::path folder2Path = localFolderPath / foldername2;
     fs::path filePath1 = folder2Path / PUBLICFILE;
@@ -20531,6 +20560,7 @@ TEST_F(SdkTest, RemoveInshareElementToSynDebris)
         << "Files haven't been download at local path";
 
     // Wait one of both files have been deleted from inshare. Copy operation has to be executed before deleting
+    ASSERT_TRUE(mApi[monIdx].waitForBackupSyncUpToDate(testBackupID));
     mApi[0].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfile1, MegaNode::CHANGE_TYPE_REMOVED, check1);
     mApi[1].mOnNodesUpdateCompletion = createOnNodesUpdateLambda(hfile1, MegaNode::CHANGE_TYPE_REMOVED, check2);
     deleteFolder(path_u8string(folder2Path));

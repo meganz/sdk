@@ -23,12 +23,14 @@
 #ifndef NODEMANAGER_H
 #define NODEMANAGER_H 1
 
-#include <map>
-#include <limits>
-#include <set>
-#include <vector>
 #include "node.h"
 #include "types.h"
+
+#include <limits>
+#include <map>
+#include <set>
+#include <unordered_map>
+#include <vector>
 
 namespace mega {
 
@@ -268,6 +270,13 @@ private:
     size_t mSize;
 };
 
+struct NodeSearchLexicographicalOffset
+{
+    std::string mLastName;
+    std::optional<int> mLastType;
+    std::optional<handle> mLastHandle;
+};
+
 /**
  * @brief The NodeManager class
  *
@@ -313,6 +322,18 @@ public:
                                      bool excludeSensitives = false);
 
     sharedNode_vector searchNodes(const NodeSearchFilter& filter, int order, CancelToken cancelFlag, const NodeSearchPage& page);
+
+    sharedNode_vector listChildNodesLexicographically(
+        const handle parenthandle,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset);
+
+    sharedNode_vector listChildNodesLexicographically_internal(
+        const handle parentHandle,
+        CancelToken cancelFlag,
+        const size_t maxElements,
+        const std::optional<NodeSearchLexicographicalOffset>& offset);
 
     /*
      * @brief
@@ -464,6 +485,7 @@ public:
     // Drop indexes used for search funtionalities
     // These indexes aren't required in some apps (S4)
     void dropSearchDBIndexes();
+    void dropLexicographicDBIndexes();
 
     std::shared_ptr<Node> getNodeFromNodeManagerNode(NodeManagerNode& nodeManagerNode);
 
@@ -485,6 +507,8 @@ public:
     bool ready();
 
     bool isFromRootNodeType(const Node& node) const;
+
+    void removeNodePendingApplyKeys(const Node* node);
 
 private:
     class NoKeyLogger
@@ -558,7 +582,7 @@ private:
     sharedNode_vector mNodeNotify;
 
     // Stores nodes pending key application
-    std::list<std::shared_ptr<Node>> mNodePendingApplyKeys;
+    std::unordered_map<handle, std::weak_ptr<Node>> mNodePendingApplyKeys;
 
     // tracks how many nodes have had a successful applykey()
     std::atomic<long long> mAppliedKeyNodeCount{0};
@@ -679,6 +703,7 @@ private:
     void insertNodeCacheLRU_internal(std::shared_ptr<Node> node);
     void unLoadNodeFromCacheLRU();
     void removeNodeCacheLRU_internal(Node* node);
+    void removeNodePendingApplyKeys_internal(const Node* node);
 };
 
 } // namespace
