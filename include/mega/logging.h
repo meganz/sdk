@@ -881,8 +881,25 @@ public:
 // uses the SDK core directly, and not the intermediate layer
 // So, although globals and singletons are not ideal, moving it here
 // is one step forwards in tidying that up.
-extern ExternalLogger g_externalLogger;
-extern ExclusiveLogger g_exclusiveLogger;
+
+// Update: Changing from Global variables to singleton is
+//         for solving the race conditions in multi-threaded environment.
+// extern ExternalLogger g_externalLogger;
+// extern ExclusiveLogger g_exclusiveLogger;
+
+/*
+ * @brief Get the External Logger object
+ *
+ * @return ExternalLogger&
+ */
+ExternalLogger& getExternalLogger();
+
+/*
+ * @brief Get the Exclusive Logger object
+ *
+ * @return ExclusiveLogger&
+ */
+ExclusiveLogger& getExclusiveLogger();
 
 inline error logAndReturnError(const error e, const std::string_view msg)
 {

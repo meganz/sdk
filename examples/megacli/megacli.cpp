@@ -11582,19 +11582,28 @@ int main(int argc, char* argv[])
 
     SimpleLogger::setLogLevel(logVerbose);
     auto gLoggerAddr = &gLogger;
-    g_externalLogger.addMegaLogger(&gLogger,
+    getExternalLogger()
+        .addMegaLogger(
+            &gLogger,
 
-        [gLoggerAddr](const char *time, int loglevel, const char *source, const char *message
+            [gLoggerAddr](const char* time,
+                          int loglevel,
+                          const char* source,
+                          const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+                          ,
+                          const char** directMessages,
+                          size_t* directMessagesSizes,
+                          unsigned numberMessages
 #endif
-            ){
+            )
+            {
                 gLoggerAddr->log(time, loglevel, source, message
 #ifdef ENABLE_LOG_PERFORMANCE
                     , directMessages, directMessagesSizes, numberMessages
 #endif
                 );
-         });
+            });
 
     console = new CONSOLE_CLASS;
 

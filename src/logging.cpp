@@ -28,10 +28,25 @@
 
 namespace mega {
 
-std::atomic<Logger*> SimpleLogger::logger{nullptr};
+ExternalLogger& getExternalLogger()
+{
+    // Leaky Singleton to expand the lifetime of the ExternalLogger object.
+    // This will prevent the race condition during abnormal exit in multi-threaded environment
+    // Note: If SDK was used as a dynamic library, this will cause memory leak,
+    //       However, this is a cheap price to pay for solving race conditions.
+    // This approach is quite popular in several open-source projects, such as Glog, Chrome etc.
+    static ExternalLogger* const instance = new ExternalLogger;
+    return *instance;
+}
 
-ExternalLogger g_externalLogger;
-ExclusiveLogger g_exclusiveLogger;
+ExclusiveLogger& getExclusiveLogger()
+{
+    // Same Leaky Singleton
+    static ExclusiveLogger* const instance = new ExclusiveLogger;
+    return *instance;
+}
+
+std::atomic<Logger*> SimpleLogger::logger = &getExternalLogger();
 
 // by the default, display logs with level equal or less than logInfo
 std::atomic<LogLevel> SimpleLogger::logCurrentLevel{logInfo};
@@ -70,13 +85,9 @@ std::ostream& operator<< (std::ostream& ostr, const std::system_error &se)
 ExternalLogger::ExternalLogger()
 {
     logToConsole = false;
-    SimpleLogger::setOutputClass(this);
 }
 
-ExternalLogger::~ExternalLogger()
-{
-    SimpleLogger::setOutputClass(nullptr);
-}
+ExternalLogger::~ExternalLogger() {}
 
 void ExternalLogger::addMegaLogger(void* id, LogCallback lc)
 {
