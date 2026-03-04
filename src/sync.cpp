@@ -14205,7 +14205,7 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
             list<NameConflict> nc;
             // Make a copy of mSyncVec to avoid locking mutex so many time
             auto auxSyncVec = getSyncVecCopy();
-            for (auto& us : mSyncVec)
+            for (auto& us : auxSyncVec)
             {
                 std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
