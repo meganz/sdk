@@ -13400,6 +13400,7 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
 
 std::vector<std::shared_ptr<UnifiedSync>> Syncs::getSyncVecCopy() const
 {
+    assert(onSyncThread());
     std::vector<std::shared_ptr<UnifiedSync>> auxSyncVec;
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);

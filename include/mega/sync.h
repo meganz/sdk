@@ -1930,6 +1930,8 @@ private:
      * @note The returned vector is a snapshot of the internal state
      * at the time of the call. Subsequent modifications to the
      * original container will not affect the returned copy.
+     *
+     * @note This method should be called only from sync thread to avoid issues
      */
     std::vector<std::shared_ptr<UnifiedSync>> getSyncVecCopy() const;
     void syncLoop();
