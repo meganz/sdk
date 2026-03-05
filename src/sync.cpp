@@ -13705,9 +13705,6 @@ void Syncs::syncLoop()
                                                       nullptr,
                                                       "",
                                                       "");
-
-                        // Lock `syncVecMutexlock` again
-                        syncVecMutexlock.lock();
                     }
                 }
             }
