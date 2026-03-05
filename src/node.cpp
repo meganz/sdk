@@ -2078,6 +2078,14 @@ void LocalNode::setnameparent(LocalNode* newparent, const LocalPath& newlocalpat
 
 void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAgain)
 {
+    moveContentTo(ln, fullPath, setScanAgain, true);
+}
+
+void LocalNode::moveContentTo(LocalNode* ln,
+                              LocalPath& fullPath,
+                              bool setScanAgain,
+                              bool moveTransfer)
+{
     vector<LocalNode*> workingList;
     workingList.reserve(children.size());
     for (auto& c : children) workingList.push_back(c.second);
@@ -2096,25 +2104,30 @@ void LocalNode::moveContentTo(LocalNode* ln, LocalPath& fullPath, bool setScanAg
         }
     }
 
-    if (transferSP)
+    if (moveTransfer)
     {
-        if (const auto isUpload = dynamic_cast<SyncUpload_inClient*>(transferSP.get()) != nullptr;
-            isUpload)
+        if (transferSP)
         {
-            LOG_debug << "Moving upload (" << transferSP->getLocalname() << ") source from: '"
-                      << getLocalPath().toPath(false) << "' to '"
-                      << ln->getLocalPath().toPath(false) << "'";
+            if (const auto isUpload =
+                    dynamic_cast<SyncUpload_inClient*>(transferSP.get()) != nullptr;
+                isUpload)
+            {
+                LOG_debug << "Moving upload (" << transferSP->getLocalname() << ") source from: '"
+                          << getLocalPath().toPath(false) << "' to '"
+                          << ln->getLocalPath().toPath(false) << "'";
+            }
+            else
+            {
+                LOG_debug << "Moving download (" << transferSP->getLocalname() << ") source from: '"
+                          << getCloudPath(true) << "' to '" << ln->getCloudPath(true) << "'";
+            }
         }
-        else
-        {
-            LOG_debug << "Moving download (" << transferSP->getLocalname() << ") source from: '"
-                      << getCloudPath(true) << "' to '" << ln->getCloudPath(true) << "'";
-        }
-    }
-    ln->resetTransfer(std::move(transferSP));
 
-    LocalTreeProcUpdateTransfers tput;
-    tput.proc(*sync->syncs.fsaccess, ln);
+        ln->resetTransfer(std::move(transferSP));
+
+        LocalTreeProcUpdateTransfers tput;
+        tput.proc(*sync->syncs.fsaccess, ln);
+    }
 
     ln->mWaitingForIgnoreFileLoad = mWaitingForIgnoreFileLoad;
 

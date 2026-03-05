@@ -95,11 +95,11 @@ public:
         megaApi[0]->addListener(&mockTransferListener);
 
         std::filesystem::rename(localTmpPath() / source, localTmpPath() / target);
+        sdk_test::createRandomFile(localTmpPath() / source, 900);
         auto rnFut = finishedRename.get_future();
         auto futureRenameStatus = rnFut.wait_for(COMMON_TIMEOUT);
         ASSERT_EQ(futureRenameStatus, std::future_status::ready) << "Timeout rename";
 
-        sdk_test::createRandomFile(localTmpPath() / source, 950);
         auto trFut = finishedTransfer.get_future();
         auto futureStatus = trFut.wait_for(COMMON_TIMEOUT);
         ASSERT_EQ(futureStatus, std::future_status::ready) << "Timeout transfer";
@@ -237,14 +237,13 @@ public:
         const auto targetOriginalHash = hashFileHex(localTmpPath() / target);
 
         std::filesystem::rename(localTmpPath() / source, localTmpPath() / target);
+        const std::filesystem::path sourcePath = localTmpPath() / source;
+        sdk_test::createRandomFile(sourcePath, 950);
+        const auto sourceNewHash = hashFileHex(localTmpPath() / source);
+
         auto rnFut = finishedRename.get_future();
         auto futureRnStatus = rnFut.wait_for(COMMON_TIMEOUT);
         ASSERT_EQ(futureRnStatus, std::future_status::ready) << "Timeout rename";
-
-        const std::filesystem::path sourcePath = localTmpPath() / source;
-        sdk_test::createRandomFile(sourcePath, 950);
-
-        const auto sourceNewHash = hashFileHex(localTmpPath() / source);
 
         auto trFut = finishedTransfer.get_future();
         auto trFilenameFut = gotFileName.get_future();
