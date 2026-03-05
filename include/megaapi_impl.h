@@ -3875,7 +3875,7 @@ class MegaApiImpl : public MegaApp
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void getDownloadUrl(MegaNode* node,
                             bool singleUrl,
-                            bool forceHTTP,
+                            bool forceSSL,
                             MegaRequestListener* listener);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);

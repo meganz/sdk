@@ -21529,12 +21529,12 @@ error MegaApiImpl::performRequest_importLink_getPublicNode(MegaRequestPrivate* r
 
 void MegaApiImpl::getDownloadUrl(MegaNode* node,
                                  bool singleUrl,
-                                 bool forceHTTP,
+                                 bool forceSSL,
                                  MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_DOWNLOAD_URLS, listener);
     request->setFlag(singleUrl);
-    request->setAccess(forceHTTP ? 1 : 0);
+    request->setAccess(forceSSL ? 1 : 0);
     if (node) request->setNodeHandle(node->getHandle());
 
     request->performRequest = [this, request]()
@@ -21556,7 +21556,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node,
                 nullptr,
                 nullptr,
                 request->getFlag() /*singleUrl*/,
-                static_cast<bool>(request->getAccess()) /*forceHTTP*/,
+                static_cast<bool>(request->getAccess()) /*forceSSL*/,
                 [this, request, h = node->nodehandle](const Error& e,
                                                       m_off_t /*size*/,
                                                       dstime /*timeleft*/,

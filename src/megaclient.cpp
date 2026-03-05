@@ -4550,7 +4550,7 @@ void MegaClient::dispatchTransfers()
                                     pubauth,
                                     chatauth,
                                     false /*singleURL*/,
-                                    false /*forceHTTP*/,
+                                    true /*forceSSL*/,
                                     [this, ts, hprivate, h](
                                         const Error& e,
                                         m_off_t s,

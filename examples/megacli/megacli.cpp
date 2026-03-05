@@ -6616,7 +6616,7 @@ void exec_get(autocomplete::ACState& s)
                 nullptr,
                 nullptr,
                 false /*singleURL*/,
-                false /*forceHTTP*/,
+                true /*forceSSL*/,
                 [key, ph](const Error& e,
                           m_off_t size,
                           dstime /*timeleft*/,

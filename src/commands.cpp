@@ -43,7 +43,7 @@ namespace mega {
 
 CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
                            fatype /*ctype*/,
-                           bool usehttps,
+                           bool forceSSL,
                            int ctag,
                            size_t size,
                            bool getIP,
@@ -58,7 +58,7 @@ CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
         arg("h", cth.nodeHandle());
     }
 
-    if (usehttps)
+    if (forceSSL)
     {
         arg("ssl", 2);
     }
@@ -737,7 +737,7 @@ CommandGetFile::CommandGetFile(MegaClient* /*client*/,
                                const char* publicauth,
                                const char* chatauth,
                                bool singleUrl,
-                               bool forceHTTP,
+                               bool forceSSL,
                                Cb&& completion)
 {
     if (undelete)
@@ -758,7 +758,7 @@ CommandGetFile::CommandGetFile(MegaClient* /*client*/,
         arg("v", 2);  // version 2: server can supply details for cloudraid files
     }
 
-    if (!forceHTTP)
+    if (forceSSL)
     {
         arg("ssl", 2);
     }

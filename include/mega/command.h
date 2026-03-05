@@ -200,7 +200,7 @@ public:
 
     CommandPutFA(NodeOrUploadHandle,
                  fatype,
-                 bool usehttps,
+                 bool forceSSL,
                  int tag,
                  size_t size_only,
                  bool getIP = true,
@@ -672,7 +672,7 @@ public:
                    const char* publicauth = nullptr,
                    const char* chatauth = nullptr,
                    bool singleUrl = false,
-                   bool forceHTTP = false,
+                   bool forceSSL = true,
                    Cb&& completion = nullptr);
 };
 
