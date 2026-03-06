@@ -180,9 +180,7 @@ template<typename T, std::size_t N, typename Mask = std::uint32_t>
     // base64 output capacity = 4 * ceil(N / 3)
     const auto cap = static_cast<std::size_t>(4 * ((kCrcBytes + 2) / 3));
     std::string out(cap, '\0');
-    const auto outSize = ::mega::Base64::btoa(raw, static_cast<int>(kCrcBytes), out.data());
-    if (outSize < 0)
-        return {};
+    const auto outSize = ::mega::Base64::btoa(raw, kCrcBytes, out.data());
     out.resize(static_cast<std::size_t>(outSize));
     return out;
 }

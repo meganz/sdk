@@ -7879,7 +7879,9 @@ Node* makenode(MegaClient& mc, NodeHandle parent, ::mega::nodetype_t type, m_off
     int attrlen = int(newnode->attrstring->size());
     string base64attrstring;
     base64attrstring.resize(static_cast<size_t>(attrlen * 4 / 3 + 4));
-    base64attrstring.resize(static_cast<size_t>(Base64::btoa((::mega::byte *)newnode->attrstring->data(), int(newnode->attrstring->size()), (char *)base64attrstring.data())));
+    base64attrstring.resize(Base64::btoa((::mega::byte*)newnode->attrstring->data(),
+                                         newnode->attrstring->size(),
+                                         (char*)base64attrstring.data()));
 
     *newnode->attrstring = base64attrstring;
 
