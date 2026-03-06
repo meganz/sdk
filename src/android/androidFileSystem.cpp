@@ -1452,7 +1452,7 @@ bool AndroidFileSystemAccess::expanselocalpath(const LocalPath& path, LocalPath&
         return true;
     }
 
-    return LinuxFileSystemAccess::expanselocalpath(path, absolutepath);
+    return expandLocalPathFileSystem(path, absolutepath);
 }
 
 int AndroidFileSystemAccess::getdefaultfilepermissions()

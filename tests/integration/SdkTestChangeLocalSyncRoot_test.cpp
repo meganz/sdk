@@ -402,12 +402,10 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncs)
     }
 }
 
-#ifndef WIN32
 /**
  * @brief SdkTestSyncLocalRootChange.ErrorNestedSyncSymLink :
  * 1. Change the root of the sync to a symlink pointing to the original root
  * 2. Change the root of the sync to a symlink pointing to a root of another sync
- * NOTE: This test does not make sense on windows due to how symlinks are handled there.
  */
 TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
 {
@@ -445,7 +443,6 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         std::filesystem::remove(linkName);
     }
 }
-#endif
 
 /**
  * @brief SdkTestSyncLocalRootChange.OKSyncRunningToEmptyRoot: Change the root of a running sync to

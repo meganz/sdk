@@ -2006,4 +2006,32 @@ auto FileSystemAccess::getFileSize(const LocalPath& path)
     return fileAccess->getFileSize();
 }
 
+bool FileSystemAccess::expandLocalPathFileSystem(const LocalPath& source, LocalPath& destination)
+{
+    namespace fs = std::filesystem;
+
+    assert(!source.empty());
+    assert(!LocalPath::isURIPath(source.toPath(false)));
+
+    // At worst, the destination mirrors the source.
+    destination = source;
+
+    fs::path p(source.asPlatformEncoded(false));
+    std::error_code ec;
+    fs::path c = fs::canonical(p, ec);
+    if (ec)
+    {
+        destination = source;
+        return false;
+    }
+
+#ifdef WIN32
+    destination = LocalPath::fromPlatformEncodedAbsolute(c.wstring());
+#else
+    destination = LocalPath::fromAbsolutePath(c.string());
+#endif
+
+    return true;
+}
+
 } // namespace

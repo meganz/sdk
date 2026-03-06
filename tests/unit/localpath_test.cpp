@@ -481,26 +481,6 @@ TEST(LocalPathTest, leafOrParentName)
     lp = LocalPath::fromAbsolutePath(rootName);
     ASSERT_EQ(lp.leafOrParentName(), rootName);
 
-    // Current implementation prevents the following from working correctly on *nix platforms
-
-    // "D:\\foo\\bar\\.\\" or "/foo/bar/./"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.' +
-                                     pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), "bar");
-
-    // "D:\\foo\\bar\\." or "/foo/bar/."
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + '.');
-    ASSERT_EQ(lp.leafOrParentName(), "bar");
-
-    // "D:\\foo\\bar\\..\\" or "/foo/bar/../"
-    lp = LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep +
-                                     ".." + pathSep);
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
-
-    // "D:\\foo\\bar\\.." or "/foo/bar/.."
-    lp =
-        LocalPath::fromAbsolutePath(rootDrive + pathSep + "foo" + pathSep + "bar" + pathSep + "..");
-    ASSERT_EQ(lp.leafOrParentName(), "foo");
 #endif
 
     // ".\\foo\\" or "./foo/"

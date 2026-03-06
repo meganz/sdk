@@ -898,6 +898,18 @@ protected:
 
     // Specifies the minimum permissions allowed for files.
     static std::atomic<int> mMinimumFilePermissions;
+
+    /**
+     * @brief Expands a LocalPath to its canonical absolute form.
+     *
+     * Resolves relative paths against the current working directory,
+     * normalizes the path, and resolves symbolic links. The path must exist.
+     *
+     * @param source Input path (relative or absolute - No URI).
+     * @param destination Receives the canonical absolute path on success.
+     * @return true on success, false if resolution fails.
+     */
+    bool expandLocalPathFileSystem(const LocalPath& source, LocalPath& destination);
 };
 
 int compareUtf(const string&, bool unescaping1, const string&, bool unescaping2, bool caseInsensitive);
