@@ -30,6 +30,23 @@ using std::make_pair;
 
 namespace mega {
 
+bool shouldDropStalePaymentReminder(MegaClient& mc, const UserAlert::PaymentReminder& reminder)
+{
+    const bool isPro = mc.mMyAccount.getProLevel() > AccountType::ACCOUNT_TYPE_FREE;
+    if (!isPro)
+    {
+        return false;
+    }
+
+    const m_time_t timeLeft = mc.mMyAccount.getTimeLeft();
+    if (timeLeft <= 0)
+    {
+        return false;
+    }
+
+    return reminder.expiryTime < m_time();
+}
+
 UserAlertRaw::UserAlertRaw()
     : t(0)
 {
@@ -2109,6 +2126,22 @@ void UserAlerts::add(UserAlert::Base* unb)
     // unb is either directly from notification json, or constructed from actionpacket.
     // We take ownership.
 
+    if (unb && unb->type == name_id::pses)
+    {
+        auto* pmr = static_cast<UserAlert::PaymentReminder*>(unb);
+        if (shouldDropStalePaymentReminder(mc, *pmr))
+        {
+            if (unb->dbid)
+            {
+                unb->setRelevant(false);
+                unb->setRemoved();
+                mc.persistAlert(unb);
+            }
+            delete unb;
+            return;
+        }
+    }
+
     if (provisionalmode)
     {
         provisionals.push_back(unb);
@@ -2234,6 +2267,27 @@ void UserAlerts::add(UserAlert::Base* unb)
     LOG_debug << "Added user alert, type " << alerts.back()->type << " ts " << alerts.back()->ts();
 
     notifyAlert(unb, unb->seen(), 0);   // do not touch seen here, but tag
+}
+
+void UserAlerts::purgeStalePaymentReminders()
+{
+    for (auto* alert: alerts)
+    {
+        if (!alert || alert->removed() || alert->type != name_id::pses)
+        {
+            continue;
+        }
+
+        auto* pmr = static_cast<UserAlert::PaymentReminder*>(alert);
+        if (!shouldDropStalePaymentReminder(mc, *pmr))
+        {
+            continue;
+        }
+
+        alert->setRelevant(false);
+        alert->setRemoved();
+        notifyAlert(alert, alert->seen(), 0);
+    }
 }
 
 void UserAlerts::startprovisional()

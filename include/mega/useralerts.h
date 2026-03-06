@@ -657,6 +657,9 @@ public:
 
     // re-init eg. on logout
     void clear();
+
+    // drop stale payment reminders once we know the account is currently PRO
+    void purgeStalePaymentReminders();
 };
 
 
