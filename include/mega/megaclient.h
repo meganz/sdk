@@ -2027,6 +2027,11 @@ public:
     // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
 
+    // Important: This mutex cannot be locked (to avoid deadlocks) if `mSyncVecMutex` (defined in
+    // Syncs class) is already locked. In other words, the lock order for both mutexes must always
+    // be:
+    //  1) `nodeTreeMutex`
+    //  2) `mSyncVecMutex`
     recursive_mutex nodeTreeMutex;
 
     // transfer cache table
