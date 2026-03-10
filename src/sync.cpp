@@ -4140,8 +4140,11 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
     UnifiedSync* usPtr = nullptr;
 
+    // Make a copy of `mSyncVec` to protect against changes to its structure after unlocking
+    // syncVecMutexLock
+    auto auxSyncVec = getSyncVecCopy();
     std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
-    for (auto& s : mSyncVec)
+    for (auto& s: auxSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
         {
@@ -4476,14 +4479,17 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
 {
     assert(onSyncThread());
 
+    // Make a copy of `mSyncVec` to protect against changes to its structure after unlocking
+    // syncVecMutexLock
+    auto auxSyncVec = getSyncVecCopy();
     std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
-    const auto it = std::find_if(std::begin(mSyncVec),
-                                 std::end(mSyncVec),
+    const auto it = std::find_if(std::begin(auxSyncVec),
+                                 std::end(auxSyncVec),
                                  [backupId](const auto& unifSync)
                                  {
                                      return unifSync && unifSync->mConfig.mBackupId == backupId;
                                  });
-    if (it == std::end(mSyncVec))
+    if (it == std::end(auxSyncVec))
     {
         LOG_err << "There are no syncs with the given backupId";
         return completion(API_EARGS, UNKNOWN_ERROR);
@@ -4587,14 +4593,17 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
 {
     assert(onSyncThread());
 
+    // Make a copy of `mSyncVec` to protect against changes to its structure after unlocking
+    // syncVecMutexLock
+    auto auxSyncVec = getSyncVecCopy();
     std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
-    const auto it = std::find_if(std::begin(mSyncVec),
-                                 std::end(mSyncVec),
+    const auto it = std::find_if(std::begin(auxSyncVec),
+                                 std::end(auxSyncVec),
                                  [backupId](const auto& unifSync)
                                  {
                                      return unifSync && unifSync->mConfig.mBackupId == backupId;
                                  });
-    if (it == std::end(mSyncVec))
+    if (it == std::end(auxSyncVec))
     {
         LOG_err << "There are no syncs with the given backupId";
         return completion(API_EARGS, UNKNOWN_ERROR);
