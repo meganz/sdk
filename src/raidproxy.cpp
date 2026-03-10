@@ -906,13 +906,21 @@ void RaidReq::watchdog()
             // Try a source with less errors:
             for (uint8_t i = RAIDPARTS; i--; )
             {
-                if (!mFetcher[i].mConnected &&
-                    !mFetcher[i].mFinished &&
+                if (!mFetcher[i].mConnected && !mFetcher[i].mFinished &&
+                    !mPool.lookupHttpReq(mHttpReqs[i]) &&
                     (mFetcher[i].mErrors <= MAX_ERRORS_FOR_IDLE_GOOD_SOURCE ||
-                            (idlegoodsource != RAIDPARTS && mFetcher[i].mErrors < mFetcher[idlegoodsource].mErrors)))
+                     (idlegoodsource != RAIDPARTS &&
+                      mFetcher[i].mErrors < mFetcher[idlegoodsource].mErrors)))
                     idlegoodsource = i;
             }
+            if (mUnusedRaidConnection != idlegoodsource)
+            {
+                LOG_warn << "[RaidReq::watchdog] idlegoodsource (" << idlegoodsource
+                         << ") doesn't match with unused part detected (" << mUnusedRaidConnection
+                         << ")";
+            }
         }
+
         if (idlegoodsource != RAIDPARTS)
         {
             LOG_verbose << "Hanging source!! hangingsource = " << (int)hangingsource << " (HttpReq: " << (void*)mHttpReqs[hangingsource].get() << "), idlegoodsource = " << (int)idlegoodsource << " (HttpReq: " << (void*)mHttpReqs[idlegoodsource].get() << ") [mFetcher[hangingsource].lastdata = " << mFetcher[hangingsource].lastdata << ", Waiter::ds = " << Waiter::ds << "] [this = " << this << "]";
