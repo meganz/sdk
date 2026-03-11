@@ -7329,18 +7329,18 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
 
     if (singleExclusiveLogger)
     {
-        assert(!g_exclusiveLogger.exclusiveCallback);
-        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char* time,
-                                                           int loglevel,
-                                                           const char* source,
-                                                           const char* message
+        assert(!getExclusiveLogger().exclusiveCallback);
+        getExclusiveLogger().exclusiveCallback = [megaLogger](const char* time,
+                                                              int loglevel,
+                                                              const char* source,
+                                                              const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-                                                           ,
-                                                           const char** directMessages,
-                                                           size_t* directMessagesSizes,
-                                                           unsigned numberMessages
+                                                              ,
+                                                              const char** directMessages,
+                                                              size_t* directMessagesSizes,
+                                                              unsigned numberMessages
 #endif
-                                              )
+                                                 )
         {
             megaLogger->log(time,
                             loglevel,
@@ -7355,35 +7355,35 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
             );
         };
 
-        SimpleLogger::setOutputClass(&g_exclusiveLogger);
+        SimpleLogger::setOutputClass(&getExclusiveLogger());
     }
     else
     {
-        g_externalLogger.addMegaLogger(megaLogger,
-                                       [megaLogger](const char* time,
-                                                    int loglevel,
-                                                    const char* source,
-                                                    const char* message
+        getExternalLogger().addMegaLogger(megaLogger,
+                                          [megaLogger](const char* time,
+                                                       int loglevel,
+                                                       const char* source,
+                                                       const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-                                                    ,
-                                                    const char** directMessages,
-                                                    size_t* directMessagesSizes,
-                                                    unsigned numberMessages
+                                                       ,
+                                                       const char** directMessages,
+                                                       size_t* directMessagesSizes,
+                                                       unsigned numberMessages
 #endif
-                                       )
-                                       {
-                                           megaLogger->log(time,
-                                                           loglevel,
-                                                           source,
-                                                           message
+                                          )
+                                          {
+                                              megaLogger->log(time,
+                                                              loglevel,
+                                                              source,
+                                                              message
 #ifdef ENABLE_LOG_PERFORMANCE
-                                                           ,
-                                                           directMessages,
-                                                           directMessagesSizes,
-                                                           static_cast<int>(numberMessages)
+                                                              ,
+                                                              directMessages,
+                                                              directMessagesSizes,
+                                                              static_cast<int>(numberMessages)
 #endif
-                                           );
-                                       });
+                                              );
+                                          });
     }
 }
 
@@ -7391,19 +7391,19 @@ void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger, bool singleExclusive
 {
     if (singleExclusiveLogger)
     {
-        SimpleLogger::setOutputClass(&g_externalLogger);
-        g_exclusiveLogger.exclusiveCallback = nullptr;
+        SimpleLogger::setOutputClass(&getExternalLogger());
+        getExclusiveLogger().exclusiveCallback = nullptr;
     }
     else
     {
-        g_externalLogger.removeMegaLogger(megaLogger);
+        getExternalLogger().removeMegaLogger(megaLogger);
     }
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
     // only supported for external (not exclusive) loggers
-    g_externalLogger.setLogToConsole(enable);
+    getExternalLogger().setLogToConsole(enable);
 }
 
 void MegaApiImpl::setLogJSONContent(bool enable)
