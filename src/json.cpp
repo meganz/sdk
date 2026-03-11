@@ -28,6 +28,14 @@
 #include <cctype>
 #include <cstdint>
 
+#ifdef _WIN32
+#include <locale.h>
+#elif defined(__APPLE__)
+#include <xlocale.h>
+#else
+#include <locale.h>
+#endif
+
 namespace mega {
 
 // store array or object in string s
@@ -462,6 +470,9 @@ m_off_t JSON::getint()
 }
 
 // decode float
+// Ignore system locale to parse floats, otherwise
+// it may fail expecting "," as decimal separator instead of ".".
+// Note: std::from_chars is not supported yet for floats in all compilers.
 double JSON::getfloat()
 {
     if (*pos == ':' || *pos == ',')
@@ -475,7 +486,20 @@ double JSON::getfloat()
         return -1;
     }
 
-    double r = atof(pos);
+    double r{0.0};
+    char* endptr = nullptr;
+#ifdef _WIN32
+    static const _locale_t cLocale = _create_locale(LC_NUMERIC, "C");
+    r = cLocale ? _strtod_l(pos, &endptr, cLocale) : strtod(pos, &endptr);
+#else
+    static const locale_t cLocale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
+    r = cLocale ? strtod_l(pos, &endptr, cLocale) : strtod(pos, &endptr);
+#endif
+    if (endptr == pos)
+    {
+        LOG_err << "Conversion error (getfloat)";
+        return r;
+    }
 
     storeobject();
 
@@ -1556,4 +1580,3 @@ bool JSONSplitter::chunkProcessingFinishedSuccessfully(
 }
 
 } // namespace
-
