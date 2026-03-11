@@ -2043,7 +2043,6 @@ MegaClient::MegaClient(MegaApp* a,
 #else
     autodownport = false;
     autoupport = false;
-    usehttps = true;
     orderdownloadedchunks = true;
 #endif
 
