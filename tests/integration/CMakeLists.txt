@@ -17,6 +17,7 @@ target_sources(test_integration
     env_var_accounts.cpp
     main.cpp
     SdkTest_test.cpp
+    SdkTestGetRecentActions_test.cpp
     SdkTestNodesSetUp.cpp
     SdkTestSyncNodesOperations.cpp
     SdkTestFilter_test.cpp

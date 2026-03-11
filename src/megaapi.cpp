@@ -344,6 +344,11 @@ bool MegaRecentActionBucket::isMedia() const
     return false;
 }
 
+const char* MegaRecentActionBucket::getId() const
+{
+    return NULL;
+}
+
 const MegaNodeList* MegaRecentActionBucket::getNodes() const
 {
     return NULL;
@@ -4340,6 +4345,11 @@ void MegaApi::getRecentActionsAsync(unsigned days,
                                     MegaRequestListener* listener)
 {
     pImpl->getRecentActionsAsync(days, maxnodes, excludeSensitives, listener);
+}
+
+void MegaApi::getRecentActionById(const char* id, MegaRequestListener* listener)
+{
+    pImpl->getRecentActionById(id, listener);
 }
 
 void MegaApi::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)

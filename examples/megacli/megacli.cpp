@@ -9583,7 +9583,9 @@ void exec_recentactions(autocomplete::ACState& s)
         {
             cout << "---" << endl;
         }
-        cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
+        cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].meta.user, client) << " "
+             << (nvv[i].meta.updated ? "updated" : "uploaded") << " "
+             << (nvv[i].meta.media ? "media" : "files") << endl;
         for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
         {
             cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;

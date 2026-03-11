@@ -3023,9 +3023,11 @@ protected:
 
 class MegaRecentActionBucketPrivate : public MegaRecentActionBucket
 {
+private:
+    struct BucketData;
+
 public:
-    MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc);
-    MegaRecentActionBucketPrivate(int64_t timestamp, const string& user, handle parent, bool update, bool media, MegaNodeList*);
+    MegaRecentActionBucketPrivate(recentaction&& ra);
     ~MegaRecentActionBucketPrivate() override;
     MegaRecentActionBucket *copy() const override;
     int64_t getTimestamp() const override;
@@ -3033,21 +3035,28 @@ public:
     MegaHandle getParentHandle() const override;
     bool isUpdate() const override;
     bool isMedia() const override;
+    const char* getId() const override;
     const MegaNodeList* getNodes() const override;
 
 private:
-    int64_t timestamp;
-    string user;
-    handle parent;
-    bool update, media;
-    MegaNodeList* nodes;
+    MegaRecentActionBucketPrivate(const BucketData& data);
+
+    struct BucketData
+    {
+        RecentActionBucketMeta meta;
+        int64_t timestamp = 0;
+        string id;
+        MegaNodeList* nodes = nullptr;
+    };
+
+    BucketData mData;
 };
 
 class MegaRecentActionBucketListPrivate : public MegaRecentActionBucketList
 {
 public:
     MegaRecentActionBucketListPrivate();
-    MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc);
+    MegaRecentActionBucketListPrivate(recentactions_vector& v);
     MegaRecentActionBucketListPrivate(const MegaRecentActionBucketListPrivate &userList);
     ~MegaRecentActionBucketListPrivate() override;
     MegaRecentActionBucketList *copy() const override;
@@ -4397,6 +4406,8 @@ public:
                                    unsigned maxnodes,
                                    bool excludeSensitives,
                                    MegaRequestListener* listener = NULL);
+
+        void getRecentActionById(const char* id, MegaRequestListener* listener = nullptr);
 
         void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
