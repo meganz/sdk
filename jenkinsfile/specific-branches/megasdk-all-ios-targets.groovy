@@ -39,7 +39,6 @@ pipeline {
                 VCPKGPATH = "${env.HOME}/jenkins/vcpkg"
                 BUILD_DIR_ARM64 = "build_dir_arm64"
                 BUILD_DIR_ARM64_SIM = "build_dir_arm64_sim"
-                BUILD_DIR_X64_SIM = "build_dir_x64_sim"
                 VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
                 AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
                 AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
@@ -55,11 +54,6 @@ pipeline {
                 sh "echo \"Building SDK for iOS arm64 (iphonesimulator SDK)\""
                 sh "cmake -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_MEDIA_FILE_METADATA=ON -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_SYSROOT=iphonesimulator -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_ARM64_SIM}"
                 sh "cmake --build ${WORKSPACE}/${BUILD_DIR_ARM64_SIM} -j2"
-
-                //Build SDK for x64-iphonesimulator
-                sh "echo \"Building SDK iOS x64 (crosscompiling iphonesimulator SDK)\""
-                sh "cmake -DENABLE_LOG_PERFORMANCE=ON -DUSE_LIBUV=ON -DENABLE_ISOLATED_GFX=OFF -DCMAKE_BUILD_TYPE=RelWithDebInfo -DENABLE_MEDIA_FILE_METADATA=ON -DVCPKG_ROOT=${VCPKGPATH} -DCMAKE_VERBOSE_MAKEFILE=ON -DCMAKE_SYSTEM_NAME=iOS -DCMAKE_OSX_ARCHITECTURES=x86_64 -DCMAKE_OSX_SYSROOT=iphonesimulator -S ${WORKSPACE} -B ${WORKSPACE}/${BUILD_DIR_X64_SIM}"
-                sh "cmake --build ${WORKSPACE}/${BUILD_DIR_X64_SIM} -j2"
             }
         }
     }

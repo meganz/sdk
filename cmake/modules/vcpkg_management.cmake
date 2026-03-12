@@ -43,17 +43,10 @@ macro(process_vcpkg_libraries overlays_path)
             endif()
             unset(TMP_ANDROID_ARCH_ABI)
         elseif(CMAKE_SYSTEM_NAME STREQUAL "iOS")
-            if(CMAKE_OSX_ARCHITECTURES STREQUAL "x86_64")
-                # Support only for iphonesimulator
-                if(CMAKE_OSX_SYSROOT STREQUAL "iphonesimulator")
-                    set(VCPKG_TARGET_TRIPLET "x64-ios-simulator-mega")
-                endif()
-            else() # if CMAKE_OSX_ARCHITECTURES is arm64 or if it is empty. Empty builds for arm64 by default.
-                if(CMAKE_OSX_SYSROOT STREQUAL "iphonesimulator")
-                    set(VCPKG_TARGET_TRIPLET "arm64-ios-simulator-mega")
-                else()
-                    set(VCPKG_TARGET_TRIPLET "arm64-ios-mega")
-                endif()
+            if(CMAKE_OSX_SYSROOT STREQUAL "iphonesimulator") # if CMAKE_OSX_ARCHITECTURES is arm64 or if it is empty. Empty builds for arm64 by default.
+                set(VCPKG_TARGET_TRIPLET "arm64-ios-simulator-mega")
+            else()
+                set(VCPKG_TARGET_TRIPLET "arm64-ios-mega")
             endif()
         elseif(APPLE) # macOS
             if (CMAKE_OSX_ARCHITECTURES MATCHES "x86_64" OR (NOT CMAKE_OSX_ARCHITECTURES AND CMAKE_SYSTEM_PROCESSOR STREQUAL "x86_64"))
