@@ -3,6 +3,7 @@
 #include "types.h"
 
 #include <chrono>
+#include <cstdint>
 #include <functional>
 #include <memory>
 #include <string>
@@ -18,6 +19,26 @@ struct Transfer;
 
 namespace ws
 {
+
+namespace detail
+{
+
+// Internal parser helper exposed so unit tests can cover inbound WS frame validation directly.
+enum class InboundFrameValidationResult
+{
+    Ok,
+    TooShort,
+    BadCrc,
+};
+
+constexpr int kInboundChunkResponseBytes =
+    static_cast<int>(sizeof(std::uint32_t) + sizeof(m_off_t) + sizeof(signed char));
+constexpr int kInboundFrameTrailerCrcBytes = static_cast<int>(sizeof(std::uint32_t));
+constexpr int kMinInboundFrameBytes = kInboundChunkResponseBytes + kInboundFrameTrailerCrcBytes;
+
+InboundFrameValidationResult validateInboundFrame(const char* msg, int len);
+
+} // namespace detail
 
 /**
  * UploadEngine: WebSocket upload executor for PUT transfers.
@@ -111,6 +132,24 @@ public:
 
     // Set desired WS per-transfer upload concurrency (worker threads per non-pinned pool).
     void setMaxConnections(unsigned char maxConnections);
+
+#ifndef NDEBUG
+    struct PoolStateForTesting
+    {
+        bool found = false;
+        bool pinned = false;
+        bool retiring = false;
+        int numPoolFiles = 0;
+        bool hasUploadingFile = false;
+        bool hasReference = false;
+        int numChunksInFlight = 0;
+        unsigned queuedResends = 0;
+        unsigned activeThreads = 0;
+        unsigned exitingThreads = 0;
+    };
+
+    bool getPoolStateForTesting(const std::string& url, PoolStateForTesting& out) const;
+#endif
 
     class Impl; // pImpl keeps heavy includes out of headers
 

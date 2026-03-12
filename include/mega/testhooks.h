@@ -71,6 +71,8 @@ namespace mega {
         std::function<
             void(const int /*httpStatus*/, const unsigned /*curlCode*/, const bool /*failed*/)>
             onHttpReqFinish;
+        std::function<bool(const std::string&, long, std::string&)> onWsHandshake;
+        std::function<void(dstime&)> onWsUploadSustainedHandshakeFailureWindowDs;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
@@ -185,6 +187,22 @@ namespace mega {
                 globalMegaTestHooks.onHeartbeatReceived((STATUSCODE), (REQID)); \
         }
 
+#define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL) \
+    { \
+        if (globalMegaTestHooks.onWsHandshake) \
+        { \
+            SHOULDFAIL = globalMegaTestHooks.onWsHandshake((URL), (TIMEOUTMS), (ERRSTRING)); \
+        } \
+    }
+
+#define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS) \
+    { \
+        if (globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs) \
+        { \
+            globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs((WINDOWDS)); \
+        } \
+    }
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     { \
         if (globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc) \
@@ -249,6 +267,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingCS)
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
 #define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID)
+#define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL)
+#define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

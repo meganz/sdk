@@ -2488,6 +2488,19 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
 {
     LOG_debug << "[CurlHttpIO::wsHandshake] BEGIN [url=" << url << "] [timeoutMs=" << timeoutMs
               << "] [this = " << this << "]";
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    bool forceFailure = false;
+    std::string hookErr;
+    DEBUG_TEST_HOOK_WS_HANDSHAKE(url, timeoutMs, hookErr, forceFailure);
+    if (forceFailure)
+    {
+        if (err)
+            *err = hookErr.empty() ? "debug forced WS handshake failure" : hookErr;
+        return nullptr;
+    }
+#endif
+
     CURL* easy = curl_easy_init();
     if (!easy)
     {

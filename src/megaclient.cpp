@@ -2291,7 +2291,7 @@ void MegaClient::installWsEngineCallbacks()
                                      // persisting transfer state.
                                      if (mergedChunkMacs)
                                      {
-                                         t.chunkmacs.updateContiguousProgress(t.size);
+                                         t.pos = t.chunkmacs.updateContiguousProgress(t.size);
                                          t.chunkmacs.updateMacsmacProgress(t.transfercipher());
                                      }
                                  }
@@ -2474,7 +2474,7 @@ void MegaClient::installWsEngineCallbacks()
 
                     if (mergedChunkMacs)
                     {
-                        tt.chunkmacs.updateContiguousProgress(tt.size);
+                        tt.pos = tt.chunkmacs.updateContiguousProgress(tt.size);
                         tt.chunkmacs.updateMacsmacProgress(tt.transfercipher());
                     }
                 }
@@ -2942,6 +2942,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                 tp->setProgresscompleted(0);
                 tp->ultoken.reset();
                 tp->pos = 0;
+                tp->ws_fileno = 0;
                 tp->ws_session_url.clear();
 
                 // Refresh fingerprint once from transfer local file, then mirror
@@ -20399,10 +20400,14 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         {
                             LOG_warn << "The local file has been modified: " << t->localfilename;
                             t->tempurls.clear();
+                            t->discardedTempUrlsSize = 0;
                             t->chunkmacs.clear();
                             t->setProgresscompleted(0);
                             t->ultoken.reset();
                             t->pos = 0;
+                            t->ws_fileno = 0;
+                            t->ws_session_url.clear();
+                            *(FileFingerprint*)t = *(FileFingerprint*)f;
                         }
                     }
                     else

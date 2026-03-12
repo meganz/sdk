@@ -28,6 +28,7 @@
 #include "mega/http.h"
 #include "mega/logging.h"
 #include "mega/megaclient.h"
+#include "mega/testhooks.h"
 #include "mega/transfer.h"
 #include "mega/types.h"
 #include "mega/utils.h"
@@ -105,6 +106,30 @@ struct CRC32
             ::crc32(seed, reinterpret_cast<const Bytef*>(data), static_cast<uInt>(len)));
     }
 };
+
+namespace detail
+{
+
+InboundFrameValidationResult validateInboundFrame(const char* msg, const int len)
+{
+    if (len < kMinInboundFrameBytes)
+    {
+        return InboundFrameValidationResult::TooShort;
+    }
+
+    std::uint32_t trailerCrc = 0;
+    std::memcpy(&trailerCrc,
+                msg + len - static_cast<int>(sizeof(std::uint32_t)),
+                sizeof(trailerCrc));
+    if (trailerCrc != CRC32::crc32b(msg, len - static_cast<int>(sizeof(std::uint32_t))))
+    {
+        return InboundFrameValidationResult::BadCrc;
+    }
+
+    return InboundFrameValidationResult::Ok;
+}
+
+} // namespace detail
 
 // ---------- Chunk map ----------
 struct ChunkMap
@@ -1493,6 +1518,7 @@ public:
                 }
                 pool.purgeFileLocked(f->fileno());
             }
+            f->unsetPool();
 
             for (auto lit = fileList.begin(); lit != fileList.end(); ++lit)
             {
@@ -1587,6 +1613,54 @@ public:
         }
         return it->second->getCurrentSessionUrl(outUrl);
     }
+
+#ifndef NDEBUG
+    bool getPoolStateForTesting(const std::string& url,
+                                UploadEngine::PoolStateForTesting& out) const
+    {
+        out = {};
+
+        std::lock_guard<std::mutex> g(uploadMutex);
+        auto populateState = [&out](const WsPool& pool)
+        {
+            out.found = true;
+            out.pinned = pool.mPinned;
+            out.retiring = pool.mRetiring;
+            out.numPoolFiles = pool.mNumPoolFiles;
+            out.hasUploadingFile = pool.mUploadingFile != nullptr;
+            out.numChunksInFlight = pool.mNumChunksInFlight;
+            out.queuedResends = static_cast<unsigned>(pool.mToResend.size());
+            out.activeThreads = static_cast<unsigned>(pool.mActiveThreads.size());
+            out.exitingThreads = static_cast<unsigned>(pool.mExitingThreads.size());
+        };
+
+        for (const auto& poolPtr: poolMgr.mPools)
+        {
+            if (!poolPtr || !poolPtr->mPinned || poolPtr->mUrl != url)
+            {
+                continue;
+            }
+
+            populateState(*poolPtr);
+            out.hasReference = poolMgr.pinnedPoolHasReference(*poolPtr, *this);
+            return true;
+        }
+
+        for (const auto& poolPtr: poolMgr.mPools)
+        {
+            if (!poolPtr || poolPtr->mUrl != url)
+            {
+                continue;
+            }
+
+            populateState(*poolPtr);
+            out.hasReference = poolMgr.pinnedPoolHasReference(*poolPtr, *this);
+            return true;
+        }
+
+        return false;
+    }
+#endif
 
     void invalidatePinnedSessionUrl(const std::string& url)
     {
@@ -2227,20 +2301,20 @@ void WsConn::curlRecv()
 void WsConn::onmessage(const char* msg, const int len)
 {
     LOG_debug << "[WsConn::onmessage] BEGIN [len=" << len << "] [this = " << this << "]";
-    if (len < 9)
+    switch (detail::validateInboundFrame(msg, len))
     {
-        LOG_warn << "WsUpload: invalid server msg len=" << len;
-        closeWS();
-        return;
-    }
+        case detail::InboundFrameValidationResult::TooShort:
+            LOG_warn << "WsUpload: invalid server msg len=" << len;
+            closeWS();
+            return;
 
-    const auto trailerCrc = *reinterpret_cast<const std::uint32_t*>(
-        msg + len - static_cast<int>(sizeof(std::uint32_t)));
-    if (trailerCrc != CRC32::crc32b(msg, len - static_cast<int>(sizeof(std::uint32_t))))
-    {
-        LOG_warn << "WsUpload: inbound CRC failed, byteLength=" << len;
-        closeWS();
-        return;
+        case detail::InboundFrameValidationResult::BadCrc:
+            LOG_warn << "WsUpload: inbound CRC failed, byteLength=" << len;
+            closeWS();
+            return;
+
+        case detail::InboundFrameValidationResult::Ok:
+            break;
     }
 
     // From here on we must protect pool/file/transfer state with the upload mutex.
@@ -3011,24 +3085,40 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 // Repeated handshake failures for an active upload must eventually transition
                 // through Transfer::failed/backoff instead of looping forever in reconnect.
-                if (!mRetiring && mUploadingFile && mUploadingFile->inPool() &&
-                    !mUploadingFile->paused() && mUploadingFile->continuingUpload(nowDs) &&
-                    retryCount >= 3 && failedForDs >= UPLOADTIMEOUT)
+                dstime sustainedHandshakeFailureWindowDs = UPLOADTIMEOUT;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(
+                    sustainedHandshakeFailureWindowDs);
+#endif
+                const bool hasUploadingFile = mUploadingFile != nullptr;
+                const bool uploadingFileInPool = hasUploadingFile && mUploadingFile->inPool();
+                const bool uploadingFilePaused = hasUploadingFile && mUploadingFile->paused();
+                const bool uploadingFileContinuing =
+                    hasUploadingFile && mUploadingFile->continuingUpload(nowDs);
+                if (!mRetiring && hasUploadingFile && uploadingFileInPool &&
+                    !uploadingFilePaused && uploadingFileContinuing &&
+                    retryCount >= 3 && failedForDs >= sustainedHandshakeFailureWindowDs)
                 {
+                    WsUploadFile* const failedUpload = mUploadingFile;
                     LOG_warn << "[WsPool::poolWorkerThread] sustained WS handshake failures for "
                                 "active upload -> fail current attempt"
                              << " [url=" << mUrl << "] [retryCount=" << retryCount
                              << "] [failedForDs=" << failedForDs
-                             << "] [fileno=" << mUploadingFile->fileno() << "] [this = " << this
+                             << "] [fileno=" << failedUpload->fileno() << "] [this = " << this
                              << "]";
 
-                    // Keep pool binding, but mark current attempt as failed so scheduling respects
-                    // retry/backoff timing until MegaClient applies Transfer::failed().
-                    mUploadingFile->markFailedForRetry(0);
+                    // Reset the active-file fast path so the eventual retry must re-enter
+                    // nextEligible()/setUploadStart()/onStart() instead of silently reusing the
+                    // stale active file after backoff expires.
+                    purgeFileLocked(failedUpload->fileno());
+                    failedUpload->markFailedForRetry(0);
+                    failedUpload->unsetPool();
+                    mUploadingFile = nullptr;
+                    mUFTQversion = mImpl->queueVersion;
 
                     if (mImpl->mCb.onFail)
                     {
-                        mImpl->mCb.onFail(mUploadingFile->transfer(), API_EAGAIN, 0);
+                        mImpl->mCb.onFail(failedUpload->transfer(), API_EAGAIN, 0);
                     }
 
                     // Reset connect-failure window for the next attempt.
@@ -3539,6 +3629,14 @@ bool UploadEngine::getTransferStats(const Transfer& t, UploadEngine::WsTransferS
 {
     return pImpl->getTransferStats(t, stats);
 }
+
+#ifndef NDEBUG
+bool UploadEngine::getPoolStateForTesting(const std::string& url,
+                                          UploadEngine::PoolStateForTesting& out) const
+{
+    return pImpl->getPoolStateForTesting(url, out);
+}
+#endif
 
 void UploadEngine::kick()
 {
