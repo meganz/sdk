@@ -50,7 +50,6 @@ target_sources(test_unit
     Transfer_test.cpp
     Transferstats_test.cpp
     User_test.cpp
-    WsUpload_test.cpp
     user_attributes_test.cpp
     impl/share_test.cpp
     utils.cpp

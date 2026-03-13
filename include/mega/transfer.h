@@ -177,6 +177,11 @@ struct MEGA_API Transfer : public FileFingerprint
     // Together with chunkmacs/progresscompleted/pos these allow best-effort resume after restart.
     std::uint32_t ws_fileno = 0;
     std::string ws_session_url;
+    // Last per-transfer WS speeds sampled while the transfer is still tracked by wsEngine().
+    // Used by MegaApiImpl as a fallback when completion/update callbacks run after wsEngine
+    // has detached this transfer and live WS stats are no longer queryable.
+    m_off_t ws_latched_speed = 0;
+    m_off_t ws_latched_mean_speed = 0;
 
     // WebSocket composition (PUT only)
     // (No ownership cycles: engine keeps no owning ptrs to Transfer)
@@ -211,6 +216,8 @@ struct MEGA_API Transfer : public FileFingerprint
     std::vector<string> tempurls;
     uint8_t discardedTempUrlsSize{};
     static constexpr m_time_t TEMPURL_TIMEOUT_TS{172500};
+    // An websocket upload can only be resumed up to 24 hours after the last chunk got confirmed by API.
+    static constexpr m_time_t WS_RESUME_TIMEOUT_TS{24 * 3600};
 
     // context of the async fopen operation
     unique_ptr<AsyncIOContext> asyncopencontext;

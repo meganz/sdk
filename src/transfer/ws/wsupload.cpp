@@ -208,6 +208,12 @@ public:
 
         LOG_debug << "WsUploadFile: " << mFile->getLocalname() << " fileno=" << mFileNo
                   << " size=" << mSize << " mtime=" << mMtime << " [this = " << this << "]";
+
+        // Preserve transfer-level paused state on enqueue (eg, restored from cache).
+        if (t.state == TRANSFERSTATE_PAUSED)
+        {
+            mPaused = true;
+        }
     }
 
     ~WsUploadFile() = default;
@@ -503,6 +509,9 @@ public:
         mUploadStartTime = t;
         mUploadFailedTime = 0;
         mRetryUntil = 0;
+        // Keep speed reporting scoped to the current upload attempt in case we are in a resume.
+        mAttemptBaseConfirmed = mBytesConfirmed;
+        mAckSpeedController = SpeedController();
     }
 
     void setRetryUntil(const dstime when)
@@ -542,9 +551,12 @@ public:
         unsetPool();
         closeFA();
         const auto dsElapsed = SteadyTime::difference(mUploadCompletionTime, mUploadStartTime);
-        const auto kbps = dsElapsed ? (mBytesConfirmed / dsElapsed * 10 / 1024) : 0;
+        const auto attemptConfirmed =
+            std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
+        const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * 10 / 1024) : 0;
         LOG_info << "[WsUploadFile::uploadCompleted] upload completed (server payload len=" << len
-                 << ") Progress: " << mBytesConfirmed << " of " << mSize << " bytes @ ~" << kbps
+                 << ") Progress: " << mBytesConfirmed << " of " << mSize
+                 << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
                  << " KB/s [this = " << this << "]";
         (void)response; // Phase 5: use payload (e.g. MAC/fingerprint)
     }
@@ -560,9 +572,12 @@ public:
         mLastReportedBytesConfirmed = mBytesConfirmed;
 
         const auto dsElapsed = SteadyTime::difference(now, mUploadStartTime);
-        const auto kbps = dsElapsed ? (mBytesConfirmed / dsElapsed * 10 / 1024) : 0;
+        const auto attemptConfirmed =
+            std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
+        const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * 10 / 1024) : 0;
         LOG_debug << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed << " of " << mSize
-                  << " bytes @ ~" << kbps << " KB/s [this = " << this << "]";
+                  << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
+                  << " KB/s [this = " << this << "]";
     }
 
     bool isUploading() const noexcept
@@ -590,15 +605,14 @@ public:
         if (!mUploadStartTime || mBytesConfirmed <= 0)
             return false;
 
-        const dstime endTime = mUploadCompletionTime ? mUploadCompletionTime : SteadyTime::ds();
-        const dstime dataStart = mFirstAckTime ? mFirstAckTime : mUploadStartTime;
-        const dstime dsElapsed = SteadyTime::difference(endTime, dataStart);
-        const dstime safeElapsed = dsElapsed > 0 ? dsElapsed : 1;
-        const m_off_t maxSpeed = std::numeric_limits<m_off_t>::max();
-        const m_off_t scale = static_cast<m_off_t>(SpeedController::DS_PER_SECOND);
-        const m_off_t numerator =
-            (mBytesConfirmed > maxSpeed / scale) ? maxSpeed : (mBytesConfirmed * scale);
-        stats.meanSpeedBytesPerSecond = numerator / static_cast<m_off_t>(safeElapsed);
+        // Advance controller with latest ACKed position, then read the current circular mean.
+        // requestProgressed() returns 0 when there's no new delta, but we still want the last
+        // non-zero window speed for finish-time callbacks.
+        const auto attemptConfirmed =
+            std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
+        mAckSpeedController.requestProgressed(attemptConfirmed);
+        stats.windowSpeedBytesPerSecond = mAckSpeedController.getCircularMeanSpeed();
+        stats.meanSpeedBytesPerSecond = mAckSpeedController.getMeanSpeed();
 
         dstime latencyDs = 0;
         if (mFirstAckTime)
@@ -694,12 +708,14 @@ private:
         // (matching the legacy HTTP upload behaviour).
         mHeadPos = 0;
         mBytesConfirmed = 0;
+        mAttemptBaseConfirmed = 0;
         mLastReportedBytesConfirmed = 0;
         mNumRequests = 0;
         mNumFailedRequests = 0;
         mFirstAckTime = 0;
         mLastProgressReportBytes = 0;
         mLastProgressReportDs = 0;
+        mAckSpeedController = SpeedController();
         mEofSet = false;
         mUploadStartTime = 0;
         mUploadCompletionTime = 0;
@@ -732,12 +748,14 @@ private:
     m_off_t mSize{0};
     m_off_t mHeadPos{0};
     m_off_t mBytesConfirmed{0};
+    m_off_t mAttemptBaseConfirmed{0};
     m_off_t mLastReportedBytesConfirmed{0};
     m_off_t mNumRequests{0};
     m_off_t mNumFailedRequests{0};
     dstime mFirstAckTime{0};
     m_off_t mLastProgressReportBytes{0};
     dstime mLastProgressReportDs{0};
+    mutable SpeedController mAckSpeedController{};
     m_time_t mMtime{0};
 
     bool mEofSet{false};
@@ -1037,7 +1055,7 @@ struct WsPool
 
     bool getWsUploadFile(dstime now, class UploadEngine::Impl& impl);
     WsUploadFile* findFile(std::uint32_t fileno, class UploadEngine::Impl& impl);
-    bool nextChunk(WsChunk& chunk, class UploadEngine::Impl& impl);
+    bool nextChunk(WsChunk& chunk, class UploadEngine::Impl& impl, dstime* retryAfterDs = nullptr);
     void retryChunkLocked(const WsChunk& chunk);
     void retryChunk(const WsChunk& chunk);
 
@@ -1049,7 +1067,9 @@ struct WsPool
 
     void applyInFlightLocked(const std::uint32_t fileno);
     void applyInFlight(const std::uint32_t fileno);
-    bool sendChunk(WsConn* ws, class UploadEngine::Impl& impl);
+    bool sendChunk(WsConn* ws,
+                   class UploadEngine::Impl& impl,
+                   dstime* retryAfterDs = nullptr);
 };
 
 // WsUploadFile pool bindings — must be defined after WsPool is complete
@@ -1822,13 +1842,88 @@ public:
 
         for (auto& pool: poolMgr.mPools)
         {
-            if (!pool || pool->mPinned || pool->mRetiring)
+            if (!pool || pool->mRetiring)
             {
                 continue;
             }
 
             pool->setPoolNumConn(newLimit);
         }
+    }
+
+    // Must be called with uploadMutex held.
+    bool consumeUploadBudget(const m_off_t bytes, dstime* retryAfterDs = nullptr)
+    {
+        if (bytes <= 0 || mMaxUploadSpeed <= 0)
+        {
+            return true;
+        }
+
+        const dstime now = SteadyTime::ds();
+        if (!mUploadBudgetLastDs)
+        {
+            mUploadBudgetLastDs = now;
+        }
+
+        const dstime elapsedDs = now > mUploadBudgetLastDs ? now - mUploadBudgetLastDs : 0;
+        if (elapsedDs > 0)
+        {
+            const m_off_t maxValue = std::numeric_limits<m_off_t>::max();
+            const m_off_t elapsed = static_cast<m_off_t>(elapsedDs);
+            const m_off_t scale = static_cast<m_off_t>(SpeedController::DS_PER_SECOND);
+
+            // Avoid overflow if uploading was pending for an unusually long time.
+            const m_off_t budgetIncrement =
+                (mMaxUploadSpeed > (maxValue / elapsed)) ?
+                    maxValue :
+                    (mMaxUploadSpeed * elapsed) / scale;
+            if (budgetIncrement > (maxValue - mUploadBudget))
+            {
+                mUploadBudget = maxValue;
+            }
+            else
+            {
+                mUploadBudget += budgetIncrement;
+            }
+
+            // Keep burst behavior bounded after long idle/pending periods.
+            const m_off_t burstWindowSeconds =
+                static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS);
+            const m_off_t maxBurstBudget =
+                (mMaxUploadSpeed > (maxValue / burstWindowSeconds)) ?
+                    maxValue :
+                    (mMaxUploadSpeed * burstWindowSeconds);
+            const m_off_t budgetCap = std::max(maxBurstBudget, bytes);
+            if (mUploadBudget > budgetCap)
+            {
+                mUploadBudget = budgetCap;
+            }
+            mUploadBudgetLastDs = now;
+        }
+
+        if (mUploadBudget < bytes)
+        {
+            if (retryAfterDs)
+            {
+                const m_off_t deficit = bytes - mUploadBudget;
+                const m_off_t numerator =
+                    deficit * static_cast<m_off_t>(SpeedController::DS_PER_SECOND) + mMaxUploadSpeed - 1;
+                const dstime suggestedDs = static_cast<dstime>(numerator / mMaxUploadSpeed);
+                *retryAfterDs = std::clamp<dstime>(suggestedDs, 1, 10);
+            }
+            return false;
+        }
+
+        mUploadBudget -= bytes;
+        return true;
+    }
+
+    void setMaxUploadSpeed(const m_off_t bytesPerSecond)
+    {
+        std::lock_guard<std::mutex> g(uploadMutex);
+        mMaxUploadSpeed = std::max<m_off_t>(bytesPerSecond, 0);
+        mUploadBudget = 0;
+        mUploadBudgetLastDs = SteadyTime::ds();
     }
 
     // Called by pools to pick next file that matches [min,max)
@@ -1959,6 +2054,9 @@ public:
     dstime currentTime{0};
     std::atomic<std::uint32_t> nextFileNo{1};
     unsigned char mPoolConnectionLimit{3};
+    m_off_t mMaxUploadSpeed{0};
+    m_off_t mUploadBudget{0};
+    dstime mUploadBudgetLastDs{0};
     bool paused{false};
 
 private:
@@ -2743,13 +2841,17 @@ WsUploadFile* WsPool::findFile(const std::uint32_t fileno, UploadEngine::Impl& i
     return (it->second && it->second->mPool == this) ? it->second : nullptr;
 }
 
-bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl)
+bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAfterDs)
 {
     LOG_debug << "[WsPool::nextChunk] BEGIN [this = " << this << "]";
     // queued retry first
     while (!mToResend.empty())
     {
         chunk = mToResend.front();
+        if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
+        {
+            return false;
+        }
         mToResend.erase(mToResend.begin());
         LOG_debug << "WsUpload: resending chunk pos=" << chunk.pos << " len=" << chunk.len
                   << " fileno=" << chunk.fileno;
@@ -2796,6 +2898,10 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl)
                 }
 
                 chunk.len = static_cast<int>(newHead - chunk.pos);
+                if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
+                {
+                    return false;
+                }
                 mUploadingFile->advanceHead(chunk.len);
             }
 
@@ -2898,7 +3004,7 @@ void WsPool::applyInFlight(const std::uint32_t fileno)
     applyInFlightLocked(fileno);
 }
 
-bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl)
+bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterDs)
 {
     if (ws->readyState != WsConn::ReadyState::OPEN || !ws->haveSpace())
     {
@@ -2910,7 +3016,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl)
     }
 
     WsChunk chunk;
-    if (!nextChunk(chunk, impl))
+    if (!nextChunk(chunk, impl, retryAfterDs))
     {
         LOG_debug << "[WsPool::sendChunk] !nextChunk -> return false [this = " << this << "]";
         return false;
@@ -3196,13 +3302,14 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         }
 
         // fetch & enqueue next chunk (unlocks around disk I/O internally)
-        if (!sendChunk(&ws, *mImpl))
+        dstime sendRetryAfterDs = 10;
+        if (!sendChunk(&ws, *mImpl, &sendRetryAfterDs))
         {
             LOG_debug << "[WsPool::poolWorkerThread] sendChunk=false -> continue [this = " << this
                       << "]";
             {
                 ScopedUnlock unlock(lk);
-                SteadyTime::sleep_ds(10);
+                SteadyTime::sleep_ds(sendRetryAfterDs);
             }
             continue;
         }
@@ -3282,7 +3389,10 @@ void WsPoolMgr::ensurePinnedPool(const std::string& url)
     }
 
     // Create a dedicated pool that will only serve transfers pinned to this session URL.
-    auto pool = std::make_unique<WsPool>(std::make_pair(url, static_cast<m_off_t>(0)), 0, mImpl, 1);
+    auto pool = std::make_unique<WsPool>(std::make_pair(url, static_cast<m_off_t>(0)),
+                                         0,
+                                         mImpl,
+                                         mImpl->poolConnectionLimit());
     pool->mPinned = true;
     mPools.emplace_back(std::move(pool));
 
@@ -3651,6 +3761,11 @@ void UploadEngine::notifyNetworkDisconnect()
 void UploadEngine::setMaxConnections(const unsigned char maxConnections)
 {
     pImpl->setMaxConnections(maxConnections);
+}
+
+void UploadEngine::setMaxUploadSpeed(const m_off_t bytesPerSecond)
+{
+    pImpl->setMaxUploadSpeed(bytesPerSecond);
 }
 
 // Simple feature gate for now (could later inspect client caps/settings)

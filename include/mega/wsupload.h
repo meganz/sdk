@@ -51,6 +51,8 @@ public:
     struct WsTransferStats
     {
         m_off_t meanSpeedBytesPerSecond = 0;
+        // Per-transfer circular mean upload speed (SpeedController window, ACK-based).
+        m_off_t windowSpeedBytesPerSecond = 0;
         std::chrono::milliseconds avgStartTransferTime{0};
         double failedRequestRatio = 0.0;
     };
@@ -150,6 +152,8 @@ public:
 
     bool getPoolStateForTesting(const std::string& url, PoolStateForTesting& out) const;
 #endif
+    // Set desired WS upload speed limit in bytes per second (<=0 means unlimited).
+    void setMaxUploadSpeed(m_off_t bytesPerSecond);
 
     class Impl; // pImpl keeps heavy includes out of headers
 

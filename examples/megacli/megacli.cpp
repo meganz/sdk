@@ -95,6 +95,9 @@ namespace fs = std::filesystem;
 #include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
+#ifdef MEGA_USE_WSUPLOAD
+#include <mega/wsupload.h>
+#endif
 
 using namespace mega;
 using std::cerr;
@@ -574,6 +577,29 @@ void DemoApp::transfer_complete(Transfer* t)
         {
             cout << t->slot->progressreported * 10 / (1024 * (Waiter::ds - t->slot->starttime + 1)) << " KB/s" << endl;
         }
+#ifdef MEGA_USE_WSUPLOAD
+        else if (t->type == PUT && t->channel == Transfer::Channel::WebSocket)
+        {
+            m_off_t meanSpeed = t->ws_latched_mean_speed;
+            if (client && client->wsEngine())
+            {
+                ws::UploadEngine::WsTransferStats wsStats;
+                if (client->wsEngine()->getTransferStats(*t, wsStats))
+                {
+                    meanSpeed = wsStats.meanSpeedBytesPerSecond;
+                }
+            }
+
+            if (meanSpeed > 0)
+            {
+                cout << meanSpeed / 1024 << " KB/s" << endl;
+            }
+            else
+            {
+                cout << "delayed" << endl;
+            }
+        }
+#endif
         else
         {
             cout << "delayed" << endl;
@@ -11470,9 +11496,29 @@ void megacli()
         if (prompt == COMMAND)
         {
             ostringstream  dynamicprompt;
+            bool wsTransferPresent = false;
+
+#ifdef MEGA_USE_WSUPLOAD
+            if (client->wsEngine())
+            {
+                for (const auto& transferPtr: client->multi_transfers[PUT])
+                {
+                    Transfer* t = transferPtr.second;
+                    if (!t || t->channel != Transfer::Channel::WebSocket)
+                    {
+                        continue;
+                    }
+                    if (t->state == TRANSFERSTATE_ACTIVE || t->state == TRANSFERSTATE_COMPLETING)
+                    {
+                        wsTransferPresent = true;
+                        break;
+                    }
+                }
+            }
+#endif
 
             // display put/get transfer speed in the prompt
-            if (client->tslots.size() || responseprogress >= 0)
+            if (client->tslots.size() || wsTransferPresent || responseprogress >= 0)
             {
                 m_off_t xferrate[2] = { 0 };
                 Waiter::bumpds();
@@ -11485,6 +11531,36 @@ void megacli()
                             += (*it)->mTransferSpeed.getCircularMeanSpeed();
                     }
                 }
+
+#ifdef MEGA_USE_WSUPLOAD
+                if (client->wsEngine())
+                {
+                    for (const auto& transferPtr: client->multi_transfers[PUT])
+                    {
+                        Transfer* t = transferPtr.second;
+                        if (!t || t->channel != Transfer::Channel::WebSocket)
+                        {
+                            continue;
+                        }
+                        if (t->state != TRANSFERSTATE_ACTIVE &&
+                            t->state != TRANSFERSTATE_COMPLETING)
+                        {
+                            continue;
+                        }
+
+                        ws::UploadEngine::WsTransferStats wsStats;
+                        if (client->wsEngine()->getTransferStats(*t, wsStats))
+                        {
+                            xferrate[PUT] += std::max<m_off_t>(0,
+                                                               wsStats.windowSpeedBytesPerSecond);
+                        }
+                        else
+                        {
+                            xferrate[PUT] += std::max<m_off_t>(0, t->ws_latched_speed);
+                        }
+                    }
+                }
+#endif
                 xferrate[GET] /= 1024;
                 xferrate[PUT] /= 1024;
 

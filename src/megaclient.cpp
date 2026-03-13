@@ -2199,6 +2199,7 @@ void MegaClient::maybeStartWsUploadEngine()
         return;
 
     m_wsEngine->setMaxConnections(connections[PUT]);
+    m_wsEngine->setMaxUploadSpeed(getmaxuploadspeed());
     m_wsEngine->start();
     installWsEngineCallbacks();
     mWsEngineStarted = true;
@@ -2239,6 +2240,8 @@ void MegaClient::installWsEngineCallbacks()
                 t.state = TRANSFERSTATE_ACTIVE;
                 t.failcount = 0;
                 t.lastaccesstime = m_time();
+                t.ws_latched_speed = 0;
+                t.ws_latched_mean_speed = 0;
 
                 if (wsEngine())
                 {
@@ -2293,6 +2296,21 @@ void MegaClient::installWsEngineCallbacks()
                                      {
                                          t.pos = t.chunkmacs.updateContiguousProgress(t.size);
                                          t.chunkmacs.updateMacsmacProgress(t.transfercipher());
+                                     }
+
+                                     ws::UploadEngine::WsTransferStats wsStats;
+                                     if (wse->getTransferStats(t, wsStats))
+                                     {
+                                         m_off_t boundedSpeed = wsStats.windowSpeedBytesPerSecond;
+                                         const m_off_t maxUploadSpeed =
+                                             t.client->getmaxuploadspeed();
+                                         if (maxUploadSpeed > 0)
+                                         {
+                                             boundedSpeed =
+                                                 std::min(boundedSpeed, maxUploadSpeed);
+                                         }
+                                         t.ws_latched_speed = boundedSpeed;
+                                         t.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
                                      }
                                  }
 
@@ -2501,6 +2519,21 @@ void MegaClient::installWsEngineCallbacks()
                 if (addedStats)
                     tt.collectAndPrintTransferStatsIfLimitReached();
                 if (c.wsEngine())
+                {
+                    ws::UploadEngine::WsTransferStats wsStats;
+                    if (c.wsEngine()->getTransferStats(tt, wsStats))
+                    {
+                        m_off_t boundedSpeed = wsStats.windowSpeedBytesPerSecond;
+                        const m_off_t maxUploadSpeed = c.getmaxuploadspeed();
+                        if (maxUploadSpeed > 0)
+                        {
+                            boundedSpeed = std::min(boundedSpeed, maxUploadSpeed);
+                        }
+                        tt.ws_latched_speed = boundedSpeed;
+                        tt.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
+                    }
+                }
+                if (c.wsEngine())
                     c.wsEngine()->remove(tt);
 
                 const WsVerifyResult verifyResult = c.wsVerifyUploadUnchanged(tt, committer);
@@ -2623,6 +2656,7 @@ MegaClient::WsVerifyResult MegaClient::wsVerifyUploadUnchanged(Transfer& t,
 
         if (isNotOpenAndIsNotSyncxfer || fingerprintChanged)
         {
+            bool skipRemoveTransferFile = false;
             if (isNotOpenAndIsNotSyncxfer)
             {
                 LOG_warn << "Deletion detected after upload";
@@ -2633,10 +2667,25 @@ MegaClient::WsVerifyResult MegaClient::wsVerifyUploadUnchanged(Transfer& t,
                          << "Modification detected after upload! Path: " << localpath.toPath(false)
                          << ". Transfer fingerprint: " << t.fingerprintDebugString()
                          << ". FA fingerprint: " << f->fingerprintDebugString();
+                DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(
+                    skipRemoveTransferFile);
             }
 
             ++it; // removeTransferFile will erase current entry
-            t.removeTransferFile(API_EREAD, f, &committer);
+            if (skipRemoveTransferFile)
+            {
+                LOG_debug
+                    << fingerprintIssue
+                    << "Debug test hook filefingerprint using legacy buggy sparse crc was "
+                       "active. Skipping removeTransferFile and"
+                    << " mark transfer as successful. There can be fingerprint mismatches "
+                       "between IA and FA genfingerprints with buggy sparse crc calculation";
+                f->crc = t.crc;
+            }
+            else
+            {
+                t.removeTransferFile(API_EREAD, f, &committer);
+            }
         }
         else
         {
@@ -20364,6 +20413,25 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             const auto currentTime = m_time();
             if (t)
             {
+#ifdef MEGA_USE_WSUPLOAD
+                if (d == PUT && (t->ws_fileno != 0 || !t->ws_session_url.empty()) &&
+                    ((currentTime - t->lastaccesstime) >= Transfer::WS_RESUME_TIMEOUT_TS))
+                {
+                    LOG_warn << "WS resume state expired after "
+                             << Transfer::WS_RESUME_TIMEOUT_TS
+                             << " seconds. Restarting upload from scratch: "
+                             << t->localfilename;
+                    t->tempurls.clear();
+                    t->discardedTempUrlsSize = 0;
+                    t->chunkmacs.clear();
+                    t->setProgresscompleted(0);
+                    t->ultoken.reset();
+                    t->pos = 0;
+                    t->ws_fileno = 0;
+                    t->ws_session_url.clear();
+                    transfercacheadd(t, &committer);
+                }
+#endif
                 t->discardTempUrlsIfNoDataDownloadedOrTimeoutReached(d, currentTime);
 
                 auto fa = fsaccess->newfileaccess();
@@ -20564,7 +20632,11 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbComm
 
             if (pause)
             {
-                wsEngine()->pause(*t);
+                // Support uploads should bypass global pause.
+                if (!t->isForSupport())
+                {
+                    wsEngine()->pause(*t);
+                }
             }
             else
             {
@@ -21080,7 +21152,17 @@ bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
 
 bool MegaClient::setmaxuploadspeed(m_off_t bpslimit)
 {
-    return httpio->setmaxuploadspeed(bpslimit >= 0 ? bpslimit : 0);
+    const m_off_t normalizedLimit = (bpslimit >= 0 ? bpslimit : 0);
+    const bool updated = httpio->setmaxuploadspeed(normalizedLimit);
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (wsEngine())
+    {
+        wsEngine()->setMaxUploadSpeed(normalizedLimit);
+    }
+#endif
+
+    return updated;
 }
 
 m_off_t MegaClient::getmaxdownloadspeed()

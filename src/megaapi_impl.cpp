@@ -18732,6 +18732,35 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
     }
+#ifdef MEGA_USE_WSUPLOAD
+    else if (tr->type == PUT && tr->channel == Transfer::Channel::WebSocket &&
+             client->wsEngine())
+    {
+        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
+        m_off_t transferredBytes = std::max<m_off_t>(tr->progresscompleted, prevTransferredBytes);
+        m_off_t deltaSize = transferredBytes - prevTransferredBytes;
+        transfer->setStartTime(currentTime);
+        transfer->setTransferredBytes(transferredBytes);
+        transfer->setDeltaSize(deltaSize);
+
+        ws::UploadEngine::WsTransferStats wsStats;
+        if (client->wsEngine()->getTransferStats(*tr, wsStats))
+        {
+            const m_off_t maxUploadSpeed = client->getmaxuploadspeed();
+            const m_off_t boundedSpeed = (maxUploadSpeed > 0) ?
+                                             std::min(wsStats.windowSpeedBytesPerSecond,
+                                                      maxUploadSpeed) :
+                                             wsStats.windowSpeedBytesPerSecond;
+            transfer->setSpeed(boundedSpeed);
+            transfer->setMeanSpeed(wsStats.meanSpeedBytesPerSecond);
+        }
+        else
+        {
+            transfer->setSpeed(tr->ws_latched_speed);
+            transfer->setMeanSpeed(tr->ws_latched_mean_speed);
+        }
+    }
+#endif
     else
     {
         LOG_verbose << "No TransferSlot. Reset last progress, speed and mean speed.";
@@ -18761,6 +18790,28 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
     }
+#ifdef MEGA_USE_WSUPLOAD
+    else if (tr->type == PUT && tr->channel == Transfer::Channel::WebSocket &&
+             client->wsEngine())
+    {
+        ws::UploadEngine::WsTransferStats wsStats;
+        if (client->wsEngine()->getTransferStats(*tr, wsStats))
+        {
+            const m_off_t maxUploadSpeed = client->getmaxuploadspeed();
+            const m_off_t boundedSpeed = (maxUploadSpeed > 0) ?
+                                             std::min(wsStats.windowSpeedBytesPerSecond,
+                                                      maxUploadSpeed) :
+                                             wsStats.windowSpeedBytesPerSecond;
+            transfer->setSpeed(boundedSpeed);
+            transfer->setMeanSpeed(wsStats.meanSpeedBytesPerSecond);
+        }
+        else
+        {
+            transfer->setSpeed(tr->ws_latched_speed);
+            transfer->setMeanSpeed(tr->ws_latched_mean_speed);
+        }
+    }
+#endif
 
     if (tr->type == GET)
     {

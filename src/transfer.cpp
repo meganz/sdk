@@ -2882,7 +2882,17 @@ void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committe
 #ifdef MEGA_USE_WSUPLOAD
         transfer->channel = Transfer::Channel::WebSocket;
         if (client->wsEngine())
+        {
             client->wsEngine()->enqueue(*transfer);
+            // Respect explicit per-transfer pause and global PUT pause semantics.
+            // Support uploads bypass global pause, matching legacy HTTP behavior.
+            const bool pauseByTransferState = (transfer->state == TRANSFERSTATE_PAUSED);
+            const bool pauseByGlobalState = client->xferpaused[PUT] && !transfer->isForSupport();
+            if (pauseByTransferState || pauseByGlobalState)
+            {
+                client->wsEngine()->pause(*transfer);
+            }
+        }
 #endif
     }
 }
