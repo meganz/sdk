@@ -449,13 +449,6 @@ if(ENABLE_SDKLIB_WERROR)
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
     )
-    if(WIN32)
-        set_source_files_properties(
-            src/mega_ccronexpr.cpp
-            PROPERTIES
-            COMPILE_FLAGS "/wd4456" # declaration hides previous local declaration
-        )
-    endif()
 endif()
 
 ## Create config files ##

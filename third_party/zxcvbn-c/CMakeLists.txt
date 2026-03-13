@@ -1,4 +1,4 @@
-add_library(zxcvbn_c STATIC
+add_library(zxcvbn-c STATIC
     zxcvbn.h
     dict-src.h
     zxcvbn.cpp
@@ -12,13 +12,13 @@ configure_file(
     COPYONLY
 )
 
-target_include_directories(zxcvbn_c SYSTEM
+target_include_directories(zxcvbn-c SYSTEM
     PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/include>
 )
 
 if(ENABLE_JAVA_BINDINGS)
-    set_target_properties(zxcvbn_c PROPERTIES
+    set_target_properties(zxcvbn-c PROPERTIES
         POSITION_INDEPENDENT_CODE ON
     )
 endif()

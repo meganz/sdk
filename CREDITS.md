@@ -84,9 +84,9 @@ License: MIT "expat" license
 https://github.com/JuliaLang/utf8proc/blob/master/LICENSE.md
 
 Files included in this repository based on `utf8proc`:
-- `third_party/utf8proc/utf8proc/utf8proc.cpp` (based on `utf8proc.c`)
-- `third_party/utf8proc/utf8proc/utf8proc_data.c` (based on `utf8proc_data.c`)
-- `third_party/utf8proc/utf8proc/utf8proc.h` (based on `utf8proc.h`)
+- `third_party/utf8proc/utf8proc.cpp` (based on `utf8proc.c`)
+- `third_party/utf8proc/utf8proc_data.c` (based on `utf8proc_data.c`)
+- `third_party/utf8proc/utf8proc.h` (based on `utf8proc.h`)
 - `third_party/utf8proc/LICENSE` (copy of the licence of `utf8proc`)
 
 #### Cron expression parsing in ANSI C
@@ -111,8 +111,8 @@ License: MIT
 https://github.com/nodejs/http-parser/blob/master/LICENSE-MIT
 
 Files included in this repository based on `http_parser`:
-- `third_party/http_parser/http_parser/http_parser.cpp` (based on `http_parser.c`)
-- `third_party/http_parser/http_parser/http_parser.h` (based on `http_parser.h`)
+- `third_party/http_parser/http_parser.cpp` (based on `http_parser.c`)
+- `third_party/http_parser/http_parser.h` (based on `http_parser.h`)
 - `third_party/http_parser/AUTHORS` (copy of the `AUTHORS` file of `http_parser`)
 - `third_party/http_parser/LICENSE-MIT` (copy of the licence of `http_parser`)
 
@@ -144,9 +144,9 @@ Copyright (c) 2015 Devchandra M. Leishangthem
 https://github.com/deleisha/evt-tls
 
 Files included in this repository based on `evt-tls`:
-- `third_party/evt-tls/src/evt_tls.cpp` (based on `evt_tls.c`)
-- `third_party/evt-tls/evt-tls/evt_tls.h` (based on `evt_tls.h`)
-- `third_party/evt-tls/evt-tls/queue.h` (based on `queue.h`)
+- `third_party/evt-tls/evt_tls.cpp` (based on `evt_tls.c`)
+- `third_party/evt-tls/evt_tls.h` (based on `evt_tls.h`)
+- `third_party/evt-tls/queue.h` (based on `queue.h`)
 
 #### vincentlaucsb/csv-parser
 A high-performance, fully-featured CSV parser and serializer for modern C++.

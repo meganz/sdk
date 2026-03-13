@@ -35,7 +35,7 @@
 #include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
-#include <ccronexpr.h>
+#include <ccronexpr/ccronexpr.h>
 
 #ifdef HAVE_LIBUV
 #include "uv.h"
