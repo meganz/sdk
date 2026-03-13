@@ -1,3 +1,4 @@
+// clang-format off
 #ifndef ZXCVBN_H_F98183CE2A01_INCLUDED
 #define ZXCVBN_H_F98183CE2A01_INCLUDED
 /**********************************************************************************
