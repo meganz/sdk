@@ -3269,6 +3269,12 @@ using namespace mega;
     }
 }
 
+- (void)clearRecentActionHistoryUntil:(int64_t)until delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->clearRecentActionHistory((MegaTimeStamp)until, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (BOOL)processMEGANodeTree:(MEGANode *)node recursive:(BOOL)recursive delegate:(id<MEGATreeProcessorDelegate>)delegate {
     if (self.megaApi == nil) return NO;
     return self.megaApi->processMegaTree(node.getCPtr, [self createMegaTreeProcessor:delegate], recursive);

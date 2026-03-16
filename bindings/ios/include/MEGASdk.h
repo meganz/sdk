@@ -8108,6 +8108,25 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 /// @param delegate MEGARequestDelegate to track this request
 - (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(BOOL)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate;
 
+/// Clear the account's recent actions history up to a given timestamp.
+///
+/// This method clears the recent actions history on the account by setting a
+/// "recent clear" timestamp. All actions that occurred at or before the given
+/// timestamp are considered cleared.
+///
+/// The associated request type with this request is MEGARequestTypeSetAttrUser
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest paramType] - Returns the user attribute type MEGAUserAttributeRecentClearTimestamp
+///
+/// - [MEGARequest number] - Returns the epoch time (in seconds) used as the recent
+/// actions history clear timestamp
+///
+/// @param until Epoch time (in seconds). Recent actions up to this time will be cleared.
+/// @param delegate MEGARequestDelegate to track this request
+- (void)clearRecentActionHistoryUntil:(int64_t)until delegate:(id<MEGARequestDelegate>)delegate;
+
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
  * @param node The parent node of the tree to explore
