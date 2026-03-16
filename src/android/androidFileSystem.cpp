@@ -711,6 +711,13 @@ std::shared_ptr<AndroidFileWrapper>
             AndroidFileWrapper::getAndroidFileWrapper(parentPath.toPath(false));
         if (parentFileWrapper->exists())
         {
+            std::string name = localPath.leafName().toPath(false);
+            auto wrapper = parentFileWrapper->getChildByName(name);
+            if (wrapper || !create)
+            {
+                return wrapper;
+            }
+
             return parentFileWrapper->createChild(localPath.leafName().toPath(false), lastIsFolder);
         }
     }
