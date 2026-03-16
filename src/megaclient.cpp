@@ -2339,9 +2339,7 @@ void MegaClient::installWsEngineCallbacks()
                 if (!tp)
                     return;
 
-                auto& transfers = client.multi_transfers[type];
-                auto it = transfers.find(tp);
-                if (it == transfers.end() || !(tp->uploadhandle == th))
+                if (!client.wsIsTransferAlive(type, tp) || !(tp->uploadhandle == th))
                     return;
 
                 const error e = static_cast<error>(apierr);
@@ -2433,9 +2431,7 @@ void MegaClient::installWsEngineCallbacks()
                 if (!tPtr)
                     return;
 
-                const auto& transfers = c.multi_transfers[type];
-                const auto it = transfers.find(tPtr);
-                if (it == transfers.end() || !(tPtr->uploadhandle == th))
+                if (!c.wsIsTransferAlive(type, tPtr) || !(tPtr->uploadhandle == th))
                     return;
 
                 Transfer& tt = *tPtr;
@@ -2457,16 +2453,15 @@ void MegaClient::installWsEngineCallbacks()
                     if (c.wsEngine())
                     {
                         // After failed(), align WS retry time to Transfer backoff.
-                        const auto afterIt = c.multi_transfers[type].find(tPtr);
-                        if (afterIt != c.multi_transfers[type].end() && afterIt->second &&
-                            (afterIt->second->uploadhandle == th))
+                        if (c.wsIsTransferAlive(type, tPtr) &&
+                            (tPtr->uploadhandle == th))
                         {
-                            dstime retryAt = afterIt->second->bt.nextset();
+                            dstime retryAt = tPtr->bt.nextset();
                             if (!retryAt || retryAt == 1)
                             {
                                 retryAt = c.waiter->ds;
                             }
-                            c.wsEngine()->setRetryUntil(*afterIt->second, retryAt);
+                            c.wsEngine()->setRetryUntil(*tPtr, retryAt);
                         }
                     }
                     return;
@@ -2573,12 +2568,7 @@ void MegaClient::wsPostTransferUpdate(Transfer* t,
             if (!t)
                 return;
 
-            const auto& transfers = c.multi_transfers[type];
-            const auto it = transfers.find(t);
-            if (it == transfers.end())
-                return;
-
-            if (!(t->uploadhandle == th))
+            if (!c.wsIsTransferAlive(type, t) || !(t->uploadhandle == th))
                 return;
 
             f(*t, committer);
@@ -2745,9 +2735,7 @@ void MegaClient::wsProcessVerifyUploads()
             continue;
         }
 
-        const auto& transfers = multi_transfers[pending.type];
-        const auto trit = transfers.find(t);
-        if (trit == transfers.end() || !(t->uploadhandle == pending.uploadHandle))
+        if (!wsIsTransferAlive(pending.type, t) || !(t->uploadhandle == pending.uploadHandle))
         {
             it = mWsVerifyPending.erase(it);
             continue;
@@ -2823,9 +2811,7 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
                 bool ok = false;
                 if (tp)
                 {
-                    auto& transfers = c.multi_transfers[type];
-                    const auto it = transfers.find(tp);
-                    if (it != transfers.end() && (th.isUndef() || (tp->uploadhandle == th)))
+                    if (c.wsIsTransferAlive(type, tp) && (th.isUndef() || (tp->uploadhandle == th)))
                     {
                         ok = c.prepareUploadForWs(*tp);
                     }
@@ -2863,13 +2849,28 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
     return resultFuture.get();
 }
 
+// Check transfer is alive by comparing its exact pointer identity.
+// WS events are posted cross-thread so when lambda runs, tp may've been removed or replaced.
+// Do not use multi_transfers::find(tp) for lookup which compares FileFingerprint not pointer,
+// it can match a different transfer with the same fingerprint.
+// Its comparator also dereferences the lookup key, which is unsafe for stale pointers.
+bool MegaClient::wsIsTransferAlive(direction_t type, const Transfer* tp) const
+{
+    for (const auto& entry : multi_transfers[type])
+    {
+        if (entry.second == tp)
+            return true;
+    }
+    return false;
+}
+
 void MegaClient::wsCleanupPreflightRequests()
 {
     std::lock_guard<std::mutex> g(mWsPreflightMutex);
     for (auto it = mWsPreflightRequests.begin(); it != mWsPreflightRequests.end();)
     {
         Transfer* tp = it->first;
-        const bool alive = multi_transfers[PUT].find(tp) != multi_transfers[PUT].end();
+        const bool alive = wsIsTransferAlive(PUT, tp);
         if (!alive)
         {
             it = mWsPreflightRequests.erase(it);
@@ -2906,9 +2907,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                     return;
                 }
 
-                auto& transfers = c.multi_transfers[type];
-                const auto it = transfers.find(tp);
-                if (it == transfers.end())
+                if (!c.wsIsTransferAlive(type, tp))
                 {
                     return;
                 }
@@ -2933,16 +2932,15 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                 if (c.wsEngine())
                 {
                     // After failed(), align WS retry time to Transfer backoff.
-                    const auto afterIt = transfers.find(tp);
-                    if (afterIt != transfers.end() && afterIt->second &&
-                        (th.isUndef() || (afterIt->second->uploadhandle == th)))
+                    if (c.wsIsTransferAlive(type, tp) &&
+                        (th.isUndef() || (tp->uploadhandle == th)))
                     {
-                        dstime retryAt = afterIt->second->bt.nextset();
+                        dstime retryAt = tp->bt.nextset();
                         if (!retryAt || retryAt == 1)
                         {
                             retryAt = c.waiter->ds;
                         }
-                        c.wsEngine()->setRetryUntil(*afterIt->second, retryAt);
+                        c.wsEngine()->setRetryUntil(*tp, retryAt);
                     }
                 }
             });
@@ -2965,9 +2963,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                     return;
                 }
 
-                auto& transfers = c.multi_transfers[type];
-                const auto it = transfers.find(tp);
-                if (it == transfers.end())
+                if (!c.wsIsTransferAlive(type, tp))
                 {
                     return;
                 }

@@ -31,6 +31,7 @@ enum class InboundFrameValidationResult
     BadCrc,
 };
 
+// Header used by inbound chunk frames: [fileno:4B][chunkpos:m_off_t][event:1B]
 constexpr int kInboundChunkResponseBytes =
     static_cast<int>(sizeof(std::uint32_t) + sizeof(m_off_t) + sizeof(signed char));
 constexpr int kInboundFrameTrailerCrcBytes = static_cast<int>(sizeof(std::uint32_t));

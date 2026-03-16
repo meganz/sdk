@@ -590,7 +590,7 @@ namespace
     bool fetchWsUploadPoolStateForTesting(
         MegaApi& api,
         const std::string& url,
-        mega::ws::UploadEngine::PoolStateForTesting& out,
+        ws::UploadEngine::PoolStateForTesting& out,
         const int timeoutSeconds = defaultTimeout)
     {
         MegaApiImpl* impl = MegaApiImpl::ImplOf(&api);
@@ -600,13 +600,13 @@ namespace
         }
 
         auto promise =
-            std::make_shared<std::promise<mega::ws::UploadEngine::PoolStateForTesting>>();
+            std::make_shared<std::promise<ws::UploadEngine::PoolStateForTesting>>();
         auto future = promise->get_future();
 
         auto exec = std::make_shared<ExecuteOnce>(
             [impl, promise, url]()
             {
-                mega::ws::UploadEngine::PoolStateForTesting state;
+                ws::UploadEngine::PoolStateForTesting state;
                 MegaClient* client = impl->getClientForTesting();
                 if (client && client->wsEngine())
                 {
@@ -629,15 +629,15 @@ namespace
     bool waitForWsUploadPoolStateForTesting(
         MegaApi& api,
         const std::string& url,
-        mega::ws::UploadEngine::PoolStateForTesting& out,
-        const std::function<bool(const mega::ws::UploadEngine::PoolStateForTesting&)>& predicate,
+        ws::UploadEngine::PoolStateForTesting& out,
+        const std::function<bool(const ws::UploadEngine::PoolStateForTesting&)>& predicate,
         const int timeoutSeconds = defaultTimeout,
         const unsigned pollMillis = 200)
     {
         const auto start = std::chrono::steady_clock::now();
         while (std::chrono::steady_clock::now() - start < std::chrono::seconds(timeoutSeconds))
         {
-            mega::ws::UploadEngine::PoolStateForTesting state{};
+            ws::UploadEngine::PoolStateForTesting state{};
             if (fetchWsUploadPoolStateForTesting(api, url, state, 1) && predicate(state))
             {
                 out = std::move(state);
@@ -18840,7 +18840,10 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     LOG_debug << "[SdkTestMultipleUploads] Parallel uploads completed in " << uploadTime << " ms";
     LOG_debug << "[SdkTestMultipleUploads] File 1: " << size1 << " bytes, File 2: " << size2 << " bytes";
     LOG_debug << "[SdkTestMultipleUploads] Total size: " << (size1 + size2) << " bytes";
-    LOG_debug << "[SdkTestMultipleUploads] Average speed: " << ((((size1 + size2) / uploadTime) * 1000) / 1024) << " KB/s";
+    LOG_debug << "[SdkTestMultipleUploads] Average speed: "
+              << ((((static_cast<uint64_t>(size1) + static_cast<uint64_t>(size2))
+                    / static_cast<uint64_t>(uploadTime)) * 1000ULL) / 1024ULL)
+              << " KB/s";
 
     // Verify both uploads completed successfully
     ASSERT_EQ(API_OK, mApi[0].lastError) << "Upload error: " << mApi[0].lastError;
@@ -19417,12 +19420,12 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
-    mega::ws::UploadEngine::PoolStateForTesting pinnedPool{};
+    ws::UploadEngine::PoolStateForTesting pinnedPool{};
     ASSERT_TRUE(waitForWsUploadPoolStateForTesting(
         *megaApi[0],
         beforeResume.wsSessionUrl,
         pinnedPool,
-        [](const mega::ws::UploadEngine::PoolStateForTesting& state)
+        [](const ws::UploadEngine::PoolStateForTesting& state)
         {
             return state.found && state.pinned && state.numPoolFiles > 0;
         },
@@ -19432,8 +19435,8 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
 
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
 
-    mega::ws::UploadEngine::PoolStateForTesting afterCancel{};
-    mega::ws::UploadEngine::PoolStateForTesting lastObservedDetachedState{};
+    ws::UploadEngine::PoolStateForTesting afterCancel{};
+    ws::UploadEngine::PoolStateForTesting lastObservedDetachedState{};
     bool detachedFromPinnedPool = false;
     second_timer detachTimer;
     while (detachTimer.elapsed() < 15)
@@ -19466,8 +19469,8 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
         << " activeThreads=" << lastObservedDetachedState.activeThreads
         << " exitingThreads=" << lastObservedDetachedState.exitingThreads << "]";
 
-    mega::ws::UploadEngine::PoolStateForTesting referenceState{};
-    mega::ws::UploadEngine::PoolStateForTesting lastObservedReferenceState{};
+    ws::UploadEngine::PoolStateForTesting referenceState{};
+    ws::UploadEngine::PoolStateForTesting lastObservedReferenceState{};
     bool poolReferenceGone = false;
     second_timer referenceGoneTimer;
     while (referenceGoneTimer.elapsed() < 15)

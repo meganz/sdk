@@ -632,6 +632,7 @@ public:
     bool wsCanStartAnotherFile() const;
     bool wsPrepareUploadForWsSync(Transfer& t);
     bool prepareUploadForWs(Transfer& t);
+    bool wsIsTransferAlive(direction_t type, const Transfer* tp) const;
 
     // ---- Phase 3.0: bounce WS callbacks to client thread ----
     // Enqueue a client-thread action (same signature as sync’s queueClient functors).

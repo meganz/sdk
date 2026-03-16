@@ -119,9 +119,9 @@ InboundFrameValidationResult validateInboundFrame(const char* msg, const int len
 
     std::uint32_t trailerCrc = 0;
     std::memcpy(&trailerCrc,
-                msg + len - static_cast<int>(sizeof(std::uint32_t)),
+                msg + len - kInboundFrameTrailerCrcBytes,
                 sizeof(trailerCrc));
-    if (trailerCrc != CRC32::crc32b(msg, len - static_cast<int>(sizeof(std::uint32_t))))
+    if (trailerCrc != CRC32::crc32b(msg, len - kInboundFrameTrailerCrcBytes))
     {
         return InboundFrameValidationResult::BadCrc;
     }
@@ -146,7 +146,7 @@ struct ChunkMap
     ChunkMap()
     {
         m_off_t p{0};
-        unsigned dp{0};
+        int dp{0};
         while (dp < 8 * SEGSIZE)
         {
             dp += SEGSIZE;
@@ -175,6 +175,17 @@ enum class FailReason : std::uint8_t
     Protocol,
     CrcFailed,
     Unknown
+};
+
+enum class WsApiServerEvent: signed char
+{
+    ChunkIngested = 1, // chunk ingested (non-final)
+    AlreadyOnServer = 2, // already on server (after reconnect)
+    CrcFailed = 3, // chunk CRC failed
+    UploadCompleted = 4, // upload completed
+    Distress = 5, // server requested pool refresh
+    Throttle = 6, // server requested temporary pause
+    FinalDataIngested = 7 // final data ingested (server knows file is complete)
 };
 
 // ---------- WsUploadFile (uses SDK File/FileAccess) ----------
@@ -801,6 +812,8 @@ struct WsBuf
 
     void add(const char* data, const int len)
     {
+        assert((len >= 0) && len <= (static_cast<int>(sizeof(buf)) - mDataLen));
+
         std::memcpy(buf + mDataLen, data, static_cast<size_t>(len));
         mDataLen += len;
     }
@@ -1024,9 +1037,7 @@ struct WsPool
         if (mMaxFileSize != urlMaxSize.second)
             return false;
 
-        for (int i = 6;
-             i < static_cast<int>(urlMaxSize.first.size()) && i < static_cast<int>(mUrl.size());
-             ++i)
+        for (std::size_t i = 6; i < urlMaxSize.first.size() && i < mUrl.size(); ++i)
         {
             if (mUrl[i] != urlMaxSize.first[i])
                 return false;
@@ -1757,14 +1768,12 @@ public:
             {
                 for (const auto& v: victims)
                 {
-                    auto& transfers = client.multi_transfers[v.type];
-                    auto it = transfers.find(v.transfer);
-                    if (it == transfers.end() || !it->second)
+                    if (!client.wsIsTransferAlive(v.type, v.transfer))
                     {
                         continue;
                     }
 
-                    auto* tp = it->second;
+                    auto* tp = v.transfer;
                     if (!tp->uploadhandle.eq(v.uploadhandle))
                     {
                         continue;
@@ -2069,14 +2078,15 @@ private:
             if (!pool)
                 continue;
 
-            for (int i = static_cast<int>(pool->mExitingThreads.size()) - 1; i >= 0; --i)
+            for (std::size_t i = pool->mExitingThreads.size(); i-- > 0;)
             {
-                auto& th = pool->mExitingThreads[static_cast<size_t>(i)];
+                auto& th = pool->mExitingThreads[i];
                 if (!th || !th->terminated)
                     continue;
 
                 finished.push_back(std::move(th));
-                pool->mExitingThreads.erase(pool->mExitingThreads.begin() + i);
+                pool->mExitingThreads.erase(pool->mExitingThreads.begin() +
+                                            static_cast<std::ptrdiff_t>(i));
             }
         }
 
@@ -2424,20 +2434,26 @@ void WsConn::onmessage(const char* msg, const int len)
 
 #pragma pack(push, 1)
 
-    struct ChunkResponse
-    {
-        std::uint32_t fileno;
-        m_off_t chunkpos;
-        signed char event;
-    };
+struct ChunkResponse
+{
+    std::uint32_t fileno;
+    m_off_t chunkpos;
+    signed char event;
+};
 
 #pragma pack(pop)
 
+    // WS completion frame layout: [ChunkResponse][payloadLength:1][payload:N][crc32:4]    
+    constexpr int kWsChunkResponseHeaderSize = sizeof(ChunkResponse);
+    static_assert(kWsChunkResponseHeaderSize ==
+                    static_cast<std::size_t>(detail::kInboundChunkResponseBytes),
+                "ChunkResponse doesn't match detail::kInboundChunkResponseBytes");
+
     const auto* response = reinterpret_cast<const ChunkResponse*>(msg);
+    const auto event = static_cast<WsApiServerEvent>(response->event);
     LOG_debug << "[WsConn::onmessage] response->fileno=" << response->fileno
               << " response->chunkpos=" << response->chunkpos
-              << " response->event=" << static_cast<int>(response->event) << " [this = " << this
-              << "]";
+              << " response->event=" << static_cast<int>(event) << " [this = " << this << "]";
     WsChunk chunk;
 
     WsUploadFile* uf = mPool->findFile(response->fileno, *mPool->mImpl);
@@ -2447,9 +2463,9 @@ void WsConn::onmessage(const char* msg, const int len)
         return; // file cancelled or moved
     }
 
-    if (response->event < 4 || response->event == 7)
+    if (event < WsApiServerEvent::UploadCompleted || event == WsApiServerEvent::FinalDataIngested)
     {
-        if (response->event < 0)
+        if (static_cast<int>(event) < 0)
         {
             LOG_debug << "[WsConn::onmessage] response->event < 0 -> "
                          "uf->uploadFailed(FailReason::ServerError) [this = "
@@ -2460,7 +2476,7 @@ void WsConn::onmessage(const char* msg, const int len)
             uf->uploadFailed(FailReason::ServerError);
             if (mPool->mImpl->mCb.onFail)
             {
-                const int apierr = static_cast<int>(response->event);
+                const int apierr = static_cast<int>(event);
                 const m_off_t aux = response->chunkpos;
                 mPool->mImpl->mCb.onFail(uf->transfer(), apierr, aux);
             }
@@ -2470,17 +2486,17 @@ void WsConn::onmessage(const char* msg, const int len)
         LOG_debug << "[WsConn::onmessage] response->event >= 0 -> chunk.pos = -1 [this = " << this
                   << "]";
         chunk.pos = -1;
-        const bool shouldApply =
-            response->event == 1 || response->event == 2 || response->event == 7;
-        for (int i = 0; i < static_cast<int>(mChunksInFlight.size()); ++i)
+        const bool shouldApply = event == WsApiServerEvent::ChunkIngested ||
+                                 event == WsApiServerEvent::AlreadyOnServer ||
+                                 event == WsApiServerEvent::FinalDataIngested;
+        for (auto it = mChunksInFlight.begin(); it != mChunksInFlight.end(); ++it)
         {
-            if (mChunksInFlight[i].first.pos == response->chunkpos &&
-                mChunksInFlight[i].first.fileno == response->fileno)
+            if (it->first.pos == response->chunkpos && it->first.fileno == response->fileno)
             {
-                chunk = mChunksInFlight[i].first;
+                chunk = it->first;
                 if (shouldApply)
-                    mChunksInFlight[i].second.apply(chunk.pos, *uf);
-                mChunksInFlight.erase(mChunksInFlight.begin() + i);
+                    it->second.apply(chunk.pos, *uf);
+                mChunksInFlight.erase(it);
                 mPool->mNumChunksInFlight--;
                 break;
             }
@@ -2489,14 +2505,14 @@ void WsConn::onmessage(const char* msg, const int len)
         {
             LOG_warn << "WsUpload: PROTOCOL - acked chunk not in-flight [pos=" << response->chunkpos
                      << " fileno=" << response->fileno
-                     << " type=" << static_cast<int>(response->event) << "]";
+                     << " type=" << static_cast<int>(event) << "]";
             return;
         }
     }
 
-    if (len == 13)
+    if (len == kWsChunkResponseHeaderSize)
     {
-        LOG_debug << "[WsConn::onmessage] response->event == 13 -> "
+        LOG_debug << "[WsConn::onmessage] len == kWsChunkResponseHeaderSize -> "
                      "uf->uploadFailed(FailReason::Unknown) [this = "
                   << this << "]";
         // Unknown/invalid server response for this upload attempt.
@@ -2507,9 +2523,9 @@ void WsConn::onmessage(const char* msg, const int len)
         return;
     }
 
-    switch (response->event)
+    switch (event)
     {
-        case 1: // chunk ingested (non-final)
+        case WsApiServerEvent::ChunkIngested: // non-final
             LOG_debug
                 << "[WsConn::onmessage] response->event == 1 chunk ingested (non-final) [chunk.len="
                 << chunk.len << "] [this = " << this << "]";
@@ -2537,7 +2553,7 @@ void WsConn::onmessage(const char* msg, const int len)
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
-        case 7: // final data ingested (server knows file is complete)
+        case WsApiServerEvent::FinalDataIngested:
             LOG_debug << "[WsConn::onmessage] response->event == 7 final data ingested (server "
                          "knows file is complete) [chunk.len="
                       << chunk.len << "] [this = " << this << "]";
@@ -2565,7 +2581,7 @@ void WsConn::onmessage(const char* msg, const int len)
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
-        case 2: // already on server (after reconnect)
+        case WsApiServerEvent::AlreadyOnServer:
             LOG_debug << "[WsConn::onmessage] response->event == 2 already on server (after "
                          "reconnect) [pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
@@ -2592,7 +2608,7 @@ void WsConn::onmessage(const char* msg, const int len)
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
-        case 3: // CRC failed
+        case WsApiServerEvent::CrcFailed:
             LOG_warn << "[WsConn::onmessage] response->event == 3 CRC failed -> "
                         "mPool->retryChunk(chunk) [this = "
                      << this << "]";
@@ -2600,7 +2616,7 @@ void WsConn::onmessage(const char* msg, const int len)
             mPool->retryChunkLocked(chunk);
             break;
 
-        case 4: // upload completed
+        case WsApiServerEvent::UploadCompleted:
         {
             LOG_debug << "[WsConn::onmessage] response->event == 4 upload completed -> "
                          "mPool->applyInFlight(response->fileno) [this = "
@@ -2611,8 +2627,10 @@ void WsConn::onmessage(const char* msg, const int len)
             // Completion frame layout is:
             // [ChunkResponse (13 bytes)] [payloadLen (1 byte)] [payload (N bytes)] [crc32 (4 bytes)]
             // Validate boundaries before reading payloadLen/payload.
-            constexpr int kCompletionPrefixLen = 14; // ChunkResponse + payloadLen byte
-            constexpr int kTrailerCrcLen = static_cast<int>(sizeof(std::uint32_t));
+            constexpr int kWsCompletionPayloadOffset =
+                kWsChunkResponseHeaderSize + static_cast<int>(sizeof(std::uint8_t));
+            constexpr int kCompletionPrefixLen = kWsCompletionPayloadOffset;
+            constexpr int kTrailerCrcLen = detail::kInboundFrameTrailerCrcBytes;
             if (len < (kCompletionPrefixLen + kTrailerCrcLen))
             {
                 LOG_warn << "WsUpload: invalid completion frame len=" << len;
@@ -2625,7 +2643,7 @@ void WsConn::onmessage(const char* msg, const int len)
                 break;
             }
 
-            const int payLen = static_cast<unsigned char>(msg[13]); // payload length
+            const int payLen = static_cast<unsigned char>(msg[kWsChunkResponseHeaderSize]);
             const int maxPayloadLen = len - kCompletionPrefixLen - kTrailerCrcLen;
             if (payLen > maxPayloadLen)
             {
@@ -2640,16 +2658,16 @@ void WsConn::onmessage(const char* msg, const int len)
                 break;
             }
 
-            uf->uploadCompleted(msg + 14, payLen);
+            uf->uploadCompleted(msg + kWsCompletionPayloadOffset, payLen);
             if (mPool->mImpl->mCb.onComplete)
             {
-                const char* payload = (payLen > 0) ? (msg + 14) : nullptr;
+                const char* payload = (payLen > 0) ? (msg + kWsCompletionPayloadOffset) : nullptr;
                 mPool->mImpl->mCb.onComplete(uf->transfer(), payload, payLen);
             }
             break;
         }
 
-        case 5: // distress → refresh pools
+        case WsApiServerEvent::Distress:
             LOG_warn
                 << "[WsConn::onmessage] response->event == 5 distress -> server requested pool "
                    "refresh -> refresh pools -> mPool->mImpl->poolMgr.refreshPools() [this = "
@@ -2657,7 +2675,7 @@ void WsConn::onmessage(const char* msg, const int len)
             mPool->mImpl->poolMgr.refreshPools();
             break;
 
-        case 6: // throttle (ms) → ds
+        case WsApiServerEvent::Throttle:
             LOG_debug
                 << "[WsConn::onmessage] response->event == 6 throttle (ms) -> ds -> "
                    "mPool->pauseSending(static_cast<dstime>(response->chunkpos / 100 + 1)) [this = "
@@ -2667,8 +2685,8 @@ void WsConn::onmessage(const char* msg, const int len)
 
         default:
             LOG_debug << "[WsConn::onmessage] response->event == "
-                      << static_cast<int>(response->event)
-                      << " -> unknown server opcode=" << static_cast<int>(response->event)
+                      << static_cast<int>(event)
+                      << " -> unknown server opcode=" << static_cast<int>(event)
                       << " -> break [this = " << this << "]";
             break;
     }
@@ -2729,8 +2747,8 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
               << ", mDataLen(=" << mDataLen << ") - mSendPos(=" << mSendPos
               << ") = " << (mDataLen - mSendPos) << ", &sent, 0, CURLWS_BINARY) [this = " << this
               << "]";
-    const CURLcode res =
-        curl_ws_send(ws->curl, buf + mSendPos, mDataLen - mSendPos, &sent, 0, CURLWS_BINARY);
+    const std::size_t remaining = static_cast<std::size_t>(mDataLen - mSendPos);
+    const CURLcode res = curl_ws_send(ws->curl, buf + mSendPos, remaining, &sent, 0, CURLWS_BINARY);
     if (res == CURLE_OK)
     {
         LOG_debug << "[WsBuf::sendWS] res == CURLE_OK -> mSendPos(=" << mSendPos
@@ -2983,16 +3001,20 @@ void WsPool::applyInFlightLocked(const std::uint32_t fileno)
     WsUploadFile* uf = findFile(fileno, *mImpl);
     for (auto& conn: mConns)
     {
-        for (int j = static_cast<int>(conn->mChunksInFlight.size()); j--;)
+        for (auto it = conn->mChunksInFlight.begin(); it != conn->mChunksInFlight.end();)
         {
-            if (conn->mChunksInFlight[j].first.fileno == fileno)
+            if (it->first.fileno == fileno)
             {
                 if (uf)
                 {
-                    conn->mChunksInFlight[j].second.apply(conn->mChunksInFlight[j].first.pos, *uf);
+                    it->second.apply(it->first.pos, *uf);
                 }
-                conn->mChunksInFlight.erase(conn->mChunksInFlight.begin() + j);
+                it = conn->mChunksInFlight.erase(it);
                 mNumChunksInFlight--;
+            }
+            else
+            {
+                ++it;
             }
         }
     }
@@ -3128,7 +3150,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     dstime firstConnectFailureDs{0};
     std::uint32_t lastQueueVersion = mImpl->queueVersion;
     std::uint64_t seenDisconnectEpoch = mImpl->disconnectEpoch.load(std::memory_order_acquire);
-    WsConn ws(this);
+    auto ws = std::make_unique<WsConn>(this);
 
     LOG_debug << "[WsPool::poolWorkerThread] BEGIN [lastQueueVersion=" << lastQueueVersion
               << "] [this = " << this << "]";
@@ -3141,21 +3163,21 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         if (disconnectEpoch != seenDisconnectEpoch)
         {
             seenDisconnectEpoch = disconnectEpoch;
-            if (ws.readyState != WsConn::ReadyState::CLOSED)
+            if (ws->readyState != WsConn::ReadyState::CLOSED)
             {
                 // Reuse normal close path so in-flight chunks are re-queued safely.
                 ScopedUnlock unlock(lk);
-                ws.closeWS();
+                ws->closeWS();
             }
         }
 
-        if (ws.readyState == WsConn::ReadyState::CLOSED)
+        if (ws->readyState == WsConn::ReadyState::CLOSED)
         {
             // Do not hold the engine mutex while blocking on connect.
             bool ok = false;
             {
                 ScopedUnlock unlock(lk);
-                ok = ws.connectWS();
+                ok = ws->connectWS();
             }
 
             if (!ok)
@@ -3259,7 +3281,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         // recv server frames
         {
             ScopedUnlock unlock(lk);
-            ws.curlRecv();
+            ws->curlRecv();
         }
 
         // server throttle?
@@ -3277,10 +3299,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         // flush send buffers
         {
             ScopedUnlock unlock(lk);
-            ws.curlSend();
+            ws->curlSend();
         }
 
-        if (!ws.haveSpace())
+        if (!ws->haveSpace())
         {
             LOG_debug << "[WsPool::poolWorkerThread] haveSpace=false -> continue [this = " << this
                       << "]";
@@ -3290,7 +3312,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             }
             continue;
         }
-        if (!ws.readyForData())
+        if (!ws->readyForData())
         {
             LOG_debug << "[WsPool::poolWorkerThread] readyForData=false -> continue [this = "
                       << this << "]";
@@ -3303,7 +3325,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
         // fetch & enqueue next chunk (unlocks around disk I/O internally)
         dstime sendRetryAfterDs = 10;
-        if (!sendChunk(&ws, *mImpl, &sendRetryAfterDs))
+        if (!sendChunk(ws.get(), *mImpl, &sendRetryAfterDs))
         {
             LOG_debug << "[WsPool::poolWorkerThread] sendChunk=false -> continue [this = " << this
                       << "]";
@@ -3437,7 +3459,7 @@ bool WsPoolMgr::pinnedPoolHasReference(const WsPool& pool, const UploadEngine::I
 
 void WsPoolMgr::retireUnusedPinnedPools(UploadEngine::Impl& impl)
 {
-    for (int i = static_cast<int>(mPools.size()) - 1; i >= 0; --i)
+    for (std::size_t i = mPools.size(); i-- > 0;)
     {
         WsPool* const pool = mPools[i].get();
         if (!pool || !pool->mPinned || pool->mRetiring)
@@ -3459,12 +3481,12 @@ void WsPoolMgr::retireUnusedPinnedPools(UploadEngine::Impl& impl)
 
 void WsPoolMgr::cleanupRetiringPools()
 {
-    for (int i = static_cast<int>(mPools.size()) - 1; i >= 0; --i)
+    for (std::size_t i = mPools.size(); i-- > 0;)
     {
         if (mPools[i] && mPools[i]->mRetiring && !mPools[i]->stillActive())
         {
             LOG_info << "WsUpload: closing idle pool " << i << " (" << mPools[i]->mUrl << ")";
-            mPools.erase(mPools.begin() + i);
+            mPools.erase(mPools.begin() + static_cast<std::ptrdiff_t>(i));
         }
     }
 }
@@ -3472,9 +3494,11 @@ void WsPoolMgr::cleanupRetiringPools()
 void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 {
     // update last net read from pools
-    for (int i = static_cast<int>(mPools.size()); i--;)
+    for (std::size_t i = mPools.size(); i-- > 0;)
+    {
         if (SteadyTime::difference(mPools[i]->mLastServerResponse, mLastNetRead) > 0)
             mLastNetRead = mPools[i]->mLastServerResponse;
+    }
 
     // close idle retiring pools
     retireUnusedPinnedPools(impl);
@@ -3482,7 +3506,7 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
     cleanupRetiringPools();
 
     // trim connections / refresh stale or stalled pools
-    for (int i = static_cast<int>(mPools.size()) - 1; i >= 0; --i)
+    for (std::size_t i = mPools.size(); i-- > 0;)
     {
         if (mPools[i]->mNumberOfConnections > 1 &&
             SteadyTime::difference(impl.currentTime, mPools[i]->mLastActive) > POOLCONNKEEPALIVE)
@@ -3627,7 +3651,7 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
     const dstime oldest = SteadyTime::ds() - POOLFRESHNESS;
 
     // Mark all currently-active pools as retiring; we'll unretire those that still match.
-    for (int i = 0; i < static_cast<int>(mPools.size()); ++i)
+    for (std::size_t i = 0; i < mPools.size(); ++i)
     {
         if (!mPools[i]->mPinned)
         {
@@ -3635,10 +3659,10 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
         }
     }
 
-    for (int i = 0; i < static_cast<int>(apiSizeClasses.size()); ++i)
+    for (std::size_t i = 0; i < apiSizeClasses.size(); ++i)
     {
-        int j;
-        for (j = static_cast<int>(mPools.size()); j--;)
+        bool matched = false;
+        for (std::size_t j = mPools.size(); j-- > 0;)
         {
             if (mPools[j]->mPinned)
             {
@@ -3651,12 +3675,13 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
                     std::swap(mPools[i], mPools[j]);
                 }
                 mPools[i]->mRetiring = false;
+                matched = true;
                 break;
             }
         }
-        if (j < 0)
+        if (!matched)
         {
-            mPools.insert(mPools.begin() + i,
+            mPools.insert(mPools.begin() + static_cast<std::ptrdiff_t>(i),
                           std::make_unique<WsPool>(apiSizeClasses[i],
                                                    i ? apiSizeClasses[i - 1].second : 0,
                                                    mImpl,
