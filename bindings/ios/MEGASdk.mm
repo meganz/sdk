@@ -248,8 +248,9 @@ using namespace mega;
 }
 
 - (void)deleteMegaApi {
-    delete _megaApi;
+    MegaApi *api = _megaApi;
     _megaApi = nil;
+    delete api;
     pthread_mutex_destroy(&listenerMutex);
 }
 
