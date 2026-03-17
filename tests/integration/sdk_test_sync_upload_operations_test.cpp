@@ -113,23 +113,24 @@ protected:
      * @param tt The transfer listener tracker for this file.
      * @param isFullUploadExpected If true, validates transfer completes with API_OK.
      * If false, validates that NO transfer occurred (clone/setattr should be used instead).
-     * @param noTransferTimeout Timeout used when no transfer is expected.
+     * @param matchSyncByFingerprint Whether local and cloud nodes in the sync should be matched by
+     * fingerprint in addition to name.
      */
-    void waitForSyncAndVerifyTransfer(
-        const fs::path& localFilePathAbs,
-        std::shared_ptr<SyncUploadOperationsTracker> st,
-        std::shared_ptr<SyncUploadOperationsTransferTracker> tt,
-        const bool isFullUploadExpected,
-        const std::chrono::milliseconds noTransferTimeout = std::chrono::seconds(30))
+    void waitForSyncAndVerifyTransfer(const fs::path& localFilePathAbs,
+                                      std::shared_ptr<SyncUploadOperationsTracker> st,
+                                      std::shared_ptr<SyncUploadOperationsTransferTracker> tt,
+                                      const bool isFullUploadExpected,
+                                      const bool matchSyncByFingerprint = true)
     {
         auto [syncStatus, syncErrCode] = st->waitForCompletion(COMMON_TIMEOUT);
         ASSERT_TRUE(syncStatus == std::future_status::ready)
             << "Sync state change not received for: " << localFilePathAbs;
         ASSERT_EQ(syncErrCode, API_OK) << "Sync completed with error for: " << localFilePathAbs;
 
-        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive(matchSyncByFingerprint));
 
-        const auto transferTimeout = isFullUploadExpected ? COMMON_TIMEOUT : noTransferTimeout;
+        const auto transferTimeout =
+            isFullUploadExpected ? COMMON_TIMEOUT : std::chrono::seconds(30);
         auto [transferStatus, transferErrCode] = tt->waitForCompletion(transferTimeout);
 
         const auto expectedTransferStatus =
@@ -220,16 +221,19 @@ protected:
         const std::shared_ptr<sdk_test::LocalTempFile>& file,
         const fs::path& targetPathInSync,
         const bool isFullUploadExpected,
-        std::optional<m_time_t> expectedMtimeAfterMove = std::nullopt)
+        std::optional<m_time_t> expectedMtimeAfterMove = std::nullopt,
+        const bool matchSyncByFingerprint = true)
     {
         ASSERT_TRUE(file);
-        moveIntoSyncAndVerifyImpl(targetPathInSync,
-                                  isFullUploadExpected,
-                                  expectedMtimeAfterMove,
-                                  [&]()
-                                  {
-                                      return file->move(targetPathInSync);
-                                  });
+        moveIntoSyncAndVerifyImpl(
+            targetPathInSync,
+            isFullUploadExpected,
+            expectedMtimeAfterMove,
+            [&]()
+            {
+                return file->move(targetPathInSync);
+            },
+            matchSyncByFingerprint);
     }
 
 private:
@@ -237,7 +241,8 @@ private:
     void moveIntoSyncAndVerifyImpl(const fs::path& targetPathInSync,
                                    const bool isFullUploadExpected,
                                    const std::optional<m_time_t>& expectedMtimeAfterMove,
-                                   MoveFn&& moveFn)
+                                   MoveFn&& moveFn,
+                                   const bool matchSyncByFingerprint = true)
     {
         static const std::string logPre{"moveIntoSyncAndVerifyImpl: "};
         ASSERT_TRUE(mMtl) << logPre << "Invalid transfer listener";
@@ -262,8 +267,11 @@ private:
                 << logPre << "Move should preserve mtime for: " << targetPathInSync;
         }
 
-        ASSERT_NO_FATAL_FAILURE(
-            waitForSyncAndVerifyTransfer(targetPathInSync, st, tt, isFullUploadExpected));
+        ASSERT_NO_FATAL_FAILURE(waitForSyncAndVerifyTransfer(targetPathInSync,
+                                                             st,
+                                                             tt,
+                                                             isFullUploadExpected,
+                                                             matchSyncByFingerprint));
     }
 
 protected:
@@ -887,7 +895,8 @@ TEST_F(SdkTestSyncUploadsOperations,
     auto moveFileIntoSyncWithLocalTempFileAndVerify =
         [&](const fs::path& targetPathInSync, const std::shared_ptr<sdk_test::LocalTempFile>& f)
     {
-        ASSERT_NO_FATAL_FAILURE(moveLocalTempFileIntoSyncAndVerify(f, targetPathInSync, true));
+        ASSERT_NO_FATAL_FAILURE(
+            moveLocalTempFileIntoSyncAndVerify(f, targetPathInSync, true, std::nullopt, false));
     };
 
     LOG_debug << logPre << "2. Moving files into sync with legacy buggy sparse CRC enabled";

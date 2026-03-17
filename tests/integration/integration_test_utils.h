@@ -153,6 +153,18 @@ std::optional<std::vector<std::string>>
     getCloudFirstChildrenNames(::mega::MegaApi* megaApi, const ::mega::MegaHandle nodeHandle);
 
 /**
+ * @brief Get a pair formed by a vector with the names and fingerprints of the nodes that are
+ * children of the node with the given handle and a unique ptr to MegaNodeList.
+ *
+ * If any of the operations to get the nodes fails, a pair formed by nullopt and nullptr is
+ * returned.
+ */
+std::pair<std::optional<std::vector<ChildNameAndFingerprint>>,
+          std::unique_ptr<::mega::MegaNodeList>>
+    getCloudFirstChildrenNamesAndFingerprints(::mega::MegaApi* megaApi,
+                                              const ::mega::MegaHandle nodeHandle);
+
+/**
  * @brief Get the map resulting from invoking
  * MegaApi::getUserAttribute(MegaApi::USER_ATTR_DEVICE_NAMES) and put it in the output parameter.
  *

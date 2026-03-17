@@ -2628,18 +2628,6 @@ using namespace mega;
     }
 }
 
-- (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName {
-    if (self.megaApi) {
-        self.megaApi->startUploadForChat(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary, fileName.UTF8String);
-    }
-}
-
-- (void)startUploadForChatWithLocalPath:(NSString *)localPath parent:(MEGANode *)parent appData:(nullable NSString *)appData isSourceTemporary:(BOOL)isSourceTemporary fileName:(nullable NSString*)fileName delegate:(id<MEGATransferDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->startUploadForChat(localPath.UTF8String, parent.getCPtr, appData.UTF8String, isSourceTemporary, fileName.UTF8String, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
-    }
-}
-
 - (void)startUploadWithLocalPath:(NSString *)localPath
                           parent:(MEGANode *)parent
                      cancelToken:(nullable MEGACancelToken *)cancelToken

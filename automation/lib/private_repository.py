@@ -190,6 +190,11 @@ class GitLabRepository:  # use gitlab API
         tag_url = commit_url.replace(f"/commit/{tag.target}", f"/commits/{tag.name}")
         return tag_url
 
+    def get_release_url(self, tag_name: str) -> str:
+        # GitLab release page URL is stable and doesn't require extra API calls.
+        # Example: https://gitlab.example.com/group/proj/-/releases/v1.2.3
+        return f"{self._project.web_url}/-/releases/{tag_name}"
+
     def get_last_commit_in_branch(self, branch_name: str) -> str:
         commits = self._project.commits.list(
             ref_name=branch_name, get_all=False, per_page=1
@@ -203,6 +208,7 @@ class GitLabRepository:  # use gitlab API
             {"name": name, "tag_name": target, "description": notes}
         )
         assert release is not None
+        return self.get_release_url(target)
 
     def get_last_rc(self, release_name: str) -> int:
         re_pattern = "^" + re.escape(f"{release_name}-rc.") + r"(\d+)$"

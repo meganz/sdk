@@ -100,4 +100,10 @@ using namespace mega;
     return self.megaBanner->getVariant();
 }
 
+- (NSString *)button {
+    if (!self.megaBanner) return nil;
+    return self.megaBanner->getButton() ? @(self.megaBanner->getButton()) : nil;
+}
+
+
 @end

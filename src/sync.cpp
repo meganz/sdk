@@ -8312,7 +8312,8 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
         }
         if (ignoreFile && row.syncNode->rareRO().filterChain)
         {
-            if (row.syncNode->rareRO().filterChain->mFingerprint != ignoreFile->fingerprint)
+            if (!row.syncNode->rareRO().filterChain->mFingerprint.equalExceptMtime(
+                    ignoreFile->fingerprint))
             {
                 LOG_debug << syncname << "loading .megaignore file inside " << logTriplet(row, fullPath);
                 auto ignorepath = fullPath.localPath;
@@ -9061,7 +9062,11 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         SYNC_verbose << syncname << "Download setmtime change only at "
                      << logTriplet(row, fullPath);
 
-        assert(row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint);
+        assert((downloadPtr->mtimeAppliedOnDisk &&
+                row.syncNode->realScannedFingerprint == row.syncNode->scannedFingerprint) ||
+               (!downloadPtr->mtimeAppliedOnDisk &&
+                row.syncNode->realScannedFingerprint.equalExceptMtime(
+                    row.syncNode->scannedFingerprint)));
 
         [[maybe_unused]] const bool isNewFsNode =
             row.fsNode->fingerprint.mtime == downloadPtr->mtime;
@@ -9090,7 +9095,12 @@ bool Sync::syncItem_checkDownloadCompletion(SyncRow& row, SyncRow& parentRow, Sy
         row.fsNode->fingerprint.mtime = downloadPtr->mtime;
         row.syncNode->syncedFingerprint = row.fsNode->fingerprint;
         row.syncNode->scannedFingerprint = row.fsNode->fingerprint;
-        row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
+        if (downloadPtr->mtimeAppliedOnDisk)
+        {
+            // realScannedFingerprint remains the actual filesystem value,
+            // as mtime was applied we need to update it.
+            row.syncNode->realScannedFingerprint = row.fsNode->fingerprint;
+        }
 
         statecacheadd(row.syncNode);
         row.syncNode->recordMtimeOnlyOperation(); // Throttle future MAC computations
@@ -11034,30 +11044,52 @@ bool Sync::resolve_upsync(SyncRow& row,
                     {
                         vector<NewNode> nn(1);
                         mc.putnodes_prepareOneFolder(&nn[0], foldername, canChangeVault);
-                        mc.putnodes(targethandle,
-                                    NoVersioning,
-                                    std::move(nn),
-                                    nullptr,
-                                    0,
-                                    canChangeVault,
-                                    {}, // customerIpPort
-                                    [createFolderPtr](const Error& e,
-                                                      targettype_t,
-                                                      vector<NewNode>& v,
-                                                      bool /*targetOverride*/,
-                                                      int /*tag*/,
-                                                      const map<string, string>& /*fileHandles*/)
+
+                        Pitag pitag{canChangeVault ? PitagPurpose::Backup : PitagPurpose::Sync,
+                                    PitagTrigger::SyncAlgorithm,
+                                    PitagNodeType::Folder,
+                                    PitagTarget::NotApplicable,
+                                    PitagImportSource::NotApplicable};
+
+                        if (pitag.target == PitagTarget::NotApplicable)
+                        {
+                            if (std::shared_ptr<Node> parent = mc.nodeByHandle(targethandle))
+                            {
+                                const bool inIncomingShare = parent->matchesOrHasAncestorMatching(
+                                    [](const Node& node)
                                     {
-                                        if (!e && !v.empty())
-                                        {
-                                            createFolderPtr->succeededHandle.set6byte(
-                                                v[0].mAddedHandle);
-                                        }
-                                        if (createFolderPtr->succeededHandle.isUndef())
-                                        {
-                                            createFolderPtr->failed = true;
-                                        }
+                                        return node.inshare != nullptr;
                                     });
+                                pitag.target = inIncomingShare ? PitagTarget::IncomingShare :
+                                                                 PitagTarget::CloudDrive;
+                            }
+                        }
+
+                        mc.putnodes(
+                            targethandle,
+                            NoVersioning,
+                            std::move(nn),
+                            nullptr,
+                            0,
+                            canChangeVault,
+                            {}, // customerIpPort
+                            [createFolderPtr](const Error& e,
+                                              targettype_t,
+                                              vector<NewNode>& v,
+                                              bool /*targetOverride*/,
+                                              int /*tag*/,
+                                              const map<string, string>& /*fileHandles*/)
+                            {
+                                if (!e && !v.empty())
+                                {
+                                    createFolderPtr->succeededHandle.set6byte(v[0].mAddedHandle);
+                                }
+                                if (createFolderPtr->succeededHandle.isUndef())
+                                {
+                                    createFolderPtr->failed = true;
+                                }
+                            },
+                            pitag);
                     });
             }
             else

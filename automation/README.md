@@ -86,16 +86,17 @@ These should only be needed once.
 * Install `pip`. Something like `python3 -m ensurepip --upgrade` should work.
   However, Ubuntu apparently is "special" and Python from its repo comes without `ensurepip`. So try `sudo apt install python3-pip`.
 * Install required modules with `pip install -r requirements.txt` (and upgrade all later with `pip install -U -r requirements.txt`).
+* In case you encounter the `externally-managed-environment` error, create a virtual environment with `python3 -m venv .venv`, then run `./.venv/bin/python -m pip install -r requirements.txt` to install the required libraries locally.
 
 ### GitLab stuff
 * [Create a personal access token](https://docs.gitlab.com/ee/user/profile/personal_access_tokens.html#create-a-personal-access-token) with scopes `api`, `read_api`, `read_user`, `create_runner`, `read_repository`, `write_repository`.
-* The token created there must be set in `gitlab_token` argument(s) inside `config.toml`.
+* The token created there must be set in enviroment variable `GITLAB_TOKEN`.
 * Remember to check from time to time that the token has not expired.
 
 ### GitHub stuff
 * [Create a personal access token](https://github.com/settings/tokens/new) with scope `repo` and all its sub-scopes.
   * fill in `Note` and `Expiration` with what feels appropriate
-* The token created there must be set in `github_token` argument(s) inside `config.toml`.
+* The token created there must be set in enviroment variable `GITHUB_TOKEN`.
 * Remember to check from time to time that the token has not expired.
 
 ### Slack stuff
@@ -113,7 +114,7 @@ These should only be needed once.
       * Find **OAuth Tokens for Your Workspace** section -> click **Install to Workspace** -> review the permissions listed there -> click **Allow**
       * From the same **OAuth Tokens for Your Workspace** section -> copy **User OAuth Token**
   * Or reuse a _distributed app_ created by someone else, and get whatever token they provide.
-* Set the token in `slack_token` argument(s) inside `config.toml`.
+* The token created there must be set in enviroment variable `SLACK_TOKEN`.
 * Update the env var when the token has expired.
 
 ##### Find channel and thread to post to

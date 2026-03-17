@@ -4,6 +4,10 @@
 #include "passwordManager/SdkTestPasswordManager.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
+#ifdef ENABLE_SYNC
+#include "backup_test_utils.h"
+#include "SdkTestSyncNodesOperations.h"
+#endif
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
@@ -70,6 +74,13 @@ public:
     bool waitForValue(const std::string& expected, std::chrono::milliseconds timeout)
     {
         std::unique_lock<std::mutex> lock(mMutex);
+        if (mLastValue == expected)
+        {
+            return true;
+        }
+        mExpected = expected;
+        mCaptured = false;
+        mExpecting = true;
         if (!mCv.wait_for(lock,
                           timeout,
                           [&]
@@ -77,8 +88,10 @@ public:
                               return mCaptured;
                           }))
         {
+            mExpecting = false;
             return false;
         }
+        mExpecting = false;
         return mLastValue == expected;
     }
 
@@ -121,12 +134,12 @@ private:
 
         {
             std::lock_guard<std::mutex> lock(mMutex);
-            if (mCaptured)
+            const std::string value = payload.substr(pitagPos, endPos - pitagPos);
+            mLastValue = value;
+            if (mExpecting && value == mExpected)
             {
-                return;
+                mCaptured = true;
             }
-            mCaptured = true;
-            mLastValue = payload.substr(pitagPos, endPos - pitagPos);
         }
         mCv.notify_all();
     }
@@ -135,6 +148,8 @@ private:
     mutable std::mutex mMutex;
     std::condition_variable mCv;
     bool mCaptured{false};
+    bool mExpecting{false};
+    std::string mExpected;
     std::string mLastValue;
 };
 
@@ -143,6 +158,21 @@ class SdkTestPitag: public SdkTest
 
 class SdkTestPitagPasswordManager: public SdkTestPasswordManager
 {};
+
+#ifdef ENABLE_SYNC
+class SdkTestPitagSyncUpload: public sdk_test::SdkTestSyncNodesOperations
+{};
+
+class SdkTestPitagBackupUpload: public SdkTestBackup
+{
+    void TearDown() override
+    {
+        removeBackupSync();
+        cleanupPerApiBackupsMonitorMap(0);
+        SdkTestBackup::TearDown();
+    }
+};
+#endif
 
 } // anonymous namespace
 
@@ -278,11 +308,20 @@ TEST_F(SdkTestPitag, PitagCapturedForIncomingShareUpload)
     ASSERT_TRUE(WaitFor(inShareAvailable, defaultTimeoutMs))
         << "Incoming share not received by sharee";
 
-    std::unique_ptr<MegaShareList> inShares{megaApi[1]->getInSharesList()};
-    ASSERT_TRUE(inShares && inShares->size() > 0);
-    const MegaHandle sharedHandle = inShares->get(0)->getNodeHandle();
+    const MegaHandle sharedHandle = folderNode->getHandle();
+    ASSERT_TRUE(WaitFor(
+        [this, sharedHandle, &folderName]()
+        {
+            std::unique_ptr<MegaNode> node{megaApi[1]->getNodeByHandle(sharedHandle)};
+            return node && node->isNodeKeyDecrypted() && node->getName() &&
+                   folderName == node->getName();
+        },
+        defaultTimeoutMs))
+        << "Incoming share not decrypted by sharee";
+
     std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
+    ASSERT_STREQ(folderName.c_str(), incomingNode->getName());
 
     const auto localFilePath = fs::current_path() / (getFilePrefix() + "pitag_inshare.bin");
     const std::string localPathUtf8 = path_u8string(localFilePath);
@@ -426,11 +465,20 @@ TEST_F(SdkTestPitag, PitagCapturedForCopyNodeFromIncomingShare)
     ASSERT_TRUE(WaitFor(inShareAvailable, defaultTimeoutMs))
         << "Incoming share not received by sharee";
 
-    std::unique_ptr<MegaShareList> inShares{megaApi[1]->getInSharesList()};
-    ASSERT_TRUE(inShares && inShares->size() > 0);
-    const MegaHandle sharedHandle = inShares->get(0)->getNodeHandle();
+    const MegaHandle sharedHandle = folderNode->getHandle();
+    ASSERT_TRUE(WaitFor(
+        [this, sharedHandle, &folderName]()
+        {
+            std::unique_ptr<MegaNode> node{megaApi[1]->getNodeByHandle(sharedHandle)};
+            return node && node->isNodeKeyDecrypted() && node->getName() &&
+                   folderName == node->getName();
+        },
+        60 * 1000))
+        << "Incoming share node not ready";
+
     std::unique_ptr<MegaNode> incomingNode{megaApi[1]->getNodeByHandle(sharedHandle)};
     ASSERT_TRUE(incomingNode) << "Sharee cannot access incoming share node";
+    ASSERT_STREQ(folderName.c_str(), incomingNode->getName());
 
     std::unique_ptr<MegaNode> shareeRoot{megaApi[1]->getRootNode()};
     ASSERT_TRUE(shareeRoot) << "Unable to get sharee root node";
@@ -630,4 +678,69 @@ TEST_F(SdkTestPitag, PitagCapturedForImportFolderLink)
         << "Unexpected pitag payload captured: " << observer.capturedValue();
 }
 
+#ifdef ENABLE_SYNC
+TEST_F(SdkTestPitagSyncUpload, PitagCapturedForSyncUpload)
+{
+    PitagCommandObserver observer;
+
+    const fs::path filePath =
+        getLocalTmpDir() / "dir1" / (getFilePrefix() + "pitag_sync_upload.bin");
+    ASSERT_TRUE(fs::exists(filePath.parent_path()) ||
+                fs::create_directories(filePath.parent_path()));
+    ASSERT_NO_THROW(sdk_test::createFile(filePath, 1));
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("SafD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitagSyncUpload, PitagCapturedForSyncRemoteCopy)
+{
+    const fs::path firstFile =
+        getLocalTmpDir() / "dir1" / (getFilePrefix() + "pitag_sync_clone_src.bin");
+    ASSERT_TRUE(fs::exists(firstFile.parent_path()) ||
+                fs::create_directories(firstFile.parent_path()));
+    const auto commonMtime = fs::file_time_type::clock::now();
+    ASSERT_NO_THROW(sdk_test::createFile(firstFile, "c", commonMtime));
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    PitagCommandObserver observer;
+
+    const fs::path cloneFile =
+        getLocalTmpDir() / "dir2" / (getFilePrefix() + "pitag_sync_clone_dst.bin");
+    ASSERT_TRUE(fs::exists(cloneFile.parent_path()) ||
+                fs::create_directories(cloneFile.parent_path()));
+    ASSERT_NO_THROW(sdk_test::createFile(cloneFile, "c", commonMtime));
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("cafD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+
+TEST_F(SdkTestPitagBackupUpload, PitagCapturedForBackupUpload)
+{
+    createBackupSync();
+    ASSERT_NE(getBackupId(), INVALID_HANDLE);
+    mApi[0].addsyncMonitor(getBackupId());
+    ASSERT_TRUE(mApi[0].waitForBackupSyncUpToDate(getBackupId()));
+
+    PitagCommandObserver observer;
+
+    const fs::path filePath = getLocalFolderPath() / (getFilePrefix() + "pitag_backup_upload.bin");
+    ASSERT_NO_THROW(sdk_test::createFile(filePath, 1));
+
+    ASSERT_TRUE(mApi[0].waitForBackupSyncUpToDate(getBackupId()));
+
+    const auto waitTimeout =
+        std::chrono::duration_cast<std::chrono::milliseconds>(sdk_test::MAX_TIMEOUT);
+    ASSERT_TRUE(observer.waitForValue("BafD.", waitTimeout))
+        << "Unexpected pitag payload captured: " << observer.capturedValue();
+}
+#endif // ENABLE_SYNC
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED

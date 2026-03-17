@@ -81,6 +81,13 @@ NS_ASSUME_NONNULL_BEGIN
 */
 @property (nonatomic, readonly) NSInteger variant;
 
+/**
+* @brief Returns the button associated with the MEGABanner object
+*
+* @return button associated with the MEGABanner object
+*/
+@property (nonatomic, readonly, nullable) NSString *button;
+
 
 @end
 

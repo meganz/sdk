@@ -1403,6 +1403,18 @@ void SqliteAccountState::finalise()
     sqlite3_finalize(mStmtNodeByOrigFp);
     mStmtNodeByOrigFp = nullptr;
 
+    sqlite3_finalize(mStmtNodesWithInshares);
+    mStmtNodesWithInshares = nullptr;
+
+    sqlite3_finalize(mStmtNodesWithOutshares);
+    mStmtNodesWithOutshares = nullptr;
+
+    sqlite3_finalize(mStmtNodesWithPendingOutshares);
+    mStmtNodesWithPendingOutshares = nullptr;
+
+    sqlite3_finalize(mStmtNodesWithPubLink);
+    mStmtNodesWithPubLink = nullptr;
+
     sqlite3_finalize(mStmtChildNode);
     mStmtChildNode = nullptr;
 
@@ -1655,33 +1667,77 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
         return false;
     }
 
-    sqlite3_stmt *stmt = nullptr;
-    bool result = false;
-    int sqlResult = sqlite3_prepare_v2(
-        db,
-        "SELECT nodehandle, counter, node FROM nodes WHERE "
-        "(?1 = 1 AND share = 1 OR share = 3 OR share = 5 OR share = 7 OR share = "
-        "9 OR share = 11  OR share = 13 OR share = 15) OR"
-        "(?1 = 2 AND share = 2 OR share = 3 OR share = 6 OR share = 7 OR share = "
-        "10 OR share = 11  OR share = 14 OR share = 15) OR"
-        "(?1 = 4 AND share = 4 OR share = 5 OR share = 6 OR share = 7 OR share = "
-        "12 OR share = 13  OR share = 14 OR share = 15) OR"
-        "(?1 = 8 AND share = 8 OR share = 9 OR share = 10 OR share = 11 OR share "
-        "= 12 OR share = 13  OR share = 14 OR share = 15)",
-        -1,
-        &stmt,
-        NULL);
-    if (sqlResult == SQLITE_OK)
+    sqlite3_stmt* stmt = nullptr;
+    int sqlResult = SQLITE_OK;
+    // The integers for the expresion "share IN (x, y, z,...)" are the decimal representation of
+    // the possible combinations of ShareType_t binary map values.
+    // For example 10 coresponds to IN_SHARES = 0x01 + LINK = 0x08 and 12 corresponds to
+    // PENDING_OUTSHARES = 0x04 + LINK = 0x08.
+    static constexpr auto sqlQueryInshares =
+        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
+    static constexpr auto sqlQueryOutshares =
+        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
+    static constexpr auto sqlQueryPendingOutshares =
+        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
+    static constexpr auto sqlQueryPubLink =
+        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (8,9,10,11,12,13,14,15)";
+
+    switch (shareType)
     {
-        if ((sqlResult = sqlite3_bind_int(stmt, 1, static_cast<int>(shareType))) == SQLITE_OK)
-        {
-            result = processSqlQueryNodes(stmt, nodes);
-        }
+        case ShareType_t::IN_SHARES:
+            if (!mStmtNodesWithInshares)
+            {
+                sqlResult =
+                    sqlite3_prepare_v2(db, sqlQueryInshares, -1, &mStmtNodesWithInshares, nullptr);
+            }
+            stmt = mStmtNodesWithInshares;
+            break;
+        case ShareType_t::OUT_SHARES:
+            if (!mStmtNodesWithOutshares)
+            {
+                sqlResult = sqlite3_prepare_v2(db,
+                                               sqlQueryOutshares,
+                                               -1,
+                                               &mStmtNodesWithOutshares,
+                                               nullptr);
+            }
+            stmt = mStmtNodesWithOutshares;
+            break;
+        case ShareType_t::PENDING_OUTSHARES:
+            if (!mStmtNodesWithPendingOutshares)
+            {
+                sqlResult = sqlite3_prepare_v2(db,
+                                               sqlQueryPendingOutshares,
+                                               -1,
+                                               &mStmtNodesWithPendingOutshares,
+                                               nullptr);
+            }
+            stmt = mStmtNodesWithPendingOutshares;
+            break;
+        case ShareType_t::LINK:
+            if (!mStmtNodesWithPubLink)
+            {
+                sqlResult =
+                    sqlite3_prepare_v2(db, sqlQueryPubLink, -1, &mStmtNodesWithPubLink, nullptr);
+            }
+            stmt = mStmtNodesWithPubLink;
+            break;
+        default:
+            return false;
+    }
+
+    bool result = false;
+    if (sqlResult == SQLITE_OK && stmt)
+    {
+        result = processSqlQueryNodes(stmt, nodes);
     }
 
     errorHandler(sqlResult, "Get nodes with shares or link", false);
 
-    sqlite3_finalize(stmt);
+    if (stmt)
+    {
+        sqlite3_reset(stmt);
+    }
 
     return result;
 }

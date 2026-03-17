@@ -36,6 +36,13 @@ namespace mega
  */
 std::vector<std::string> toNamesVector(const MegaNodeList& nodes);
 
+using ChildNameAndFingerprint = std::pair<std::string, std::optional<std::string>>;
+/**
+ * @brief Aux function to get a vector with the names and fingerprints of the nodes in a given
+ * MegaNodeList
+ */
+std::vector<ChildNameAndFingerprint> toNamesAndFingerprintVector(const MegaNodeList& nodes);
+
 /**
  * @brief Aux function to get a vector with the strings in a given MegaStringList
  */

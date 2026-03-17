@@ -19794,4 +19794,3 @@ TEST_F(ContradictoryMoveFixture, ResolveRemotely)
 }
 
 #endif
-
