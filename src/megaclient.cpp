@@ -26,6 +26,7 @@
 #include "mega/logging.h"
 #include "mega/mediafileattribute.h"
 #include "mega/network_connectivity_test.h"
+#include "mega/recent_actions.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/tlv.h"
@@ -19281,44 +19282,6 @@ std::shared_ptr<Node> MegaClient::nodebyfingerprint(LocalNode* localNode)
 }
 #endif /* ENABLE_SYNC */
 
-static bool nodes_ctime_greater(const Node* a, const Node* b)
-{
-    return a->ctime > b->ctime;
-}
-
-static bool nodes_ctime_greater_shared_ptr(std::shared_ptr<Node> a, std::shared_ptr<Node> b)
-{
-    return nodes_ctime_greater(a.get(), b.get());
-}
-
-namespace action_bucket_compare
-{
-    static bool compare(const Node* a, const Node* b, MegaClient* mc)
-    {
-        if (a->owner != b->owner) return a->owner > b->owner;
-        if (a->parent != b->parent) return a->parent > b->parent;
-
-        // added/updated - distinguish by versioning
-        size_t aChildrenCount = mc->getNumberOfChildren(a->nodeHandle());
-        size_t bChildrenCount = mc->getNumberOfChildren(b->nodeHandle());
-        if (aChildrenCount != bChildrenCount) return aChildrenCount > bChildrenCount;
-
-        // media/nonmedia
-        bool a_media = mc->nodeIsMedia(a, nullptr, nullptr);
-        bool b_media = mc->nodeIsMedia(b, nullptr, nullptr);
-        if (a_media != b_media) return a_media && !b_media;
-
-        return false;
-    }
-
-    static bool comparetime(const recentaction& a, const recentaction& b)
-    {
-        return a.time > b.time;
-    }
-
-}   // end namespace action_bucket_compare
-
-
 bool MegaClient::nodeIsMedia(const Node *n, bool *isphoto, bool *isvideo) const
 {
     if (n->type != FILENODE)
@@ -19452,57 +19415,12 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
                                                   m_time_t since,
                                                   bool excludeSensitives)
 {
-    sharedNode_vector v = mNodeManager.getRecentNodes(maxcount, since, excludeSensitives);
-
-    return getRecentActionsFromSharedNodeVector(std::move(v));
+    return RecentActions(this).getRecentActions(maxcount, since, excludeSensitives);
 }
 
-recentactions_vector MegaClient::getRecentActionsFromSharedNodeVector(sharedNode_vector&& v)
+error MegaClient::getRecentActionById(const char* id, recentaction& output)
 {
-    recentactions_vector rav;
-    for (auto i = v.begin(); i != v.end(); )
-    {
-        // find the oldest node, maximum 6h
-        auto bucketend = i + 1;
-        while (bucketend != v.end() && (*bucketend)->ctime > (*i)->ctime - 6 * 3600)
-        {
-            ++bucketend;
-        }
-
-        // sort the defined bucket by owner, parent folder, added/updated and ismedia
-        std::sort(i, bucketend, [this](const std::shared_ptr<Node>& n1, const std::shared_ptr<Node>& n2) { return action_bucket_compare::compare(n1.get(), n2.get(), this); });
-
-        // split the 6h-bucket in different buckets according to their content
-        for (auto j = i; j != bucketend; ++j)
-        {
-            if (i == j || action_bucket_compare::compare(i->get(), j->get(), this))
-            {
-                // add a new bucket
-                recentaction ra;
-                ra.time = (*j)->ctime;
-                ra.user = (*j)->owner;
-                ra.parent = (*j)->parent ? (*j)->parent->nodehandle : UNDEF;
-                ra.updated = getNumberOfChildren((*j)->nodeHandle()) >
-                             0; // children of files represent previous versions
-                ra.media = nodeIsMedia(j->get(), nullptr, nullptr);
-                rav.push_back(ra);
-            }
-            // add the node to the bucket
-            rav.back().nodes.push_back(*j);
-            i = j;
-        }
-        i = bucketend;
-    }
-    // sort nodes inside each bucket
-    for (recentactions_vector::iterator i = rav.begin(); i != rav.end(); ++i)
-    {
-        // for the bucket vector, most recent (larger ctime) first
-        std::sort(i->nodes.begin(), i->nodes.end(), nodes_ctime_greater_shared_ptr);
-        i->time = i->nodes.front()->ctime;
-    }
-    // sort buckets in the vector
-    std::sort(rav.begin(), rav.end(), action_bucket_compare::comparetime);
-    return rav;
+    return RecentActions(this).getById(id, output);
 }
 
 // a chunk transfer request failed: record failed protocol & host

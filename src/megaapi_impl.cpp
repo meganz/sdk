@@ -5304,6 +5304,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
         case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
+        case TYPE_GET_RECENT_ACTION_BY_ID:
+            return "GET_RECENT_ACTION_BY_ID";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
         case TYPE_EXPORT_SET: return "EXPORT_SET";
@@ -6153,66 +6155,65 @@ void MegaUserAlertListPrivate::clear()
     list = nullptr;
 }
 
-MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction&& ra)
 {
-    User* u = mc->finduser(ra.user);
-
-    timestamp = ra.time;
-    user = u ? u->email : "";
-    parent = ra.parent;
-    update = ra.updated;
-    media = ra.media;
-    nodes = new MegaNodeListPrivate(ra.nodes);
+    mData.timestamp = ra.time;
+    mData.meta = std::move(ra.meta);
+    mData.id = std::move(ra.id);
+    mData.nodes = new MegaNodeListPrivate(ra.nodes);
 }
 
-MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const string& u, handle p, bool up, bool m, MegaNodeList* l)
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(const BucketData& data)
 {
-    timestamp = ts;
-    user = u;
-    parent = p;
-    update = up;
-    media = m;
-    nodes = l;
+    mData.timestamp = data.timestamp;
+    mData.meta = data.meta;
+    mData.id = data.id;
+    mData.nodes = data.nodes ? data.nodes->copy() : nullptr;
 }
 
 MegaRecentActionBucketPrivate::~MegaRecentActionBucketPrivate()
 {
-    delete nodes;
+    delete mData.nodes;
 }
 
 MegaRecentActionBucket *MegaRecentActionBucketPrivate::copy() const
 {
-    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, nodes->copy());
+    return new MegaRecentActionBucketPrivate(mData);
 }
 
 int64_t MegaRecentActionBucketPrivate::getTimestamp() const
 {
-    return timestamp;
+    return mData.timestamp;
 }
 
 const char* MegaRecentActionBucketPrivate::getUserEmail() const
 {
-    return user.c_str();
+    return mData.meta.userEmail.c_str();
 }
 
 MegaHandle MegaRecentActionBucketPrivate::getParentHandle() const
 {
-    return parent;
+    return mData.meta.parent;
 }
 
 bool MegaRecentActionBucketPrivate::isUpdate() const
 {
-    return update;
+    return mData.meta.updated;
 }
 
 bool MegaRecentActionBucketPrivate::isMedia() const
 {
-    return media;
+    return mData.meta.media;
+}
+
+const char* MegaRecentActionBucketPrivate::getId() const
+{
+    return mData.id.c_str();
 }
 
 const MegaNodeList* MegaRecentActionBucketPrivate::getNodes() const
 {
-    return nodes;
+    return mData.nodes;
 }
 
 MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
@@ -6221,7 +6222,7 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
     s = 0;
 }
 
-MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc)
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v)
 {
     list = NULL;
     s = static_cast<int>(v.size());
@@ -6232,7 +6233,7 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactio
     list = new MegaRecentActionBucketPrivate*[static_cast<size_t>(s)];
     for (int i = 0; i < s; i++)
     {
-        list[i] = new MegaRecentActionBucketPrivate(v[static_cast<size_t>(i)], mc);
+        list[i] = new MegaRecentActionBucketPrivate(std::move(v[static_cast<size_t>(i)]));
     }
 }
 
@@ -26574,6 +26575,38 @@ void MegaApiImpl::getRecentActionsAsync(unsigned days,
     getRecentActionsAsyncInternal(days, maxnodes, &excludeSensitives, listener);
 }
 
+void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID, listener);
+    if (id)
+    {
+        request->setText(id);
+    }
+
+    request->performRequest = [this, request]()
+    {
+        const char* id = request->getText();
+        recentaction ra;
+        const error e = client->getRecentActionById(id, ra);
+        if (e != API_OK)
+        {
+            return e;
+        }
+        recentactions_vector rav;
+        rav.emplace_back(std::move(ra));
+
+        std::unique_ptr<MegaRecentActionBucketList> recentActions(
+            new MegaRecentActionBucketListPrivate(rav));
+        request->setRecentActions(std::move(recentActions));
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
                                                 unsigned maxnodes,
                                                 bool* optExcludeSensitives,
@@ -26617,7 +26650,7 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
             v = client->getRecentActions(maxnodes, since);
         }
         std::unique_ptr<MegaRecentActionBucketList> recentActions(
-            new MegaRecentActionBucketListPrivate(v, client));
+            new MegaRecentActionBucketListPrivate(v));
         request->setRecentActions(std::move(recentActions));
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
         return API_OK;

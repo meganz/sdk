@@ -4694,6 +4694,24 @@ public:
     virtual bool isMedia() const;
 
     /**
+     * @brief Returns the identifier for this bucket
+     *
+     * Format:
+     * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+     * - dayStartTs is the UTC day start timestamp (seconds since Epoch).
+     * - windowStartHour and windowEndHour are UTC hours for the time window boundaries.
+     * - userHandle is base64-encoded and cannot be UNDEF.
+     * - parentHandle is base64-encoded and cannot be UNDEF.
+     * - isMedia, isUpdate and excludeSensitives are 0 or 1.
+     *
+     * The SDK retains the ownership of the returned value. It will be valid until
+     * the MegaRecentActionBucket object is deleted.
+     *
+     * @return The bucket identifier string
+     */
+    virtual const char* getId() const;
+
+    /**
     * @brief Returns nodes representing the files changed in this bucket
     *
      * The SDK retains the ownership of the returned value. It will be valid until
@@ -5434,7 +5452,8 @@ class MegaRequest
             TYPE_GET_MAX_CONNECTIONS = 208,
             TYPE_GET_SUBSCRIPTION_CANCELLATION_DETAILS = 209,
             TYPE_GET_DISCOUNT_CODE_INFORMATION = 210,
-            TOTAL_OF_REQUEST_TYPES = 211,
+            TYPE_GET_RECENT_ACTION_BY_ID = 211,
+            TOTAL_OF_REQUEST_TYPES = 212,
         };
 
         virtual ~MegaRequest();
@@ -20114,6 +20133,7 @@ class MegaApi
          * nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
+         * Buckets are grouped into fixed 6-hour windows in UTC: 0-6, 6-12, 12-18, 18-24.
          *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
@@ -20146,6 +20166,7 @@ class MegaApi
          * nodes
          *
          * Each bucket contains files that were added/modified in a set, by a single user.
+         * Buckets are grouped into fixed 6-hour windows in UTC: 0-6, 6-12, 12-18, 18-24.
          *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
@@ -20171,6 +20192,36 @@ class MegaApi
                                    unsigned maxnodes,
                                    bool excludeSensitives,
                                    MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Get a recent action bucket by its identifier
+         *
+         * The identifier format is:
+         * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+         * - dayStartTs is the UTC day start timestamp (seconds since Epoch).
+         * - windowStartHour and windowEndHour are UTC hours for the time window boundaries.
+         * - userHandle is base64-encoded and cannot be UNDEF.
+         * - parentHandle is base64-encoded and cannot be UNDEF.
+         * - isMedia, isUpdate and excludeSensitives are 0 or 1.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the bucket identifier
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID
+         * If the identifier is invalid (for example, invalid token count, invalid handle,
+         * invalid boolean token, or parentHandle/userHandle is UNDEF), the request
+         * finishes with MegaError::API_EARGS.
+         * If the identifier is valid but there is no matching recent-action bucket,
+         * the request finishes with MegaError::API_ENOENT.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getRecentActions - Returns a list with 1 bucket
+         *
+         * @param id Bucket identifier returned by MegaRecentActionBucket::getId
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecentActionById(const char* id, MegaRequestListener* listener = NULL);
 
         /**
          * @brief Clear the account’s recent actions history up to a given timestamp.

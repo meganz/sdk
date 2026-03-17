@@ -2356,9 +2356,6 @@ public:
 #endif /* ENABLE_SYNC */
 
 private:
-    // Private helper method for getRecentActions
-    recentactions_vector getRecentActionsFromSharedNodeVector(sharedNode_vector&& v);
-
     std::string getTransferDBName();
 
 public:
@@ -2366,6 +2363,10 @@ public:
     recentactions_vector getRecentActions(unsigned maxcount,
                                           m_time_t since,
                                           bool excludeSensitives = true);
+
+    // get a recent action bucket by its identifier.
+    // Returns API_OK (recentaction in output), API_ENOENT (no match), or API_EARGS (invalid id).
+    error getRecentActionById(const char* id, recentaction& output);
 
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
     bool nodeIsMedia(const Node*, bool *isphoto, bool *isvideo) const;
