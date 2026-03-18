@@ -32,7 +32,9 @@ namespace mega {
 
 bool shouldDropStalePaymentReminder(MegaClient& mc, const UserAlert::PaymentReminder& reminder)
 {
-    const bool isPro = mc.mMyAccount.getProLevel() > AccountType::ACCOUNT_TYPE_FREE;
+    auto proLevel = mc.mMyAccount.getProLevel();
+    const bool isPro =
+        proLevel > AccountType::ACCOUNT_TYPE_FREE && proLevel != AccountType::ACCOUNT_TYPE_FEATURE;
     if (!isPro)
     {
         return false;
