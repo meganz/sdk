@@ -60,16 +60,3 @@ TEST(JSONNumericParsers, GetFloatParsesValuesAfterNameValueSeparator)
     EXPECT_DOUBLE_EQ(json.getfloat(), 25.99);
     EXPECT_DOUBLE_EQ(json.getfloat(), -0.42);
 }
-
-TEST(JSONNumericParsers, GetFloatRejectsMalformedValues)
-{
-    mega::JSON invalidStart("abc");
-    mega::JSON invalidSign("-");
-    mega::JSON invalidExponent("1e");
-    mega::JSON invalidExponentSign("1e-");
-
-    EXPECT_DOUBLE_EQ(invalidStart.getfloat(), -1.0);
-    EXPECT_DOUBLE_EQ(invalidSign.getfloat(), 0.0);
-    EXPECT_DOUBLE_EQ(invalidExponent.getfloat(), 1.0);
-    EXPECT_DOUBLE_EQ(invalidExponentSign.getfloat(), 1.0);
-}

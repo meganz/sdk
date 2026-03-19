@@ -5989,17 +5989,17 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 if (json.enterarray())
                 {
                     const char* cur;
-                    const char* amount;
+                    double amount;
 
                     while (json.enterarray())
                     {
-                        amount = json.getvalue();
+                        amount = json.getfloat();
                         cur = json.getvalue();
-                        if (amount && cur)
+                        if (cur)
                         {
                             size_t t = details->balances.size();
                             details->balances.resize(t + 1);
-                            details->balances[t].amount = atof(amount);
+                            details->balances[t].amount = amount;
                             memcpy(details->balances[t].currency, cur, 3);
                             details->balances[t].currency[3] = 0;
                         }
@@ -6408,17 +6408,17 @@ bool CommandGetUserTransactions::procresult(Result, JSON& json)
     {
         const char* handle = json.getvalue();
         m_time_t ts = json.getint();
-        const char* delta = json.getvalue();
+        double delta = json.getfloat();
         const char* cur = json.getvalue();
 
-        if (handle && (ts > 0) && delta && cur)
+        if (handle && (ts > 0) && cur)
         {
             size_t t = details->transactions.size();
             details->transactions.resize(t + 1);
             memcpy(details->transactions[t].handle, handle, 11);
             details->transactions[t].handle[11] = 0;
             details->transactions[t].timestamp = ts;
-            details->transactions[t].delta = atof(delta);
+            details->transactions[t].delta = delta;
             memcpy(details->transactions[t].currency, cur, 3);
             details->transactions[t].currency[3] = 0;
         }
@@ -6452,18 +6452,18 @@ bool CommandGetUserPurchases::procresult(Result, JSON& json)
     {
         const char* handle = json.getvalue();
         const m_time_t ts = json.getint();
-        const char* amount = json.getvalue();
+        double amount = json.getfloat();
         const char* cur = json.getvalue();
         int method = (int)json.getint();
 
-        if (handle && (ts > 0) && amount && cur && (method >= 0))
+        if (handle && (ts > 0) && cur && (method >= 0))
         {
             size_t t = details->purchases.size();
             details->purchases.resize(t + 1);
             memcpy(details->purchases[t].handle, handle, 11);
             details->purchases[t].handle[11] = 0;
             details->purchases[t].timestamp = ts;
-            details->purchases[t].amount = atof(amount);
+            details->purchases[t].amount = amount;
             memcpy(details->purchases[t].currency, cur, 3);
             details->purchases[t].currency[3] = 0;
             details->purchases[t].method = method;

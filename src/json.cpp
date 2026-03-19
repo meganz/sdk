@@ -481,9 +481,17 @@ double JSON::getfloat()
         pos++;
     }
 
-    if ((*pos < '0' || *pos > '9') && *pos != '-' && *pos != '.')
+    const char* ptr = pos;
+
+    if (*ptr == '"')
+    {
+        ptr++;
+    }
+
+    if ((*ptr < '0' || *ptr > '9') && *ptr != '-' && *ptr != '.')
     {
         LOG_err << "Parse error (getfloat)";
+        assert(false && "JSON::getfloat(): No float value in JSON");
         return -1;
     }
 
@@ -491,14 +499,15 @@ double JSON::getfloat()
     char* endptr = nullptr;
 #ifdef _WIN32
     static const _locale_t cLocale = _create_locale(LC_NUMERIC, "C");
-    r = cLocale ? _strtod_l(pos, &endptr, cLocale) : strtod(pos, &endptr);
+    r = cLocale ? _strtod_l(ptr, &endptr, cLocale) : strtod(ptr, &endptr);
 #else
     static const locale_t cLocale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
-    r = cLocale ? strtod_l(pos, &endptr, cLocale) : strtod(pos, &endptr);
+    r = cLocale ? strtod_l(ptr, &endptr, cLocale) : strtod(ptr, &endptr);
 #endif
-    if (endptr == pos)
+    if (endptr == ptr)
     {
         LOG_err << "Conversion error (getfloat)";
+        assert(false && "JSON::getfloat(): Unexpected value in JSON");
         return r;
     }
 
