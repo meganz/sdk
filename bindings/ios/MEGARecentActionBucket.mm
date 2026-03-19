@@ -81,6 +81,9 @@ using namespace mega;
     return self.recentActionBucket->isMedia();
 }
 
+- (NSString *)bucketId {
+    return self.recentActionBucket ? @(self.recentActionBucket->getId()) : nil;
+}
 - (MEGANodeList *)nodesList {
     return self.recentActionBucket ? [MEGANodeList.alloc initWithNodeList:self.recentActionBucket->getNodes()->copy() cMemoryOwn:YES] : nil;
 }

@@ -4178,4 +4178,10 @@ using namespace mega;
     return password;
 }
 
+- (void)getRecentActionByBucketId:(NSString *)bucketId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getRecentActionById(bucketId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 @end
