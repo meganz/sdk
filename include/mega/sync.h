@@ -1809,8 +1809,16 @@ public:
     DefaultFilterChain mNewSyncFilterChain;
 
     // todo: move relevant code to this class later
-    // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
-    std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
+    // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem
+    // browser for icon indicators needs to be locked when making changes on this thread; or when
+    // accessing from another thread
+
+    // Important: This mutex cannot be locked (to avoid deadlocks) if `mSyncVecMutex` (defined in
+    // Syncs class) is already locked. In other words, the lock order for both mutexes must always
+    // be:
+    //  1) `mLocalNodeChangeMutex`
+    //  2) `mSyncVecMutex`
+    std::timed_mutex mLocalNodeChangeMutex;
 
     // flags matching the state we have reported to the app via callbacks
     std::atomic<bool> syncscanstate{false};
@@ -1921,6 +1929,19 @@ private:
     void processSyncConflicts();
     void processSyncStalls();
 
+    /**
+     * @brief Returns a thread-safe copy of `mSyncVec`.
+     *
+     * This method returns a thread-safe (by locking `mSyncVecMutex`) copy of the current vector of
+     * UnifiedSync shared pointers.
+     *
+     * @note The returned vector is a snapshot of the internal state
+     * at the time of the call. Subsequent modifications to the
+     * original container will not affect the returned copy.
+     *
+     * @note This method should be called only from sync thread to avoid issues
+     */
+    std::vector<std::shared_ptr<UnifiedSync>> getSyncVecCopy() const;
     void syncLoop();
 
     enum WhichCloudVersion
@@ -2107,9 +2128,15 @@ private:
     // Responsible for securely writing config databases to disk.
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
-    // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
+    // Sometimes the Client needs a list of the sync configs; we provide it as a copy (mutex for
+    // thread safety, of course).
+    // Important: We cannot lock any of these mutexes (to avoid deadlocks): `mLocalNodeChangeMutex`,
+    // `nodeTreeMutex`, if `mSyncVecMutex` is already locked. In other words, the lock order for
+    // these mutexes must always be:
+    //  1) `mLocalNodeChangeMutex` OR `nodeTreeMutex`
+    //  2) `mSyncVecMutex`
     mutable std::recursive_mutex mSyncVecMutex;
-    vector<unique_ptr<UnifiedSync>> mSyncVec;
+    vector<shared_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     bool unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig&);

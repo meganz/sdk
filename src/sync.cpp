@@ -678,9 +678,12 @@ Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
 
     localroot.reset(new LocalNode(this));
 
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(syncs.mSyncVecMutex);
     const SyncConfig& config = us.mConfig;
+    const auto remoteNodeHandle = config.mRemoteNode;
+    syncVecMutexLock.unlock();
 
-    syncs.lookupCloudNode(config.mRemoteNode,
+    syncs.lookupCloudNode(remoteNodeHandle,
                           cloudRoot,
                           &cloudRootPath,
                           nullptr,
@@ -690,6 +693,8 @@ Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
                           Syncs::FOLDER_ONLY,
                           &cloudRootOwningUser);
     inshare = syncs.isCloudNodeInShare(cloudRoot);
+
+    syncVecMutexLock.lock();
     tmpfa = NULL;
     syncname = logname; // can be updated to be more specific in logs
 
@@ -4160,7 +4165,11 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
 
     UnifiedSync* usPtr = nullptr;
 
-    for (auto& s : mSyncVec)
+    // Make a copy of `mSyncVec` to protect against changes to its structure after unlocking
+    // syncVecMutexLock
+    auto auxSyncVec = getSyncVecCopy();
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
+    for (auto& s: auxSyncVec)
     {
         if (s->mConfig.mBackupId == backupId)
         {
@@ -4238,26 +4247,47 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         us.mConfig.mLocalPathFsid = UNDEF;
     }
 
+    const auto remoteNodeHandle = us.mConfig.mRemoteNode;
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at`lookupCloudNode` and explicit lock of `nodeTreeMutex` some lines
+    // below, so we need to release mutex before.
+    syncVecMutexLock.unlock();
+
     if (setOriginalPath)
     {
         CloudNode cloudNode;
         string cloudNodePath;
-        if (lookupCloudNode(us.mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY)
-            &&  us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
+        const auto lookupCloudNodeSuccess = lookupCloudNode(remoteNodeHandle,
+                                                            cloudNode,
+                                                            &cloudNodePath,
+                                                            nullptr,
+                                                            nullptr,
+                                                            nullptr,
+                                                            nullptr,
+                                                            Syncs::FOLDER_ONLY);
+
+        syncVecMutexLock.lock();
+        if (lookupCloudNodeSuccess && us.mConfig.mOriginalPathOfRemoteRootNode != cloudNodePath)
         {
             us.mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
             ensureDriveOpenedAndMarkDirty(us.mConfig.mExternalDrivePath);
         }
+        syncVecMutexLock.unlock();
     }
 
     error e;
     {
         // todo: even better thead safety
         lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
+        syncVecMutexLock.lock();
         std::tie(e, us.mConfig.mError, us.mConfig.mWarning) = mClient.checkSyncConfig(us.mConfig);
         us.mConfig.mEnabled = e == API_OK && us.mConfig.mError == NO_SYNC_ERROR;
+        syncVecMutexLock.unlock();
     }
 
+    // Lock `syncVecMutex` again
+    syncVecMutexLock.lock();
     if (e)
     {
         // error and enable flag were already changed
@@ -4270,8 +4300,18 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         return;
     }
 
+    auto auxConfig = us.mConfig;
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at`hasIgnoreFile`, so we need to release mutex before.
+    syncVecMutexLock.unlock();
+
     // Does this sync already contain an ignore file?
-    if (!hasIgnoreFile(us.mConfig))
+    const auto auxHasIgnoreFileAux = hasIgnoreFile(auxConfig);
+
+    // Lock `syncVecMutex` again
+    syncVecMutexLock.lock();
+
+    if (!auxHasIgnoreFileAux)
     {
         // Create a new chain so that we can add custom rules if necessary.
         unique_ptr<DefaultFilterChain> resultIfDfc;
@@ -4403,7 +4443,14 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
     us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
 
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at`startSync_inThread->Sync::Sync->lookupCloudNode`, so we need to
+    // release mutex before.
+    syncVecMutexLock.unlock();
     startSync_inThread(us, completion, logname);
+
+    // Lock `syncVecMutexLock` again
+    syncVecMutexLock.lock();
     us.mNextHeartbeat->updateSPHBStatus(us);
 }
 
@@ -4457,14 +4504,17 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
 {
     assert(onSyncThread());
 
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-    const auto it = std::find_if(std::begin(mSyncVec),
-                                 std::end(mSyncVec),
+    // Make a copy of `mSyncVec` to protect against changes to its structure after unlocking
+    // syncVecMutexLock
+    auto auxSyncVec = getSyncVecCopy();
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
+    const auto it = std::find_if(std::begin(auxSyncVec),
+                                 std::end(auxSyncVec),
                                  [backupId](const auto& unifSync)
                                  {
                                      return unifSync && unifSync->mConfig.mBackupId == backupId;
                                  });
-    if (it == std::end(mSyncVec))
+    if (it == std::end(auxSyncVec))
     {
         LOG_err << "There are no syncs with the given backupId";
         return completion(API_EARGS, UNKNOWN_ERROR);
@@ -4520,6 +4570,11 @@ void Syncs::changeSyncRemoteRootInThread(const handle backupId,
     {
         unifSync->suspendSync();
         renameDbAndNotifyServer();
+
+        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+        // generate deadlocks; in this case at `resumeSync->enableSyncByBackupId_inThread`, so we
+        // need to release mutex before.
+        syncVecMutexLock.unlock();
         unifSync->resumeSync(
             [completion = std::move(completion)](error err, SyncError serr, handle)
             {
@@ -4563,14 +4618,17 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
 {
     assert(onSyncThread());
 
-    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-    const auto it = std::find_if(std::begin(mSyncVec),
-                                 std::end(mSyncVec),
+    // Make a copy of `mSyncVec` to protect against changes to its structure after unlocking
+    // syncVecMutexLock
+    auto auxSyncVec = getSyncVecCopy();
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
+    const auto it = std::find_if(std::begin(auxSyncVec),
+                                 std::end(auxSyncVec),
                                  [backupId](const auto& unifSync)
                                  {
                                      return unifSync && unifSync->mConfig.mBackupId == backupId;
                                  });
-    if (it == std::end(mSyncVec))
+    if (it == std::end(auxSyncVec))
     {
         LOG_err << "There are no syncs with the given backupId";
         return completion(API_EARGS, UNKNOWN_ERROR);
@@ -4584,6 +4642,7 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
     const auto exitResumingIfNeeded =
         [syncWasRunning, completion = std::move(completion), &unifSync](error e, SyncError se)
     {
+        // `mSyncVecMutex` is unlocked in all places before calling `exitResumingIfNeeded`
         if (!syncWasRunning)
             return completion(e, se);
         unifSync->resumeSync(
@@ -4599,15 +4658,24 @@ void Syncs::changeSyncLocalRootInThread(const handle backupId,
     if (const auto syncErr = unifSync->changeConfigLocalRoot(newValidLocalRootPath);
         syncErr != NO_SYNC_ERROR)
     {
+        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+        // generate deadlocks; in this case at `resumeSync`, so we need to release mutex before.
+        syncVecMutexLock.unlock();
+
         const error apiErr = syncErr == SYNC_CONFIG_WRITE_FAILURE ? API_EWRITE : API_EARGS;
         return exitResumingIfNeeded(apiErr, syncErr);
     }
     mHeartBeatMonitor->updateOrRegisterSync(*unifSync);
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+    // generate deadlocks; in this case at `resumeSync`, so we need to release mutex before.
+    syncVecMutexLock.unlock();
     exitResumingIfNeeded(API_OK, NO_SYNC_ERROR);
 }
 
 void Syncs::manageRemoteRootLocationChange(Sync& sync) const
 {
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     // Currently, we don't support movements for backup roots
     if (sync.isBackup())
     {
@@ -4618,13 +4686,21 @@ void Syncs::manageRemoteRootLocationChange(Sync& sync) const
     }
     // we need to check if the node in its new location is syncable
     const auto& config = sync.getConfig();
-    const auto [e, syncError] = std::invoke(
-        [this, &config]() -> std::pair<error, SyncError>
-        {
-            std::lock_guard g(mClient.nodeTreeMutex);
-            return mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(config.mRemoteNode),
-                                          true);
-        });
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; so we need to release mutex before.
+    syncVecMutexLock.unlock();
+    error e;
+    SyncError syncError;
+    {
+        std::lock_guard g(mClient.nodeTreeMutex);
+        std::tie(e, syncError) =
+            mClient.isnodesyncable(mClient.mNodeManager.getNodeByHandle(config.mRemoteNode), true);
+    }
+
+    // Lock `syncVecMutexLock` again
+    syncVecMutexLock.lock();
+
     if (e)
     {
         LOG_debug << "Node is not syncable after moving to a new location: " << syncError;
@@ -4642,6 +4718,7 @@ void Syncs::startSync_inThread(UnifiedSync& us,
                                const string& logname)
 {
     assert(onSyncThread());
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
     assert(!us.mSync);
 
     auto fail = [&us, &completion](Error e, SyncError se) -> void {
@@ -4663,7 +4740,16 @@ void Syncs::startSync_inThread(UnifiedSync& us,
     us.changedConfigState(false, true);
 
     SyncError constructResult = NO_SYNC_ERROR;
-    us.mSync.reset(new Sync(us, logname, constructResult));
+
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks; in this case at `Sync::Sync->lookupCloudNode`, so we need to
+    // release mutex before.
+    syncVecMutexLock.unlock();
+    auto auxSync = std::make_unique<Sync>(us, logname, constructResult);
+
+    // Lock `syncVecMutexLock` again
+    syncVecMutexLock.lock();
+    us.mSync = std::move(auxSync);
 
     if (constructResult != NO_SYNC_ERROR)
     {
@@ -5288,7 +5374,7 @@ error Syncs::backupOpenDrive_inThread(const LocalPath& drivePath)
             if (!skip)
             {
                 // Create the unified sync.
-                mSyncVec.emplace_back(new UnifiedSync(*this, config));
+                mSyncVec.emplace_back(std::make_shared<UnifiedSync>(*this, config));
 
                 // Track how many configs we've restored.
                 ++numRestored;
@@ -5399,6 +5485,7 @@ treestate_t Syncs::getSyncStateForLocalPath(handle backupId, const LocalPath& lp
 bool Syncs::getSyncStateForLocalPath(const LocalPath& lp, treestate_t& ts, nodetype_t& nt, SyncConfig& sc)
 {
     assert(onSyncThread());
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& us : mSyncVec)
     {
         if (us->mSync && us->mConfig.mLocalPath.isContainingPathOf(lp))
@@ -6533,7 +6620,7 @@ void Syncs::appendNewSync_inThread(const SyncConfig& c, bool startSync, std::fun
 
     {
         lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-        mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, c)));
+        mSyncVec.push_back(std::make_shared<UnifiedSync>(*this, c));
     }
 
     ensureDriveOpenedAndMarkDirty(c.mExternalDrivePath);
@@ -6620,6 +6707,7 @@ void Syncs::stopSyncsInErrorState()
 
     // An error has occurred, and it's time to destroy the in-RAM structures
     // If the sync db should be kept, then we already null'd the sync->syncstatecache
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& unifiedSync : mSyncVec)
     {
         if (unifiedSync->mSync &&
@@ -6644,6 +6732,7 @@ void Syncs::purgeRunningSyncs_inThread()
     // Any syncs that are running should be resumed on next start.
     // We stop the syncs here, but don't call the client to say they are stopped.
     // And localnode databases are preserved.
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto& s : mSyncVec)
     {
         if (s->mSync)
@@ -6748,6 +6837,7 @@ void Syncs::disableSyncByBackupId_inThread(handle backupId, SyncError syncError,
 {
     assert(onSyncThread());
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto i = mSyncVec.size(); i--; )
     {
         auto& us = *mSyncVec[i];
@@ -7098,6 +7188,7 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
     assert(onSyncThread());
     LOG_debug << "Unloading sync: " << toHandle(id);
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     for (auto i = mSyncVec.size(); i--; )
     {
         if (mSyncVec[i]->mConfig.mBackupId == id)
@@ -7117,7 +7208,6 @@ bool Syncs::unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig& con
             // we don't call sync_removed back since the sync is not deleted
             // we don't unregister from the backup/sync heartbeats as the sync can be resumed later
 
-            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             mSyncVec.erase(mSyncVec.begin() + static_cast<long>(i));
             return true;
         }
@@ -7140,6 +7230,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
         // Special case backward compatibility for MEGAsync
         // The syncs will be disabled, if the user logs back in they can then manually re-enable.
 
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto& us : mSyncVec)
         {
             if (us->mConfig.getEnabled())
@@ -7151,6 +7242,7 @@ void Syncs::prepareForLogout_inThread(bool keepSyncsConfigFile, std::function<vo
     else // if logging out and syncs won't be kept...
     {
         // regardless of that, we de-register all syncs/backups in Backup Centre
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto& us : mSyncVec)
         {
             std::function<void()> onFinalDeregister = nullptr;
@@ -7200,7 +7292,8 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
     // NULL the statecachetable databases for Syncs first, then Sync destruction won't remove LocalNodes from them
     // If we are deleting syncs then just remove() the database direct
 
-    for (auto i = mSyncVec.size(); i--; )
+    std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
+    for (auto i = mSyncVec.size(); i--;)
     {
         if (Sync* sync = mSyncVec[i]->mSync.get())
         {
@@ -7211,6 +7304,7 @@ void Syncs::locallogout_inThread(bool removecaches, bool keepSyncsConfigFile, bo
             }
         }
     }
+    syncVecMutexLock.unlock();
 
     if (mSyncConfigStore)
     {
@@ -7322,15 +7416,13 @@ void Syncs::loadSyncConfigsOnFetchnodesComplete_inThread(bool resetSyncConfigSto
         return;
     }
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     // There should be no syncs yet.
     assert(mSyncVec.empty());
 
+    for (auto& config: configs)
     {
-        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-        for (auto& config : configs)
-        {
-            mSyncVec.push_back(unique_ptr<UnifiedSync>(new UnifiedSync(*this, config)));
-        }
+        mSyncVec.push_back(std::make_shared<UnifiedSync>(*this, config));
     }
 
     for (auto& us : mSyncVec)
@@ -7343,8 +7435,11 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 {
     assert(onSyncThread());
 
-    for (auto& unifiedSync : mSyncVec)
+    // Make a copy of mSyncVec to avoid locking mutex so many time
+    auto auxSyncVec = getSyncVecCopy();
+    for (auto& unifiedSync: auxSyncVec)
     {
+        std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (!unifiedSync->mSync)
         {
             if (unifiedSync->mConfig.mOriginalPathOfRemoteRootNode.empty())
@@ -7352,7 +7447,23 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                 // this should only happen on initial migraion from from old caches
                 CloudNode cloudNode;
                 string cloudNodePath;
-                if (lookupCloudNode(unifiedSync->mConfig.mRemoteNode, cloudNode, &cloudNodePath, nullptr, nullptr, nullptr, nullptr, Syncs::FOLDER_ONLY))
+                const auto remoteNodeHandle = unifiedSync->mConfig.mRemoteNode;
+
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+                // generate deadlocks, in this case by calling `lookupCloudNode` this could happen
+                // if we do not release `mSyncVecMutex` before
+                syncVecMutexLock.unlock();
+                const auto lookupCloudNodeSuccess =
+                    lookupCloudNode(remoteNodeHandle,
+                                    cloudNode,
+                                    &cloudNodePath,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    nullptr,
+                                    Syncs::FOLDER_ONLY);
+                syncVecMutexLock.lock();
+                if (lookupCloudNodeSuccess)
                 {
                     unifiedSync->mConfig.mOriginalPathOfRemoteRootNode = cloudNodePath;
                     ensureDriveOpenedAndMarkDirty(unifiedSync->mConfig.mExternalDrivePath);
@@ -7367,6 +7478,11 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
 #endif
                 LOG_debug << "Resuming cached sync: " << toHandle(unifiedSync->mConfig.mBackupId) << " " << unifiedSync->mConfig.getLocalPath() << " fsfp= " << unifiedSync->mConfig.mFilesystemFingerprint.toString() << " error = " << unifiedSync->mConfig.mError;
 
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+                // generate deadlocks; in this case at `enableSyncByBackupId_inThread`, so we need
+                // to release mutex before.
+                syncVecMutexLock.unlock();
+
                 enableSyncByBackupId_inThread(
                     unifiedSync->mConfig.mBackupId,
                     false,
@@ -7378,6 +7494,9 @@ void Syncs::resumeSyncsOnStateCurrent_inThread()
                                   << " error = " << se;
                     },
                     "");
+
+                // Lock `syncVecMutexLock` again
+                syncVecMutexLock.lock();
             }
             else
             {
@@ -8159,8 +8278,12 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
 {
     assert(syncs.onSyncThread());
 
-    // in case of sync failing while we recurse
-    if (getConfig().mError) return false;
+    {
+        // in case of sync failing while we recurse
+        lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+        if (getConfig().mError)
+            return false;
+    }
 
     assert(row.syncNode);
     assert(row.syncNode->type > FILENODE);
@@ -8398,8 +8521,12 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                     // Convenience.
                     auto& childRow = childRows[i];
 
-                    // in case of sync failing while we recurse
-                    if (getConfig().mError) return false;
+                    {
+                        // in case of sync failing while we recurse
+                        lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+                        if (getConfig().mError)
+                            return false;
+                    }
 
                     if (syncs.mSyncFlags->earlyRecurseExitRequested)
                     {
@@ -8599,9 +8726,17 @@ bool Sync::recursiveSync(SyncRow& row, SyncPath& fullPath, bool belowRemovedClou
                                 auto result = childRow.syncNode->watch(newPath.localPath,
                                                                        childRow.fsNode->fsid);
 
-                                // Any fatal errors while adding the watch?
-                                if (result == WR_FATAL)
-                                    changestate(UNABLE_TO_ADD_WATCH, false, true, true);
+                                {
+                                    // lock `mSyncVecMutex` to protect config change but release as
+                                    // soon as we have done
+                                    lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+
+                                    // Any fatal errors while adding the watch?
+                                    if (result == WR_FATAL)
+                                    {
+                                        changestate(UNABLE_TO_ADD_WATCH, false, true, true);
+                                    }
+                                }
                             }
 
                             if (!recursiveSync(
@@ -11235,8 +11370,11 @@ bool Sync::resolve_downsync(SyncRow& row,
                                   << "Insufficient space available for download: "
                                   << logTriplet(row, fullPath);
 
-                        changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
-                        syncs.mHeartBeatMonitor->updateOrRegisterSync(mUnifiedSync);
+                        {
+                            lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
+                            changestate(INSUFFICIENT_DISK_SPACE, false, true, true);
+                            syncs.mHeartBeatMonitor->updateOrRegisterSync(mUnifiedSync);
+                        }
 
                         return false;
                     }
@@ -12287,6 +12425,7 @@ void Syncs::processTriggerLocalpaths()
         triggers.swap(triggerLocalpaths);
     }
 
+    lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
     if (mSyncVec.empty()) return;
 
     for (auto& lp : triggers)
@@ -12323,7 +12462,11 @@ void Syncs::processTriggerHandles()
         triggers.swap(triggerHandles);
     }
 
-    if (mSyncVec.empty()) return;
+    {
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+        if (mSyncVec.empty())
+            return;
+    }
 
     for (auto& t : triggers)
     {
@@ -13311,6 +13454,16 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.endobject();
 }
 
+std::vector<std::shared_ptr<UnifiedSync>> Syncs::getSyncVecCopy() const
+{
+    assert(onSyncThread());
+    std::vector<std::shared_ptr<UnifiedSync>> auxSyncVec;
+    {
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+        auxSyncVec = mSyncVec;
+    }
+    return auxSyncVec;
+}
 
 void Syncs::syncLoop()
 {
@@ -13383,9 +13536,13 @@ void Syncs::syncLoop()
 
         waiter->bumpds();
 
+        // Make a copy of mSyncVec to avoid locking mutex so many time
+        auto auxSyncVec = getSyncVecCopy();
+
         // Process filesystem notifications.
-        for (auto& us : mSyncVec)
+        for (auto& us: auxSyncVec)
         {
+            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
             if (Sync* sync = us->mSync.get())
             {
                 if (sync->dirnotify)
@@ -13413,31 +13570,51 @@ void Syncs::syncLoop()
 
         // verify filesystem fingerprints, disable deviating syncs
         // (this covers mountovers, some device removals and some failures)
-        for (auto& us : mSyncVec)
+        for (auto& us: auxSyncVec)
         {
+            NodeHandle remoteNodeHandle;
+            {
+                lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+                remoteNodeHandle = us->mConfig.mRemoteNode;
+            }
             vector<pair<handle, int>> sdsBackups;
             CloudNode cloudNode;
             string cloudRootPath;
             bool inTrash = false;
             unsigned rootDepth;
-            bool foundRootNode = lookupCloudNode(us->mConfig.mRemoteNode,
-                                                    cloudNode,
-                                                    &cloudRootPath,
-                                                    &inTrash,
-                                                    nullptr,
-                                                    nullptr,
-                                                    &rootDepth,
-                                                    Syncs::FOLDER_ONLY,
-                                                    nullptr,
-                                                    &sdsBackups);
 
+            // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+            // generate deadlocks
+            bool foundRootNode = lookupCloudNode(remoteNodeHandle,
+                                                 cloudNode,
+                                                 &cloudRootPath,
+                                                 &inTrash,
+                                                 nullptr,
+                                                 nullptr,
+                                                 &rootDepth,
+                                                 Syncs::FOLDER_ONLY,
+                                                 nullptr,
+                                                 &sdsBackups);
+
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
             if (processRemovingSyncBySds(*us.get(), foundRootNode, sdsBackups))
             {
                 continue;
             }
-            else if (foundRootNode && processPauseResumeSyncBySds(*us.get(), sdsBackups))
+            else
             {
-                continue;
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may
+                // generate deadlocks; in this case
+                // at`processPauseResumeSyncBySds->enableSyncByBackupId_inThread`, so we need to
+                // release mutex before.
+                syncVecMutexlock.unlock();
+                const auto success =
+                    foundRootNode && processPauseResumeSyncBySds(*us.get(), sdsBackups);
+                syncVecMutexlock.lock();
+                if (success)
+                {
+                    continue;
+                }
             }
 
             if (Sync* sync = us->mSync.get())
@@ -13516,7 +13693,15 @@ void Syncs::syncLoop()
                 }
                 else if (remoteRootHasChanged)
                 {
+                    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we
+                    // may generate
+                    // deadlocks; in this case at`lookupCloudNode` and explicit lock of
+                    // `nodeTreeMutex` some lines below, so we need to release mutex before.
+                    syncVecMutexlock.unlock();
                     manageRemoteRootLocationChange(*sync);
+
+                    // Lock `mSyncVecMutex` again
+                    syncVecMutexlock.lock();
                 }
 
                 if (!us->mConfig.mEnabled && us->mConfig.mError != NO_SYNC_ERROR)
@@ -13563,8 +13748,19 @@ void Syncs::syncLoop()
                     }
                     else
                     {
-                        LOG_debug << "Auto-starting sync that was suspended when the local path was unavailable: " << us->mConfig.mLocalPath;
-                        enableSyncByBackupId_inThread(us->mConfig.mBackupId, false, nullptr, "", "");
+                        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+                        // deadlocks; in this case at `enableSyncByBackupId_inThread`, so we need to release mutex before.
+                        const auto auxBackupId = us->mConfig.mBackupId;
+                        syncVecMutexlock.unlock();
+
+                        LOG_debug << "Auto-starting sync that was suspended when the local path "
+                                     "was unavailable: "
+                                  << us->mConfig.mLocalPath;
+                        enableSyncByBackupId_inThread(auxBackupId,
+                                                      false,
+                                                      nullptr,
+                                                      "",
+                                                      "");
                     }
                 }
             }
@@ -13575,11 +13771,9 @@ void Syncs::syncLoop()
         // Clear the context if the associated sync is no longer active.
         mIgnoreFileFailureContext.reset(*this);
 
-        if (syncStallState &&
-            (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
-            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) &&
-            !lastLoopEarlyExit &&
-            !mSyncVec.empty())
+        if (syncStallState && (waiter->ds < mSyncFlags->recursiveSyncLastCompletedDs + 10) &&
+            (waiter->ds > mSyncFlags->recursiveSyncLastCompletedDs) && !lastLoopEarlyExit &&
+            !auxSyncVec.empty())
         {
             LOG_debug << "Don't process syncs too often in stall state";
             continue;
@@ -13612,9 +13806,9 @@ void Syncs::syncLoop()
         }
 
         unsigned skippedForScanning = 0;
-
-        for (auto& us : mSyncVec)
+        for (auto& us: auxSyncVec)
         {
+            std::unique_lock<std::recursive_mutex> syncVecMutexlock(mSyncVecMutex);
             Sync* sync = us->mSync.get();
 
             if (sync && !us->mConfig.mError)
@@ -13703,6 +13897,13 @@ void Syncs::syncLoop()
                     SyncRow row{&sync->cloudRoot, sync->localroot.get(), &rootFsNode};
 
                     {
+                        // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+                        // otherwise we may generate deadlocks; in this case at `recursiveSync`
+                        // `nodeTreeMutex` is locked, so we need to release `mSyncVecMutex`
+                        //
+                        // Also `mSyncVecMutex` cannot be locked before locking `mLocalNodeChangeMutex`,
+                        syncVecMutexlock.unlock();
+
                         // later we can make this lock much finer-grained
                         std::lock_guard<std::timed_mutex> g(mLocalNodeChangeMutex);
 
@@ -13712,6 +13913,9 @@ void Syncs::syncLoop()
                         {
                             earlyExit = true;
                         }
+
+                        // Lock syncVecMutexlock again
+                        syncVecMutexlock.lock();
 
                         sync->cachenodes();
                     }
@@ -13755,9 +13959,9 @@ void Syncs::syncLoop()
 
         if (mTransferPauseFlagsChanged.exchange(false, std::memory_order_relaxed))
         {
-            lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
-            for (auto& us : mSyncVec)
+            for (auto& us: auxSyncVec)
             {
+                lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
                 mHeartBeatMonitor->updateOrRegisterSync(*us);
             }
         }
@@ -13927,6 +14131,7 @@ void Syncs::setSyncsNeedFullSync(bool andFullScan, bool andReFingerprint, handle
     queueSync([=](){
 
         assert(onSyncThread());
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
         for (auto & us : mSyncVec)
         {
             if ((us->mConfig.mBackupId == backupId
@@ -13951,8 +14156,12 @@ bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
 {
     assert(onSyncThread());
     size_t totalConflicts{};
-    for (auto& us: mSyncVec)
+
+    // Make a copy of mSyncVec to avoid locking mutex so many time
+    auto auxSyncVec = getSyncVecCopy();
+    for (auto& us: auxSyncVec)
     {
+        std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (Sync* sync = us->mSync.get(); sync && sync->localroot->conflictsDetected())
         {
             auto [it, success] = conflicts.emplace(us->mConfig.mBackupId, list<NameConflict>());
@@ -13965,7 +14174,16 @@ bool Syncs::conflictsDetected(SyncIDtoConflictInfoMap& conflicts)
                 conflicts.clear();
                 break;
             }
+
+            // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+            // otherwise we may generate deadlocks; in this case at
+            // `recursiveCollectNameConflicts->lookupCloudChildren` `nodeTreeMutex` is locked,
+            // so we need to release `mSyncVecMutex`
+            syncVecMutexLock.unlock();
             sync->recursiveCollectNameConflicts(&it->second);
+
+            // Lock `syncVecMutex` again
+            syncVecMutexLock.lock();
             totalConflicts += it->second.size();
         }
     }
@@ -13984,8 +14202,11 @@ size_t Syncs::conflictsDetectedCount(size_t limit) const
     assert(onSyncThread());
 
     size_t count = 0;
-    for (auto& us : mSyncVec)
+    // Make a copy of mSyncVec to avoid locking mutex so many time
+    auto auxSyncVec = getSyncVecCopy();
+    for (auto& us : auxSyncVec)
     {
+        std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
         if (Sync* sync = us->mSync.get())
         {
             if (sync->localroot->conflictsDetected())
@@ -13995,8 +14216,20 @@ size_t Syncs::conflictsDetectedCount(size_t limit) const
                     count = limit;
                     break;
                 }
+
+                // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+                // otherwise we may generate deadlocks; in this case at
+                // `recursiveCollectNameConflicts->lookupCloudChildren` `nodeTreeMutex` is locked,
+                // so we need to release `mSyncVecMutex`
+                syncVecMutexLock.unlock();
                 sync->recursiveCollectNameConflicts(nullptr, &count, limit ? &limit : nullptr);
-                if (count >= limit) break;
+                if (count >= limit)
+                {
+                    break;
+                }
+
+                // Lock `syncVecMutex` again
+                syncVecMutexLock.lock();
             }
         }
     }
@@ -14023,11 +14256,22 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
     queueSync([=]()
         {
             list<NameConflict> nc;
-            for (auto& us : mSyncVec)
+            // Make a copy of mSyncVec to avoid locking mutex so many time
+            auto auxSyncVec = getSyncVecCopy();
+            for (auto& us : auxSyncVec)
             {
+                std::unique_lock<std::recursive_mutex> syncVecMutexLock(mSyncVecMutex);
                 if (us->mSync && (us->mConfig.mBackupId == backupId || backupId == UNDEF))
                 {
+                    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`,
+                    // otherwise we may generate deadlocks; in this case at
+                    // `recursiveCollectNameConflicts->lookupCloudChildren` `nodeTreeMutex` is
+                    // locked, so we need to release `mSyncVecMutex`
+                    syncVecMutexLock.unlock();
                     us->mSync->recursiveCollectNameConflicts(&nc);
+
+                    // Lock `syncVecMutex` again
+                    syncVecMutexLock.lock();
                 }
             }
             finalcompletion(std::move(nc));
@@ -14329,11 +14573,15 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
     vector<pair<NodeHandle, Sync*>> activeSyncHandles;
     vector<pair<std::shared_ptr<Node>, Sync*>> activeSyncRoots;
 
+    // `mSyncVecMutex` cannot be locked before locking `nodeTreeMutex`, otherwise we may generate
+    // deadlocks
+    lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
     if (nodeIsInActiveSyncQuery)
     {
         *nodeIsInActiveSyncQuery = false;
 
-        for (auto & us : mSyncVec)
+        lock_guard<std::recursive_mutex> guard(mSyncVecMutex);
+        for (auto& us: mSyncVec)
         {
             if (us->mSync && !us->mConfig.mError)
             {
@@ -14341,8 +14589,6 @@ bool Syncs::lookupCloudNode(NodeHandle h, CloudNode& cn, string* cloudPath, bool
             }
         }
     }
-
-    lock_guard<recursive_mutex> g(mClient.nodeTreeMutex);
 
     if (nodeIsInActiveSyncQuery)
     {
