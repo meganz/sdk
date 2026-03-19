@@ -751,6 +751,7 @@ struct LoggerVoidify
     void operator&(SimpleLogger&) {}
 };
 
+// Note: If the argument to LOG_level includes any function call, it may be executed TWICE
 #define LOG_level(LOG_LEVEL) \
     ::mega::SimpleLogger::getLogLevel() < (LOG_LEVEL) ? \
         (void)0 : \
