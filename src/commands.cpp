@@ -6347,6 +6347,10 @@ void CommandGetUserQuota::processPlans()
             client->mMyAccount.setProUntil(-1);
         }
     }
+    else
+    {
+        client->useralerts.purgeStalePaymentReminders();
+    }
 
     if (!featurePlanReceived)
     {
