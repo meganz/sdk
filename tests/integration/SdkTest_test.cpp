@@ -58,21 +58,6 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
-static const string APP_KEY     = "8QxzVRxD";
-static const string PUBLICFILE  = "file.txt";
-static const string UPFILE      = "file1.txt";
-static const string DOWNFILE    = "file2.txt";
-static const string EMPTYFILE = "empty-file.txt";
-static const string IMAGEFILE   = "logo.png";
-static const string VIDEOFILE = "sample_video.mp4";
-static const string AUDIOFILE = "test_cover_png.mp3";
-static const string& AVATARSRC = IMAGEFILE;
-static const string AVATARDST = "deleteme.png";
-static const string IMAGEFILE_C = "logo.encrypted.png";
-static const string THUMBNAIL   = "logo_thumbnail.png";
-static const string PREVIEW     = "logo_preview.png";
-static const string PUBLIC_IMAGE_URL = "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; //gitleaks:allow
-
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
 #ifdef _WIN32
@@ -20059,7 +20044,7 @@ TEST_F(SdkTest, CreateNodeTreeWithMultipleLevelsOfDirectoriesAndOneFileAtTheEnd)
 
     // Check that fileHandle was populated when file download url was fetched
     RequestTracker tracker{megaApi[apiIndex].get()};
-    megaApi[apiIndex]->getDownloadUrl(fileNode.get(), true, &tracker);
+    megaApi[apiIndex]->getDownloadUrl(fileNode.get(), true, true, &tracker);
     ASSERT_EQ(API_OK, tracker.waitForResult());
     MegaStringMap* fileHandle = tracker.request->getMegaStringMap();
     ASSERT_THAT(fileHandle, ::testing::NotNull());

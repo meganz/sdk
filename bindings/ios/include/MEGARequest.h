@@ -105,7 +105,7 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeChatUrl = 60,
     MEGARequestTypeChatGrantAccess = 61,
     MEGARequestTypeChatRemoveAccess = 62,
-    MEGARequestTypeUseHttpsOnly = 63,
+    MEGARequestTypeUseHttpsOnly = 63, // Obsolete
     MEGARequestTypeSetProxy = 64,
     MEGARequestTypeGetRecoveryLink = 65,
     MEGARequestTypeQueryRecoveryLink = 66,

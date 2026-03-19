@@ -405,7 +405,6 @@ void exec_setmaxloglinesize(autocomplete::ACState& s);
 void exec_setlogjson(autocomplete::ACState& s);
 void exec_getlogjson(autocomplete::ACState& s);
 void exec_handles(autocomplete::ACState& s);
-void exec_httpsonly(autocomplete::ACState& s);
 void exec_mfac(autocomplete::ACState& s);
 void exec_mfae(autocomplete::ACState& s);
 void exec_mfad(autocomplete::ACState& s);

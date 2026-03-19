@@ -856,25 +856,18 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                                 break;
                             }
 
-                            if (e == DAEMON_EFAILED ||
-                                (reqs[i]->contenttype.find("text/html") != string::npos &&
-                                 Utils::startswith(reqs[i]->posturl, "http:")))
+                            if (e == DAEMON_EFAILED)
                             {
-                                client->usehttps = true;
-                                client->app->notify_change_to_https();
-
-                                if (e == DAEMON_EFAILED)
-                                {
-                                    // megad returning -4 should result in restarting the transfer
-                                    LOG_warn << "Conn " << i << " : Upload piece failed with -4, the upload cannot be continued on that server";
-                                    string event = "Unexpected upload chunk confirmation length: " + std::to_string(reqs[i]->in.size());
-                                    client->sendevent(99441, event.c_str(), 0);  // old-style -4 (from requests with c= instead of d=) were/are reported as 99440
-                                }
-                                else
-                                {
-                                    LOG_warn << "Conn " << i << " : Invalid Content-Type detected during upload: " << reqs[i]->contenttype;
-                                }
-                                client->sendevent(99436, "Automatic change to HTTPS", 0);
+                                // megad returning -4 should result in restarting the transfer
+                                LOG_warn << "Conn " << i
+                                         << " : Upload piece failed with -4, the upload cannot be "
+                                            "continued on that server";
+                                string event = "Unexpected upload chunk confirmation length: " +
+                                               std::to_string(reqs[i]->in.size());
+                                client->sendevent(99441,
+                                                  event.c_str(),
+                                                  0); // old-style -4 (from requests with c= instead
+                                                      // of d=) were/are reported as 99440
 
                                 return transfer->failed(API_EAGAIN, committer);
                             }
@@ -978,18 +971,6 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                         }
                         else
                         {
-                            if (reqs[i]->contenttype.find("text/html") != string::npos &&
-                                Utils::startswith(reqs[i]->posturl, "http:"))
-                            {
-                                LOG_warn << "Conn " << i << " : Invalid Content-Type detected during download: " << reqs[i]->contenttype;
-                                client->usehttps = true;
-                                client->app->notify_change_to_https();
-
-                                client->sendevent(99436, "Automatic change to HTTPS", 0);
-
-                                return transfer->failed(API_EAGAIN, committer);
-                            }
-
                             client->sendevent(99430, "Invalid chunk size", 0);
 
                             LOG_warn << "Conn " << i << " : Invalid chunk size: " << reqs[i]->size << " - " << reqs[i]->bufpos;
@@ -1624,19 +1605,6 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
              << " [httpReq = " << (void*)httpReq.get()
              << "] [totalFailedRequests = " << tsStats.mNumFailedRequests << "]";
 
-    bool postUrlStartsWithHttp = Utils::startswith(httpReq->posturl, "http:");
-    if (httpReq->httpstatus && httpReq->contenttype.find("text/html") != string::npos &&
-        postUrlStartsWithHttp)
-    {
-        LOG_warn << "Conn " << channel << " : Invalid Content-Type detected on failed chunk: " << httpReq->contenttype << " [httpReq = " << (void*)httpReq.get() << "]";
-        client->usehttps = true;
-        client->app->notify_change_to_https();
-
-        client->sendevent(99436, "Automatic change to HTTPS", 0);
-
-        return std::make_pair(API_EAGAIN, 0);
-    }
-
     if (httpReq->httpstatus == 509)
     {
         LOG_warn << "Conn " << channel << " : Bandwidth overquota from storage server" << " [httpReq = " << (void*)httpReq.get() << "]";
@@ -1692,29 +1660,10 @@ std::pair<error, dstime> TransferSlot::processRequestFailure(MegaClient* client,
         {
             LOG_verbose << "Conn " << channel << " : else if failure" << " [httpReq = " << (void*)httpReq.get() << "]";
             failure = true;
-            bool changeport = false;
-
-            if (transfer->type == GET && client->autodownport && postUrlStartsWithHttp)
-            {
-                LOG_debug << "Conn " << channel << " : Automatically changing download port";
-                client->usealtdownport = !client->usealtdownport;
-                changeport = true;
-            }
-            else if (transfer->type == PUT && client->autoupport && postUrlStartsWithHttp)
-            {
-                LOG_debug << "Conn " << channel << " : Automatically changing upload port";
-                client->usealtupport = !client->usealtupport;
-                changeport = true;
-            }
 
             client->app->transfer_failed(transfer, API_EFAILED);
             client->setchunkfailed(&httpReq->posturl);
             ++client->performanceStats.transferTempErrors;
-
-            if (changeport)
-            {
-                toggleport(httpReq.get());
-            }
         }
         LOG_verbose << "Conn " << channel << " : from req_failure to REQ_PREPARED" << " [httpReq = " << (void*)httpReq.get() << "]";
         httpReq->status = REQ_PREPARED;

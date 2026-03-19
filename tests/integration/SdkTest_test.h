@@ -513,6 +513,22 @@ class SdkTest:
 public:
     static constexpr auto COMMON_TIMEOUT = 3min;
 
+    const string APP_KEY = "8QxzVRxD";
+    const string PUBLICFILE = "file.txt";
+    const string UPFILE = "file1.txt";
+    const string DOWNFILE = "file2.txt";
+    const string EMPTYFILE = "empty-file.txt";
+    const string IMAGEFILE = "logo.png";
+    const string VIDEOFILE = "sample_video.mp4";
+    const string AUDIOFILE = "test_cover_png.mp3";
+    const string& AVATARSRC = IMAGEFILE;
+    const string AVATARDST = "deleteme.png";
+    const string IMAGEFILE_C = "logo.encrypted.png";
+    const string THUMBNAIL = "logo_thumbnail.png";
+    const string PREVIEW = "logo_preview.png";
+    const string PUBLIC_IMAGE_URL =
+        "/#!zAJnUTYD!8YE5dXrnIEJ47NdDfFEvqtOefhuDMphyae0KY5zrhns"; // gitleaks:allow
+
     struct SyncUptoDate
     {
         MegaHandle mBackupID{INVALID_HANDLE};

@@ -73,7 +73,7 @@ TEST_F(SdkTestLocklessCSChannel, DownloadFile)
     LOG_info << logPre
              << "Get the download URL. The \"g\" command should use the lockless channel.";
     NiceMock<MockRequestListener> urlTracker(megaApi[0].get());
-    megaApi[0]->getDownloadUrl(remoteNode.get(), false, &urlTracker);
+    megaApi[0]->getDownloadUrl(remoteNode.get(), false, true, &urlTracker);
     ASSERT_TRUE(urlTracker.waitForFinishOrTimeout(MAX_TIMEOUT))
         << "Error getting the download URL for the remote node.";
     ASSERT_TRUE(usedLocklessChannel)

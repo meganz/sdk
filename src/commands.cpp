@@ -43,7 +43,7 @@ namespace mega {
 
 CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
                            fatype /*ctype*/,
-                           bool usehttps,
+                           bool forceSSL,
                            int ctag,
                            size_t size,
                            bool getIP,
@@ -58,7 +58,7 @@ CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
         arg("h", cth.nodeHandle());
     }
 
-    if (usehttps)
+    if (forceSSL)
     {
         arg("ssl", 2);
     }
@@ -71,8 +71,13 @@ CommandPutFA::CommandPutFA(NodeOrUploadHandle cth,
     tag = ctag;
 }
 
-HttpReqFA::HttpReqFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ctag, std::unique_ptr<string> cdata, bool getIP, MegaClient* client)
-    : data(std::move(cdata))
+HttpReqFA::HttpReqFA(NodeOrUploadHandle cth,
+                     fatype ctype,
+                     int ctag,
+                     std::unique_ptr<string> cdata,
+                     bool getIP,
+                     MegaClient* client):
+    data(std::move(cdata))
 {
     tag = ctag;
     progressreported = 0;
@@ -82,15 +87,22 @@ HttpReqFA::HttpReqFA(NodeOrUploadHandle cth, fatype ctype, bool usehttps, int ct
 
     binary = true;
 
-    getURLForFACmd = [this, cth, ctype, usehttps, ctag, getIP, client](){
-
+    getURLForFACmd = [this, cth, ctype, ctag, getIP, client]()
+    {
         std::weak_ptr<HttpReqFA> weakSelf(shared_from_this());
 
-        return new CommandPutFA(cth, ctype, usehttps, ctag, data->size(), getIP,
-            [weakSelf, client](Error e, const std::string & url, const vector<std::string> & /*ips*/)
+        return new CommandPutFA(
+            cth,
+            ctype,
+            true,
+            ctag,
+            data->size(),
+            getIP,
+            [weakSelf, client](Error e, const std::string& url, const vector<std::string>& /*ips*/)
             {
                 auto self = weakSelf.lock();
-                if (!self) return;
+                if (!self)
+                    return;
 
                 if (!self->data || self->data->empty())
                 {
@@ -207,17 +219,14 @@ m_off_t HttpReqFA::transferred(MegaClient *client)
     return 0;
 }
 
-CommandGetFA::CommandGetFA(MegaClient *client, int p, handle fahref)
+CommandGetFA::CommandGetFA(MegaClient* /*client*/, int p, handle fahref)
 {
     part = p;
 
     cmd("ufa");
     arg("fah", (byte*)&fahref, sizeof fahref);
 
-    if (client->usehttps)
-    {
-        arg("ssl", 2);
-    }
+    arg("ssl", 2);
 
     arg("r", 1);
 
@@ -377,10 +386,7 @@ CommandPutFile::CommandPutFile(MegaClient* client, TransferSlot* ctslot)
 
     cmd("u");
 
-    if (client->usehttps)
-    {
-        arg("ssl", 2);
-    }
+    arg("ssl", 2);
 
     arg("v", 3);
     arg("s", tslot->fa->size);
@@ -576,7 +582,7 @@ bool CommandGetPutUrl::procresult(Result r, JSON& json)
 }
 
 // request temporary source URL for DirectRead
-CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
+CommandDirectRead::CommandDirectRead(MegaClient* /*client*/, DirectReadNode* cdrn)
 {
     drn = cdrn;
 
@@ -600,10 +606,7 @@ CommandDirectRead::CommandDirectRead(MegaClient *client, DirectReadNode* cdrn)
         arg("cauth", drn->chatauth.c_str());
     }
 
-    if (client->usehttps)
-    {
-        arg("ssl", 2);
-    }
+    arg("ssl", 2);
 
     mLockless = true;
 }
@@ -724,10 +727,18 @@ bool CommandDirectRead::procresult(Result r, JSON& json)
 }
 
 // request temporary source URL for full-file access (p == private node)
-CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySize, bool undelete,
-                               handle h, bool p, const char *privateauth,
-                               const char *publicauth, const char *chatauth,
-                               bool singleUrl, Cb &&completion)
+CommandGetFile::CommandGetFile(MegaClient* /*client*/,
+                               const byte* key,
+                               size_t keySize,
+                               bool undelete,
+                               handle h,
+                               bool p,
+                               const char* privateauth,
+                               const char* publicauth,
+                               const char* chatauth,
+                               bool singleUrl,
+                               bool forceSSL,
+                               Cb&& completion)
 {
     if (undelete)
     {
@@ -747,7 +758,7 @@ CommandGetFile::CommandGetFile(MegaClient *client, const byte* key, size_t keySi
         arg("v", 2);  // version 2: server can supply details for cloudraid files
     }
 
-    if (client->usehttps)
+    if (forceSSL)
     {
         arg("ssl", 2);
     }
