@@ -6466,6 +6466,7 @@ bool Syncs::isSyncStalled(handle backupId) const
 {
     assert(onSyncThread());
 
+    lock_guard<std::mutex> guard(stallReportMutex);
     return syncStallState && stallReport.isSyncStalled(backupId);
 }
 
@@ -6506,7 +6507,10 @@ void Syncs::clear_inThread(bool reopenStoreAfter)
         mSyncConfigIOContext.reset();
         syncKey.setkey(SymmCipher::zeroiv);
     }
-    stallReport = SyncStallInfo();
+    {
+        lock_guard<std::mutex> guard(stallReportMutex);
+        stallReport = SyncStallInfo();
+    }
     triggerHandles.clear();
     localnodeByScannedFsid.clear();
     localnodeBySyncedFsid.clear();
@@ -14281,30 +14285,37 @@ void Syncs::collectSyncNameConflicts(handle backupId, std::function<void(list<Na
 bool Syncs::stallsDetected(SyncStallInfo& stallInfo)
 {
     assert(onSyncThread());
-
-    if (syncStallState) // If in stall state, there must be either lack of progress or immediate alerts
     {
-        for (auto& [id, syncStallInfoMap] : stallReport.syncStallInfoMaps)
+        lock_guard<std::mutex> guard(stallReportMutex);
+        if (syncStallState) // If in stall state, there must be either lack of progress or immediate
+                            // alerts
         {
-            if (syncStallInfoMap.hasProgressLack())
+            for (auto& [id, syncStallInfoMap]: stallReport.syncStallInfoMaps)
             {
-                for (auto& r: syncStallInfoMap.cloud) stallInfo.syncStallInfoMaps[id].cloud.insert(r);
-                for (auto& r: syncStallInfoMap.local) stallInfo.syncStallInfoMaps[id].local.insert(r);
-            }
-            else
-            {
-                for (auto& r: syncStallInfoMap.cloud)
+                if (syncStallInfoMap.hasProgressLack())
                 {
-                    if (r.second.alertUserImmediately) stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                    for (auto& r: syncStallInfoMap.cloud)
+                        stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                    for (auto& r: syncStallInfoMap.local)
+                        stallInfo.syncStallInfoMaps[id].local.insert(r);
                 }
-                for (auto& r: syncStallInfoMap.local)
+                else
                 {
-                    if (r.second.alertUserImmediately) stallInfo.syncStallInfoMaps[id].local.insert(r);
+                    for (auto& r: syncStallInfoMap.cloud)
+                    {
+                        if (r.second.alertUserImmediately)
+                            stallInfo.syncStallInfoMaps[id].cloud.insert(r);
+                    }
+                    for (auto& r: syncStallInfoMap.local)
+                    {
+                        if (r.second.alertUserImmediately)
+                            stallInfo.syncStallInfoMaps[id].local.insert(r);
+                    }
                 }
             }
+            // Update totalSyncStalls just in case it is different since last check
+            totalSyncStalls.store(stallInfo.size());
         }
-        // Update totalSyncStalls just in case it is different since last check
-        totalSyncStalls.store(stallInfo.size());
     }
 
     // Disable sync stalls update flag
@@ -14321,11 +14332,23 @@ size_t Syncs::stallsDetectedCount() const
         return 0;
     }
 
-    auto reportableSize = stallReport.reportableSize();
+    size_t reportableSize{0};
+    size_t stallReportSize{0};
+    {
+        lock_guard<std::mutex> guard(stallReportMutex);
+        reportableSize = stallReport.reportableSize();
+        stallReportSize = stallReport.size();
+    }
+
     if (reportableSize <= 0)
     {
-        LOG_warn << "[Syncs::stallsDetectedCount()] reportableSize (" << reportableSize << ") is not positive! [real size = " << stallReport.size() << "]";
-        assert(hasImmediateStall(stallReport)); // If in sync stall state, there must be reportable size (unless there is a custom hasImmediateStall predicate for tests)
+        LOG_warn << "[Syncs::stallsDetectedCount()] reportableSize (" << reportableSize
+                 << ") is not positive! [real size = " << stallReportSize << "]";
+
+        lock_guard<std::mutex> guard(stallReportMutex);
+        assert(hasImmediateStall(
+            stallReport)); // If in sync stall state, there must be reportable size (unless there is
+                           // a custom hasImmediateStall predicate for tests)
     }
     return reportableSize;
 }
