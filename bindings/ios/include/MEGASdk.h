@@ -8127,6 +8127,26 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 /// @param delegate MEGARequestDelegate to track this request
 - (void)clearRecentActionHistoryUntil:(int64_t)until delegate:(id<MEGARequestDelegate>)delegate;
 
+/// Get a recent action bucket by its identifier.
+///
+/// The identifier format is:
+/// dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest text] - Returns the bucket identifier
+///
+/// The associated request type with this request is MEGARequestTypeGetRecentActionById
+///
+/// Valid data in the MEGARequest object received in onRequestFinish when the error code
+/// is MEGAErrorTypeApiOk:
+///
+/// - [MEGARequest recentActionsBuckets] - Returns an array with 1 bucket
+///
+/// @param bucketId Bucket identifier returned by MEGARecentActionBucket's identifier
+/// @param delegate MEGARequestDelegate to track this request
+- (void)getRecentActionByBucketId:(NSString *)bucketId delegate:(id<MEGARequestDelegate>)delegate;
+
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation
  * @param node The parent node of the tree to explore
