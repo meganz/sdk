@@ -84,9 +84,9 @@ License: MIT "expat" license
 https://github.com/JuliaLang/utf8proc/blob/master/LICENSE.md
 
 Files included in this repository based on `utf8proc`:
-- `src/mega_utf8proc.cpp` (based on `utf8proc.c`)
-- `src/mega_utf8proc_data.c` (based on `utf8proc_data.c`)
-- `include/mega/mega_utf8proc.h` (based on `utf8proc.h`)
+- `third_party/utf8proc/utf8proc.cpp` (based on `utf8proc.c`)
+- `third_party/utf8proc/utf8proc_data.c` (based on `utf8proc_data.c`)
+- `third_party/utf8proc/utf8proc.h` (based on `utf8proc.h`)
 - `third_party/utf8proc/LICENSE` (copy of the licence of `utf8proc`)
 
 #### Cron expression parsing in ANSI C
@@ -111,8 +111,8 @@ License: MIT
 https://github.com/nodejs/http-parser/blob/master/LICENSE-MIT
 
 Files included in this repository based on `http_parser`:
-- `src/mega_http_parser.cpp` (based on `http_parser.c`)
-- `include/mega/mega_http_parser.h` (based on `http_parser.h`)
+- `third_party/http_parser/http_parser.cpp` (based on `http_parser.c`)
+- `third_party/http_parser/http_parser.h` (based on `http_parser.h`)
 - `third_party/http_parser/AUTHORS` (copy of the `AUTHORS` file of `http_parser`)
 - `third_party/http_parser/LICENSE-MIT` (copy of the licence of `http_parser`)
 
@@ -126,9 +126,9 @@ License: MIT
 https://github.com/tsyrogit/zxcvbn-c/blob/master/LICENSE.txt
 
 Files included in this repository based on `zxcvbn-c`:
-- `src/mega_zxcvbn.cpp` (based on `zxcvbn.c`)
-- `include/mega/mega_zxcvbn.h` (based on `zxcvbn.h`)
-- `include/mega/mega_dict-src.h` (dictionary file generated with the same wordlist as our webclient)
+- `third_party/zxcvbn-c/zxcvbn.cpp` (based on `zxcvbn.c`)
+- `third_party/zxcvbn-c/zxcvbn.h` (based on `zxcvbn.h`)
+- `third_party/zxcvbn-c/dict-src.h` (dictionary file generated with the same wordlist as our webclient)
 - `third_party/zxcvbn-c/README.md` (copy of the `README.MD` file of `zxcvbn-c`)
 - `third_party/zxcvbn-c/LICENSE.txt` (copy of the licence of `zxcvbn-c`)
 
@@ -144,9 +144,9 @@ Copyright (c) 2015 Devchandra M. Leishangthem
 https://github.com/deleisha/evt-tls
 
 Files included in this repository based on `evt-tls`:
-- `src/mega_evt_tls.cpp` (based on `evt_tls.c`)
-- `include/mega/mega_evt_tls.h` (based on `evt_tls.h`)
-- `include/mega/mega_evt_queue.h` (based on `queue.h`)
+- `third_party/evt-tls/evt_tls.cpp` (based on `evt_tls.c`)
+- `third_party/evt-tls/evt_tls.h` (based on `evt_tls.h`)
+- `third_party/evt-tls/queue.h` (based on `queue.h`)
 
 #### vincentlaucsb/csv-parser
 A high-performance, fully-featured CSV parser and serializer for modern C++.
@@ -158,4 +158,5 @@ License: MIT
 https://github.com/vincentlaucsb/csv-parser/blob/master/LICENSE
 
 Files included in this repository based on `vincentlaucsb/csv-parser`:
-- `include/mega/mega_csv.h` (based on `csv.hpp`)
+- `third_party/csv/csv.h` (based on `csv.hpp`)
+- `third_party/csv/LICENSE` (copy of the licence of `csv`)

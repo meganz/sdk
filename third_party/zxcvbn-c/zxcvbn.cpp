@@ -1,3 +1,4 @@
+// clang-format off
 /**********************************************************************************
  * C implementation of the zxcvbn password strength estimation method.
  * Copyright (c) 2015-2017 Tony Evans
@@ -22,7 +23,7 @@
  *
  **********************************************************************************/
 
-#include "mega/mega_zxcvbn.h"
+#include "zxcvbn.h"
 #include <ctype.h>
 #include <string.h>
 #include <stdint.h>
@@ -445,7 +446,7 @@ void ZxcvbnUnInit()
 #else
 
 /* Include the source file containing the dictionary data */
-#include "mega/mega_dict-src.h"
+#include "dict-src.h"
 
 #endif
 

@@ -24,7 +24,6 @@
 #include "mega/base64.h"
 #include "mega/filesystem.h"
 #include "mega/logging.h"
-#include "mega/mega_utf8proc.h"
 #include "mega/megaclient.h"
 #include "mega/serialize64.h"
 #include "mega/testhooks.h"
@@ -35,6 +34,7 @@
 #include <unicode/ucol.h>
 #include <unicode/unistr.h>
 #include <unicode/utypes.h>
+#include <utf8proc/utf8proc.h>
 
 #include <cctype>
 #include <iomanip>

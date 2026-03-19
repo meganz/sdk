@@ -1,3 +1,4 @@
+// clang-format off
 /* Based on src/http/ngx_http_parse.c from NGINX copyright Igor Sysoev
  *
  * Additional changes are licensed under the same terms as NGINX and
@@ -21,13 +22,14 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
-#include "mega/mega_http_parser.h"
 #include <assert.h>
 #include <stddef.h>
 #include <ctype.h>
 #include <stdlib.h>
 #include <string.h>
 #include <limits.h>
+
+#include "http_parser.h"
 
 #ifdef __cplusplus
 extern "C" {

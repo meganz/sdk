@@ -1,9 +1,6 @@
 /* include/mega/config.h.  Generated from config.h.in by configure.  */
 /* include/mega/config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Define to 1 if you have the <glob.h> header file. */
-#undef HAVE_GLOB_H
-
 /* Define to 1 if you have the <arpa/inet.h> header file. */
 #define HAVE_ARPA_INET_H 1
 

@@ -10,22 +10,16 @@
 
 #ifndef EVT_TLS_H
 #define EVT_TLS_H
-
-#ifdef USE_OPENSSL
-#define ENABLE_EVT_TLS 1
-#endif
-
-#ifdef ENABLE_EVT_TLS
+// clang-format off
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-
 #include <openssl/err.h>
 #include <openssl/ssl.h>
 #include <openssl/conf.h>
-#include "mega_evt_queue.h"
+#include "queue.h"
 
 #ifdef _WIN32
 #if !defined(_SSIZE_T_) && !defined(_SSIZE_T_DEFINED)
@@ -212,8 +206,6 @@ int evt_is_tls_stream(const char *bfr, const ssize_t nrd);
 
 #ifdef __cplusplus
 }
-#endif
-
 #endif
 
 #endif //define EVT_TLS_H

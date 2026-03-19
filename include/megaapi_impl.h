@@ -35,12 +35,17 @@
 #include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
-#include <ccronexpr.h>
+#include <ccronexpr/ccronexpr.h>
 
 #ifdef HAVE_LIBUV
 #include "uv.h"
-#include "mega/mega_http_parser.h"
-#include "mega/mega_evt_tls.h"
+
+#include <http_parser/http_parser.h>
+
+#ifdef USE_OPENSSL
+#include <evt-tls/evt_tls.h>
+#define ENABLE_EVT_TLS 1
+#endif
 
 #endif
 
