@@ -1349,6 +1349,9 @@ struct SyncFlags
     // to help with slowing down retries in stall state
     std::atomic<dstime> recursiveSyncLastCompletedDs = 0;
 
+    // Access to this member is confined to sync_thread, so no mutex is required.
+    // IMPORTANT: If this changes and other threads need access, it must be
+    // protected with proper synchronization mechanism (e.g. mutex).
     SyncStallInfo stall;
 };
 

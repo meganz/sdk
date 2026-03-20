@@ -1777,6 +1777,7 @@ struct Sync::ProgressingMonitor
 
     void waitingCloud(const string& mapKeyPath, SyncStallEntry&& e)
     {
+        assert(sync.syncs.onSyncThread());
         // the caller has a path in the cloud that an operation is in progress for, or can't be dealt with yet.
         // update our list of subtree roots containing such paths
         resolved = true;
@@ -1791,6 +1792,7 @@ struct Sync::ProgressingMonitor
 
     void waitingLocal(const LocalPath& mapKeyPath, SyncStallEntry&& e)
     {
+        assert(sync.syncs.onSyncThread());
         // the caller has a local path that an operation is in progress for, or can't be dealt with yet.
         // update our list of subtree roots containing such paths
         resolved = true;
@@ -1814,6 +1816,7 @@ struct Sync::ProgressingMonitor
     // the destructor records that we are progressing (ie, not stalled).
     ~ProgressingMonitor()
     {
+        assert(sync.syncs.onSyncThread());
         if (!resolved)
         {
             auto syncStallInfoMapPair = sf.stall.syncStallInfoMaps.find(sync.getConfig().mBackupId);
