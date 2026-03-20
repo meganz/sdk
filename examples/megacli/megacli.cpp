@@ -1365,11 +1365,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
         }
-
-        if (type == mega::ATTR_S4_CONTAINER)
-        {
-            cout << "S4 container: " << client->mS4Container << endl;
-        }
     }
 
     if (type == ATTR_COOKIE_SETTINGS)
@@ -1392,6 +1387,16 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     if (type == ATTR_KEYS)
     {
         cout << client->mKeyManager.toString();
+    }
+
+    if (type == mega::ATTR_S4)
+    {
+        cout << "S4 enabled: " << client->mIsS4Enabled << endl;
+    }
+
+    if (type == mega::ATTR_S4_CONTAINER)
+    {
+        cout << "S4 container: " << client->mS4Container << endl;
     }
 }
 
