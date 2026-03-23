@@ -5420,11 +5420,13 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
                     changes |= u->updateAttributeIfDifferentVersion(ATTR_S4, s4, s4Version);
 
                     bool enabled = (s4 == "1");
+                    LOG_info << "S4 is " << (enabled ? "enabled" : "disabled");
                     client->mIsS4Enabled.store(enabled);
                 }
                 else
                 {
                     u->removeAttribute(ATTR_S4);
+                    LOG_info << "S4 has been disabled";
                     client->mIsS4Enabled.store(false);
                 }
 
