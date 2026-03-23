@@ -1909,8 +1909,6 @@ void MegaClient::init()
     statecurrent = false;
     actionpacketsCurrent = false;
     totalNodes.store(0);
-    mIsS4Enabled.store(0);
-    mS4Container.store(NodeHandle());
     faretrying = false;
 
 #ifdef ENABLE_SYNC
@@ -1987,6 +1985,8 @@ MegaClient::MegaClient(MegaApp* a,
     fsaccess(new FSACCESS_CLASS()),
     dbaccess(d),
     mNodeManager(*this),
+    mIsS4Enabled{false},
+    mS4Container{NodeHandle()},
 #ifdef ENABLE_SYNC
     syncs(*this),
 #endif
@@ -5027,6 +5027,9 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mSets.clear();
     mSetElements.clear();
     stopSetPreview();
+
+    mIsS4Enabled.store(false);
+    mS4Container.store(NodeHandle());
 
 #ifdef ENABLE_CHAT
     mSfuid = sfu_invalid_id;
