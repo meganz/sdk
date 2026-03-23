@@ -823,6 +823,19 @@ MacAdvanceResult advanceMacComputation(MegaClient& mc,
         return MacAdvanceResult::Pending;
     }
 
+    // Empty file: compute local MAC directly without reading or queueing chunks
+    if (state->totalSize == 0)
+    {
+        SymmCipher cipher;
+        cipher.setkey(state->transferkey.data());
+
+        const int64_t localMac = state->partialMacs.macsmac(&cipher);
+
+        LOG_debug << logPrefix << "Local MAC computed for empty file: " << localMac;
+        state->setComplete(localMac);
+        return MacAdvanceResult::Ready;
+    }
+
     // Ready for next chunk - read and queue
     m_off_t readStart = state->currentPosition;
     m_off_t tentativeEnd = std::min(readStart + MacComputationState::BUFFER_SIZE, state->totalSize);
