@@ -1291,6 +1291,71 @@ TEST_F(SdkTestSyncUploadsOperations, updateLocalNodeMtime)
 }
 
 /**
+ * @test SdkTestSyncUploadsOperations.updateLocalEmptyNodeMtime
+ *
+ * 1. Create a new empty local file `empty_file` in `dir1`.
+ *    - Expect a full upload.
+ * 2. Update the mtime of `empty_file`.
+ * 3. Verify that sync completes without a full transfer.
+ * 4. Verify that local and remote mtimes match the updated mtime.
+ */
+TEST_F(SdkTestSyncUploadsOperations, updateLocalEmptyNodeMtime)
+{
+    const auto cleanup = setCleanupFunction();
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    const std::vector<string> folderNames{"dir1"};
+    const std::string commonFileName{"empty_file"};
+    std::vector<std::unique_ptr<MegaNode>> folderNodes;
+    std::vector<std::unique_ptr<MegaNode>> fileNodes;
+
+    ASSERT_NO_FATAL_FAILURE(createTestFile(folderNames.at(0),
+                                           commonFileName,
+                                           "",
+                                           fs::file_time_type::clock::now(),
+                                           "CF_empty",
+                                           true));
+
+    ASSERT_NO_FATAL_FAILURE(getTestFolderNodesAndFirstLevelChildren(backupNode,
+                                                                    folderNames,
+                                                                    folderNodes,
+                                                                    fileNodes,
+                                                                    commonFileName,
+                                                                    "(GN_empty)"));
+
+    const LocalPath localPath = getTestFileAbsolutePath(folderNames.at(0), commonFileName);
+    const fs::path localPathFs = u8path_compat(localPath.toPath(false));
+    const std::string localPathString = localPathFs.string();
+    auto st = addSyncListenerTracker(localPathString);
+    auto tt = addTransferListenerTracker(localPathString);
+    ASSERT_TRUE(st) << "Cannot add SyncListenerTracker for: " << localPathString;
+    ASSERT_TRUE(tt) << "Cannot add TransferListenerTracker for: " << localPathString;
+
+    const auto oldMtime = fileNodes.at(0)->getModificationTime();
+    const auto newMtime = oldMtime + MIN_ALLOW_MTIME_DIFFERENCE;
+
+    ASSERT_NO_FATAL_FAILURE(updateLocalNodeMtime(fileNodes.at(0)->getHandle(),
+                                                 localPath,
+                                                 oldMtime,
+                                                 newMtime,
+                                                 "MT_empty"));
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncAndVerifyTransfer(localPathFs, st, tt, false));
+
+    std::unique_ptr<MegaNode> refreshedNode(
+        megaApi[0]->getNodeByHandle(fileNodes.at(0)->getHandle()));
+    ASSERT_TRUE(refreshedNode) << "Cannot get refreshed node for: " << localPathString;
+    ASSERT_EQ(refreshedNode->getModificationTime(), newMtime)
+        << "Cloud node mtime should match the updated local mtime for: " << localPathString;
+
+    auto [getLocalMtimeOk, localMtime] = mFsAccess->getmtimelocal(localPath);
+    ASSERT_TRUE(getLocalMtimeOk) << "Cannot get local mtime for: " << localPathString;
+    ASSERT_EQ(localMtime, newMtime)
+        << "Local file mtime should remain updated for: " << localPathString;
+}
+
+/**
  * @test SdkTestSyncUploadsOperations.CloneNodeWithDifferentMtime
  *
  * This test validates the clone node mechanism when a file with different mtime
