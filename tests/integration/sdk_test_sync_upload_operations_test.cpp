@@ -63,6 +63,15 @@ struct ScopedLegacyBuggySparseCrcHook
 class SdkTestSyncUploadsOperations: public SdkTestSyncNodesOperations
 {
 protected:
+    struct CloneCandidateSetup
+    {
+        fs::path tempDir;
+        fs::path localPathInSync;
+        std::shared_ptr<sdk_test::LocalTempFile> tempFile;
+        std::unique_ptr<MegaNode> candidatesFolder;
+        std::unique_ptr<MegaNode> candidateNode;
+    };
+
     // [TODO] SDK-5629. Check Lifetime of listeners in this test suite once this ticket has been
     // resolved
     std::unique_ptr<NiceMock<MockTransferListener>> mMtl;
@@ -230,6 +239,62 @@ protected:
                                   {
                                       return file->move(targetPathInSync);
                                   });
+    }
+
+    void createCloneCandidateSetup(CloneCandidateSetup& setup,
+                                   const std::string& logPre,
+                                   const std::string& candidatesFolderPrefix,
+                                   const std::string& tempDirPrefix,
+                                   const std::string& fileName,
+                                   const size_t fileSize,
+                                   const bool fetchCandidateNode = false)
+    {
+        LOG_debug << logPre << "1. Creating cloud candidate file (outside sync)";
+
+        std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+        ASSERT_TRUE(rootNode);
+
+        const std::string folderName = candidatesFolderPrefix + "_" + getThisThreadIdStr() + "_" +
+                                       std::to_string(m_time(nullptr));
+        {
+            RequestTracker createFolderTracker(megaApi[0].get());
+            megaApi[0]->createFolder(folderName.c_str(), rootNode.get(), &createFolderTracker);
+            ASSERT_EQ(API_OK, createFolderTracker.waitForResult());
+        }
+
+        std::unique_ptr<MegaNode> candidatesFolder(
+            megaApi[0]->getChildNode(rootNode.get(), folderName.c_str()));
+        ASSERT_TRUE(candidatesFolder);
+
+        const fs::path tempDir = makeProcessTempDir(tempDirPrefix);
+        auto tempFile = std::make_shared<sdk_test::LocalTempFile>(tempDir / fileName, fileSize);
+
+        {
+            TransferTracker uploadTracker(megaApi[0].get());
+            MegaUploadOptions uploadOptions;
+            uploadOptions.mtime = m_time(nullptr) - 86400;
+
+            megaApi[0]->startUpload(path_u8string(tempFile->getPath()),
+                                    candidatesFolder.get(),
+                                    nullptr,
+                                    &uploadOptions,
+                                    &uploadTracker);
+            ASSERT_EQ(API_OK, uploadTracker.waitForResult(600));
+        }
+
+        std::unique_ptr<MegaNode> candidateNode;
+        if (fetchCandidateNode)
+        {
+            candidateNode.reset(megaApi[0]->getChildNode(candidatesFolder.get(), fileName.c_str()));
+            ASSERT_TRUE(candidateNode);
+        }
+
+        ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+        setup = {tempDir,
+                 fs::absolute(getLocalTmpDir() / fileName),
+                 std::move(tempFile),
+                 std::move(candidatesFolder),
+                 std::move(candidateNode)};
     }
 
 private:
@@ -1464,6 +1529,107 @@ TEST_F(SdkTestSyncUploadsOperations, CloneNodeWithDifferentMtime)
 }
 
 /**
+ * @test SdkTestSyncUploadsOperations.CloneEmptyNodeWithDifferentMtime
+ *
+ * This test validates the clone node path for an empty file whose mtime differs.
+ *
+ * 1. Create an empty file outside the sync.
+ * 2. Upload it manually to a unique remote folder outside the sync root.
+ * 3. Change the local file mtime.
+ * 4. Move it into the sync root with a different name.
+ * 5. Verify the sync completes without a full transfer and preserves the updated mtime.
+ */
+TEST_F(SdkTestSyncUploadsOperations, CloneEmptyNodeWithDifferentMtime)
+{
+    static const std::string logPre{"CloneEmptyNodeWithDifferentMtime: "};
+    const auto cleanup = setCleanupFunction();
+
+    const std::string originalFileName = "original_empty_file_outside_sync.dat";
+    const std::string clonedFileName = "cloned_empty_file_inside_sync.dat";
+
+    LOG_debug << logPre << "1. Prepare unique remote folder outside sync";
+    const std::string threadSuffix = "_" + getThisThreadIdStr();
+    const std::string uniqueRemoteFolderName = "clone_empty_mtime_test_folder" + threadSuffix;
+
+    const fs::path outsideLocalDir =
+        getLocalTmpDir().parent_path() / ("clone_empty_mtime_test_dir" + threadSuffix);
+    LocalTempDir outsideDirCleanup(outsideLocalDir);
+    const fs::path outsideLocalPath = outsideLocalDir / originalFileName;
+
+    LOG_debug << logPre
+              << "1b. Creating empty file outside sync at: " << path_u8string(outsideLocalPath);
+    sdk_test::createFile(outsideLocalPath, std::string_view{});
+
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Cannot get backup sync node";
+
+    std::unique_ptr<MegaNode> rootTestNode(
+        megaApi[0]->getNodeByHandle(backupNode->getParentHandle()));
+    ASSERT_TRUE(rootTestNode) << "Cannot get parent node of sync remote root";
+
+    LOG_debug << logPre << "2. Creating unique remote folder to manually upload the file: "
+              << uniqueRemoteFolderName;
+    auto uploadTargetHandle = createFolder(0, uniqueRemoteFolderName.c_str(), rootTestNode.get());
+    ASSERT_NE(uploadTargetHandle, UNDEF) << "Failed to create unique remote folder";
+
+    std::unique_ptr<MegaNode> uploadTargetNode(megaApi[0]->getNodeByHandle(uploadTargetHandle));
+    ASSERT_TRUE(uploadTargetNode) << "Cannot get created remote folder node";
+
+    LOG_debug << logPre
+              << "2b. Uploading empty file manually to cloud at: " << uniqueRemoteFolderName;
+    auto uploadedNode = uploadFile(megaApi[0].get(), outsideLocalPath, uploadTargetNode.get());
+    ASSERT_TRUE(uploadedNode) << "Manual upload failed";
+    ASSERT_EQ(uploadedNode->getSize(), 0) << "Uploaded node should remain empty";
+
+    const int64_t originalMtime = uploadedNode->getModificationTime();
+    const m_time_t newMtimeTimeT = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
+
+    LOG_debug << logPre << "3. Changing local empty file mtime to: " << newMtimeTimeT;
+    ASSERT_TRUE(
+        mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(outsideLocalPath)),
+                                 newMtimeTimeT))
+        << "Failed to set mtime on empty file outside sync";
+
+    const fs::path insideSyncPath = fs::absolute(getLocalTmpDir() / clonedFileName);
+    LOG_debug << logPre << "4. Moving empty file into sync and waiting for sync (no transfer "
+              << "expected): " << path_u8string(insideSyncPath);
+    ASSERT_NO_FATAL_FAILURE(moveFileIntoSyncAndVerify(outsideLocalPath,
+                                                      insideSyncPath,
+                                                      false /*isFullUploadExpected*/,
+                                                      newMtimeTimeT /*expectedMtimeAfterMove*/));
+
+    LOG_debug << logPre << "5. Verifying cloned empty node";
+    std::unique_ptr<MegaNode> clonedNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(), clonedFileName.c_str(), FILENODE));
+    ASSERT_TRUE(clonedNode) << "Cloned empty node not found in cloud";
+    ASSERT_EQ(clonedNode->getModificationTime(), newMtimeTimeT)
+        << "Cloned remote node mtime should match the updated local mtime";
+    ASSERT_EQ(clonedNode->getSize(), 0) << "Cloned remote node should remain empty";
+
+    auto [getMtimeSucceeded, currentLocalMtimeTimeT] =
+        mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(insideSyncPath)));
+    ASSERT_TRUE(getMtimeSucceeded) << "Failed to get local mtime of cloned empty file";
+    ASSERT_EQ(currentLocalMtimeTimeT, newMtimeTimeT)
+        << "Local empty file mtime should still be the updated value";
+    ASSERT_EQ(fs::file_size(insideSyncPath), 0u)
+        << "Local cloned file should remain empty after sync";
+
+    LOG_debug << logPre << "6. Verifying original uploaded empty node";
+    std::unique_ptr<MegaNode> refreshedUploadedNode(
+        megaApi[0]->getNodeByHandle(uploadedNode->getHandle()));
+    ASSERT_TRUE(refreshedUploadedNode) << "Cannot get refreshed original uploaded node";
+    ASSERT_EQ(refreshedUploadedNode->getModificationTime(), originalMtime)
+        << "Original uploaded node mtime should remain unchanged";
+    ASSERT_EQ(refreshedUploadedNode->getSize(), 0) << "Original uploaded node should remain empty";
+
+    LOG_debug << logPre << "7. Cleanup: removing remote test folder";
+    ASSERT_EQ(API_OK, doDeleteNode(0, uploadTargetNode.get()))
+        << "Failed to cleanup remote test folder";
+
+    LOG_debug << logPre << "Test completed successfully";
+}
+
+/**
  * @brief Tests that async MAC computation doesn't block small files.
  *
  * Creates 3 files (2 small, 1 large ~10MB), syncs them, then updates mtimes for all 3.
@@ -1669,6 +1835,135 @@ TEST_F(SdkTestSyncUploadsOperations, MacComputationObsolescenceOnMove)
     // Verify the mtime of the moved file
     ASSERT_EQ(movedNode->getModificationTime(), newMtime)
         << "Moved file should have the updated mtime";
+
+    LOG_debug << logPre << "Test completed successfully";
+}
+
+/**
+ * @brief Tests MAC computation obsolescence when a file is truncated to empty during computation.
+ *
+ * Creates one small and one large file, triggers mtime updates for both, waits until the small
+ * file completes while the large one is still pending, truncates the large file to empty while its
+ * async MAC computation should still be in flight, and finally updates the empty file mtime again
+ * to exercise the empty-file MAC path after the state was invalidated.
+ */
+TEST_F(SdkTestSyncUploadsOperations, MacComputationObsolescenceOnTruncateToEmptyThenMtimeUpdate)
+{
+    static const std::string logPre{"MacComputationObsolescenceOnTruncateToEmptyThenMtimeUpdate: "};
+    auto cleanup = setCleanupFunction();
+    LOG_debug << logPre << "Test started";
+
+    static constexpr size_t LARGE_FILE_SIZE = 300 * 1024 * 1024; // 300MB for reliable MAC delay
+    static constexpr size_t SMALL_FILE_SIZE = (5 * 1024 * 1024) + (2 * 1024) + 3; // ~5MB
+
+    const fs::path largeFilePath =
+        fs::absolute(getLocalTmpDir() / "large_file_truncate_to_empty_test.dat");
+    const fs::path smallFilePath =
+        fs::absolute(getLocalTmpDir() / "small_file_truncate_to_empty_test.dat");
+    const LocalPath largeLocalPath = LocalPath::fromAbsolutePath(path_u8string(largeFilePath));
+
+    auto createFileAndWaitForSync = [&](const fs::path& path, const size_t size, const char* label)
+    {
+        auto st = addSyncListenerTracker(path.string());
+        ASSERT_TRUE(st) << "Cannot add SyncListenerTracker for " << label;
+        auto localFile = std::make_shared<sdk_test::LocalTempFile>(path, size);
+        mLocalFiles.emplace_back(localFile);
+        auto [status, errCode] = st->waitForCompletion(COMMON_TIMEOUT);
+        ASSERT_EQ(status, std::future_status::ready) << label << " sync timed out";
+        ASSERT_EQ(errCode, API_OK) << label << " sync failed";
+    };
+
+    LOG_debug << logPre << "1. Creating small and large test files";
+    ASSERT_NO_FATAL_FAILURE(createFileAndWaitForSync(smallFilePath, SMALL_FILE_SIZE, "Small file"));
+    ASSERT_NO_FATAL_FAILURE(createFileAndWaitForSync(largeFilePath, LARGE_FILE_SIZE, "Large file"));
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    auto stSmall = addSyncListenerTracker(smallFilePath.string());
+    auto stLarge = addSyncListenerTracker(largeFilePath.string());
+    ASSERT_TRUE(stSmall) << "Cannot add SyncListenerTracker for small file mtime update";
+    ASSERT_TRUE(stLarge) << "Cannot add SyncListenerTracker for large file mtime update";
+
+    LOG_debug << logPre << "2. Updating mtimes to trigger MAC computation";
+    const m_time_t intermediateMtime = m_time(nullptr) + MIN_ALLOW_MTIME_DIFFERENCE;
+    ASSERT_TRUE(mFsAccess->setmtimelocal(LocalPath::fromAbsolutePath(path_u8string(smallFilePath)),
+                                         intermediateMtime))
+        << "Failed to set mtime on small file";
+    ASSERT_TRUE(mFsAccess->setmtimelocal(largeLocalPath, intermediateMtime))
+        << "Failed to set mtime on large file";
+
+    LOG_debug << logPre << "3. Waiting for small file to finish while large file remains pending";
+    auto [smallStatus, smallErrCode] = stSmall->waitForCompletion(COMMON_TIMEOUT);
+    ASSERT_EQ(smallStatus, std::future_status::ready) << "Small file mtime sync timed out";
+    ASSERT_EQ(smallErrCode, API_OK) << "Small file mtime sync failed";
+
+    auto [largeStatusBeforeTruncate, _] = stLarge->waitForCompletion(std::chrono::seconds(1));
+    ASSERT_EQ(largeStatusBeforeTruncate, std::future_status::timeout)
+        << "Large file completed before truncation; test did not exercise in-flight MAC "
+           "obsolescence";
+
+    LOG_debug << logPre << "4. Truncating large file to empty while MAC computation is pending";
+    std::error_code ec;
+    fs::resize_file(largeFilePath, 0, ec);
+    ASSERT_FALSE(ec) << "Failed to truncate file to empty: " << ec.message();
+    ASSERT_EQ(fs::file_size(largeFilePath), 0u) << "Local file should be empty after truncation";
+
+    LOG_debug << logPre << "5. Waiting for the truncated large file to resync";
+    auto [largeStatusAfterTruncate, largeErrCode] = stLarge->waitForCompletion(COMMON_TIMEOUT);
+    ASSERT_EQ(largeStatusAfterTruncate, std::future_status::ready)
+        << "Large truncated file sync timed out";
+    ASSERT_EQ(largeErrCode, API_OK) << "Large truncated file sync failed";
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Backup node not found";
+
+    std::unique_ptr<MegaNode> emptyCloudNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(),
+                                       "large_file_truncate_to_empty_test.dat",
+                                       FILENODE));
+    ASSERT_TRUE(emptyCloudNode) << "Cloud node should still exist after truncation to empty";
+    ASSERT_EQ(emptyCloudNode->getSize(), 0) << "Cloud node should be empty after stabilization";
+    ASSERT_EQ(fs::file_size(largeFilePath), 0u) << "Local file should remain empty after sync";
+
+    auto stAfterEmpty = addSyncListenerTracker(largeFilePath.string());
+    auto ttAfterEmpty = addTransferListenerTracker(largeFilePath.string());
+    ASSERT_TRUE(stAfterEmpty) << "Cannot add SyncListenerTracker for second mtime update";
+    ASSERT_TRUE(ttAfterEmpty) << "Cannot add TransferListenerTracker for second mtime update";
+
+    LOG_debug << logPre << "6. Updating mtime again on the now-empty file";
+    const auto emptyFileMtime = emptyCloudNode->getModificationTime();
+    const auto finalMtime = emptyFileMtime + MIN_ALLOW_MTIME_DIFFERENCE;
+
+    ASSERT_NO_FATAL_FAILURE(updateLocalNodeMtime(emptyCloudNode->getHandle(),
+                                                 largeLocalPath,
+                                                 emptyFileMtime,
+                                                 finalMtime,
+                                                 "MT_truncate_empty_followup"));
+
+    ASSERT_NO_FATAL_FAILURE(
+        waitForSyncAndVerifyTransfer(largeFilePath, stAfterEmpty, ttAfterEmpty, false));
+
+    backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode) << "Backup node not found after second mtime update";
+
+    std::unique_ptr<MegaNode> refreshedEmptyCloudNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(),
+                                       "large_file_truncate_to_empty_test.dat",
+                                       FILENODE));
+    ASSERT_TRUE(refreshedEmptyCloudNode) << "Cannot get refreshed cloud node after mtime update";
+    ASSERT_EQ(refreshedEmptyCloudNode->getModificationTime(), finalMtime)
+        << "Cloud node mtime should match the second local mtime update";
+    ASSERT_EQ(refreshedEmptyCloudNode->getSize(), 0)
+        << "Cloud node should remain empty after the second mtime update";
+
+    auto [getLocalMtimeOk, localMtime] = mFsAccess->getmtimelocal(largeLocalPath);
+    ASSERT_TRUE(getLocalMtimeOk) << "Failed to get local mtime after second update";
+    ASSERT_EQ(localMtime, finalMtime)
+        << "Local empty file mtime should match the second updated value";
+    ASSERT_EQ(fs::file_size(largeFilePath), 0u)
+        << "Local file should remain empty after the second mtime update";
 
     LOG_debug << logPre << "Test completed successfully";
 }
@@ -1886,52 +2181,18 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnLocalDelete)
 
     static constexpr size_t LARGE_FILE_SIZE = 300 * 1024 * 1024; // 300MB for reliable MAC delay
 
-    LOG_debug << logPre << "1. Creating cloud candidate file (outside sync)";
-
-    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
-    ASSERT_TRUE(rootNode);
-
-    const std::string candidatesFolderName = "clone_del_test_" + std::to_string(m_time(nullptr));
-    {
-        RequestTracker createFolderTracker(megaApi[0].get());
-        megaApi[0]->createFolder(candidatesFolderName.c_str(),
-                                 rootNode.get(),
-                                 &createFolderTracker);
-        ASSERT_EQ(API_OK, createFolderTracker.waitForResult());
-    }
-
-    std::unique_ptr<MegaNode> candidatesFolder(
-        megaApi[0]->getChildNode(rootNode.get(), candidatesFolderName.c_str()));
-    ASSERT_TRUE(candidatesFolder);
-
-    // Create temp file for upload using LocalTempFile
-    const fs::path tempDir = makeProcessTempDir("clone_del");
-
-    auto tempFile =
-        std::make_shared<sdk_test::LocalTempFile>(tempDir / "large_clone_del.dat", LARGE_FILE_SIZE);
-
-    // Upload to cloud with old mtime
-    {
-        TransferTracker uploadTracker(megaApi[0].get());
-        MegaUploadOptions uploadOptions;
-        uploadOptions.mtime = m_time(nullptr) - 86400;
-
-        const auto tempLocalPath = path_u8string(tempFile->getPath());
-        megaApi[0]->startUpload(tempLocalPath,
-                                candidatesFolder.get(),
-                                nullptr,
-                                &uploadOptions,
-                                &uploadTracker);
-        ASSERT_EQ(API_OK, uploadTracker.waitForResult(600));
-    }
-
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+    CloneCandidateSetup setup;
+    ASSERT_NO_FATAL_FAILURE(createCloneCandidateSetup(setup,
+                                                      logPre,
+                                                      "clone_del_test",
+                                                      "clone_del",
+                                                      "large_clone_del.dat",
+                                                      LARGE_FILE_SIZE));
 
     LOG_debug << logPre << "2. Moving file into sync folder (triggers clone MAC computation)";
 
-    const fs::path localPath = fs::absolute(getLocalTmpDir() / "large_clone_del.dat");
-    ASSERT_FALSE(tempFile->move(localPath)) << "Failed to move file into sync";
-    mLocalFiles.emplace_back(std::move(tempFile));
+    ASSERT_FALSE(setup.tempFile->move(setup.localPathInSync)) << "Failed to move file into sync";
+    mLocalFiles.emplace_back(std::move(setup.tempFile));
 
     // Brief delay to let MAC computation start
     std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -1952,10 +2213,10 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnLocalDelete)
     ASSERT_FALSE(syncNode) << "File should not exist in sync after deletion";
 
     // Cleanup
-    fs::remove_all(tempDir);
+    fs::remove_all(setup.tempDir);
     {
         RequestTracker removeTracker(megaApi[0].get());
-        megaApi[0]->remove(candidatesFolder.get(), &removeTracker);
+        megaApi[0]->remove(setup.candidatesFolder.get(), &removeTracker);
         removeTracker.waitForResult();
     }
 
@@ -1973,61 +2234,23 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
 
     static constexpr size_t LARGE_FILE_SIZE = 300 * 1024 * 1024; // 300MB for reliable MAC delay
 
-    LOG_debug << logPre << "1. Creating cloud candidate file (outside sync)";
-
-    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
-    ASSERT_TRUE(rootNode);
-
-    const std::string candidatesFolderName = "clone_cloud_del_" + std::to_string(m_time(nullptr));
-    {
-        RequestTracker createFolderTracker(megaApi[0].get());
-        megaApi[0]->createFolder(candidatesFolderName.c_str(),
-                                 rootNode.get(),
-                                 &createFolderTracker);
-        ASSERT_EQ(API_OK, createFolderTracker.waitForResult());
-    }
-
-    std::unique_ptr<MegaNode> candidatesFolder(
-        megaApi[0]->getChildNode(rootNode.get(), candidatesFolderName.c_str()));
-    ASSERT_TRUE(candidatesFolder);
-
-    // Create temp file for upload using LocalTempFile
-    const fs::path tempDir = makeProcessTempDir("clone_cloud_del");
-
-    auto tempFile =
-        std::make_shared<sdk_test::LocalTempFile>(tempDir / "large_cloud_del.dat", LARGE_FILE_SIZE);
-
-    // Upload to cloud with old mtime
-    {
-        TransferTracker uploadTracker(megaApi[0].get());
-        MegaUploadOptions uploadOptions;
-        uploadOptions.mtime = m_time(nullptr) - 86400;
-
-        const auto tempLocalPath = path_u8string(tempFile->getPath());
-        megaApi[0]->startUpload(tempLocalPath,
-                                candidatesFolder.get(),
-                                nullptr,
-                                &uploadOptions,
-                                &uploadTracker);
-        ASSERT_EQ(API_OK, uploadTracker.waitForResult(600));
-    }
-
-    std::unique_ptr<MegaNode> candidateNode(
-        megaApi[0]->getChildNode(candidatesFolder.get(), "large_cloud_del.dat"));
-    ASSERT_TRUE(candidateNode);
-
-    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+    CloneCandidateSetup setup;
+    ASSERT_NO_FATAL_FAILURE(createCloneCandidateSetup(setup,
+                                                      logPre,
+                                                      "clone_cloud_del",
+                                                      "clone_cloud_del",
+                                                      "large_cloud_del.dat",
+                                                      LARGE_FILE_SIZE,
+                                                      true));
 
     LOG_debug << logPre << "2. Moving file into sync folder (triggers clone MAC computation)";
 
-    const fs::path localPath = fs::absolute(getLocalTmpDir() / "large_cloud_del.dat");
-
     // Set up tracker BEFORE moving file
-    auto st = mSyncListenerTrackers.add(localPath.string());
+    auto st = mSyncListenerTrackers.add(setup.localPathInSync.string());
     ASSERT_TRUE(st);
 
-    ASSERT_FALSE(tempFile->move(localPath)) << "Failed to move file into sync";
-    mLocalFiles.emplace_back(std::move(tempFile));
+    ASSERT_FALSE(setup.tempFile->move(setup.localPathInSync)) << "Failed to move file into sync";
+    mLocalFiles.emplace_back(std::move(setup.tempFile));
 
     // Brief delay to let MAC computation start
     std::this_thread::sleep_for(std::chrono::seconds(10));
@@ -2035,7 +2258,7 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
     LOG_debug << logPre << "3. Deleting cloud candidate while MAC computation may be pending";
     {
         RequestTracker removeTracker(megaApi[0].get());
-        megaApi[0]->remove(candidateNode.get(), &removeTracker);
+        megaApi[0]->remove(setup.candidateNode.get(), &removeTracker);
         ASSERT_EQ(API_OK, removeTracker.waitForResult());
     }
 
@@ -2056,10 +2279,88 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnCloudDelete)
     ASSERT_TRUE(syncNode) << "File should exist in sync after full upload";
 
     // Cleanup
-    fs::remove_all(tempDir);
+    fs::remove_all(setup.tempDir);
     {
         RequestTracker removeTracker(megaApi[0].get());
-        megaApi[0]->remove(candidatesFolder.get(), &removeTracker);
+        megaApi[0]->remove(setup.candidatesFolder.get(), &removeTracker);
+        removeTracker.waitForResult();
+    }
+
+    LOG_debug << logPre << "Test completed successfully";
+}
+
+/**
+ * @brief Tests clone candidate MAC computation when the local file is truncated to empty
+ * mid-computation.
+ *
+ * The clone precomputation should be discarded, the original cloud candidate should remain
+ * untouched, and the sync should fall back to uploading the now-empty local file.
+ */
+TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnTruncateToEmpty)
+{
+    static const std::string logPre{"CloneCandidateMacObsolescenceOnTruncateToEmpty: "};
+    auto cleanup = setCleanupFunction();
+    LOG_debug << logPre << "Test started";
+
+    static constexpr size_t LARGE_FILE_SIZE = 300 * 1024 * 1024; // 300MB for reliable MAC delay
+
+    CloneCandidateSetup setup;
+    ASSERT_NO_FATAL_FAILURE(createCloneCandidateSetup(setup,
+                                                      logPre,
+                                                      "clone_truncate_empty",
+                                                      "clone_truncate_empty",
+                                                      "large_clone_truncate_empty.dat",
+                                                      LARGE_FILE_SIZE,
+                                                      true));
+
+    LOG_debug << logPre << "2. Moving file into sync folder (triggers clone MAC computation)";
+    auto st = addSyncListenerTracker(setup.localPathInSync.string());
+    ASSERT_TRUE(st);
+
+    ASSERT_FALSE(setup.tempFile->move(setup.localPathInSync)) << "Failed to move file into sync";
+    mLocalFiles.emplace_back(std::move(setup.tempFile));
+
+    std::this_thread::sleep_for(std::chrono::seconds(10));
+
+    auto [statusBeforeTruncate, _] = st->waitForCompletion(std::chrono::seconds(1));
+    ASSERT_EQ(statusBeforeTruncate, std::future_status::timeout)
+        << "Clone candidate MAC completed before truncation; test did not exercise in-flight "
+           "obsolescence";
+
+    LOG_debug << logPre << "3. Truncating local file to empty while clone MAC may be pending";
+    std::error_code ec;
+    fs::resize_file(setup.localPathInSync, 0, ec);
+    ASSERT_FALSE(ec) << "Failed to truncate file to empty: " << ec.message();
+    ASSERT_EQ(fs::file_size(setup.localPathInSync), 0u) << "Local file should be empty";
+
+    LOG_debug << logPre << "4. Waiting for sync to complete via fallback upload";
+    auto [syncStatus, syncErr] = st->waitForCompletion(std::chrono::seconds(600));
+    ASSERT_EQ(syncStatus, std::future_status::ready) << "Sync timed out after truncation to empty";
+    ASSERT_EQ(syncErr, API_OK) << "Sync failed after truncation to empty";
+
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    auto backupNode = getBackupNode();
+    ASSERT_TRUE(backupNode);
+
+    std::unique_ptr<MegaNode> syncNode(
+        megaApi[0]->getChildNodeOfType(backupNode.get(),
+                                       "large_clone_truncate_empty.dat",
+                                       FILENODE));
+    ASSERT_TRUE(syncNode) << "File should exist in sync after fallback upload";
+    ASSERT_EQ(syncNode->getSize(), 0) << "Synced file should be empty after truncation";
+    ASSERT_EQ(fs::file_size(setup.localPathInSync), 0u) << "Local synced file should remain empty";
+
+    std::unique_ptr<MegaNode> refreshedCandidate(
+        megaApi[0]->getNodeByHandle(setup.candidateNode->getHandle()));
+    ASSERT_TRUE(refreshedCandidate) << "Original cloud candidate should still exist";
+    ASSERT_EQ(refreshedCandidate->getSize(), static_cast<int64_t>(LARGE_FILE_SIZE))
+        << "Original cloud candidate should remain unchanged";
+
+    fs::remove_all(setup.tempDir);
+    {
+        RequestTracker removeTracker(megaApi[0].get());
+        megaApi[0]->remove(setup.candidatesFolder.get(), &removeTracker);
         removeTracker.waitForResult();
     }
 
