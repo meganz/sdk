@@ -19,6 +19,7 @@
 #pragma once
 
 #include "mega/gfx/worker/tasks.h"
+#include "mega/log_level.h"
 
 #include <memory>
 
@@ -54,6 +55,11 @@ public:
     virtual bool unserialize(const std::string& data) = 0;
 
     static std::unique_ptr<ICommand> factory(CommandType type);
+
+    virtual LogLevel logLevel() const
+    {
+        return logInfo;
+    }
 };
 
 struct CommandShutDown : public ICommand
@@ -117,6 +123,11 @@ struct CommandHello : public ICommand
     std::string serialize() const override;
 
     bool unserialize(const std::string& data) override;
+
+    LogLevel logLevel() const override
+    {
+        return logVerbose;
+    }
 };
 
 struct CommandHelloResponse : public ICommand
@@ -141,6 +152,11 @@ struct CommandSupportFormats : public ICommand
     std::string serialize() const override;
 
     bool unserialize(const std::string& data) override;
+
+    LogLevel logLevel() const override
+    {
+        return logVerbose;
+    }
 };
 
 struct CommandSupportFormatsResponse : public ICommand
