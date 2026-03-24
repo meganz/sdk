@@ -18770,9 +18770,27 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
         Transfer* t = NULL;
         auto range = multi_transfers[d].equal_range(f);
+        auto nodexfer = nodeByHandle(f->h);
         for (auto it = range.first; it != range.second; ++it)
         {
             if (it->second->files.empty()) continue;
+            if (d == GET)
+            {
+                File* f2 = it->second->files.front();
+                auto auxnode = nodeByHandle(f2->h);
+                if (nodexfer && auxnode)
+                {
+                    if (areEqualNodesByMetaMac(nodexfer->nodekey(), auxnode->nodekey()))
+                    {
+                        t = it->second;
+                        break;
+                    }
+
+                    continue;
+                }
+                // Fallback to original mechanism
+            }
+
             File* f2 = it->second->files.front();
 
             string ext1, ext2;

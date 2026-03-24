@@ -12316,6 +12316,540 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
 }
 
+TEST_F(SdkTest, DuplicatedDownloadTransferInFlight)
+{
+    const std::string prefix = {"SdkTest, DuplicatedDownloadTransferInFlight"};
+    LOG_debug << prefix << "[TC1]: Test setup stage";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    const std::string filename{"file_to_download.dat"};
+    constexpr size_t fileSizeBytes = 2 * 1024 * 1024;
+    const sdk_test::LocalTempFile localFile(fs::current_path() / filename, fileSizeBytes);
+    const sdk_test::LocalTempDir localTargetFolder(fs::current_path() / "download_target_folder");
+
+    auto rootNode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << prefix << "Cannot retrieve root node";
+
+    LOG_debug << prefix << "[TC2]: Upload source file";
+    MegaHandle uploadedNodeHandle = UNDEF;
+    const auto [errCode, transferSpeed, transferMeanSpeed] =
+        doStartUploadWithSpeed(0,
+                               &uploadedNodeHandle,
+                               path_u8string(localFile.getPath()).c_str(),
+                               rootNode.get(),
+                               nullptr,
+                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                               nullptr /*appData*/,
+                               false /*isSourceTemporary*/,
+                               false /*startFirst*/,
+                               nullptr /*cancelToken*/);
+
+    ASSERT_EQ(API_OK, errCode) << prefix << "Failed to upload: " << filename;
+    ASSERT_NE(UNDEF, uploadedNodeHandle)
+        << prefix << "Invalid uploaded node handle: " << toHandle(uploadedNodeHandle);
+    auto downloadNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(uploadedNodeHandle)};
+    ASSERT_TRUE(downloadNode) << prefix << "Cannot retrieve node to download";
+
+    LOG_debug << prefix << "[TC3]: Limit download speed and start first download";
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+
+    TransferTracker firstDownloadTracker(megaApi[0].get());
+    megaApi[0]->startDownload(downloadNode.get(),
+                              path_u8string(localTargetFolder.getPath()).c_str(),
+                              nullptr,
+                              nullptr,
+                              false,
+                              nullptr,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false,
+                              &firstDownloadTracker);
+
+    std::this_thread::sleep_for(std::chrono::seconds{1});
+    LOG_debug << prefix << "[TC4]: Wait for first download to be in flight";
+    ASSERT_TRUE(WaitFor(
+        [&firstDownloadTracker]()
+        {
+            return firstDownloadTracker.started.load();
+        },
+        defaultTimeout * 1000));
+    ASSERT_FALSE(firstDownloadTracker.finished);
+
+    LOG_debug << prefix << "[TC5]: Start duplicated download to the same destination";
+    TransferTracker secondDownloadTracker(megaApi[0].get());
+    megaApi[0]->startDownload(downloadNode.get(),
+                              path_u8string(localTargetFolder.getPath()).c_str(),
+                              nullptr,
+                              nullptr,
+                              false,
+                              nullptr,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false,
+                              &secondDownloadTracker);
+
+    ASSERT_EQ(API_EEXIST, secondDownloadTracker.waitForResult())
+        << prefix << "Unexpected error for duplicated download transfer finished";
+    LOG_debug << prefix << "[TC6]: Restore download speed and wait for original transfer";
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(-1));
+    ASSERT_EQ(API_OK, firstDownloadTracker.waitForResult())
+        << prefix << "Download transfer finished with error";
+}
+
+TEST_F(SdkTest, DuplicatedDownloadTransferInFlightByMetaMac)
+{
+    const std::string prefix{"SdkTest::DuplicatedDownloadTransferInFlightByMetaMac. "};
+    LOG_debug << prefix << "[TC1]: Test setup stage";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string filename{"file_to_download.dat"};
+    const std::string copiedRemoteName{"copied_file_to_download.dat"};
+    const std::string outputName{"destination_file.bin"};
+    const std::string localFolderName{"local_target_folder"};
+    constexpr size_t fileSizeBytes = 2 * 1024 * 1024;
+
+    const sdk_test::LocalTempFile localFile(fs::current_path() / filename, fileSizeBytes);
+    const sdk_test::LocalTempDir localTargetFolder(fs::current_path() / (localFolderName));
+
+    auto rootNode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << prefix << "Cannot retrieve root node";
+
+    LOG_debug << prefix << "[TC2]: Create remote folder for the upload and copied node";
+    const std::string remoteFolderName{"cloud_target_folder"};
+    const auto remoteFolderHandle = createFolder(0, remoteFolderName.c_str(), rootNode.get());
+    ASSERT_NE(UNDEF, remoteFolderHandle) << prefix << "Cannot create remote folder";
+    auto remoteFolder = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolder) << prefix << "Cannot retrieve remote folder";
+
+    LOG_debug << prefix << "[TC3]: Upload source file";
+    MegaHandle uploadedNodeHandle = UNDEF;
+    auto uploadResult = doStartUploadWithSpeed(0,
+                                               &uploadedNodeHandle,
+                                               path_u8string(localFile.getPath()).c_str(),
+                                               remoteFolder.get(),
+                                               nullptr,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr /*appData*/,
+                                               false /*isSourceTemporary*/,
+                                               false /*startFirst*/,
+                                               nullptr /*cancelToken*/);
+    ASSERT_EQ(API_OK, std::get<0>(uploadResult)) << prefix << "Failed to upload source file";
+    ASSERT_NE(UNDEF, uploadedNodeHandle) << prefix << "Invalid uploaded node handle";
+
+    auto originalNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(uploadedNodeHandle)};
+    ASSERT_TRUE(originalNode) << prefix << "Cannot retrieve original node";
+
+    LOG_debug << prefix
+              << "[TC4]: Copy uploaded node to create a second node with the same content(MetaMAC)";
+    MegaHandle copiedNodeHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doCopyNode(0,
+                         &copiedNodeHandle,
+                         originalNode.get(),
+                         remoteFolder.get(),
+                         copiedRemoteName.c_str()))
+        << prefix << "Failed to create copied node";
+    ASSERT_NE(UNDEF, copiedNodeHandle) << prefix << "Invalid copied node handle";
+
+    auto copiedNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(copiedNodeHandle)};
+    ASSERT_TRUE(copiedNode) << prefix << "Cannot retrieve copied node";
+
+    const std::string targetFolderPath =
+        localTargetFolder.getPath().string() + LocalPath::localPathSeparator_utf8;
+
+    const auto startDownloadToSameOutput =
+        [this, &targetFolderPath, &outputName](MegaNode* node, TransferTracker* tracker)
+    {
+        megaApi[0]->startDownload(node,
+                                  targetFolderPath.c_str(),
+                                  outputName.c_str(),
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  tracker);
+    };
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+
+    LOG_debug << prefix << "[TC5]: Start first download";
+    TransferTracker firstDownloadTracker(megaApi[0].get());
+    startDownloadToSameOutput(originalNode.get(), &firstDownloadTracker);
+    ASSERT_TRUE(WaitFor(
+        [&firstDownloadTracker]()
+        {
+            return firstDownloadTracker.started.load();
+        },
+        defaultTimeout * 1000));
+    ASSERT_FALSE(firstDownloadTracker.finished);
+
+    LOG_debug << prefix
+              << "[TC6]: Start second download with different node handle but same MetaMAC";
+    TransferTracker secondDownloadTracker(megaApi[0].get());
+    startDownloadToSameOutput(copiedNode.get(), &secondDownloadTracker);
+    ASSERT_EQ(API_EEXIST, secondDownloadTracker.waitForResult())
+        << prefix << "Same MetaMAC with different node handle should be rejected";
+
+    LOG_debug << prefix << "[TC7]: Restore download speed and wait for original transfer";
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(-1));
+    ASSERT_EQ(API_OK, firstDownloadTracker.waitForResult())
+        << prefix << "Original download transfer finished with error";
+}
+
+TEST_F(SdkTest, DownloadTransferDeduplicationNonDuplicateScenarios)
+{
+    const std::string prefix{"SdkTest::DownloadTransferDeduplicationNonDuplicateScenarios. "};
+    LOG_debug << prefix << "[TC1]: Test setup stage";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    constexpr size_t fileSizeBytes = 2 * 1024 * 1024;
+
+    const sdk_test::LocalTempFile sharedLocalFile(fs::current_path() / ("shared_file.dat"),
+                                                  fileSizeBytes);
+    const sdk_test::LocalTempFile distinctLocalFile(fs::current_path() / ("distinct_file.dat"),
+                                                    fileSizeBytes);
+
+    auto rootNode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << prefix << "Cannot retrieve root node";
+
+    LOG_debug << prefix << "[TC2]: Create remote folder and upload shared source file";
+    const std::string remoteFolderName{"duplicated_downloads_allowed"};
+    const auto remoteFolderHandle = createFolder(0, remoteFolderName.c_str(), rootNode.get());
+    ASSERT_NE(UNDEF, remoteFolderHandle) << prefix << "Cannot create remote folder";
+    auto remoteFolder = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolder) << prefix << "Cannot retrieve remote folder";
+
+    MegaHandle sharedNodeHandle = UNDEF;
+    auto sharedUploadResult =
+        doStartUploadWithSpeed(0,
+                               &sharedNodeHandle,
+                               path_u8string(sharedLocalFile.getPath()).c_str(),
+                               remoteFolder.get(),
+                               "shared_remote.dat",
+                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                               nullptr,
+                               false,
+                               false,
+                               nullptr);
+    ASSERT_EQ(API_OK, std::get<0>(sharedUploadResult)) << prefix << "Failed to upload shared file";
+    ASSERT_NE(UNDEF, sharedNodeHandle) << prefix << "Invalid shared node handle";
+
+    auto sharedNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(sharedNodeHandle)};
+    ASSERT_TRUE(sharedNode) << prefix << "Cannot retrieve shared node";
+
+    LOG_debug << prefix
+              << "[TC3]: Copy shared_file node to get a copy with the same content (MetaMAC)";
+    MegaHandle copiedNodeHandle = UNDEF;
+    ASSERT_EQ(
+        API_OK,
+        doCopyNode(0, &copiedNodeHandle, sharedNode.get(), remoteFolder.get(), "copied_remote.dat"))
+        << prefix << "Failed to create copied node";
+    ASSERT_NE(UNDEF, copiedNodeHandle) << prefix << "Invalid copied node handle";
+
+    auto copiedNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(copiedNodeHandle)};
+    ASSERT_TRUE(copiedNode) << prefix << "Cannot retrieve copied node";
+
+    LOG_debug << prefix << "[TC4]: Upload distinct-content file";
+    MegaHandle distinctNodeHandle = UNDEF;
+    auto distinctUploadResult =
+        doStartUploadWithSpeed(0,
+                               &distinctNodeHandle,
+                               path_u8string(distinctLocalFile.getPath()).c_str(),
+                               remoteFolder.get(),
+                               "distinct_remote.dat",
+                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                               nullptr,
+                               false,
+                               false,
+                               nullptr);
+    ASSERT_EQ(API_OK, std::get<0>(distinctUploadResult))
+        << prefix << "Failed to upload distinct file";
+    ASSERT_NE(UNDEF, distinctNodeHandle) << prefix << "Invalid distinct node handle";
+
+    auto distinctNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(distinctNodeHandle)};
+    ASSERT_TRUE(distinctNode) << prefix << "Cannot retrieve distinct node";
+
+    {
+        LOG_debug << prefix << "[TC5]: Same MetaMAC to different destinations should be allowed";
+        const sdk_test::LocalTempDir firstTargetFolder(fs::current_path() /
+                                                       ("download_target_folder_allowed_a"));
+        const sdk_test::LocalTempDir secondTargetFolder(fs::current_path() /
+                                                        ("download_target_folder_allowed_b"));
+        const std::string outputName{"shared-output.bin"};
+        const std::string firstTargetFolderPath =
+            firstTargetFolder.getPath().string() + LocalPath::localPathSeparator_utf8;
+        const std::string secondTargetFolderPath =
+            secondTargetFolder.getPath().string() + LocalPath::localPathSeparator_utf8;
+
+        ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+
+        TransferTracker firstDownloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(sharedNode.get(),
+                                  firstTargetFolderPath.c_str(),
+                                  outputName.c_str(),
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  &firstDownloadTracker);
+
+        ASSERT_TRUE(WaitFor(
+            [&firstDownloadTracker]()
+            {
+                return firstDownloadTracker.started.load();
+            },
+            defaultTimeout * 1000));
+
+        TransferTracker secondDownloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(copiedNode.get(),
+                                  secondTargetFolderPath.c_str(),
+                                  outputName.c_str(),
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  &secondDownloadTracker);
+
+        ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(-1));
+        ASSERT_EQ(API_OK, firstDownloadTracker.waitForResult())
+            << prefix << "Same MetaMAC to first destination failed";
+        ASSERT_EQ(API_OK, secondDownloadTracker.waitForResult())
+            << prefix << "Same MetaMAC to second destination failed";
+        ASSERT_TRUE(fs::exists(firstTargetFolder.getPath() / outputName));
+        ASSERT_TRUE(fs::exists(secondTargetFolder.getPath() / outputName));
+    }
+
+    {
+        LOG_debug << prefix << "[TC6]: Same node with different custom names should be allowed";
+        const sdk_test::LocalTempDir localTargetFolder(fs::current_path() /
+                                                       ("download_target_folder_custom_names"));
+        const std::string targetFolderPath =
+            localTargetFolder.getPath().string() + LocalPath::localPathSeparator_utf8;
+
+        ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+
+        TransferTracker firstDownloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(sharedNode.get(),
+                                  targetFolderPath.c_str(),
+                                  "custom-a.bin",
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  &firstDownloadTracker);
+
+        ASSERT_TRUE(WaitFor(
+            [&firstDownloadTracker]()
+            {
+                return firstDownloadTracker.started.load();
+            },
+            defaultTimeout * 1000));
+
+        TransferTracker secondDownloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(sharedNode.get(),
+                                  targetFolderPath.c_str(),
+                                  "custom-b.bin",
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  &secondDownloadTracker);
+
+        ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(-1));
+        ASSERT_EQ(API_OK, firstDownloadTracker.waitForResult())
+            << prefix << "First customName download failed";
+        ASSERT_EQ(API_OK, secondDownloadTracker.waitForResult())
+            << prefix << "Second customName download failed";
+        ASSERT_TRUE(fs::exists(localTargetFolder.getPath() / "custom-a.bin"));
+        ASSERT_TRUE(fs::exists(localTargetFolder.getPath() / "custom-b.bin"));
+    }
+
+    {
+        LOG_debug << prefix << "[TC7]: Different-content nodes should not be treated as duplicates";
+        const sdk_test::LocalTempDir localTargetFolder(fs::current_path() /
+                                                       ("download_target_folder_distinct_nodes"));
+
+        const std::string targetFolderPath =
+            localTargetFolder.getPath().string() + LocalPath::localPathSeparator_utf8;
+
+        ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+
+        TransferTracker firstDownloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(sharedNode.get(),
+                                  targetFolderPath.c_str(),
+                                  nullptr,
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  &firstDownloadTracker);
+
+        ASSERT_TRUE(WaitFor(
+            [&firstDownloadTracker]()
+            {
+                return firstDownloadTracker.started.load();
+            },
+            defaultTimeout * 1000));
+
+        TransferTracker secondDownloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(distinctNode.get(),
+                                  targetFolderPath.c_str(),
+                                  nullptr,
+                                  nullptr,
+                                  false,
+                                  nullptr,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false,
+                                  &secondDownloadTracker);
+
+        ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(-1));
+        ASSERT_EQ(API_OK, firstDownloadTracker.waitForResult())
+            << prefix << "First distinct-content download failed";
+        ASSERT_EQ(API_OK, secondDownloadTracker.waitForResult())
+            << prefix << "Second distinct-content download failed";
+
+        ASSERT_TRUE(fs::exists(localTargetFolder.getPath() / sharedNode->getName()));
+        ASSERT_TRUE(fs::exists(localTargetFolder.getPath() / distinctNode->getName()));
+    }
+}
+
+TEST_F(SdkTest, DuplicatedDownloadTransferAfterRelogin)
+{
+    const std::string prefix{"SdkTest::DuplicatedDownloadTransferAfterRelogin. "};
+    LOG_debug << prefix << "[TC1]: Test setup stage";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string filename{"relogin_file_to_download.dat"};
+    const std::string outputName{"relogin-output.bin"};
+    constexpr size_t fileSizeBytes = 2 * 1024 * 1024;
+
+    const sdk_test::LocalTempFile localFile(fs::current_path() / filename, fileSizeBytes);
+    const sdk_test::LocalTempDir localTargetFolder(fs::current_path() /
+                                                   ("download_target_folder_relogin"));
+
+    const std::string targetFolderPath =
+        localTargetFolder.getPath().string() + LocalPath::localPathSeparator_utf8;
+
+    auto rootNode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode) << prefix << "Cannot retrieve root node";
+
+    LOG_debug << prefix << "[TC2]: Create remote folder and upload source file";
+    const std::string remoteFolderName{"duplicated_downloads_relogin"};
+    const auto remoteFolderHandle = createFolder(0, remoteFolderName.c_str(), rootNode.get());
+    ASSERT_NE(UNDEF, remoteFolderHandle) << prefix << "Cannot create remote folder";
+    auto remoteFolder = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolder) << prefix << "Cannot retrieve remote folder";
+
+    MegaHandle uploadedNodeHandle = UNDEF;
+    auto uploadResult = doStartUploadWithSpeed(0,
+                                               &uploadedNodeHandle,
+                                               path_u8string(localFile.getPath()).c_str(),
+                                               remoteFolder.get(),
+                                               nullptr,
+                                               ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                               nullptr,
+                                               false,
+                                               false,
+                                               nullptr);
+    ASSERT_EQ(API_OK, std::get<0>(uploadResult)) << prefix << "Failed to upload source file";
+    ASSERT_NE(UNDEF, uploadedNodeHandle) << prefix << "Invalid uploaded node handle";
+
+    auto downloadNode = std::unique_ptr<MegaNode>{megaApi[0]->getNodeByHandle(uploadedNodeHandle)};
+    ASSERT_TRUE(downloadNode) << prefix << "Cannot retrieve node to download";
+
+    LOG_debug << prefix << "[TC3]: Start first download and leave it in flight";
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+
+    TransferTracker firstDownloadTracker(megaApi[0].get());
+    megaApi[0]->startDownload(downloadNode.get(),
+                              targetFolderPath.c_str(),
+                              outputName.c_str(),
+                              nullptr,
+                              false,
+                              nullptr,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false,
+                              &firstDownloadTracker);
+
+    LOG_debug << prefix << "[TC4]: Wait for the first download to be in flight";
+    ASSERT_TRUE(WaitFor(
+        [&firstDownloadTracker]()
+        {
+            return firstDownloadTracker.started.load();
+        },
+        defaultTimeout * 1000));
+    ASSERT_FALSE(firstDownloadTracker.finished);
+
+    LOG_debug << prefix << "[TC5]: Dump session and perform local logout";
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_TRUE(session) << prefix << "Cannot dump session";
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    LOG_debug << prefix << "[TC6]: Verify in-flight transfer is interrupted by logout";
+    const int interruptedResult = firstDownloadTracker.waitForResult();
+    ASSERT_TRUE(interruptedResult == API_EACCESS || interruptedResult == API_EINCOMPLETE)
+        << prefix << "Interrupted download returned unexpected result: " << interruptedResult;
+
+    LOG_debug << prefix << "[TC7]: Resume session and fetch nodes";
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(1));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    LOG_debug << prefix << "[TC8]: Wait for the resumed download transfer to appear";
+    ASSERT_TRUE(WaitFor(
+        [this]()
+        {
+            auto transfers = std::unique_ptr<MegaTransferList>{
+                megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD)};
+            return transfers && transfers->size() > 0;
+        },
+        defaultTimeout * 1000))
+        << prefix << "No resumed download transfer was observed after relogin";
+
+    downloadNode.reset(megaApi[0]->getNodeByHandle(uploadedNodeHandle));
+    ASSERT_TRUE(downloadNode) << prefix << "Cannot retrieve node after relogin";
+
+    LOG_debug << prefix << "[TC9]: Start duplicate download after relogin";
+    TransferTracker duplicatedDownloadTracker(megaApi[0].get());
+    megaApi[0]->startDownload(downloadNode.get(),
+                              targetFolderPath.c_str(),
+                              outputName.c_str(),
+                              nullptr,
+                              false,
+                              nullptr,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false,
+                              &duplicatedDownloadTracker);
+
+    LOG_debug << prefix << "[TC10]: Verify duplicate download is rejected after relogin";
+    ASSERT_EQ(API_EEXIST, duplicatedDownloadTracker.waitForResult())
+        << prefix << "Duplicated download should be rejected after relogin too";
+
+    LOG_debug << prefix << "[TC11]: Allow resumed transfer to finish";
+    ASSERT_TRUE(megaApi[0]->setMaxDownloadSpeed(-1));
+    ASSERT_TRUE(WaitFor(
+        [this]()
+        {
+            auto transfers = std::unique_ptr<MegaTransferList>{
+                megaApi[0]->getTransfers(MegaTransfer::TYPE_DOWNLOAD)};
+            return !transfers || transfers->size() == 0;
+        },
+        defaultTimeout * 1000))
+        << prefix << "Resumed download did not complete within the expected time";
+}
+
 TEST_F(SdkTest, QueryAds)
 {
     LOG_info << "___TEST QueryAds";

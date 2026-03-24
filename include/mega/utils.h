@@ -673,6 +673,15 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
 
 /**
+ * @brief Check if two file nodes are equal by comparing their MetaMACs.
+ *
+ * @param nodeKey_a The first node encryption key from which we will get the first MetaMAC.
+ * @param nodeKey_b The second node encryption key from which we will get the second MetaMAC.
+ * @return true if both MetaMACs, false otherwise.
+ */
+bool areEqualNodesByMetaMac(const std::string& nodeKey_a, const std::string& nodeKey_b);
+
+/**
  * @brief Compares local file MAC with node's MAC from its key.
  *
  * @param fa Pointer to FileAccess object for reading the local file.
