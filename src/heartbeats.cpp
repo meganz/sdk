@@ -79,6 +79,7 @@ m_time_t HeartBeatBackupInfo::lastBeat() const
 
 void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
+    assert(us.syncs.onSyncThread());
     SPHBStatus status = CommandBackupPutHeartBeat::INACTIVE;
 
     if (us.mSync)

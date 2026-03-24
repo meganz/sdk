@@ -1812,12 +1812,9 @@ public:
     // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem
     // browser for icon indicators needs to be locked when making changes on this thread; or when
     // accessing from another thread
-
-    // Important: This mutex cannot be locked (to avoid deadlocks) if `mSyncVecMutex` (defined in
-    // Syncs class) is already locked. In other words, the lock order for both mutexes must always
-    // be:
-    //  1) `mLocalNodeChangeMutex`
-    //  2) `mSyncVecMutex`
+    //
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
     std::timed_mutex mLocalNodeChangeMutex;
 
     // flags matching the state we have reported to the app via callbacks
@@ -2130,11 +2127,31 @@ private:
 
     // Sometimes the Client needs a list of the sync configs; we provide it as a copy (mutex for
     // thread safety, of course).
-    // Important: We cannot lock any of these mutexes (to avoid deadlocks): `mLocalNodeChangeMutex`,
-    // `nodeTreeMutex`, if `mSyncVecMutex` is already locked. In other words, the lock order for
-    // these mutexes must always be:
-    //  1) `mLocalNodeChangeMutex` OR `nodeTreeMutex`
-    //  2) `mSyncVecMutex`
+    //
+    // IMPORTANT: Lock ordering rules (to avoid deadlocks)
+    //
+    // Note: Each group is independent of the others, and for each group it is not required to hold
+    // all these mutexes simultaneously. The following rules define the valid lock ordering whenever
+    // multiple of them need to be acquired.
+    //
+    // Group 1: Interaction between `nodeTreeMutex` and `mSyncVecMutex`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `nodeTreeMutex`
+    //   2) `mSyncVecMutex`
+    //
+    // Group 2: Interaction between `mLocalNodeChangeMutex` and `mSyncVecMutex`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `mLocalNodeChangeMutex`
+    //   2) `mSyncVecMutex`
+    //
+    // Group 3: Interaction between `mSyncVecMutex`, `stallReportMutex` and `mImmediateStallLock`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `mSyncVecMutex`
+    //   2) `stallReportMutex`
+    //   3) `mImmediateStallLock`
     mutable std::recursive_mutex mSyncVecMutex;
     vector<shared_ptr<UnifiedSync>> mSyncVec;
 
@@ -2149,6 +2166,9 @@ private:
 
     // data structure with mutex to interchange stall info
     SyncStallInfo stallReport;
+
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
     mutable mutex stallReportMutex;
 
     // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
@@ -2241,6 +2261,8 @@ public:
     IsImmediateStallPredicate mIsImmediateStall;
 
     // Serializes access to *ImmediateStall predicates.
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
     mutable std::mutex mImmediateStallLock;
 
     // Check whether any immediate stalls have been reported.
