@@ -1328,27 +1328,30 @@ struct SyncProblems
 struct SyncFlags
 {
     // we can only perform moves after scanning is complete
-    bool scanningWasComplete = false;
+    std::atomic<bool> scanningWasComplete = false;
 
     // track whether all our reachable nodes have been scanned
-    bool reachableNodesAllScannedThisPass = true;
-    bool reachableNodesAllScannedLastPass = true;
+    std::atomic<bool> reachableNodesAllScannedThisPass = true;
+    std::atomic<bool> reachableNodesAllScannedLastPass = true;
 
     // true anytime we have just added a new sync, or unsuspended (unpaused) one
-    bool isInitialPass = true;
+    std::atomic<bool> isInitialPass = true;
 
     // we can only delete/upload/download after moves are complete
-    bool movesWereComplete = false;
+    std::atomic<bool> movesWereComplete = false;
 
     // stall detection (for incompatible local and remote changes, eg file added locally in a folder removed remotely)
-    bool noProgress = true;
-    int noProgressCount = 0;
+    std::atomic<bool> noProgress = true;
+    std::atomic<int> noProgressCount = 0;
 
     std::atomic<bool> earlyRecurseExitRequested{false};
 
     // to help with slowing down retries in stall state
-    dstime recursiveSyncLastCompletedDs = 0;
+    std::atomic<dstime> recursiveSyncLastCompletedDs = 0;
 
+    // Access to this member is confined to sync_thread, so no mutex is required.
+    // IMPORTANT: If this changes and other threads need access, it must be
+    // protected with proper synchronization mechanism (e.g. mutex).
     SyncStallInfo stall;
 };
 
@@ -1883,7 +1886,13 @@ private:
     bool checkSyncsMovesWereComplete(); // Iterate through syncs, calling Sync::checkMovesgWereComplete(). Returns false if any sync returns false.
     bool isAnySyncSyncing() const;
     bool isAnySyncScanning_inThread() const;
-    bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
+    /**
+     * @brief Checks sync scanning completion status.
+     * @return A pair where the first value indicates whether a full scan had completed in the
+     * previous cycle (outside the initial pass), and the second whether all current syncs are fully
+     * scanned.
+     */
+    std::pair<bool, bool> checkSyncsScanningWasComplete_inThread();
     void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
     /**
