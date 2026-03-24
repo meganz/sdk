@@ -782,6 +782,7 @@ enum class MacAdvanceResult
 {
     Pending, // Chunk queued or in progress
     Ready, // Local MAC is computed (check state->localMac)
+    Obsolete, // Local file changed; discard state and rescan
     Failed // Error occurred
 };
 
@@ -879,8 +880,7 @@ MacAdvanceResult advanceMacComputation(MegaClient& mc,
         LOG_debug << logPrefix << "File size changed: expected " << state->totalSize << ", got "
                   << fa->size;
         fa->fclose();
-        state->setFailed();
-        return MacAdvanceResult::Failed;
+        return MacAdvanceResult::Obsolete;
     }
 
     // Read chunk into buffer
@@ -991,6 +991,13 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
                                             LocalNode& syncNode)
 {
     static const std::string logPre{"asyncMacComputation: "};
+    const auto restartAfterInvalidation = [&syncNode, &fsNodeFullPath]() -> FsCloudComparisonResult
+    {
+        LOG_debug << logPre << "MAC state invalidated, requesting rescan: " << fsNodeFullPath;
+        syncNode.resetMacComputationIfAny();
+        syncNode.setScanAgain(true, false, false, 0);
+        return {NODE_COMP_PENDING, INVALID_META_MAC, INVALID_META_MAC, FingerprintMismatch::Other};
+    };
 
     // Check throttling first - skip if a recent mtime-only op just completed
     if (syncNode.shouldThrottleMacComputation(MAC_THROTTLE_WINDOW))
@@ -1048,6 +1055,10 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
                         INVALID_META_MAC,
                         FingerprintMismatch::Other};
             }
+            else if (result == MacAdvanceResult::Obsolete)
+            {
+                return restartAfterInvalidation();
+            }
             else
             {
                 // Pending - return and wait
@@ -1099,6 +1110,11 @@ FsCloudComparisonResult asyncMacComputation(MegaClient& mc,
 
     // Advance computation (will queue first chunk)
     auto result = advanceMacComputation(mc, macComp, logPre);
+
+    if (result == MacAdvanceResult::Obsolete)
+    {
+        return restartAfterInvalidation();
+    }
 
     if (result == MacAdvanceResult::Failed)
     {
@@ -1237,7 +1253,7 @@ CloneMacStatus initCloneCandidateMacComputation(MegaClient& mc, SyncUpload_inCli
 
         // Start first chunk - pass local macComp to ensure object stays alive
         auto result = advanceMacComputation(mc, macComp, logPre);
-        if (result == MacAdvanceResult::Failed)
+        if (result == MacAdvanceResult::Failed || result == MacAdvanceResult::Obsolete)
         {
             LOG_debug << logPre << "Failed to start computation of MAC for "
                       << upload.getLocalname();
@@ -1336,6 +1352,12 @@ CloneMacStatus checkPendingCloneMac(MegaClient& mc, SyncUpload_inClient& upload)
     else if (result == MacAdvanceResult::Failed)
     {
         LOG_debug << logPre << "Failed: " << upload.getLocalname();
+        upload.macComputation.reset();
+        return CloneMacStatus::Failed;
+    }
+    else if (result == MacAdvanceResult::Obsolete)
+    {
+        LOG_debug << logPre << "Obsolete: " << upload.getLocalname();
         upload.macComputation.reset();
         return CloneMacStatus::Failed;
     }
