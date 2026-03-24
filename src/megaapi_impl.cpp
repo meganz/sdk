@@ -7702,6 +7702,7 @@ void MegaApiImpl::multiFactorAuthDisable(const char *pin, MegaRequestListener *l
 void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setTransferredBytes(static_cast<long long>(cancel_epoch_snapshot()));
     request->setEmail(email);
     request->setPassword(password);
     request->setText(pin);
