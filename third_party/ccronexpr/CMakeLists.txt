@@ -1,4 +1,4 @@
-add_library(ccronexpr STATIC
+add_library(ccronexpr OBJECT
     ccronexpr.h
     ccronexpr.cpp
 )

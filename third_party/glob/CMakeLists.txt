@@ -1,4 +1,4 @@
-add_library(glob STATIC
+add_library(glob OBJECT
     glob.h
     glob.c
 )

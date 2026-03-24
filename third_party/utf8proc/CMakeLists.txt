@@ -1,4 +1,4 @@
-add_library(utf8proc STATIC
+add_library(utf8proc OBJECT
     utf8proc.h
     utf8proc.cpp
 )
