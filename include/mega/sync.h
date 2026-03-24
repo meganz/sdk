@@ -2161,6 +2161,12 @@ private:
     //   1) `mSyncVecMutex`
     //   2) `stallReportMutex`
     //   3) `mImmediateStallLock`
+    //
+    // Group 4: Interaction between `mSyncVecMutex`, `triggerMutex`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `mSyncVecMutex`
+    //   2) `triggerMutex`
     mutable std::recursive_mutex mSyncVecMutex;
     vector<shared_ptr<UnifiedSync>> mSyncVec;
 
