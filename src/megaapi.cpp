@@ -4357,6 +4357,13 @@ void MegaApi::getRecentActionById(const char* id, MegaRequestListener* listener)
     pImpl->getRecentActionById(id, listener);
 }
 
+void MegaApi::getRecentActionById(const char* id,
+                                  bool excludeSensitives,
+                                  MegaRequestListener* listener)
+{
+    pImpl->getRecentActionById(id, excludeSensitives, listener);
+}
+
 void MegaApi::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
 {
     pImpl->clearRecentActionHistory(until, listener);
