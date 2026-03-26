@@ -19575,36 +19575,74 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
                         bool sameNodeSameNameInTarget{false};
-                        for (auto& n: nodes)
+
+                        // MAC computation requires reading the local file (expensive I/O). When
+                        // many cloud nodes share the same fingerprint, verifying all of them is
+                        // wasteful. The two-phase search below minimizes MAC computations by
+                        // prioritizing high-value candidates first and deferring the remote-copy
+                        // fallback search.
+                        const auto findNodeWithMacMatch = [&](auto shouldCheckMac) -> bool
                         {
-                            if (!hasToForceUpload(*n.get(), *transfer))
+                            for (auto& n: nodes)
                             {
-                                auto [compRes, _] =
-                                    CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
-                                                                                  wLocalPath,
-                                                                                  fp_forCloud,
-                                                                                  n.get());
-
-                                if (compRes == NODE_COMP_EQUAL ||
-                                    compRes == NODE_COMP_DIFFERS_MTIME)
+                                if (!hasToForceUpload(*n.get(), *transfer))
                                 {
-                                    sameNodeFpFound = n;
-                                    sameNodeSameNameInTarget =
-                                        (sameNodeFpFound->parent && parent) &&
-                                        (sameNodeFpFound->parent->nodeHandle() ==
-                                         parent->nodeHandle()) &&
-                                        (fileName == sameNodeFpFound->displayname());
+                                    const bool nameMatch =
+                                        (n->parent && parent) &&
+                                        (n->parent->nodeHandle() == parent->nodeHandle()) &&
+                                        (fileName == n->displayname());
 
-                                    if (alreadyCheckedSameNodeNameInTarget ||
-                                        sameNodeSameNameInTarget)
+                                    if (shouldCheckMac(nameMatch))
                                     {
-                                        // There only can be one node with same name in target node
-                                        break;
+                                        auto [compRes, _] =
+                                            CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                                *client,
+                                                wLocalPath,
+                                                fp_forCloud,
+                                                n.get());
+
+                                        if (compRes == NODE_COMP_EQUAL ||
+                                            compRes == NODE_COMP_DIFFERS_MTIME)
+                                        {
+                                            // There only can be one node with same name in target
+                                            // node
+                                            sameNodeFpFound = n;
+                                            sameNodeSameNameInTarget = nameMatch;
+                                            return true;
+                                        }
                                     }
                                 }
                             }
-                            // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
-                            // is not NODE_COMP_EQUAL, just continue with transfer
+                            return false;
+                        };
+
+                        // Phase 1: check MAC only for nodes that are worth verifying immediately.
+                        //   - Small folder (alreadyCheckedSameNodeNameInTarget == true): the name
+                        //     lookup was already done, so any fingerprint-matching node is a valid
+                        //     candidate; check all of them and break on the first MAC match.
+                        //   - Large folder (alreadyCheckedSameNodeNameInTarget == false): the name
+                        //     lookup was skipped; only check nodes whose name and parent match the
+                        //     upload target, since those are the only ones that can skip the upload
+                        //     entirely (same content, same location).
+                        findNodeWithMacMatch(
+                            [&](bool nameMatch)
+                            {
+                                return alreadyCheckedSameNodeNameInTarget || nameMatch;
+                            });
+
+                        // Phase 2: remote-copy fallback, only for large folders when Phase 1 found
+                        // nothing. A cloud node at a different location but with the same content
+                        // (MAC-verified) can be used as the source of a server-side copy, avoiding
+                        // a full re-upload. nameMatch nodes are skipped here because they were
+                        // already checked in Phase 1. Breaks at the first MAC-verified match, so
+                        // typically only one extra MAC computation is needed.
+                        if (!sameNodeFpFound && !alreadyCheckedSameNodeNameInTarget)
+                        {
+                            findNodeWithMacMatch(
+                                [](bool nameMatch)
+                                {
+                                    return !nameMatch;
+                                });
                         }
 
                         if (sameNodeFpFound)
