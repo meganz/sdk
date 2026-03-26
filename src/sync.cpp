@@ -332,27 +332,26 @@ void SyncThreadsafeState::getSyncNodeCounts(int32_t& files, int32_t& folders)
 SyncConfig::SyncConfig(LocalPath localPath,
                        std::string name,
                        NodeHandle remoteNode,
-                       const std::string &remotePath,
+                       const std::string& remotePath,
                        const fsfp_t localFingerprint,
                        const LocalPath& externalDrivePath,
                        const bool enabled,
                        const SyncConfig::Type syncType,
                        const SyncError error,
                        const SyncWarning warning,
-                       mega::handle hearBeatID)
-    : mEnabled(enabled)
-    , mLocalPath(std::move(localPath))
-    , mName(std::move(name))
-    , mRemoteNode(remoteNode)
-    , mOriginalPathOfRemoteRootNode(remotePath)
-    , mFilesystemFingerprint(localFingerprint)
-    , mLocalPathFsid(UNDEF)
-    , mSyncType(syncType)
-    , mError(error)
-    , mWarning(warning)
-    , mBackupId(hearBeatID)
-    , mExternalDrivePath(externalDrivePath)
-    , mBackupState(SYNC_BACKUP_NONE)
+                       mega::handle hearBeatID):
+    mEnabled(enabled),
+    mLocalPath(std::move(localPath)),
+    mName(std::move(name)),
+    mRemoteNode(remoteNode),
+    mOriginalPathOfRemoteRootNode(remotePath),
+    mFilesystemFingerprint(localFingerprint),
+    mLocalPathFsid(UNDEF),
+    mSyncType(syncType),
+    mError(error),
+    mWarning(warning),
+    mBackupId(hearBeatID),
+    mExternalDrivePath(externalDrivePath)
 {}
 
 bool SyncConfig::getEnabled() const
@@ -510,18 +509,6 @@ std::string SyncConfig::syncErrorToStr(SyncError errorCode)
     default:
         return "Undefined error";
     }
-}
-
-void SyncConfig::setBackupState(SyncBackupState state)
-{
-    assert(isBackup());
-
-    mBackupState = state;
-}
-
-SyncBackupState SyncConfig::getBackupState() const
-{
-    return mBackupState;
 }
 
 const char* SyncConfig::synctypename(const SyncConfig::Type type)
@@ -871,35 +858,6 @@ bool Sync::isBackup() const
 {
     assert(syncs.onSyncThread());
     return getConfig().isBackup();
-}
-
-bool Sync::isBackupAndMirroring() const
-{
-    assert(syncs.onSyncThread());
-    return isBackup() &&
-           getConfig().getBackupState() == SYNC_BACKUP_MIRROR;
-}
-
-bool Sync::isBackupMonitoring() const
-{
-    // only called from tests
-    assert(!syncs.onSyncThread());
-    return getConfig().getBackupState() == SYNC_BACKUP_MONITOR;
-}
-
-void Sync::setBackupMonitoring()
-{
-    assert(syncs.onSyncThread());
-    auto& config = getConfig();
-
-    assert(config.getBackupState() == SYNC_BACKUP_MIRROR);
-
-    LOG_verbose << "Backup Sync " << toHandle(config.mBackupId)
-                << " transitioning to monitoring mode";
-
-    config.setBackupState(SYNC_BACKUP_MONITOR);
-
-    syncs.ensureDriveOpenedAndMarkDirty(config.mExternalDrivePath);
 }
 
 bool Sync::shouldHaveDatabase() const
@@ -4422,27 +4380,17 @@ void Syncs::enableSyncByBackupId_inThread(handle backupId, bool setOriginalPath,
         }
     }
 
-    us.mConfig.mError = NO_SYNC_ERROR;
-    us.mConfig.mEnabled = true;
-    us.mConfig.mRunState = SyncRunState::Loading;
-
     // If we're a backup sync...
     if (us.mConfig.isBackup())
     {
-        auto& config = us.mConfig;
-
-        auto firstTime = config.mBackupState == SYNC_BACKUP_NONE;
-        auto isExternal = config.isExternal();
-
-        if (firstTime || isExternal)
-        {
-            // Then we must come up in mirroring mode.
-            LOG_verbose << "Backup Sync " << toHandle(config.mBackupId)
-                        << " starting in mirroring mode"
-                        << " [firstTime = " << firstTime << ", isExternal = " << isExternal << "]";
-            us.mConfig.mBackupState = SYNC_BACKUP_MIRROR;
-        }
+        LOG_verbose << "Starting Backup Sync " << toHandle(us.mConfig.mBackupId)
+                    << "[isExternal = " << us.mConfig.isExternal()
+                    << ", RunState = " << (int)us.mConfig.mRunState << "]";
     }
+
+    us.mConfig.mError = NO_SYNC_ERROR;
+    us.mConfig.mEnabled = true;
+    us.mConfig.mRunState = SyncRunState::Loading;
 
     us.changedConfigState(true, true);
     mHeartBeatMonitor->updateOrRegisterSync(us);
@@ -6186,7 +6134,6 @@ bool Syncs::importSyncConfig(JSON& reader, SyncConfig& config)
 
     // Populate config object.
     config.mBackupId = UNDEF;
-    config.mBackupState = SYNC_BACKUP_NONE;
     config.mEnabled = false;
     config.mError = NO_SYNC_ERROR;
     config.mFilesystemFingerprint.reset();
@@ -13283,7 +13230,6 @@ bool SyncConfigIOContext::decrypt(const string& in, string& out)
 bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isExternal) const
 {
     const auto TYPE_BACKUP_ID = makeNameid("id");
-    const auto TYPE_BACKUP_STATE = makeNameid("bs");
     const auto TYPE_CHANGE_METHOD = makeNameid("cm");
     const auto TYPE_ENABLED = makeNameid("en");
     const auto TYPE_FILESYSTEM_FP = makeNameid("fp");
@@ -13382,11 +13328,6 @@ bool SyncConfigIOContext::deserialize(SyncConfig& config, JSON& reader, bool isE
             config.mBackupId = reader.gethandle(sizeof(handle));
             break;
 
-        case TYPE_BACKUP_STATE:
-            config.mBackupState =
-              static_cast<SyncBackupState>(reader.getint32());
-            break;
-
         case TYPE_TARGET_HANDLE:
             config.mRemoteNode = reader.getNodeHandle();
             break;
@@ -13462,7 +13403,6 @@ void SyncConfigIOContext::serialize(const SyncConfig& config,
     writer.arg("lw", config.mWarning);
     writer.arg("st", config.mSyncType);
     writer.arg("en", config.mEnabled);
-    writer.arg("bs", config.mBackupState);
     writer.arg("cm", config.mChangeDetectionMethod);
     writer.arg("si", config.mScanIntervalSec);
     writer.endobject();
@@ -13948,18 +13888,6 @@ void Syncs::syncLoop()
                         syncVecMutexlock.lock();
 
                         sync->cachenodes();
-                    }
-
-                    if (!earlyExit)
-                    {
-                        if (sync->isBackupAndMirroring() &&
-                            !sync->localroot->scanRequired() &&
-                            !sync->localroot->mightHaveMoves() &&
-                            !sync->localroot->syncRequired())
-
-                        {
-                            sync->setBackupMonitoring();
-                        }
                     }
                 }
 
