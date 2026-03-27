@@ -36,6 +36,7 @@
 #include <future>
 #include <iostream>
 #include <memory>
+#include <string_view>
 #include <type_traits>
 
 #ifndef WIN32
@@ -1450,6 +1451,9 @@ public:
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
 
     bool createFile(string filename, bool largeFile = true, string content = "test ");
+    bool createFileWithSize(string filename,
+                            size_t fileSize,
+                            std::string_view fillPattern = "X");
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
     void deleteFolder(string foldername);

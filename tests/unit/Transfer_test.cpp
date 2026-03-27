@@ -24,7 +24,9 @@
 
 #include <gtest/gtest.h>
 
+#include <cassert>
 #include <limits>
+#include <string>
 
 namespace
 {
@@ -433,3 +435,133 @@ TEST(Transfer, unserialize_legacy_v1_format_without_ws_fields)
     ASSERT_EQ(newTf->ws_fileno, 0u);
     ASSERT_TRUE(newTf->ws_session_url.empty());
 }
+
+#ifdef MEGA_USE_WSUPLOAD
+
+// Helper: serialize a Transfer with WS fields set, returning the serialized blob.
+static std::string serializeTransferWithWsFields(mega::MegaClient* client,
+                                                  const std::uint32_t fileno,
+                                                  const std::string& sessionUrl)
+{
+    mega::Transfer tf{client, mega::PUT};
+    setupTransfer(tf, "ws_corrupt_test", 'A', 1, 2, 'B', 3);
+    tf.tempurls = {"http://gfs999n999.userstorage.mega.co.nz/ul/tok"};
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 100;
+    tf.ws_fileno = fileno;
+    tf.ws_session_url = sessionUrl;
+
+    std::string d;
+    bool ok = tf.serialize(&d);
+    assert(ok);
+    (void)ok;
+    return d;
+}
+
+TEST(Transfer, unserialize_truncated_at_ws_fileno)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    std::string d = serializeTransferWithWsFields(client.get(), 42, "wss://example.com/session");
+
+    // Chop off the last few bytes so the ws_fileno field is incomplete.
+    // The ws_session_url comes after ws_fileno, so removing enough from the end
+    // will first corrupt the session_url, then eventually the fileno.
+    // Remove everything after expansion flags + downloadFileHandle + discardedTempUrls fields
+    // but before ws_fileno is fully read.
+    // Strategy: progressively truncate from the end until unserialize fails.
+    for (std::size_t cut = 1; cut < d.size() / 2; ++cut)
+    {
+        std::string truncated = d.substr(0, d.size() - cut);
+        mega::transfer_multimap tfMap[2];
+        auto result = std::unique_ptr<mega::Transfer>{
+            mega::Transfer::unserialize(client.get(), &truncated, tfMap)};
+        // Must either return nullptr (graceful failure) or a valid Transfer (partial parse).
+        // Must never crash.
+        (void)result;
+    }
+    // If we get here without crashing, truncation is handled gracefully.
+    SUCCEED();
+}
+
+TEST(Transfer, unserialize_truncated_at_ws_session_url)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    // Use a long session URL so there's plenty of room to truncate mid-string.
+    const std::string longUrl = "wss://gfs123.userstorage.mega.co.nz/ws-session-"
+                                + std::string(200, 'x');
+    std::string d = serializeTransferWithWsFields(client.get(), 99, longUrl);
+
+    // Truncate within the last 250 bytes (where the URL payload lives).
+    for (std::size_t cut = 1; cut < 250 && cut < d.size(); ++cut)
+    {
+        std::string truncated = d.substr(0, d.size() - cut);
+        mega::transfer_multimap tfMap[2];
+        auto result = std::unique_ptr<mega::Transfer>{
+            mega::Transfer::unserialize(client.get(), &truncated, tfMap)};
+        (void)result;
+    }
+    SUCCEED();
+}
+
+TEST(Transfer, unserialize_corrupted_expansion_flags_claiming_ws_fields)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+
+    // Serialize a Transfer WITHOUT WS fields.
+    mega::Transfer tf{client.get(), mega::PUT};
+    setupTransfer(tf, "no_ws_fields", 'C', 5, 10, 'D', 15);
+    tf.tempurls = {"http://gfs999n999.userstorage.mega.co.nz/ul/tok2"};
+    tf.state = mega::TRANSFERSTATE_NONE;
+    tf.priority = 200;
+    tf.ws_fileno = 0;
+    tf.ws_session_url.clear();
+
+    std::string d;
+    ASSERT_TRUE(tf.serialize(&d));
+
+    // Serialized tail layout (no WS fields):
+    //   ... priority(8) | version(1)=2 | expansion_flags(1) | discardedTempUrlsSize(1)
+    // Expansion flags bits: [0]=downloadFileHandle [1]=discardedTempUrls [2]=localPath
+    //                       [3]=ws_fileno [4]=ws_session_url
+    // With no WS fields, bits 3 and 4 are 0. Set them to claim WS data is present.
+    // unserialize should fail (return nullptr) because the data isn't there.
+    ASSERT_GE(d.size(), 3u);
+    const std::size_t flagsOffset = d.size() - 2; // second-to-last byte is expansion flags
+
+    // Set bit 3 (ws_fileno present) — data is missing, should fail.
+    {
+        std::string corrupted = d;
+        corrupted[flagsOffset] |= (1 << 3);
+        mega::transfer_multimap tfMap[2];
+        auto result = std::unique_ptr<mega::Transfer>{
+            mega::Transfer::unserialize(client.get(), &corrupted, tfMap)};
+        EXPECT_EQ(result, nullptr) << "Should fail when ws_fileno flag set but data missing";
+    }
+
+    // Set bit 4 (ws_session_url present) — data is missing, should fail.
+    {
+        std::string corrupted = d;
+        corrupted[flagsOffset] |= (1 << 4);
+        mega::transfer_multimap tfMap[2];
+        auto result = std::unique_ptr<mega::Transfer>{
+            mega::Transfer::unserialize(client.get(), &corrupted, tfMap)};
+        EXPECT_EQ(result, nullptr) << "Should fail when ws_session_url flag set but data missing";
+    }
+
+    // Set both bits 3 and 4 — data is missing, should fail.
+    {
+        std::string corrupted = d;
+        corrupted[flagsOffset] |= (1 << 3) | (1 << 4);
+        mega::transfer_multimap tfMap[2];
+        auto result = std::unique_ptr<mega::Transfer>{
+            mega::Transfer::unserialize(client.get(), &corrupted, tfMap)};
+        EXPECT_EQ(result, nullptr) << "Should fail when both WS flags set but data missing";
+    }
+}
+
+#endif // MEGA_USE_WSUPLOAD

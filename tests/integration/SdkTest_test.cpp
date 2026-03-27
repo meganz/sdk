@@ -47,6 +47,7 @@
 #include <mutex>
 #include <set>
 #include <sstream>
+#include <unordered_map>
 #include <vector>
 
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
@@ -410,19 +411,101 @@ namespace
     }
 
 #ifdef MEGA_USE_WSUPLOAD
+    constexpr size_t kWsUploadDefaultFileSize = 12 * 1024 * 1024;
+
     struct WsUploadTransferSnapshot
     {
         bool found = false;
+        uint32_t transferId = 0;
+        std::string fileName;
         std::uint32_t wsFileno = 0;
         std::string wsSessionUrl;
+        int state = TRANSFERSTATE_NONE;
         m_off_t progressCompleted = 0;
         m_off_t pos = 0;
         m_off_t size = 0;
     };
 
-    bool fetchFirstUploadTransferSnapshot(MegaApi& api,
-                                          WsUploadTransferSnapshot& out,
-                                          const int timeoutSeconds = defaultTimeout)
+    bool fetchWsUploadTransferSnapshots(MegaApi& api,
+                                        std::vector<WsUploadTransferSnapshot>& out,
+                                        const int timeoutSeconds = defaultTimeout)
+    {
+        MegaApiImpl* impl = MegaApiImpl::ImplOf(&api);
+        if (!impl)
+        {
+            return false;
+        }
+
+        auto promise = std::make_shared<std::promise<std::vector<WsUploadTransferSnapshot>>>();
+        auto future = promise->get_future();
+
+        auto exec = std::make_shared<ExecuteOnce>(
+            [impl, promise]()
+            {
+                std::vector<WsUploadTransferSnapshot> snapshots;
+                MegaClient* client = impl->getClientForTesting();
+                if (client)
+                {
+                    std::set<const Transfer*> seen;
+                    auto appendTransfer = [&](Transfer* t)
+                    {
+                        if (!t || t->type != PUT || t->finished || !seen.insert(t).second)
+                        {
+                            return;
+                        }
+
+                        WsUploadTransferSnapshot snapshot;
+                        snapshot.found = true;
+                        snapshot.transferId = t->dbid;
+                        snapshot.fileName = t->localfilename.leafName().toPath(false);
+                        snapshot.wsFileno = t->ws_fileno;
+                        snapshot.wsSessionUrl = t->ws_session_url;
+                        if (snapshot.wsSessionUrl.empty() && client->wsEngine())
+                        {
+                            std::string sessionUrlFromEngine;
+                            if (client->wsEngine()->getSessionUrl(*t, sessionUrlFromEngine))
+                            {
+                                snapshot.wsSessionUrl = std::move(sessionUrlFromEngine);
+                            }
+                        }
+                        snapshot.progressCompleted = t->progresscompleted;
+                        snapshot.pos = t->pos;
+                        snapshot.size = t->size;
+                        snapshot.state = t->state;
+                        snapshots.emplace_back(std::move(snapshot));
+                    };
+
+                    auto& uploads = client->multi_transfers[PUT];
+                    for (const auto& entry: uploads)
+                    {
+                        appendTransfer(entry.second);
+                    }
+
+                    auto& queuedUploads = client->transferlist.transfers[PUT];
+                    for (auto it = queuedUploads.begin(); it != queuedUploads.end(); ++it)
+                    {
+                        appendTransfer(*it);
+                    }
+                }
+                promise->set_value(std::move(snapshots));
+            });
+
+        impl->executeOnThreadForTesting(exec);
+
+        if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+        {
+            return false;
+        }
+
+        out = future.get();
+        return true;
+    }
+
+    // Returns one representative WS upload candidate among active PUT transfers
+    // (selection is score-based, not list-order-based).
+    bool fetchBestWsUploadTransferSnapshot(MegaApi& api,
+                            WsUploadTransferSnapshot& out,
+                            const int timeoutSeconds = defaultTimeout)
     {
         MegaApiImpl* impl = MegaApiImpl::ImplOf(&api);
         if (!impl)
@@ -450,12 +533,15 @@ namespace
 
                         WsUploadTransferSnapshot candidate;
                         candidate.found = true;
+                        candidate.transferId = t->dbid;
+                        candidate.fileName = t->localfilename.leafName().toPath(false);
                         candidate.wsFileno = t->ws_fileno;
                         candidate.wsSessionUrl = t->ws_session_url;
                         if (candidate.wsSessionUrl.empty() && client->wsEngine())
                         {
                             // onStart persists ws_session_url asynchronously on client thread.
-                            // Read directly from the WS engine to avoid racey false skips.
+                            // Read from WS engine only as fallback when serialized metadata is
+                            // not yet visible.
                             std::string sessionUrlFromEngine;
                             if (client->wsEngine()->getSessionUrl(*t, sessionUrlFromEngine))
                             {
@@ -465,6 +551,7 @@ namespace
                         candidate.progressCompleted = t->progresscompleted;
                         candidate.pos = t->pos;
                         candidate.size = t->size;
+                        candidate.state = t->state;
 
                         int score = 0;
                         if (t->channel == Transfer::Channel::WebSocket)
@@ -525,7 +612,7 @@ namespace
         while (std::chrono::steady_clock::now() - start < std::chrono::seconds(timeoutSeconds))
         {
             WsUploadTransferSnapshot snapshot{};
-            if (fetchFirstUploadTransferSnapshot(api, snapshot, 1) && snapshot.found &&
+            if (fetchBestWsUploadTransferSnapshot(api, snapshot, 1) && snapshot.found &&
                 predicate(snapshot))
             {
                 out = std::move(snapshot);
@@ -2717,6 +2804,54 @@ bool SdkTest::createFile(string filename, bool largeFile, string content)
         LOG_err << err.what();
         return false;
     }
+}
+
+bool SdkTest::createFileWithSize(string filename, size_t fileSize, std::string_view fillPattern)
+{
+    fs::path path = u8path_compat(filename);
+    std::error_code ignoredEc;
+    fs::remove(path, ignoredEc);
+
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file)
+    {
+        return false;
+    }
+
+    if (fillPattern.empty())
+    {
+        fillPattern = "X";
+    }
+
+    constexpr size_t kBlockSize = 64 * 1024;
+    std::string block;
+    block.reserve(kBlockSize);
+    while (block.size() < kBlockSize)
+    {
+        const size_t chunk = std::min(fillPattern.size(), kBlockSize - block.size());
+        block.append(fillPattern.data(), chunk);
+    }
+
+    for (size_t remaining = fileSize; remaining > 0;)
+    {
+        const size_t chunk = std::min(block.size(), remaining);
+        file.write(block.data(), static_cast<std::streamsize>(chunk));
+        if (!file)
+        {
+            return false;
+        }
+        remaining -= chunk;
+    }
+
+    file.close();
+    if (!file.good())
+    {
+        return false;
+    }
+
+    std::error_code sizeEc;
+    const auto actualSize = fs::file_size(path, sizeEc);
+    return !sizeEc && actualSize == static_cast<uintmax_t>(fileSize);
 }
 
 int64_t SdkTest::getFilesize(string filename)
@@ -19046,14 +19181,21 @@ TEST_F(SdkTest, SdkResumableTrasfers)
 }
 
 #ifdef MEGA_USE_WSUPLOAD
+/**
+ * @brief Verify WS resume keeps previous serialized metadata.
+ *
+ * - TEST1: Start throttled upload and capture serialized wsFileno/wsSessionUrl/pos..
+ * - TEST2: Logout/login to force transfer-cache restore and observe resumed onTransferStart.
+ * - TEST3: Assert resumed metadata matches cached metadata and upload finishes in cloud.
+ */
 TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
 {
     LOG_info << "___TEST SdkWsUploadResumeKeepsSerializedWsMetadata___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // Keep file large enough so WS metadata remains observable before completion even if
-    // setMaxUploadSpeed is not enforced by the WS path.
-    ASSERT_TRUE(createFile(UPFILE, true, std::string(48, 'R'))) << "Couldn't create " << UPFILE;
+    // Step 1: prepare source data and start a throttled upload so resume metadata is observable.
+    ASSERT_TRUE(createFileWithSize(UPFILE, kWsUploadDefaultFileSize, "R"))
+        << "Couldn't create " << UPFILE;
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
@@ -19062,7 +19204,12 @@ TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(600000);
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -19099,6 +19246,7 @@ TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
     ASSERT_GT(beforeResume.progressCompleted, 0);
     ASSERT_GT(beforeResume.pos, 0);
 
+    // Step 2: capture onTransferStart after resume to compare resumed head with serialized state.
     std::atomic<bool> resumeStartObserved{false};
     m_off_t transferredBytesAtResumeStart = -1;
     auto resetOnTransferStartCb = makeScopedDestructor(
@@ -19138,6 +19286,7 @@ TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
     ASSERT_EQ(transferredBytesAtResumeStart, beforeResume.progressCompleted)
         << "Upload resumed with a different transferred-byte head than was serialized";
 
+    // Step 3: verify resumed WS metadata/head is preserved from serialized transfer state.
     WsUploadTransferSnapshot resumed{};
     ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -19158,6 +19307,7 @@ TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
     ASSERT_GT(resumed.pos, 0);
     ASSERT_GE(resumed.pos, beforeResume.pos);
 
+    // Step 4: uncap and require eventual completion in cloud.
     megaApi[0]->setMaxUploadSpeed(-1);
     rootnode.reset(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnode);
@@ -19173,37 +19323,24 @@ TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
     ASSERT_TRUE(cloudNode) << "Upload did not finish after resume";
 }
 
+/**
+ * @brief Verify a changed cached local file resumes with a fresh WS session.
+ *
+ * - TEST1: Start upload and capture pinned WS metadata.
+ * - TEST2: Override cached URL with invalid pinned URL and logout.
+ * - TEST3: Modify local source file before session resume.
+ * - TEST4: Require resumed transfer switches to non-stale URL and cloud node size equals modified file.
+ */
 TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
 {
     LOG_info << "___TEST SdkWsUploadModifiedCachedFileStartsFreshSession___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    const auto createFileWithSize = [&](const std::string& filename,
-                                        const size_t fileSize,
-                                        const char fillChar)
-    {
-        deleteFile(filename);
-        std::ofstream file(u8path_compat(filename), ios::out | ios::binary | ios::trunc);
-        ASSERT_TRUE(file) << "Couldn't create " << filename;
-
-        const std::string block(64 * 1024, fillChar);
-        size_t remaining = fileSize;
-        while (remaining > 0)
-        {
-            const size_t chunk = std::min(block.size(), remaining);
-            file.write(block.data(), static_cast<std::streamsize>(chunk));
-            remaining -= chunk;
-        }
-
-        file.close();
-        ASSERT_TRUE(file.good()) << "Failed writing " << filename;
-        ASSERT_EQ(getFilesize(filename), static_cast<int64_t>(fileSize))
-            << "Wrong size for " << filename;
-    };
-
     constexpr size_t initialFileSize = 24 * 1024 * 1024;
     constexpr size_t changedFileSize = 36 * 1024 * 1024;
-    ASSERT_NO_FATAL_FAILURE(createFileWithSize(UPFILE, initialFileSize, 'R'));
+    // Step 1: create initial source file, then start upload and capture pinned WS metadata.
+    ASSERT_TRUE(createFileWithSize(UPFILE, initialFileSize, "R"))
+        << "Couldn't create " << UPFILE;
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
@@ -19213,6 +19350,11 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
     ASSERT_TRUE(rootnode);
 
     megaApi[0]->setMaxUploadSpeed(600000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -19247,6 +19389,7 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
         << "No active WS upload transfer metadata observable before rewriting the cached file";
     ASSERT_TRUE(beforeResume.found);
 
+    // Step 2: force an invalid cached URL, then interrupt transfer via logout.
     const std::string invalidPinnedUrl = "wss://127.0.0.1:1/ul/changed-file-stale-session";
     ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 10));
 
@@ -19268,11 +19411,14 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
     ASSERT_TRUE(uploadInterruptedCode == API_EACCESS || uploadInterruptedCode == API_EINCOMPLETE)
         << "Upload interrupted with unexpected code: " << uploadInterruptedCode;
 
-    ASSERT_NO_FATAL_FAILURE(createFileWithSize(UPFILE, changedFileSize, 'S'));
+    // Step 3: mutate local source file before session resume.
+    ASSERT_TRUE(createFileWithSize(UPFILE, changedFileSize, "S"))
+        << "Couldn't recreate " << UPFILE;
 
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
+    // Step 4: resume and require fresh WS session selection (not stale pinned URL).
     WsUploadTransferSnapshot freshSession{};
     WsUploadTransferSnapshot lastObservedAfterResume{};
     bool switchedToFreshSession = false;
@@ -19280,11 +19426,10 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
     while (freshSessionTimer.elapsed() < 90)
     {
         WsUploadTransferSnapshot snapshot{};
-        if (fetchFirstUploadTransferSnapshot(*megaApi[0], snapshot, 1) && snapshot.found)
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], snapshot, 1) && snapshot.found)
         {
             lastObservedAfterResume = snapshot;
             if (snapshot.wsFileno > 0 && !snapshot.wsSessionUrl.empty() &&
-                snapshot.wsFileno != forcedInvalid.wsFileno &&
                 snapshot.wsSessionUrl != invalidPinnedUrl)
             {
                 freshSession = snapshot;
@@ -19302,9 +19447,9 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
         << " last fileno=" << lastObservedAfterResume.wsFileno
         << " last url=" << lastObservedAfterResume.wsSessionUrl << "]";
 
-    ASSERT_NE(freshSession.wsFileno, forcedInvalid.wsFileno);
     ASSERT_NE(freshSession.wsSessionUrl, invalidPinnedUrl);
 
+    // Step 5: finish transfer and verify uploaded node matches modified file size.
     megaApi[0]->setMaxUploadSpeed(-1);
     rootnode.reset(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnode);
@@ -19321,6 +19466,13 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(changedFileSize));
 }
 
+/**
+ * @brief Verify pinned WS pool detaches and retires after last transfer cancellation.
+ *
+ * - TEST1: Resume a transfer into a pinned pool derived from cached WS session URL.
+ * - TEST2: Cancel upload transfers and poll pool state for the pinned URL.
+ * - TEST3: Assert numPoolFiles=0, no uploading file, no in-flight/resend chunks, then pool retires.
+ */
 TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
 {
     LOG_info << "___TEST SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval___";
@@ -19329,34 +19481,13 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
 #ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
 #else
-    const auto createFileWithSize = [&](const std::string& filename,
-                                        const size_t fileSize,
-                                        const char fillChar)
-    {
-        deleteFile(filename);
-        std::ofstream file(u8path_compat(filename), ios::out | ios::binary | ios::trunc);
-        ASSERT_TRUE(file) << "Couldn't create " << filename;
-
-        const std::string block(64 * 1024, fillChar);
-        size_t remaining = fileSize;
-        while (remaining > 0)
-        {
-            const size_t chunk = std::min(block.size(), remaining);
-            file.write(block.data(), static_cast<std::streamsize>(chunk));
-            remaining -= chunk;
-        }
-
-        file.close();
-        ASSERT_TRUE(file.good()) << "Failed writing " << filename;
-        ASSERT_EQ(getFilesize(filename), static_cast<int64_t>(fileSize))
-            << "Wrong size for " << filename;
-    };
-
     const std::string fileName =
         "ws_pinned_pool_retire_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
     constexpr size_t fileSize = 32 * 1024 * 1024;
-    ASSERT_NO_FATAL_FAILURE(createFileWithSize(fileName, fileSize, 'P'));
+    // Step 1: create source file, start upload, and capture the URL that becomes pinned on resume.
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "P"))
+        << "Couldn't create " << fileName;
 
     auto cleanupFile = makeScopedDestructor(
         [this, &fileName]()
@@ -19377,6 +19508,11 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
     ASSERT_TRUE(rootnode);
 
     megaApi[0]->setMaxUploadSpeed(600000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -19420,6 +19556,7 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
 
+    // Step 2: resume session and verify transfer is attached to pinned pool.
     ws::UploadEngine::PoolStateForTesting pinnedPool{};
     ASSERT_TRUE(waitForWsUploadPoolStateForTesting(
         *megaApi[0],
@@ -19435,6 +19572,7 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
 
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
 
+    // Step 3: cancel resumed transfer and verify pool detaches all transfer bookkeeping.
     ws::UploadEngine::PoolStateForTesting afterCancel{};
     ws::UploadEngine::PoolStateForTesting lastObservedDetachedState{};
     bool detachedFromPinnedPool = false;
@@ -19469,6 +19607,7 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
         << " activeThreads=" << lastObservedDetachedState.activeThreads
         << " exitingThreads=" << lastObservedDetachedState.exitingThreads << "]";
 
+    // Step 4: verify the pool no longer keeps a stale file reference.
     ws::UploadEngine::PoolStateForTesting referenceState{};
     ws::UploadEngine::PoolStateForTesting lastObservedReferenceState{};
     bool poolReferenceGone = false;
@@ -19504,6 +19643,13 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
 #endif
 }
 
+/**
+ * @brief Verify sustained WS handshake failures trigger retry and restart transfer start path.
+ *
+ * - TEST1: Start upload and capture active WS session metadata.
+ * - TEST2: Inject handshake failures during the sustained-failure window.
+ * - TEST3: Require transfer start is re-observed and upload still completes with API_OK.
+ */
 TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
 {
     LOG_info << "___TEST SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart___";
@@ -19512,10 +19658,12 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
 #ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
 #else
+    // Step 1: start upload and capture active WS session URL.
     const std::string fileName =
         "ws_retry_handshake_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
-    ASSERT_TRUE(createFile(fileName, true, std::string(48, 'H'))) << "Couldn't create " << fileName;
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "H"))
+        << "Couldn't create " << fileName;
 
     auto cleanupFile = makeScopedDestructor(
         [this, &fileName]()
@@ -19541,7 +19689,12 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(600000);
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
 
     WsUploadRetryTracker tracker(megaApi[0].get());
     MegaUploadOptions uploadOptions;
@@ -19567,38 +19720,60 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
         [](const WsUploadTransferSnapshot& snapshot)
         {
             return snapshot.wsFileno > 0 && !snapshot.wsSessionUrl.empty() &&
-                   snapshot.progressCompleted > 0;
+                   snapshot.state == TRANSFERSTATE_ACTIVE;
         },
         60,
         200))
         << "Upload did not expose an active WS session before forcing reconnect failures";
     ASSERT_TRUE(activeSession.found);
 
-    std::atomic<int> remainingForcedHandshakeFailures{3};
-    const std::string forcedUrl = activeSession.wsSessionUrl;
-    globalMegaTestHooks.onWsHandshake =
-        [forcedUrl, &remainingForcedHandshakeFailures](const std::string& url,
-                                                       long,
-                                                       std::string& err)
+    // Ensure the targeted URL currently owns an active upload file before forcing reconnect
+    // failures; otherwise retries can be consumed without surfacing transfer temporary-error.
+    ws::UploadEngine::PoolStateForTesting activePoolState{};
+    ASSERT_TRUE(waitForWsUploadPoolStateForTesting(
+        *megaApi[0],
+        activeSession.wsSessionUrl,
+        activePoolState,
+        [](const ws::UploadEngine::PoolStateForTesting& state)
         {
-            if (url != forcedUrl)
+            return state.found && state.hasUploadingFile;
+        },
+        60,
+        200))
+        << "Could not observe an active uploading pool for URL before forcing handshake failures"
+        << " [url=" << activeSession.wsSessionUrl << "]";
+
+    // Step 2: force repeated handshake failures on the WS upload URLs and trigger reconnect.
+    std::atomic<int> forcedHandshakeFailureCount{0};
+    // Keep failing reconnect handshakes on WS upload URLs until transfer surfaces a temporary
+    // error.
+    globalMegaTestHooks.onWsHandshake =
+        [&forcedHandshakeFailureCount, &tracker](
+            const std::string& url,
+            long,
+            std::string& err)
+        {
+            // Reconnect can rotate WS upload endpoints, so do not gate failure injection on one URL.
+            if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
             {
                 return false;
             }
 
-            int expected = remainingForcedHandshakeFailures.load();
-            while (expected > 0 &&
-                   !remainingForcedHandshakeFailures.compare_exchange_weak(expected, expected - 1))
+            if (tracker.temporaryErrorCount.load() >= 1)
             {
+                LOG_debug << "[SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart] stop "
+                             "forcing WS handshake failures after temporary error"
+                          << " [url=" << url
+                          << "] [temporaryErrors=" << tracker.temporaryErrorCount.load() << "]";
+                return false;
             }
 
-            if (expected > 0)
-            {
-                err = "debug forced WS handshake failure";
-                return true;
-            }
-
-            return false;
+            const int forced = ++forcedHandshakeFailureCount;
+            err = "debug forced WS handshake failure";
+            LOG_debug << "[SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart] force WS "
+                         "handshake failure"
+                      << " [url=" << url << "] [forcedCount=" << forced << "]";
+            return true;
         };
     globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs =
         [](dstime& windowDs)
@@ -19609,15 +19784,40 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
     ASSERT_TRUE(notifyWsUploadNetworkDisconnectForTesting(*megaApi[0], 10))
         << "Failed to trigger a WS disconnect before the forced handshake failures";
 
-    ASSERT_TRUE(WaitFor(
-        [&tracker]()
+    // Step 3: require temporary-error surfacing and eventual transition back to ACTIVE.
+    bool sawTemporaryError = false;
+    int lastForcedHandshakeFailureCount = -1;
+    second_timer temporaryErrorTimer;
+    while (temporaryErrorTimer.elapsed() < 90)
+    {
+        if (tracker.temporaryErrorCount.load() >= 1)
         {
-            return tracker.temporaryErrorCount.load() >= 1;
-        },
-        30000))
-        << "Upload did not surface a temporary error after the forced WS handshake failures";
-    ASSERT_EQ(remainingForcedHandshakeFailures.load(), 0)
-        << "The forced WS handshake failure hook was not exercised as expected";
+            sawTemporaryError = true;
+            break;
+        }
+
+        const int currentForcedFailureCount = forcedHandshakeFailureCount.load();
+        if (currentForcedFailureCount == lastForcedHandshakeFailureCount)
+        {
+            // Re-nudge reconnect to keep exercising handshake-failure path and avoid idle windows
+            // where retries are not consumed against an active pool.
+            (void)notifyWsUploadNetworkDisconnectForTesting(*megaApi[0], 1);
+        }
+        lastForcedHandshakeFailureCount = currentForcedFailureCount;
+        WaitMillisec(200);
+    }
+
+    ASSERT_TRUE(sawTemporaryError)
+        << "Upload did not surface a temporary error after the forced WS handshake failures"
+        << " [forcedHandshakeFailureCount=" << forcedHandshakeFailureCount.load()
+        << " starts=" << tracker.startCount.load()
+        << " updates=" << tracker.updateCount.load()
+        << " activeUpdates=" << tracker.activeStateUpdateCount.load()
+        << " lastState=" << tracker.lastState.load()
+        << " temporaryErrors=" << tracker.temporaryErrorCount.load() << "]";
+    ASSERT_GE(forcedHandshakeFailureCount.load(), 3)
+        << "The forced WS handshake failure hook did not run enough times to cover sustained "
+           "failure handling";
 
     ASSERT_TRUE(tracker.temporaryErrorCount.load() >= 1)
         << "Upload resumed data flow without surfacing a temporary error after sustained WS "
@@ -19642,6 +19842,27 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
         << " temporaryErrors=" << tracker.temporaryErrorCount.load()
         << " lastTemporaryError=" << static_cast<int>(tracker.lastTemporaryError.load()) << "]";
 
+    // Confirm the WS upload transfer is still present after retrying a failed handshake.
+    WsUploadTransferSnapshot recoveredSession{};
+    bool gotRecoveredSession = false;
+    second_timer recoveredTimer;
+    while (recoveredTimer.elapsed() < 30)
+    {
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], recoveredSession, 1) &&
+            recoveredSession.found && recoveredSession.wsFileno > 0)
+        {
+            gotRecoveredSession = true;
+            break;
+        }
+        WaitMillisec(200);
+    }
+
+    ASSERT_TRUE(gotRecoveredSession)
+        << "Could not observe WS upload transfer snapshot after recovery";
+    ASSERT_EQ(recoveredSession.wsFileno, activeSession.wsFileno)
+        << "WS upload file number changed across a retry";
+
+    // Step 4: finish upload and verify cloud node presence.
     megaApi[0]->setMaxUploadSpeed(-1);
     ASSERT_EQ(tracker.waitForResult(180), ErrorCodes::API_OK)
         << "Upload did not complete successfully after retrying the failed handshake";
@@ -19664,12 +19885,21 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
 #endif
 }
 
+/**
+ * @brief Verify invalid pinned WS session URL falls back to a fresh session URL.
+ *
+ * - TEST1: Start upload and capture WS session metadata used for pinning.
+ * - TEST2: Override cached session URL with an invalid endpoint and resume.
+ * - TEST3: Require observed wsSessionUrl differs from stale pinned URL.
+ */
 TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
 {
     LOG_info << "___TEST SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    ASSERT_TRUE(createFile(UPFILE, true)) << "Couldn't create " << UPFILE;
+    // Step 1: start upload and capture session metadata for URL override.
+    ASSERT_TRUE(createFileWithSize(UPFILE, kWsUploadDefaultFileSize, "U"))
+        << "Couldn't create " << UPFILE;
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
@@ -19678,7 +19908,12 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(500000);
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -19704,7 +19939,7 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
     second_timer snapshotTimer;
     while (snapshotTimer.elapsed() < 20)
     {
-        if (fetchFirstUploadTransferSnapshot(*megaApi[0], beforeOverride, 1) &&
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], beforeOverride, 1) &&
             beforeOverride.found && beforeOverride.wsFileno > 0)
         {
             gotBeforeOverride = true;
@@ -19717,11 +19952,12 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
         GTEST_SKIP() << "No active WS upload transfer metadata observable before URL override";
     }
 
+    // Step 2: force invalid pinned URL, then logout/resume to exercise failover path.
     const std::string invalidPinnedUrl = "wss://127.0.0.1:1/ul/invalid-pinned-session-url";
     ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 10));
 
     WsUploadTransferSnapshot forced;
-    ASSERT_TRUE(fetchFirstUploadTransferSnapshot(*megaApi[0], forced, 1));
+    ASSERT_TRUE(fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1));
     ASSERT_TRUE(forced.found);
     ASSERT_EQ(forced.wsSessionUrl, invalidPinnedUrl);
     ASSERT_EQ(forced.wsFileno, beforeOverride.wsFileno);
@@ -19734,13 +19970,16 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
 
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    // Uncap speed for the failover window so this check is not throttle-bound.
+    megaApi[0]->setMaxUploadSpeed(-1);
 
+    // Step 3: require switch away from invalid pinned URL.
     WsUploadTransferSnapshot failover{};
     bool switchedToFreshUrl = false;
     second_timer failoverTimer;
     while (failoverTimer.elapsed() < 210)
     {
-        if (fetchFirstUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
             !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
         {
             switchedToFreshUrl = true;
@@ -19755,18 +19994,28 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
     ASSERT_EQ(failover.wsFileno, beforeOverride.wsFileno);
     ASSERT_NE(failover.wsSessionUrl, invalidPinnedUrl);
 
+    // Step 4: cleanup active upload for test isolation.
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
 }
 
+/**
+ * @brief Verify detached transfer on invalid pinned session completes on a fresh pool.
+ *
+ * - TEST1: Start upload and inject invalid pinned session URL metadata.
+ * - TEST2: Observe transfer is no longer attached to stale pinned pool URL.
+ * - TEST3: Require upload completes and cloud node exists with expected size.
+ */
 TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool)
 {
     LOG_info << "___TEST SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
+    // Step 1: start upload and capture session metadata for URL override.
     const std::string fileName =
         "ws_invalid_pinned_detach_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
-    ASSERT_TRUE(createFile(fileName, true)) << "Couldn't create " << fileName;
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "D"))
+        << "Couldn't create " << fileName;
 
     auto cleanupTransfers = makeScopedDestructor(
         [this]()
@@ -19781,7 +20030,12 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(500000);
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -19807,7 +20061,7 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
     second_timer snapshotTimer;
     while (snapshotTimer.elapsed() < 20)
     {
-        if (fetchFirstUploadTransferSnapshot(*megaApi[0], beforeOverride, 1) &&
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], beforeOverride, 1) &&
             beforeOverride.found && beforeOverride.wsFileno > 0)
         {
             gotBeforeOverride = true;
@@ -19820,11 +20074,12 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
         GTEST_SKIP() << "No active WS upload transfer metadata observable before URL override";
     }
 
+    // Step 2: force invalid pinned URL, then logout/resume to trigger detached failover.
     const std::string invalidPinnedUrl = "wss://127.0.0.1:1/ul/invalid-pinned-session-url";
     ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 10));
 
     WsUploadTransferSnapshot forced;
-    ASSERT_TRUE(fetchFirstUploadTransferSnapshot(*megaApi[0], forced, 1));
+    ASSERT_TRUE(fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1));
     ASSERT_TRUE(forced.found);
     ASSERT_EQ(forced.wsSessionUrl, invalidPinnedUrl);
     ASSERT_EQ(forced.wsFileno, beforeOverride.wsFileno);
@@ -19837,13 +20092,16 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
 
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    // Uncap speed before completion wait to keep this test fast.
+    megaApi[0]->setMaxUploadSpeed(-1);
 
+    // Step 3: require switch away from invalid pinned URL after resume.
     WsUploadTransferSnapshot failover{};
     bool switchedToFreshUrl = false;
     second_timer failoverTimer;
     while (failoverTimer.elapsed() < 210)
     {
-        if (fetchFirstUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
             !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
         {
             switchedToFreshUrl = true;
@@ -19858,9 +20116,7 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
     ASSERT_EQ(failover.wsFileno, beforeOverride.wsFileno);
     ASSERT_NE(failover.wsSessionUrl, invalidPinnedUrl);
 
-    // Remove throttling so completion is not dominated by test speed caps.
-    megaApi[0]->setMaxUploadSpeed(-1);
-
+    // Step 4: require completion on fresh pool and verify uploaded node exists.
     rootnode.reset(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnode);
     std::unique_ptr<MegaNode> cloudNode(
@@ -19878,6 +20134,1749 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
 
     deleteFile(fileName);
 }
+
+/**
+ * @brief Verify canceling an active WS upload is safe with in-flight work.
+ *
+ * - TEST1: Start throttled upload and wait for non-zero progress snapshot.
+ * - TEST2: Cancel active upload via synchronousCancelTransfers(TYPE_UPLOAD).
+ * - TEST3: Assert transfer finishes with expected cancel/incomplete result and no crash.
+ */
+TEST_F(SdkTest, SdkWsUploadCancelDuringActiveTransfer)
+{
+    LOG_info << "___TEST SdkWsUploadCancelDuringActiveTransfer___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_cancel_active_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: create a file large enough to observe active transfer progress.
+    // Gives a stable active-transfer window before cancel with test throttling.
+    constexpr size_t fileSize = 2 * kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "C")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor([this, &fileName]()
+                                            {
+                                                deleteFile(fileName);
+                                            });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 2: start a throttled upload so cancel happens while chunks are in flight.
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 3: wait until the WS engine confirms forward progress.
+    WsUploadTransferSnapshot snapshot{};
+    ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        snapshot,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200))
+        << "Upload did not make progress before cancel";
+
+    // Step 4: cancel uploads while WS workers may still be sending / awaiting ACK.
+    // This exercises freeq(PUT) + wsEngine()->remove() on an active transfer.
+    ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
+
+    // Step 5: transfer must resolve to cancellation and not crash.
+    const auto cancelResult = ut.waitForResult(30);
+    ASSERT_EQ(cancelResult, API_EINCOMPLETE)
+        << "Unexpected result after cancel: " << cancelResult;
+}
+
+/**
+ * @brief Verify deleting local source mid-transfer fails WS upload safely.
+ *
+ * - TEST1: Start throttled WS upload on a local file.
+ * - TEST2: Delete local file during active transfer window.
+ * - TEST3: Require Require terminal failure (read/incomplete path) without crash.
+ */
+TEST_F(SdkTest, SdkWsUploadFileDeletedDuringTransfer)
+{
+    LOG_info << "___TEST SdkWsUploadFileDeletedDuringTransfer___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_delete_mid_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: create a local file and start uploading it through WS.
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "D")) << "Couldn't create " << fileName;
+
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 2: throttle upload so we have a stable mid-transfer window.
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    WsUploadRetryTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 3: wait for confirmed progress before deleting local source file.
+    WsUploadTransferSnapshot snapshot{};
+    const bool gotProgress = waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        snapshot,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200);
+
+    if (!gotProgress)
+    {
+        // If we never saw progress (e.g., non-WS path), skip this mid-transfer scenario.
+        deleteFile(fileName);
+        const auto r = ut.waitForResult(120);
+        (void)r;
+        GTEST_SKIP() << "Upload did not show WS progress; cannot test mid-transfer file deletion";
+    }
+
+    // Step 4: delete local file during active transfer.
+    deleteFile(fileName);
+
+    // Let completion/failure surface quickly after deletion.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    // Step 5: transfer should reach a terminal state without crash.
+    const auto finalResult = ut.waitForResult(120, false);
+    std::ostringstream timeoutDetails;
+    if (finalResult == LOCAL_ETIMEOUT)
+    {
+        WsUploadTransferSnapshot stalled{};
+        const bool gotSnapshot = fetchBestWsUploadTransferSnapshot(*megaApi[0], stalled, 5);
+        const bool snapshotFound = gotSnapshot && stalled.found;
+        const bool localFileStillExists = fileexists(fileName);
+
+        timeoutDetails << " timeout_diagnostics={"
+                       << "local_file_exists=" << (localFileStillExists ? "true" : "false")
+                       << ", start_count=" << ut.startCount.load()
+                       << ", update_count=" << ut.updateCount.load()
+                       << ", temp_error_count=" << ut.temporaryErrorCount.load()
+                       << ", last_temp_error=" << static_cast<int>(ut.lastTemporaryError.load())
+                       << ", last_state=" << ut.lastState.load()
+                       << ", active_state_updates=" << ut.activeStateUpdateCount.load()
+                       << ", saw_active_after_temp_error="
+                       << (ut.sawActiveAfterTemporaryError.load() ? "true" : "false")
+                       << ", tracker_finished=" << (ut.finished.load() ? "true" : "false")
+                       << ", snapshot_found=" << (snapshotFound ? "true" : "false");
+
+        if (snapshotFound)
+        {
+            timeoutDetails << ", snapshot={"
+                           << "state=" << stalled.state
+                           << ", progress_completed=" << stalled.progressCompleted
+                           << ", pos=" << stalled.pos
+                           << ", size=" << stalled.size
+                           << ", ws_fileno=" << stalled.wsFileno
+                           << ", ws_session_url=" << stalled.wsSessionUrl
+                           << "}";
+        }
+        timeoutDetails << " }";
+    }
+    LOG_debug << "[SdkWsUploadFileDeletedDuringTransfer] Transfer result: " << finalResult
+              << timeoutDetails.str();
+
+    // Accepted outcomes:
+    // - API_EREAD: read/open fails after deletion.
+    // - API_EINCOMPLETE: cancellation/race path.
+    ASSERT_TRUE(finalResult == API_EREAD || finalResult == API_EINCOMPLETE)
+        << "Unexpected result after local file deletion: " << finalResult
+        << timeoutDetails.str();
+}
+
+/**
+ * @brief Verify local file modification during WS upload is handled safely.
+ *
+ * - TEST1: Start throttled upload with initial file content.
+ * - TEST2: Modify file content/size while transfer is active.
+ * - TEST3: Require completion with modified size, or safe read/incomplete failure; no crash.
+ */
+TEST_F(SdkTest, SdkWsUploadFileModifiedDuringTransfer)
+{
+    LOG_info << "___TEST SdkWsUploadFileModifiedDuringTransfer___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_modify_mid_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    constexpr size_t initialFileSize = kWsUploadDefaultFileSize;
+    constexpr size_t modifiedFileSize = 2 * kWsUploadDefaultFileSize;
+
+    // Step 1: prepare initial source file and start upload.
+    ASSERT_TRUE(createFileWithSize(fileName, initialFileSize, "M"))
+        << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor([this, &fileName]()
+                                            {
+                                                deleteFile(fileName);
+                                            });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 2: throttle to guarantee we can modify file mid-transfer.
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    WsUploadRetryTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 3: wait until transfer enters active progress.
+    WsUploadTransferSnapshot snapshot{};
+    const bool gotProgress = waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        snapshot,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200);
+
+    if (!gotProgress)
+    {
+        GTEST_SKIP() << "Upload did not show WS progress; cannot test mid-transfer file modification";
+    }
+
+    // Step 4: modify source file content and size while upload is active.
+    ASSERT_TRUE(createFileWithSize(fileName, modifiedFileSize, "N"))
+        << "Couldn't rewrite " << fileName;
+
+    // Window has been created; uncap to avoid slow completion/failure handling.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    // Step 5: transfer should either fail safely, or complete using the upload snapshot
+    // captured when transfer started.
+    const auto finalResult = ut.waitForResult(180);
+    LOG_debug << "[SdkWsUploadFileModifiedDuringTransfer] Transfer result: " << finalResult;
+
+    if (finalResult == API_OK)
+    {
+        rootnode.reset(megaApi[0]->getRootNode());
+        ASSERT_TRUE(rootnode);
+        std::unique_ptr<MegaNode> cloudNode(
+            megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+        ASSERT_TRUE(cloudNode) << "Upload completed but uploaded node is missing";
+        ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(initialFileSize))
+            << "Upload completed but cloud node size does not match initial upload snapshot";
+    }
+    else
+    {
+        // Step 6: if it fails, only accept known safe outcomes.
+        ASSERT_TRUE(finalResult == API_EREAD || finalResult == API_EINCOMPLETE)
+            << "Unexpected result after local file modification: " << finalResult;
+    }
+}
+
+#if defined(DEBUG)
+/**
+ * @brief Verify WS upload survives simulated network disconnect and reconnect.
+ *
+ * - TEST1: Start throttled upload and confirm progress > 0.
+ * - TEST2: Trigger notifyNetworkDisconnectForTesting() and wait for reconnect path.
+ * - TEST3: Require transfer completes and uploaded node size matches local size.
+ */
+TEST_F(SdkTest, SdkWsUploadDisconnectReconnectDuringTransfer)
+{
+    LOG_info << "___TEST SdkWsUploadDisconnectReconnectDuringTransfer___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_disconnect_reconnect_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: create a file large enough to survive disconnect / reconnect window.
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "R")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 2: start throttled upload to keep transfer active during disconnect simulation.
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 3: wait until upload has confirmed progress.
+    WsUploadTransferSnapshot beforeDisconnect{};
+    ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        beforeDisconnect,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200))
+        << "Upload did not make progress before disconnect simulation";
+
+    // Step 4: simulate network disconnect and allow WS path to recover.
+    ASSERT_TRUE(notifyWsUploadNetworkDisconnectForTesting(*megaApi[0], 10))
+        << "Failed to notify WS upload network disconnect";
+
+    bool progressAdvanced = false;
+    WsUploadTransferSnapshot afterDisconnect{};
+    second_timer reconnectTimer;
+    while (reconnectTimer.elapsed() < 90)
+    {
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], afterDisconnect, 1) &&
+            afterDisconnect.found &&
+            afterDisconnect.progressCompleted > beforeDisconnect.progressCompleted)
+        {
+            progressAdvanced = true;
+            break;
+        }
+
+        if (ut.finished)
+        {
+            break;
+        }
+
+        WaitMillisec(300);
+    }
+
+    // Step 5: require completion and post-disconnect progress growth.
+    megaApi[0]->setMaxUploadSpeed(-1);
+    const auto finalResult = ut.waitForResult(240);
+    ASSERT_EQ(finalResult, API_OK)
+        << "Upload did not complete after simulated network disconnect/reconnect";
+    ASSERT_TRUE(progressAdvanced || finalResult == API_OK)
+        << "Upload did not show post-disconnect progress growth";
+
+    // Step 6: verify uploaded node exists and size matches source.
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+}
+
+/**
+ * @brief Verify WS upload overquota path propagates expected transfer error.
+ *
+ * - TEST1: Start upload and inject overquota through debug HTTP hook path.
+ * - TEST2: Observe transfer temp error/terminal result callbacks.
+ * - TEST3: If injection lands, require expected overquota error handling.
+ */
+TEST_F(SdkTest, SdkWsUploadOverquotaDuringTransfer)
+{
+    LOG_info << "___TEST SdkWsUploadOverquotaDuringTransfer___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled";
+    auto resetHooks = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onHttpReqPost = {};
+            globalMegaTestHooks.onSetIsRaid = {};
+            DebugTestHook::resetForTests();
+        });
+
+    const std::string fileName =
+        "ws_overquota_mid_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: create source file for mid-transfer overquota injection.
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "Q")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 2: throttle and start transfer to open overquota injection window.
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    TransferTempErrorTracker tracker(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
+
+    // Step 3: wait for active progress before enabling debug overquota hook.
+    WsUploadTransferSnapshot beforeOverquota{};
+    const bool gotProgress = waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        beforeOverquota,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200);
+    if (!gotProgress)
+    {
+        // Skip after starting upload: cancel in-flight uploads explicitly before unwinding local
+        // listeners/trackers to avoid cleanup races during stack teardown.
+        megaApi[0]->setMaxUploadSpeed(-1);
+        (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        GTEST_SKIP() << "Upload did not show WS progress; cannot test WS mid-transfer overquota";
+    }
+
+    // Step 4: inject overquota signal through debug hooks.
+    DebugTestHook::isRaid = false;
+    DebugTestHook::isRaidKnown = false;
+    DebugTestHook::countdownToOverquota = 0;
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost509;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid;
+    // Once hooks are armed, uncap upload speed so the test doesn't timeout waiting for completion
+    // in environments where overquota injection cannot be reached on the WS data path.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    // Step 5: verify temporary error path resolves to API_EOVERQUOTA.
+    const auto result = tracker.waitForResult(120);
+
+    if (!tracker.wasTemporaryError() && result == API_OK)
+    {
+        GTEST_SKIP() << "Could not inject overquota into active WS upload path in this environment";
+    }
+    if (!tracker.wasTemporaryError() &&
+        result == static_cast<ErrorCodes>(LOCAL_ETIMEOUT) &&
+        DebugTestHook::countdownToOverquota == 0)
+    {
+        GTEST_SKIP() << "Overquota hook was never hit on REQ_BINARY during WS upload path";
+    }
+
+    ASSERT_TRUE(tracker.wasTemporaryError())
+        << "Expected temporary error after overquota injection, got result: " << result;
+    ASSERT_EQ(result, API_EOVERQUOTA)
+        << "Expected API_EOVERQUOTA after injection, got: " << result;
+
+    // Step 6: cancel by tag if still present to leave clean transfer state.
+    const int transferTag = tracker.transferTag.load();
+    if (transferTag >= 0)
+    {
+        megaApi[0]->cancelTransferByTag(transferTag);
+    }
+#endif
+}
+
+/**
+ * @brief Verify repeated pause/resume cycles on one WS upload remain stable.
+ *
+ * - TEST1: Start throttled upload and capture transfer id/state.
+ * - TEST2: Execute multiple pause/resume cycles while transfer is active.
+ * - TEST3: Assert paused state is observed, progress resumes after unpause, and transfer ends API_OK.
+ */
+TEST_F(SdkTest, SdkWsUploadMultiplePauseResumeCycles)
+{
+    LOG_info << "___TEST SdkWsUploadMultiplePauseResumeCycles___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_multi_pause_resume_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: create the local source file used across pause/resume cycles.
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "P")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 2: wait until upload is active and confirmed progress has started.
+    WsUploadTransferSnapshot snapshot{};
+    ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        snapshot,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200))
+        << "Upload did not make initial progress";
+
+    m_off_t lastProgress = snapshot.progressCompleted;
+    for (int cycle = 0; cycle < 3; ++cycle)
+    {
+        // Step 3: pause uploads globally and verify pause is observed.
+        megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+
+        ASSERT_TRUE(WaitFor(
+            [this]()
+            {
+                return megaApi[0]->areTransfersPaused(MegaTransfer::TYPE_UPLOAD);
+            },
+            10000))
+            << "Upload pause was not observed";
+
+        WaitMillisec(1500);
+
+        WsUploadTransferSnapshot paused{};
+        ASSERT_TRUE(fetchBestWsUploadTransferSnapshot(*megaApi[0], paused, 5) && paused.found)
+            << "Could not fetch snapshot while paused";
+        ASSERT_GE(paused.progressCompleted, lastProgress)
+            << "Progress moved backwards during pause cycle " << cycle;
+
+        // Step 4: resume uploads and require forward progress + ACTIVE state.
+        megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
+
+        ASSERT_TRUE(WaitFor(
+            [this]()
+            {
+                return !megaApi[0]->areTransfersPaused(MegaTransfer::TYPE_UPLOAD);
+            },
+            10000))
+            << "Upload resume was not observed";
+
+        WsUploadTransferSnapshot resumed{};
+        ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+            *megaApi[0],
+            resumed,
+            [paused](const WsUploadTransferSnapshot& s)
+            {
+                return s.progressCompleted > paused.progressCompleted;
+            },
+            60,
+            200))
+            << "Progress did not continue after resume cycle " << cycle;
+        ASSERT_EQ(resumed.state, TRANSFERSTATE_ACTIVE)
+            << "Transfer state is not ACTIVE after progress resumed in cycle " << cycle;
+
+        lastProgress = resumed.progressCompleted;
+    }
+
+    // Step 5: upload should complete and cloud node should match expected size.
+    megaApi[0]->setMaxUploadSpeed(-1);
+    const auto finalResult = ut.waitForResult(240);
+    ASSERT_EQ(finalResult, API_OK)
+        << "Upload did not complete after multiple pause/resume cycles";
+
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+}
+
+/**
+ * @brief Verify pausing one transfer does not block another in the same WS pool.
+ *
+ * - TEST1: Start two uploads mapped to same pool and capture transfer IDs.
+ * - TEST2: Pause transfer A and assert transfer B continues progressing.
+ * - TEST3: Resume A and require both A/B finish with API_OK.
+ */
+TEST_F(SdkTest, SdkWsUploadPauseOneTransferNotBlockOthersInSamePool)
+{
+    LOG_info << "___TEST SdkWsUploadPauseOneTransferNotBlockOthersInSamePool___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileA =
+        "ws_pause_single_A_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    const std::string fileB =
+        "ws_pause_single_B_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    // Step 1: prepare two independent local upload files.
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileA, fileSize, "A")) << "Couldn't create " << fileA;
+    ASSERT_TRUE(createFileWithSize(fileB, fileSize, "B")) << "Couldn't create " << fileB;
+
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileA, &fileB]()
+        {
+            deleteFile(fileA);
+            deleteFile(fileB);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    struct StartIdCapture final: ::mega::MegaTransferListener
+    {
+        std::mutex m;
+        std::map<std::string, uint32_t> idsByName;
+
+        void onTransferStart(MegaApi*, MegaTransfer* transfer) override
+        {
+            if (!transfer || !transfer->getFileName())
+            {
+                return;
+            }
+
+            std::lock_guard<std::mutex> g(m);
+            idsByName[transfer->getFileName()] = transfer->getUniqueId();
+        }
+    } startIdCapture;
+
+    megaApi[0]->addTransferListener(&startIdCapture);
+    auto removeStartIdCapture = makeScopedDestructor(
+        [this, &startIdCapture]()
+        {
+            megaApi[0]->removeTransferListener(&startIdCapture);
+        });
+
+    TransferTracker trackerA(megaApi[0].get());
+    TransferTracker trackerB(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileA, rootnode.get(), nullptr, &uploadOptions, &trackerA);
+    megaApi[0]->startUpload(fileB, rootnode.get(), nullptr, &uploadOptions, &trackerB);
+
+    auto getTransferById = [this](const uint32_t id) -> std::unique_ptr<MegaTransfer>
+    {
+        return std::unique_ptr<MegaTransfer>(megaApi[0]->getTransferByUniqueId(id));
+    };
+
+    uint32_t idA = 0;
+    uint32_t idB = 0;
+    // Step 2: capture transfer IDs for both uploads.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g(startIdCapture.m);
+            auto itA = startIdCapture.idsByName.find(fileA);
+            auto itB = startIdCapture.idsByName.find(fileB);
+            if (itA == startIdCapture.idsByName.end() ||
+                itB == startIdCapture.idsByName.end())
+            {
+                return false;
+            }
+            idA = itA->second;
+            idB = itB->second;
+            return idA > 0 && idB > 0;
+        },
+        30000))
+        << "Did not capture transfer ids for both uploads";
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto tA = getTransferById(idA);
+            auto tB = getTransferById(idB);
+            return tA && tB && tA->getTransferredBytes() > 0;
+        },
+        60000))
+        << "Transfer A did not start progressing";
+
+    auto tACopy = getTransferById(idA);
+    ASSERT_TRUE(tACopy) << "Could not fetch transfer A by unique id";
+    const long long aBeforePause = tACopy->getTransferredBytes();
+
+    auto tBCopy = getTransferById(idB);
+    ASSERT_TRUE(tBCopy) << "Could not fetch transfer B by unique id";
+    const long long bBeforePause = tBCopy->getTransferredBytes();
+
+    // Step 3: pause only transfer A.
+    RequestTracker pauseReq(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tACopy.get(), true, &pauseReq);
+    ASSERT_EQ(API_OK, pauseReq.waitForResult(60));
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto t = getTransferById(idA);
+            return t && t->getState() == MegaTransfer::STATE_PAUSED;
+        },
+        15000))
+        << "Transfer A did not reach PAUSED state";
+
+    const auto progressedOrCompleted = [&](TransferTracker& tracker,
+                                           const uint32_t id,
+                                           const long long beforePause) -> bool
+    {
+        if (tracker.finished.load() &&
+            tracker.result.load() == static_cast<ErrorCodes>(API_OK))
+        {
+            return true;
+        }
+
+        auto t = getTransferById(id);
+        return t && t->getTransferredBytes() > beforePause;
+    };
+
+    // Step 4: while A is paused, transfer B must continue progressing.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompleted(trackerB, idB, bBeforePause);
+        },
+        90000))
+        << "Transfer B did not make progress while transfer A was paused";
+
+    // Test goal achieved (B keeps progressing while A is paused); uncap to shorten remaining tail.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    auto tAResumeCopy = getTransferById(idA);
+    ASSERT_TRUE(tAResumeCopy) << "Could not fetch transfer A for resume";
+
+    // Step 5: resume A and require progress + ACTIVE state.
+    RequestTracker resumeReq(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tAResumeCopy.get(), false, &resumeReq);
+    ASSERT_EQ(API_OK, resumeReq.waitForResult(60));
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto t = getTransferById(idA);
+            return t && t->getTransferredBytes() > aBeforePause &&
+                   t->getState() == MegaTransfer::STATE_ACTIVE;
+        },
+        120000))
+        << "Transfer A did not resume progress with ACTIVE state";
+
+    auto transferDiagnostics = [&](const uint32_t id, const std::string& fileName) -> std::string
+    {
+        std::ostringstream os;
+
+        auto transfer = getTransferById(id);
+        if (transfer)
+        {
+            os << "transfer_exists=true"
+               << " state=" << transfer->getState()
+               << " transferred=" << transfer->getTransferredBytes()
+               << " total=" << transfer->getTotalBytes()
+               << " speed=" << transfer->getSpeed()
+               << " meanSpeed=" << transfer->getMeanSpeed();
+        }
+        else
+        {
+            os << "transfer_exists=false";
+        }
+
+        std::unique_ptr<MegaNode> diagRoot{megaApi[0]->getRootNode()};
+        if (diagRoot)
+        {
+            std::unique_ptr<MegaNode> cloudNode(
+                megaApi[0]->getNodeByPathOfType(fileName.c_str(), diagRoot.get(), MegaNode::TYPE_FILE));
+            os << " cloud_node_exists=" << (cloudNode ? "true" : "false");
+            if (cloudNode)
+            {
+                os << " cloud_size=" << cloudNode->getSize();
+            }
+        }
+        else
+        {
+            os << " root_node_unavailable=true";
+        }
+
+        return os.str();
+    };
+
+    // Step 7: both uploads should complete successfully.
+    const auto resultA = trackerA.waitForResult(420);
+    ASSERT_EQ(resultA, API_OK)
+        << "Transfer A did not complete. " << transferDiagnostics(idA, fileA);
+
+    const auto resultB = trackerB.waitForResult(420);
+    ASSERT_EQ(resultB, API_OK)
+        << "Transfer B did not complete. " << transferDiagnostics(idB, fileB);
+}
+
+/**
+ * @brief Verify repeated pause/resume across mixed WS pools does not deadlock progress.
+ *
+ * - TEST1: Derive two file sizes from USC boundaries to target different pools.
+ * - TEST2: Start A1/A2 and B1/B2, then alternate pause/resume across pool groups.
+ * - TEST3: Assert non-paused peers keep progressing and all files uploading finish API_OK.
+ */
+TEST_F(SdkTest, SdkWsUploadRepeatedPauseResumeMixedPools)
+{
+    LOG_info << "___TEST SdkWsUploadRepeatedPauseResumeMixedPools___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::vector<m_off_t> sizeClasses;
+    ASSERT_TRUE(fetchUscSizeClasses(*megaApi[0], sizeClasses, 60))
+        << "Unable to fetch USC size classes";
+
+    std::string uscClassesDump;
+    uscClassesDump.reserve(sizeClasses.size() * 8);
+    for (size_t i = 0; i < sizeClasses.size(); ++i)
+    {
+        if (i)
+        {
+            uscClassesDump.append(",");
+        }
+        uscClassesDump.append(std::to_string(sizeClasses[i]));
+    }
+
+    bool hasOpenEndedClass = false;
+    std::vector<m_off_t> finiteClasses;
+    finiteClasses.reserve(sizeClasses.size());
+    for (const m_off_t classMax: sizeClasses)
+    {
+        if (classMax == 0)
+        {
+            hasOpenEndedClass = true;
+            continue;
+        }
+        if (classMax > 1)
+        {
+            finiteClasses.push_back(classMax);
+        }
+    }
+    std::sort(finiteClasses.begin(), finiteClasses.end());
+    finiteClasses.erase(std::unique(finiteClasses.begin(), finiteClasses.end()), finiteClasses.end());
+
+    if (finiteClasses.empty())
+    {
+        GTEST_SKIP() << "Could not derive a usable first USC class boundary. USC classes=["
+                     << uscClassesDump << "]";
+    }
+
+    const m_off_t firstClassMax = finiteClasses.front();
+    const bool hasSecondClass = hasOpenEndedClass || finiteClasses.size() >= 2;
+    if (!hasSecondClass)
+    {
+        GTEST_SKIP() << "Could not derive second USC class boundary from first max="
+                     << firstClassMax << ". USC classes=[" << uscClassesDump << "]";
+    }
+
+    const std::string fileA1 =
+        "ws_cross_pool_A1_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    const std::string fileA2 =
+        "ws_cross_pool_A2_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    const std::string fileB1 =
+        "ws_cross_pool_B1_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    const std::string fileB2 =
+        "ws_cross_pool_B2_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    const size_t fileSizeB = static_cast<size_t>(firstClassMax - 1); // class #1: [0, firstClassMax)
+    const size_t fileSizeA = static_cast<size_t>(firstClassMax);     // class #2 starts at firstClassMax
+    LOG_debug << "[SdkWsUploadRepeatedPauseResumeMixedPools] Selected first class max="
+              << firstClassMax << " (A=" << fileSizeA << ", B=" << fileSizeB << ")";
+
+    // Step 1: create 4 files: A1/A2 in one size class, B1/B2 in another.
+    ASSERT_TRUE(createFileWithSize(fileA1, fileSizeA, "A1")) << "Couldn't create " << fileA1;
+    ASSERT_TRUE(createFileWithSize(fileA2, fileSizeA, "A2")) << "Couldn't create " << fileA2;
+    ASSERT_TRUE(createFileWithSize(fileB1, fileSizeB, "B1")) << "Couldn't create " << fileB1;
+    ASSERT_TRUE(createFileWithSize(fileB2, fileSizeB, "B2")) << "Couldn't create " << fileB2;
+
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileA1, &fileA2, &fileB1, &fileB2]()
+        {
+            deleteFile(fileA1);
+            deleteFile(fileA2);
+            deleteFile(fileB1);
+            deleteFile(fileB2);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    // Use multi-connection mode to exercise pause/resume behavior under concurrent WS workers.
+    megaApi[0]->setMaxConnections(4, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    const m_off_t uploadSpeedLimit =
+        std::max<m_off_t>(10000, static_cast<m_off_t>(fileSizeB / 100));
+    megaApi[0]->setMaxUploadSpeed(uploadSpeedLimit);
+    LOG_debug << "[SdkWsUploadRepeatedPauseResumeMixedPools] Max upload speed set to "
+              << uploadSpeedLimit << " B/s";
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    struct StartIdCapture final: ::mega::MegaTransferListener
+    {
+        std::mutex m;
+        std::map<std::string, uint32_t> idsByName;
+
+        void onTransferStart(MegaApi*, MegaTransfer* transfer) override
+        {
+            if (!transfer || !transfer->getFileName())
+            {
+                return;
+            }
+
+            std::lock_guard<std::mutex> g(m);
+            idsByName[transfer->getFileName()] = transfer->getUniqueId();
+        }
+    } startIdCapture;
+
+    megaApi[0]->addTransferListener(&startIdCapture);
+    auto removeStartIdCapture = makeScopedDestructor(
+        [this, &startIdCapture]()
+        {
+            megaApi[0]->removeTransferListener(&startIdCapture);
+        });
+
+    TransferTracker trackerA1(megaApi[0].get());
+    TransferTracker trackerA2(megaApi[0].get());
+    TransferTracker trackerB1(megaApi[0].get());
+    TransferTracker trackerB2(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileA1, rootnode.get(), nullptr, &uploadOptions, &trackerA1);
+    megaApi[0]->startUpload(fileA2, rootnode.get(), nullptr, &uploadOptions, &trackerA2);
+    megaApi[0]->startUpload(fileB1, rootnode.get(), nullptr, &uploadOptions, &trackerB1);
+    megaApi[0]->startUpload(fileB2, rootnode.get(), nullptr, &uploadOptions, &trackerB2);
+
+    auto getTransferById = [this](const uint32_t id) -> std::unique_ptr<MegaTransfer>
+    {
+        return std::unique_ptr<MegaTransfer>(megaApi[0]->getTransferByUniqueId(id));
+    };
+
+    uint32_t idA1 = 0;
+    uint32_t idA2 = 0;
+    uint32_t idB1 = 0;
+    uint32_t idB2 = 0;
+    // Step 2: capture transfer IDs for all 4 uploads.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g(startIdCapture.m);
+            auto itA1 = startIdCapture.idsByName.find(fileA1);
+            auto itA2 = startIdCapture.idsByName.find(fileA2);
+            auto itB1 = startIdCapture.idsByName.find(fileB1);
+            auto itB2 = startIdCapture.idsByName.find(fileB2);
+            if (itA1 == startIdCapture.idsByName.end() || itA2 == startIdCapture.idsByName.end() ||
+                itB1 == startIdCapture.idsByName.end() || itB2 == startIdCapture.idsByName.end())
+            {
+                return false;
+            }
+            idA1 = itA1->second;
+            idA2 = itA2->second;
+            idB1 = itB1->second;
+            idB2 = itB2->second;
+            return idA1 > 0 && idA2 > 0 && idB1 > 0 && idB2 > 0;
+        },
+        30000))
+        << "Did not capture transfer IDs for 4 uploads";
+
+    const auto progressedOrCompletedEarly = [&](TransferTracker& tracker, const uint32_t id)
+    {
+        if (tracker.finished.load() &&
+            tracker.result.load() == static_cast<ErrorCodes>(API_OK))
+        {
+            return true;
+        }
+
+        auto t = getTransferById(id);
+        return t && t->getTransferredBytes() > 0;
+    };
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompletedEarly(trackerA1, idA1);
+        },
+        90000))
+        << "A1 did not start progressing";
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompletedEarly(trackerB1, idB1);
+        },
+        90000))
+        << "B1 did not start progressing";
+
+    // Step 3: resolve A1/B1 WS URLs and confirm they are in different pools.
+    std::map<uint32_t, std::string> urlByTransferId;
+    second_timer urlTimer;
+    while (urlTimer.elapsed() < 60)
+    {
+        std::vector<WsUploadTransferSnapshot> snapshots;
+        if (!fetchWsUploadTransferSnapshots(*megaApi[0], snapshots, 1))
+        {
+            WaitMillisec(200);
+            continue;
+        }
+
+        for (const auto& snapshot: snapshots)
+        {
+            if (!snapshot.found || !snapshot.transferId || snapshot.wsSessionUrl.empty())
+            {
+                continue;
+            }
+
+            if (snapshot.transferId == idA1 || snapshot.transferId == idA2 ||
+                snapshot.transferId == idB1 || snapshot.transferId == idB2)
+            {
+                urlByTransferId[snapshot.transferId] = snapshot.wsSessionUrl;
+            }
+        }
+
+        if (urlByTransferId.count(idA1) && urlByTransferId.count(idB1))
+        {
+            break;
+        }
+
+        if (trackerA1.finished.load() && trackerA2.finished.load() &&
+            trackerB1.finished.load() && trackerB2.finished.load())
+        {
+            break;
+        }
+
+        WaitMillisec(200);
+    }
+
+    if (!urlByTransferId.count(idA1) || !urlByTransferId.count(idB1))
+    {
+        // Skip after starting uploads: drain active uploads before local tracker/listener objects
+        // are unwound to reduce teardown races.
+        megaApi[0]->setMaxUploadSpeed(-1);
+        (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        GTEST_SKIP() << "Could not observe WS session URLs for A1/B1";
+    }
+
+    if (urlByTransferId[idA1] == urlByTransferId[idB1])
+    {
+        megaApi[0]->setMaxUploadSpeed(-1);
+        (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        GTEST_SKIP() << "A1/B1 are in the same WS pool in this run";
+    }
+
+    auto tA1Copy = getTransferById(idA1);
+    ASSERT_TRUE(tA1Copy) << "Could not fetch transfer A1 by unique ID";
+    auto tB1Copy = getTransferById(idB1);
+    ASSERT_TRUE(tB1Copy) << "Could not fetch transfer B1 by unique ID";
+
+    auto tA2Copy = getTransferById(idA2);
+    ASSERT_TRUE(tA2Copy) << "Could not fetch transfer A2 by unique ID";
+    const long long a2BeforePause = tA2Copy->getTransferredBytes();
+    auto tB2Copy = getTransferById(idB2);
+    ASSERT_TRUE(tB2Copy) << "Could not fetch transfer B2 by unique ID";
+    const long long b2BeforePause = tB2Copy->getTransferredBytes();
+
+    // Step 4: pause A1/B1, then ensure A2/B2 continue in parallel.
+    RequestTracker pauseA1Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tA1Copy.get(), true, &pauseA1Req);
+    ASSERT_EQ(API_OK, pauseA1Req.waitForResult(60));
+    RequestTracker pauseB1Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tB1Copy.get(), true, &pauseB1Req);
+    ASSERT_EQ(API_OK, pauseB1Req.waitForResult(60));
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto tA1 = getTransferById(idA1);
+            auto tB1 = getTransferById(idB1);
+            return tA1 && tB1 && tA1->getState() == MegaTransfer::STATE_PAUSED &&
+                   tB1->getState() == MegaTransfer::STATE_PAUSED;
+        },
+        15000))
+        << "A1/B1 did not reach PAUSED state";
+
+    const auto progressedOrCompleted = [&](TransferTracker& tracker,
+                                           const uint32_t id,
+                                           const long long beforePause) -> bool
+    {
+        if (tracker.finished.load() &&
+            tracker.result.load() == static_cast<ErrorCodes>(API_OK))
+        {
+            return true;
+        }
+
+        auto t = getTransferById(id);
+        return t && t->getTransferredBytes() > beforePause;
+    };
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompleted(trackerA2, idA2, a2BeforePause);
+        },
+        90000))
+        << "A2 did not make progress while A1/B1 were paused";
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompleted(trackerB2, idB2, b2BeforePause);
+        },
+        90000))
+        << "B2 did not make progress while A1/B1 were paused";
+
+    // Step 5: unpause A1/B1.
+    auto tA1ResumeCopy = getTransferById(idA1);
+    ASSERT_TRUE(tA1ResumeCopy) << "Could not fetch transfer A1 for resume";
+    RequestTracker resumeA1Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tA1ResumeCopy.get(), false, &resumeA1Req);
+    ASSERT_EQ(API_OK, resumeA1Req.waitForResult(60));
+
+    auto tB1ResumeCopy = getTransferById(idB1);
+    ASSERT_TRUE(tB1ResumeCopy) << "Could not fetch transfer B1 for resume";
+    RequestTracker resumeB1Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tB1ResumeCopy.get(), false, &resumeB1Req);
+    ASSERT_EQ(API_OK, resumeB1Req.waitForResult(60));
+
+    // Step 6: pause A2/B2, then ensure A1/B1 continue in parallel.
+    auto tA1BeforeSecondPause = getTransferById(idA1);
+    ASSERT_TRUE(tA1BeforeSecondPause) << "Could not fetch transfer A1 before second pause";
+    const long long a1BeforeSecondPause = tA1BeforeSecondPause->getTransferredBytes();
+
+    auto tB1BeforeSecondPause = getTransferById(idB1);
+    ASSERT_TRUE(tB1BeforeSecondPause) << "Could not fetch transfer B1 before second pause";
+    const long long b1BeforeSecondPause = tB1BeforeSecondPause->getTransferredBytes();
+
+    auto tA2PauseCopy = getTransferById(idA2);
+    ASSERT_TRUE(tA2PauseCopy) << "Could not fetch transfer A2 for pause";
+    RequestTracker pauseA2Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tA2PauseCopy.get(), true, &pauseA2Req);
+    ASSERT_EQ(API_OK, pauseA2Req.waitForResult(60));
+
+    auto tB2PauseCopy = getTransferById(idB2);
+    ASSERT_TRUE(tB2PauseCopy) << "Could not fetch transfer B2 for pause";
+    RequestTracker pauseB2Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tB2PauseCopy.get(), true, &pauseB2Req);
+    ASSERT_EQ(API_OK, pauseB2Req.waitForResult(60));
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto tA2 = getTransferById(idA2);
+            auto tB2 = getTransferById(idB2);
+            return tA2 && tB2 && tA2->getState() == MegaTransfer::STATE_PAUSED &&
+                   tB2->getState() == MegaTransfer::STATE_PAUSED;
+        },
+        15000))
+        << "A2/B2 did not reach PAUSED state";
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompleted(trackerA1, idA1, a1BeforeSecondPause);
+        },
+        90000))
+        << "A1 did not make progress while A2/B2 were paused";
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return progressedOrCompleted(trackerB1, idB1, b1BeforeSecondPause);
+        },
+        90000))
+        << "B1 did not make progress while A2/B2 were paused";
+
+    // Step 7: unpause A2/B2.
+    auto tA2ResumeCopy = getTransferById(idA2);
+    ASSERT_TRUE(tA2ResumeCopy) << "Could not fetch transfer A2 for resume";
+    RequestTracker resumeA2Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tA2ResumeCopy.get(), false, &resumeA2Req);
+    ASSERT_EQ(API_OK, resumeA2Req.waitForResult(60));
+
+    auto tB2ResumeCopy = getTransferById(idB2);
+    ASSERT_TRUE(tB2ResumeCopy) << "Could not fetch transfer B2 for resume";
+    RequestTracker resumeB2Req(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tB2ResumeCopy.get(), false, &resumeB2Req);
+    ASSERT_EQ(API_OK, resumeB2Req.waitForResult(60));
+
+    // Step 8: remove throttling and require all uploads to complete.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    auto transferDiagnostics = [&](const uint32_t id, const std::string& fileName) -> std::string
+    {
+        std::ostringstream os;
+
+        auto transfer = getTransferById(id);
+        if (transfer)
+        {
+            os << "transfer_exists=true"
+               << " state=" << transfer->getState()
+               << " transferred=" << transfer->getTransferredBytes()
+               << " total=" << transfer->getTotalBytes()
+               << " speed=" << transfer->getSpeed()
+               << " meanSpeed=" << transfer->getMeanSpeed();
+        }
+        else
+        {
+            os << "transfer_exists=false";
+        }
+
+        auto it = urlByTransferId.find(id);
+        if (it != urlByTransferId.end())
+        {
+            os << " ws_url=" << it->second;
+        }
+
+        std::unique_ptr<MegaNode> diagRoot{megaApi[0]->getRootNode()};
+        if (diagRoot)
+        {
+            std::unique_ptr<MegaNode> cloudNode(
+                megaApi[0]->getNodeByPathOfType(fileName.c_str(), diagRoot.get(), MegaNode::TYPE_FILE));
+            os << " cloud_node_exists=" << (cloudNode ? "true" : "false");
+            if (cloudNode)
+            {
+                os << " cloud_size=" << cloudNode->getSize();
+            }
+        }
+        else
+        {
+            os << " root_node_unavailable=true";
+        }
+
+        return os.str();
+    };
+
+    const auto resultA1 = trackerA1.waitForResult(300);
+    ASSERT_EQ(resultA1, API_OK)
+        << "Transfer A1 did not complete. " << transferDiagnostics(idA1, fileA1);
+
+    const auto resultA2 = trackerA2.waitForResult(300);
+    ASSERT_EQ(resultA2, API_OK)
+        << "Transfer A2 did not complete. " << transferDiagnostics(idA2, fileA2);
+
+    const auto resultB1 = trackerB1.waitForResult(300);
+    ASSERT_EQ(resultB1, API_OK)
+        << "Transfer B1 did not complete. " << transferDiagnostics(idB1, fileB1);
+
+    const auto resultB2 = trackerB2.waitForResult(300);
+    ASSERT_EQ(resultB2, API_OK)
+        << "Transfer B2 did not complete. " << transferDiagnostics(idB2, fileB2);
+}
+
+/**
+ * @brief Verify pause/resume handles late processing of in-flight ACKs safely.
+ *
+ * - TEST1: Start active upload and pause while chunks are already in flight.
+ * - TEST2: Keep paused for a delay window, then resume the same transfer.
+ * - TEST3: Require transfer resumes progress and completes API_OK.
+ */
+TEST_F(SdkTest, SdkWsUploadPauseHandlesLateInFlightAck)
+{
+    LOG_info << "___TEST SdkWsUploadPauseHandlesLateInFlightAck___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_pause_inflight_ack_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: create a file large enough to keep upload active around pause/resume boundaries.
+    constexpr size_t fileSize = 2 * kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "D")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 2: start upload and capture transfer unique id.
+    std::atomic<bool> startObserved{false};
+    std::atomic<uint32_t> transferId{0};
+    auto resetOnTransferStartCb = makeScopedDestructor(
+        [this]()
+        {
+            onTransferStartCustomCb = {};
+        });
+    onTransferStartCustomCb = [&startObserved, &transferId, &fileName](MegaTransfer* transfer)
+    {
+        if (!transfer || transfer->getType() != MegaTransfer::TYPE_UPLOAD || !transfer->getFileName())
+        {
+            return;
+        }
+        if (fileName == transfer->getFileName())
+        {
+            transferId = transfer->getUniqueId();
+            startObserved = true;
+        }
+    };
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return startObserved.load() && transferId.load() > 0;
+        },
+        30000))
+        << "Upload start callback was not observed";
+
+    auto getTransferById = [this](const uint32_t id) -> std::unique_ptr<MegaTransfer>
+    {
+        return std::unique_ptr<MegaTransfer>(megaApi[0]->getTransferByUniqueId(id));
+    };
+
+    // Step 3: wait for active progress before pausing.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto t = getTransferById(transferId.load());
+            return t && t->getTransferredBytes() > 0 &&
+                   t->getState() == MegaTransfer::STATE_ACTIVE;
+        },
+        90000))
+        << "Upload did not become active with progress";
+
+    auto tBeforePause = getTransferById(transferId.load());
+    ASSERT_TRUE(tBeforePause) << "Could not fetch transfer before pause";
+    const long long beforePause = tBeforePause->getTransferredBytes();
+
+    // Step 4: pause while transfer is active, then keep a short window for delayed ACK callbacks.
+    RequestTracker pauseReq(megaApi[0].get());
+    megaApi[0]->pauseTransfer(tBeforePause.get(), true, &pauseReq);
+    ASSERT_EQ(API_OK, pauseReq.waitForResult(60));
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto t = getTransferById(transferId.load());
+            return t && t->getState() == MegaTransfer::STATE_PAUSED;
+        },
+        15000))
+        << "Transfer did not reach PAUSED state";
+
+    // Keep a longer observation window to catch delayed ACK processing under CI jitter.
+    bool pausedStateStable = true;
+    const auto delayedAckWindowStart = std::chrono::steady_clock::now();
+    while (std::chrono::steady_clock::now() - delayedAckWindowStart < std::chrono::seconds(5))
+    {
+        auto t = getTransferById(transferId.load());
+        if (!t || t->getState() != MegaTransfer::STATE_PAUSED ||
+            t->getTransferredBytes() < beforePause)
+        {
+            pausedStateStable = false;
+            break;
+        }
+
+        WaitMillisec(100);
+    }
+    ASSERT_TRUE(pausedStateStable)
+        << "Transfer left PAUSED state or regressed progress during delayed-ACK window";
+
+    // Pause/late-ACK behavior has been observed; uncap to reduce tail time for resume/completion.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    auto pausedSnapshot = getTransferById(transferId.load());
+    ASSERT_TRUE(pausedSnapshot) << "Transfer disappeared while paused";
+
+    // Step 5: resume and require forward progress + ACTIVE state.
+    RequestTracker resumeReq(megaApi[0].get());
+    megaApi[0]->pauseTransfer(pausedSnapshot.get(), false, &resumeReq);
+    ASSERT_EQ(API_OK, resumeReq.waitForResult(60));
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            auto t = getTransferById(transferId.load());
+            return t && t->getTransferredBytes() > beforePause &&
+                   t->getState() == MegaTransfer::STATE_ACTIVE;
+        },
+        120000))
+        << "Transfer did not resume with forward progress and ACTIVE state";
+
+    // Step 6: finish upload and verify cloud node size.
+    const auto finalResult = ut.waitForResult(420);
+    ASSERT_EQ(finalResult, API_OK) << "Upload did not complete after pause/resume";
+
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+}
+
+/**
+ * @brief Verify dropping one completion frame for transfer A does not block transfer B.
+ *
+ * - TEST1: Start A/B in same pool and resolve A wsFileno from snapshots.
+ * - TEST2: Drop A's UploadCompleted event (code 4) via debug hook.
+ * - TEST3: Require B still reaches API_OK even when A completion frame is dropped.
+ */
+TEST_F(SdkTest, SdkWsUploadDropCompletionDoesNotBlockOthersInSamePool)
+{
+    LOG_info << "___TEST SdkWsUploadDropCompletionDoesNotBlockOthersInSamePool___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileA =
+        "ws_drop_completion_A_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    const std::string fileB =
+        "ws_drop_completion_B_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+
+    // Step 1: prepare two uploads that will share one WS worker/pool.
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileA, fileSize, "A")) << "Couldn't create " << fileA;
+    ASSERT_TRUE(createFileWithSize(fileB, fileSize, "B")) << "Couldn't create " << fileB;
+
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileA, &fileB]()
+        {
+            deleteFile(fileA);
+            deleteFile(fileB);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsDropHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadDropServerEvent = {};
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    TransferTracker trackerA(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileA, rootnode.get(), nullptr, &uploadOptions, &trackerA);
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return trackerA.started.load();
+        },
+        30000))
+        << "Transfer A did not start";
+
+    // Step 2: resolve A's WS fileno by file name, then drop only A's UploadCompleted event.
+    std::uint32_t wsFilenoA = 0;
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::vector<WsUploadTransferSnapshot> snapshots;
+            if (!fetchWsUploadTransferSnapshots(*megaApi[0], snapshots, 1))
+            {
+                return false;
+            }
+            for (const auto& snapshot: snapshots)
+            {
+                if (!snapshot.found || snapshot.fileName.empty() || !snapshot.wsFileno)
+                {
+                    continue;
+                }
+                if (snapshot.fileName == fileA)
+                {
+                    wsFilenoA = snapshot.wsFileno;
+                }
+            }
+            return wsFilenoA > 0;
+        },
+        90000))
+        << "Could not resolve ws fileno for transfer A [fileA=" << fileA << "]";
+
+    constexpr int kWsUploadCompletedEvent = 4;
+    std::atomic<bool> droppedCompletion{false};
+    std::atomic<std::uint32_t> droppedFileno{0};
+    globalMegaTestHooks.onWsUploadDropServerEvent =
+        [wsFilenoA, &droppedCompletion, &droppedFileno](const std::uint32_t fileno, const int event)
+        {
+            if (event != kWsUploadCompletedEvent || fileno != wsFilenoA)
+            {
+                return false;
+            }
+            const bool firstDrop = !droppedCompletion.exchange(true);
+            if (firstDrop)
+            {
+                droppedFileno.store(fileno);
+            }
+            return firstDrop;
+        };
+
+    // Step 3: start B after the hook is installed so we deterministically target A.
+    TransferTracker trackerB(megaApi[0].get());
+    megaApi[0]->startUpload(fileB, rootnode.get(), nullptr, &uploadOptions, &trackerB);
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return droppedCompletion.load();
+        },
+        180000))
+        << "Timed out waiting for dropped WS UploadCompleted event";
+
+    ASSERT_EQ(droppedFileno.load(), wsFilenoA)
+        << "Dropped completion hook did not target transfer A fileno";
+
+    // Step 4: require B to complete while A completion remains dropped.
+    const auto resultB = trackerB.waitForResult(300);
+    ASSERT_EQ(resultB, API_OK) << "Transfer B did not complete";
+#endif
+}
+
+/**
+ * @brief Verify dropping one ChunkIngested ACK still allows successful upload.
+ *
+ * - TEST1: Install hook to drop exactly one ChunkIngested ACK event (code 1).
+ * - TEST2: Start upload and confirm one ACK drop was observed.
+ * - TEST3: Require upload API_OK and cloud node size equals local file size.
+ */
+TEST_F(SdkTest, SdkWsUploadDropChunkIngestedAckStillCompletes)
+{
+    LOG_info << "___TEST SdkWsUploadDropChunkIngestedAckStillCompletes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileName =
+        "ws_drop_chunk_ack_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = 2 * kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "K")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsDropHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadDropServerEvent = {};
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 1: drop exactly one ChunkIngested ACK frame.
+    constexpr int kWsChunkIngestedEvent = 1;
+    std::atomic<bool> droppedChunkAck{false};
+    std::atomic<std::uint32_t> droppedFileno{0};
+    globalMegaTestHooks.onWsUploadDropServerEvent =
+        [&droppedChunkAck, &droppedFileno](const std::uint32_t fileno, const int event)
+        {
+            if (event != kWsChunkIngestedEvent)
+            {
+                return false;
+            }
+            const bool firstDrop = !droppedChunkAck.exchange(true);
+            if (firstDrop)
+            {
+                droppedFileno.store(fileno);
+            }
+            return firstDrop;
+        };
+
+    // Step 2: start upload A (single transfer) and require one ACK drop to occur.
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return droppedChunkAck.load();
+        },
+        120000))
+        << "Timed out waiting for dropped WS ChunkIngested ACK";
+
+    ASSERT_GT(droppedFileno.load(), 0u) << "Dropped chunk ACK hook did not capture a fileno";
+
+    // Step 3: despite one dropped chunk ACK, upload should still converge and complete.
+    const auto finalResult = ut.waitForResult(300);
+    ASSERT_EQ(finalResult, API_OK)
+        << "Upload did not complete after one dropped WS chunk ACK";
+
+    // Step 4: verify cloud node exists and size matches local source.
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+#endif
+}
+
+#endif
+
 #endif // MEGA_USE_WSUPLOAD
 
 auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)

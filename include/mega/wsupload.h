@@ -95,6 +95,9 @@ public:
 
     // Bring engine online (spawns manager thread).
     void start();
+    // Shutdown engine: stop scheduling new WS work and request worker threads to exit.
+    void stop();
+    bool isStopping() const;
 
     // Mirror TransferList semantics (PUT only):
     void enqueue(Transfer& t); // addtransfer()

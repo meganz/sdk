@@ -182,6 +182,8 @@ struct MEGA_API Transfer : public FileFingerprint
     // has detached this transfer and live WS stats are no longer queryable.
     m_off_t ws_latched_speed = 0;
     m_off_t ws_latched_mean_speed = 0;
+    m_off_t ws_latched_avg_latency_ms = 0;
+    double ws_latched_failed_request_ratio = 0.0;
 
     // WebSocket composition (PUT only)
     // (No ownership cycles: engine keeps no owning ptrs to Transfer)

@@ -241,13 +241,17 @@ bool Transfer::serialize(string *d) const
     d->append((const char*)&priority, sizeof(priority));
 
     CacheableWriter cw(*d);
-    // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
+    // version. Originally, 0.
+    // Version 1 adds expansion flags, which then work in the usual way
     // Version 2 adds extra optional fields for WS resume states
     cw.serializeu8(2);
 
-    // 8 expansion flags, in the normal manner. First flag is for whether downloadFileHandle is
-    // present. Second flag is for amount of discarded temp URLs. Third Flag is for marking if
-    // localfilename is serialized as LocalPath
+    // 8 expansion flags, in the normal manner. 
+    // First flag is for whether downloadFileHandle is present.
+    // Second flag is for amount of discarded temp URLs.
+    // Third Flag is for marking if localfilename is serialized as LocalPath
+    // Fourth flag indicates whether ws_fileno is present for WS uploading.
+    // Fifth flag indicates whether ws_session_url is present for WS uploading.
     cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1,
                                1,
                                1,
@@ -3153,8 +3157,13 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
             if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
             {
                 client->wsEngine()->unpause(*transfer);
-                // ToDo: check where the transfer-state moves to TRANSFERSTATE_ACTIVE and should
-                // really be unpaused
+                // WS uploads may continue on the same pool/file without a new onStart callback.
+                // If upload traffic has already resumed, reflect that immediately in transfer state.
+                // onProgress() also has a guarded QUEUED->ACTIVE fallback for delayed state convergence.
+                if (client->wsEngine()->isUploading(*transfer))
+                {
+                    transfer->state = TRANSFERSTATE_ACTIVE;
+                }
             }
 #endif
         }

@@ -27,12 +27,12 @@
 #include "mega/filesystem.h"
 #include "mega/http.h"
 #include "mega/logging.h"
+#include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/testhooks.h"
 #include "mega/transfer.h"
 #include "mega/types.h"
 #include "mega/utils.h"
-#include "meganet.h"
 
 // Phase 1: keep prototype's WS + threads. Phase 3: move into CurlHttpIO reactor.
 #include <curl/curl.h>
@@ -157,6 +157,14 @@ struct ChunkMap
 };
 
 static ChunkMap g_chunkMap;
+
+#ifndef NDEBUG
+// Free function wrapper so unit tests can link against it via extern declaration.
+int chunkSizeAtPosition(m_off_t pos)
+{
+    return g_chunkMap.chunksize(pos);
+}
+#endif
 
 // ---------- forward decls ----------
 struct WsPool;
@@ -461,6 +469,11 @@ public:
         return mEofSet;
     }
 
+    bool hasPendingBytesOrEofToSend() const noexcept
+    {
+        return headPos() < size() || !eofSet();
+    }
+
     void markEOF() noexcept
     {
         mEofSet = true;
@@ -716,7 +729,6 @@ private:
     void resetAttemptState()
     {
         // Per-attempt counters/state. When we fail and retry we restart the upload from scratch
-        // (matching the legacy HTTP upload behaviour).
         mHeadPos = 0;
         mBytesConfirmed = 0;
         mAttemptBaseConfirmed = 0;
@@ -1032,12 +1044,14 @@ struct WsPool
     bool freshAndSameHostMaxSize(const std::pair<std::string, m_off_t>& urlMaxSize,
                                  const dstime oldestvalid)
     {
+        constexpr std::size_t wsHostPrefixLength = sizeof("wss://") - 1;
+
         if (SteadyTime::difference(mPoolCreationTime, oldestvalid) < 0)
             return false;
         if (mMaxFileSize != urlMaxSize.second)
             return false;
 
-        for (std::size_t i = 6; i < urlMaxSize.first.size() && i < mUrl.size(); ++i)
+        for (std::size_t i = wsHostPrefixLength; i < urlMaxSize.first.size() && i < mUrl.size(); ++i)
         {
             if (mUrl[i] != urlMaxSize.first[i])
                 return false;
@@ -1069,6 +1083,7 @@ struct WsPool
     bool nextChunk(WsChunk& chunk, class UploadEngine::Impl& impl, dstime* retryAfterDs = nullptr);
     void retryChunkLocked(const WsChunk& chunk);
     void retryChunk(const WsChunk& chunk);
+    WsUploadFile* handshakeFailureCandidateLocked(dstime now) const;
 
     void retryChunksOnTheWire(WsConn* ws);
 
@@ -1097,6 +1112,12 @@ inline void WsUploadFile::unsetPool()
 inline void WsUploadFile::setPool(WsPool& p)
 {
     LOG_debug << "[WsUploadFile::setPool] p=" << (void*)&p << " [this = " << this << "]";
+    if (mPool == &p)
+    {
+        // Idempotent rebind to the same pool (eg, resume path re-selects current pool).
+        return;
+    }
+    // Cross-pool rebind is not allowed. Callers must detach first via unsetPool().
     assert(!mPool);
     mPool = &p;
     assert(mPool);
@@ -1373,22 +1394,7 @@ public:
     ~Impl()
     {
         LOG_debug << "[UploadEngine::Impl::~Impl] BEGIN";
-        {
-            // Stop everything under the same mutex the workers use
-            std::lock_guard<std::mutex> g(uploadMutex);
-            paused = true;
-            uploadThreadRunning = false; // lets run() break out
-
-            // Ask pool worker threads to exit promptly
-            for (auto& p: poolMgr.mPools)
-            {
-                p->mNumberOfConnections = 0; // avoids new workers
-                for (auto& th: p->mActiveThreads)
-                    th->terminate = true;
-                for (auto& th: p->mExitingThreads)
-                    th->terminate = true;
-            }
-        }
+        stop();
 
         // Manager thread may be waiting up to 500ms in curl_multi_poll; then it exits.
         if (uploadThread.joinable())
@@ -1412,6 +1418,31 @@ public:
         }
 
         LOG_debug << "[UploadEngine::Impl::~Impl] END";
+    }
+
+    void stop()
+    {
+        mStopping.store(true, std::memory_order_release);
+
+        // Stop everything under the same mutex the workers use.
+        std::lock_guard<std::mutex> g(uploadMutex);
+        paused = true;
+        uploadThreadRunning = false; // lets run() break out
+
+        // Ask pool worker threads to exit promptly.
+        for (auto& p: poolMgr.mPools)
+        {
+            p->mNumberOfConnections = 0; // avoids new workers
+            for (auto& th: p->mActiveThreads)
+                th->terminate = true;
+            for (auto& th: p->mExitingThreads)
+                th->terminate = true;
+        }
+    }
+
+    bool stopping() const
+    {
+        return mStopping.load(std::memory_order_acquire);
     }
 
     // Queue mirrors TransferList ordering and priority.
@@ -1695,7 +1726,7 @@ public:
 
     void invalidatePinnedSessionUrl(const std::string& url)
     {
-        if (url.empty())
+        if (url.empty() || stopping())
         {
             return;
         }
@@ -1806,6 +1837,7 @@ public:
         if (uploadThread.joinable())
             return;
 
+        mStopping.store(false, std::memory_order_release);
         poolMgr.mImpl = this;
         poolMgr.refreshPools();
 
@@ -1938,7 +1970,8 @@ public:
     // Called by pools to pick next file that matches [min,max)
     WsUploadFile* nextEligible(const m_off_t min,
                                const m_off_t max,
-                               const std::string* requiredSessionUrl)
+                               const std::string* requiredSessionUrl,
+                               const WsPool* requestingPool)
     {
         LOG_debug << "[UploadEngine::Impl::nextEligible] BEGIN [fileList.size=" << fileList.size()
                   << "] [this = " << this << "]";
@@ -1956,9 +1989,11 @@ public:
                 continue;
             }
 
-            if (!f->hasPool() && !f->paused() && f->continuingUpload(currentTime))
+            const bool poolEligible = !f->hasPool() || f->mPool == requestingPool;
+            if (poolEligible && !f->paused() && f->continuingUpload(currentTime) &&
+                f->hasPendingBytesOrEofToSend())
             {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] !f->hasPool() && "
+                LOG_debug << "[UploadEngine::Impl::nextEligible] poolEligible && "
                              "!f->paused() && f->continuingUpload -> process file"
                           << " [this = " << this << "]";
                 const auto& hint = f->sessionUrlHint();
@@ -2004,9 +2039,10 @@ public:
             }
             else
             {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] f->hasPool() || "
+                LOG_debug << "[UploadEngine::Impl::nextEligible] !poolEligible || "
                              "f->paused() || "
-                             "!f->continuingUpload -> continue [this = "
+                             "!f->continuingUpload -> continue || "
+                             "! f->hasPendingBytesOrEofToSend() [this = "
                           << this << "]";
             }
         }
@@ -2059,6 +2095,7 @@ public:
     std::thread uploadThread;
     std::atomic<bool> uploadThreadRunning{false};
     std::atomic<std::uint64_t> disconnectEpoch{0};
+    std::atomic<bool> mStopping{false};
 
     dstime currentTime{0};
     std::atomic<std::uint32_t> nextFileNo{1};
@@ -2220,6 +2257,11 @@ failed, return false [curl=" << (void*)curl << "] [this = " << this << "]"; retu
 bool WsConn::connectWS()
 {
     LOG_debug << "[WsConn::connectWS] BEGIN [this = " << this << "]";
+    if (mPool->mImpl->stopping())
+    {
+        readyState = ReadyState::CLOSED;
+        return false;
+    }
     if (curl)
     {
         LOG_debug << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
@@ -2232,7 +2274,7 @@ bool WsConn::connectWS()
     {
         std::mutex m;
         std::condition_variable cv;
-        CURL* easy = nullptr;
+        std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> easy{nullptr, &curl_easy_cleanup};
         bool done = false;
     };
 
@@ -2246,35 +2288,43 @@ bool WsConn::connectWS()
         {
             LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] BEGIN [this = " << self
                       << "]";
-            auto* cio = dynamic_cast<CurlHttpIO*>(client.httpio);
+            if (auto* engine = client.wsEngine(); !engine || engine->isStopping())
+            {
+                std::lock_guard<std::mutex> g(baton->m);
+                baton->easy.reset();
+                baton->done = true;
+                baton->cv.notify_one();
+                return;
+            }
             std::string err;
-            CURL* e = cio ? cio->wsHandshake(url, /*timeoutMs*/ 15000, &err) : nullptr;
+            CURL* e = static_cast<CURL*>(
+                client.wsHandshakeForUpload(url, /*timeoutMs*/ 15000, &err));
 
             {
                 std::lock_guard<std::mutex> g(baton->m);
-                baton->easy = e;
+                baton->easy.reset(e);
                 baton->done = true;
-                if (cio)
+                if (e)
                 {
                     if (!err.empty())
                     {
                         LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                     "cio->wsHandshake failed, err="
-                                  << err << ", set baton.easy=" << (void*)e << " [this = " << self
+                                     "wsHandshakeForUpload failed, err="
+                                  << err << ", set baton.easy=" << (void*)baton->easy.get()
+                                  << " [this = " << self
                                   << "]";
                     }
                     else
                     {
                         LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                     "cio->wsHandshake success, set baton.easy="
-                                  << (void*)e << " [this = " << self << "]";
+                                     "wsHandshakeForUpload success, set baton.easy="
+                                  << (void*)baton->easy.get() << " [this = " << self << "]";
                     }
                 }
                 else
                 {
                     LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                 "dynamic_cast<CurlHttpIO*>(client.httpio) "
-                                 "failed, set baton.easy=nullptr [this = "
+                                 "wsHandshakeForUpload returned nullptr, set baton.easy=nullptr [this = "
                               << self << "]";
                 }
             }
@@ -2283,20 +2333,33 @@ bool WsConn::connectWS()
                       << "]";
         });
 
-    // Wait here on the worker thread
+    // Wait here on the worker thread until one of the following happens:
+    //  1) handshake completes (success or failure including handshake timeout);
+    //  2) WS engine stop is requested (stopping());
+    //  3) local 20s watchdog deadline is reached.
     std::unique_lock<std::mutex> lk(baton->m);
-    if (!baton->cv.wait_for(lk,
-                            std::chrono::seconds(20),
-                            [&]
-                            {
-                                return baton->done;
-                            }))
+    const auto waitDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+    while (!baton->done)
     {
-        LOG_debug << "[WsConn::connectWS] !baton.cv.wait_for -> readyState=CLOSED and return false "
-                     "[this = "
-                  << this << "]";
-        readyState = ReadyState::CLOSED;
-        return false;
+        if (mPool->mImpl->stopping())
+        {
+            readyState = ReadyState::CLOSED;
+            return false;
+        }
+
+        if (std::chrono::steady_clock::now() >= waitDeadline)
+        {
+            LOG_debug << "[WsConn::connectWS] handshake baton timed out -> readyState=CLOSED and "
+                         "return false [this = "
+                      << this << "]";
+            readyState = ReadyState::CLOSED;
+            return false;
+        }
+
+        baton->cv.wait_for(lk, std::chrono::milliseconds(200), [&]
+                           {
+                               return baton->done;
+                           });
     }
 
     if (!baton->easy)
@@ -2308,7 +2371,7 @@ bool WsConn::connectWS()
         return false;
     }
 
-    curl = baton->easy; // worker thread exclusively owns the handle now
+    curl = baton->easy.release(); // worker thread exclusively owns the handle now
     readyState = ReadyState::OPEN;
     onopen(); // your existing callback
     LOG_debug << "[WsConn::connectWS] END -> success, return true [this = " << this << "]";
@@ -2462,6 +2525,19 @@ struct ChunkResponse
         LOG_debug << "[WsConn::onmessage] !uf -> return [this = " << this << "]";
         return; // file cancelled or moved
     }
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    bool dropServerEvent = false;
+    DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(response->fileno,
+                                               static_cast<int>(event),
+                                               dropServerEvent);
+    if (dropServerEvent)
+    {
+        LOG_warn << "WsUpload: debug hook dropped server event=" << static_cast<int>(event)
+                 << " fileno=" << response->fileno;
+        return;
+    }
+#endif
 
     if (event < WsApiServerEvent::UploadCompleted || event == WsApiServerEvent::FinalDataIngested)
     {
@@ -2783,7 +2859,7 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
 bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
 {
     if (mUploadingFile && !mUploadingFile->paused() && mUploadingFile->continuingUpload(now) &&
-        mUFTQversion == impl.queueVersion)
+        mUploadingFile->hasPendingBytesOrEofToSend() && mUFTQversion == impl.queueVersion)
     {
         LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile->paused()=false && "
                      "mUploadingFile->continuingUpload(now) && mUFTQversion(="
@@ -2799,7 +2875,7 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
         return false;
     }
 
-    if (auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize, mPinned ? &mUrl : nullptr))
+    if (auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize, mPinned ? &mUrl : nullptr, this))
     {
         LOG_debug << "[WsPool::getWsUploadFile] BEGIN -> auto* f = impl.nextEligible(mMinFileSize(="
                   << mMinFileSize << "), mMaxFileSize(=" << mMaxFileSize << "))  [this = " << this
@@ -2958,6 +3034,45 @@ void WsPool::retryChunk(const WsChunk& chunk)
 {
     std::lock_guard<std::mutex> g(mImpl->uploadMutex);
     retryChunkLocked(chunk);
+}
+
+WsUploadFile* WsPool::handshakeFailureCandidateLocked(const dstime now) const
+{
+    auto eligibleInPool = [this, now](WsUploadFile* f)
+    {
+        return f && f->mPool == this && !f->paused() && f->continuingUpload(now);
+    };
+
+    if (eligibleInPool(mUploadingFile))
+    {
+        return mUploadingFile;
+    }
+
+    // mUploadingFile can temporarily be null while the same pool still owns a resumable upload.
+    for (const auto& kv: mImpl->fileByNo)
+    {
+        if (eligibleInPool(kv.second))
+        {
+            return kv.second;
+        }
+    }
+
+    // Fallback: a transfer can be briefly unbound from this pool while still pinned to this
+    // session URL hint during reconnect/refresh transitions.
+    auto eligibleByHint = [this, now](WsUploadFile* f)
+    {
+        return f && !f->hasPool() && f->sessionUrlHint() == mUrl && !f->paused() &&
+               f->continuingUpload(now);
+    };
+    for (const auto& kv: mImpl->fileByNo)
+    {
+        if (eligibleByHint(kv.second))
+        {
+            return kv.second;
+        }
+    }
+
+    return nullptr;
 }
 
 void WsPool::purgeFileLocked(const std::uint32_t fileno)
@@ -3218,41 +3333,42 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                 DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(
                     sustainedHandshakeFailureWindowDs);
 #endif
-                const bool hasUploadingFile = mUploadingFile != nullptr;
-                const bool uploadingFileInPool = hasUploadingFile && mUploadingFile->inPool();
-                const bool uploadingFilePaused = hasUploadingFile && mUploadingFile->paused();
-                const bool uploadingFileContinuing =
-                    hasUploadingFile && mUploadingFile->continuingUpload(nowDs);
-                if (!mRetiring && hasUploadingFile && uploadingFileInPool &&
-                    !uploadingFilePaused && uploadingFileContinuing &&
-                    retryCount >= 3 && failedForDs >= sustainedHandshakeFailureWindowDs)
+                if (retryCount >= 3 &&
+                    failedForDs >= sustainedHandshakeFailureWindowDs)
                 {
-                    WsUploadFile* const failedUpload = mUploadingFile;
-                    LOG_warn << "[WsPool::poolWorkerThread] sustained WS handshake failures for "
-                                "active upload -> fail current attempt"
-                             << " [url=" << mUrl << "] [retryCount=" << retryCount
-                             << "] [failedForDs=" << failedForDs
-                             << "] [fileno=" << failedUpload->fileno() << "] [this = " << this
-                             << "]";
-
-                    // Reset the active-file fast path so the eventual retry must re-enter
-                    // nextEligible()/setUploadStart()/onStart() instead of silently reusing the
-                    // stale active file after backoff expires.
-                    purgeFileLocked(failedUpload->fileno());
-                    failedUpload->markFailedForRetry(0);
-                    failedUpload->unsetPool();
-                    mUploadingFile = nullptr;
-                    mUFTQversion = mImpl->queueVersion;
-
-                    if (mImpl->mCb.onFail)
+                    auto* uploadToFail = handshakeFailureCandidateLocked(nowDs);
+                    if (uploadToFail)
                     {
-                        mImpl->mCb.onFail(failedUpload->transfer(), API_EAGAIN, 0);
-                    }
+                        LOG_warn << "[WsPool::poolWorkerThread] sustained WS handshake failures for "
+                                    "active upload -> fail current attempt"
+                                 << " [url=" << mUrl << "] [retryCount=" << retryCount
+                                 << "] [failedForDs=" << failedForDs
+                                 << "] [retiring=" << mRetiring
+                                 << "] [fileno=" << uploadToFail->fileno() << "] [this = " << this
+                                 << "]";
 
-                    // Reset connect-failure window for the next attempt.
-                    retryCount = 0;
-                    firstConnectFailureDs = 0;
-                    continue;
+                        // Reset the active-file fast path so the eventual retry must re-enter
+                        // nextEligible()/setUploadStart()/onStart() instead of silently reusing the
+                        // stale active file after backoff expires.
+                        purgeFileLocked(uploadToFail->fileno());
+                        uploadToFail->markFailedForRetry(0);
+                        uploadToFail->unsetPool();
+                        if (mUploadingFile == uploadToFail)
+                        {
+                            mUploadingFile = nullptr;
+                        }
+                        mUFTQversion = mImpl->queueVersion;
+
+                        if (mImpl->mCb.onFail)
+                        {
+                            mImpl->mCb.onFail(uploadToFail->transfer(), API_EAGAIN, 0);
+                        }
+
+                        // Reset connect-failure window for the next attempt.
+                        retryCount = 0;
+                        firstConnectFailureDs = 0;
+                        continue;
+                    }
                 }
 
                 if (!mRetiring && lastQueueVersion != mImpl->queueVersion)
@@ -3534,6 +3650,8 @@ void WsPoolMgr::refreshPools()
 {
     if (!mImpl)
         return;
+    if (mImpl->stopping())
+        return;
 
     const dstime now = SteadyTime::ds();
     if (now < mNextRefreshAttempt)
@@ -3549,6 +3667,12 @@ void WsPoolMgr::refreshPools()
     mImpl->client.wsPostToClientThread(
         [this](MegaClient& client, TransferDbCommitter&)
         {
+            if (!mImpl || mImpl->stopping())
+            {
+                mRefreshing = false;
+                return;
+            }
+
             // Queue lockless USC command using the RequestDispatcher. This avoids blocking on
             // the main client-server channel when lockless channels are enabled.
             client.queueCommand(new CommandUSCForWsUpload(
@@ -3570,7 +3694,7 @@ void WsPoolMgr::refreshPools()
                         const unsigned exponent = std::min<unsigned>(count, 6);
                         const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
                         const dstime maxDelay = 10 * 60 * 10; // 10 minutes
-                        dstime backoff = baseDelay * static_cast<dstime>(1u << exponent);
+                        dstime backoff = baseDelay * (static_cast<dstime>(1) << exponent);
                         if (backoff > maxDelay)
                         {
                             backoff = maxDelay;
@@ -3703,6 +3827,16 @@ UploadEngine::~UploadEngine() = default;
 void UploadEngine::start()
 {
     pImpl->start();
+}
+
+void UploadEngine::stop()
+{
+    pImpl->stop();
+}
+
+bool UploadEngine::isStopping() const
+{
+    return pImpl->stopping();
 }
 
 void UploadEngine::enqueue(Transfer& t)

@@ -73,6 +73,7 @@ namespace mega {
             onHttpReqFinish;
         std::function<bool(const std::string&, long, std::string&)> onWsHandshake;
         std::function<void(dstime&)> onWsUploadSustainedHandshakeFailureWindowDs;
+        std::function<bool(std::uint32_t /*fileno*/, int /*event*/)> onWsUploadDropServerEvent;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
@@ -203,6 +204,14 @@ namespace mega {
         } \
     }
 
+#define DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(FILENO, EVENT, SHOULD_DROP) \
+    { \
+        if (globalMegaTestHooks.onWsUploadDropServerEvent) \
+        { \
+            SHOULD_DROP = globalMegaTestHooks.onWsUploadDropServerEvent((FILENO), (EVENT)); \
+        } \
+    }
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     { \
         if (globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc) \
@@ -269,6 +278,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID)
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS)
+#define DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(FILENO, EVENT, SHOULD_DROP)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

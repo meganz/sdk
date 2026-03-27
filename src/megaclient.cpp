@@ -2191,12 +2191,14 @@ void MegaClient::maybeStartWsUploadEngine()
 {
     if (mWsEngineStarted)
         return;
-    if (!m_wsEngine)
-        return;
     if (!ws::wsEnabled(*this))
         return;
     if (loggedin() == NOTLOGGEDIN)
         return;
+    if (!m_wsEngine)
+    {
+        m_wsEngine.reset(new ws::UploadEngine(*this));
+    }
 
     m_wsEngine->setMaxConnections(connections[PUT]);
     m_wsEngine->setMaxUploadSpeed(getmaxuploadspeed());
@@ -2242,6 +2244,8 @@ void MegaClient::installWsEngineCallbacks()
                 t.lastaccesstime = m_time();
                 t.ws_latched_speed = 0;
                 t.ws_latched_mean_speed = 0;
+                t.ws_latched_avg_latency_ms = 0;
+                t.ws_latched_failed_request_ratio = 0.0;
 
                 if (wsEngine())
                 {
@@ -2311,6 +2315,10 @@ void MegaClient::installWsEngineCallbacks()
                                          }
                                          t.ws_latched_speed = boundedSpeed;
                                          t.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
+                                         t.ws_latched_avg_latency_ms =
+                                             static_cast<m_off_t>(wsStats.avgStartTransferTime.count());
+                                         t.ws_latched_failed_request_ratio =
+                                             wsStats.failedRequestRatio;
                                      }
                                  }
 
@@ -2318,6 +2326,15 @@ void MegaClient::installWsEngineCallbacks()
                                  if (diff > 0 && t.client && t.client->httpio)
                                  {
                                      t.client->httpio->updateuploadspeed(diff);
+                                 }
+
+                                 // WS can resume on the same pool/file without a fresh onStart.
+                                 // Only switch to ACTIVE if the WS engine confirms the transfer
+                                 // is currently uploading (avoid late-ACK state flips after pause).
+                                 if (t.state == TRANSFERSTATE_QUEUED && wsEngine() &&
+                                     wsEngine()->isUploading(t))
+                                 {
+                                     t.state = TRANSFERSTATE_ACTIVE;
                                  }
 
                                  t.failcount = 0;
@@ -2345,70 +2362,68 @@ void MegaClient::installWsEngineCallbacks()
                 const error e = static_cast<error>(apierr);
                 dstime retrydelay = 0;
 
-                bool shouldRetry = false;
-                if (e != API_EBUSINESSPASTDUE)
+                // Keep WS failure handling relying on legacy Transfer::failed() as the single source.
+                // Remove transfer from WS first as later Transfer::failed() may delete it.
+                // Then re-enqueue only if the transfer survives (with queue order/state restored below).
+                Transfer* wsBefore = nullptr;
+                UploadHandle wsBeforeTh = UploadHandle();
+                if (client.wsEngine() && tp->channel == Transfer::Channel::WebSocket)
                 {
-                    if (e == API_EOVERQUOTA && tp->type == PUT)
+                    // Best-effort: preserve WS engine ordering by remembering the next WS transfer
+                    // in the TransferList.
+                    auto& transferList = client.transferlist.transfers[type];
+                    for (auto lit = transferList.begin(); lit != transferList.end(); ++lit)
                     {
-                        bool anyRetained = false;
-                        for (auto* f : tp->files)
+                        if (lit->transfer == tp)
                         {
-                            if (!f)
-                                continue;
-                            if (f->isFuseTransfer() || client.isForeignNode(f->h))
-                                continue;
-                            anyRetained = true;
+                            auto next = lit;
+                            ++next;
+                            for (; next != transferList.end(); ++next)
+                            {
+                                if (next->transfer && next->transfer->channel == Transfer::Channel::WebSocket)
+                                {
+                                    wsBefore = next->transfer;
+                                    wsBeforeTh = wsBefore->uploadhandle;
+                                    break;
+                                }
+                            }
                             break;
                         }
-                        shouldRetry = anyRetained;
                     }
-                    else if (e == API_EARGS || e == API_ESUBUSERKEYMISSING)
-                    {
-                        for (auto* f : tp->files)
-                        {
-                            if (f && f->syncxfer && e == API_EARGS)
-                            {
-                                shouldRetry = true;
-                                break;
-                            }
-                        }
-                    }
-                    else
-                    {
-                        for (auto* f : tp->files)
-                        {
-                            if (f && f->failed(e, &client))
-                            {
-                                shouldRetry = true;
-                                break;
-                            }
-                        }
 
-                        if (!shouldRetry && e == API_ENOENT && tp->type == PUT &&
-                            tp->tempurls.empty() && tp->failcount < 16)
-                        {
-                            shouldRetry = true;
-                        }
-                    }
-                }
-
-                const bool mayDelete = !shouldRetry;
-                if (mayDelete && client.wsEngine())
-                {
                     client.wsEngine()->remove(*tp);
                 }
 
                 tp->failed(e, committer, retrydelay);
 
-                if (!mayDelete && client.wsEngine())
+                if (!client.wsIsTransferAlive(type, tp) || !(tp->uploadhandle == th))
+                    return;
+
+                // re-enqueue the transfer and try to reposition it to original pos
+                if (client.wsEngine() && tp->channel == Transfer::Channel::WebSocket)
                 {
+                    client.wsEngine()->enqueue(*tp);
+                    if (wsBefore &&
+                        client.wsIsTransferAlive(type, wsBefore) &&
+                        (wsBefore->uploadhandle == wsBeforeTh))
+                    {
+                        client.wsEngine()->reposition(*tp, wsBefore);
+                    }
+
+                    // Mirror per-transfer / global pause state onto the WS engine.
+                    if (tp->state == TRANSFERSTATE_PAUSED ||
+                        (client.xferpaused[type] && !tp->isForSupport()))
+                    {
+                        client.wsEngine()->pause(*tp);
+                    }
+
                     dstime retryAt = tp->bt.nextset();
                     if (!retryAt || retryAt == 1)
                         retryAt = client.waiter->ds;
                     client.wsEngine()->setRetryUntil(*tp, retryAt);
                 }
 
-                if (!mayDelete && client.app)
+                if (client.app)
                 {
                     client.app->transfer_update(tp);
                 }
@@ -2498,21 +2513,6 @@ void MegaClient::installWsEngineCallbacks()
                     static_cast<uint64_t>(tt.chunkmacs.macsmac(tt.transfercipher()));
                 SymmCipher::xorblock(tt.filekey.iv_bytes.data(), tt.filekey.key.data());
 
-                const m_off_t previous = tt.progresscompleted;
-                tt.setProgresscompleted(tt.size);
-                tt.state = TRANSFERSTATE_COMPLETING;
-                if (tt.progresscompleted != previous)
-                {
-                    const m_off_t diff = tt.progresscompleted - previous;
-                    c.httpio->updateuploadspeed(std::max<m_off_t>(diff, 0));
-                }
-
-                c.transfercacheadd(&tt, &committer);
-                if (c.app)
-                    c.app->transfer_update(tPtr);
-                const bool addedStats = tt.addTransferStats();
-                if (addedStats)
-                    tt.collectAndPrintTransferStatsIfLimitReached();
                 if (c.wsEngine())
                 {
                     ws::UploadEngine::WsTransferStats wsStats;
@@ -2526,11 +2526,16 @@ void MegaClient::installWsEngineCallbacks()
                         }
                         tt.ws_latched_speed = boundedSpeed;
                         tt.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
+                        tt.ws_latched_avg_latency_ms =
+                            static_cast<m_off_t>(wsStats.avgStartTransferTime.count());
+                        tt.ws_latched_failed_request_ratio = wsStats.failedRequestRatio;
                     }
                 }
                 if (c.wsEngine())
                     c.wsEngine()->remove(tt);
 
+                // Verify local file consistency before updating transfer state/conters,
+                // so final completion only happens after verification succeeds.
                 const WsVerifyResult verifyResult = c.wsVerifyUploadUnchanged(tt, committer);
                 if (verifyResult == WsVerifyResult::TransientError)
                 {
@@ -2539,6 +2544,30 @@ void MegaClient::installWsEngineCallbacks()
                 }
                 if (verifyResult == WsVerifyResult::Failed)
                     return;
+
+                const m_off_t previous = tt.progresscompleted;
+                tt.setProgresscompleted(tt.size);
+                tt.state = TRANSFERSTATE_COMPLETING;
+                if (tt.progresscompleted != previous)
+                {
+                    const m_off_t diff = tt.progresscompleted - previous;
+                    if (c.httpio)
+                    {
+                        c.httpio->updateuploadspeed(std::max<m_off_t>(diff, 0));
+                    }
+                }
+
+                c.transfercacheadd(&tt, &committer);
+                if (c.app)
+                {
+                    c.app->transfer_update(&tt);
+                }
+
+                const bool addedStats = tt.addTransferStats();
+                if (addedStats)
+                {
+                    tt.collectAndPrintTransferStatsIfLimitReached();
+                }
 
                 c.wsFinalizeUploadCompletion(tt);
             });
@@ -2575,6 +2604,16 @@ void MegaClient::wsPostTransferUpdate(Transfer* t,
             if (c.app)
                 c.app->transfer_update(t);
         });
+}
+
+void* MegaClient::wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err)
+{
+    auto* cio = dynamic_cast<CurlHttpIO*>(httpio);
+    if (!cio)
+    {
+        return nullptr;
+    }
+    return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err));
 }
 
 void MegaClient::wsDrainClientActions(dstime maxExecTimeDs)
@@ -2758,6 +2797,30 @@ void MegaClient::wsProcessVerifyUploads()
         it = mWsVerifyPending.erase(it);
         if (result == WsVerifyResult::Ok)
         {
+            const m_off_t previous = t->progresscompleted;
+            t->setProgresscompleted(t->size);
+            t->state = TRANSFERSTATE_COMPLETING;
+            if (t->progresscompleted != previous)
+            {
+                const m_off_t diff = t->progresscompleted - previous;
+                if (httpio)
+                {
+                    httpio->updateuploadspeed(std::max<m_off_t>(diff, 0));
+                }
+            }
+
+            transfercacheadd(t, &committer);
+            if (app)
+            {
+                app->transfer_update(t);
+            }
+
+            const bool addedStats = t->addTransferStats();
+            if (addedStats)
+            {
+                t->collectAndPrintTransferStatsIfLimitReached();
+            }
+
             wsFinalizeUploadCompletion(*t);
         }
     }
@@ -4202,11 +4265,6 @@ void MegaClient::exec()
 
                     LOG_debug << "Lockless req: " << *mPendingLocklessCS->out;
                     mPendingLocklessCS->posturl = httpio->APIURL;
-                    if (*mPendingLocklessCS->out == "[{\"a\":\"usc\"}]")
-                    {
-                        mPendingLocklessCS->posturl = "https://staging.api.mega.co.nz/";
-			LOG_warn << "[USC] Lockless req is USC !!! APIURL set to staging: " << mPendingLocklessCS->posturl;
-                    }
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
@@ -5199,11 +5257,26 @@ void MegaClient::dispatchTransfers()
         }
     }
 
+    const bool slotsAvailable = slotavail();
+
     // do we have any transfer slots available?
-    if (!slotavail())
+    if (!slotsAvailable)
     {
-        LOG_verbose << "No slots available";
-        return;
+        if (mBlocked)
+        {
+            return;
+        }
+
+        bool hasWsUploadEngine = false;
+#ifdef MEGA_USE_WSUPLOAD
+        // If WS is enabled, we need to give it a chance even legacy slot not available.
+        hasWsUploadEngine = (wsEngine() != nullptr);
+#endif
+        if (!hasWsUploadEngine)
+        {
+            LOG_verbose << "No slots available";
+            return;
+        }
     }
 
     CodeCounter::ScopeTimer ccst(performanceStats.dispatchTransfers);
@@ -5317,38 +5390,41 @@ void MegaClient::dispatchTransfers()
 
     // Determine average speed and total amount of data remaining for the given direction/size-category
     // We prepare data for put/get in index 0..1, and the put/get/big/small combinations in index 2..5
-    for (TransferSlot* ts : tslots)
+    if (slotsAvailable)
     {
-        assert(ts->transfer->type == PUT || ts->transfer->type == GET);
-        double transferWeightKnown = 0.0;
-        TransferCategory tc(ts->transfer);
-        if (ts->transfer->type == GET)
+        for (TransferSlot* ts : tslots)
         {
-            if (!ts->transfer->tempurls.empty())
+            assert(ts->transfer->type == PUT || ts->transfer->type == GET);
+            double transferWeightKnown = 0.0;
+            TransferCategory tc(ts->transfer);
+            if (ts->transfer->type == GET)
             {
-                if (ts->transferbuf.isNewRaid()) // Raid
+                if (!ts->transfer->tempurls.empty())
                 {
-                    // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
-                    // i.e., if the counter has already reached that value, we don't continue increasing it
-                    if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
-                    transferWeightKnown = calcTransferWeight(tc.direction, true); // We already know this transfer is raided, force the dynamic calculation
-                }
-                else // Old raid or non-raid
-                {
-                    // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
-                    if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
-                    transferWeightKnown = 1.0; // We alredy know this transfer is non-raided, the weight should be 1.
+                    if (ts->transferbuf.isNewRaid()) // Raid
+                    {
+                        // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
+                        // i.e., if the counter has already reached that value, we don't continue increasing it
+                        if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
+                        transferWeightKnown = calcTransferWeight(tc.direction, true); // We already know this transfer is raided, force the dynamic calculation
+                    }
+                    else // Old raid or non-raid
+                    {
+                        // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
+                        if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
+                        transferWeightKnown = 1.0; // We alredy know this transfer is non-raided, the weight should be 1.
+                    }
                 }
             }
+            auto transferWeight = transferWeightKnown != 0.0 ? transferWeightKnown : calcTransferWeight(tc.direction);
+            counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
+            counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
         }
-        auto transferWeight = transferWeightKnown != 0.0 ? transferWeightKnown : calcTransferWeight(tc.direction);
-        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
-        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
-    }
-    if (tslots.empty())
-    {
-        if (raidTransfersCounter != 0) { LOG_verbose << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
-        raidTransfersCounter = 0;
+        if (tslots.empty())
+        {
+            if (raidTransfersCounter != 0) { LOG_verbose << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
+            raidTransfersCounter = 0;
+        }
     }
 
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
@@ -5417,9 +5493,24 @@ void MegaClient::dispatchTransfers()
     {
         for (Transfer *nexttransfer : nextInCategory[category.index()])
         {
-            if (!slotavail())
+            const bool isWsPut =
+                nexttransfer->type == PUT &&
+                nexttransfer->channel == Transfer::Channel::WebSocket;
+
+            const bool slotsAvailableNow = slotavail();
+            if (!slotsAvailableNow)
             {
-                return;
+                if (category.direction == GET)
+                {
+                    // once slots are exhausted, stop handling the GET category.
+                    break;
+                }
+
+                if (!isWsPut)
+                {
+                    // keep scanning PUT category so WS uploads can still be kicked.
+                    continue;
+                }
             }
 
             if (category.direction == PUT && queuedfa.size() > MAXQUEUEDFA)
@@ -5537,7 +5628,6 @@ void MegaClient::dispatchTransfers()
                     }
                     continue; // do not create TransferSlot/HttpReq for WS PUT
 
-                    // ToDo: connect / add fa / thumbnail generation etcc
                     // ToDo: should we move this code elsewhere?
                 }
 #endif
@@ -6242,6 +6332,18 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     // transfer destructors update the transfer in the cache database
     freeq(GET);
     freeq(PUT);
+
+#ifdef MEGA_USE_WSUPLOAD
+    // WS logout cleanup: process pending WS client-thread actions before engine teardown.
+    // This helps flush state/cache updates and avoids worker shutdown waiting on queued
+    // client-side work (for example handshake-related tasks) while httpio is still valid.
+    // maybeStartWsUploadEngine() will recreate the engine lazily after the next login.
+    if (m_wsEngine)
+        m_wsEngine->stop();
+    wsDrainClientActions(30);
+    m_wsEngine.reset();
+    mWsEngineStarted = false;
+#endif
 
     disconnect();
 
@@ -7560,7 +7662,6 @@ void MegaClient::activatefa()
 // has the limit of concurrent transfer tslots been reached?
 bool MegaClient::slotavail() const
 {
-    // ToDo: include wsuploads here!!!
     return !mBlocked && tslots.size() < MAXTOTALTRANSFERS;
 }
 

@@ -640,6 +640,8 @@ public:
     // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.
     void wsPostTransferUpdate(Transfer* t,
                               std::function<void(Transfer&, TransferDbCommitter&)>&& f);
+    // Internal WS helper to performs HttpIO WS handshake on the client thread.
+    void* wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err);
 #endif
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 

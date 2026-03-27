@@ -255,17 +255,32 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
         ws::UploadEngine::WsTransferStats wsStats;
         if (!transfer->client->wsEngine()->getTransferStats(*transfer, wsStats))
         {
-            LOG_debug << "[TransferStatsManager::addTransferStats] WS stats not available yet "
-                         "[size="
-                      << transfer->size << "]";
-            return false;
+            if (transfer->ws_latched_mean_speed > 0 && transfer->ws_latched_avg_latency_ms > 0)
+            {
+                wsStats.meanSpeedBytesPerSecond = transfer->ws_latched_mean_speed;
+                wsStats.avgStartTransferTime =
+                    std::chrono::milliseconds(transfer->ws_latched_avg_latency_ms);
+                wsStats.failedRequestRatio = transfer->ws_latched_failed_request_ratio;
+                LOG_debug << "[TransferStatsManager::addTransferStats] Using latched WS stats "
+                             "after engine detach [size="
+                          << transfer->size << "]";
+            }
+            else
+            {
+                LOG_debug << "[TransferStatsManager::addTransferStats] WS stats unavailable and "
+                             "no latched fallback [size="
+                          << transfer->size << "]";
+                return false;
+            }
         }
 
-        const m_off_t meanSpeed = wsStats.meanSpeedBytesPerSecond;
+        const m_off_t meanSpeed = std::max<m_off_t>(1, wsStats.meanSpeedBytesPerSecond);
+        const m_off_t avgLatencyMs =
+            std::max<m_off_t>(1, static_cast<m_off_t>(wsStats.avgStartTransferTime.count()));
         TransferStats::TransferData transferData{
             transfer->size,
             meanSpeed,
-            static_cast<double>(wsStats.avgStartTransferTime.count()),
+            static_cast<double>(avgLatencyMs),
             wsStats.failedRequestRatio,
             false};
 
