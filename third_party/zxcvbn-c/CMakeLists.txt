@@ -1,4 +1,4 @@
-add_library(zxcvbn-c STATIC
+add_library(zxcvbn-c OBJECT
     zxcvbn.h
     dict-src.h
     zxcvbn.cpp

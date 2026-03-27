@@ -1,4 +1,4 @@
-add_library(evt-tls STATIC
+add_library(evt-tls OBJECT
     queue.h
     evt_tls.h
     evt_tls.cpp

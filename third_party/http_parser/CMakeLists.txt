@@ -1,4 +1,4 @@
-add_library(http_parser STATIC
+add_library(http_parser OBJECT
     http_parser.h
     http_parser.cpp
 )
