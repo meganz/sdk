@@ -2367,6 +2367,11 @@ public:
     // Returns API_OK (recentaction in output), API_ENOENT (no match), or API_EARGS (invalid id).
     error getRecentActionById(const char* id, recentaction& output);
 
+    // get a recent action bucket by its identifier, overriding the excludeSensitives flag in the
+    // id. Returns API_OK (recentaction in output), API_ENOENT (no match), or API_EARGS (invalid
+    // id).
+    error getRecentActionById(const char* id, bool excludeSensitives, recentaction& output);
+
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
     bool nodeIsMedia(const Node*, bool *isphoto, bool *isvideo) const;
 

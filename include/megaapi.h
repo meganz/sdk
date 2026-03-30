@@ -5925,6 +5925,7 @@ class MegaRequest
          * - MegaApi::getVisibleTermsOfService - Returns true if the Terms of Service need to be
          * displayed
          * - MegaApi::getRecentActionsAsync - Returns true if exclude sensitives
+         * - MegaApi::getRecentActionById - Returns true if exclude sensitives
          *
          * This value is valid for these request in onRequestFinish when the
          * error code is MegaError::API_OK:
@@ -20132,9 +20133,12 @@ class MegaApi
          * is MegaError::API_OK:
          * - MegaRequest::getRecentActions - Returns buckets with a list of recently added/modified
          * nodes
+         * - MegaRequest::getFlag - Returns false, as sensitives are included by default. Use
+         * getRecentActionsAsync with explicit excludeSensitives flag to search for sensitives and
+         * filter them depending on the flag value
          *
-         * The recommended values for the following parameters are to consider
-         * interactions during the last 30 days and maximum 500 nodes.
+         * The recommended values for the following
+         * parameters are to consider interactions during the last 30 days and maximum 500 nodes.
          *
          * Note: Nodes sensitives are NOT excluded by default. Nodes are considered
          * sensitive if they have that property set, or one of their ancestors has it.
@@ -20194,6 +20198,9 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getText - Returns the bucket identifier
+         * - MegaRequest::getFlag - Returns false, as the excludeSensitives value is embedded in the
+         * bucket identifier and can't be overridden in this function. Use getRecentActionById with
+         * explicit excludeSensitives flag to override that value.
          *
          * The associated request type with this request is
          * MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID
@@ -20210,6 +20217,48 @@ class MegaApi
          * @param listener MegaRequestListener to track this request
          */
         void getRecentActionById(const char* id, MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Get a recent action bucket by its identifier, overriding the excludeSensitives
+         * flag embedded in the identifier.
+         *
+         * Behaves identically to getRecentActionById(id, listener) except that the
+         * @p excludeSensitives parameter takes precedence over the flag encoded in the bucket
+         * identifier (token 8 of the pipe-delimited id string). This lets callers re-query a
+         * bucket with a different sensitivity filter than the one that was used when the id was
+         * originally generated.
+         *
+         * The identifier format is:
+         * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+         * - dayStartTs is the UTC day start timestamp (seconds since Epoch).
+         * - windowStartHour and windowEndHour are UTC hours for the time window boundaries.
+         * - userHandle is base64-encoded and cannot be UNDEF.
+         * - parentHandle is base64-encoded and cannot be UNDEF.
+         * - isMedia, isUpdate and excludeSensitives are 0 or 1.
+         *
+         * Valid data in the MegaRequest object received on callbacks:
+         * - MegaRequest::getText - Returns the bucket identifier
+         * - MegaRequest::getFlag - Returns the excludeSensitives value used for the lookup
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID
+         * If the identifier is invalid (for example, invalid token count, invalid handle,
+         * invalid boolean token, or parentHandle/userHandle is UNDEF), the request
+         * finishes with MegaError::API_EARGS.
+         * If the identifier is valid but there is no matching recent-action bucket,
+         * the request finishes with MegaError::API_ENOENT.
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getRecentActions - Returns a list with 1 bucket
+         *
+         * @param id Bucket identifier returned by MegaRecentActionBucket::getId
+         * @param excludeSensitives If true, sensitive nodes are excluded from the result
+         * regardless of the flag embedded in @p id. If false, sensitive nodes are included.
+         * @param listener MegaRequestListener to track this request
+         */
+        void getRecentActionById(const char* id,
+                                 bool excludeSensitives,
+                                 MegaRequestListener* listener = NULL);
 
         /**
          * @brief Clear the account’s recent actions history up to a given timestamp.

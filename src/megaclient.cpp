@@ -19419,6 +19419,11 @@ error MegaClient::getRecentActionById(const char* id, recentaction& output)
     return RecentActions(this).getById(id, output);
 }
 
+error MegaClient::getRecentActionById(const char* id, bool excludeSensitives, recentaction& output)
+{
+    return RecentActions(this).getById(id, excludeSensitives, output);
+}
+
 // a chunk transfer request failed: record failed protocol & host
 void MegaClient::setchunkfailed(string* url)
 {

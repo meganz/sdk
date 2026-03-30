@@ -26582,7 +26582,9 @@ void MegaApiImpl::getRecentActionsAsync(unsigned days,
     getRecentActionsAsyncInternal(days, maxnodes, &excludeSensitives, listener);
 }
 
-void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* listener)
+void MegaApiImpl::getRecentActionByIdInternal(const char* id,
+                                              std::optional<bool> excludeSensitives,
+                                              MegaRequestListener* listener)
 {
     MegaRequestPrivate* request =
         new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID, listener);
@@ -26590,12 +26592,26 @@ void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* liste
     {
         request->setText(id);
     }
+    if (excludeSensitives.has_value())
+    {
+        request->setFlag(*excludeSensitives);
+    }
 
-    request->performRequest = [this, request]()
+    request->performRequest =
+        [this, request, hasExcludeSensitives = excludeSensitives.has_value()]()
     {
         const char* id = request->getText();
         recentaction ra;
-        const error e = client->getRecentActionById(id, ra);
+        error e;
+        if (hasExcludeSensitives)
+        {
+            const bool excl = request->getFlag();
+            e = client->getRecentActionById(id, excl, ra);
+        }
+        else
+        {
+            e = client->getRecentActionById(id, ra);
+        }
         if (e != API_OK)
         {
             return e;
@@ -26612,6 +26628,18 @@ void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* liste
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* listener)
+{
+    getRecentActionByIdInternal(id, std::nullopt, listener);
+}
+
+void MegaApiImpl::getRecentActionById(const char* id,
+                                      bool excludeSensitives,
+                                      MegaRequestListener* listener)
+{
+    getRecentActionByIdInternal(id, std::make_optional(excludeSensitives), listener);
 }
 
 void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,

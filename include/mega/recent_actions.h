@@ -62,6 +62,23 @@ public:
      */
     error getById(const char* id, recentaction& output) const;
 
+    /**
+     * @brief Retrieve a single recent action bucket by its string identifier, overriding the
+     * excludeSensitives flag embedded in the id.
+     *
+     * Parses the id, queries the node tree for matching nodes using @p excludeSensitives
+     * (ignoring the value encoded in the id), applies all bucket membership filters and fills
+     * @p output with the matching recentaction entry.
+     *
+     * @param id               The bucket identifier returned by MegaRecentActionBucket::getId().
+     * @param excludeSensitives If true, sensitive nodes are excluded regardless of the flag in
+     * the id. If false, sensitive nodes are included.
+     * @param output           The recentaction struct to fill with the result. Only valid if the
+     * return value is API_OK.
+     * @return API_OK on success, API_EARGS if id is invalid, API_ENOENT if no nodes match.
+     */
+    error getById(const char* id, bool excludeSensitives, recentaction& output) const;
+
 private:
     /**
      * @brief Build a recentactions_vector from a pre-fetched node vector.
@@ -81,6 +98,22 @@ private:
      * @brief Sort bucket nodes by creation time descending.
      */
     void sortBucketNodes(sharedNode_vector& nodes) const;
+
+    /**
+     * @brief Core implementation shared by both public getById overloads.
+     *
+     * Parses @p id, then uses @p excludeSensitives to filter candidate nodes.
+     * If @p excludeSensitives is std::nullopt the value encoded in the id is used;
+     * otherwise the provided value overrides it.
+     *
+     * @param id                Original bucket identifier string.
+     * @param excludeSensitives Override for the sensitivity filter, or std::nullopt to use the
+     *                          value embedded in @p id.
+     * @param output            Filled on API_OK.
+     */
+    error getById(const char* id,
+                  std::optional<bool> excludeSensitives,
+                  recentaction& output) const;
 
     /**
      * @brief Filter candidate nodes to those that match the given bucket metadata and time window.

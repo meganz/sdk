@@ -454,6 +454,18 @@ sharedNode_vector RecentActions::filterCandidatesByMeta(const sharedNode_vector&
 
 error RecentActions::getById(const char* id, recentaction& ra) const
 {
+    return getById(id, std::nullopt, ra);
+}
+
+error RecentActions::getById(const char* id, bool excludeSensitives, recentaction& ra) const
+{
+    return getById(id, std::make_optional(excludeSensitives), ra);
+}
+
+error RecentActions::getById(const char* id,
+                             std::optional<bool> excludeSensitives,
+                             recentaction& ra) const
+{
     if (!id || !*id)
     {
         return API_EARGS;
@@ -462,18 +474,23 @@ error RecentActions::getById(const char* id, recentaction& ra) const
     m_time_t dayStart = 0;
     int windowStart = 0;
     int windowEnd = 0;
-    bool excludeSensitives = false;
+    bool parsedExcludeSensitives = false;
     RecentActionBucketMeta meta;
-    if (!parseRecentActionId(id, dayStart, windowStart, windowEnd, meta, excludeSensitives))
+    if (!parseRecentActionId(id, dayStart, windowStart, windowEnd, meta, parsedExcludeSensitives))
     {
         return API_EARGS;
     }
 
+    const bool effectiveExcludeSensitives = excludeSensitives.value_or(parsedExcludeSensitives);
+
     const m_time_t startTime = dayStart + windowStart * kSecondsPerHour;
     const m_time_t endTime = dayStart + windowEnd * kSecondsPerHour;
 
-    sharedNode_vector candidates =
-        getBucketCandidates(startTime, endTime, meta.parent, meta.media, excludeSensitives);
+    sharedNode_vector candidates = getBucketCandidates(startTime,
+                                                       endTime,
+                                                       meta.parent,
+                                                       meta.media,
+                                                       effectiveExcludeSensitives);
 
     sharedNode_vector bucketNodes = filterCandidatesByMeta(candidates, meta, startTime, endTime);
 

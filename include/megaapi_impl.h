@@ -4400,6 +4400,9 @@ public:
                                            unsigned maxnodes,
                                            bool* optExcludeSensitives,
                                            MegaRequestListener* listener = NULL);
+        void getRecentActionByIdInternal(const char* id,
+                                         std::optional<bool> excludeSensitives,
+                                         MegaRequestListener* listener = nullptr);
         MegaTimeStamp getRecentClearTimestamp();
         MegaTimeStamp formatRecentClearTimestamp(string_map* records);
 
@@ -4413,6 +4416,9 @@ public:
                                    MegaRequestListener* listener = NULL);
 
         void getRecentActionById(const char* id, MegaRequestListener* listener = nullptr);
+        void getRecentActionById(const char* id,
+                                 bool excludeSensitives,
+                                 MegaRequestListener* listener = nullptr);
 
         void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 

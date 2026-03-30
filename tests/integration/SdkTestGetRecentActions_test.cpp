@@ -116,6 +116,27 @@ std::unique_ptr<MegaRecentActionBucketList> queryByIdAssertOk(MegaApi* api, cons
     return std::unique_ptr<MegaRecentActionBucketList>{tracker.request->getRecentActions()->copy()};
 }
 
+// Call getRecentActionById(id, excludeSensitives) overload, assert the expected error code,
+// and return the bucket list (nullptr when the call did not succeed with API_OK).
+std::unique_ptr<MegaRecentActionBucketList>
+    queryByIdWithFlag(MegaApi* api, const std::string& id, bool excludeSensitives, int expectedCode)
+{
+    RequestTracker tracker(api);
+    api->getRecentActionById(id.c_str(), excludeSensitives, &tracker);
+    const int rc = tracker.waitForResult();
+    EXPECT_EQ(rc, expectedCode) << "getRecentActionById(" << id << ", " << excludeSensitives
+                                << ") returned " << rc << ", expected " << expectedCode;
+    if (rc == API_OK && tracker.request)
+    {
+        EXPECT_EQ(tracker.request->getFlag(), excludeSensitives);
+    }
+    if (rc != API_OK || !tracker.request || !tracker.request->getRecentActions() ||
+        tracker.request->getRecentActions()->size() != 1)
+    {
+        return nullptr;
+    }
+    return std::unique_ptr<MegaRecentActionBucketList>{tracker.request->getRecentActions()->copy()};
+}
 }
 
 /**
@@ -154,7 +175,7 @@ std::unique_ptr<MegaRecentActionBucketList> queryByIdAssertOk(MegaApi* api, cons
  */
 TEST_F(SdkTest, SdkRecentActionsTest)
 {
-    LOG_info << "___TEST SdkGetRecentActionsTest___";
+    CASE_info << "started";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     // Open a second session with the same account credentials so we can later
@@ -374,6 +395,8 @@ TEST_F(SdkTest, SdkRecentActionsTest)
     loginSameAccountsForTest(0);
     getRecentActionBuckets(2, 1, 10, false, API_OK, expectedAfterClear);
     verifyClearRecentsUpTo(2, now);
+
+    CASE_info << "finished";
 }
 
 /**
@@ -385,7 +408,7 @@ TEST_F(SdkTest, SdkRecentActionsTest)
  */
 TEST_F(SdkTest, SdkRecentActionByIdTest)
 {
-    LOG_info << "___TEST SdkRecentActionByIdTest___";
+    CASE_info << "started";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
@@ -424,6 +447,7 @@ TEST_F(SdkTest, SdkRecentActionByIdTest)
     const auto originalVec = bucketsToVector(*buckets);
     EXPECT_NE(std::find(originalVec.begin(), originalVec.end(), bucketsToVector(*result)[0]),
               originalVec.end());
+    CASE_info << "finished";
 }
 
 /**
@@ -440,7 +464,7 @@ TEST_F(SdkTest, SdkRecentActionByIdTest)
  */
 TEST_F(SdkTest, SdkRecentActionByIdAbnormalTest)
 {
-    LOG_info << "___TEST SdkRecentActionByIdAbnormalTest___";
+    CASE_info << "started";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
@@ -558,6 +582,7 @@ TEST_F(SdkTest, SdkRecentActionByIdAbnormalTest)
     expectEnoent(
         buildRecentActionId("1", "0", "6", otherUserHandleB64, parentHandleB64, "1", "0", "0")
             .c_str()); // non-existing/other owner
+    CASE_info << "finished";
 }
 
 /**
@@ -569,7 +594,7 @@ TEST_F(SdkTest, SdkRecentActionByIdAbnormalTest)
  */
 TEST_F(SdkTest, SdkRecentActionByIdFilterMatchTest)
 {
-    LOG_info << "___TEST SdkRecentActionByIdFilterMatchTest___";
+    CASE_info << "started";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
@@ -655,6 +680,7 @@ TEST_F(SdkTest, SdkRecentActionByIdFilterMatchTest)
                                         &trackerMismatch);
         EXPECT_EQ(trackerMismatch.waitForResult(), API_ENOENT); // flipped to 1 → no match
     }
+    CASE_info << "finished";
 }
 
 /**
@@ -667,7 +693,7 @@ TEST_F(SdkTest, SdkRecentActionByIdFilterMatchTest)
  */
 TEST_F(SdkTest, SdkRecentActionByIdCrossAccountConsistencyTest)
 {
-    LOG_info << "___TEST SdkRecentActionByIdCrossAccountConsistencyTest___";
+    CASE_info << "started";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
 
     // megaApi[2] = second session logged in with the same credentials as megaApi[0].
@@ -711,6 +737,7 @@ TEST_F(SdkTest, SdkRecentActionByIdCrossAccountConsistencyTest)
         megaApi[2]->getRecentActionById(id.c_str(), &tracker);
         EXPECT_EQ(tracker.waitForResult(), API_OK);
     }
+    CASE_info << "finished";
 }
 
 /**
@@ -722,7 +749,7 @@ TEST_F(SdkTest, SdkRecentActionByIdCrossAccountConsistencyTest)
  */
 TEST_F(SdkTest, SdkRecentActionByIdBucketVariantsTest)
 {
-    LOG_info << "___TEST SdkRecentActionByIdBucketVariantsTest___";
+    CASE_info << "started";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
@@ -830,4 +857,132 @@ TEST_F(SdkTest, SdkRecentActionByIdBucketVariantsTest)
         EXPECT_NE(std::find(nodeNames.begin(), nodeNames.end(), nameA), nodeNames.end());
         EXPECT_NE(std::find(nodeNames.begin(), nodeNames.end(), nameB), nodeNames.end());
     }
+    CASE_info << "finished";
+}
+
+/**
+ * Validates getRecentActionById(id, excludeSensitives, listener) — the overload that lets the
+ * caller override the excludeSensitives flag embedded in the bucket id.
+ *
+ * Scenario:
+ * 1. Upload a file to a dedicated subfolder and mark it sensitive.
+ *    fetchRecentBuckets(excludeSensitives=false) -> sensitiveId ends with "|0".
+ *    - new API with excludeSensitives=false -> API_OK (param matches id flag; getFlag()=false)
+ *    - new API with excludeSensitives=true  -> API_ENOENT (param overrides id's 0; file filtered)
+ *
+ * 2. Upload a non-sensitive file to a different subfolder.
+ *    fetchRecentBuckets(excludeSensitives=true) -> nonSensitiveId ends with "|1".
+ *    - new API with excludeSensitives=true  -> API_OK (param matches id flag; getFlag()=true)
+ *    - new API with excludeSensitives=false -> API_OK (param overrides id's 1; file still visible)
+ */
+TEST_F(SdkTest, SdkRecentActionByIdExcludeSensitivesOverrideTest)
+{
+    CASE_info << "started";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootNode(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+
+    // Creates a folder under rootNode and returns the corresponding MegaNode.
+    // Records a failure and returns nullptr on error.
+    const auto createFolderNode = [this, &rootNode](const char* name) -> std::unique_ptr<MegaNode>
+    {
+        const auto handle = createFolder(0, name, rootNode.get());
+        if (handle == UNDEF)
+        {
+            ADD_FAILURE() << "createFolder failed for " << name;
+            return nullptr;
+        }
+        std::unique_ptr<MegaNode> node(megaApi[0]->getNodeByHandle(handle));
+        if (!node)
+        {
+            ADD_FAILURE() << "getNodeByHandle failed for " << name;
+            return nullptr;
+        }
+        return node;
+    };
+
+    // Fetches recent buckets with the given excludeSensitives flag and returns the id.
+    const auto fetchIdForFile = [this](const std::string& filename,
+                                       bool excludeSensitives) -> std::string
+    {
+        auto buckets = fetchRecentBuckets(megaApi[0].get(), 1, 10, excludeSensitives);
+        if (!buckets)
+            return {};
+        return getRecentActionIdContainingFilename(*buckets, filename);
+    };
+
+    // Verifies that the given id has 8 tokens and that token[7] encodes the excludeSensitives flag
+    const auto checkIdToken = [](const std::string& id, bool excludeSensitives)
+    {
+        const auto tokens = splitString<std::vector<std::string>>(id, '|');
+        ASSERT_EQ(tokens.size(), 8u);
+        ASSERT_EQ(tokens[7], excludeSensitives ? "1" : "0");
+    };
+
+    // Calls queryByIdWithFlag and, when API_OK is expected, verifies that the returned bucket
+    // contains the given filename.
+    const auto assertQueryByIdWithFlagContains = [this](const std::string& id,
+                                                        bool excludeSensitives,
+                                                        int expectedCode,
+                                                        const std::string& filename)
+    {
+        auto result = queryByIdWithFlag(megaApi[0].get(), id, excludeSensitives, expectedCode);
+        if (expectedCode != API_OK)
+            return;
+        ASSERT_TRUE(result);
+        const auto nodeNames = bucketsToVector(*result)[0];
+        ASSERT_NE(std::find(nodeNames.begin(), nodeNames.end(), filename), nodeNames.end());
+    };
+
+    // --- Part 1: sensitive-only bucket ---
+    // Upload a file to a dedicated subfolder, then mark it sensitive.
+    auto sensitiveFolder = createFolderNode("recent_action_sensitive_folder");
+    ASSERT_TRUE(sensitiveFolder);
+
+    const std::string sensitiveName = "recent_action_override_sensitive.txt";
+    {
+        sdk_test::LocalTempFile f(sensitiveName, "sensitive content");
+        auto sensitiveNode =
+            sdk_test::uploadFile(megaApi[0].get(), sensitiveName, sensitiveFolder.get());
+        ASSERT_TRUE(sensitiveNode) << "Cannot upload " << sensitiveName;
+        ASSERT_EQ(synchronousSetNodeSensitive(0, sensitiveNode.get(), true), API_OK);
+    }
+
+    // Fetch with excludeSensitives=false so the sensitive file's bucket appears.
+    // The resulting id has token[7] == "0".
+    const std::string sensitiveId = fetchIdForFile(sensitiveName, false);
+    ASSERT_FALSE(sensitiveId.empty());
+    checkIdToken(sensitiveId, false);
+
+    // excludeSensitives=false (matches id): bucket is found.
+    assertQueryByIdWithFlagContains(sensitiveId, false, API_OK, sensitiveName);
+
+    // excludeSensitives=true (overrides id's "0"): sensitive file is filtered → ENOENT.
+    assertQueryByIdWithFlagContains(sensitiveId, true, API_ENOENT, sensitiveName);
+
+    // --- Part 2: non-sensitive bucket ---
+    // Upload a non-sensitive file to a different subfolder.
+    auto normalFolder = createFolderNode("recent_action_normal_folder");
+    ASSERT_TRUE(normalFolder);
+
+    const std::string normalName = "recent_action_override_normal.txt";
+    {
+        sdk_test::LocalTempFile f(normalName, "normal content");
+        ASSERT_TRUE(sdk_test::uploadFile(megaApi[0].get(), normalName, normalFolder.get()));
+    }
+
+    // Fetch with excludeSensitives=true; the non-sensitive file appears.
+    // The resulting id has token[7] == "1".
+    const std::string normalId = fetchIdForFile(normalName, true);
+    ASSERT_FALSE(normalId.empty());
+    checkIdToken(normalId, true);
+
+    // excludeSensitives=true (matches id): bucket is found.
+    assertQueryByIdWithFlagContains(normalId, true, API_OK, normalName);
+
+    // excludeSensitives=false (overrides id's "1"): filter relaxed, non-sensitive file still
+    // visible.
+    assertQueryByIdWithFlagContains(normalId, false, API_OK, normalName);
+    CASE_info << "finished";
 }
