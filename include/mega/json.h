@@ -130,9 +130,9 @@ public:
 
     void arg(const char*, const string&, int = 1);
     void arg(const char*, const char*, int = 1);
-    void arg(const char*, handle, int);
+    void arg(const char*, handle, size_t);
     void arg(const char*, NodeHandle);
-    void arg(const char*, const byte*, int);
+    void arg(const char*, const byte*, size_t);
     void arg(const char*, m_off_t);
     void arg_B64(const char*, const string&);
     void arg_fsfp(const char*, std::uint64_t);
@@ -153,8 +153,8 @@ public:
     void beginobject(const char*);
     void endobject();
     void element(int);
-    void element(handle, int = sizeof(handle));
-    void element(const byte*, int);
+    void element(handle, size_t = sizeof(handle));
+    void element(const byte*, size_t);
     void element(const char* data);
     void element(const string& data);
     void element_B64(const string&);

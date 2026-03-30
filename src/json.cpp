@@ -28,6 +28,14 @@
 #include <cctype>
 #include <cstdint>
 
+#ifdef _WIN32
+#include <locale.h>
+#elif defined(__APPLE__)
+#include <xlocale.h>
+#else
+#include <locale.h>
+#endif
+
 namespace mega {
 
 // store array or object in string s
@@ -462,6 +470,9 @@ m_off_t JSON::getint()
 }
 
 // decode float
+// Ignore system locale to parse floats, otherwise
+// it may fail expecting "," as decimal separator instead of ".".
+// Note: std::from_chars is not supported yet for floats in all compilers.
 double JSON::getfloat()
 {
     if (*pos == ':' || *pos == ',')
@@ -475,7 +486,20 @@ double JSON::getfloat()
         return -1;
     }
 
-    double r = atof(pos);
+    double r{0.0};
+    char* endptr = nullptr;
+#ifdef _WIN32
+    static const _locale_t cLocale = _create_locale(LC_NUMERIC, "C");
+    r = cLocale ? _strtod_l(pos, &endptr, cLocale) : strtod(pos, &endptr);
+#else
+    static const locale_t cLocale = newlocale(LC_NUMERIC_MASK, "C", nullptr);
+    r = cLocale ? strtod_l(pos, &endptr, cLocale) : strtod(pos, &endptr);
+#endif
+    if (endptr == pos)
+    {
+        LOG_err << "Conversion error (getfloat)";
+        return r;
+    }
 
     storeobject();
 
@@ -837,7 +861,7 @@ void JSONWriter::arg(const char* name, const char* value, int quotes)
     }
 }
 
-void JSONWriter::arg(const char* name, handle h, int len)
+void JSONWriter::arg(const char* name, handle h, size_t len)
 {
     char buf[16];
 
@@ -851,10 +875,9 @@ void JSONWriter::arg(const char* name, NodeHandle h)
     arg(name, h.as8byte(), 6);
 }
 
-
-void JSONWriter::arg(const char* name, const byte* value, int len)
+void JSONWriter::arg(const char* name, const byte* value, size_t len)
 {
-    char* buf = new char[static_cast<size_t>(len * 4 / 3 + 4)];
+    char* buf = new char[len * 4 / 3 + 4];
 
     Base64::btoa(value, len, buf);
 
@@ -865,12 +888,12 @@ void JSONWriter::arg(const char* name, const byte* value, int len)
 
 void JSONWriter::arg_B64(const char* n, const string& data)
 {
-    arg(n, (const byte*)data.data(), int(data.size()));
+    arg(n, (const byte*)data.data(), data.size());
 }
 
 void JSONWriter::arg_fsfp(const char* n, std::uint64_t fp)
 {
-    arg(n, (const byte*)&fp, int(sizeof(fp)));
+    arg(n, (const byte*)&fp, sizeof(fp));
 }
 
 void JSONWriter::arg_stringWithEscapes(const char* name, const string& value, int quote)
@@ -960,7 +983,7 @@ void JSONWriter::element(int n)
     mJson.append(std::to_string(n));
 }
 
-void JSONWriter::element(handle h, int len)
+void JSONWriter::element(handle h, size_t len)
 {
     char buf[16];
 
@@ -971,14 +994,14 @@ void JSONWriter::element(handle h, int len)
     mJson.append("\"");
 }
 
-void JSONWriter::element(const byte* data, int len)
+void JSONWriter::element(const byte* data, size_t len)
 {
-    char* buf = new char[static_cast<size_t>(len * 4 / 3 + 4)];
+    char* buf = new char[len * 4 / 3 + 4];
 
     len = Base64::btoa(data, len, buf);
 
     mJson.append(elements() ? ",\"" : "\"");
-    mJson.append(buf, static_cast<size_t>(len));
+    mJson.append(buf, len);
 
     delete[] buf;
 
@@ -999,7 +1022,7 @@ void JSONWriter::element(const string& data)
 
 void JSONWriter::element_B64(const string& s)
 {
-    element((const byte*)s.data(), int(s.size()));
+    element((const byte*)s.data(), s.size());
 }
 
 void JSONWriter::openobject()
@@ -1582,4 +1605,3 @@ const JSONSplitter::FilterCallback* JSONSplitter::findCallback(const FiltersChai
 }
 
 } // namespace
-

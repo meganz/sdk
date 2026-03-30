@@ -1365,11 +1365,6 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
         {
             cout << "Credentials: " << AuthRing::fingerprint(string((const char*)data, l), true) << endl;
         }
-
-        if (type == mega::ATTR_S4_CONTAINER)
-        {
-            cout << "S4 container: " << client->mS4Container << endl;
-        }
     }
 
     if (type == ATTR_COOKIE_SETTINGS)
@@ -1392,6 +1387,16 @@ void DemoApp::getua_result(byte* data, unsigned l, attr_t type)
     if (type == ATTR_KEYS)
     {
         cout << client->mKeyManager.toString();
+    }
+
+    if (type == mega::ATTR_S4)
+    {
+        cout << "S4 enabled: " << client->mIsS4Enabled << endl;
+    }
+
+    if (type == mega::ATTR_S4_CONTAINER)
+    {
+        cout << "S4 container: " << client->mS4Container << endl;
     }
 }
 
@@ -9583,7 +9588,9 @@ void exec_recentactions(autocomplete::ACState& s)
         {
             cout << "---" << endl;
         }
-        cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].user, client) << " " << (nvv[i].updated ? "updated" : "uploaded") << " " << (nvv[i].media ? "media" : "files") << endl;
+        cout << displayTime(nvv[i].time) << " " << displayUser(nvv[i].meta.user, client) << " "
+             << (nvv[i].meta.updated ? "updated" : "uploaded") << " "
+             << (nvv[i].meta.media ? "media" : "files") << endl;
         for (unsigned j = 0; j < nvv[i].nodes.size(); ++j)
         {
             cout << nvv[i].nodes[j]->displaypath() << "  (" << displayTime(nvv[i].nodes[j]->ctime) << ")" << endl;
@@ -10374,8 +10381,7 @@ void DemoApp::openfilelink_result(handle ph, const byte* key, m_off_t size,
     string attrstring;
 
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
+    attrstring.resize(Base64::btoa((const byte*)a->data(), a->length(), (char*)attrstring.data()));
 
     SymmCipher nodeKey;
     nodeKey.setkey(key, FILENODE);
@@ -11583,19 +11589,28 @@ int main(int argc, char* argv[])
 
     SimpleLogger::setLogLevel(logVerbose);
     auto gLoggerAddr = &gLogger;
-    g_externalLogger.addMegaLogger(&gLogger,
+    getExternalLogger()
+        .addMegaLogger(
+            &gLogger,
 
-        [gLoggerAddr](const char *time, int loglevel, const char *source, const char *message
+            [gLoggerAddr](const char* time,
+                          int loglevel,
+                          const char* source,
+                          const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-            , const char **directMessages, size_t *directMessagesSizes, unsigned numberMessages
+                          ,
+                          const char** directMessages,
+                          size_t* directMessagesSizes,
+                          unsigned numberMessages
 #endif
-            ){
+            )
+            {
                 gLoggerAddr->log(time, loglevel, source, message
 #ifdef ENABLE_LOG_PERFORMANCE
                     , directMessages, directMessagesSizes, numberMessages
 #endif
                 );
-         });
+            });
 
     console = new CONSOLE_CLASS;
 

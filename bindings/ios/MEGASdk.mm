@@ -248,8 +248,9 @@ using namespace mega;
 }
 
 - (void)deleteMegaApi {
-    delete _megaApi;
+    MegaApi *api = _megaApi;
     _megaApi = nil;
+    delete api;
     pthread_mutex_destroy(&listenerMutex);
 }
 
@@ -3266,6 +3267,12 @@ using namespace mega;
 - (void)getRecentActionsAsyncSinceDays:(NSInteger)days maxNodes:(NSInteger)maxNodes excludeSensitives:(BOOL)excludeSensitives delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi != nil) {
         self.megaApi->getRecentActionsAsync((int)days, (unsigned int)maxNodes, excludeSensitives, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)clearRecentActionHistoryUntil:(int64_t)until delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi != nil) {
+        self.megaApi->clearRecentActionHistory((MegaTimeStamp)until, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
     }
 }
 

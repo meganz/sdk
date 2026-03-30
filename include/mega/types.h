@@ -853,13 +853,20 @@ typedef enum
 typedef unsigned int achievement_class_id;
 typedef map<achievement_class_id, Achievement> achievements_map;
 
+struct RecentActionBucketMeta
+{
+    handle user = UNDEF;
+    string userEmail;
+    handle parent = UNDEF;
+    bool updated = false;
+    bool media = false;
+};
+
 struct recentaction
 {
-    m_time_t time;
-    handle user;
-    handle parent;
-    bool updated;
-    bool media;
+    RecentActionBucketMeta meta;
+    m_time_t time = 0;
+    string id;
     sharedNode_vector nodes;
 };
 typedef vector<recentaction> recentactions_vector;

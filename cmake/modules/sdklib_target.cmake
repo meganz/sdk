@@ -146,6 +146,7 @@ set(SDKLIB_SOURCES
     src/pubkeyaction.cpp
     src/raid.cpp
     src/raidproxy.cpp
+    src/recent_actions.cpp
     src/request.cpp
     src/serialize64.cpp
     src/nodemanager.cpp

@@ -584,8 +584,7 @@ string SyncConfig::getSyncDbStateCacheName(handle fsid, NodeHandle nh, handle us
 
     string dbname;
     dbname.resize(sizeof tableid * 4 / 3 + 3);
-    dbname.resize(
-        static_cast<size_t>(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str())));
+    dbname.resize(Base64::btoa((byte*)tableid, sizeof tableid, (char*)dbname.c_str()));
     return dbname;
 }
 
@@ -3140,9 +3139,27 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
 
                 // remove fsid (and handle) from source node, so we don't detect
                 // that as a move source anymore
-                const auto sourceSyncNodeTransferWithDifferentFsid =
+                const auto sourceSyncNodeTransferIsUpload =
                     sourceSyncNode->transferSP &&
-                    sourceSyncNode->fsid_lastSynced != sourceSyncNode->fsid_asScanned;
+                    (dynamic_cast<SyncUpload_inClient*>(sourceSyncNode->transferSP.get()) !=
+                     nullptr);
+
+                // Detect the rename+create-new race:
+                // - moveHerePtr->sourceFsid is the fsid of the file that was renamed
+                // - sourceSyncNode->fsid_asScanned is the fsid currently present at the *old*
+                // location If they differ, the source LocalNode now represents a different file
+                // (likely the newly created one), so we must NOT migrate/rename the in-flight
+                // upload transfer.
+                const auto sourceSyncNodeTransferBelongsToDifferentFsid =
+                    sourceSyncNodeTransferIsUpload && moveHerePtr->sourceFsid != UNDEF &&
+                    sourceSyncNode->fsid_asScanned != UNDEF &&
+                    moveHerePtr->sourceFsid != sourceSyncNode->fsid_asScanned;
+
+                // If a file was renamed and a new file with the old name was created immediately
+                // after, the transfer in-flight can belong to the newly created file.
+                // In that case, migrating the transfer to the target node (and updating its path)
+                // would transiently rename it, confusing clients/listeners and potentially causing
+                // duplicate uploads.  In this scenario, keep the transfer on the source node.
                 sourceSyncNode->syncedFingerprint = FileFingerprint();
                 sourceSyncNode->setSyncedFsid(UNDEF, syncs.localnodeBySyncedFsid, sourceSyncNode->localname, sourceSyncNode->cloneShortname());
                 sourceSyncNode->setSyncedNodeHandle(NodeHandle());
@@ -3150,22 +3167,30 @@ bool Sync::checkForCompletedCloudMoveToHere(SyncRow& row,
 
                 // Move all the LocalNodes under the source node to the new location
                 // We can't move the source node itself as the recursive callers may be using it
-                sourceSyncNode->moveContentTo(row.syncNode, fullPath.localPath, true);
-                if (sourceSyncNodeTransferWithDifferentFsid)
+                sourceSyncNode->moveContentTo(row.syncNode,
+                                              fullPath.localPath,
+                                              true,
+                                              !sourceSyncNodeTransferBelongsToDifferentFsid);
+
+                if (sourceSyncNodeTransferBelongsToDifferentFsid)
                 {
                     LOG_debug << "[Sync::checkForCompletedCloudMoveToHere] SourceSyncNode had a "
                                  "transfer inflight and the scanned fsid and synced fsid were "
-                                 "different: restoring the moved transfer to the sourceSyncNode "
+                                 "different: keeping the transfer on the sourceSyncNode "
                                  "(it could belong to a new file with same name)";
-                    sourceSyncNode->resetTransfer(std::move(row.syncNode->transferSP));
 
-                    // Restore the path of the transfer too (it should be sourceSyncNode's path).
-                    LocalTreeProcUpdateTransfers tput;
-                    tput.proc(*syncs.fsaccess, sourceSyncNode);
+                    // The transfer should not have been migrated nor renamed.
+                    assert(sourceSyncNode->transferSP);
+                    assert(sourceSyncNode->transferSP->getLocalname() ==
+                           sourceSyncNode->getLocalPath());
 
-                    assert(sourceSyncNode->transferSP &&
-                           sourceSyncNode->transferSP->getLocalname() ==
-                               sourceSyncNode->getLocalPath());
+                    if (row.syncNode->transferSP)
+                    {
+                        LOG_debug
+                            << "[Sync::checkForCompletedCloudMoveToHere] Unexpected transferSP "
+                               "on destination node in this scenario. Triplet after move: "
+                            << logTriplet(row, fullPath);
+                    }
                 }
                 else if (row.syncNode->transferSP)
                 {

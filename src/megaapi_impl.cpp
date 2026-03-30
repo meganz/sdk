@@ -596,7 +596,7 @@ char *MegaNodePrivate::serialize()
     }
 
     char *ret = new char[d.size()*4/3+3];
-    Base64::btoa((byte*) d.data(), int(d.size()), ret);
+    Base64::btoa((byte*)d.data(), d.size(), ret);
 
     return ret;
 }
@@ -1111,7 +1111,7 @@ string MegaNodePrivate::addAppPrefixToFingerprint(const string& fp, const m_off_
     byte bsize[sizeof(nodeSize) + 1];
     int l = Serialize64::serialize(bsize, static_cast<uint64_t>(nodeSize));
     unique_ptr<char[]> buf(new char[static_cast<size_t>(l * 4 / 3 + 4)]);
-    char ssize = static_cast<char>('A' + Base64::btoa(bsize, l, buf.get()));
+    char ssize = static_cast<char>('A' + Base64::btoa(bsize, static_cast<size_t>(l), buf.get()));
 
     string result(1, ssize);
     result.append(buf.get());
@@ -5304,6 +5304,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_EXECUTE_ON_THREAD: return "EXECUTE_ON_THREAD";
         case TYPE_SET_CHAT_OPTIONS: return "SET_CHAT_OPTIONS";
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
+        case TYPE_GET_RECENT_ACTION_BY_ID:
+            return "GET_RECENT_ACTION_BY_ID";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
         case TYPE_EXPORT_SET: return "EXPORT_SET";
@@ -5566,7 +5568,7 @@ MegaStringMapPrivate::MegaStringMapPrivate(const string_map *map, bool toBase64)
         for (it = strMap.begin(); it != strMap.end(); it++)
         {
             buf = new char[it->second.length() * 4 / 3 + 4];
-            Base64::btoa((const byte *) it->second.data(), int(it->second.length()), buf);
+            Base64::btoa((const byte*)it->second.data(), it->second.length(), buf);
 
             it->second.assign(buf);
 
@@ -6153,66 +6155,65 @@ void MegaUserAlertListPrivate::clear()
     list = nullptr;
 }
 
-MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction& ra, MegaClient* mc)
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(recentaction&& ra)
 {
-    User* u = mc->finduser(ra.user);
-
-    timestamp = ra.time;
-    user = u ? u->email : "";
-    parent = ra.parent;
-    update = ra.updated;
-    media = ra.media;
-    nodes = new MegaNodeListPrivate(ra.nodes);
+    mData.timestamp = ra.time;
+    mData.meta = std::move(ra.meta);
+    mData.id = std::move(ra.id);
+    mData.nodes = new MegaNodeListPrivate(ra.nodes);
 }
 
-MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(int64_t ts, const string& u, handle p, bool up, bool m, MegaNodeList* l)
+MegaRecentActionBucketPrivate::MegaRecentActionBucketPrivate(const BucketData& data)
 {
-    timestamp = ts;
-    user = u;
-    parent = p;
-    update = up;
-    media = m;
-    nodes = l;
+    mData.timestamp = data.timestamp;
+    mData.meta = data.meta;
+    mData.id = data.id;
+    mData.nodes = data.nodes ? data.nodes->copy() : nullptr;
 }
 
 MegaRecentActionBucketPrivate::~MegaRecentActionBucketPrivate()
 {
-    delete nodes;
+    delete mData.nodes;
 }
 
 MegaRecentActionBucket *MegaRecentActionBucketPrivate::copy() const
 {
-    return new MegaRecentActionBucketPrivate(timestamp, user, parent, update, media, nodes->copy());
+    return new MegaRecentActionBucketPrivate(mData);
 }
 
 int64_t MegaRecentActionBucketPrivate::getTimestamp() const
 {
-    return timestamp;
+    return mData.timestamp;
 }
 
 const char* MegaRecentActionBucketPrivate::getUserEmail() const
 {
-    return user.c_str();
+    return mData.meta.userEmail.c_str();
 }
 
 MegaHandle MegaRecentActionBucketPrivate::getParentHandle() const
 {
-    return parent;
+    return mData.meta.parent;
 }
 
 bool MegaRecentActionBucketPrivate::isUpdate() const
 {
-    return update;
+    return mData.meta.updated;
 }
 
 bool MegaRecentActionBucketPrivate::isMedia() const
 {
-    return media;
+    return mData.meta.media;
+}
+
+const char* MegaRecentActionBucketPrivate::getId() const
+{
+    return mData.id.c_str();
 }
 
 const MegaNodeList* MegaRecentActionBucketPrivate::getNodes() const
 {
-    return nodes;
+    return mData.nodes;
 }
 
 MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
@@ -6221,7 +6222,7 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate()
     s = 0;
 }
 
-MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v, MegaClient* mc)
+MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactions_vector& v)
 {
     list = NULL;
     s = static_cast<int>(v.size());
@@ -6232,7 +6233,7 @@ MegaRecentActionBucketListPrivate::MegaRecentActionBucketListPrivate(recentactio
     list = new MegaRecentActionBucketPrivate*[static_cast<size_t>(s)];
     for (int i = 0; i < s; i++)
     {
-        list[i] = new MegaRecentActionBucketPrivate(v[static_cast<size_t>(i)], mc);
+        list[i] = new MegaRecentActionBucketPrivate(std::move(v[static_cast<size_t>(i)]));
     }
 }
 
@@ -7329,18 +7330,18 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
 
     if (singleExclusiveLogger)
     {
-        assert(!g_exclusiveLogger.exclusiveCallback);
-        g_exclusiveLogger.exclusiveCallback = [megaLogger](const char* time,
-                                                           int loglevel,
-                                                           const char* source,
-                                                           const char* message
+        assert(!getExclusiveLogger().exclusiveCallback);
+        getExclusiveLogger().exclusiveCallback = [megaLogger](const char* time,
+                                                              int loglevel,
+                                                              const char* source,
+                                                              const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-                                                           ,
-                                                           const char** directMessages,
-                                                           size_t* directMessagesSizes,
-                                                           unsigned numberMessages
+                                                              ,
+                                                              const char** directMessages,
+                                                              size_t* directMessagesSizes,
+                                                              unsigned numberMessages
 #endif
-                                              )
+                                                 )
         {
             megaLogger->log(time,
                             loglevel,
@@ -7355,35 +7356,35 @@ void MegaApiImpl::addLoggerClass(MegaLogger *megaLogger, bool singleExclusiveLog
             );
         };
 
-        SimpleLogger::setOutputClass(&g_exclusiveLogger);
+        SimpleLogger::setOutputClass(&getExclusiveLogger());
     }
     else
     {
-        g_externalLogger.addMegaLogger(megaLogger,
-                                       [megaLogger](const char* time,
-                                                    int loglevel,
-                                                    const char* source,
-                                                    const char* message
+        getExternalLogger().addMegaLogger(megaLogger,
+                                          [megaLogger](const char* time,
+                                                       int loglevel,
+                                                       const char* source,
+                                                       const char* message
 #ifdef ENABLE_LOG_PERFORMANCE
-                                                    ,
-                                                    const char** directMessages,
-                                                    size_t* directMessagesSizes,
-                                                    unsigned numberMessages
+                                                       ,
+                                                       const char** directMessages,
+                                                       size_t* directMessagesSizes,
+                                                       unsigned numberMessages
 #endif
-                                       )
-                                       {
-                                           megaLogger->log(time,
-                                                           loglevel,
-                                                           source,
-                                                           message
+                                          )
+                                          {
+                                              megaLogger->log(time,
+                                                              loglevel,
+                                                              source,
+                                                              message
 #ifdef ENABLE_LOG_PERFORMANCE
-                                                           ,
-                                                           directMessages,
-                                                           directMessagesSizes,
-                                                           static_cast<int>(numberMessages)
+                                                              ,
+                                                              directMessages,
+                                                              directMessagesSizes,
+                                                              static_cast<int>(numberMessages)
 #endif
-                                           );
-                                       });
+                                              );
+                                          });
     }
 }
 
@@ -7391,19 +7392,19 @@ void MegaApiImpl::removeLoggerClass(MegaLogger *megaLogger, bool singleExclusive
 {
     if (singleExclusiveLogger)
     {
-        SimpleLogger::setOutputClass(&g_externalLogger);
-        g_exclusiveLogger.exclusiveCallback = nullptr;
+        SimpleLogger::setOutputClass(&getExternalLogger());
+        getExclusiveLogger().exclusiveCallback = nullptr;
     }
     else
     {
-        g_externalLogger.removeMegaLogger(megaLogger);
+        getExternalLogger().removeMegaLogger(megaLogger);
     }
 }
 
 void MegaApiImpl::setLogToConsole(bool enable)
 {
     // only supported for external (not exclusive) loggers
-    g_externalLogger.setLogToConsole(enable);
+    getExternalLogger().setLogToConsole(enable);
 }
 
 void MegaApiImpl::setLogJSONContent(bool enable)
@@ -7536,7 +7537,7 @@ const char* MegaApiImpl::backupIdToBase64(MegaHandle backupId)
 char *MegaApiImpl::binaryToBase64(const char *binaryData, size_t length)
 {
     char *ret = new char[length * 4 / 3 + 3];
-    Base64::btoa((byte*)binaryData, int(length), ret);
+    Base64::btoa((byte*)binaryData, length, ret);
     return ret;
 }
 
@@ -7702,6 +7703,7 @@ void MegaApiImpl::multiFactorAuthDisable(const char *pin, MegaRequestListener *l
 void MegaApiImpl::multiFactorAuthLogin(const char *email, const char *password, const char *pin, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_LOGIN, listener);
+    request->setTransferredBytes(static_cast<long long>(cancel_epoch_snapshot()));
     request->setEmail(email);
     request->setPassword(password);
     request->setText(pin);
@@ -13500,8 +13502,7 @@ char *MegaApiImpl::getCRC(const char *filePath)
 
     string result;
     result.resize((sizeof fp.crc) * 4 / 3 + 4);
-    result.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)fp.crc.data(), sizeof fp.crc, (char*)result.c_str())));
+    result.resize(Base64::btoa((const byte*)fp.crc.data(), sizeof fp.crc, (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13515,8 +13516,7 @@ char *MegaApiImpl::getCRCFromFingerprint(const char *fingerprint)
 
     string result;
     result.resize((sizeof fp->crc) * 4 / 3 + 4);
-    result.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)fp->crc.data(), sizeof fp->crc, (char*)result.c_str())));
+    result.resize(Base64::btoa((const byte*)fp->crc.data(), sizeof fp->crc, (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -13533,9 +13533,9 @@ char *MegaApiImpl::getCRC(MegaNode *n)
 
     string result;
     result.resize((sizeof node->crc) * 4 / 3 + 4);
-    result.resize(static_cast<size_t>(Base64::btoa((const byte*)node->crc.data(),
-                                                   sizeof node->crc.data(),
-                                                   (char*)result.c_str())));
+    result.resize(Base64::btoa((const byte*)node->crc.data(),
+                               sizeof node->crc.data(),
+                               (char*)result.c_str()));
     return MegaApi::strdup(result.c_str());
 }
 
@@ -15955,7 +15955,7 @@ void MegaApiImpl::pubkey_result(User *u)
     string key;
     u->pubk.serializekey(&key, AsymmCipher::PUBKEY);
     char pubkbuf[AsymmCipher::MAXKEYLENGTH * 4 / 3 + 4];
-    Base64::btoa((byte *)key.data(), int(key.size()), pubkbuf);
+    Base64::btoa((byte*)key.data(), key.size(), pubkbuf);
     request->setPassword(pubkbuf);
 
     char jid[16];
@@ -16027,8 +16027,7 @@ void MegaApiImpl::openfilelink_result(handle ph, const byte* key, m_off_t size, 
 
     string attrstring;
     attrstring.resize(a->length()*4/3+4);
-    attrstring.resize(static_cast<size_t>(
-        Base64::btoa((const byte*)a->data(), int(a->length()), (char*)attrstring.data())));
+    attrstring.resize(Base64::btoa((const byte*)a->data(), a->length(), (char*)attrstring.data()));
 
     bool isNodeKeyDecrypted;
     string keystring;
@@ -16532,8 +16531,7 @@ void MegaApiImpl::getua_completion(byte* data, unsigned len, attr_t type, MegaRe
         {
             string str;
             str.resize(len * 4 / 3 + 4);
-            str.resize(
-                static_cast<size_t>(Base64::btoa(data, static_cast<int>(len), (char*)str.data())));
+            str.resize(Base64::btoa(data, len, (char*)str.data()));
             request->setText(str.c_str());
         }
         break;
@@ -24144,8 +24142,8 @@ void MegaApiImpl::reportEvent(const char* details, MegaRequestListener* listener
             }
 
             string event = "A"; //Application event
-            int size = int(strlen(details));
-            char* base64details = new char[static_cast<size_t>(size * 4 / 3 + 4)];
+            size_t size = strlen(details);
+            char* base64details = new char[size * 4 / 3 + 4];
             Base64::btoa((byte *)details, size, base64details);
             client->reportevent(event.c_str(), base64details);
             delete [] base64details;
@@ -24219,10 +24217,10 @@ void MegaApiImpl::submitPurchaseReceipt(int gateway, const char* receipt, MegaHa
             if (type == MegaApi::PAYMENT_METHOD_GOOGLE_WALLET
                     || type == MegaApi::PAYMENT_METHOD_WINDOWS_STORE || type == MegaApi::PAYMENT_METHOD_HUAWEI_WALLET)
             {
-                int len = int(strlen(receipt));
-                base64receipt.resize(static_cast<size_t>(len * 4 / 3 + 4));
-                base64receipt.resize(static_cast<size_t>(
-                    Base64::btoa((byte*)receipt, len, (char*)base64receipt.data())));
+                size_t len = strlen(receipt);
+                base64receipt.resize(len * 4 / 3 + 4);
+                base64receipt.resize(
+                    Base64::btoa((byte*)receipt, len, (char*)base64receipt.data()));
             }
             else // MegaApi::PAYMENT_METHOD_ITUNES
             {
@@ -26578,6 +26576,38 @@ void MegaApiImpl::getRecentActionsAsync(unsigned days,
     getRecentActionsAsyncInternal(days, maxnodes, &excludeSensitives, listener);
 }
 
+void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID, listener);
+    if (id)
+    {
+        request->setText(id);
+    }
+
+    request->performRequest = [this, request]()
+    {
+        const char* id = request->getText();
+        recentaction ra;
+        const error e = client->getRecentActionById(id, ra);
+        if (e != API_OK)
+        {
+            return e;
+        }
+        recentactions_vector rav;
+        rav.emplace_back(std::move(ra));
+
+        std::unique_ptr<MegaRecentActionBucketList> recentActions(
+            new MegaRecentActionBucketListPrivate(rav));
+        request->setRecentActions(std::move(recentActions));
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
 void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
                                                 unsigned maxnodes,
                                                 bool* optExcludeSensitives,
@@ -26621,7 +26651,7 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
             v = client->getRecentActions(maxnodes, since);
         }
         std::unique_ptr<MegaRecentActionBucketList> recentActions(
-            new MegaRecentActionBucketListPrivate(v, client));
+            new MegaRecentActionBucketListPrivate(v));
         request->setRecentActions(std::move(recentActions));
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
         return API_OK;

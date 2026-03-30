@@ -305,7 +305,7 @@ void Command::arg(const char* name, const char* value, int quotes)
 }
 
 // binary data
-void Command::arg(const char* name, const byte* value, int len)
+void Command::arg(const char* name, const byte* value, size_t len)
 {
     jsonWriter.arg(name, value, len);
 }
@@ -375,13 +375,13 @@ void Command::element(int n)
 }
 
 // add handle (with size specifier)
-void Command::element(handle h, int len)
+void Command::element(handle h, size_t len)
 {
     jsonWriter.element(h, len);
 }
 
 // add binary data
-void Command::element(const byte* data, int len)
+void Command::element(const byte* data, size_t len)
 {
     jsonWriter.element(data, len);
 }

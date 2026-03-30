@@ -239,9 +239,13 @@ class SimpleLogger
                     DirectMessage{mCopiedParts.back().data(), mCopiedParts.back().size()});
             }
         }
-        else if (logger)
+        else
         {
-            logger->log(nullptr, level, nullptr, mBuffer.data());
+            Logger* currentLogger = logger.load(std::memory_order_acquire);
+            if (currentLogger)
+            {
+                currentLogger->log(nullptr, level, nullptr, mBuffer.data());
+            }
         }
         mBufferIt = mBuffer.begin();
     }
@@ -374,7 +378,7 @@ class SimpleLogger
     }
 #endif
 
-    static Logger *logger;
+    static std::atomic<Logger*> logger;
 
     static std::atomic<LogLevel> logCurrentLevel;
 
@@ -409,7 +413,8 @@ public:
         // logging chain is not well supported, change caller code to avoid it
         assert(!isChained || noChainAssert);
 #else
-        if (!logger)
+        Logger* currentLogger = logger.load(std::memory_order_acquire);
+        if (!currentLogger)
         {
             return;
         }
@@ -448,7 +453,8 @@ public:
         {
             if (!mDirectMessages.empty())
             {
-                if (logger)
+                Logger* currentLogger = logger.load(std::memory_order_acquire);
+                if (currentLogger)
                 {
                     std::unique_ptr<const char*[]> dm(new const char*[mDirectMessages.size()]);
                     std::unique_ptr<size_t[]> dms(new size_t[mDirectMessages.size()]);
@@ -460,7 +466,7 @@ public:
                         i++;
                     }
 
-                    logger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
+                    currentLogger->log(nullptr, level, nullptr, "", dm.get(), dms.get(), i);
                 }
             }
             // Clear
@@ -469,14 +475,16 @@ public:
         }
 
 #else
-        if (logger)
+        Logger* currentLogger = logger.load(std::memory_order_acquire);
+        if (currentLogger)
         {
             const auto message = ostr.str();
-            logger->log(/*                                                                     */
-                        t.c_str(), /* time stamp                                               */
-                        level, /* log level                                                    */
-                        fname.c_str(), /* file name and line                                   */
-                        message.c_str()); /* the log message itself                            */
+            currentLogger
+                ->log(/*                                                                     */
+                      t.c_str(), /* time stamp                                               */
+                      level, /* log level                                                    */
+                      fname.c_str(), /* file name and line                                   */
+                      message.c_str()); /* the log message itself                            */
         }
 #endif
     }
@@ -671,7 +679,7 @@ public:
     // set output class
     static void setOutputClass(Logger *logger_class)
     {
-        logger = logger_class;
+        logger.store(logger_class, std::memory_order_release);
     }
 
     // set the current log level. all logs which are higher than this level won't be handled
@@ -873,8 +881,25 @@ public:
 // uses the SDK core directly, and not the intermediate layer
 // So, although globals and singletons are not ideal, moving it here
 // is one step forwards in tidying that up.
-extern ExternalLogger g_externalLogger;
-extern ExclusiveLogger g_exclusiveLogger;
+
+// Update: Changing from Global variables to singleton is
+//         for solving the race conditions in multi-threaded environment.
+// extern ExternalLogger g_externalLogger;
+// extern ExclusiveLogger g_exclusiveLogger;
+
+/*
+ * @brief Get the External Logger object
+ *
+ * @return ExternalLogger&
+ */
+ExternalLogger& getExternalLogger();
+
+/*
+ * @brief Get the Exclusive Logger object
+ *
+ * @return ExclusiveLogger&
+ */
+ExclusiveLogger& getExclusiveLogger();
 
 inline error logAndReturnError(const error e, const std::string_view msg)
 {
