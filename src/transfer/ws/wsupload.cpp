@@ -1833,12 +1833,63 @@ public:
 
     void start()
     {
+        std::thread stoppedUploadThread;
+        std::vector<std::unique_ptr<WsPoolThread>> stoppedPoolThreads;
+
+        {
+            std::lock_guard<std::mutex> g(uploadMutex);
+            if (uploadThread.joinable())
+            {
+                if (uploadThreadRunning.load(std::memory_order_acquire))
+                    return;
+
+                stoppedUploadThread = std::move(uploadThread);
+
+                for (auto& pool: poolMgr.mPools)
+                {
+                    if (!pool)
+                        continue;
+
+                    for (auto& th: pool->mActiveThreads)
+                    {
+                        if (th)
+                            th->terminate = true;
+                        stoppedPoolThreads.push_back(std::move(th));
+                    }
+                    pool->mActiveThreads.clear();
+
+                    for (auto& th: pool->mExitingThreads)
+                    {
+                        if (th)
+                            th->terminate = true;
+                        stoppedPoolThreads.push_back(std::move(th));
+                    }
+                    pool->mExitingThreads.clear();
+                }
+            }
+        }
+
+        if (stoppedUploadThread.joinable())
+            stoppedUploadThread.join();
+
+        // Join worker threads outside uploadMutex to avoid lock-order inversion with WsConn
+        // teardown (~WsConn() acquires uploadMutex).
+        stoppedPoolThreads.clear();
+
         std::lock_guard<std::mutex> g(uploadMutex);
         if (uploadThread.joinable())
             return;
 
         mStopping.store(false, std::memory_order_release);
+        paused = false;
         poolMgr.mImpl = this;
+        for (auto& pool: poolMgr.mPools)
+        {
+            if (!pool || pool->mRetiring)
+                continue;
+
+            pool->setPoolNumConn(mPoolConnectionLimit);
+        }
         poolMgr.refreshPools();
 
         uploadThread = std::thread(
@@ -3452,6 +3503,13 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             continue;
         }
     }
+
+    if (ws->readyState != WsConn::ReadyState::CLOSED)
+    {
+        ScopedUnlock unlock(lk);
+        ws->closeWS();
+    }
+
     th->terminated = true;
     LOG_debug << "[WsPool::poolWorkerThread] END [lastQueueVersion=" << lastQueueVersion
               << "] [this = " << this << "]";
