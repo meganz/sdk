@@ -9251,6 +9251,7 @@ public class MegaApiJava {
      *
      * @param id Bucket identifier returned by MegaRecentActionBucket::getId
      * @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
+     *      * sensitive if they have that property set, or one of their ancestors has it)
      * @param listener MegaRequestListener to track this request
      */
     public void getRecentActionById(String id, boolean excludeSensitives, MegaRequestListenerInterface listener) {
