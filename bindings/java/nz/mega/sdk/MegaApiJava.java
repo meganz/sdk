@@ -9225,6 +9225,40 @@ public class MegaApiJava {
     }
 
     /**
+     * @brief Get a recent action bucket by its identifier
+     *
+     * The identifier format is:
+     * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+     * - dayStartTs is the UTC day start timestamp (seconds since Epoch).
+     * - windowStartHour and windowEndHour are UTC hours for the time window boundaries.
+     * - userHandle is base64-encoded and cannot be UNDEF.
+     * - parentHandle is base64-encoded and cannot be UNDEF.
+     * - isMedia, isUpdate and excludeSensitives are 0 or 1.
+     *
+     * Valid data in the MegaRequest object received on callbacks:
+     * - MegaRequest::getText - Returns the bucket identifier
+     *
+     * The associated request type with this request is
+     * MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID
+     * If the identifier is invalid (for example, invalid token count, invalid handle,
+     * invalid boolean token, or parentHandle/userHandle is UNDEF), the request
+     * finishes with MegaError::API_EARGS.
+     * If the identifier is valid but there is no matching recent-action bucket,
+     * the request finishes with MegaError::API_ENOENT.
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code
+     * is MegaError::API_OK:
+     * - MegaRequest::getRecentActions - Returns a list with 1 bucket
+     *
+     * @param id Bucket identifier returned by MegaRecentActionBucket::getId
+     * @param excludeSensitives Set to true to filter out sensitive nodes (Nodes are considered
+     *      * sensitive if they have that property set, or one of their ancestors has it)
+     * @param listener MegaRequestListener to track this request
+     */
+    public void getRecentActionById(String id, boolean excludeSensitives, MegaRequestListenerInterface listener) {
+        megaApi.getRecentActionById(id, excludeSensitives, createDelegateRequestListener(listener));
+    }
+
+    /**
      * @brief Clear the account’s recent actions history up to a given timestamp.
      *
      * This method clears the recent actions history on the account by setting a
