@@ -9700,8 +9700,28 @@ bool Sync::syncItem(SyncRow& row, SyncRow& parentRow, SyncPath& fullPath, PerFol
             // Handle mtime-only difference in both sides. We need to establish a baseline by
             // setting syncedFingerprint to the older mtime side, so the newer side "wins" and syncs
             // over.
-            if (fsCloudJustMtimeChanged && !cloudSyncNodeEqual && !fsSyncNodeEqual)
+            // When both sides are "equal" due to the 2-second tolerance window
+            // within FileFingerprint comparison, we do the same thing.
+            if (fsCloudJustMtimeChanged && !(cloudSyncNodeEqual ^ fsSyncNodeEqual))
             {
+                if (cloudSyncNodeEqual && fsSyncNodeEqual)
+                {
+                    LOG_debug << "Detected a mtime-only mismatch for both sides being equal. "
+                                 "They're likely within the 2-second tolerance. Side with the "
+                                 "newer mtime will be picked [cloudNode.mtime = "
+                              << row.cloudNode->fingerprint.mtime
+                              << ", syncNode.mtime = " << row.syncNode->syncedFingerprint.mtime
+                              << ", fsNode.mtime = " << row.fsNode->fingerprint.mtime << "]";
+                    assert(
+                        (abs(row.cloudNode->fingerprint.mtime -
+                             row.syncNode->syncedFingerprint.mtime) <= FS_MTIME_TOLERANCE_SECS) &&
+                        (abs(row.fsNode->fingerprint.mtime -
+                             row.syncNode->syncedFingerprint.mtime) <= FS_MTIME_TOLERANCE_SECS) &&
+                        "Mtime-only mismatch detected for both sides considered equal within "
+                        "the 2-second tolerance, but one side is not within the 2-second "
+                        "tolerance with syncNode!!!");
+                    cloudSyncNodeEqual = fsSyncNodeEqual = false; // Reset values for re-evaluation
+                }
                 const bool localIsNewer =
                     row.fsNode->fingerprint.mtime > row.cloudNode->fingerprint.mtime;
                 // Files have same content (verified by MAC) but different mtime
