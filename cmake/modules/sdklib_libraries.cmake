@@ -121,8 +121,8 @@ macro(load_sdklib_libraries)
         pkg_check_modules(curl REQUIRED IMPORTED_TARGET libcurl)
         target_link_libraries(SDKlib PRIVATE PkgConfig::curl)
 
-        find_package(ICU COMPONENTS uc data REQUIRED)
-        target_link_libraries(SDKlib PRIVATE ICU::uc ICU::data)
+        find_package(ICU COMPONENTS i18n uc data REQUIRED)
+        target_link_libraries(SDKlib PRIVATE ICU::i18n ICU::uc ICU::data)
 
         if(USE_OPENSSL)
             find_package(OpenSSL REQUIRED)
