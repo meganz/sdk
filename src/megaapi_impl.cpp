@@ -71,7 +71,7 @@
 #include <openssl/rand.h>
 #endif
 
-#include "mega/mega_zxcvbn.h"
+#include <zxcvbn-c/zxcvbn.h>
 
 // FUSE
 #include <mega/fuse/common/mount_event_type.h>
@@ -5219,8 +5219,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_REMOVE: return "CHAT_REMOVE";
         case TYPE_CHAT_URL: return "CHAT_URL";
         case TYPE_CHAT_GRANT_ACCESS: return "CHAT_GRANT_ACCESS";
-        case TYPE_CHAT_REMOVE_ACCESS: return "CHAT_REMOVE_ACCESS";
-        case TYPE_USE_HTTPS_ONLY: return "USE_HTTPS_ONLY";
+        case TYPE_CHAT_REMOVE_ACCESS:
+            return "CHAT_REMOVE_ACCESS";
         case TYPE_SET_PROXY: return "SET_PROXY";
         case TYPE_GET_RECOVERY_LINK: return "GET_RECOVERY_LINK";
         case TYPE_QUERY_RECOVERY_LINK: return "QUERY_RECOVERY_LINK";
@@ -9320,11 +9320,6 @@ char* MegaApiImpl::generateRandomCharsPassword(bool uU, bool uD, bool uS, unsign
     return pwd.empty() ? nullptr : MegaApi::strdup(pwd.c_str());
 }
 
-bool MegaApiImpl::usingHttpsOnly()
-{
-    return client->usehttps;
-}
-
 void MegaApiImpl::setNodeAttribute(MegaNode *node, int type, const char *srcFilePath, MegaHandle attributehandle, MegaRequestListener *listener)
 {
     MegaRequestPrivate *request = new MegaRequestPrivate(MegaRequest::TYPE_SET_ATTR_FILE, listener);
@@ -11060,7 +11055,7 @@ bool MegaApiImpl::createAvatar(const char *imagePath, const char *dstPath)
     return gfxAccess->savefa(localImagePath, GfxProc::DIMENSIONS_AVATAR[GfxProc::AVATAR250X250], localDstPath);
 }
 
-void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApiImpl::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener)
 {
     MegaRequestPrivate* req = new MegaRequestPrivate(MegaRequest::TYPE_GET_BACKGROUND_UPLOAD_URL, listener);
     req->setNumber(fullFileSize);
@@ -15573,12 +15568,6 @@ void MegaApiImpl::notify_storage(int storageEvent)
     fireOnEvent(event);
 }
 
-void MegaApiImpl::notify_change_to_https()
-{
-    MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_CHANGE_TO_HTTPS);
-    fireOnEvent(event);
-}
-
 void MegaApiImpl::notify_confirmation(const char *email)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
@@ -19586,36 +19575,74 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
                         bool sameNodeSameNameInTarget{false};
-                        for (auto& n: nodes)
+
+                        // MAC computation requires reading the local file (expensive I/O). When
+                        // many cloud nodes share the same fingerprint, verifying all of them is
+                        // wasteful. The two-phase search below minimizes MAC computations by
+                        // prioritizing high-value candidates first and deferring the remote-copy
+                        // fallback search.
+                        const auto findNodeWithMacMatch = [&](auto shouldCheckMac) -> bool
                         {
-                            if (!hasToForceUpload(*n.get(), *transfer))
+                            for (auto& n: nodes)
                             {
-                                auto [compRes, _] =
-                                    CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
-                                                                                  wLocalPath,
-                                                                                  fp_forCloud,
-                                                                                  n.get());
-
-                                if (compRes == NODE_COMP_EQUAL ||
-                                    compRes == NODE_COMP_DIFFERS_MTIME)
+                                if (!hasToForceUpload(*n.get(), *transfer))
                                 {
-                                    sameNodeFpFound = n;
-                                    sameNodeSameNameInTarget =
-                                        (sameNodeFpFound->parent && parent) &&
-                                        (sameNodeFpFound->parent->nodeHandle() ==
-                                         parent->nodeHandle()) &&
-                                        (fileName == sameNodeFpFound->displayname());
+                                    const bool nameMatch =
+                                        (n->parent && parent) &&
+                                        (n->parent->nodeHandle() == parent->nodeHandle()) &&
+                                        (fileName == n->displayname());
 
-                                    if (alreadyCheckedSameNodeNameInTarget ||
-                                        sameNodeSameNameInTarget)
+                                    if (shouldCheckMac(nameMatch))
                                     {
-                                        // There only can be one node with same name in target node
-                                        break;
+                                        auto [compRes, _] =
+                                            CompareLocalFileWithNodeMacAndFpExludingMtime(
+                                                *client,
+                                                wLocalPath,
+                                                fp_forCloud,
+                                                n.get());
+
+                                        if (compRes == NODE_COMP_EQUAL ||
+                                            compRes == NODE_COMP_DIFFERS_MTIME)
+                                        {
+                                            // There only can be one node with same name in target
+                                            // node
+                                            sameNodeFpFound = n;
+                                            sameNodeSameNameInTarget = nameMatch;
+                                            return true;
+                                        }
                                     }
                                 }
                             }
-                            // Do not make transfer fail if CompareLocalFileWithNodeFpAndMac result
-                            // is not NODE_COMP_EQUAL, just continue with transfer
+                            return false;
+                        };
+
+                        // Phase 1: check MAC only for nodes that are worth verifying immediately.
+                        //   - Small folder (alreadyCheckedSameNodeNameInTarget == true): the name
+                        //     lookup was already done, so any fingerprint-matching node is a valid
+                        //     candidate; check all of them and break on the first MAC match.
+                        //   - Large folder (alreadyCheckedSameNodeNameInTarget == false): the name
+                        //     lookup was skipped; only check nodes whose name and parent match the
+                        //     upload target, since those are the only ones that can skip the upload
+                        //     entirely (same content, same location).
+                        findNodeWithMacMatch(
+                            [&](bool nameMatch)
+                            {
+                                return alreadyCheckedSameNodeNameInTarget || nameMatch;
+                            });
+
+                        // Phase 2: remote-copy fallback, only for large folders when Phase 1 found
+                        // nothing. A cloud node at a different location but with the same content
+                        // (MAC-verified) can be used as the source of a server-side copy, avoiding
+                        // a full re-upload. nameMatch nodes are skipped here because they were
+                        // already checked in Phase 1. Breaks at the first MAC-verified match, so
+                        // typically only one extra MAC computation is needed.
+                        if (!sameNodeFpFound && !alreadyCheckedSameNodeNameInTarget)
+                        {
+                            findNodeWithMacMatch(
+                                [](bool nameMatch)
+                                {
+                                    return !nameMatch;
+                                });
                         }
 
                         if (sameNodeFpFound)
@@ -21536,10 +21563,14 @@ error MegaApiImpl::performRequest_importLink_getPublicNode(MegaRequestPrivate* r
             return e;
 }
 
-void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener* listener)
+void MegaApiImpl::getDownloadUrl(MegaNode* node,
+                                 bool singleUrl,
+                                 bool forceSSL,
+                                 MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_DOWNLOAD_URLS, listener);
     request->setFlag(singleUrl);
+    request->setAccess(forceSSL ? 1 : 0);
     if (node) request->setNodeHandle(node->getHandle());
 
     request->performRequest = [this, request]()
@@ -21561,6 +21592,7 @@ void MegaApiImpl::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestList
                 nullptr,
                 nullptr,
                 request->getFlag() /*singleUrl*/,
+                static_cast<bool>(request->getAccess()) /*forceSSL*/,
                 [this, request, h = node->nodehandle](const Error& e,
                                                       m_off_t /*size*/,
                                                       dstime /*timeleft*/,
@@ -24727,38 +24759,6 @@ void MegaApiImpl::cleanRubbishBin(MegaRequestListener* listener)
     waiter->notify();
 }
 
-void MegaApiImpl::useHttpsOnly(bool usehttps, MegaRequestListener* listener)
-{
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_USE_HTTPS_ONLY, listener);
-    request->setFlag(usehttps);
-
-    request->performTransferRequest = [this, request](TransferDbCommitter& committer)
-        {
-            bool usehttps = request->getFlag();
-            if (client->usehttps != usehttps)
-            {
-                client->usehttps = usehttps;
-                for (int d = GET; d == GET || d == PUT; d += PUT - GET)
-                {
-                    for (auto it = client->multi_transfers[d].begin(); it != client->multi_transfers[d].end(); )
-                    {
-                        Transfer *t = it->second;
-                        it++; // in case the failed() call deletes the transfer (which removes it from the list)
-                        if (t->slot)
-                        {
-                            t->failed(API_EAGAIN, committer);
-                        }
-                    }
-                }
-            }
-            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-            return API_OK;
-        };
-
-    requestQueue.push(request);
-    waiter->notify();
-}
-
 void MegaApiImpl::setProxySettings(MegaProxy* proxySettings, MegaRequestListener* listener)
 {
     Proxy* localProxySettings = new Proxy();
@@ -25826,7 +25826,11 @@ void MegaApiImpl::getPublicLinkInformation(const char* megaFolderLink, MegaReque
     waiter->notify();
 }
 
-void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener* listener)
+void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle,
+                                            int64_t fullFileSize,
+                                            int faType,
+                                            bool forceSSL,
+                                            MegaRequestListener* listener)
 {
     MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_GET_FA_UPLOAD_URL, listener);
     request->setNodeHandle(nodehandle);
@@ -25840,7 +25844,9 @@ void MegaApiImpl::getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullF
             uint64_t nodeHandle = request->getNodeHandle();
             int intFaType = request->getParamType();
             assert(intFaType >= 0 && (intFaType < (1 << (sizeof(fatype)*8)))); // Value of intFaType <= (2^(fatype_numbits) - 1)
-            fatype faType = static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine into a fatype (uint16_t)
+            fatype faType =
+                static_cast<fatype>(intFaType); // if the assert above is true, int should fit fine
+                                                // into a fatype (uint16_t)
             bool forceSSL = request->getFlag();
             size_t fullSize = static_cast<size_t>(request->getNumber());
 
@@ -25885,7 +25891,7 @@ error MegaApiImpl::performRequest_getBackgroundUploadURL(MegaRequestPrivate* req
 
             client->queueCommand(new CommandGetPutUrl(
                 request->getNumber(),
-                request->getFlag() | client->usehttps,
+                request->getFlag(),
                 getIp,
                 [this,
                  request](Error e, const std::string& url, const std::vector<std::string>& ips)
@@ -26576,7 +26582,9 @@ void MegaApiImpl::getRecentActionsAsync(unsigned days,
     getRecentActionsAsyncInternal(days, maxnodes, &excludeSensitives, listener);
 }
 
-void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* listener)
+void MegaApiImpl::getRecentActionByIdInternal(const char* id,
+                                              std::optional<bool> excludeSensitives,
+                                              MegaRequestListener* listener)
 {
     MegaRequestPrivate* request =
         new MegaRequestPrivate(MegaRequest::TYPE_GET_RECENT_ACTION_BY_ID, listener);
@@ -26584,12 +26592,26 @@ void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* liste
     {
         request->setText(id);
     }
+    if (excludeSensitives.has_value())
+    {
+        request->setFlag(*excludeSensitives);
+    }
 
-    request->performRequest = [this, request]()
+    request->performRequest =
+        [this, request, hasExcludeSensitives = excludeSensitives.has_value()]()
     {
         const char* id = request->getText();
         recentaction ra;
-        const error e = client->getRecentActionById(id, ra);
+        error e;
+        if (hasExcludeSensitives)
+        {
+            const bool excl = request->getFlag();
+            e = client->getRecentActionById(id, excl, ra);
+        }
+        else
+        {
+            e = client->getRecentActionById(id, ra);
+        }
         if (e != API_OK)
         {
             return e;
@@ -26606,6 +26628,18 @@ void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* liste
 
     requestQueue.push(request);
     waiter->notify();
+}
+
+void MegaApiImpl::getRecentActionById(const char* id, MegaRequestListener* listener)
+{
+    getRecentActionByIdInternal(id, std::nullopt, listener);
+}
+
+void MegaApiImpl::getRecentActionById(const char* id,
+                                      bool excludeSensitives,
+                                      MegaRequestListener* listener)
+{
+    getRecentActionByIdInternal(id, std::make_optional(excludeSensitives), listener);
 }
 
 void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
@@ -39915,8 +39949,8 @@ const char *MegaEventPrivate::getEventString(int type)
     {
         case MegaEvent::EVENT_COMMIT_DB: return "EVENT_COMMIT_DB";
         case MegaEvent::EVENT_ACCOUNT_CONFIRMATION: return "EVENT_ACCOUNT_CONFIRMATION";
-        case MegaEvent::EVENT_CONFIRM_USER_EMAIL: return "EVENT_CONFIRM_USER_EMAIL";
-        case MegaEvent::EVENT_CHANGE_TO_HTTPS: return "EVENT_CHANGE_TO_HTTPS";
+        case MegaEvent::EVENT_CONFIRM_USER_EMAIL:
+            return "EVENT_CONFIRM_USER_EMAIL";
         case MegaEvent::EVENT_DISCONNECT: return "EVENT_DISCONNECT";
         case MegaEvent::EVENT_ACCOUNT_BLOCKED: return "EVENT_ACCOUNT_BLOCKED";
         case MegaEvent::EVENT_STORAGE: return "EVENT_STORAGE";

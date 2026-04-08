@@ -103,11 +103,10 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
     }
     stopRunning = command->type() == CommandType::SHUTDOWN;
 
+    const LogLevel logLevel = command->logLevel();
     // execute command
-    LOG_info << "execute the command in the thread pool: "
-             << static_cast<int>(command->type())
-             << "/"
-             << command->typeStr();
+    LOG_level(logLevel) << "execute the command in the thread pool: "
+                        << static_cast<int>(command->type()) << "/" << command->typeStr();
 
     // gfx processing might crash as processing bad images
     // we flush log for every request to avoid a large portion log lost

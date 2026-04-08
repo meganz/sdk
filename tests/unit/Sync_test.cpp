@@ -647,7 +647,6 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mRemoteNode = NodeHandle();
         config.mWarning = NO_SYNC_WARNING;
         config.mSyncType = SyncConfig::TYPE_TWOWAY;
-        config.mBackupState = SYNC_BACKUP_NONE;
 
         written.emplace_back(config);
 
@@ -661,7 +660,6 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         config.mRemoteNode.set6byte(3);
         config.mWarning = LOCAL_IS_FAT;
         config.mSyncType = SyncConfig::TYPE_BACKUP;
-        config.mBackupState = SYNC_BACKUP_MIRROR;
 
         written.emplace_back(config);
     }
@@ -694,7 +692,6 @@ TEST_F(SyncConfigIOContextTest, Serialize)
         EXPECT_EQ(a.mRemoteNode, b.mRemoteNode);
         EXPECT_EQ(a.mWarning, b.mWarning);
         EXPECT_EQ(a.mSyncType, b.mSyncType);
-        EXPECT_EQ(a.mBackupState, b.mBackupState);
     }
 }
 
@@ -799,7 +796,6 @@ TEST_F(SyncConfigStoreTest, Read)
         EXPECT_EQ(a.mRemoteNode, b.mRemoteNode);
         EXPECT_EQ(a.mWarning, b.mWarning);
         EXPECT_EQ(a.mSyncType, b.mSyncType);
-        EXPECT_EQ(a.mBackupState, b.mBackupState);
     }
 }
 

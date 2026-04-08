@@ -32,7 +32,7 @@
 #include <thread>
 #include <type_traits>
 #undef SSIZE_MAX
-#include "mega/mega_utf8proc.h"
+#include <utf8proc/utf8proc.h>
 #undef SSIZE_MAX
 
 // Include ICU headers
@@ -671,6 +671,15 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
                                          std::optional<std::string> pathStr);
 
 std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv);
+
+/**
+ * @brief Check if two file nodes are equal by comparing their MetaMACs.
+ *
+ * @param nodeKey_a The first node encryption key from which we will get the first MetaMAC.
+ * @param nodeKey_b The second node encryption key from which we will get the second MetaMAC.
+ * @return true if both MetaMACs, false otherwise.
+ */
+bool areEqualNodesByMetaMac(const std::string& nodeKey_a, const std::string& nodeKey_b);
 
 /**
  * @brief Compares local file MAC with node's MAC from its key.

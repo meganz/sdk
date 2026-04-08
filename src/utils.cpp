@@ -24,7 +24,6 @@
 #include "mega/base64.h"
 #include "mega/filesystem.h"
 #include "mega/logging.h"
-#include "mega/mega_utf8proc.h"
 #include "mega/megaclient.h"
 #include "mega/serialize64.h"
 #include "mega/testhooks.h"
@@ -35,6 +34,7 @@
 #include <unicode/ucol.h>
 #include <unicode/unistr.h>
 #include <unicode/utypes.h>
+#include <utf8proc/utf8proc.h>
 
 #include <cctype>
 #include <iomanip>
@@ -2660,6 +2660,24 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
     }
 
     return std::make_pair(true, chunkMacs.macsmac(&cipher));
+}
+
+bool areEqualNodesByMetaMac(const std::string& nodeKey_a, const std::string& nodeKey_b)
+{
+    if (nodeKey_a.size() != FILENODEKEYLENGTH || nodeKey_b.size() != FILENODEKEYLENGTH)
+    {
+        LOG_err << "areEqualNodesByMetaMac expects valid node keys. nodeKey_a size ="
+                << nodeKey_a.size() << ", nodeKey_b size =" << nodeKey_b.size();
+        assert(false);
+        return false;
+    }
+
+    const char* iva_a = &nodeKey_a[SymmCipher::KEYLENGTH];
+    auto remoteMac_a = MemAccess::get<int64_t>(iva_a + sizeof(int64_t));
+
+    const char* iva_b = &nodeKey_b[SymmCipher::KEYLENGTH];
+    auto remoteMac_b = MemAccess::get<int64_t>(iva_b + sizeof(int64_t));
+    return remoteMac_a == remoteMac_b;
 }
 
 MacComparisonResult CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,

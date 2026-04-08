@@ -1,3 +1,4 @@
+// clang-format off
 #define ROOT_NODE_LOC 0
 #define BITS_CHILD_PATT_INDEX 14
 #define BITS_CHILD_MAP_INDEX  18

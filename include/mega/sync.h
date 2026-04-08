@@ -128,9 +128,6 @@ public:
     string syncErrorToStr();
     static string syncErrorToStr(SyncError errorCode);
 
-    void setBackupState(SyncBackupState state);
-    SyncBackupState getBackupState() const;
-
     // enabled/disabled by the user
     bool mEnabled = true;
 
@@ -170,9 +167,6 @@ public:
     // Path to the volume containing this backup (only for external backups).
     // This one is not serialized
     LocalPath mExternalDrivePath;
-
-    // Whether this backup is monitoring or mirroring.
-    SyncBackupState mBackupState;
 
     // If the database exists then its running/suspended. Not serialized.
     bool mDatabaseExists = false;
@@ -772,15 +766,6 @@ public:
     // Whether this is a backup sync.
     bool isBackup() const;
 
-    // Whether this is a backup sync and it is mirroring.
-    bool isBackupAndMirroring() const;
-
-    // Whether this is a backup sync and it is monitoring.
-    bool isBackupMonitoring() const;
-
-    // Move the sync into the monitoring state.
-    void setBackupMonitoring();
-
     // True if this sync should have a state cache database.
     bool shouldHaveDatabase() const;
 
@@ -1328,27 +1313,30 @@ struct SyncProblems
 struct SyncFlags
 {
     // we can only perform moves after scanning is complete
-    bool scanningWasComplete = false;
+    std::atomic<bool> scanningWasComplete = false;
 
     // track whether all our reachable nodes have been scanned
-    bool reachableNodesAllScannedThisPass = true;
-    bool reachableNodesAllScannedLastPass = true;
+    std::atomic<bool> reachableNodesAllScannedThisPass = true;
+    std::atomic<bool> reachableNodesAllScannedLastPass = true;
 
     // true anytime we have just added a new sync, or unsuspended (unpaused) one
-    bool isInitialPass = true;
+    std::atomic<bool> isInitialPass = true;
 
     // we can only delete/upload/download after moves are complete
-    bool movesWereComplete = false;
+    std::atomic<bool> movesWereComplete = false;
 
     // stall detection (for incompatible local and remote changes, eg file added locally in a folder removed remotely)
-    bool noProgress = true;
-    int noProgressCount = 0;
+    std::atomic<bool> noProgress = true;
+    std::atomic<int> noProgressCount = 0;
 
     std::atomic<bool> earlyRecurseExitRequested{false};
 
     // to help with slowing down retries in stall state
-    dstime recursiveSyncLastCompletedDs = 0;
+    std::atomic<dstime> recursiveSyncLastCompletedDs = 0;
 
+    // Access to this member is confined to sync_thread, so no mutex is required.
+    // IMPORTANT: If this changes and other threads need access, it must be
+    // protected with proper synchronization mechanism (e.g. mutex).
     SyncStallInfo stall;
 };
 
@@ -1809,8 +1797,13 @@ public:
     DefaultFilterChain mNewSyncFilterChain;
 
     // todo: move relevant code to this class later
-    // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem browser for icon indicators
-    std::timed_mutex mLocalNodeChangeMutex;  // needs to be locked when making changes on this thread; or when accessing from another thread
+    // this mutex protects the LocalNode trees while MEGAsync receives requests from the filesystem
+    // browser for icon indicators needs to be locked when making changes on this thread; or when
+    // accessing from another thread
+    //
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
+    std::timed_mutex mLocalNodeChangeMutex;
 
     // flags matching the state we have reported to the app via callbacks
     std::atomic<bool> syncscanstate{false};
@@ -1878,7 +1871,13 @@ private:
     bool checkSyncsMovesWereComplete(); // Iterate through syncs, calling Sync::checkMovesgWereComplete(). Returns false if any sync returns false.
     bool isAnySyncSyncing() const;
     bool isAnySyncScanning_inThread() const;
-    bool checkSyncsScanningWasComplete_inThread(); // Iterate through syncs, calling Sync::checkScanningWasComplete(). Returns false if any sync returns false.
+    /**
+     * @brief Checks sync scanning completion status.
+     * @return A pair where the first value indicates whether a full scan had completed in the
+     * previous cycle (outside the initial pass), and the second whether all current syncs are fully
+     * scanned.
+     */
+    std::pair<bool, bool> checkSyncsScanningWasComplete_inThread();
     void unsetSyncsScanningWasComplete_inThread(); // Unset scanningWasComplete flag for every sync.
 
     /**
@@ -1921,6 +1920,19 @@ private:
     void processSyncConflicts();
     void processSyncStalls();
 
+    /**
+     * @brief Returns a thread-safe copy of `mSyncVec`.
+     *
+     * This method returns a thread-safe (by locking `mSyncVecMutex`) copy of the current vector of
+     * UnifiedSync shared pointers.
+     *
+     * @note The returned vector is a snapshot of the internal state
+     * at the time of the call. Subsequent modifications to the
+     * original container will not affect the returned copy.
+     *
+     * @note This method should be called only from sync thread to avoid issues
+     */
+    std::vector<std::shared_ptr<UnifiedSync>> getSyncVecCopy() const;
     void syncLoop();
 
     enum WhichCloudVersion
@@ -2107,9 +2119,41 @@ private:
     // Responsible for securely writing config databases to disk.
     unique_ptr<SyncConfigIOContext> mSyncConfigIOContext;
 
-    // Sometimes the Client needs a list of the sync configs, we provide it by copy (mutex for thread safety of course)
+    // Sometimes the Client needs a list of the sync configs; we provide it as a copy (mutex for
+    // thread safety, of course).
+    //
+    // IMPORTANT: Lock ordering rules (to avoid deadlocks)
+    //
+    // Note: Each group is independent of the others, and for each group it is not required to hold
+    // all these mutexes simultaneously. The following rules define the valid lock ordering whenever
+    // multiple of them need to be acquired.
+    //
+    // Group 1: Interaction between `nodeTreeMutex` and `mSyncVecMutex`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `nodeTreeMutex`
+    //   2) `mSyncVecMutex`
+    //
+    // Group 2: Interaction between `mLocalNodeChangeMutex` and `mSyncVecMutex`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `mLocalNodeChangeMutex`
+    //   2) `mSyncVecMutex`
+    //
+    // Group 3: Interaction between `mSyncVecMutex`, `stallReportMutex` and `mImmediateStallLock`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `mSyncVecMutex`
+    //   2) `stallReportMutex`
+    //   3) `mImmediateStallLock`
+    //
+    // Group 4: Interaction between `mSyncVecMutex`, `triggerMutex`
+    // ---------------------------------------------------------------------------------------------
+    // The required lock order is:
+    //   1) `mSyncVecMutex`
+    //   2) `triggerMutex`
     mutable std::recursive_mutex mSyncVecMutex;
-    vector<unique_ptr<UnifiedSync>> mSyncVec;
+    vector<shared_ptr<UnifiedSync>> mSyncVec;
 
     // unload the Sync (remove from RAM and data structures), its config will be flushed to disk
     bool unloadSyncByBackupID(handle id, bool newEnabledFlag, SyncConfig&);
@@ -2122,6 +2166,9 @@ private:
 
     // data structure with mutex to interchange stall info
     SyncStallInfo stallReport;
+
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
     mutable mutex stallReportMutex;
 
     // When the node tree changes, this structure lets the sync code know which LocalNodes need to be flagged
@@ -2214,6 +2261,8 @@ public:
     IsImmediateStallPredicate mIsImmediateStall;
 
     // Serializes access to *ImmediateStall predicates.
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
     mutable std::mutex mImmediateStallLock;
 
     // Check whether any immediate stalls have been reported.

@@ -2818,7 +2818,15 @@ void MegaApi::getPublicNode(const char* megaFileLink, MegaRequestListener *liste
 
 void MegaApi::getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener)
 {
-    pImpl->getDownloadUrl(node, singleUrl, listener);
+    pImpl->getDownloadUrl(node, singleUrl, true, listener);
+}
+
+void MegaApi::getDownloadUrl(MegaNode* node,
+                             bool singleUrl,
+                             bool forceSSL,
+                             MegaRequestListener* listener)
+{
+    pImpl->getDownloadUrl(node, singleUrl, forceSSL, listener);
 }
 
 const char *MegaApi::buildPublicLink(const char *publicHandle, const char *key, bool isFolder)
@@ -3532,14 +3540,11 @@ void MegaApi::reportDebugEvent(const char *text, MegaRequestListener *listener)
     pImpl->reportEvent(text, listener);
 }
 
-void MegaApi::useHttpsOnly(bool httpsOnly, MegaRequestListener *listener)
-{
-    pImpl->useHttpsOnly(httpsOnly, listener);
-}
+void MegaApi::useHttpsOnly(bool, MegaRequestListener*) {}
 
 bool MegaApi::usingHttpsOnly()
 {
-    return pImpl->usingHttpsOnly();
+    return true;
 }
 
 void MegaApi::inviteContact(const char *email, const char *message, int action, MegaRequestListener *listener)
@@ -4350,6 +4355,13 @@ void MegaApi::getRecentActionsAsync(unsigned days,
 void MegaApi::getRecentActionById(const char* id, MegaRequestListener* listener)
 {
     pImpl->getRecentActionById(id, listener);
+}
+
+void MegaApi::getRecentActionById(const char* id,
+                                  bool excludeSensitives,
+                                  MegaRequestListener* listener)
+{
+    pImpl->getRecentActionById(id, excludeSensitives, listener);
 }
 
 void MegaApi::clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener)
@@ -5803,20 +5815,33 @@ void MegaApi::completeUpload(const char* utf8Name, MegaNode *parent, const char*
     return pImpl->completeUpload(utf8Name, parent, fingerprint, fingerprintoriginal, string64UploadToken, string64FileKey, listener);
 }
 
-
-void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApi::getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener)
 {
     return pImpl->getUploadURL(fullFileSize, forceSSL, listener);
 }
 
-void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApi::getThumbnailUploadURL(MegaHandle nodeHandle,
+                                    int64_t fullFileSize,
+                                    bool forceSSL,
+                                    MegaRequestListener* listener)
 {
-    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::THUMBNAIL, forceSSL, listener);
+    return pImpl->getFileAttributeUploadURL(nodeHandle,
+                                            fullFileSize,
+                                            GfxProc::THUMBNAIL,
+                                            forceSSL,
+                                            listener);
 }
 
-void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle, int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener)
+void MegaApi::getPreviewUploadURL(MegaHandle nodeHandle,
+                                  int64_t fullFileSize,
+                                  bool forceSSL,
+                                  MegaRequestListener* listener)
 {
-    return pImpl->getFileAttributeUploadURL(nodeHandle, fullFileSize, GfxProc::PREVIEW, forceSSL, listener);
+    return pImpl->getFileAttributeUploadURL(nodeHandle,
+                                            fullFileSize,
+                                            GfxProc::PREVIEW,
+                                            forceSSL,
+                                            listener);
 }
 
 void MegaApi::backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,

@@ -35,12 +35,17 @@
 #include <memory>
 
 #define CRON_USE_LOCAL_TIME 1
-#include <ccronexpr.h>
+#include <ccronexpr/ccronexpr.h>
 
 #ifdef HAVE_LIBUV
 #include "uv.h"
-#include "mega/mega_http_parser.h"
-#include "mega/mega_evt_tls.h"
+
+#include <http_parser/http_parser.h>
+
+#ifdef USE_OPENSSL
+#include <evt-tls/evt_tls.h>
+#define ENABLE_EVT_TLS 1
+#endif
 
 #endif
 
@@ -3882,7 +3887,10 @@ class MegaApiImpl : public MegaApp
         void importFileLink(const char* megaFileLink, MegaNode* parent, MegaRequestListener *listener = NULL);
         void decryptPasswordProtectedLink(const char* link, const char* password, MegaRequestListener *listener = NULL);
         void encryptLinkWithPassword(const char* link, const char* password, MegaRequestListener *listener = NULL);
-        void getDownloadUrl(MegaNode* node, bool singleUrl, MegaRequestListener *listener);
+        void getDownloadUrl(MegaNode* node,
+                            bool singleUrl,
+                            bool forceSSL,
+                            MegaRequestListener* listener);
         void getPublicNode(const char* megaFileLink, MegaRequestListener *listener = NULL);
         const char *buildPublicLink(const char *publicHandle, const char *key, bool isFolder);
         void getThumbnail(MegaNode* node, const char *dstFilePath, MegaRequestListener *listener = NULL);
@@ -3997,9 +4005,6 @@ class MegaApiImpl : public MegaApp
         void reportEvent(const char *details = NULL, MegaRequestListener *listener = NULL);
         void sendEvent(int eventType, const char* message, bool addJourneyId, const char* viewId, MegaRequestListener *listener = NULL);
         void createSupportTicket(const char* message, int type = 1, MegaRequestListener *listener = NULL);
-
-        void useHttpsOnly(bool httpsOnly, MegaRequestListener *listener = NULL);
-        bool usingHttpsOnly();
 
         //Backups
         MegaStringList *getBackupFolders(int backuptag);
@@ -4395,6 +4400,9 @@ public:
                                            unsigned maxnodes,
                                            bool* optExcludeSensitives,
                                            MegaRequestListener* listener = NULL);
+        void getRecentActionByIdInternal(const char* id,
+                                         std::optional<bool> excludeSensitives,
+                                         MegaRequestListener* listener = nullptr);
         MegaTimeStamp getRecentClearTimestamp();
         MegaTimeStamp formatRecentClearTimestamp(string_map* records);
 
@@ -4408,6 +4416,9 @@ public:
                                    MegaRequestListener* listener = NULL);
 
         void getRecentActionById(const char* id, MegaRequestListener* listener = nullptr);
+        void getRecentActionById(const char* id,
+                                 bool excludeSensitives,
+                                 MegaRequestListener* listener = nullptr);
 
         void clearRecentActionHistory(MegaTimeStamp until, MegaRequestListener* listener = nullptr);
 
@@ -4505,14 +4516,19 @@ public:
         bool createAvatar(const char* imagePath, const char *dstPath);
 
         // these two: MEGA proxy use only
-        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener *listener);
+        void getUploadURL(int64_t fullFileSize, bool forceSSL, MegaRequestListener* listener);
         void completeUpload(const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
                                                const char *string64UploadToken, const char *string64FileKey, MegaRequestListener *listener);
 
-        void getFileAttributeUploadURL(MegaHandle nodehandle, int64_t fullFileSize, int faType, bool forceSSL, MegaRequestListener *listener);
+        void getFileAttributeUploadURL(MegaHandle nodehandle,
+                                       int64_t fullFileSize,
+                                       int faType,
+                                       bool forceSSL,
+                                       MegaRequestListener* listener);
 
-
-        void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize, MegaBackgroundMediaUpload* state, MegaRequestListener *listener);
+        void backgroundMediaUploadRequestUploadURL(int64_t fullFileSize,
+                                                   MegaBackgroundMediaUpload* state,
+                                                   MegaRequestListener* listener);
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char* utf8Name, MegaNode *parent, const char* fingerprint, const char* fingerprintoriginal,
             const char *string64UploadToken, MegaRequestListener *listener);
 
@@ -5183,9 +5199,6 @@ public:
 
         // notify about a storage event
         void notify_storage(int) override;
-
-        // notify about an automatic change to HTTPS
-        void notify_change_to_https() override;
 
         // notify about account confirmation
         void notify_confirmation(const char*) override;

@@ -24,11 +24,12 @@
 #include "mega/base64.h"
 #include "mega/localpath.h"
 #include "mega/logging.h"
-#include "mega/mega_utf8proc.h"
 #include "mega/megaclient.h"
 #include "mega/node.h"
 #include "mega/sync.h"
 #include "megafs.h"
+
+#include <utf8proc/utf8proc.h>
 
 #include <cassert>
 #include <cctype>

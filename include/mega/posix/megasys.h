@@ -75,16 +75,12 @@
 
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <utime.h>
-#include <stdio.h>
-#include <stdarg.h>
-#include <fcntl.h>
 
-#ifdef HAVE_GLOB_H
-    #include <glob.h>
-#else
-    #include "mega/mega_glob.h"
-#endif
+#include <fcntl.h>
+#include <glob.h>
+#include <stdarg.h>
+#include <stdio.h>
+#include <utime.h>
 
 #ifdef HAVE_DIRENT_H
     #include <dirent.h>

@@ -2792,11 +2792,7 @@ public:
         arg("n", (byte*)&h, MegaClient::NODEHANDLE);
         arg("g", 1);
         arg("v", 2);  // version 2: server can supply details for cloudraid files
-
-        if (mc->usehttps)
-        {
-            arg("ssl", 2);
-        }
+        arg("ssl", 2);
     }
 
     static string server(const string& url)
@@ -5473,7 +5469,6 @@ autocomplete::ACN autocompleteSyntax()
                                   flag("-nonchunk-received")))));
     p->Add(exec_getlogjson, sequence(text("getlogjson")));
     p->Add(exec_handles, sequence(text("handles"), opt(either(text("on"), text("off")))));
-    p->Add(exec_httpsonly, sequence(text("httpsonly"), opt(either(text("on"), text("off")))));
     p->Add(exec_showattrs, sequence(text("showattrs"), opt(either(text("on"), text("off")))));
     p->Add(exec_timelocal, sequence(text("mtimelocal"), either(text("set"), text("get")), localFSPath(), opt(param("datetime"))));
 
@@ -6625,7 +6620,8 @@ void exec_get(autocomplete::ACState& s)
                 nullptr,
                 nullptr,
                 nullptr,
-                false,
+                false /*singleURL*/,
+                true /*forceSSL*/,
                 [key, ph](const Error& e,
                           m_off_t size,
                           dstime /*timeleft*/,
@@ -9356,29 +9352,6 @@ void exec_codepage(autocomplete::ACState& s)
     }
 }
 #endif
-
-void exec_httpsonly(autocomplete::ACState& s)
-{
-    if (s.words.size() == 1)
-    {
-        cout << "httpsonly: " << (client->usehttps ? "on" : "off") << endl;
-    }
-    else if (s.words.size() == 2)
-    {
-        if (s.words[1].s == "on")
-        {
-            client->usehttps = true;
-        }
-        else if (s.words[1].s == "off")
-        {
-            client->usehttps = false;
-        }
-        else
-        {
-            cout << "invalid setting" << endl;
-        }
-    }
-}
 
 #ifdef USE_MEDIAINFO
 void exec_mediainfo(autocomplete::ACState& s)

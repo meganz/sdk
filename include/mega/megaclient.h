@@ -1609,9 +1609,6 @@ public:
     // Get number of children from a node
     size_t getNumberOfChildren(NodeHandle parentHandle);
 
-    // use HTTPS for all communications
-    bool usehttps;
-
     // use an alternative port for downloads (8080)
     bool usealtdownport;
 
@@ -2027,6 +2024,8 @@ public:
     // NodeManager instance to wrap all access to Node objects
     NodeManager mNodeManager;
 
+    // IMPORTANT: Please refer to the `mSyncVecMutex` definition for lock ordering rules (to avoid
+    // deadlocks).
     recursive_mutex nodeTreeMutex;
 
     // transfer cache table
@@ -2367,6 +2366,11 @@ public:
     // get a recent action bucket by its identifier.
     // Returns API_OK (recentaction in output), API_ENOENT (no match), or API_EARGS (invalid id).
     error getRecentActionById(const char* id, recentaction& output);
+
+    // get a recent action bucket by its identifier, overriding the excludeSensitives flag in the
+    // id. Returns API_OK (recentaction in output), API_ENOENT (no match), or API_EARGS (invalid
+    // id).
+    error getRecentActionById(const char* id, bool excludeSensitives, recentaction& output);
 
     // determine if the file is a video, photo, or media (video or photo).  If the extension (with trailing .) is not precalculated, pass null
     bool nodeIsMedia(const Node*, bool *isphoto, bool *isvideo) const;

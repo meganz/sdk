@@ -79,6 +79,25 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (readonly, nonatomic, nullable) MEGANodeList *nodesList;
 
+/**
+ * @brief Returns the identifier for this bucket
+ *
+ * Format:
+ * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+ * - dayStartTs is the UTC day start timestamp (seconds since Epoch).
+ * - windowStartHour and windowEndHour are UTC hours for the time window boundaries.
+ * - userHandle is base64-encoded and cannot be UNDEF.
+ * - parentHandle is base64-encoded and cannot be UNDEF.
+ * - isMedia, isUpdate and excludeSensitives are 0 or 1.
+ *
+ * The SDK retains the ownership of the returned value. It will be valid until
+ * the MegaRecentActionBucket object is deleted.
+ *
+ * @return The bucket identifier string
+ */
+@property (readonly, nonatomic, nullable) NSString *bucketId;
+
+
 @end
 
 NS_ASSUME_NONNULL_END

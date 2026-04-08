@@ -1,3 +1,4 @@
+// clang-format off
 /*
  * Natanael Arndt, 2011: removed collate.h dependencies
  *  (my changes are trivial)
@@ -37,8 +38,9 @@
 static char sccsid[] = "@(#)glob.c	8.3 (Berkeley) 10/13/93";
 #endif /* LIBC_SCCS and not lint */
 #include <sys/cdefs.h>
+#ifdef __FBSDID
 __FBSDID("$FreeBSD$");
-
+#endif
 /*
  * glob(3) -- a superset of the one defined in POSIX 1003.2.
  *
@@ -80,7 +82,6 @@ __FBSDID("$FreeBSD$");
 #include <ctype.h>
 #include <dirent.h>
 #include <errno.h>
-#include "mega/mega_glob.h"
 #include <limits.h>
 #include <pwd.h>
 #include <stdint.h>
@@ -89,6 +90,8 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #include <unistd.h>
 #include <wchar.h>
+
+#include "glob.h"
 
 #define	DOLLAR		'$'
 #define	DOT		'.'

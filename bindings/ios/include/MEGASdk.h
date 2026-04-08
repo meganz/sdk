@@ -6121,57 +6121,6 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 - (void)setRubbishBinAutopurgePeriodInDays:(NSInteger)days;
 
 /**
- * @brief Use HTTPS communications only
- *
- * The default behavior is to use HTTP for transfers and the persistent connection
- * to wait for external events. Those communications don't require HTTPS because
- * all transfer data is already end-to-end encrypted and no data is transmitted
- * over the connection to wait for events (it's just closed when there are new events).
- *
- * This feature should only be enabled if there are problems to contact MEGA servers
- * through HTTP because otherwise it doesn't have any benefit and will cause a
- * higher CPU usage.
- *
- * See [MEGASdk usingHttpsOnly]
- *
- * @param httpsOnly YES to use HTTPS communications only
- * @param delegate MEGARequestDelegate to track this request.
- */
-- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate;
-
-/**
- * @brief Use HTTPS communications only
- *
- * The default behavior is to use HTTP for transfers and the persistent connection
- * to wait for external events. Those communications don't require HTTPS because
- * all transfer data is already end-to-end encrypted and no data is transmitted
- * over the connection to wait for events (it's just closed when there are new events).
- *
- * This feature should only be enabled if there are problems to contact MEGA servers
- * through HTTP because otherwise it doesn't have any benefit and will cause a
- * higher CPU usage.
- *
- * See [MEGASdk usingHttpsOnly]
- *
- * @param httpsOnly YES to use HTTPS communications only
- */
-- (void)useHttpsOnly:(BOOL)httpsOnly;
-
-/**
- * @brief Check if the SDK is using HTTPS communications only
- *
- * The default behavior is to use HTTP for transfers and the persistent connection
- * to wait for external events. Those communications don't require HTTPS because
- * all transfer data is already end-to-end encrypted and no data is transmitted
- * over the connection to wait for events (it's just closed when there are new events).
- *
- * See [MEGASdk useHttpsOnly:]
- *
- * @return YES if the SDK is using HTTPS communications only. Otherwise NO.
- */
-- (BOOL)usingHttpsOnly;
-
-/**
  * @brief Invite another person to be your MEGA contact
  *
  * The user doesn't need to be registered on MEGA. If the email isn't associated with
@@ -8126,6 +8075,26 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 /// @param until Epoch time (in seconds). Recent actions up to this time will be cleared.
 /// @param delegate MEGARequestDelegate to track this request
 - (void)clearRecentActionHistoryUntil:(int64_t)until delegate:(id<MEGARequestDelegate>)delegate;
+
+/// Get a recent action bucket by its identifier.
+///
+/// The identifier format is:
+/// dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
+///
+/// Valid data in the MEGARequest object received on callbacks:
+///
+/// - [MEGARequest text] - Returns the bucket identifier
+///
+/// The associated request type with this request is MEGARequestTypeGetRecentActionById
+///
+/// Valid data in the MEGARequest object received in onRequestFinish when the error code
+/// is MEGAErrorTypeApiOk:
+///
+/// - [MEGARequest recentActionsBuckets] - Returns an array with 1 bucket
+///
+/// @param bucketId Bucket identifier returned by MEGARecentActionBucket's identifier
+/// @param delegate MEGARequestDelegate to track this request
+- (void)getRecentActionByBucketId:(NSString *)bucketId delegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Process a node tree using a MEGATreeProcessorDelegate implementation

@@ -79,6 +79,7 @@ m_time_t HeartBeatBackupInfo::lastBeat() const
 
 void HeartBeatSyncInfo::updateSPHBStatus(UnifiedSync& us)
 {
+    assert(us.syncs.onSyncThread());
     SPHBStatus status = CommandBackupPutHeartBeat::INACTIVE;
 
     if (us.mSync)
@@ -410,6 +411,8 @@ void BackupMonitor::beatBackupInfo(UnifiedSync& us)
 void BackupMonitor::beat()
 {
     assert(syncs.onSyncThread());
+
+    lock_guard<std::recursive_mutex> guard(syncs.mSyncVecMutex);
 
     // Only send heartbeats for enabled active syncs.
     for (auto& us : syncs.mSyncVec)

@@ -1,6 +1,17 @@
 macro(load_sdklib_libraries)
 
     target_link_libraries(SDKlib PUBLIC ccronexpr)
+    target_link_libraries(SDKlib PUBLIC csv)
+    if(USE_LIBUV AND USE_OPENSSL)
+        target_link_libraries(SDKlib PUBLIC evt-tls)
+    endif()
+
+    if(NOT HAVE_GLOB_H AND NOT WIN32)
+        target_link_libraries(SDKlib PUBLIC glob)
+    endif()
+    target_link_libraries(SDKlib PUBLIC http_parser)
+    target_link_libraries(SDKlib PUBLIC utf8proc)
+    target_link_libraries(SDKlib PUBLIC zxcvbn-c)
 
     if(VCPKG_ROOT)
         find_package(cryptopp CONFIG REQUIRED)

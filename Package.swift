@@ -38,7 +38,7 @@ let package = Package(
                 "src/common/platform/windows",
                 "src/file_service/documentation",
                 "src/fuse/supported",
-                "src/mega_utf8proc_data.c",
+                "third_party/utf8proc/utf8proc_data.c",
                 "src/win32",
                 "tests",
                 "tools"
@@ -50,7 +50,7 @@ let package = Package(
                 .headerSearchPath("src/common/platform/posix"),
                 .headerSearchPath("src/file_service"),
                 .headerSearchPath("src/fuse/unsupported"),
-                .headerSearchPath("third_party/ccronexpr"),
+                .headerSearchPath("third_party"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("NDEBUG", .when(configuration: .release))

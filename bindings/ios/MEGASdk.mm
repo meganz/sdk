@@ -2418,23 +2418,6 @@ using namespace mega;
     }
 }
 
-- (void)useHttpsOnly:(BOOL)httpsOnly delegate:(id<MEGARequestDelegate>)delegate {
-    if (self.megaApi) {
-        self.megaApi->useHttpsOnly(httpsOnly, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
-    }
-}
-
-- (void)useHttpsOnly:(BOOL)httpsOnly {
-    if (self.megaApi) {
-        self.megaApi->useHttpsOnly(httpsOnly);
-    }
-}
-
-- (BOOL)usingHttpsOnly {
-    if (self.megaApi == nil) return NO;
-    return self.megaApi->usingHttpsOnly();
-}
-
 - (void)inviteContactWithEmail:(NSString *)email message:(NSString *)message action:(MEGAInviteAction)action delegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->inviteContact(email.UTF8String, message.UTF8String, (int)action, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
@@ -4193,6 +4176,12 @@ using namespace mega;
     NSString *password = [NSString stringWithUTF8String:result];
     delete [] result;
     return password;
+}
+
+- (void)getRecentActionByBucketId:(NSString *)bucketId delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->getRecentActionById(bucketId.UTF8String, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
 }
 
 @end

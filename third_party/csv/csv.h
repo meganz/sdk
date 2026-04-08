@@ -1,3 +1,4 @@
+// clang-format off
 #pragma once
 /*
 CSV for C++, version 2.3.0
@@ -5041,6 +5042,8 @@ namespace csv {
         VariableColumnPolicy variable_column_policy = VariableColumnPolicy::IGNORE_ROW;
     };
 }
+
+// clang-format off
 /** @file
  *  Defines the data type used for storing information about a CSV row
  */

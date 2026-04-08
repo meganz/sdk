@@ -8,19 +8,12 @@
 //
 //%///////////////////////////////////////////////////////////////////////////
 
-// platform dependent constants
-#if defined(__ANDROID__) && !defined(HAVE_SDK_CONFIG_H)
-#include "mega/config-android.h"
-#else
-#include "mega/config.h"
-#endif
-
-#if defined(HAVE_LIBUV)
+// clang-format off
 
 #include <assert.h>
 #include <string.h>
-#include "mega/mega_evt_tls.h"
-#ifdef ENABLE_EVT_TLS
+
+#include <evt-tls/evt_tls.h>
 
 /*
  *All the asserts used in the code are possible targets for error
@@ -475,5 +468,3 @@ int evt_is_tls_stream(const char *bfr, const ssize_t
     return is_tls;
 }
 
-#endif
-#endif

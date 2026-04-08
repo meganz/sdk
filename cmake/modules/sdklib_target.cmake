@@ -19,7 +19,6 @@ set(SDKLIB_HEADERS
     include/mega/thread.h
     include/mega/json.h
     include/mega/base64.h
-    include/mega/mega_utf8proc.h
     include/mega/gfx.h
     include/mega/proxy.h
     include/mega/crypto/sodium.h
@@ -31,7 +30,6 @@ set(SDKLIB_HEADERS
     include/mega/megaapp.h
     include/mega/console.h
     include/mega/user.h
-    include/mega/mega_evt_queue.h
     include/mega/db.h
     include/mega/megaclient.h
     include/mega/autocomplete.h
@@ -40,13 +38,11 @@ set(SDKLIB_HEADERS
     include/mega/setandelement.h
     include/mega/testhooks.h
     include/mega/share.h
-    include/mega/mega_dict-src.h
     include/mega/gfx/GfxProcCG.h
     include/mega/gfx/freeimage.h
     include/mega/gfx/gfx_pdfium.h
     include/mega/gfx/external.h
     include/mega/pubkeyaction.h
-    include/mega/mega_http_parser.h
     include/mega/waiter.h
     include/mega/db/sqlite.h
     include/mega/types.h
@@ -79,13 +75,11 @@ set(SDKLIB_HEADERS
     include/mega/attrmap.h
     include/mega/sharenodekeys.h
     include/mega/request.h
-    include/mega/mega_zxcvbn.h
     include/mega/fileattributefetch.h
     include/mega/version.h
     include/mega/node.h
     include/mega/mediafileattribute.h
     include/mega/process.h
-    include/mega/mega_csv.h
     include/mega/name_collision.h
     include/mega/name_id.h
     include/mega/pwm_file_parser.h
@@ -135,9 +129,6 @@ set(SDKLIB_SOURCES
     src/logging.cpp
     src/localpath.cpp
     src/mediafileattribute.cpp
-    src/mega_http_parser.cpp
-    src/mega_utf8proc.cpp
-    src/mega_zxcvbn.cpp
     src/megaclient.cpp
     src/node.cpp
     src/pendingcontactrequest.cpp
@@ -339,20 +330,6 @@ target_sources_conditional(SDKlib
     src/thread/cppthread.cpp
 )
 
-target_sources_conditional(SDKlib
-    FLAG NOT HAVE_GLOB_H AND NOT WIN32
-    PRIVATE
-    include/mega/mega_glob.h
-    src/mega_glob.c
-)
-
-target_sources_conditional(SDKlib
-    FLAG USE_LIBUV
-    PRIVATE
-    include/mega/mega_evt_tls.h
-    src/mega_evt_tls.cpp
-)
-
 # Include directories
 target_include_directories(SDKlib
     PUBLIC
@@ -455,17 +432,6 @@ target_platform_compile_options(
     UNIX $<$<CONFIG:Debug>:-ggdb3> -Wall -Wextra -Wconversion
 )
 
-if (ANDROID)
-    target_arch_compile_options(
-        TARGET SDKlib
-        ARM32 -mno-unaligned-access
-        # Clang accepts the -mno-unaligned-access flag for ARM64, but GCC does not.
-        ARM64
-            $<$<COMPILE_LANG_AND_ID:CXX,Clang,AppleClang>:-mno-unaligned-access>
-            $<$<COMPILE_LANG_AND_ID:CXX,GNU>:-mstrict-align>
-    )
-endif()
-
 if(ENABLE_SDKLIB_WERROR)
     target_platform_compile_options(
         TARGET SDKlib
@@ -473,23 +439,6 @@ if(ENABLE_SDKLIB_WERROR)
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
     )
-    if(WIN32)
-        set_source_files_properties(
-            src/mega_ccronexpr.cpp
-            src/mega_zxcvbn.cpp
-            PROPERTIES
-            COMPILE_FLAGS "/wd4456" # declaration hides previous local declaration
-        )
-    endif()
-    if(APPLE)
-        set_source_files_properties(
-            src/mega_http_parser.cpp
-            src/mega_utf8proc.cpp
-            src/mega_zxcvbn.cpp
-            PROPERTIES 
-            COMPILE_FLAGS "-Wno-sign-conversion"
-        )
-    endif()
 endif()
 
 ## Create config files ##

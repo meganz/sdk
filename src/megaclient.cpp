@@ -2040,12 +2040,10 @@ MegaClient::MegaClient(MegaApp* a,
 #ifndef EMSCRIPTEN
     autodownport = true;
     autoupport = true;
-    usehttps = false;
     orderdownloadedchunks = false;
 #else
     autodownport = false;
     autoupport = false;
-    usehttps = true;
     orderdownloadedchunks = true;
 #endif
 
@@ -2559,20 +2557,7 @@ void MegaClient::exec()
                 switch (static_cast<reqstatus_t>(fc->req.status))
                 {
                     case REQ_SUCCESS:
-                        if (fc->req.contenttype.find("text/html") != string::npos &&
-                            Utils::startswith(fc->req.posturl, "http:"))
-                        {
-                            LOG_warn << "Invalid Content-Type detected downloading file attr: " << fc->req.contenttype;
-                            fc->urltime = 0;
-                            usehttps = true;
-                            app->notify_change_to_https();
-
-                            sendevent(99436, "Automatic change to HTTPS", 0);
-                        }
-                        else
-                        {
-                            fc->parse(cit->first, true);
-                        }
+                        fc->parse(cit->first, true);
 
                         // notify app in case some attributes were not returned, then redispatch
                         fc->failed();
@@ -2609,17 +2594,6 @@ void MegaClient::exec()
                         app->notify_network_activity(NetworkActivityChannel::CS,
                                                      NetworkActivityType::REQUEST_ERROR,
                                                      API_EFAILED);
-
-                        if (fc->req.httpstatus &&
-                            fc->req.contenttype.find("text/html") != string::npos &&
-                            Utils::startswith(fc->req.posturl, "http:"))
-                        {
-                            LOG_warn << "Invalid Content-Type detected on failed file attr: " << fc->req.contenttype;
-                            usehttps = true;
-                            app->notify_change_to_https();
-
-                            sendevent(99436, "Automatic change to HTTPS", 0);
-                        }
 
                         fc->failed();
                         fc->timeout.reset();
@@ -4575,7 +4549,8 @@ void MegaClient::dispatchTransfers()
                                     privauth,
                                     pubauth,
                                     chatauth,
-                                    false,
+                                    false /*singleURL*/,
+                                    true /*forceSSL*/,
                                     [this, ts, hprivate, h](
                                         const Error& e,
                                         m_off_t s,
@@ -5210,7 +5185,7 @@ void MegaClient::dnsrequest(const char *hostname)
     req->tag = reqtag;
     req->maxretries = 0;
     pendinghttp[reqtag] = req;
-    req->posturl = (usehttps ? string("https://") : string("http://")) + hostname;
+    req->posturl = string("https://") + hostname;
     req->dns(this);
 }
 
@@ -6287,7 +6262,7 @@ error MegaClient::putfa(NodeOrUploadHandle th,
         return API_EKEY;
     }
 
-    queuedfa.emplace_back(new HttpReqFA(th, t, usehttps, tag, std::move(data), true, this));
+    queuedfa.emplace_back(new HttpReqFA(th, t, tag, std::move(data), true, this));
     LOG_debug << "File attribute added to queue - " << th << " : " << queuedfa.size() << " queued, " << activefa.size() << " active";
 
     // no other file attribute storage request currently in progress? POST this one.
@@ -18795,9 +18770,27 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
 
         Transfer* t = NULL;
         auto range = multi_transfers[d].equal_range(f);
+        auto nodexfer = nodeByHandle(f->h);
         for (auto it = range.first; it != range.second; ++it)
         {
             if (it->second->files.empty()) continue;
+            if (d == GET)
+            {
+                File* f2 = it->second->files.front();
+                auto auxnode = nodeByHandle(f2->h);
+                if (nodexfer && auxnode)
+                {
+                    if (areEqualNodesByMetaMac(nodexfer->nodekey(), auxnode->nodekey()))
+                    {
+                        t = it->second;
+                        break;
+                    }
+
+                    continue;
+                }
+                // Fallback to original mechanism
+            }
+
             File* f2 = it->second->files.front();
 
             string ext1, ext2;
@@ -19424,6 +19417,11 @@ recentactions_vector MegaClient::getRecentActions(unsigned maxcount,
 error MegaClient::getRecentActionById(const char* id, recentaction& output)
 {
     return RecentActions(this).getById(id, output);
+}
+
+error MegaClient::getRecentActionById(const char* id, bool excludeSensitives, recentaction& output)
+{
+    return RecentActions(this).getById(id, excludeSensitives, output);
 }
 
 // a chunk transfer request failed: record failed protocol & host

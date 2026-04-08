@@ -70,15 +70,14 @@ struct UserAlertPendingContact
 
 namespace UserAlert
 {
-    enum userAlertsSubtype
-    {
-        subtype_invalid   = 0,
-        subtype_new_Sched = 1,
-        subtype_upd_Sched = 2,
+enum userAlertsSubtype : uint8_t
+{
+    subtype_invalid = 0,
+    subtype_new_Sched = 1,
+    subtype_upd_Sched = 2,
     };
 
     struct Base;
-    static Base* unserializeNewUpdSched(string*, unsigned id);
     using handle_alerttype_map_t = map<handle, nameid>;
 
     struct Base : public Cacheable
@@ -132,7 +131,6 @@ namespace UserAlert
         bool serialize(string*) const override;
         static unique_ptr<Persistent> readBase(CacheableReader& r);
         static unique_ptr<Persistent> unserialize(string*);
-        friend Base* unserializeNewUpdSched(string*, unsigned id);
 
     private:
         bool mRemoved = false; // useful to know when to remove from persist db
@@ -325,14 +323,40 @@ namespace UserAlert
     };
 
 #ifdef ENABLE_CHAT
-    struct NewScheduledMeeting : public Base
+    struct ScheduledMeetingAlert: public Base
     {
         handle mChatid = UNDEF;
         handle mSchedMeetingHandle = UNDEF;
         handle mParentSchedId = UNDEF;
         m_time_t mStartDateTime = mega_invalid_timestamp; // overrides param
 
-        NewScheduledMeeting(UserAlertRaw& un, unsigned int id);
+        ScheduledMeetingAlert(UserAlertRaw& un, unsigned int id);
+
+        ScheduledMeetingAlert(handle _ou,
+                              m_time_t _ts,
+                              unsigned int _id,
+                              handle _chatid,
+                              handle _sm,
+                              handle _parentSchedId,
+                              m_time_t _startDateTime):
+            Base(name_id::mcsmp, _ou, string(), _ts, _id),
+            mChatid(_chatid),
+            mSchedMeetingHandle(_sm),
+            mParentSchedId(_parentSchedId),
+            mStartDateTime(_startDateTime)
+        {}
+
+        static UserAlert::Base* unserializeScheduledMeeting(string* d, unsigned id);
+        string* serializeScheduledMeeting(const userAlertsSubtype& subType, string* d) const;
+    };
+
+    std::ostream& operator<<(std::ostream& oss, const ScheduledMeetingAlert& sma);
+
+    struct NewScheduledMeeting: public ScheduledMeetingAlert
+    {
+        NewScheduledMeeting(UserAlertRaw& un, unsigned int id):
+            ScheduledMeetingAlert(un, id)
+        {}
 
         NewScheduledMeeting(handle _ou,
                             m_time_t _ts,
@@ -341,19 +365,14 @@ namespace UserAlert
                             handle _sm,
                             handle _parentSchedId,
                             m_time_t _startDateTime):
-            Base(name_id::mcsmp, _ou, string(), _ts, _id),
-            mChatid(_chatid),
-            mSchedMeetingHandle(_sm),
-            mParentSchedId(_parentSchedId),
-            mStartDateTime(_startDateTime)
+            ScheduledMeetingAlert(_ou, _ts, _id, _chatid, _sm, _parentSchedId, _startDateTime)
         {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
         bool serialize(string* d) const override;
-        static NewScheduledMeeting* unserialize(string*, unsigned id);
     };
 
-    struct UpdatedScheduledMeeting : public Base
+    struct UpdatedScheduledMeeting: public ScheduledMeetingAlert
     {
         class Changeset
         {
@@ -461,17 +480,12 @@ namespace UserAlert
                                 handle _parentSchedId,
                                 m_time_t _startDateTime,
                                 Changeset&& _cs):
-            Base(name_id::mcsmp, _ou, string(), _ts, _id),
-            mChatid(_chatid),
-            mSchedMeetingHandle(_sm),
-            mParentSchedId(_parentSchedId),
-            mStartDateTime(_startDateTime),
+            ScheduledMeetingAlert(_ou, _ts, _id, _chatid, _sm, _parentSchedId, _startDateTime),
             mUpdatedChangeset(_cs)
         {}
 
         virtual void text(string& header, string& title, MegaClient* mc) override;
         bool serialize(string*) const override;
-        static UpdatedScheduledMeeting* unserialize(string*, unsigned id);
     };
 
     struct DeletedScheduledMeeting : public Base
@@ -657,6 +671,9 @@ public:
 
     // re-init eg. on logout
     void clear();
+
+    // drop stale payment reminders once we know the account is currently PRO
+    void purgeStalePaymentReminders();
 };
 
 

@@ -1337,9 +1337,16 @@ bool AndroidFileSystemAccess::renamelocal(const LocalPath& oldname,
 
         if (oldname.parentPath() == newname.parentPath())
         {
-            auto parentPath = newname.parentPath().toPath(false);
-            bool success =
-                oldNameWrapper->rename(parentPath, newname.leafName().toPath(false), overwrite);
+            auto parent =
+                AndroidFileWrapper::getAndroidFileWrapper(oldname.parentPath(), false, true);
+            if (!parent)
+            {
+                return false;
+            }
+
+            bool success = oldNameWrapper->rename(parent->getURI(),
+                                                  newname.leafName().toPath(false),
+                                                  overwrite);
             target_exists = !overwrite && !success;
             return success;
         }

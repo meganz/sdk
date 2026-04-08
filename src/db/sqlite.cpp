@@ -1280,7 +1280,8 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
     }
     if (enableIndexesForLexicographicalList)
     {
-        sql = "CREATE INDEX IF NOT EXISTS lexicopraphicindex on nodes (name, type, nodehandle)";
+        sql = "CREATE INDEX IF NOT EXISTS lexicopraphicindex on nodes (parenthandle, name, type, "
+              "nodehandle)";
         result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
         if (result)
         {

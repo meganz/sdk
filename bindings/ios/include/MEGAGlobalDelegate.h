@@ -145,16 +145,6 @@ NS_ASSUME_NONNULL_BEGIN
  *  Valid data in the MegaEvent object received in the callback:
  *      - [MEGAEvent text]: email address used to confirm the account
  *
- *  - EventChangeToHttps: when the SDK automatically starts using HTTPS for all
- *  its communications. This happens when the SDK is able to detect that MEGA servers can't be
- *  reached using HTTP or that HTTP communications are being tampered. Transfers of files and
- *  file attributes (thumbnails and previews) use HTTP by default to save CPU usage. Since all data
- *  is already end-to-end encrypted, it's only needed to use HTTPS if HTTP doesn't work. Anyway,
- *  applications can force the SDK to always use HTTPS using MegaApi::useHttpsOnly. It's recommended
- *  that applications that receive one of these events save that information on its settings and
- *  automatically enable HTTPS on next executions of the app to not force the SDK to detect the problem
- *  and automatically switch to HTTPS every time that the application starts.
- *
  * - EventDisconnect: when the SDK performs a disconnect to reset all the
  * existing open-connections, since they have become unusable. It's recommended that the app
  * receiving this event reset its connections with other servers, since the disconnect
