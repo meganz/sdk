@@ -2207,6 +2207,16 @@ void MegaClient::maybeStartWsUploadEngine()
     mWsEngineStarted = true;
 }
 
+namespace
+{
+void forcePermanentWsReadFailure(Transfer& transfer)
+{
+    // Mirror legacy slot-based behavior for local-source invalidation by forcing
+    // Transfer::failed(API_EREAD) to skip deferred retries.
+    transfer.failcount = FILE_SYNC_MAX_RETRIES + 1;
+}
+} // namespace
+
 void MegaClient::installWsEngineCallbacks()
 {
     if (!m_wsEngine)
@@ -2344,14 +2354,18 @@ void MegaClient::installWsEngineCallbacks()
                              });
     };
 
-    cb.onFail = [this](Transfer& t, int apierr, m_off_t /*aux*/)
+    cb.onFail = [this](Transfer& t,
+                       int apierr,
+                       m_off_t /*aux*/,
+                       ws::UploadEngine::FailureDisposition disposition)
     {
         auto* tp = &t;
         const auto type = t.type;
         const auto th = t.uploadhandle;
 
         wsPostToClientThread(
-            [tp, type, th, apierr](MegaClient& client, TransferDbCommitter& committer) mutable
+            [tp, type, th, apierr, disposition](MegaClient& client,
+                                                TransferDbCommitter& committer) mutable
             {
                 if (!tp)
                     return;
@@ -2392,6 +2406,11 @@ void MegaClient::installWsEngineCallbacks()
                     }
 
                     client.wsEngine()->remove(*tp);
+                }
+
+                if (disposition == ws::UploadEngine::FailureDisposition::Permanent)
+                {
+                    forcePermanentWsReadFailure(*tp);
                 }
 
                 tp->failed(e, committer, retrydelay);
@@ -2955,7 +2974,7 @@ void MegaClient::wsRefreshCanStartAnotherFileSnapshot()
 
 bool MegaClient::prepareUploadForWs(Transfer& t)
 {
-    auto failWsPreflightRead = [this, &t](const char* reason, bool fileMismatch = false)
+    auto failWsPreflightRead = [this, &t](const char* reason)
     {
         LOG_warn << "[MegaClient::prepareUploadForWs] preflight failed (" << reason
                  << ") [t.localfilename = " << t.localfilename << "]";
@@ -2964,7 +2983,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
         const direction_t type = t.type;
         const UploadHandle th = t.uploadhandle;
         wsPostToClientThread(
-            [tp, type, th, fileMismatch](MegaClient& c, TransferDbCommitter& committer)
+            [tp, type, th](MegaClient& c, TransferDbCommitter& committer)
             {
                 if (!tp)
                 {
@@ -2991,15 +3010,10 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                     c.wsEngine()->markFailed(*tp, 0);
                 }
 
-                if (fileMismatch)
-                {
-                    // Mirror legacy slot-based mtime/size override (transfer.cpp:588-592).
-                    // In the legacy path, when the slot's FileAccess detects mtime/size
-                    // changed, defer is forced to false, removing the transfer immediately.
-                    // WS transfers have no slot, so we force removal by exceeding the
-                    // sync retry threshold.
-                    tp->failcount = FILE_SYNC_MAX_RETRIES + 1;
-                }
+                // Mirror legacy slot-based startup behavior: if local-file validation fails
+                // before the request is even dispatched, fail immediately instead of consuming
+                // the generic I/O retry budget.
+                forcePermanentWsReadFailure(*tp);
 
                 tp->failed(API_EREAD, committer);
 
@@ -3077,7 +3091,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                      << " Mtime: " << t.mtime
                      << " FaSize: " << fa->size
                      << " FaMtime: " << fa->mtime;
-            failWsPreflightRead("file modified", true);
+            failWsPreflightRead("file modified");
             return false;
         }
     }

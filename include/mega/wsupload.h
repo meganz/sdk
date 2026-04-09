@@ -49,6 +49,12 @@ InboundFrameValidationResult validateInboundFrame(const char* msg, int len);
 class UploadEngine
 {
 public:
+    enum class FailureDisposition : std::uint8_t
+    {
+        Retryable,
+        Permanent
+    };
+
     struct WsTransferStats
     {
         m_off_t meanSpeedBytesPerSecond = 0;
@@ -77,7 +83,9 @@ public:
         // Terminal failure for this attempt.
         // apierr is typically a negative Mega API error code.
         // aux carries extra WS context (if any).
-        std::function<void(Transfer&, int apierr, m_off_t aux)> onFail;
+        // disposition indicates whether legacy parity requires suppressing retries.
+        std::function<void(Transfer&, int apierr, m_off_t aux, FailureDisposition disposition)>
+            onFail;
 
         // Upload completed; small payload (server metadata) is provided.
         std::function<void(Transfer&, const char* payload, int len)> onComplete;

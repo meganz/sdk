@@ -263,6 +263,22 @@ public:
         return true;
     }
 
+    bool sourceMatchesExpected(const m_time_t observedMtime,
+                               const m_off_t observedSize) const noexcept
+    {
+        return observedMtime == mMtime && observedSize == mSize;
+    }
+
+    UploadEngine::FailureDisposition classifyOpenFailure(const FileAccess* fa) const noexcept
+    {
+        if (!fa)
+            return UploadEngine::FailureDisposition::Retryable;
+
+        return sourceMatchesExpected(fa->mtime, fa->size) ?
+                   UploadEngine::FailureDisposition::Retryable :
+                   UploadEngine::FailureDisposition::Permanent;
+    }
+
     void setPool(WsPool& p); // defined after WsPool
     void unsetPool(); // defined after WsPool
     bool hasPool() const;
@@ -289,7 +305,7 @@ public:
             return false;
         mFAOpened = ok;
         if (!ok)
-            markFailed();
+            markFailed(classifyOpenFailure(faRaw));
         return ok;
     }
 
@@ -334,9 +350,18 @@ public:
                 markFailed();
                 return false;
             }
+
+            if (!sourceMatchesExpected(fa->mtime, fa->size))
+            {
+                LOG_warn << "[WsUploadFile::readData] file changed before first read. "
+                         << "Expected mtime=" << mMtime << " size=" << mSize
+                         << ", got mtime=" << fa->mtime << " size=" << fa->size
+                         << " [localname=" << mFile->getLocalname() << "]";
+                markFailed(UploadEngine::FailureDisposition::Permanent);
+                return false;
+            }
+
             mFA = std::move(fa);
-            mSize = mFA->size;
-            mMtime = mFA->mtime;
             mBytesSinceLastStat = 0;
             mStatIntervalBytes =
                 (mSize >= STAT_INTERVAL_LARGE) ? STAT_INTERVAL_LARGE : STAT_INTERVAL_SMALL;
@@ -399,7 +424,7 @@ public:
                          << ", got mtime=" << currMtime << " size=" << currSize
                          << " [localname=" << mFile->getLocalname() << "]";
                 closeFA();
-                markFailed();
+                markFailed(UploadEngine::FailureDisposition::Permanent);
                 return false;
             }
         }
@@ -459,11 +484,16 @@ public:
 
         if (!okRead)
         {
+            auto disposition = UploadEngine::FailureDisposition::Retryable;
+            if (didReopen && !reok)
+            {
+                disposition = classifyOpenFailure(faRaw);
+            }
             LOG_debug << "[WsUploadFile::readData] !okRead -> markFailed() [localname="
                       << mFile->getLocalname() << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             closeFA();
-            markFailed();
+            markFailed(disposition);
         }
         LOG_debug << "[WsUploadFile::readData] return okRead=" << okRead
                   << " [localname=" << mFile->getLocalname() << "] [this = " << this
@@ -588,6 +618,7 @@ public:
         mUploadStartTime = t;
         mUploadFailedTime = 0;
         mRetryUntil = 0;
+        mReadFailureDisposition = UploadEngine::FailureDisposition::Retryable;
         // Keep speed reporting scoped to the current upload attempt in case we are in a resume.
         mAttemptBaseConfirmed = mBytesConfirmed;
         mAckSpeedController = SpeedController();
@@ -601,6 +632,7 @@ public:
     void markFailedForRetry(const dstime retryUntil)
     {
         resetAttemptState();
+        mReadFailureDisposition = UploadEngine::FailureDisposition::Retryable;
         if (!mUploadFailedTime)
             mUploadFailedTime = SteadyTime::ds();
         mRetryUntil = retryUntil ? retryUntil : (mUploadFailedTime + RETRYINTERVAL);
@@ -616,12 +648,21 @@ public:
     void uploadFailed(const FailReason reason)
     {
         resetAttemptState();
+        if (reason != FailReason::ReadFailed)
+        {
+            mReadFailureDisposition = UploadEngine::FailureDisposition::Retryable;
+        }
         mUploadFailedTime = SteadyTime::ds();
         mRetryUntil = mUploadFailedTime + RETRYINTERVAL;
         unsetPool();
         closeFA();
         LOG_warn << "[WsUploadFile::uploadFailed] file failed, reason=" << static_cast<int>(reason)
                  << " [this = " << this << "]";
+    }
+
+    UploadEngine::FailureDisposition readFailureDisposition() const noexcept
+    {
+        return mReadFailureDisposition;
     }
 
     void uploadCompleted(const char* response, const int len)
@@ -801,9 +842,11 @@ private:
         mConfirmedChunkMacs.clear();
     }
 
-    void markFailed()
+    void markFailed(const UploadEngine::FailureDisposition disposition =
+                        UploadEngine::FailureDisposition::Retryable)
     {
         resetAttemptState();
+        mReadFailureDisposition = disposition;
         mUploadFailedTime = SteadyTime::ds();
         mRetryUntil = mUploadFailedTime + RETRYINTERVAL;
     }
@@ -835,6 +878,8 @@ private:
     dstime mLastProgressReportDs{0};
     mutable SpeedController mAckSpeedController{};
     m_time_t mMtime{0};
+    UploadEngine::FailureDisposition mReadFailureDisposition{
+        UploadEngine::FailureDisposition::Retryable};
 
     m_off_t mBytesSinceLastStat = 0;
     m_off_t mStatIntervalBytes = STAT_INTERVAL_LARGE;
@@ -2666,7 +2711,10 @@ struct ChunkResponse
             {
                 const int apierr = static_cast<int>(event);
                 const m_off_t aux = response->chunkpos;
-                mPool->mImpl->mCb.onFail(uf->transfer(), apierr, aux);
+                mPool->mImpl->mCb.onFail(uf->transfer(),
+                                         apierr,
+                                         aux,
+                                         UploadEngine::FailureDisposition::Retryable);
             }
             return;
         }
@@ -2707,7 +2755,10 @@ struct ChunkResponse
         mPool->purgeFileLocked(response->fileno);
         uf->uploadFailed(FailReason::Unknown);
         if (mPool->mImpl->mCb.onFail)
-            mPool->mImpl->mCb.onFail(uf->transfer(), API_EAGAIN, 0);
+            mPool->mImpl->mCb.onFail(uf->transfer(),
+                                     API_EAGAIN,
+                                     0,
+                                     UploadEngine::FailureDisposition::Retryable);
         return;
     }
 
@@ -2734,7 +2785,8 @@ struct ChunkResponse
                     if (mPool->mImpl->mCb.onFail)
                         mPool->mImpl->mCb.onFail(uf->transfer(),
                                                  API_EINTERNAL,
-                                                 uf->bytesConfirmed());
+                                                 uf->bytesConfirmed(),
+                                                 UploadEngine::FailureDisposition::Retryable);
                     break;
                 }
             }
@@ -2760,7 +2812,8 @@ struct ChunkResponse
                     if (mPool->mImpl->mCb.onFail)
                         mPool->mImpl->mCb.onFail(uf->transfer(),
                                                  API_EINTERNAL,
-                                                 uf->bytesConfirmed());
+                                                 uf->bytesConfirmed(),
+                                                 UploadEngine::FailureDisposition::Retryable);
                     break;
                 }
             }
@@ -2789,7 +2842,8 @@ struct ChunkResponse
                     if (mPool->mImpl->mCb.onFail)
                         mPool->mImpl->mCb.onFail(uf->transfer(),
                                                  API_EINTERNAL,
-                                                 uf->bytesConfirmed());
+                                                 uf->bytesConfirmed(),
+                                                 UploadEngine::FailureDisposition::Retryable);
                     break;
                 }
             }
@@ -2826,7 +2880,10 @@ struct ChunkResponse
                 uf->uploadFailed(FailReason::Protocol);
                 if (mPool->mImpl->mCb.onFail)
                 {
-                    mPool->mImpl->mCb.onFail(uf->transfer(), API_EINTERNAL, 0);
+                    mPool->mImpl->mCb.onFail(uf->transfer(),
+                                             API_EINTERNAL,
+                                             0,
+                                             UploadEngine::FailureDisposition::Retryable);
                 }
                 break;
             }
@@ -2841,7 +2898,10 @@ struct ChunkResponse
                 uf->uploadFailed(FailReason::Protocol);
                 if (mPool->mImpl->mCb.onFail)
                 {
-                    mPool->mImpl->mCb.onFail(uf->transfer(), API_EINTERNAL, 0);
+                    mPool->mImpl->mCb.onFail(uf->transfer(),
+                                             API_EINTERNAL,
+                                             0,
+                                             UploadEngine::FailureDisposition::Retryable);
                 }
                 break;
             }
@@ -3360,7 +3420,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
 
         if (impl.mCb.onFail)
         {
-            impl.mCb.onFail(uf->transfer(), API_EREAD, chunk.pos);
+            impl.mCb.onFail(uf->transfer(), API_EREAD, chunk.pos, uf->readFailureDisposition());
         }
         return false;
     }
@@ -3473,7 +3533,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                         if (mImpl->mCb.onFail)
                         {
-                            mImpl->mCb.onFail(uploadToFail->transfer(), API_EAGAIN, 0);
+                            mImpl->mCb.onFail(uploadToFail->transfer(),
+                                              API_EAGAIN,
+                                              0,
+                                              UploadEngine::FailureDisposition::Retryable);
                         }
 
                         // Reset connect-failure window for the next attempt.
