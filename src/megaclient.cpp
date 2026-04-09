@@ -2673,6 +2673,7 @@ MegaClient::WsVerifyResult MegaClient::wsVerifyUploadUnchanged(Transfer& t,
         LOG_debug << "Verifying upload: " << localpath.toPath(false);
 
         auto fa = fsaccess->newfileaccess();
+        fa->mShareDelete = true; // Allow move/delete during post-upload fingerprint verification
         const bool isOpen = fa->fopen(localpath, FSLogging::logOnError);
         if (!isOpen && fsaccess->transient_error)
         {
@@ -2954,7 +2955,7 @@ void MegaClient::wsRefreshCanStartAnotherFileSnapshot()
 
 bool MegaClient::prepareUploadForWs(Transfer& t)
 {
-    auto failWsPreflightRead = [this, &t](const char* reason)
+    auto failWsPreflightRead = [this, &t](const char* reason, bool fileMismatch = false)
     {
         LOG_warn << "[MegaClient::prepareUploadForWs] preflight failed (" << reason
                  << ") [t.localfilename = " << t.localfilename << "]";
@@ -2963,7 +2964,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
         const direction_t type = t.type;
         const UploadHandle th = t.uploadhandle;
         wsPostToClientThread(
-            [tp, type, th](MegaClient& c, TransferDbCommitter& committer)
+            [tp, type, th, fileMismatch](MegaClient& c, TransferDbCommitter& committer)
             {
                 if (!tp)
                 {
@@ -2990,6 +2991,16 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                     c.wsEngine()->markFailed(*tp, 0);
                 }
 
+                if (fileMismatch)
+                {
+                    // Mirror legacy slot-based mtime/size override (transfer.cpp:588-592).
+                    // In the legacy path, when the slot's FileAccess detects mtime/size
+                    // changed, defer is forced to false, removing the transfer immediately.
+                    // WS transfers have no slot, so we force removal by exceeding the
+                    // sync retry threshold.
+                    tp->failcount = FILE_SYNC_MAX_RETRIES + 1;
+                }
+
                 tp->failed(API_EREAD, committer);
 
                 if (c.wsEngine())
@@ -3006,74 +3017,6 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                         c.wsEngine()->setRetryUntil(*tp, retryAt);
                     }
                 }
-            });
-    };
-
-    auto restartWsPreflightForModifiedFile = [this, &t]()
-    {
-        LOG_warn << "[MegaClient::prepareUploadForWs] local file changed before WS upload; "
-                    "resetting upload state and restarting without backoff"
-                 << " [t.localfilename = " << t.localfilename << "]";
-
-        Transfer* tp = &t;
-        const direction_t type = t.type;
-        const UploadHandle th = t.uploadhandle;
-        wsPostToClientThread(
-            [tp, type, th](MegaClient& c, TransferDbCommitter& committer)
-            {
-                if (!tp)
-                {
-                    return;
-                }
-
-                if (!c.wsIsTransferAlive(type, tp))
-                {
-                    return;
-                }
-
-                if (!th.isUndef() && !(tp->uploadhandle == th))
-                {
-                    return;
-                }
-
-                if (c.wsEngine())
-                {
-                    // Reset worker-side per-attempt state and allow immediate retry.
-                    c.wsEngine()->markFailed(*tp, 0);
-                    c.wsEngine()->setRetryUntil(*tp, c.waiter->ds);
-                }
-
-                // Legacy-style restart: discard resume state instead of failing transfer.
-                tp->tempurls.clear();
-                tp->discardedTempUrlsSize = 0;
-                tp->chunkmacs.clear();
-                tp->setProgresscompleted(0);
-                tp->ultoken.reset();
-                tp->pos = 0;
-                tp->ws_fileno = 0;
-                tp->ws_session_url.clear();
-
-                // Refresh fingerprint once from transfer local file, then mirror
-                // to all attached file entries (same source content).
-                auto fa = c.fsaccess->newfileaccess();
-                if (fa->fopen(tp->localfilename, OPEN_RDONLY, FSLogging::logOnError))
-                {
-                    tp->genfingerprint(fa.get());
-
-                    for (auto fit = tp->files.begin(); fit != tp->files.end(); ++fit)
-                    {
-                        auto* f = *fit;
-                        if (!f)
-                        {
-                            continue;
-                        }
-
-                        static_cast<FileFingerprint&>(*f) =
-                            static_cast<const FileFingerprint&>(*tp);
-                    }
-                }
-
-                c.transfercacheadd(tp, &committer);
             });
     };
 
@@ -3119,6 +3062,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
     //    starting any WS handshake/chunking work.
     {
         auto fa = fsaccess->newfileaccess();
+        fa->mShareDelete = true; // Allow move/delete during preflight validation
         if (!fa->fopen(t.localfilename, OPEN_RDONLY, FSLogging::logOnError))
         {
             failWsPreflightRead("cannot open local file");
@@ -3133,7 +3077,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                      << " Mtime: " << t.mtime
                      << " FaSize: " << fa->size
                      << " FaMtime: " << fa->mtime;
-            restartWsPreflightForModifiedFile();
+            failWsPreflightRead("file modified", true);
             return false;
         }
     }

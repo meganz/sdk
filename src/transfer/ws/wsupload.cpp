@@ -317,6 +317,8 @@ public:
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             engineMutex.unlock();
             auto fa = mClient.fsaccess->newfileaccess();
+            fa->mShareDelete =
+                true; // Allow file to be moved/deleted while WS upload holds the handle
             const bool okOpen = fa->fopen(mFile->getLocalname(), OPEN_RDONLY, FSLogging::logOnError);
             LOG_debug << "[WsUploadFile::readData] okOpen=" << okOpen
                       << " [localname=" << mFile->getLocalname() << "] [this = " << this
@@ -335,6 +337,9 @@ public:
             mFA = std::move(fa);
             mSize = mFA->size;
             mMtime = mFA->mtime;
+            mBytesSinceLastStat = 0;
+            mStatIntervalBytes =
+                (mSize >= STAT_INTERVAL_LARGE) ? STAT_INTERVAL_LARGE : STAT_INTERVAL_SMALL;
             LOG_debug << "[WsUploadFile::readData] mFA=" << (void*)mFA.get() << " mSize=" << mSize
                       << " mMtime=" << mMtime << " [localname=" << mFile->getLocalname()
                       << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id()
@@ -347,6 +352,56 @@ public:
                       << mFile->getLocalname() << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             return false;
+        }
+
+        // Mirror legacy openf() behavior: periodically verify the source file
+        // still exists and is unmodified. The legacy fread() does open-read-close
+        // per *connection* chunk (8-32 MB), catching changes via sysstat() in
+        // openf(). The WS engine reads at chunkmac granularity (128 KB - 1 MB),
+        // which is 8-30x more frequent. Throttle the check to every
+        // mStatIntervalBytes to match legacy frequency.
+        //
+        // Two checks at each threshold crossing:
+        // 1. Existence:  fopen() on a temp FA fails -> file deleted/moved
+        // 2. Modification: mtime or size changed -> file modified in place
+        mBytesSinceLastStat += len;
+        if (mBytesSinceLastStat >= mStatIntervalBytes)
+        {
+            mBytesSinceLastStat = 0;
+
+            FileAccess* const faRawCheck = mFA.get();
+            LocalPath path = mFile->getLocalname();
+
+            engineMutex.unlock();
+            auto checkFA = mClient.fsaccess->newfileaccess();
+            bool exists = checkFA->fopen(path, FSLogging::logOnError);
+            m_time_t currMtime = checkFA->mtime;
+            m_off_t currSize = checkFA->size;
+            checkFA.reset();
+            engineMutex.lock();
+
+            if (mFA.get() != faRawCheck)
+                return false; // FA was swapped while we released the lock
+
+            if (!exists)
+            {
+                LOG_warn << "[WsUploadFile::readData] file stat failed (deleted?) "
+                         << "[localname=" << mFile->getLocalname() << "]";
+                closeFA();
+                markFailed();
+                return false;
+            }
+
+            if (currMtime != mMtime || currSize != mSize)
+            {
+                LOG_warn << "[WsUploadFile::readData] file changed since open. "
+                         << "Expected mtime=" << mMtime << " size=" << mSize
+                         << ", got mtime=" << currMtime << " size=" << currSize
+                         << " [localname=" << mFile->getLocalname() << "]";
+                closeFA();
+                markFailed();
+                return false;
+            }
         }
 
         bool okRead = false;
@@ -780,6 +835,12 @@ private:
     dstime mLastProgressReportDs{0};
     mutable SpeedController mAckSpeedController{};
     m_time_t mMtime{0};
+
+    m_off_t mBytesSinceLastStat = 0;
+    m_off_t mStatIntervalBytes = STAT_INTERVAL_LARGE;
+
+    static constexpr m_off_t STAT_INTERVAL_LARGE = 8 * 1024 * 1024; // 8 MB
+    static constexpr m_off_t STAT_INTERVAL_SMALL = 2 * 1024 * 1024; // 2 MB
 
     bool mEofSet{false};
     bool mAborted{false};

@@ -587,9 +587,14 @@ bool WinFileAccess::sysopen(bool async, FSLogging fsl)
         sysclose();
     }
 
+    DWORD shareMode = FILE_SHARE_WRITE | FILE_SHARE_READ;
+    if (mShareDelete)
+    {
+        shareMode |= FILE_SHARE_DELETE;
+    }
     hFile = CreateFileW(nonblocking_localname.asPlatformEncoded(false).c_str(),
                         GENERIC_READ,
-                        FILE_SHARE_WRITE | FILE_SHARE_READ,
+                        shareMode,
                         NULL,
                         OPEN_EXISTING,
                         async ? FILE_FLAG_OVERLAPPED : 0,
@@ -983,7 +988,7 @@ bool WinFileAccess::fopen_impl(const LocalPath& namePath,
     // (race condition between GetFileAttributesEx()/FindFirstFile() possible -
     // fixable with the current Win32 API?)
     DWORD shareMode = FILE_SHARE_WRITE | FILE_SHARE_READ;
-    if (shareDelete)
+    if (shareDelete || mShareDelete)
     {
         shareMode |= FILE_SHARE_DELETE; // Allow file to be moved/deleted while open (used for MAC
                                         // computation)
