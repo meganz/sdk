@@ -65,6 +65,12 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
     return GfxTaskResult(std::move(outputImages), GfxTaskProcessStatus::SUCCESS);
 }
 
+bool GfxProcessor::processMediaInfo(const std::string& path, MediaProperties& mp)
+{
+    LocalPath lp = LocalPath::fromPlatformEncodedAbsolute(path);
+    return mGfxProvider->generateMediaInfo(lp, mp);
+}
+
 //
 // Put more probmatic format (likely crash) by freeimage here in extraFormatsByWorker
 // note order by length of ext. If we has this order: .tiff.tif, the match with .tif fails
@@ -139,6 +145,12 @@ bool RequestProcessor::process(std::unique_ptr<IEndpoint> endpoint)
                 processSupportFormats(sharedEndpoint.get());
                 break;
             }
+            case CommandType::MEDIA_INFO:
+            {
+                processMediaInfo(sharedEndpoint.get(),
+                                 dynamic_cast<CommandMediaInfo*>(command.get()));
+                break;
+            }
             default:
                 break;
             }
@@ -190,6 +202,29 @@ void RequestProcessor::processSupportFormats(IEndpoint* endpoint)
     response.videoformats = mGfxProcessor.supportedvideoformats();
 
     ProtocolWriter writer{ endpoint };
+    writer.writeCommand(&response, WRITE_TIMEOUT);
+}
+
+void RequestProcessor::processMediaInfo(IEndpoint* endpoint,
+                                        [[maybe_unused]] CommandMediaInfo* request)
+{
+    assert(endpoint);
+    assert(request);
+
+    CommandMediaInfoResponse response{};
+#ifdef USE_MEDIAINFO
+    if (!mGfxProcessor.processMediaInfo(request->Path, response.MediaInfo))
+    {
+        LOG_warn << "media info extraction failed";
+        response.ErrorCode = static_cast<uint32_t>(MediaInfoProcessStatus::EXTRACTION_FAILED);
+        response.MediaInfo = MediaProperties{};
+    }
+#else
+    LOG_warn << "media info requested but the worker has no MediaInfoLib";
+    response.ErrorCode = static_cast<uint32_t>(MediaInfoProcessStatus::NOT_SUPPORTED);
+#endif
+
+    ProtocolWriter writer{endpoint};
     writer.writeCommand(&response, WRITE_TIMEOUT);
 }
 

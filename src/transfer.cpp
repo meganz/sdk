@@ -704,6 +704,13 @@ void Transfer::addMissingMediaAttributesOnDownload([[maybe_unused]] Node& node,
 
 #ifdef USE_MEDIAINFO
 
+    // Can't extract without a graphics processor.
+    if (!client->gfx)
+    {
+        LOG_debug << "No gfx processor, skipping media attribute extraction";
+        return;
+    }
+
     // Can't extract metadata if our codecs are busted.
     if (client->mediaFileInfo.mediaCodecsFailed)
         return;
@@ -741,18 +748,8 @@ void Transfer::addMissingMediaAttributesOnDownload([[maybe_unused]] Node& node,
     // Make sure we have necessary codec ID mappings.
     client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
 
-    MediaProperties properties;
-
-    // Always get the attribute string: it may indicate this version of the
-    // mediainfo library was unable to interpret the file.
-    properties.extractMediaPropertyFileAttributes(path, client->fsaccess.get());
-
-    // Attach media file attributes.
-    client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(
-        properties,
-        attributeKey,
-        client,
-        node.nodeHandle());
+    // The extraction may run asynchronously; the result is attached on completion.
+    client->gfx->genmediainfoputfa(path, NodeOrUploadHandle{node.nodeHandle()}, attributeKey);
 
 #endif // USE_MEDIAINFO
 }
@@ -763,6 +760,13 @@ void Transfer::addMissingMediaAttributesOnUpload([[maybe_unused]] const LocalPat
     assert(type == PUT);
 
 #ifdef USE_MEDIAINFO
+
+    // Can't extract without a graphics processor.
+    if (!client->gfx)
+    {
+        LOG_debug << "No gfx processor, skipping media attribute extraction";
+        return;
+    }
 
     // Can't extract metadata if our codecs are busted.
     if (client->mediaFileInfo.mediaCodecsFailed)
@@ -782,21 +786,16 @@ void Transfer::addMissingMediaAttributesOnUpload([[maybe_unused]] const LocalPat
     // Make sure we have necessary codec ID mappings.
     client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
 
-    MediaProperties properties;
-
-    // Always get the attribute string: it may indicate this version of the
-    // mediainfo library was unable to interpret the file.
-    properties.extractMediaPropertyFileAttributes(path, client->fsaccess.get());
-
     // Get our hands on the upload's file attribute key.
     auto attributeKey = fileAttributeKeyPtr(filekey.bytes.data());
 
-    // Queue extraction and upload of media attributes.
-    client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(properties,
-                                                                      attributeKey,
-                                                                      client,
-                                                                      uploadhandle,
-                                                                      this);
+    // Register the pending attribute so the upload waits for it; the extraction may run
+    // asynchronously, with the result attached on completion or the requirement dropped on failure.
+    client->fileAttributesUploading.setFileAttributePending(uploadhandle,
+                                                            fatype(fa_media),
+                                                            this,
+                                                            false);
+    client->gfx->genmediainfoputfa(path, NodeOrUploadHandle{uploadhandle}, attributeKey);
 
 #endif // USE_MEDIAINFO
 }

@@ -2,6 +2,7 @@
 #include "mega/gfx.h"
 #include "mega/gfx/worker/client.h"
 #include "mega/logging.h"
+#include "mega/mediafileattribute.h"
 #include "mega/utils.h"
 #include "processor.h"
 #include "sdk_test_data_provider.h"
@@ -16,13 +17,14 @@
 #include <thread>
 #include <vector>
 
-using mega::gfx::Server;
-using mega::gfx::RequestProcessor;
-using mega::gfx::GfxClient;
-using mega::gfx::GfxCommunicationsClient;
+using mega::getCurrentPid;
 using mega::GfxDimension;
 using mega::LocalPath;
-using mega::getCurrentPid;
+using mega::MediaProperties;
+using mega::gfx::GfxClient;
+using mega::gfx::GfxCommunicationsClient;
+using mega::gfx::RequestProcessor;
+using mega::gfx::Server;
 using mega_test::ExecutableDir;
 using namespace std::chrono_literals;
 
@@ -94,6 +96,38 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
     {
         serverThread.join();
     }
+}
+
+TEST_F(ServerClientTest, RunMediaInfoTaskSuccessfully)
+{
+#ifdef USE_MEDIAINFO
+    Server server(std::make_unique<RequestProcessor>(), mEndpointName);
+
+    std::thread serverThread(std::ref(server));
+
+    // Reuses the fixture RunGfxTaskSuccessfully already downloads rather than adding a new one.
+    // What this test covers is the MEDIA_INFO round trip - request reaches the worker, a response
+    // comes back and deserializes - not which fields a given format populates, since that varies
+    // with the format support compiled into MediaInfoLib.
+    std::string testFile{"logo.png"};
+    fs::path testFileLocalPath = fs::path{ExecutableDir::get()} / testFile;
+
+    ASSERT_TRUE(getFileFromArtifactory("test-data/" + testFile, testFileLocalPath));
+
+    MediaProperties properties;
+    EXPECT_TRUE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
+                    .runMediaInfoTask(testFileLocalPath.string(), properties));
+
+    // shutdown
+    EXPECT_TRUE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName)).runShutDown());
+
+    if (serverThread.joinable())
+    {
+        serverThread.join();
+    }
+#else
+    GTEST_SKIP() << "MediaInfo extraction not compiled in (USE_MEDIAINFO off)";
+#endif
 }
 
 TEST_F(ServerClientTest, RunHelloRequestResponseSuccessfully)
@@ -169,6 +203,37 @@ TEST_F(ServerClientTest, RunSupportformatsRequestResponseSuccessfully)
     }
 }
 
+// A reachable worker that cannot extract must say so, rather than returning default-constructed
+// properties that the caller would take for a successful extraction. Distinct from
+// RunCommandsReturnFalseWhileServerIsNotRunning, which covers the worker being unreachable.
+TEST_F(ServerClientTest, RunMediaInfoTaskReportsExtractionFailure)
+{
+#ifdef USE_MEDIAINFO
+    Server server(std::make_unique<RequestProcessor>(), mEndpointName);
+
+    std::thread serverThread(std::ref(server));
+
+    // A path the worker can reach but cannot open, so extraction fails inside the worker while
+    // the request itself round trips normally.
+    const fs::path missing = fs::path{ExecutableDir::get()} / "no_such_media_file.mp4";
+    ASSERT_FALSE(fs::exists(missing));
+
+    MediaProperties properties;
+    EXPECT_FALSE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
+                     .runMediaInfoTask(missing.string(), properties));
+
+    // shutdown
+    EXPECT_TRUE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName)).runShutDown());
+
+    if (serverThread.joinable())
+    {
+        serverThread.join();
+    }
+#else
+    GTEST_SKIP() << "MediaInfo extraction not compiled in (USE_MEDIAINFO off)";
+#endif
+}
+
 TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 {
     EXPECT_FALSE(
@@ -185,4 +250,10 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
 
     EXPECT_FALSE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
                      .runGfxTask(name, path, dimensions, images));
+
+    // GfxMediaJob::complete relies on this false to drop the pending fa_media attribute; if it
+    // ever reported success the caller would attach default-constructed media properties.
+    MediaProperties properties;
+    EXPECT_FALSE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
+                     .runMediaInfoTask("anyvideoname.mp4", properties));
 }

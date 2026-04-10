@@ -18,14 +18,13 @@ public:
     GfxProcessor();
 
     GfxTaskResult process(const GfxTask& task);
+    bool processMediaInfo(const std::string& path, MediaProperties& mp);
 
     std::string supportedformats() const;
 
     std::string supportedvideoformats() const;
+
 private:
-
-    mega::FSACCESS_CLASS mFaccess;
-
     std::unique_ptr<::mega::IGfxProvider> mGfxProvider;
 };
 
@@ -46,6 +45,8 @@ private:
     void processGfx(IEndpoint* endpoint, CommandNewGfx* request);
 
     void processSupportFormats(IEndpoint* endpoint);
+
+    void processMediaInfo(IEndpoint* endpoint, CommandMediaInfo* request);
 
     GfxProcessor mGfxProcessor;
 

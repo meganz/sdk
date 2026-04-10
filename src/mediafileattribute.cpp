@@ -249,6 +249,10 @@ unsigned MediaFileInfo::queueMediaPropertiesFileAttributesForUpload(MediaPropert
 
     // indicate we have this attribute.  If we have the codec mappings, it can be encoded.  If not, hold the transfer until we do have it
     client->fileAttributesUploading.setFileAttributePending(uploadHandle, fatype(fa_media), transfer, mediaCodecsReceived);
+    if (mediaCodecsReceived)
+    {
+        client->checkfacompletion(uploadHandle);
+    }
 
     return 1;
 }
@@ -444,20 +448,51 @@ MediaProperties::MediaProperties()
 
 MediaProperties::MediaProperties(const std::string& deserialize)
 {
-    CacheableReader r(deserialize);
-    r.unserializebyte(shortformat);
-    r.unserializeu32(width);
-    r.unserializeu32(height);
-    r.unserializeu32(fps);
-    r.unserializeu32(playtime);
-    r.unserializeu32(containerid);
-    r.unserializeu32(videocodecid);
-    r.unserializeu32(audiocodecid);
-    r.unserializebool(is_VFR);
-    r.unserializebool(no_audio);
+    // Ignores the result for backwards compatibility, but deserialize() guarantees the fields are
+    // default-constructed rather than indeterminate when the payload is short.
+    MediaProperties::deserialize(deserialize, *this);
 }
 
-std::string MediaProperties::serialize()
+bool MediaProperties::deserialize(const std::string& data, MediaProperties& mp)
+{
+    mp = MediaProperties();
+
+    CacheableReader r(data);
+    if (!r.unserializebyte(mp.shortformat) || !r.unserializeu32(mp.width) ||
+        !r.unserializeu32(mp.height) || !r.unserializeu32(mp.fps) ||
+        !r.unserializeu32(mp.playtime) || !r.unserializeu32(mp.containerid) ||
+        !r.unserializeu32(mp.videocodecid) || !r.unserializeu32(mp.audiocodecid) ||
+        !r.unserializebool(mp.is_VFR) || !r.unserializebool(mp.no_audio))
+    {
+        mp = MediaProperties();
+        return false;
+    }
+
+    unsigned char expansions[8];
+    if (!r.unserializeexpansionflags(expansions, 1))
+    {
+        mp = MediaProperties();
+        return false;
+    }
+
+    if (expansions[0] > 0)
+    {
+        if (!r.unserializestring_u32(mp.containerName) ||
+            !r.unserializestring_u32(mp.videocodecNames) ||
+            !r.unserializestring_u32(mp.audiocodecNames) ||
+            !r.unserializestring_u32(mp.containerFormat) ||
+            !r.unserializestring_u32(mp.videocodecFormat) ||
+            !r.unserializestring_u32(mp.audiocodecFormat))
+        {
+            mp = MediaProperties();
+            return false;
+        }
+    }
+
+    return true;
+}
+
+std::string MediaProperties::serialize() const
 {
     std::string s;
     CacheableWriter r(s);
@@ -471,7 +506,13 @@ std::string MediaProperties::serialize()
     r.serializeu32(audiocodecid);
     r.serializebool(is_VFR);
     r.serializebool(no_audio);
-    r.serializeexpansionflags();
+    r.serializeexpansionflags(true);
+    r.serializestring_u32(containerName);
+    r.serializestring_u32(videocodecNames);
+    r.serializestring_u32(audiocodecNames);
+    r.serializestring_u32(containerFormat);
+    r.serializestring_u32(videocodecFormat);
+    r.serializestring_u32(audiocodecFormat);
     return s;
 }
 
@@ -748,16 +789,23 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
     return false;
 }
 
-bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi,
-                                 const LocalPath& filename,
-                                 FileAccess* fa,
-                                 unsigned maxBytesToRead,
-                                 unsigned maxSeconds)
+enum class MediaInfoOpenResult
+{
+    Parsed,
+    NotIdentified,
+    FileError,
+};
+
+MediaInfoOpenResult mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi,
+                                                const LocalPath& filename,
+                                                FileAccess* fa,
+                                                unsigned maxBytesToRead,
+                                                unsigned maxSeconds)
 {
     if (!fa->fopen(filename, OPEN_RDONLY, FSLogging::logOnError))
     {
         LOG_err << "could not open local file for mediainfo";
-        return false;
+        return MediaInfoOpenResult::FileError;
     }
 
     m_off_t filesize = fa->size;
@@ -788,7 +836,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi,
             LOG_warn << "could not extract mediainfo data within reasonable limits";
             mi.Open_Buffer_Finalize();
             fa->closef();
-            return false;
+            return MediaInfoOpenResult::NotIdentified;
         }
 
         if (!fa->frawread(buf, n, readpos, true, FSLogging::logOnError))
@@ -796,7 +844,7 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi,
             LOG_err << "could not read local file";
             mi.Open_Buffer_Finalize();
             fa->closef();
-            return false;
+            return MediaInfoOpenResult::FileError;
         }
         readpos += n;
         if (startTime == 0)
@@ -840,10 +888,10 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi,
 
     mi.Open_Buffer_Finalize();
     fa->closef();
-    return true;
+    return MediaInfoOpenResult::Parsed;
 }
 
-void MediaProperties::extractMediaPropertyFileAttributes(const LocalPath& localFilename,
+bool MediaProperties::extractMediaPropertyFileAttributes(const LocalPath& localFilename,
                                                          FileSystemAccess* fsa)
 {
     if (auto tmpfa = fsa->newfileaccess())
@@ -852,7 +900,11 @@ void MediaProperties::extractMediaPropertyFileAttributes(const LocalPath& localF
         {
             MediaInfoLib::MediaInfo minfo;
 
-            if (mediaInfoOpenFileWithLimits(minfo, localFilename, tmpfa.get(), 10485760, 3))  // we can read more off local disk
+            // we can read more off local disk
+            const auto result =
+                mediaInfoOpenFileWithLimits(minfo, localFilename, tmpfa.get(), 10485760, 3);
+
+            if (result == MediaInfoOpenResult::Parsed)
             {
                 if (!minfo.Count_Get(MediaInfoLib::Stream_General, 0))
                 {
@@ -924,6 +976,15 @@ void MediaProperties::extractMediaPropertyFileAttributes(const LocalPath& localF
                 {
                     LOG_debug << "MediaInfo on " << localFilename << " | " << vw.To_Local() << " " << vh.To_Local() << " " << vd.To_Local() << " " << vr.To_Local() << " |\"" << gci.To_Local() << "\",\"" << gf.To_Local() << "\",\"" << vci.To_Local() << "\",\"" << vcf.To_Local() << "\",\"" << aci.To_Local() << "\",\"" << acf.To_Local() << "\"";
                 }
+
+                return true;
+            }
+
+            // The properties stay at their defaults on purpose: the caller turns those into the
+            // "not identified" marker. Returning false would leave the file with no attribute.
+            if (result == MediaInfoOpenResult::NotIdentified)
+            {
+                return true;
             }
         }
         catch (std::exception& e)
@@ -935,6 +996,11 @@ void MediaProperties::extractMediaPropertyFileAttributes(const LocalPath& localF
             LOG_err << "unknown excption caught reading media file attributes";
         }
     }
+
+    // An exception can land after some fields are set, so never hand back a half filled object.
+    // These failures can be transient: leave the file unmarked and let a later download retry.
+    *this = MediaProperties{};
+    return false;
 }
 
 std::string MediaProperties::convertMediaPropertyFileAttributes(uint32_t fakey[4], MediaFileInfo& mediaInfo)
