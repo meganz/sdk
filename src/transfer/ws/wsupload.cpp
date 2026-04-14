@@ -361,8 +361,16 @@ public:
                 return false;
             }
 
-            if (!okOpen)
+            // Re-check under mReadMutex: another worker may have completed the open
+            // while this thread had both locks released.
+            ioLock.lock();
+            if (mFA)
             {
+                ioLock.unlock();
+            }
+            else if (!okOpen)
+            {
+                ioLock.unlock();
                 LOG_debug << "[WsUploadFile::readData] !okOpen -> markFailed() and return false "
                              "[localname="
                           << mLocalPath << "] [this = " << this
@@ -370,9 +378,9 @@ public:
                 markFailed(classifyOpenFailure(fa.get()));
                 return false;
             }
-
-            if (!sourceMatchesExpected(fa->mtime, fa->size))
+            else if (!sourceMatchesExpected(fa->mtime, fa->size))
             {
+                ioLock.unlock();
                 LOG_warn << "[WsUploadFile::readData] file changed before first read. "
                          << "Expected mtime=" << mMtime << " size=" << mSize
                          << ", got mtime=" << fa->mtime << " size=" << fa->size
@@ -380,15 +388,18 @@ public:
                 markFailed(UploadEngine::FailureDisposition::Permanent);
                 return false;
             }
-
-            mFA = std::move(fa);
-            mBytesSinceLastStat = 0;
-            mStatIntervalBytes =
-                (mSize >= STAT_INTERVAL_LARGE) ? STAT_INTERVAL_LARGE : STAT_INTERVAL_SMALL;
-            LOG_debug << "[WsUploadFile::readData] mFA=" << (void*)mFA.get() << " mSize=" << mSize
-                      << " mMtime=" << mMtime << " [localname=" << mLocalPath
-                      << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id()
-                      << "]";
+            else
+            {
+                mFA = std::move(fa);
+                mBytesSinceLastStat = 0;
+                mStatIntervalBytes =
+                    (mSize >= STAT_INTERVAL_LARGE) ? STAT_INTERVAL_LARGE : STAT_INTERVAL_SMALL;
+                LOG_debug << "[WsUploadFile::readData] mFA=" << (void*)mFA.get() << " mSize=" << mSize
+                          << " mMtime=" << mMtime << " [localname=" << mLocalPath
+                          << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id()
+                          << "]";
+                ioLock.unlock();
+            }
         }
         if (ioLock.owns_lock())
             ioLock.unlock();
@@ -408,7 +419,11 @@ public:
         {
             mBytesSinceLastStat = 0;
 
-            FileAccess* const faRawCheck = mFA.get();
+            FileAccess* faRawCheck = nullptr;
+            {
+                std::lock_guard<std::mutex> ioRead(mReadMutex);
+                faRawCheck = mFA.get();
+            }
             const LocalPath& path = mLocalPath;
 
             engineMutex.unlock();
@@ -421,7 +436,13 @@ public:
             checkFA.reset();
             engineMutex.lock();
 
-            if (mWorkGeneration != expectedGeneration || mFA.get() != faRawCheck)
+            bool faSwapped = false;
+            {
+                std::lock_guard<std::mutex> ioRead(mReadMutex);
+                faSwapped = (mFA.get() != faRawCheck);
+            }
+
+            if (mWorkGeneration != expectedGeneration || faSwapped)
             {
                 if (interruptedByStateChange)
                 {
@@ -1348,6 +1369,10 @@ inline void WsUploadFile::unsetPool()
     LOG_debug << "[WsUploadFile::unsetPool] mPool=" << (void*)mPool << " [this = " << this << "]";
     if (mPool)
     {
+        if (mPool->mUploadingFile == this)
+        {
+            mPool->mUploadingFile = nullptr;
+        }
         mPool->decreaseNumPoolFiles();
         mPool = nullptr;
     }
@@ -3067,7 +3092,13 @@ struct ChunkResponse
                 break;
             }
 
-            const int payLen = static_cast<unsigned char>(msg[kWsChunkResponseHeaderSize]);
+            int payLen = static_cast<unsigned char>(msg[kWsChunkResponseHeaderSize]);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            if (globalMegaTestHooks.onWsUploadCompletionPayloadLen)
+            {
+                globalMegaTestHooks.onWsUploadCompletionPayloadLen(payLen);
+            }
+#endif
             const int maxPayloadLen = len - kCompletionPrefixLen - kTrailerCrcLen;
             if (payLen > maxPayloadLen)
             {

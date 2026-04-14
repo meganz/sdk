@@ -253,6 +253,8 @@ namespace mega {
         // ctor/op=; the outer mMutex keeps the enclosing struct move atomic, and the
         // sub-object's mutex keeps its fields safe for evaluate() from any thread.
         WsUploadServerEventHook wsUploadServerEventHook;
+        // Allows tests to override completion payload length observed by WS upload handling.
+        std::function<void(int&)> onWsUploadCompletionPayloadLen;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed

@@ -1744,7 +1744,9 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
             for (auto& it : multi_transfers[d])
             {
                 Transfer *t = it.second;
+#ifdef MEGA_USE_WSUPLOAD
                 const bool alreadyOverquota = (t->bt.nextset() == NEVER);
+#endif
                 t->bt.backoff(NEVER);
                 if (t->slot)
                 {
@@ -5109,7 +5111,10 @@ bool MegaClient::abortbackoff(bool includexfers)
     {
         overquotauntil = 0;
         mLastStreamOverquotaNotifyDs = 0;
+
+#ifdef MEGA_USE_WSUPLOAD
         const dstime now = Waiter::ds;
+#endif
         if (ststatus != STORAGE_PAYWALL)    // in ODQ Paywall, ULs/DLs are not allowed
         {
             // in ODQ Red, only ULs are disallowed
@@ -5454,7 +5459,9 @@ void MegaClient::dispatchTransfers()
         TransferCategory(GET, SMALLFILE),
     };
 
+#ifdef MEGA_USE_WSUPLOAD
     bool wsKickNeeded = false;
+#endif
     for (auto category : categoryOrder)
     {
         for (Transfer *nexttransfer : nextInCategory[category.index()])

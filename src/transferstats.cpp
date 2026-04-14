@@ -25,9 +25,11 @@
 #include "mega/megaclient.h"
 #include "mega/transferslot.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <iomanip>
+#include <limits>
 
 namespace mega::stats
 {
@@ -243,6 +245,7 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
         return false;
     }
 
+#ifdef MEGA_USE_WSUPLOAD
     if (transfer->channel == Transfer::Channel::WebSocket)
     {
         if (!transfer->client || !transfer->client->wsEngine())
@@ -293,6 +296,7 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
                   << " failedRatio=" << wsStats.failedRequestRatio << "]";
         return added;
     }
+#endif
 
     // Add transfer stats.
     TransferStats::TransferData transferData{transfer->size,
@@ -421,19 +425,30 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
         return 0;
     }
 
-    m_off_t weightedSum = 0;
-    m_off_t totalWeight = 0;
+    long double weightedSum = 0.0L;
+    long double totalWeight = 0.0L;
     for (size_t i = 0; i < values.size(); ++i)
     {
-        weightedSum += values[i] * weights[i];
-        totalWeight += weights[i];
+        weightedSum += static_cast<long double>(values[i]) *
+                       static_cast<long double>(weights[i]);
+        totalWeight += static_cast<long double>(weights[i]);
     }
-    if (weightedSum == 0 || totalWeight == 0)
+    if (weightedSum == 0.0L || totalWeight == 0.0L)
     {
         return 0;
     }
-    return static_cast<m_off_t>(
-        std::round(static_cast<double>(weightedSum) / static_cast<double>(totalWeight)));
+
+    const long double weightedAverage = weightedSum / totalWeight;
+    if (!std::isfinite(weightedAverage))
+    {
+        LOG_warn << "[calculateWeightedAverage] Non-finite weighted average calculated. Skipping";
+        return 0;
+    }
+
+    constexpr auto minValue = static_cast<long double>(std::numeric_limits<m_off_t>::min());
+    constexpr auto maxValue = static_cast<long double>(std::numeric_limits<m_off_t>::max());
+    const long double clampedAverage = std::clamp(weightedAverage, minValue, maxValue);
+    return static_cast<m_off_t>(std::llround(clampedAverage));
 }
 
 void checkTransferTypeValidity([[maybe_unused]] const direction_t type)

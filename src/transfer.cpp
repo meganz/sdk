@@ -3289,12 +3289,13 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
             if (transfer == nullptr)
                 continue;
 
-            const auto tsSlotOrWsUpload =
-                transfer->slot ||
+            auto tsSlotOrWsUpload = (transfer->slot != nullptr);
+#ifdef MEGA_USE_WSUPLOAD
+            tsSlotOrWsUpload = tsSlotOrWsUpload || 
                 (transfer->type == PUT && transfer->channel == Transfer::Channel::WebSocket &&
                  client->wsEngine() && client->wsEngine()->isUploading(*transfer));
-
-	    if (!tsSlotOrWsUpload)
+#endif
+            if (!tsSlotOrWsUpload)
             {
                 // check for cancellation here before we go to the trouble of requesting a download/upload URL
                 transfer->removeCancelledTransferFiles(&committer);
