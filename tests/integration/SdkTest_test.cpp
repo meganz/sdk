@@ -20377,6 +20377,97 @@ TEST_F(SdkTest, SdkWsUploadCancelDuringActiveTransfer)
 }
 
 /**
+ * @brief Verify deterministic WS preflight read failure detaches before `failed()`.
+ *
+ * - TEST1: Pause uploads, queue a WS upload, then delete the local file before unpausing.
+ * - TEST2: Use a debug hook in `prepareUploadForWs()` to observe WS detach state.
+ * - TEST3: Require the hook to report "not tracked" before `failed(API_EREAD)` runs.
+ */
+TEST_F(SdkTest, SdkWsUploadPreflightReadFailureDetachesBeforeFailed)
+{
+    LOG_info << "___TEST SdkWsUploadPreflightReadFailureDetachesBeforeFailed___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileName =
+        "ws_preflight_read_fail_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "F"))
+        << "Couldn't create " << fileName;
+
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto clearHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadPreflightFailureDetached = {};
+        });
+    auto resumeUploads = makeScopedDestructor(
+        [this]()
+        {
+            RequestTracker rt(megaApi[0].get());
+            megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD, &rt);
+            (void)rt.waitForResult(60);
+        });
+
+    RequestTracker pauseUploads(megaApi[0].get());
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD, &pauseUploads);
+    ASSERT_EQ(API_OK, pauseUploads.waitForResult(60)) << "pauseTransfers(true) failed";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    std::atomic<bool> hookCalled{false};
+    std::atomic<bool> stillTracked{true};
+    std::atomic<bool> sawExpectedReason{false};
+    globalMegaTestHooks.onWsUploadPreflightFailureDetached =
+        [&hookCalled, &stillTracked, &sawExpectedReason](const char* reason, const bool tracked)
+    {
+        stillTracked.store(tracked);
+        sawExpectedReason.store(reason && std::string(reason) == "cannot open local file");
+        hookCalled.store(true);
+    };
+
+    TransferTempErrorTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    deleteFile(fileName);
+
+    RequestTracker unpauseUploads(megaApi[0].get());
+    megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD, &unpauseUploads);
+    ASSERT_EQ(API_OK, unpauseUploads.waitForResult(60)) << "pauseTransfers(false) failed";
+
+    ASSERT_TRUE(WaitFor(
+        [&hookCalled]()
+        {
+            return hookCalled.load();
+        },
+        30000))
+        << "Timed out waiting for WS preflight failure detach hook";
+
+    const auto finalResult = ut.waitForResult(120, false);
+    ASSERT_EQ(finalResult, API_EREAD)
+        << "Unexpected result after deterministic WS preflight read failure: " << finalResult;
+    ASSERT_TRUE(sawExpectedReason.load())
+        << "WS preflight failure hook reported an unexpected reason";
+    ASSERT_FALSE(stillTracked.load())
+        << "WS upload transfer was still tracked after detach-before-failed on preflight failure";
+#endif
+}
+
+/**
  * @brief Verify deleting local source mid-transfer fails WS upload safely.
  *
  * - TEST1: Start throttled WS upload on a local file.

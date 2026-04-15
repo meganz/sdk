@@ -274,9 +274,11 @@ public:
         if (!fa)
             return UploadEngine::FailureDisposition::Retryable;
 
-        return sourceMatchesExpected(fa->mtime, fa->size) ?
-                   UploadEngine::FailureDisposition::Retryable :
-                   UploadEngine::FailureDisposition::Permanent;
+        // Mirror legacy slot behavior for local-source failures: once WS has selected
+        // a file, a non-transient open/stat failure means the local source is no longer
+        // a valid upload candidate and should not burn the generic retry budget.
+        return fa->retry ? UploadEngine::FailureDisposition::Retryable :
+                           UploadEngine::FailureDisposition::Permanent;
     }
 
     void setPool(WsPool& p); // defined after WsPool
@@ -347,7 +349,7 @@ public:
                              "[localname="
                           << mFile->getLocalname() << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
-                markFailed();
+                markFailed(classifyOpenFailure(fa.get()));
                 return false;
             }
 
@@ -399,9 +401,11 @@ public:
 
             engineMutex.unlock();
             auto checkFA = mClient.fsaccess->newfileaccess();
+            checkFA->mShareDelete = true;
             bool exists = checkFA->fopen(path, FSLogging::logOnError);
             m_time_t currMtime = checkFA->mtime;
             m_off_t currSize = checkFA->size;
+            const auto missingDisposition = classifyOpenFailure(checkFA.get());
             checkFA.reset();
             engineMutex.lock();
 
@@ -413,7 +417,7 @@ public:
                 LOG_warn << "[WsUploadFile::readData] file stat failed (deleted?) "
                          << "[localname=" << mFile->getLocalname() << "]";
                 closeFA();
-                markFailed();
+                markFailed(missingDisposition);
                 return false;
             }
 
@@ -1827,6 +1831,12 @@ public:
         }
 
         return false;
+    }
+
+    bool isTrackedForTesting(const Transfer& t) const
+    {
+        std::lock_guard<std::mutex> g(uploadMutex);
+        return files.find(const_cast<Transfer*>(&t)) != files.end();
     }
 #endif
 
@@ -4086,6 +4096,11 @@ bool UploadEngine::getPoolStateForTesting(const std::string& url,
                                           UploadEngine::PoolStateForTesting& out) const
 {
     return pImpl->getPoolStateForTesting(url, out);
+}
+
+bool UploadEngine::isTrackedForTesting(const Transfer& t) const
+{
+    return pImpl->isTrackedForTesting(t);
 }
 #endif
 

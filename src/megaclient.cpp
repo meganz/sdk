@@ -2217,6 +2217,75 @@ void forcePermanentWsReadFailure(Transfer& transfer)
 }
 } // namespace
 
+MegaClient::WsFailureRequeuePosition MegaClient::wsDetachTransferBeforeFailure(Transfer& t)
+{
+    WsFailureRequeuePosition position;
+    if (!wsEngine() || t.channel != Transfer::Channel::WebSocket)
+    {
+        return position;
+    }
+
+    auto& transferList = transferlist.transfers[t.type];
+    for (auto lit = transferList.begin(); lit != transferList.end(); ++lit)
+    {
+        if (lit->transfer != &t)
+        {
+            continue;
+        }
+
+        auto next = lit;
+        ++next;
+        for (; next != transferList.end(); ++next)
+        {
+            if (next->transfer && next->transfer->channel == Transfer::Channel::WebSocket)
+            {
+                position.wsBefore = next->transfer;
+                position.wsBeforeTh = position.wsBefore->uploadhandle;
+                break;
+            }
+        }
+        break;
+    }
+
+    wsEngine()->remove(t);
+    return position;
+}
+
+void MegaClient::wsReenqueueTransferAfterFailure(Transfer& t,
+                                                 const WsFailureRequeuePosition& position)
+{
+    if (!wsEngine() || t.channel != Transfer::Channel::WebSocket)
+    {
+        return;
+    }
+
+    wsEngine()->enqueue(t);
+    if (position.wsBefore && wsIsTransferAlive(t.type, position.wsBefore) &&
+        (position.wsBefore->uploadhandle == position.wsBeforeTh))
+    {
+        wsEngine()->reposition(t, position.wsBefore);
+    }
+
+    if (t.state == TRANSFERSTATE_PAUSED || (xferpaused[t.type] && !t.isForSupport()))
+    {
+        wsEngine()->pause(t);
+    }
+
+    dstime retryAt = t.bt.nextset();
+    if (!retryAt || retryAt == 1)
+    {
+        retryAt = waiter->ds;
+    }
+    wsEngine()->setRetryUntil(t, retryAt);
+}
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+bool MegaClient::wsIsTransferTrackedForTesting(const Transfer& t) const
+{
+    return wsEngine() && wsEngine()->isTrackedForTesting(t);
+}
+#endif
+
 void MegaClient::installWsEngineCallbacks()
 {
     if (!m_wsEngine)
@@ -2379,34 +2448,7 @@ void MegaClient::installWsEngineCallbacks()
                 // Keep WS failure handling relying on legacy Transfer::failed() as the single source.
                 // Remove transfer from WS first as later Transfer::failed() may delete it.
                 // Then re-enqueue only if the transfer survives (with queue order/state restored below).
-                Transfer* wsBefore = nullptr;
-                UploadHandle wsBeforeTh = UploadHandle();
-                if (client.wsEngine() && tp->channel == Transfer::Channel::WebSocket)
-                {
-                    // Best-effort: preserve WS engine ordering by remembering the next WS transfer
-                    // in the TransferList.
-                    auto& transferList = client.transferlist.transfers[type];
-                    for (auto lit = transferList.begin(); lit != transferList.end(); ++lit)
-                    {
-                        if (lit->transfer == tp)
-                        {
-                            auto next = lit;
-                            ++next;
-                            for (; next != transferList.end(); ++next)
-                            {
-                                if (next->transfer && next->transfer->channel == Transfer::Channel::WebSocket)
-                                {
-                                    wsBefore = next->transfer;
-                                    wsBeforeTh = wsBefore->uploadhandle;
-                                    break;
-                                }
-                            }
-                            break;
-                        }
-                    }
-
-                    client.wsEngine()->remove(*tp);
-                }
+                const auto wsPosition = client.wsDetachTransferBeforeFailure(*tp);
 
                 if (disposition == ws::UploadEngine::FailureDisposition::Permanent)
                 {
@@ -2418,29 +2460,7 @@ void MegaClient::installWsEngineCallbacks()
                 if (!client.wsIsTransferAlive(type, tp) || !(tp->uploadhandle == th))
                     return;
 
-                // re-enqueue the transfer and try to reposition it to original pos
-                if (client.wsEngine() && tp->channel == Transfer::Channel::WebSocket)
-                {
-                    client.wsEngine()->enqueue(*tp);
-                    if (wsBefore &&
-                        client.wsIsTransferAlive(type, wsBefore) &&
-                        (wsBefore->uploadhandle == wsBeforeTh))
-                    {
-                        client.wsEngine()->reposition(*tp, wsBefore);
-                    }
-
-                    // Mirror per-transfer / global pause state onto the WS engine.
-                    if (tp->state == TRANSFERSTATE_PAUSED ||
-                        (client.xferpaused[type] && !tp->isForSupport()))
-                    {
-                        client.wsEngine()->pause(*tp);
-                    }
-
-                    dstime retryAt = tp->bt.nextset();
-                    if (!retryAt || retryAt == 1)
-                        retryAt = client.waiter->ds;
-                    client.wsEngine()->setRetryUntil(*tp, retryAt);
-                }
+                client.wsReenqueueTransferAfterFailure(*tp, wsPosition);
 
                 if (client.app)
                 {
@@ -2476,27 +2496,12 @@ void MegaClient::installWsEngineCallbacks()
                     LOG_warn << "[MegaClient::installWsEngineCallbacks] onComplete -> "
                                 "missing/invalid upload token (len="
                              << len << ") [t.localfilename = " << tt.localfilename << "]";
-                    if (c.wsEngine())
-                    {
-                        // Reset WS per-attempt state so this transfer can retry instead of getting
-                        // stuck in a completed-attempt state with no valid upload token.
-                        c.wsEngine()->markFailed(tt, 0);
-                    }
+                    const auto wsPosition = c.wsDetachTransferBeforeFailure(tt);
                     tt.failed(API_EAGAIN, committer);
 
-                    if (c.wsEngine())
+                    if (c.wsIsTransferAlive(type, tPtr) && (tPtr->uploadhandle == th))
                     {
-                        // After failed(), align WS retry time to Transfer backoff.
-                        if (c.wsIsTransferAlive(type, tPtr) &&
-                            (tPtr->uploadhandle == th))
-                        {
-                            dstime retryAt = tPtr->bt.nextset();
-                            if (!retryAt || retryAt == 1)
-                            {
-                                retryAt = c.waiter->ds;
-                            }
-                            c.wsEngine()->setRetryUntil(*tPtr, retryAt);
-                        }
+                        c.wsReenqueueTransferAfterFailure(*tPtr, wsPosition);
                     }
                     return;
                 }
@@ -2982,8 +2987,9 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
         Transfer* tp = &t;
         const direction_t type = t.type;
         const UploadHandle th = t.uploadhandle;
+        const std::string reasonText = reason ? reason : "";
         wsPostToClientThread(
-            [tp, type, th](MegaClient& c, TransferDbCommitter& committer)
+            [tp, type, th, reasonText](MegaClient& c, TransferDbCommitter& committer)
             {
                 if (!tp)
                 {
@@ -3002,13 +3008,13 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                     return;
                 }
 
-                // Mark the WS attempt as failed on the client thread.
-                // Calling wsEngine()->markFailed() from the WS worker thread can
-                // re-enter uploadMutex and deadlock.
-                if (c.wsEngine())
-                {
-                    c.wsEngine()->markFailed(*tp, 0);
-                }
+                const auto wsPosition = c.wsDetachTransferBeforeFailure(*tp);
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                const bool stillTracked = c.wsIsTransferTrackedForTesting(*tp);
+                DEBUG_TEST_HOOK_WSUPLOAD_PREFLIGHT_FAILURE_DETACHED(reasonText.c_str(),
+                                                                    stillTracked);
+#endif
 
                 // Mirror legacy slot-based startup behavior: if local-file validation fails
                 // before the request is even dispatched, fail immediately instead of consuming
@@ -3017,19 +3023,9 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
 
                 tp->failed(API_EREAD, committer);
 
-                if (c.wsEngine())
+                if (c.wsIsTransferAlive(type, tp) && (th.isUndef() || (tp->uploadhandle == th)))
                 {
-                    // After failed(), align WS retry time to Transfer backoff.
-                    if (c.wsIsTransferAlive(type, tp) &&
-                        (th.isUndef() || (tp->uploadhandle == th)))
-                    {
-                        dstime retryAt = tp->bt.nextset();
-                        if (!retryAt || retryAt == 1)
-                        {
-                            retryAt = c.waiter->ds;
-                        }
-                        c.wsEngine()->setRetryUntil(*tp, retryAt);
-                    }
+                    c.wsReenqueueTransferAfterFailure(*tp, wsPosition);
                 }
             });
     };

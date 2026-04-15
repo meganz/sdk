@@ -555,6 +555,12 @@ class MEGA_API MegaClient
     std::mutex mWsPreflightMutex;
     std::unordered_map<Transfer*, WsPreflightRequest> mWsPreflightRequests;
 
+    struct WsFailureRequeuePosition
+    {
+        Transfer* wsBefore{nullptr};
+        UploadHandle wsBeforeTh{};
+    };
+
     // Keep engine declared after WS action queues/mutex so engine threads are stopped
     // before those members are destroyed (member destruction is reverse declaration order).
     std::unique_ptr<ws::UploadEngine> m_wsEngine;
@@ -568,6 +574,11 @@ class MEGA_API MegaClient
     void wsCleanupPreflightRequests();
     void wsRefreshCanStartAnotherFileSnapshot();
     void maybeStartWsUploadEngine();
+    WsFailureRequeuePosition wsDetachTransferBeforeFailure(Transfer& t);
+    void wsReenqueueTransferAfterFailure(Transfer& t, const WsFailureRequeuePosition& position);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    bool wsIsTransferTrackedForTesting(const Transfer& t) const;
+#endif
 #endif
 
 public:
