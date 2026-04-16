@@ -26,6 +26,8 @@
 
 #include <cstdint>
 #include <functional>
+#include <mutex>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -46,6 +48,122 @@ namespace mega {
     class DebugTestHook;
     struct Transfer;
     class TransferDbCommitter;
+
+    enum class WsUploadServerEventAction
+    {
+        None = 0,
+        Drop = 1,
+        Modify = 2,
+    };
+
+    struct WsUploadServerEventHook
+    {
+        WsUploadServerEventHook() = default;
+        WsUploadServerEventHook(const WsUploadServerEventHook&) = delete;
+        WsUploadServerEventHook& operator=(const WsUploadServerEventHook&) = delete;
+
+        WsUploadServerEventHook(WsUploadServerEventHook&& other) noexcept
+        {
+            std::lock_guard<std::mutex> g(other.mMutex);
+            sourceEvent = other.sourceEvent;
+            targetEvent = other.targetEvent;
+            targetChunkPos = other.targetChunkPos;
+            action = other.action;
+            fileno = other.fileno;
+            maxHits = other.maxHits;
+            hitCount = other.hitCount;
+        }
+
+        WsUploadServerEventHook& operator=(WsUploadServerEventHook&& other) noexcept
+        {
+            if (this == &other)
+            {
+                return *this;
+            }
+
+            std::scoped_lock lk(mMutex, other.mMutex);
+            sourceEvent = other.sourceEvent;
+            targetEvent = other.targetEvent;
+            targetChunkPos = other.targetChunkPos;
+            action = other.action;
+            fileno = other.fileno;
+            maxHits = other.maxHits;
+            hitCount = other.hitCount;
+            return *this;
+        }
+
+        void configure(WsUploadServerEventAction actionIn,
+                       int sourceEventIn,
+                       std::optional<int> targetEventIn = std::nullopt,
+                       std::optional<std::uint32_t> filenoIn = std::nullopt,
+                       std::optional<m_off_t> targetChunkPosIn = std::nullopt,
+                       std::optional<int> maxHitsIn = std::nullopt)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            sourceEvent = sourceEventIn;
+            targetEvent = targetEventIn;
+            fileno = filenoIn;
+            maxHits = maxHitsIn.value_or(1);
+            targetChunkPos = targetChunkPosIn;
+            action = actionIn;
+            hitCount = 0;
+        }
+
+        void reset()
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            sourceEvent = 0;
+            targetEvent.reset();
+            targetChunkPos.reset();
+            action = WsUploadServerEventAction::None;
+            fileno.reset();
+            maxHits = 1;
+            hitCount = 0;
+        }
+
+        int getHitCount() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return hitCount;
+        }
+
+        WsUploadServerEventAction evaluate(const std::uint32_t filenoIn,
+                                           int& eventInOut,
+                                           m_off_t& chunkPosInOut)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            if (action == WsUploadServerEventAction::None || sourceEvent != eventInOut ||
+                (fileno.has_value() && *fileno != filenoIn) ||
+                (maxHits != 0 && hitCount >= maxHits))
+            {
+                return WsUploadServerEventAction::None;
+            }
+
+            ++hitCount;
+            if (action == WsUploadServerEventAction::Modify)
+            {
+                if (targetEvent.has_value())
+                {
+                    eventInOut = *targetEvent;
+                }
+                if (targetChunkPos.has_value())
+                {
+                    chunkPosInOut = *targetChunkPos;
+                }
+            }
+            return action;
+        }
+
+    private:
+        mutable std::mutex mMutex;
+        WsUploadServerEventAction action = WsUploadServerEventAction::None;
+        int sourceEvent = 0;
+        std::optional<int> targetEvent;
+        std::optional<m_off_t> targetChunkPos;
+        std::optional<std::uint32_t> fileno;
+        int maxHits = 1;
+        int hitCount = 0;
+    };
 
     struct MegaTestHooks
     {
@@ -79,6 +197,7 @@ namespace mega {
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
             onWsUploadCorruptToken;
+        WsUploadServerEventHook wsUploadServerEventHook;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
@@ -232,6 +351,13 @@ namespace mega {
                 (PAYLEN) = static_cast<int>((PAYLOAD).size()); \
         }
 
+#define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT) \
+        { \
+            (RESULT) = globalMegaTestHooks.wsUploadServerEventHook.evaluate((FILENO), \
+                                                                            (EVENT), \
+                                                                            (CHUNKPOS)); \
+        }
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     { \
         if (globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc) \
@@ -301,6 +427,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(FILENO, EVENT, SHOULD_DROP)
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED)
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
+#define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

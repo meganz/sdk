@@ -163,10 +163,14 @@ public:
         unsigned queuedResends = 0;
         unsigned activeThreads = 0;
         unsigned exitingThreads = 0;
+        unsigned openConnections = 0;
+        unsigned connectionsWithInFlight = 0;
+        unsigned maxConnectionsWithInFlightSeen = 0;
     };
 
     bool getPoolStateForTesting(const std::string& url, PoolStateForTesting& out) const;
     bool isTrackedForTesting(const Transfer& t) const;
+    std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;
 #endif
     // Set desired WS upload speed limit in bytes per second (<=0 means unlimited).
     void setMaxUploadSpeed(m_off_t bytesPerSecond);

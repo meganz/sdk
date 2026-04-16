@@ -309,38 +309,9 @@ public:
     void unsetPool(); // defined after WsPool
     bool hasPool() const;
 
-    bool ensureOpen(std::mutex& engineMutex)
-    {
-        if (mFAOpened)
-            return true;
-        if (!mFA)
-        {
-            markFailed();
-            return false;
-        }
-
-        FileAccess* const faRaw = mFA.get();
-        std::unique_lock<std::mutex> io(mReadMutex);
-
-        engineMutex.unlock();
-        const bool ok = faRaw->openf(FSLogging::logOnError); // does sysopen() if needed
-        io.unlock(); // do not re-lock engine while holding the I/O mutex (lock ordering)
-        engineMutex.lock();
-
-        if (mFA.get() != faRaw)
-            return false;
-        mFAOpened = ok;
-        if (!ok)
-            markFailed(classifyOpenFailure(faRaw));
-        return ok;
-    }
-
     void closeFA()
     {
         std::lock_guard<std::mutex> io(mReadMutex);
-        if (mFA && mFAOpened)
-            mFA->closef();
-        mFAOpened = false;
         mFA = nullptr;
     }
 
@@ -409,14 +380,6 @@ public:
         if (ioLock.owns_lock())
             ioLock.unlock();
 
-        if (!ensureOpen(engineMutex))
-        {
-            LOG_debug << "[WsUploadFile::readData] !ensureOpen -> return false [localname="
-                      << mLocalPath << "] [this = " << this
-                      << "] [thread_id=" << std::this_thread::get_id() << "]";
-            return false;
-        }
-
         // Mirror legacy openf() behavior: periodically verify the source file
         // still exists and is unmodified. The legacy fread() does open-read-close
         // per *connection* chunk (8-32 MB), catching changes via sysstat() in
@@ -457,7 +420,7 @@ public:
                 return false;
             }
 
-            if (currMtime != mMtime || currSize != mSize)
+            if (!sourceMatchesExpected(currMtime, currSize))
             {
                 LOG_warn << "[WsUploadFile::readData] file changed since open. "
                          << "Expected mtime=" << mMtime << " size=" << mSize
@@ -472,13 +435,14 @@ public:
         bool okRead = false;
         bool didReopen = false;
         bool reok = false;
+        bool reopenSourceChanged = false;
 
         FileAccess* faRaw = nullptr;
         ioLock.lock();
         faRaw = mFA.get();
         engineMutex.unlock();
         {
-            // mFA may be cleared by pause/cancel (closeFA) while during release engineMutex.
+            // mFA may be cleared by pause/cancel while releasing engineMutex.
             // Treat this as an interrupted read so the chunk can be re-queued, not failed.
             if (!faRaw)
             {
@@ -504,13 +468,23 @@ public:
 
             if (!okRead)
             {
-                // optional one-shot recover: reopen + retry once
+                // Optional one-shot recover: reopen the blocking file handle and retry once.
                 LOG_debug << "[WsUploadFile::readData] !okRead -> reopen + retry once [localname="
                           << mLocalPath << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
-                faRaw->closef();
-                reok = faRaw->openf(FSLogging::logOnError);
+                faRaw->fclose();
+                reok = faRaw->fopen(mLocalPath, OPEN_RDONLY, FSLogging::logOnError);
                 didReopen = true;
+                if (reok && !sourceMatchesExpected(faRaw->mtime, faRaw->size))
+                {
+                    LOG_warn << "[WsUploadFile::readData] file changed before reopen retry. "
+                             << "Expected mtime=" << mMtime << " size=" << mSize
+                             << ", got mtime=" << faRaw->mtime << " size=" << faRaw->size
+                             << " [localname=" << mLocalPath << "]";
+                    faRaw->fclose();
+                    reok = false;
+                    reopenSourceChanged = true;
+                }
                 if (reok)
                 {
                     okRead = faRaw->frawread(reinterpret_cast<byte*>(buf),
@@ -526,20 +500,13 @@ public:
                   << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id() << "]";
         engineMutex.lock();
 
-        if (didReopen && mFA.get() == faRaw)
-        {
-            LOG_debug << "[WsUploadFile::readData] reok=" << reok << " [localname=" << mLocalPath
-                      << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id()
-                      << "]";
-            mFAOpened = reok;
-        }
-
         if (!okRead)
         {
             auto disposition = UploadEngine::FailureDisposition::Retryable;
             if (didReopen && !reok)
             {
-                disposition = classifyOpenFailure(faRaw);
+                disposition = reopenSourceChanged ? UploadEngine::FailureDisposition::Permanent :
+                                                    classifyOpenFailure(faRaw);
             }
             LOG_debug << "[WsUploadFile::readData] !okRead -> markFailed() [localname="
                       << mLocalPath << "] [this = " << this
@@ -913,8 +880,7 @@ private:
     std::array<byte, SymmCipher::KEYLENGTH>
         mTransferKey{}; // Phase 2: set in snapshotCryptoMaterial()
     int64_t mCtrIv{0}; // Phase 2
-    std::unique_ptr<FileAccess> mFA{}; // open on first read
-    bool mFAOpened{false};
+    std::unique_ptr<FileAccess> mFA{}; // blocking-opened on first read
     std::mutex mReadMutex; // needed for Android because of lseek64+read
     std::atomic<unsigned> mActiveIO{0};
 
@@ -1156,6 +1122,9 @@ struct WsPool
     unsigned char mNumberOfConnections{3};
     bool mRetiring{false};
     bool mPinned{false};
+#ifndef NDEBUG
+    unsigned mMaxConnectionsWithInFlightSeen{0};
+#endif
 
     explicit WsPool(std::pair<std::string, m_off_t> urlmaxsize,
                     m_off_t minsize,
@@ -1193,6 +1162,40 @@ struct WsPool
         mNumberOfConnections = n;
         checkThreads();
     }
+
+#ifndef NDEBUG
+    unsigned countOpenConnectionsLocked() const
+    {
+        unsigned openConnections = 0;
+        for (const auto* conn: mConns)
+        {
+            if (conn && conn->readyState == WsConn::ReadyState::OPEN)
+            {
+                ++openConnections;
+            }
+        }
+        return openConnections;
+    }
+
+    unsigned countConnectionsWithInFlightLocked() const
+    {
+        unsigned withInFlight = 0;
+        for (const auto* conn: mConns)
+        {
+            if (conn && !conn->mChunksInFlight.empty())
+            {
+                ++withInFlight;
+            }
+        }
+        return withInFlight;
+    }
+
+    void updateMaxConnectionsWithInFlightSeenLocked()
+    {
+        mMaxConnectionsWithInFlightSeen =
+            std::max(mMaxConnectionsWithInFlightSeen, countConnectionsWithInFlightLocked());
+    }
+#endif
 
     bool stillActive()
     {
@@ -1864,6 +1867,10 @@ public:
             out.queuedResends = static_cast<unsigned>(pool.mToResend.size());
             out.activeThreads = static_cast<unsigned>(pool.mActiveThreads.size());
             out.exitingThreads = static_cast<unsigned>(pool.mExitingThreads.size());
+            out.openConnections = pool.countOpenConnectionsLocked();
+            out.connectionsWithInFlight = pool.countConnectionsWithInFlightLocked();
+            out.maxConnectionsWithInFlightSeen =
+                std::max(pool.mMaxConnectionsWithInFlightSeen, out.connectionsWithInFlight);
         };
 
         for (const auto& poolPtr: poolMgr.mPools)
@@ -1897,6 +1904,17 @@ public:
     {
         std::lock_guard<std::mutex> g(uploadMutex);
         return files.find(const_cast<Transfer*>(&t)) != files.end();
+    }
+
+    std::uintptr_t getFilePoolIdForTesting(Transfer& t) const
+    {
+        std::lock_guard<std::mutex> g(uploadMutex);
+        if (const auto it = files.find(&t);
+            it != files.end() && it->second && it->second->hasPool())
+        {
+            return reinterpret_cast<std::uintptr_t>(it->second->mPool);
+        }
+        return 0;
     }
 #endif
 
@@ -2749,7 +2767,8 @@ struct ChunkResponse
                 "ChunkResponse doesn't match detail::kInboundChunkResponseBytes");
 
     const auto* response = reinterpret_cast<const ChunkResponse*>(msg);
-    const auto event = static_cast<WsApiServerEvent>(response->event);
+    m_off_t chunkPos = response->chunkpos;
+    auto event = static_cast<WsApiServerEvent>(response->event);
     LOG_debug << "[WsConn::onmessage] response->fileno=" << response->fileno
               << " response->chunkpos=" << response->chunkpos
               << " response->event=" << static_cast<int>(event) << " [this = " << this << "]";
@@ -2767,11 +2786,21 @@ struct ChunkResponse
     DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(response->fileno,
                                                static_cast<int>(event),
                                                dropServerEvent);
-    if (dropServerEvent)
+    int hookEvent = static_cast<int>(event);
+    WsUploadServerEventAction hookAction = WsUploadServerEventAction::None;
+    DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(response->fileno, hookEvent, chunkPos, hookAction);
+    if (dropServerEvent || hookAction == WsUploadServerEventAction::Drop)
     {
         LOG_warn << "WsUpload: debug hook dropped server event=" << static_cast<int>(event)
                  << " fileno=" << response->fileno;
         return;
+    }
+    if (hookAction == WsUploadServerEventAction::Modify)
+    {
+        LOG_warn << "WsUpload: debug hook modified server event=" << static_cast<int>(event)
+                 << " -> " << hookEvent << " chunkpos=" << response->chunkpos << " -> " << chunkPos
+                 << " fileno=" << response->fileno;
+        event = static_cast<WsApiServerEvent>(hookEvent);
     }
 #endif
 
@@ -2789,7 +2818,7 @@ struct ChunkResponse
             if (mPool->mImpl->mCb.onFail)
             {
                 const int apierr = static_cast<int>(event);
-                const m_off_t aux = response->chunkpos;
+                const m_off_t aux = chunkPos;
                 mPool->mImpl->mCb.onFail(uf->transfer(),
                                          apierr,
                                          aux,
@@ -2806,7 +2835,7 @@ struct ChunkResponse
                                  event == WsApiServerEvent::FinalDataIngested;
         for (auto it = mChunksInFlight.begin(); it != mChunksInFlight.end(); ++it)
         {
-            if (it->first.pos == response->chunkpos && it->first.fileno == response->fileno)
+            if (it->first.pos == chunkPos && it->first.fileno == response->fileno)
             {
                 chunk = it->first;
                 if (shouldApply)
@@ -2818,9 +2847,9 @@ struct ChunkResponse
         }
         if (chunk.pos < 0)
         {
-            LOG_warn << "WsUpload: PROTOCOL - acked chunk not in-flight [pos=" << response->chunkpos
-                     << " fileno=" << response->fileno
-                     << " type=" << static_cast<int>(event) << "]";
+            LOG_warn << "WsUpload: PROTOCOL - acked chunk not in-flight [pos=" << chunkPos
+                     << " fileno=" << response->fileno << " type=" << static_cast<int>(event)
+                     << "]";
             return;
         }
     }
@@ -3504,6 +3533,9 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                      "[mNumChunksInFlight="
                   << mNumChunksInFlight << "] [this = " << this << "]";
         ws->mChunksInFlight.emplace_back(chunk, std::move(update));
+#ifndef NDEBUG
+        updateMaxConnectionsWithInFlightSeenLocked();
+#endif
         uf->onRequestSent();
         ws->sendChunkData(chunk.fileno, chunk.pos, tlsBuf.get(), chunk.len);
 
@@ -4310,6 +4342,11 @@ bool UploadEngine::getPoolStateForTesting(const std::string& url,
 bool UploadEngine::isTrackedForTesting(const Transfer& t) const
 {
     return pImpl->isTrackedForTesting(t);
+}
+
+std::uintptr_t UploadEngine::getFilePoolIdForTesting(Transfer& t) const
+{
+    return pImpl->getFilePoolIdForTesting(t);
 }
 #endif
 
