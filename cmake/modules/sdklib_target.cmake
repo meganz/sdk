@@ -133,6 +133,7 @@ set(SDKLIB_SOURCES
     src/logging.cpp
     src/localpath.cpp
     src/mediafileattribute.cpp
+    src/mediats_utils.cpp
     src/megaclient.cpp
     src/megaclientprefs.cpp
     src/node.cpp

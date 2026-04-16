@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/mediats_utils.h"
 
 #include <algorithm>
 #include <limits>
@@ -239,7 +240,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         "s3keyVirtual text AS (name || (CASE WHEN type = 1 THEN '/' ELSE '' END)) VIRTUAL, "
         "share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
         "flags int64, counter BLOB NOT NULL, "
-        "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
+        "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text, mediats int64 "
+        "DEFAULT 0)";
 
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -273,6 +275,10 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
          NodeData::COMPONENT_DESCRIPTION,
          NewColumn::extractDataFromNodeData<DescriptionType>},
         {"tags", "text", NodeData::COMPONENT_TAGS, NewColumn::extractDataFromNodeData<TagsType>},
+        {"mediats",
+         "int64 DEFAULT 0",
+         NodeData::COMPONENT_MEDIATS,
+         NewColumn::extractDataFromNodeData<MediaTsType>},
         {"sizeVirtual",
          "int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL",
          NodeData::COMPONENT_NONE,
@@ -618,7 +624,8 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
 
     // get existing data
     sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db, "SELECT nodehandle, node FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
+    if (sqlite3_prepare_v2(db, "SELECT nodehandle, node, ctime FROM nodes", -1, &stmt, nullptr) !=
+        SQLITE_OK)
     {
         LOG_err << "Db error while preparing to extract data to migrate: " << sqlite3_errmsg(db);
         return false;
@@ -634,6 +641,9 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         int blobSize = sqlite3_column_bytes(stmt, 1);
         handle nh = static_cast<handle>(sqlite3_column_int64(stmt, 0));
         NodeData nd(blob, static_cast<size_t>(blobSize), NodeData::COMPONENT_ATTRS);
+
+        // ctime is not readable from blob with COMPONENT_ATTRS, supplement from DB column
+        nd.setRowCtime(static_cast<m_time_t>(sqlite3_column_int64(stmt, 2)));
 
         std::vector<std::unique_ptr<MigrateType>> migrateElement;
         migrateElement.reserve(cols.size());
@@ -1615,8 +1625,8 @@ bool SqliteAccountState::put(Node *node)
             sqlite3_prepare_v2(db,
                                "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
                                "name, fingerprint, origFingerprint, type, share, fav, ctime, "
-                               "mtime, flags, counter, node, label, description, tags) "
-                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               "mtime, flags, counter, node, label, description, tags, mediats) "
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                -1,
                                &mStmtPutNode,
                                NULL);
@@ -1706,6 +1716,8 @@ bool SqliteAccountState::put(Node *node)
         {
             sqlite3_bind_null(mStmtPutNode, 16);
         }
+
+        sqlite3_bind_int64(mStmtPutNode, 17, static_cast<sqlite3_int64>(node->getMediaTs()));
 
         sqlResult = sqlite3_step(mStmtPutNode);
     }
@@ -4952,6 +4964,36 @@ std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::TagsType::fromNodeD
 bool SqliteDbAccess::TagsType::hasValidValue() const
 {
     return mValue.size() > 0;
+}
+
+SqliteDbAccess::MediaTsType::MediaTsType(uint64_t value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::MediaTsType::bindToDb(sqlite3_stmt* stmt,
+                                           const std::map<int, int>& lookupId) const
+{
+    if (sqlite3_bind_int64(stmt, lookupId.at(COMPONENT), static_cast<sqlite3_int64>(mValue)) !=
+        SQLITE_OK)
+    {
+        LOG_err << "Db error during migration while binding mediats value";
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::MediaTsType::fromNodeData(NodeData& nd)
+{
+    if (nd.getType() != FILENODE)
+        return std::make_unique<MediaTsType>(0);
+    return std::make_unique<MediaTsType>(
+        computeMediaTsIfMediaFile(nd.getName(), nd.getMtime(), nd.getRowCtime()));
+}
+
+bool SqliteDbAccess::MediaTsType::hasValidValue() const
+{
+    return mValue > 0;
 }
 
 } // namespace

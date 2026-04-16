@@ -357,6 +357,19 @@ private:
         std::string mValue;
     };
 
+    class MediaTsType: public MigrateType
+    {
+    public:
+        MediaTsType(uint64_t value);
+        bool bindToDb(sqlite3_stmt* stmt, const std::map<int, int>& lookupId) const override;
+        static std::unique_ptr<SqliteDbAccess::MigrateType> fromNodeData(NodeData& nd);
+        bool hasValidValue() const override;
+        static constexpr auto COMPONENT = NodeData::COMPONENT_MEDIATS;
+
+    private:
+        uint64_t mValue;
+    };
+
     // functionality for adding columns to existing table, and copying data to them
     struct NewColumn
     {

@@ -315,6 +315,22 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     // actual time this node was created (cannot be set by user)
     m_time_t ctime = 0;
 
+    // media capture timestamp (ms since epoch, UTC)
+    // Derived locally from filename pattern > mtime > ctime.
+    uint64_t getMediaTs() const
+    {
+        return mMediaTs;
+    }
+
+    void setMediaTs(uint64_t ts)
+    {
+        mMediaTs = ts;
+    }
+
+    // Recompute mMediaTs from the node's current name, mtime, and ctime.
+    // Sets 0 for non-file nodes or non-media files.
+    void updateMediaTs();
+
     // file attributes
     string fileattrstring;
 
@@ -533,6 +549,9 @@ private:
     // keeps track of counts of files, folder, versions, storage and version's storage
     NodeCounter mCounter;
 
+    // media capture timestamp (ms since epoch, UTC), derived locally
+    uint64_t mMediaTs = 0;
+
     static nameid getExtensionNameId(const std::string& ext);
 };
 
@@ -575,6 +594,18 @@ public:
     std::string getDescription();
     std::string getTags();
     handle getHandle();
+    std::string getName();
+    nodetype_t getType();
+
+    m_time_t getRowCtime() const
+    {
+        return mRowCtime;
+    }
+
+    void setRowCtime(m_time_t ctime)
+    {
+        mRowCtime = ctime;
+    }
 
     std::shared_ptr<Node> createNode(MegaClient& client,
                                      bool fromOldCache,
@@ -589,6 +620,7 @@ public:
         COMPONENT_LABEL,
         COMPONENT_DESCRIPTION,
         COMPONENT_TAGS,
+        COMPONENT_MEDIATS,
     };
 
 private:
@@ -605,6 +637,7 @@ private:
     handle mParentHandle = 0;
     handle mUserHandle = 0;
     m_time_t mCtime = 0;
+    m_time_t mRowCtime = 0; // ctime from DB column, set by migrateDataToColumns (not from blob)
     string mNodeKey;
     char mIsExported = '\0';
     char mIsEncrypted = '\0';

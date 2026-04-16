@@ -2647,6 +2647,11 @@ void NodeManager::putNodeInDb(Node* node) const
         }
     }
 
+    // Always recompute mediats before DB write.
+    // Covers: ctime-only changes (setattr not called),
+    //         old cache migration (createNode bypasses setattr).
+    node->updateMediaTs();
+
     mTable->put(node);
 }
 
