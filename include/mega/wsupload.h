@@ -20,6 +20,8 @@ struct Transfer;
 namespace ws
 {
 
+struct WsPoolMgr;
+
 namespace detail
 {
 
@@ -101,6 +103,7 @@ public:
     UploadEngine(const UploadEngine&) = delete;
     UploadEngine& operator=(const UploadEngine&) = delete;
 
+    std::uint64_t instanceId() const noexcept;
     // Bring engine online (spawns manager thread).
     void start();
     // Shutdown engine: stop scheduling new WS work and request worker threads to exit.
@@ -171,6 +174,7 @@ public:
     class Impl; // pImpl keeps heavy includes out of headers
 
 private:
+    friend struct WsPoolMgr;
     std::unique_ptr<Impl> pImpl;
 };
 

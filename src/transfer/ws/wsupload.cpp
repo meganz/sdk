@@ -345,13 +345,22 @@ public:
     }
 
     // I/O (open on first read) — engineMutex is the single engine mutex
-    bool readData(char* buf, const m_off_t pos, const int len, std::mutex& engineMutex)
+    bool readData(char* buf,
+                  const m_off_t pos,
+                  const int len,
+                  std::mutex& engineMutex,
+                  bool* interruptedByFaClose = nullptr)
     {
         LOG_debug << "[WsUploadFile::readData] BEGIN [buf=" << (void*)buf << "] [pos=" << pos
                   << "] [len=" << len << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
+        if (interruptedByFaClose)
+        {
+            *interruptedByFaClose = false;
+        }
         ActiveIOGuard io(*this);
         // open on first use
+        std::unique_lock<std::mutex> ioLock(mReadMutex);
         if (!mFA)
         {
             LOG_debug << "[WsUploadFile::readData] !mFA -> newfileaccess for localname="
@@ -365,6 +374,7 @@ public:
             LOG_debug << "[WsUploadFile::readData] okOpen=" << okOpen
                       << " [localname=" << mLocalPath << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
+            ioLock.unlock(); // never re-lock engineMutex while holding mReadMutex
             engineMutex.lock();
 
             if (!okOpen)
@@ -396,6 +406,8 @@ public:
                       << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id()
                       << "]";
         }
+        if (ioLock.owns_lock())
+            ioLock.unlock();
 
         if (!ensureOpen(engineMutex))
         {
@@ -462,22 +474,35 @@ public:
         bool reok = false;
 
         FileAccess* faRaw = nullptr;
-        std::unique_lock<std::mutex> ioLock(mReadMutex);
+        ioLock.lock();
         faRaw = mFA.get();
         engineMutex.unlock();
         {
+            // mFA may be cleared by pause/cancel (closeFA) while during release engineMutex.
+            // Treat this as an interrupted read so the chunk can be re-queued, not failed.
+            if (!faRaw)
+            {
+                ioLock.unlock(); // do not re-lock engine while holding the I/O mutex
+                engineMutex.lock();
+                if (interruptedByFaClose)
+                {
+                    *interruptedByFaClose = true;
+                }
+                LOG_debug << "[WsUploadFile::readData] mFA cleared while switching locks; "
+                             "treat as interrupted read [localname="
+                          << mLocalPath << "] [this = " << this
+                          << "] [thread_id=" << std::this_thread::get_id() << "]";
+                return false;
+            }
             // Some platforms declare frawread(pos) as unsigned — cast explicitly to avoid
             // -Wconversion
-            if (faRaw)
-            {
-                okRead = faRaw->frawread(reinterpret_cast<byte*>(buf),
-                                         static_cast<unsigned>(len),
-                                         pos,
-                                         /*caller_opened=*/true,
-                                         FSLogging::logOnError);
-            }
+            okRead = faRaw->frawread(reinterpret_cast<byte*>(buf),
+                                     static_cast<unsigned>(len),
+                                     pos,
+                                     /*caller_opened=*/true,
+                                     FSLogging::logOnError);
 
-            if (!okRead && faRaw)
+            if (!okRead)
             {
                 // optional one-shot recover: reopen + retry once
                 LOG_debug << "[WsUploadFile::readData] !okRead -> reopen + retry once [localname="
@@ -1141,6 +1166,8 @@ struct WsPool
         mUrl(std::move(urlmaxsize.first)),
         mMinFileSize(minsize),
         mMaxFileSize(urlmaxsize.second),
+        mLastActive(mPoolCreationTime),
+        mLastServerResponse(mPoolCreationTime),
         mNumberOfConnections(std::max<unsigned char>(1, numConnections))
     {
         LOG_debug << "[WsPool] constructed [mMinFileSize=" << mMinFileSize
@@ -1180,13 +1207,10 @@ struct WsPool
         return true;
     }
 
-    bool freshAndSameHostMaxSize(const std::pair<std::string, m_off_t>& urlMaxSize,
-                                 const dstime oldestvalid)
+    bool sameHostMaxSize(const std::pair<std::string, m_off_t>& urlMaxSize) const
     {
         constexpr std::size_t wsHostPrefixLength = sizeof("wss://") - 1;
 
-        if (SteadyTime::difference(mPoolCreationTime, oldestvalid) < 0)
-            return false;
         if (mMaxFileSize != urlMaxSize.second)
             return false;
 
@@ -1338,6 +1362,7 @@ struct WsPoolMgr
     void checkPools(class UploadEngine::Impl& impl); // defined later
     void refreshPools(); // defined later
     bool refreshPoolsResponse(std::string& response); // defined later
+    void applyRefreshBackoff(Error e); // defined later
 
     // Shared tail for USC refresh responses (parsing can be done via string parsing or JSON).
     void applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> urls);
@@ -1526,6 +1551,7 @@ public:
     explicit Impl(MegaClient& c):
         client(c)
     {
+        mInstanceId = ++sInstanceCounter;
         //curl_global_init(CURL_GLOBAL_ALL);
         LOG_debug << "[UploadEngine::Impl] constructed";
     }
@@ -1582,6 +1608,11 @@ public:
     bool stopping() const
     {
         return mStopping.load(std::memory_order_acquire);
+    }
+
+    std::uint64_t instanceId() const noexcept
+    {
+        return mInstanceId;
     }
 
     // Queue mirrors TransferList ordering and priority.
@@ -2172,74 +2203,81 @@ public:
         LOG_debug << "[UploadEngine::Impl::nextEligible] BEGIN [fileList.size=" << fileList.size()
                   << "] [this = " << this << "]";
 
-        cycleNextIt();
-
         bool consecutive = true;
-        for (auto it = nextIt; it != fileList.end(); ++it)
+        if (!fileList.empty())
         {
-            WsUploadFile* f = *it;
-            if (!f)
+            auto it = nextIt;
+            for (std::size_t scanned = 0; scanned < fileList.size(); ++scanned)
             {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] !f -> continue [this = " << this
-                          << "]";
-                continue;
-            }
-
-            const bool poolEligible = !f->hasPool() || f->mPool == requestingPool;
-            if (poolEligible && !f->paused() && f->continuingUpload(currentTime) &&
-                f->hasPendingBytesOrEofToSend())
-            {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] poolEligible && "
-                             "!f->paused() && f->continuingUpload -> process file"
-                          << " [this = " << this << "]";
-                const auto& hint = f->sessionUrlHint();
-                if (requiredSessionUrl)
+                if (it == fileList.end())
                 {
-                    if (hint.empty() || hint != *requiredSessionUrl)
-                    {
-                        continue;
-                    }
+                    it = fileList.begin();
                 }
-                else if (!hint.empty())
+
+                WsUploadFile* f = *it;
+                if (!f)
                 {
-                    // Reserved for the pool bound to this specific session URL.
+                    LOG_debug << "[UploadEngine::Impl::nextEligible] !f -> continue [this = "
+                              << this << "]";
+                    ++it;
                     continue;
                 }
 
-                if (f->size() >= min && (!max || f->size() < max))
+                const bool poolEligible = !f->hasPool() || f->mPool == requestingPool;
+                if (poolEligible && !f->paused() && f->continuingUpload(currentTime) &&
+                    f->hasPendingBytesOrEofToSend())
                 {
-                    LOG_debug << "[UploadEngine::Impl::nextEligible] f->size(=" << f->size()
+                    LOG_debug << "[UploadEngine::Impl::nextEligible] poolEligible && "
+                                 "!f->paused() && f->continuingUpload -> process file"
+                              << " [this = " << this << "]";
+                    const auto& hint = f->sessionUrlHint();
+                    if (requiredSessionUrl)
+                    {
+                        if (hint.empty() || hint != *requiredSessionUrl)
+                        {
+                            ++it;
+                            continue;
+                        }
+                    }
+                    else if (!hint.empty())
+                    {
+                        // Reserved for the pool bound to this specific session URL.
+                        ++it;
+                        continue;
+                    }
+
+                    if (f->size() >= min && (!max || f->size() < max))
+                    {
+                        LOG_debug << "[UploadEngine::Impl::nextEligible] f->size(=" << f->size()
+                                  << ") >= min(=" << min << ") && (!max(=" << max
+                                  << ") || f->size(=" << f->size() << ") < max(=" << max
+                                  << ")) -> candidate selected [consecutive=" << consecutive
+                                  << "] [this = " << this << "]";
+                        if (consecutive)
+                        {
+                            advanceNextItFrom(it);
+                        }
+                        return f;
+                    }
+
+                    LOG_debug << "[UploadEngine::Impl::nextEligible] !f->size(=" << f->size()
                               << ") >= min(=" << min << ") && (!max(=" << max
                               << ") || f->size(=" << f->size() << ") < max(=" << max
-                              << ")) -> process file: setUploadStart(currentTime) and return file "
-                                 "[consecutive="
-                              << consecutive << "]"
-                              << " [this = " << this << "]";
-                    if (consecutive)
-                    {
-                        LOG_debug << "[UploadEngine::Impl::nextEligible] consecutive=true -> "
-                                     "advanceNextItFrom(it) before setting upload start [this = "
-                                  << this << "]";
-                        advanceNextItFrom(it);
-                    }
-                    f->setUploadStart(currentTime);
-                    return f;
-                }
-                LOG_debug << "[UploadEngine::Impl::nextEligible] !f->size(=" << f->size()
-                          << ") >= min(=" << min << ") && (!max(=" << max
-                          << ") || f->size(=" << f->size() << ") < max(=" << max
-                          << ")) -> no process file, set consecutive=false and continue [this = "
-                          << this << "]";
+                              << ")) -> no process file, set consecutive=false and continue [this = "
+                              << this << "]";
 
-                consecutive = false;
-            }
-            else
-            {
-                LOG_debug << "[UploadEngine::Impl::nextEligible] !poolEligible || "
-                             "f->paused() || "
-                             "!f->continuingUpload -> continue || "
-                             "! f->hasPendingBytesOrEofToSend() [this = "
-                          << this << "]";
+                    consecutive = false;
+                }
+                else
+                {
+                    LOG_debug << "[UploadEngine::Impl::nextEligible] !poolEligible || "
+                                 "f->paused() || "
+                                 "!f->continuingUpload -> continue || "
+                                 "! f->hasPendingBytesOrEofToSend() [this = "
+                              << this << "]";
+                }
+
+                ++it;
             }
         }
         LOG_debug << "[UploadEngine::Impl::nextEligible] END - return nullptr [this = " << this
@@ -2300,6 +2338,8 @@ public:
     m_off_t mUploadBudget{0};
     dstime mUploadBudgetLastDs{0};
     bool paused{false};
+    inline static std::atomic<std::uint64_t> sInstanceCounter{0};
+    std::uint64_t mInstanceId{0};
 
 private:
     void cleanupExitedPoolThreads(std::unique_lock<std::mutex>& lk)
@@ -3090,15 +3130,19 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
         return true;
     }
 
-    if (mRetiring)
+    auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize, mPinned ? &mUrl : nullptr, this);
+    if (f)
     {
-        LOG_debug << "[WsPool::getWsUploadFile] mRetiring=true -> return false [this = " << this
-                  << "]";
-        return false;
-    }
+        // Retiring pools should keep draining files already bound to this pool,
+        // but must not adopt new unbound files.
+        if (mRetiring && !f->hasPool())
+        {
+            LOG_debug << "[WsPool::getWsUploadFile] mRetiring=true and candidate is unbound -> "
+                         "return false [this = "
+                      << this << "]";
+            return false;
+        }
 
-    if (auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize, mPinned ? &mUrl : nullptr, this))
-    {
         LOG_debug << "[WsPool::getWsUploadFile] BEGIN -> auto* f = impl.nextEligible(mMinFileSize(="
                   << mMinFileSize << "), mMaxFileSize(=" << mMaxFileSize << "))  [this = " << this
                   << "]";
@@ -3124,6 +3168,9 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
         // Option C: snapshot write-once crypto material now that preflightStart has
         // guaranteed f->transfer().transferkey and ctriv are populated.
         f->snapshotCryptoMaterial(f->transfer());
+        // Defer start-marking until preflight succeeds so failed preflight does not leave
+        // the file stuck in an active attempt state.
+        f->setUploadStart(impl.currentTime);
 
         if (mUploadingFile != f)
         {
@@ -3170,6 +3217,9 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
         chunk = mToResend.front();
         if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
         {
+            // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
+            // force an unnecessary refresh.
+            mLastActive = impl.currentTime;
             return false;
         }
         mToResend.erase(mToResend.begin());
@@ -3220,6 +3270,9 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
                 chunk.len = static_cast<int>(newHead - chunk.pos);
                 if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
                 {
+                    // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
+                    // force an unnecessary refresh.
+                    mLastActive = impl.currentTime;
                     return false;
                 }
                 mUploadingFile->advanceHead(chunk.len);
@@ -3394,9 +3447,14 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
     }
 
     WsUploadFile* uf = findFile(chunk.fileno, impl);
+    bool interruptedByFaClose = false;
     const bool okRead =
         uf && !uf->aborted() &&
-        (chunk.len == 0 || uf->readData(tlsBuf.get(), chunk.pos, chunk.len, impl.uploadMutex));
+        (chunk.len == 0 || uf->readData(tlsBuf.get(),
+                                        chunk.pos,
+                                        chunk.len,
+                                        impl.uploadMutex,
+                                        &interruptedByFaClose));
     if (okRead)
     {
         uf = findFile(chunk.fileno, impl);
@@ -3453,12 +3511,20 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         return true;
     }
     uf = findFile(chunk.fileno, impl);
-    if (uf && chunk.len && uf->paused() && uf->inPool())
+    if (uf && chunk.len && uf->inPool())
     {
-        LOG_debug << "[WsPool::sendChunk] requeue chunk (paused while reading/opening) [pos="
-                  << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
-        mToResend.push_back(chunk);
-        return false;
+        const bool requeueInterrupted = interruptedByFaClose && !uf->aborted();
+        const bool requeuePaused = uf->paused();
+        if (requeueInterrupted || requeuePaused)
+        {
+            LOG_debug << "[WsPool::sendChunk] requeue chunk ("
+                      << (requeueInterrupted ? "file access interrupted while reading"
+                                             : "paused while reading/opening")
+                      << ") [pos=" << chunk.pos << "] [len=" << chunk.len
+                      << "] [fileno=" << chunk.fileno << "]";
+            mToResend.push_back(chunk);
+            return false;
+        }
     }
 
     // Local I/O error (or other non-paused failure while reading/opening).
@@ -3860,19 +3926,34 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
     // trim connections / refresh stale or stalled pools
     for (std::size_t i = mPools.size(); i-- > 0;)
     {
-        if (mPools[i]->mNumberOfConnections > 1 &&
-            SteadyTime::difference(impl.currentTime, mPools[i]->mLastActive) > POOLCONNKEEPALIVE)
+        WsPool* const pool = mPools[i].get();
+        if (!pool)
         {
-            mPools[i]->mNumberOfConnections = 1;
-            mPools[i]->checkThreads();
+            continue;
         }
 
-        if (SteadyTime::difference(impl.currentTime, mPools[i]->mPoolCreationTime) > POOLFRESHNESS)
+        const bool hasPoolWork = pool->mNumPoolFiles || pool->mUploadingFile ||
+                                 pool->mNumChunksInFlight || !pool->mToResend.empty();
+        const bool pinnedHasReference = pool->mPinned && pinnedPoolHasReference(*pool, impl);
+        const bool shouldScaleUp = !pool->mRetiring && (hasPoolWork || pinnedHasReference);
+        const unsigned char targetConnLimit = impl.poolConnectionLimit();
+
+        if (shouldScaleUp && pool->mNumberOfConnections < targetConnLimit)
+        {
+            pool->setPoolNumConn(targetConnLimit);
+        }
+
+        if (pool->mNumberOfConnections > 1 && !shouldScaleUp &&
+            SteadyTime::difference(impl.currentTime, pool->mLastActive) > POOLCONNKEEPALIVE)
+        {
+            pool->setPoolNumConn(1);
+        }
+
+        if (SteadyTime::difference(impl.currentTime, pool->mPoolCreationTime) > POOLFRESHNESS)
             refreshPools();
 
-        if ((mPools[i]->mUploadingFile || mPools[i]->mNumChunksInFlight ||
-             !mPools[i]->mToResend.empty()) &&
-            SteadyTime::difference(impl.currentTime, mPools[i]->mLastActive) > SERVERTIMEOUT)
+        if ((pool->mUploadingFile || pool->mNumChunksInFlight || !pool->mToResend.empty()) &&
+            SteadyTime::difference(impl.currentTime, pool->mLastActive) > SERVERTIMEOUT)
             refreshPools();
     }
 
@@ -3900,12 +3981,33 @@ void WsPoolMgr::refreshPools()
         return;
     }
 
-    mImpl->client.wsPostToClientThread(
-        [this](MegaClient& client, TransferDbCommitter&)
+    const auto engineId = mImpl->instanceId();
+
+    auto validateEngine = [](MegaClient& client, const std::uint64_t id) -> UploadEngine*
+    {
+        auto* engine = client.wsEngine();
+        if (!engine || engine->instanceId() != id || engine->isStopping())
         {
-            if (!mImpl || mImpl->stopping())
+            return nullptr;
+        }
+        return engine;
+    };
+
+    auto clearRefreshing = [](MegaClient& client, const std::uint64_t id)
+    {
+        auto* engine = client.wsEngine();
+        if (engine && engine->instanceId() == id)
+        {
+            engine->pImpl->poolMgr.mRefreshing = false;
+        }
+    };
+
+    mImpl->client.wsPostToClientThread(
+        [engineId, validateEngine, clearRefreshing](MegaClient& client, TransferDbCommitter&)
+        {
+            if (!validateEngine(client, engineId))
             {
-                mRefreshing = false;
+                clearRefreshing(client, engineId);
                 return;
             }
 
@@ -3913,36 +4015,50 @@ void WsPoolMgr::refreshPools()
             // the main client-server channel when lockless channels are enabled.
             client.queueCommand(new CommandUSCForWsUpload(
                 client,
-                [this](Error e, std::vector<std::pair<std::string, m_off_t>>&& sizeClasses)
+                [&client, engineId, validateEngine, clearRefreshing](
+                    Error e,
+                    std::vector<std::pair<std::string, m_off_t>>&& sizeClasses)
                 {
-                    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+                    auto* currentEngine = validateEngine(client, engineId);
+                    if (!currentEngine)
+                    {
+                        clearRefreshing(client, engineId);
+                        return;
+                    }
+
+                    std::lock_guard<std::mutex> g(currentEngine->pImpl->uploadMutex);
+                    auto& poolMgr = currentEngine->pImpl->poolMgr;
                     if (e == API_OK)
                     {
-                        mRefreshFailCount = 0;
-                        mNextRefreshAttempt = 0;
-                        applyRefreshedUrls(std::move(sizeClasses));
+                        poolMgr.mRefreshFailCount = 0;
+                        poolMgr.mNextRefreshAttempt = 0;
+                        poolMgr.applyRefreshedUrls(std::move(sizeClasses));
                     }
                     else
                     {
-                        ++mRefreshFailCount;
-                        const unsigned count =
-                            mRefreshFailCount ? (mRefreshFailCount - 1) : 0;
-                        const unsigned exponent = std::min<unsigned>(count, 6);
-                        const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
-                        const dstime maxDelay = 10 * 60 * 10; // 10 minutes
-                        dstime backoff = baseDelay * (static_cast<dstime>(1) << exponent);
-                        if (backoff > maxDelay)
-                        {
-                            backoff = maxDelay;
-                        }
-                        mNextRefreshAttempt = SteadyTime::ds() + backoff;
-
-                        LOG_warn << "[WsPoolMgr::refreshPools] USC command failed: " << e
-                                 << " [this = " << this << "]";
+                        poolMgr.applyRefreshBackoff(e);
                     }
-                    mRefreshing = false;
+                    poolMgr.mRefreshing = false;
                 }));
         });
+}
+
+void WsPoolMgr::applyRefreshBackoff(Error e)
+{
+    ++mRefreshFailCount;
+    const unsigned count = mRefreshFailCount ? (mRefreshFailCount - 1) : 0;
+    const unsigned exponent = std::min<unsigned>(count, 6);
+    const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
+    const dstime maxDelay = 10 * 60 * 10; // 10 minutes
+    dstime backoff = baseDelay * (static_cast<dstime>(1) << exponent);
+    if (backoff > maxDelay)
+    {
+        backoff = maxDelay;
+    }
+    mNextRefreshAttempt = SteadyTime::ds() + backoff;
+
+    LOG_warn << "[WsPoolMgr::refreshPools] USC command failed: " << e
+             << " [poolMgr=" << this << "]";
 }
 
 bool WsPoolMgr::refreshPoolsResponse(std::string& response)
@@ -3956,7 +4072,7 @@ bool WsPoolMgr::refreshPoolsResponse(std::string& response)
 
     LOG_debug << "USC response: " << response;
 
-    if (!std::memcmp(p, "[[[\"", 3))
+    if (!std::memcmp(p, "[[[\"", 4))
     {
         for (;;)
         {
@@ -4008,7 +4124,7 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
         return;
     }
 
-    const dstime oldest = SteadyTime::ds() - POOLFRESHNESS;
+    const dstime now = SteadyTime::ds();
 
     // Mark all currently-active pools as retiring; we'll unretire those that still match.
     for (std::size_t i = 0; i < mPools.size(); ++i)
@@ -4021,35 +4137,79 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
 
     for (std::size_t i = 0; i < apiSizeClasses.size(); ++i)
     {
+        const auto& refreshed = apiSizeClasses[i];
+        const auto activateMatchedPool = [this, i](const std::size_t matchedIndex)
+        {
+            if (matchedIndex != i)
+            {
+                std::swap(mPools[i], mPools[matchedIndex]);
+            }
+            mPools[i]->mRetiring = false;
+        };
+
         bool matched = false;
+
+        // Prefer exact endpoint identity to preserve in-flight state whenever possible.
         for (std::size_t j = mPools.size(); j-- > 0;)
         {
             if (mPools[j]->mPinned)
             {
                 continue;
             }
-            if (mPools[j]->freshAndSameHostMaxSize(apiSizeClasses[i], oldest))
+            if (mPools[j]->mMaxFileSize == refreshed.second && mPools[j]->mUrl == refreshed.first)
             {
-                if (j != i)
-                {
-                    std::swap(mPools[i], mPools[j]);
-                }
-                mPools[i]->mRetiring = false;
+                mPools[j]->mPoolCreationTime = now;
+                activateMatchedPool(j);
                 matched = true;
                 break;
             }
         }
+
+        // Host+size fallback is only safe for a fully idle pool. Active pools keep retiring
+        // and a new pool is created for the refreshed endpoint.
+        if (!matched)
+        {
+            for (std::size_t j = mPools.size(); j-- > 0;)
+            {
+                WsPool* const pool = mPools[j].get();
+                if (!pool || pool->mPinned || !pool->sameHostMaxSize(refreshed))
+                {
+                    continue;
+                }
+
+                const bool canRetarget =
+                    poolHasNoWork(*pool) && pool->mConns.empty() &&
+                    pool->mActiveThreads.empty() && pool->mExitingThreads.empty();
+                if (!canRetarget)
+                {
+                    continue;
+                }
+
+                if (pool->mUrl != refreshed.first)
+                {
+                    LOG_info << "WsUpload: retargeting idle pool URL"
+                             << " [old=" << pool->mUrl << "] [new=" << refreshed.first << "]";
+                    pool->mUrl = refreshed.first;
+                }
+
+                pool->mPoolCreationTime = now;
+                activateMatchedPool(j);
+                matched = true;
+                break;
+            }
+        }
+
         if (!matched)
         {
             mPools.insert(mPools.begin() + static_cast<std::ptrdiff_t>(i),
-                          std::make_unique<WsPool>(apiSizeClasses[i],
+                          std::make_unique<WsPool>(refreshed,
                                                    i ? apiSizeClasses[i - 1].second : 0,
                                                    mImpl,
                                                    mImpl->poolConnectionLimit()));
         }
     }
 
-    bumpAllPools(mImpl->currentTime);
+    bumpAllPools(now);
     LOG_info << "WsUpload: refreshed pools (" << apiSizeClasses.size() << " size classes)";
 }
 
@@ -4059,6 +4219,11 @@ UploadEngine::UploadEngine(MegaClient& client):
 {}
 
 UploadEngine::~UploadEngine() = default;
+
+std::uint64_t UploadEngine::instanceId() const noexcept
+{
+    return pImpl->instanceId();
+}
 
 void UploadEngine::start()
 {

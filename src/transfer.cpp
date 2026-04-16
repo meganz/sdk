@@ -603,6 +603,22 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
                 defer = false;
             }
         }
+        else if (channel == Transfer::Channel::WebSocket && !localfilename.empty())
+        {
+            auto fa = client->fsaccess->newfileaccess();
+            if (!fa->fopen(localfilename, OPEN_RDONLY, FSLogging::logOnError))
+            {
+                LOG_warn << "fopen failed for upload.";
+                defer = false;
+            }
+            else if (fa->mtime != mtime || fa->size != size)
+            {
+                LOG_warn << "Modification detected during active upload. Size: " << size
+                         << "  Mtime: " << mtime << "    FaSize: " << fa->size
+                         << "  FaMtime: " << fa->mtime;
+                defer = false;
+            }
+        }
     }
 
     if (defer)
