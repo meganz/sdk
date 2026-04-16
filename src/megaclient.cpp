@@ -2450,6 +2450,12 @@ void MegaClient::installWsEngineCallbacks()
                 // Then re-enqueue only if the transfer survives (with queue order/state restored below).
                 const auto wsPosition = client.wsDetachTransferBeforeFailure(*tp);
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                const bool stillTrackedAfterDetach = client.wsIsTransferTrackedForTesting(*tp);
+                DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED("ws transfer failed",
+                                                          stillTrackedAfterDetach);
+#endif
+
                 if (disposition == ws::UploadEngine::FailureDisposition::Permanent)
                 {
                     forcePermanentWsReadFailure(*tp);
@@ -2497,6 +2503,13 @@ void MegaClient::installWsEngineCallbacks()
                                 "missing/invalid upload token (len="
                              << len << ") [t.localfilename = " << tt.localfilename << "]";
                     const auto wsPosition = c.wsDetachTransferBeforeFailure(tt);
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    const bool stillTrackedAfterDetach = c.wsIsTransferTrackedForTesting(tt);
+                    DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED("missing/invalid upload token",
+                                                              stillTrackedAfterDetach);
+#endif
+
                     tt.failed(API_EAGAIN, committer);
 
                     if (c.wsIsTransferAlive(type, tPtr) && (tPtr->uploadhandle == th))
@@ -3012,8 +3025,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 const bool stillTracked = c.wsIsTransferTrackedForTesting(*tp);
-                DEBUG_TEST_HOOK_WSUPLOAD_PREFLIGHT_FAILURE_DETACHED(reasonText.c_str(),
-                                                                    stillTracked);
+                DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(reasonText.c_str(), stillTracked);
 #endif
 
                 // Mirror legacy slot-based startup behavior: if local-file validation fails

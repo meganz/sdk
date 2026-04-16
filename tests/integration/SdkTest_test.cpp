@@ -20410,7 +20410,7 @@ TEST_F(SdkTest, SdkWsUploadPreflightReadFailureDetachesBeforeFailed)
     auto clearHook = makeScopedDestructor(
         []()
         {
-            globalMegaTestHooks.onWsUploadPreflightFailureDetached = {};
+            globalMegaTestHooks.onWsUploadFailureDetached = {};
         });
     auto resumeUploads = makeScopedDestructor(
         [this]()
@@ -20430,7 +20430,7 @@ TEST_F(SdkTest, SdkWsUploadPreflightReadFailureDetachesBeforeFailed)
     std::atomic<bool> hookCalled{false};
     std::atomic<bool> stillTracked{true};
     std::atomic<bool> sawExpectedReason{false};
-    globalMegaTestHooks.onWsUploadPreflightFailureDetached =
+    globalMegaTestHooks.onWsUploadFailureDetached =
         [&hookCalled, &stillTracked, &sawExpectedReason](const char* reason, const bool tracked)
     {
         stillTracked.store(tracked);
@@ -22281,6 +22281,220 @@ auto makeScopedMinimumPermissions(int directory, int file)
             FSA::setMinimumDirectoryPermissions(0700);
             FSA::setMinimumFilePermissions(0600);
         });
+}
+
+/**
+ * @brief Verify the generic WS onFail callback detaches the transfer before calling failed().
+ *
+ * Strategy: start a throttled WS upload, delete the local file mid-transfer so the worker
+ * thread encounters a read error.  The read error fires cb.onFail (generic path, Site A)
+ * which must call wsDetachTransferBeforeFailure() and trigger the shared
+ * onWsUploadFailureDetached test hook with stillTracked == false.
+ */
+TEST_F(SdkTest, SdkWsUploadGenericFailureDetachesBeforeFailed)
+{
+    LOG_info << "___TEST SdkWsUploadGenericFailureDetachesBeforeFailed___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileName =
+        "ws_generic_fail_detach_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "G"))
+        << "Couldn't create " << fileName;
+
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto clearHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadFailureDetached = {};
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    // Throttle upload so we have a stable mid-transfer window to delete the file.
+    megaApi[0]->setMaxUploadSpeed(100000);
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    std::atomic<bool> hookCalled{false};
+    std::atomic<bool> stillTracked{true};
+    std::atomic<bool> sawNonEmptyReason{false};
+    globalMegaTestHooks.onWsUploadFailureDetached =
+        [&hookCalled, &stillTracked, &sawNonEmptyReason](const char* reason, const bool tracked)
+    {
+        stillTracked.store(tracked);
+        sawNonEmptyReason.store(reason && reason[0] != '\0');
+        hookCalled.store(true);
+    };
+
+    WsUploadRetryTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Wait for confirmed progress so we know the transfer is past preflight.
+    WsUploadTransferSnapshot snapshot{};
+    const bool gotProgress = waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        snapshot,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        60,
+        200);
+
+    if (!gotProgress)
+    {
+        deleteFile(fileName);
+        megaApi[0]->setMaxUploadSpeed(-1);
+        const auto r = ut.waitForResult(120, false);
+        (void)r;
+        GTEST_SKIP() << "Upload did not show WS progress; cannot test mid-transfer deletion";
+    }
+
+    // Delete local file to trigger read failure -> generic onFail path.
+    deleteFile(fileName);
+
+    // Remove throttle so the failure surfaces quickly.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    ASSERT_TRUE(WaitFor(
+        [&hookCalled]()
+        {
+            return hookCalled.load();
+        },
+        60000))
+        << "Timed out waiting for WS generic failure detach hook";
+
+    const auto finalResult = ut.waitForResult(120, false);
+    ASSERT_TRUE(finalResult == API_EREAD || finalResult == API_EINCOMPLETE)
+        << "Unexpected result after WS generic read failure: " << finalResult;
+    ASSERT_TRUE(sawNonEmptyReason.load())
+        << "WS generic failure hook reported an empty/null reason string";
+    ASSERT_FALSE(stillTracked.load())
+        << "WS upload transfer was still tracked after detach-before-failed on generic failure";
+#endif
+}
+
+/**
+ * @brief Verify the invalid-token onComplete callback detaches the transfer before failed().
+ *
+ * Strategy: use onWsUploadCorruptToken to truncate the upload-token payload to 0 bytes
+ * on the first completion.  This triggers the `len != UPLOADTOKENLEN` check in
+ * MegaClient::onComplete (Site B) which must call wsDetachTransferBeforeFailure()
+ * and fire the shared onWsUploadFailureDetached hook with reason
+ * "missing/invalid upload token" and stillTracked == false.
+ */
+TEST_F(SdkTest, SdkWsUploadInvalidTokenDetachesBeforeFailed)
+{
+    LOG_info << "___TEST SdkWsUploadInvalidTokenDetachesBeforeFailed___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileName =
+        "ws_invalid_token_detach_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    // Use a small file so the upload completes quickly and hits onComplete.
+    constexpr size_t fileSize = 1 * 1024 * 1024;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "T")) << "Couldn't create " << fileName;
+
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto clearCorruptHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadCorruptToken = {};
+        });
+    auto clearDetachHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadFailureDetached = {};
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Corrupt the upload-token payload exactly once.
+    std::atomic<bool> corruptHookCalled{false};
+    globalMegaTestHooks.onWsUploadCorruptToken = [&corruptHookCalled](std::uint32_t /*fileno*/,
+                                                                      std::string& payload) -> bool
+    {
+        const bool firstCall = !corruptHookCalled.exchange(true);
+        if (firstCall)
+        {
+            payload.clear();
+            return true;
+        }
+        return false;
+    };
+
+    std::atomic<bool> detachHookCalled{false};
+    std::atomic<bool> stillTracked{true};
+    std::atomic<bool> sawExpectedReason{false};
+    globalMegaTestHooks.onWsUploadFailureDetached =
+        [&detachHookCalled, &stillTracked, &sawExpectedReason](const char* reason,
+                                                               const bool tracked)
+    {
+        stillTracked.store(tracked);
+        sawExpectedReason.store(reason && std::string(reason) == "missing/invalid upload token");
+        detachHookCalled.store(true);
+    };
+
+    WsUploadRetryTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    ASSERT_TRUE(WaitFor(
+        [&detachHookCalled]()
+        {
+            return detachHookCalled.load();
+        },
+        120000))
+        << "Timed out waiting for WS invalid-token failure detach hook";
+
+    ASSERT_TRUE(corruptHookCalled.load()) << "Corrupt-token hook was never invoked";
+    ASSERT_TRUE(sawExpectedReason.load())
+        << "WS invalid-token failure hook reported an unexpected reason";
+    ASSERT_FALSE(stillTracked.load())
+        << "WS upload transfer was still tracked after detach-before-failed on invalid token";
+
+    // The transfer should eventually complete (retry with valid token) or fail.
+    // We don't care about the final result -- the important assertion is the
+    // detach hook fired correctly.  Cancel to clean up.
+    (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+#endif
 }
 
 /**

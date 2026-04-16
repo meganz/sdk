@@ -89,6 +89,17 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+#ifdef MEGA_USE_WSUPLOAD
+    // Detach from WS upload engine FIRST, before File* entries are destroyed by the
+    // files iteration below. Ensures worker threads that dereference non-owning
+    // Transfer&/File* in WsUploadFile have drained before the referents are freed.
+    // Idempotent with TransferList::removetransfer()'s detach and with Option A's
+    // wsDetachTransferBeforeFailure() (UploadEngine::Impl::remove() early-returns
+    // when the transfer is no longer tracked).
+    if (client->wsEngine() && channel == Transfer::Channel::WebSocket)
+        client->wsEngine()->remove(*this);
+#endif
+
     auto keepDownloadTarget = false;
 
     TransferDbCommitter* committer = nullptr;

@@ -24,6 +24,7 @@
 
 #include "types.h"
 
+#include <cstdint>
 #include <functional>
 #include <string>
 #include <vector>
@@ -75,7 +76,9 @@ namespace mega {
         std::function<void(dstime&)> onWsUploadSustainedHandshakeFailureWindowDs;
         std::function<bool(std::uint32_t /*fileno*/, int /*event*/)> onWsUploadDropServerEvent;
         std::function<void(const char* /*reason*/, bool /*stillTracked*/)>
-            onWsUploadPreflightFailureDetached;
+            onWsUploadFailureDetached;
+        std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
+            onWsUploadCorruptToken;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
@@ -214,12 +217,19 @@ namespace mega {
         } \
     }
 
-#define DEBUG_TEST_HOOK_WSUPLOAD_PREFLIGHT_FAILURE_DETACHED(REASON, STILL_TRACKED) \
+#define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED) \
         { \
-            if (globalMegaTestHooks.onWsUploadPreflightFailureDetached) \
+            if (globalMegaTestHooks.onWsUploadFailureDetached) \
             { \
-                globalMegaTestHooks.onWsUploadPreflightFailureDetached((REASON), (STILL_TRACKED)); \
+                globalMegaTestHooks.onWsUploadFailureDetached((REASON), (STILL_TRACKED)); \
             } \
+        }
+
+#define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN) \
+        { \
+            if (globalMegaTestHooks.onWsUploadCorruptToken && \
+                globalMegaTestHooks.onWsUploadCorruptToken((FILENO), (PAYLOAD))) \
+                (PAYLEN) = static_cast<int>((PAYLOAD).size()); \
         }
 
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
@@ -289,7 +299,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS)
 #define DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(FILENO, EVENT, SHOULD_DROP)
-#define DEBUG_TEST_HOOK_WSUPLOAD_PREFLIGHT_FAILURE_DETACHED(REASON, STILL_TRACKED)
+#define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED)
+#define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED
