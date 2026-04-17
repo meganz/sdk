@@ -166,6 +166,9 @@ public:
         unsigned openConnections = 0;
         unsigned connectionsWithInFlight = 0;
         unsigned maxConnectionsWithInFlightSeen = 0;
+        // Exposed for B8 regression test: mPausedByServerUntil (deciseconds). Zero when
+        // the pool is not currently throttled by the server.
+        dstime pausedByServerUntilDs = 0;
     };
 
     bool getPoolStateForTesting(const std::string& url, PoolStateForTesting& out) const;

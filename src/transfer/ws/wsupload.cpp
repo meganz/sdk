@@ -1946,6 +1946,7 @@ public:
             out.connectionsWithInFlight = pool.countConnectionsWithInFlightLocked();
             out.maxConnectionsWithInFlightSeen =
                 std::max(pool.mMaxConnectionsWithInFlightSeen, out.connectionsWithInFlight);
+            out.pausedByServerUntilDs = pool.mPausedByServerUntil;
         };
 
         for (const auto& poolPtr: poolMgr.mPools)

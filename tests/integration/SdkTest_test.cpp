@@ -22621,6 +22621,135 @@ TEST_F(SdkTest, SdkWsUploadAlreadyOnServerEventStillCompletes)
     ASSERT_EQ(finalResult, API_OK)
         << "Upload did not complete after injected AlreadyOnServer event";
 
+    // B7/NF-7 regression: the pruned opcode-2 handler no longer credits bytesConfirmed
+    // for the rewritten chunks. NF-7's fix-up at uploadCompleted() must bring the final
+    // progress callback to fileSize. A drift here means NF-7 regressed.
+    ASSERT_EQ(onTransferUpdate_progress, static_cast<long long>(fileSize))
+        << "NF-7 fix-up did not mask the opcode-2 progress under-count "
+           "(final onTransferUpdate progress < fileSize)";
+
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+#endif
+}
+
+/**
+ * @brief B8 regression: a server Throttle event received while multiple chunks are in flight
+ * must not tear down the connection; it only gates further sends via pauseSending().
+ *
+ * The pre-A1 code path forced readyState=CLOSED and requeued in-flight chunks on Throttle.
+ * That deletion (B8) is accepted because the OPEN+throttled gate in poolWorkerThread still
+ * blocks new sends, and already-buffered/on-wire frames naturally ACK during the pause.
+ *
+ * - TEST1: setMaxConnections(2) so at least 2 chunks can be in flight simultaneously.
+ * - TEST2: Inject a Throttle(6) frame rewriting the first ChunkIngested ACK.
+ * - TEST3: Immediately sample PoolStateForTesting: assert numChunksInFlight >= 1,
+ *          pausedByServerUntilDs > 0 (gate active), connectionsWithInFlight >= 1
+ *          (no CLOSED tear-down).
+ * - TEST4: Require upload API_OK and cloud node size equals local file size.
+ */
+TEST_F(SdkTest, SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes)
+{
+    LOG_info << "___TEST SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileName =
+        "ws_b8_throttle_saturated_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    // 4x default size so multiple chunks are genuinely in flight before Throttle fires.
+    constexpr size_t fileSize = 4 * kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "B")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.wsUploadServerEventHook.reset();
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(2, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    megaApi[0]->setMaxUploadSpeed(-1); // wire rate to keep chunks saturated
+    auto restoreUploadSpeed = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 1: rewrite first ChunkIngested (1) to Throttle (6) with a 3 s pause window.
+    constexpr m_off_t kInjectedThrottleMs = 3000;
+    auto& hook = globalMegaTestHooks.wsUploadServerEventHook;
+    hook.configure(WsUploadServerEventAction::Modify,
+                   1,
+                   6,
+                   std::nullopt,
+                   kInjectedThrottleMs);
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 2: wait until the hook fires (Throttle injected).
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return hook.getHitCount() > 0;
+        },
+        120000))
+        << "Timed out waiting for Throttle injection via hook";
+
+    // Step 3: sample pool state immediately to capture the saturated+throttled moment.
+    WsUploadTransferSnapshot snap{};
+    ASSERT_TRUE(fetchBestWsUploadTransferSnapshot(*megaApi[0], snap, 5))
+        << "Could not capture active WS upload snapshot for pool-state probe";
+    ASSERT_FALSE(snap.wsSessionUrl.empty())
+        << "Active transfer has no wsSessionUrl; cannot probe pool state";
+
+    ws::UploadEngine::PoolStateForTesting state{};
+    const bool observedThrottle = waitForWsUploadPoolStateForTesting(
+        *megaApi[0],
+        snap.wsSessionUrl,
+        state,
+        [](const ws::UploadEngine::PoolStateForTesting& s)
+        {
+            return s.found && s.pausedByServerUntilDs > 0;
+        },
+        10,
+        50);
+    ASSERT_TRUE(observedThrottle)
+        << "pauseSending() gate did not activate after Throttle injection "
+           "(pausedByServerUntilDs stayed 0)";
+    ASSERT_GE(state.connectionsWithInFlight, 1u)
+        << "B8: connection was torn down during throttle window "
+           "(connectionsWithInFlight=0)";
+
+    // Step 4: upload should converge and complete cleanly.
+    const auto finalResult = ut.waitForResult(300);
+    ASSERT_EQ(finalResult, API_OK)
+        << "Upload did not complete cleanly through B8 throttle window";
+
     rootnode.reset(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnode);
     std::unique_ptr<MegaNode> cloudNode(
