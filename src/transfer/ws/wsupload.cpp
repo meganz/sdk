@@ -1297,7 +1297,11 @@ struct WsPool
 
     void pauseSending(const dstime ds)
     {
-        mPausedByServerUntil = SteadyTime::ds() + ds;
+        const dstime nowDs = SteadyTime::ds();
+        mPausedByServerUntil = nowDs + ds;
+        // Touch mLastActive so a legitimate server-throttle window does not age into
+        // SERVERTIMEOUT and trigger a redundant refreshPools().
+        mLastActive = nowDs;
     }
 
     bool throttledByServer()
@@ -1638,6 +1642,10 @@ public:
             uploadThread.join();
 
         // Join pool worker threads before member destruction (uploadMutex must remain valid).
+        // Note: automatic member destruction runs in reverse declaration order, so poolMgr
+        // is destroyed AFTER uploadMutex. By the time we reach this point, every WsConn
+        // owned by a pool worker has been destroyed by the worker's local unique_ptr as the
+        // worker thread exited, which is why we only join here and do not touch mConns.
         for (auto& p: poolMgr.mPools)
         {
             if (!p)
@@ -2515,6 +2523,11 @@ WsConn::~WsConn()
     if (mPool && mPool->mImpl)
     {
         std::lock_guard<std::mutex> lk(mPool->mImpl->uploadMutex);
+        // Any in-flight chunk must have been requeued or closed out by closeWS() before
+        // the owning pool-worker thread exits and destroys the WsConn; otherwise the
+        // chunk is silently lost.
+        assert(mChunksInFlight.empty() &&
+               "WsConn destroyed with in-flight chunks; closeWS() must run first");
         mPool->mConns.erase(mConns_it);
     }
     if (curl)
@@ -4094,6 +4107,12 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
     mActiveFiles.clear();
 }
 
+// refreshPools posts a series of lambdas to the client thread via wsPostToClientThread().
+// Those lambdas capture `MegaClient&` by reference and rely on the SDK-wide contract that
+// MegaClient destroys its UploadEngine synchronously on the client thread during teardown
+// (~MegaClient), so every queued work item sees a live MegaClient. NF-4's clearRefreshing
+// closure additionally re-validates wsEngine() identity under uploadMutex to guard against
+// engine-replacement mid-flight.
 void WsPoolMgr::refreshPools()
 {
     if (!mImpl)
