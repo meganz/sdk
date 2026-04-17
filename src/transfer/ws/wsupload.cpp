@@ -662,14 +662,6 @@ public:
         return mAborted;
     }
 
-    void cancel() noexcept
-    {
-        LOG_debug << "[WsUploadFile::cancel] call [this = " << this << "]";
-        mAborted = true;
-        invalidateOutstandingWork();
-        closeFA();
-    }
-
     void setUploadStart(const dstime t) noexcept
     {
         LOG_debug << "[WsUploadFile::setUploadStart] t=" << t << " [this = " << this << "]";
@@ -1011,6 +1003,9 @@ struct WsChunk
     m_off_t pos{0};
     int len{0};
     std::uint32_t fileno{0};
+    // Number of times this chunk has been requeued via retryChunkLocked (opcode 3
+    // CrcFailed). Value travels with the chunk through mToResend and mChunksInFlight.
+    unsigned retryCount{0};
 };
 
 struct WsBuf
@@ -1203,8 +1198,11 @@ struct WsPool
         mUrl(std::move(urlmaxsize.first)),
         mMinFileSize(minsize),
         mMaxFileSize(urlmaxsize.second),
-        mLastActive(mPoolCreationTime),
-        mLastServerResponse(mPoolCreationTime),
+        // Use SteadyTime::ds() directly so these inits do not depend on declaration
+        // order with mPoolCreationTime (which currently precedes them, but that is
+        // an invariant worth eliminating).
+        mLastActive(SteadyTime::ds()),
+        mLastServerResponse(SteadyTime::ds()),
         mNumberOfConnections(std::max<unsigned char>(1, numConnections))
     {
         LOG_debug << "[WsPool] constructed [mMinFileSize=" << mMinFileSize
@@ -2938,7 +2936,8 @@ struct ChunkResponse
                 if (shouldApply)
                     it->second.apply(chunk.pos, *uf);
                 mChunksInFlight.erase(it);
-                mPool->mNumChunksInFlight--;
+                if (mPool->mNumChunksInFlight > 0)
+                    --mPool->mNumChunksInFlight;
                 break;
             }
         }
@@ -3433,7 +3432,33 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
 
 void WsPool::retryChunkLocked(const WsChunk& chunk)
 {
-    mToResend.push_back(chunk);
+    // Per-chunk retry cap for CrcFailed (opcode 3). Transfer-level retry is already
+    // covered by Transfer::failed; this cap is specifically for the narrow case where
+    // the server keeps rejecting the same chunk via opcode 3, which would otherwise
+    // loop forever consuming bandwidth without escalating to the app.
+    static constexpr unsigned kMaxChunkRetries = 10;
+    WsChunk retry = chunk;
+    ++retry.retryCount;
+    if (retry.retryCount > kMaxChunkRetries)
+    {
+        LOG_warn << "[WsPool::retryChunkLocked] per-chunk retry cap hit, failing upload "
+                    "[fileno="
+                 << chunk.fileno << "] [pos=" << chunk.pos << "] [retryCount=" << retry.retryCount
+                 << "] [this = " << this << "]";
+        WsUploadFile* const uf = findFile(chunk.fileno, *mImpl);
+        purgeFileLocked(chunk.fileno);
+        if (uf)
+        {
+            uf->uploadFailed(FailReason::Protocol);
+            if (mImpl->mCb.onFail)
+                mImpl->mCb.onFail(uf->transfer(),
+                                  API_EINTERNAL,
+                                  chunk.pos,
+                                  UploadEngine::FailureDisposition::Retryable);
+        }
+        return;
+    }
+    mToResend.push_back(retry);
 }
 
 void WsPool::retryChunk(const WsChunk& chunk)
@@ -3531,7 +3556,8 @@ void WsPool::applyInFlightLocked(const std::uint32_t fileno)
                     it->second.apply(it->first.pos, *uf);
                 }
                 it = conn->mChunksInFlight.erase(it);
-                mNumChunksInFlight--;
+                if (mNumChunksInFlight > 0)
+                    --mNumChunksInFlight;
             }
             else
             {
@@ -3589,25 +3615,30 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         if (!uf)
         {
             LOG_debug << "[WsPool::sendChunk] drop chunk after read (file no longer in map) [pos="
-                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
+                      << "] [this = " << this << "]";
             return false;
         }
         if (!uf->inPool() || uf->aborted())
         {
             LOG_debug << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
                          "[pos="
-                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
+                      << "] [this = " << this << "]";
             return false;
         }
         if (uf->paused())
         {
             LOG_debug << "[WsPool::sendChunk] requeue chunk after read (paused) [pos=" << chunk.pos
-                      << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+                      << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
+                      << "] [this = " << this << "]";
             mToResend.push_back(chunk);
             return false;
         }
         assert(uf->isUploading() && "invariant: upload must be active after successful read "
-                                    "with inPool, !aborted, !paused checks passing");
+                                    "with inPool, !aborted, !paused checks passing; the "
+                                    "mWorkGeneration match inside readData guarantees the "
+                                    "attempt did not reset underneath us");
 
         ChunkFingerprintMacUpdate update(chunk.pos);
         if (chunk.len)
@@ -4201,6 +4232,9 @@ void WsPoolMgr::refreshPools()
 void WsPoolMgr::applyRefreshBackoff(Error e)
 {
     ++mRefreshFailCount;
+    // Protects the mRefreshFailCount - 1 expression below from wrap-around if a future
+    // caller ever routes here without the increment above.
+    assert(mRefreshFailCount > 0 && "mRefreshFailCount must be positive at this point");
     const unsigned count = mRefreshFailCount - 1;
     const unsigned exponent = std::min<unsigned>(count, 6);
     const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
