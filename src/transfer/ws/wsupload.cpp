@@ -320,14 +320,15 @@ public:
                   const m_off_t pos,
                   const int len,
                   std::mutex& engineMutex,
-                  bool* interruptedByFaClose = nullptr)
+                  const std::uint64_t expectedGeneration,
+                  bool* interruptedByStateChange = nullptr)
     {
         LOG_debug << "[WsUploadFile::readData] BEGIN [buf=" << (void*)buf << "] [pos=" << pos
                   << "] [len=" << len << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
-        if (interruptedByFaClose)
+        if (interruptedByStateChange)
         {
-            *interruptedByFaClose = false;
+            *interruptedByStateChange = false;
         }
         ActiveIOGuard io(*this);
         // open on first use
@@ -347,6 +348,19 @@ public:
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             ioLock.unlock(); // never re-lock engineMutex while holding mReadMutex
             engineMutex.lock();
+
+            if (mWorkGeneration != expectedGeneration)
+            {
+                if (interruptedByStateChange)
+                {
+                    *interruptedByStateChange = true;
+                }
+                LOG_debug << "[WsUploadFile::readData] upload state changed while opening; "
+                             "treat as interrupted read [localname="
+                          << mLocalPath << "] [this = " << this
+                          << "] [thread_id=" << std::this_thread::get_id() << "]";
+                return false;
+            }
 
             if (!okOpen)
             {
@@ -408,8 +422,18 @@ public:
             checkFA.reset();
             engineMutex.lock();
 
-            if (mFA.get() != faRawCheck)
-                return false; // FA was swapped while we released the lock
+            if (mWorkGeneration != expectedGeneration || mFA.get() != faRawCheck)
+            {
+                if (interruptedByStateChange)
+                {
+                    *interruptedByStateChange = true;
+                }
+                LOG_debug << "[WsUploadFile::readData] upload state changed during periodic stat; "
+                             "treat as interrupted read [localname="
+                          << mLocalPath << "] [this = " << this
+                          << "] [thread_id=" << std::this_thread::get_id() << "]";
+                return false;
+            }
 
             if (!exists)
             {
@@ -448,9 +472,9 @@ public:
             {
                 ioLock.unlock(); // do not re-lock engine while holding the I/O mutex
                 engineMutex.lock();
-                if (interruptedByFaClose)
+                if (interruptedByStateChange)
                 {
-                    *interruptedByFaClose = true;
+                    *interruptedByStateChange = true;
                 }
                 LOG_debug << "[WsUploadFile::readData] mFA cleared while switching locks; "
                              "treat as interrupted read [localname="
@@ -499,6 +523,19 @@ public:
         LOG_debug << "[WsUploadFile::readData] okRead=" << okRead << " [localname=" << mLocalPath
                   << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id() << "]";
         engineMutex.lock();
+
+        if (mWorkGeneration != expectedGeneration)
+        {
+            if (interruptedByStateChange)
+            {
+                *interruptedByStateChange = true;
+            }
+            LOG_debug << "[WsUploadFile::readData] upload state changed while reading; "
+                         "treat as interrupted read [localname="
+                      << mLocalPath << "] [this = " << this
+                      << "] [thread_id=" << std::this_thread::get_id() << "]";
+            return false;
+        }
 
         if (!okRead)
         {
@@ -614,6 +651,7 @@ public:
     {
         LOG_debug << "[WsUploadFile::setPaused] p=" << p << " [this = " << this << "]";
         mPaused = p;
+        invalidateOutstandingWork();
         closeFA();
     }
 
@@ -628,12 +666,14 @@ public:
     {
         LOG_debug << "[WsUploadFile::cancel] call [this = " << this << "]";
         mAborted = true;
+        invalidateOutstandingWork();
         closeFA();
     }
 
     void setUploadStart(const dstime t) noexcept
     {
         LOG_debug << "[WsUploadFile::setUploadStart] t=" << t << " [this = " << this << "]";
+        invalidateOutstandingWork();
         mUploadStartTime = t;
         mUploadFailedTime = 0;
         mRetryUntil = 0;
@@ -663,6 +703,16 @@ public:
         return mBytesConfirmed;
     }
 
+    std::uint64_t workGeneration() const noexcept
+    {
+        return mWorkGeneration;
+    }
+
+    bool hasFailed() const noexcept
+    {
+        return mUploadFailedTime != 0;
+    }
+
     // hooks (Phase 2/5 will notify Transfer/app + crypto)
     void uploadFailed(const FailReason reason)
     {
@@ -686,7 +736,14 @@ public:
 
     void uploadCompleted(const char* response, const int len)
     {
+        invalidateOutstandingWork();
         mUploadCompletionTime = SteadyTime::ds();
+        // Fix up the progress counter on completion so the final onProgress reflects the
+        // truth even if opcode-2 AlreadyOnServer events left mBytesConfirmed below mSize.
+        if (mBytesConfirmed < mSize)
+        {
+            mBytesConfirmed = mSize;
+        }
         unsetPool();
         closeFA();
         const auto dsElapsed = SteadyTime::difference(mUploadCompletionTime, mUploadStartTime);
@@ -818,6 +875,14 @@ public: // accessed by engine
     WsPool* mPool{nullptr};
 
 private:
+    void invalidateOutstandingWork() noexcept
+    {
+        if (++mWorkGeneration == 0)
+        {
+            mWorkGeneration = 1;
+        }
+    }
+
     static File* frontFile(Transfer& t)
     {
         return t.files.empty() ? nullptr : *t.files.begin();
@@ -843,6 +908,7 @@ private:
 
     void resetAttemptState()
     {
+        invalidateOutstandingWork();
         // Per-attempt counters/state. When we fail and retry we restart the upload from scratch
         mHeadPos = 0;
         mBytesConfirmed = 0;
@@ -881,6 +947,7 @@ private:
         mTransferKey{}; // Phase 2: set in snapshotCryptoMaterial()
     int64_t mCtrIv{0}; // Phase 2
     std::unique_ptr<FileAccess> mFA{}; // blocking-opened on first read
+    std::uint64_t mWorkGeneration{1};
     std::mutex mReadMutex; // needed for Android because of lseek64+read
     std::atomic<unsigned> mActiveIO{0};
 
@@ -1037,6 +1104,7 @@ struct WsConn
     void onopen();
     void onclose();
     void onmessage(const char* msg, int len);
+    void resetBufferedSendState() noexcept;
 
     bool haveSpace() const
     {
@@ -1252,6 +1320,7 @@ struct WsPool
     WsUploadFile* handshakeFailureCandidateLocked(dstime now) const;
 
     void retryChunksOnTheWire(WsConn* ws);
+    void retryChunksOnTheWireLocked(WsConn* ws);
 
     // Remove any queued/in-flight chunks for the specified file.
     // Must be called with UploadEngine::Impl::uploadMutex held.
@@ -2076,6 +2145,9 @@ public:
 
         mStopping.store(false, std::memory_order_release);
         paused = false;
+        // Defensive: ensure the refresh gate is not stuck from a prior engine lifecycle
+        // where the posted clearRefreshing lambda was dropped before execution.
+        poolMgr.mRefreshing.store(false, std::memory_order_release);
         poolMgr.mImpl = this;
         for (auto& pool: poolMgr.mPools)
         {
@@ -2641,6 +2713,7 @@ void WsConn::closeWS()
         return;
     }
     readyState = ReadyState::CLOSED;
+    resetBufferedSendState();
     onclose();
     LOG_debug << "[WsConn::closeWS] END [this = " << this << "]";
 }
@@ -2660,6 +2733,15 @@ void WsConn::onclose()
         mPool->retryChunksOnTheWire(this);
     }
     LOG_debug << "[WsConn::onclose] END [this = " << this << "]";
+}
+
+void WsConn::resetBufferedSendState() noexcept
+{
+    mBufs[0].reset();
+    mBufs[1].reset();
+    mCurBuf = 0;
+    mInPos = 0;
+    bufferedAmount = 0;
 }
 
 void WsConn::curlSend()
@@ -2704,6 +2786,12 @@ void WsConn::curlRecv()
                       << ") > 0 -> onmessage(mInBuf, static_cast<int>(recv)) [this = " << this
                       << "]";
             onmessage(mInBuf, static_cast<int>(recv));
+            if (readyState != ReadyState::OPEN)
+            {
+                LOG_debug << "[WsConn::curlRecv] onmessage closed connection -> break [this = "
+                          << this << "]";
+                break;
+            }
         }
         else
         {
@@ -2782,14 +2870,10 @@ struct ChunkResponse
     }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    bool dropServerEvent = false;
-    DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(response->fileno,
-                                               static_cast<int>(event),
-                                               dropServerEvent);
     int hookEvent = static_cast<int>(event);
     WsUploadServerEventAction hookAction = WsUploadServerEventAction::None;
     DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(response->fileno, hookEvent, chunkPos, hookAction);
-    if (dropServerEvent || hookAction == WsUploadServerEventAction::Drop)
+    if (hookAction == WsUploadServerEventAction::Drop)
     {
         LOG_warn << "WsUpload: debug hook dropped server event=" << static_cast<int>(event)
                  << " fileno=" << response->fileno;
@@ -2935,27 +3019,6 @@ struct ChunkResponse
                          "reconnect) [pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
-            if (chunk.len)
-            {
-                uf->onServerConfirmedBytes(chunk.len);
-                if (mPool->mImpl->mCb.onProgress && uf->progressReportDue(SteadyTime::ds()))
-                    mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
-                if (uf->bytesConfirmed() > uf->size())
-                {
-                    LOG_warn << "[WsConn::onmessage] bytesConfirmed=" << uf->bytesConfirmed()
-                             << " > uf->size()=" << uf->size()
-                             << " -> uf->uploadFailed(StateLost) [this = " << this << "]";
-                    mPool->purgeFileLocked(response->fileno);
-                    uf->uploadFailed(FailReason::StateLost);
-                    if (mPool->mImpl->mCb.onFail)
-                        mPool->mImpl->mCb.onFail(uf->transfer(),
-                                                 API_EINTERNAL,
-                                                 uf->bytesConfirmed(),
-                                                 UploadEngine::FailureDisposition::Retryable);
-                    break;
-                }
-            }
-            mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
         case WsApiServerEvent::CrcFailed:
@@ -3043,12 +3106,14 @@ struct ChunkResponse
             break;
 
         case WsApiServerEvent::Throttle:
-            LOG_debug
-                << "[WsConn::onmessage] response->event == 6 throttle (ms) -> ds -> "
-                   "mPool->pauseSending(static_cast<dstime>(response->chunkpos / 100 + 1)) [this = "
-                << this << "]";
-            mPool->pauseSending(static_cast<dstime>(response->chunkpos / 100 + 1));
+        {
+            const dstime throttleDs = static_cast<dstime>(chunkPos / 100 + 1);
+            LOG_debug << "[WsConn::onmessage] response->event == 6 throttle (ms) -> ds -> "
+                         "mPool->pauseSending(throttleDs) [this = "
+                      << this << "]";
+            mPool->pauseSending(throttleDs);
             break;
+        }
 
         default:
             LOG_debug << "[WsConn::onmessage] response->event == "
@@ -3244,6 +3309,21 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
     while (!mToResend.empty())
     {
         chunk = mToResend.front();
+        // Discard stale resend entries whose target file is gone or whose byte range no
+        // longer fits the current attempt (e.g. resetAttemptState rewound mHeadPos = 0
+        // but the entry was queued under a previous attempt). Re-sending out-of-bounds
+        // bytes would break the server-side sliding window; bytes the server already has
+        // would be re-acked via opcode 2, but never-fitting ranges must be dropped here.
+        {
+            WsUploadFile* const ufStale = findFile(chunk.fileno, impl);
+            if (!ufStale || (chunk.len && chunk.pos + chunk.len > ufStale->size()))
+            {
+                LOG_debug << "[WsPool::nextChunk] discard stale resend entry [pos=" << chunk.pos
+                          << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+                mToResend.erase(mToResend.begin());
+                continue;
+            }
+        }
         if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
         {
             // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
@@ -3322,9 +3402,14 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
 
 void WsPool::retryChunksOnTheWire(WsConn* ws)
 {
+    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
+    retryChunksOnTheWireLocked(ws);
+}
+
+void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
+{
     LOG_debug << "WsUpload: WS to " << mUrl << " lost; rescheduling " << ws->mChunksInFlight.size()
               << " in-flight chunks";
-    std::lock_guard<std::mutex> g(mImpl->uploadMutex);
     for (auto& p: ws->mChunksInFlight)
     {
         mToResend.push_back(p.first);
@@ -3476,19 +3561,24 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
     }
 
     WsUploadFile* uf = findFile(chunk.fileno, impl);
-    bool interruptedByFaClose = false;
-    const bool okRead =
-        uf && !uf->aborted() &&
-        (chunk.len == 0 || uf->readData(tlsBuf.get(),
-                                        chunk.pos,
-                                        chunk.len,
-                                        impl.uploadMutex,
-                                        &interruptedByFaClose));
+    const auto expectedGeneration = uf ? uf->workGeneration() : 0;
+    bool interruptedByStateChange = false;
+    const bool okRead = uf && !uf->aborted() &&
+                        (chunk.len == 0 || uf->readData(tlsBuf.get(),
+                                                        chunk.pos,
+                                                        chunk.len,
+                                                        impl.uploadMutex,
+                                                        expectedGeneration,
+                                                        &interruptedByStateChange));
     if (okRead)
     {
         uf = findFile(chunk.fileno, impl);
         if (!uf)
+        {
+            LOG_debug << "[WsPool::sendChunk] drop chunk after read (file no longer in map) [pos="
+                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
             return false;
+        }
         if (!uf->inPool() || uf->aborted())
         {
             LOG_debug << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
@@ -3503,6 +3593,8 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             mToResend.push_back(chunk);
             return false;
         }
+        assert(uf->isUploading() && "invariant: upload must be active after successful read "
+                                    "with inPool, !aborted, !paused checks passing");
 
         ChunkFingerprintMacUpdate update(chunk.pos);
         if (chunk.len)
@@ -3543,20 +3635,17 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         return true;
     }
     uf = findFile(chunk.fileno, impl);
-    if (uf && chunk.len && uf->inPool())
+    if (uf && chunk.len && uf->inPool() && !uf->aborted() && interruptedByStateChange)
     {
-        const bool requeueInterrupted = interruptedByFaClose && !uf->aborted();
-        const bool requeuePaused = uf->paused();
-        if (requeueInterrupted || requeuePaused)
-        {
-            LOG_debug << "[WsPool::sendChunk] requeue chunk ("
-                      << (requeueInterrupted ? "file access interrupted while reading"
-                                             : "paused while reading/opening")
-                      << ") [pos=" << chunk.pos << "] [len=" << chunk.len
-                      << "] [fileno=" << chunk.fileno << "]";
-            mToResend.push_back(chunk);
-            return false;
-        }
+        // Always requeue: if the attempt was paused, the chunk sends after unpause;
+        // if the attempt was reset via resetAttemptState (setUploadStart / markFailed /
+        // uploadFailed / uploadCompleted), mHeadPos is 0 and nextChunk will skip this
+        // stale entry on drain. Never drop silently — there is no server opcode that
+        // recovers a never-sent byte range.
+        LOG_debug << "[WsPool::sendChunk] requeue chunk after interrupted read/open [pos="
+                  << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+        mToResend.push_back(chunk);
+        return false;
     }
 
     // Local I/O error (or other non-paused failure while reading/opening).
@@ -3568,7 +3657,17 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                  << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
 
         purgeFileLocked(chunk.fileno);
-        uf->uploadFailed(FailReason::ReadFailed);
+
+        if (uf->hasFailed())
+        {
+            // readData() already called markFailed() (which includes resetAttemptState);
+            // only the pool detach that uploadFailed() normally does is still needed.
+            uf->unsetPool();
+        }
+        else
+        {
+            uf->uploadFailed(FailReason::ReadFailed);
+        }
 
         if (impl.mCb.onFail)
         {
@@ -4028,9 +4127,14 @@ void WsPoolMgr::refreshPools()
     auto clearRefreshing = [](MegaClient& client, const std::uint64_t id)
     {
         auto* engine = client.wsEngine();
-        if (engine && engine->instanceId() == id)
+        if (!engine || engine->instanceId() != id)
+            return;
+        // Re-validate under the lock to ensure the engine has not been replaced or
+        // entered teardown between the wsEngine() read and the mRefreshing write.
+        std::lock_guard<std::mutex> g(engine->pImpl->uploadMutex);
+        if (auto* current = client.wsEngine(); current == engine && current->instanceId() == id)
         {
-            engine->pImpl->poolMgr.mRefreshing = false;
+            current->pImpl->poolMgr.mRefreshing.store(false, std::memory_order_release);
         }
     };
 
@@ -4078,7 +4182,7 @@ void WsPoolMgr::refreshPools()
 void WsPoolMgr::applyRefreshBackoff(Error e)
 {
     ++mRefreshFailCount;
-    const unsigned count = mRefreshFailCount ? (mRefreshFailCount - 1) : 0;
+    const unsigned count = mRefreshFailCount - 1;
     const unsigned exponent = std::min<unsigned>(count, 6);
     const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
     const dstime maxDelay = 10 * 60 * 10; // 10 minutes

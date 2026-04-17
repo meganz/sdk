@@ -192,7 +192,6 @@ namespace mega {
             onHttpReqFinish;
         std::function<bool(const std::string&, long, std::string&)> onWsHandshake;
         std::function<void(dstime&)> onWsUploadSustainedHandshakeFailureWindowDs;
-        std::function<bool(std::uint32_t /*fileno*/, int /*event*/)> onWsUploadDropServerEvent;
         std::function<void(const char* /*reason*/, bool /*stillTracked*/)>
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
@@ -328,14 +327,6 @@ namespace mega {
         } \
     }
 
-#define DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(FILENO, EVENT, SHOULD_DROP) \
-    { \
-        if (globalMegaTestHooks.onWsUploadDropServerEvent) \
-        { \
-            SHOULD_DROP = globalMegaTestHooks.onWsUploadDropServerEvent((FILENO), (EVENT)); \
-        } \
-    }
-
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED) \
         { \
             if (globalMegaTestHooks.onWsUploadFailureDetached) \
@@ -424,7 +415,6 @@ namespace mega {
 #define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID)
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS)
-#define DEBUG_TEST_HOOK_WSUPLOAD_DROP_SERVER_EVENT(FILENO, EVENT, SHOULD_DROP)
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED)
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
