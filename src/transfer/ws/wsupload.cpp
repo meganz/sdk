@@ -3716,6 +3716,11 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
         if (ws->readyState == WsConn::ReadyState::CLOSED)
         {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(this,
+                                                    static_cast<unsigned>(retryCount),
+                                                    firstConnectFailureDs);
+#endif
             // Do not hold the engine mutex while blocking on connect.
             bool ok = false;
             {
@@ -3830,6 +3835,23 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             ScopedUnlock unlock(lk);
             ws->curlRecv();
         }
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        // B9 regression hook: lets a test deterministically force the WsConn into CLOSED
+        // after a server ACK (e.g. a Throttle event) so it can observe reconnect pacing.
+        {
+            bool forceClose = false;
+            DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(ws.get(), forceClose);
+            if (forceClose)
+            {
+                LOG_debug << "[WsPool::poolWorkerThread] force-close via test hook [this = "
+                          << this << "]";
+                ScopedUnlock unlock(lk);
+                ws->closeWS();
+                continue;
+            }
+        }
+#endif
 
         // server throttle?
         if (throttledByServer())

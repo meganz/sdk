@@ -49,6 +49,12 @@ namespace mega {
     struct Transfer;
     class TransferDbCommitter;
 
+    namespace ws
+    {
+        struct WsConn;
+        struct WsPool;
+    } // namespace ws
+
     enum class WsUploadServerEventAction
     {
         None = 0,
@@ -196,6 +202,15 @@ namespace mega {
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
             onWsUploadCorruptToken;
+        // B9 regression hooks. Read/written only from the pool worker thread + test
+        // thread; assignment to either field must go through globalMegaTestHooks like
+        // every other hook. Returning true from onWsConnForceCloseNow requests that the
+        // caller transition the WsConn to CLOSED before the next loop iteration.
+        std::function<bool(ws::WsConn* /*conn*/)> onWsConnForceCloseNow;
+        std::function<void(ws::WsPool* /*pool*/,
+                           unsigned /*retryCount*/,
+                           dstime /*firstFailureDs*/)>
+            onWsPoolReconnectAttempt;
         WsUploadServerEventHook wsUploadServerEventHook;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
@@ -349,6 +364,24 @@ namespace mega {
                                                                             (CHUNKPOS)); \
         }
 
+#define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL) \
+    { \
+        if (globalMegaTestHooks.onWsConnForceCloseNow) \
+        { \
+            (OUTBOOL) = globalMegaTestHooks.onWsConnForceCloseNow((CONNPTR)); \
+        } \
+    }
+
+#define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS) \
+    { \
+        if (globalMegaTestHooks.onWsPoolReconnectAttempt) \
+        { \
+            globalMegaTestHooks.onWsPoolReconnectAttempt((POOLPTR), \
+                                                        (RETRYCOUNT), \
+                                                        (FIRSTFAILUREDS)); \
+        } \
+    }
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     { \
         if (globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc) \
@@ -418,6 +451,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED)
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
+#define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL)
+#define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

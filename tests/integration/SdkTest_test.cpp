@@ -22760,6 +22760,162 @@ TEST_F(SdkTest, SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes)
 }
 
 /**
+ * @brief B9 regression: after a force-close mid-throttle, reconnect attempts are gated by
+ *        CONNRETRYINTERVAL (5s) and not by the removed 1-ds sleep block.
+ *
+ * Scenario:
+ *   1. Upload a moderate file; inject a Throttle ACK via wsUploadServerEventHook so the
+ *      pool enters pausedByServer state.
+ *   2. Via onWsConnForceCloseNow, force the WsConn into CLOSED exactly once after Throttle
+ *      is observed — this deterministically creates the historical "CLOSED + throttled"
+ *      state that the deleted delay-block used to gate with sleep_ds(1).
+ *   3. Via onWsHandshake, fail the next two handshake attempts so the pool worker has to
+ *      exercise the !ok branch of the CLOSED gate where CONNRETRYINTERVAL lives.
+ *   4. onWsPoolReconnectAttempt time-stamps each reconnect attempt; the test asserts the
+ *      delta between attempts 2 and 3 is >= CONNRETRYINTERVAL (50 ds = 5000 ms, minus
+ *      slack) — proving reconnects are rate-limited by CONNRETRYINTERVAL and not by the
+ *      deleted 1-ds sleep.
+ *   5. After the forced failures, handshakes succeed and the upload converges to API_OK.
+ */
+TEST_F(SdkTest, SdkWsUploadB9ClosedThrottleReconnectPacing)
+{
+    LOG_info << "___TEST SdkWsUploadB9ClosedThrottleReconnectPacing___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    const std::string fileName =
+        "ws_b9_closed_throttle_reconnect_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = 4 * kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "B")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.wsUploadServerEventHook.reset();
+            globalMegaTestHooks.onWsConnForceCloseNow = nullptr;
+            globalMegaTestHooks.onWsPoolReconnectAttempt = nullptr;
+            globalMegaTestHooks.onWsHandshake = nullptr;
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    // Rewrite the first ChunkIngested (1) ACK into Throttle (6) with a ~6s pause so the
+    // pool stays throttled through the forced reconnect attempts.
+    constexpr m_off_t kInjectedThrottleMs = 6000;
+    auto& evHook = globalMegaTestHooks.wsUploadServerEventHook;
+    evHook.configure(WsUploadServerEventAction::Modify,
+                     1,
+                     6,
+                     std::nullopt,
+                     kInjectedThrottleMs);
+
+    std::mutex attemptMu;
+    std::vector<std::chrono::steady_clock::time_point> attemptTimes;
+    std::vector<unsigned> attemptRetryCounts;
+    globalMegaTestHooks.onWsPoolReconnectAttempt =
+        [&](::mega::ws::WsPool*, unsigned retryCount, dstime /*firstFailureDs*/)
+    {
+        std::lock_guard<std::mutex> lk(attemptMu);
+        attemptTimes.push_back(std::chrono::steady_clock::now());
+        attemptRetryCounts.push_back(retryCount);
+    };
+
+    std::atomic<bool> throttleObserved{false};
+    std::atomic<int> forceCloseFired{0};
+    globalMegaTestHooks.onWsConnForceCloseNow = [&](::mega::ws::WsConn*) -> bool
+    {
+        if (!throttleObserved.load(std::memory_order_acquire))
+            return false;
+        return forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
+    };
+
+    std::atomic<int> handshakeFailsRemaining{2};
+    globalMegaTestHooks.onWsHandshake =
+        [&](const std::string& /*url*/, long /*timeoutMs*/, std::string& err) -> bool
+    {
+        if (!throttleObserved.load(std::memory_order_acquire))
+            return false;
+        if (handshakeFailsRemaining.load(std::memory_order_acquire) <= 0)
+            return false;
+        handshakeFailsRemaining.fetch_sub(1, std::memory_order_acq_rel);
+        err = "[B9 test] simulated handshake failure";
+        return true;
+    };
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    TransferTracker ut(megaApi[0].get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return evHook.getHitCount() > 0;
+        },
+        120000))
+        << "Timed out waiting for Throttle injection via hook";
+    throttleObserved.store(true, std::memory_order_release);
+
+    // Wait until at least three reconnect attempts have been recorded: 1st = initial
+    // reconnect after force-close, 2nd = first retry (!retryCount++ -> continue, no
+    // sleep), 3rd = retry gated by CONNRETRYINTERVAL.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> lk(attemptMu);
+            return attemptTimes.size() >= 3u;
+        },
+        120000))
+        << "B9: pool worker did not reach 3 reconnect attempts after force-close";
+
+    {
+        std::lock_guard<std::mutex> lk(attemptMu);
+        ASSERT_GE(attemptTimes.size(), 3u);
+        const auto delta12Ms = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                   attemptTimes[2] - attemptTimes[1])
+                                   .count();
+        // CONNRETRYINTERVAL is 50 ds = 5000 ms. Require >= 4000 ms to tolerate scheduler
+        // jitter on CI. The deleted 1-ds sleep would put this delta at ~100 ms.
+        ASSERT_GE(delta12Ms, 4000)
+            << "B9 regression: reconnect attempts after force-close are not gated by "
+               "CONNRETRYINTERVAL (observed δ=" << delta12Ms << " ms between attempts "
+               "2 and 3; retryCounts seen: "
+            << attemptRetryCounts[0] << ',' << attemptRetryCounts[1] << ','
+            << attemptRetryCounts[2] << ")";
+    }
+
+    const auto finalResult = ut.waitForResult(300);
+    ASSERT_EQ(finalResult, API_OK)
+        << "Upload did not complete cleanly after B9 force-close + reconnect sequence";
+
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+#endif
+}
+
+/**
  * @brief Verify a negative server event (<0) triggers temporary error handling and retry.
  *
  * - TEST1: Install hook to rewrite first ChunkIngested ACK (event 1) to API_EAGAIN (-3).
