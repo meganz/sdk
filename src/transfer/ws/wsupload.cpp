@@ -171,7 +171,6 @@ int chunkSizeAtPosition(m_off_t pos)
 struct WsPool;
 struct WsConn;
 struct WsPoolThread;
-class CurlResponseProc;
 
 class UploadEngine; // from header
 
@@ -1380,18 +1379,6 @@ inline bool WsUploadFile::getCurrentSessionUrl(std::string& outUrl) const
     return true;
 }
 
-// ---------- Curl response proc (USC) ----------
-class CurlResponseProc
-{
-public:
-    virtual ~CurlResponseProc() = default;
-    std::string response;
-
-    virtual void curlIO() {}
-
-    virtual bool done(bool /*success*/) = 0;
-};
-
 // ---------- Pool manager (USC refresh + cURL multi) ----------
 struct WsPoolMgr
 {
@@ -1403,7 +1390,6 @@ struct WsPoolMgr
     UploadEngine::Impl* mImpl{nullptr}; // backpointer
 
     std::vector<std::unique_ptr<WsPool>> mPools;
-    std::unordered_map<CURL*, CurlResponseProc*> mCurlProcs;
 
     std::unordered_set<WsUploadFile*> mActiveFiles; // progress reporting
     dstime mLastNetRead{0};
@@ -1418,16 +1404,6 @@ struct WsPoolMgr
 
     ~WsPoolMgr()
     {
-        for (auto& kv: mCurlProcs)
-        {
-            if (curlm && kv.first)
-            {
-                curl_multi_remove_handle(curlm, kv.first);
-            }
-            delete kv.second;
-        }
-        mCurlProcs.clear();
-
         if (curlm)
         {
             curl_multi_cleanup(curlm);
@@ -1438,7 +1414,6 @@ struct WsPoolMgr
     void curlIO(std::unique_lock<std::mutex>& lk); // defined later
     void checkPools(class UploadEngine::Impl& impl); // defined later
     void refreshPools(); // defined later
-    bool refreshPoolsResponse(std::string& response); // defined later
     void applyRefreshBackoff(Error e); // defined later
 
     // Shared tail for USC refresh responses (parsing can be done via string parsing or JSON).
@@ -1452,24 +1427,6 @@ struct WsPoolMgr
     bool pinnedPoolHasReference(const WsPool& pool, const UploadEngine::Impl& impl) const;
     void retireUnusedPinnedPools(UploadEngine::Impl& impl);
     void cleanupRetiringPools();
-
-    void setCurlResponseProc(CURL* curl, CurlResponseProc* proc)
-    {
-        LOG_debug << "[WsPoolMgr::setCurlResponseProc] call [curl=" << (void*)curl
-                  << "] [proc=" << (void*)proc << "] [this = " << this << "]";
-        mCurlProcs[curl] = proc;
-        curl_easy_setopt(
-            curl,
-            CURLOPT_WRITEFUNCTION,
-            +[](void* ptr, size_t /*size*/, size_t nmemb, void* opaque) -> size_t
-            {
-                auto* p = static_cast<CurlResponseProc*>(opaque);
-                p->response.append(static_cast<const char*>(ptr), nmemb);
-                return nmemb;
-            });
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, proc);
-        curl_multi_add_handle(curlm, curl);
-    }
 
     void bumpLastNetRead(const dstime now)
     {
@@ -3957,32 +3914,19 @@ void WsPool::checkThreads()
 // ========== WsPoolMgr ==========
 void WsPoolMgr::curlIO(std::unique_lock<std::mutex>& lk)
 {
+    // Refresh runs via CommandUSCForWsUpload + queueCommand + wsPostToClientThread
+    // (see refreshPools()); no curl-easy handles are ever added to `curlm` on the live
+    // path, so the perform/info-read drain here is a no-op in practice. The shell is
+    // kept to preserve the manager-thread cadence and to allow a future live consumer
+    // to slot handles in without reintroducing scaffolding.
     int still_running = 0, msgs_left = 0;
     curl_multi_perform(curlm, &still_running);
-
-    for (auto& kv: mCurlProcs)
-        if (kv.second)
-            kv.second->curlIO();
 
     CURLMsg* msg;
     while ((msg = curl_multi_info_read(curlm, &msgs_left)) != nullptr)
     {
-        if (msg->msg == CURLMSG_DONE)
-        {
-            CURL* curl = msg->easy_handle;
-            auto it = mCurlProcs.find(curl);
-            if (it != mCurlProcs.end())
-            {
-                CurlResponseProc* proc = it->second;
-                const bool ok = (msg->data.result == CURLE_OK);
-                if (proc && proc->done(ok))
-                {
-                    curl_multi_remove_handle(curlm, curl);
-                    mCurlProcs.erase(it);
-                    delete proc;
-                }
-            }
-        }
+        // Drain the message queue; no handlers are registered on `curlm` today.
+        (void)msg;
     }
 
     // Don't hold the engine mutex while blocking in curl I/O.
@@ -4252,61 +4196,6 @@ void WsPoolMgr::applyRefreshBackoff(Error e)
 
     LOG_warn << "[WsPoolMgr::refreshPools] USC command failed: " << e
              << " [poolMgr=" << this << "]";
-}
-
-bool WsPoolMgr::refreshPoolsResponse(std::string& response)
-{
-    std::vector<std::pair<std::string, m_off_t>> apiSizeClasses;
-
-    const char* p = response.c_str();
-    const char* q = nullptr;
-    std::string url;
-    bool ok{false};
-
-    LOG_debug << "USC response: " << response;
-
-    if (!std::memcmp(p, "[[[\"", 4))
-    {
-        for (;;)
-        {
-            p += 4;
-            if (q = std::strchr(p, '"'); q)
-            {
-                url = "wss://";
-                url.append(p, static_cast<size_t>(q - p));
-                url.append("/");
-
-                p = q + 3;
-                if (q = std::strchr(p, '"'); q)
-                {
-                    url.append(p, static_cast<size_t>(q - p));
-                }
-
-                if (q[1] == ',')
-                {
-                    apiSizeClasses.emplace_back(url, static_cast<m_off_t>(atoll(q + 2)));
-                    if (p = std::strchr(q, ']'); p && !std::memcmp(p, "],[\"", 4))
-                    {
-                        continue;
-                    }
-                }
-                else
-                {
-                    apiSizeClasses.emplace_back(url, m_off_t(0));
-                    ok = true;
-                    break;
-                }
-            }
-            LOG_warn << "Invalid USC response: " << response;
-            break;
-        }
-
-        if (ok)
-        {
-            applyRefreshedUrls(std::move(apiSizeClasses));
-        }
-    }
-    return ok;
 }
 
 void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> apiSizeClasses)
