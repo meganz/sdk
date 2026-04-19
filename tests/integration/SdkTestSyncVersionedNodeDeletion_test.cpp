@@ -74,6 +74,14 @@ public:
         return mUploadRequestCount;
     }
 
+    // Count of putnodes whose source "h" is an upload token (fresh wsupload completion)
+    // rather than an existing node handle (clone). See handleRequest() for classification.
+    size_t freshUploadCount() const
+    {
+        std::lock_guard<std::mutex> lock(mMutex);
+        return mFreshUploadCount;
+    }
+
     bool usedPutnodesSource(const std::string& source) const
     {
         std::lock_guard<std::mutex> lock(mMutex);
@@ -85,8 +93,9 @@ public:
     {
         std::lock_guard<std::mutex> lock(mMutex);
 
-        std::string result =
-            "upload requests: " + std::to_string(mUploadRequestCount) + ", putnodes sources:";
+        std::string result = "upload requests: " + std::to_string(mUploadRequestCount) +
+                             ", fresh uploads (wsupload): " + std::to_string(mFreshUploadCount) +
+                             ", putnodes sources:";
         if (mPutnodesSources.empty())
         {
             result += " <none>";
@@ -163,8 +172,25 @@ private:
             return;
         }
 
+        // Putnodes "n":[{"h":"..."}] encodes either a clone source node handle
+        // (NODEHANDLE bytes -> Base64Str<NODEHANDLE>::STRLEN chars) or an upload
+        // token from a wsupload completion (UPLOADTOKENLEN bytes ->
+        // Base64Str<UPLOADTOKENLEN>::STRLEN chars). See src/commands.cpp where
+        // CommandPutNodes switches on NEW_NODE vs NEW_UPLOAD. Treat the latter as
+        // a fresh upload for the purposes of this test, because the wsupload path
+        // never emits the legacy "a":"u" HTTP command.
+        size_t freshUploads = 0;
+        for (const auto& source: putnodesSources)
+        {
+            if (source.size() == Base64Str<UPLOADTOKENLEN>::STRLEN)
+            {
+                ++freshUploads;
+            }
+        }
+
         std::lock_guard<std::mutex> lock(mMutex);
         mUploadRequestCount += uploadCount;
+        mFreshUploadCount += freshUploads;
         mPutnodesSources.insert(mPutnodesSources.end(),
                                 putnodesSources.begin(),
                                 putnodesSources.end());
@@ -173,6 +199,7 @@ private:
     std::function<bool(HttpReq*)> mPreviousHook;
     mutable std::mutex mMutex;
     size_t mUploadRequestCount{0};
+    size_t mFreshUploadCount{0};
     std::vector<std::string> mPutnodesSources;
 };
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -878,8 +905,13 @@ TEST_F(SdkTestSyncVersionedNodeDeletion, SyncDoesNotUseDeletedVersionedNodeAsCop
 
     ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
 
+#ifndef MEGA_USE_WSUPLOAD
     EXPECT_GT(observer.uploadRequestCount(), 0u)
-        << "Expected a normal upload after deletion instead of a clone-only path. Captured "
+        << "Expected an upload request after deletion. Captured requests: " << observer.summary();
+#endif
+
+    EXPECT_GT(observer.freshUploadCount(), 0u)
+        << "Expected a normal putnodes after deletion instead of a clone-only path. Captured "
            "requests: "
         << observer.summary();
 
