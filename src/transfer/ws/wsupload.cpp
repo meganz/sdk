@@ -939,7 +939,10 @@ private:
         mTransferKey{}; // Phase 2: set in snapshotCryptoMaterial()
     int64_t mCtrIv{0}; // Phase 2
     std::unique_ptr<FileAccess> mFA{}; // blocking-opened on first read
-    std::uint64_t mWorkGeneration{1};
+    // Atomic so readers that do not hold engineMutex (e.g. the workGeneration() accessor
+    // at wsupload.cpp ~700) observe a well-defined value. Writers still serialise via
+    // engineMutex; the atomic adds cheap defence for future callers that forget.
+    std::atomic<std::uint64_t> mWorkGeneration{1};
     std::mutex mReadMutex; // needed for Android because of lseek64+read
     std::atomic<unsigned> mActiveIO{0};
 
