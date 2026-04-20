@@ -1653,6 +1653,13 @@ public:
         return mInstanceId;
     }
 
+    // Refresh-latch orchestration helpers used by WsPoolMgr::refreshPools() callbacks.
+    // Implementations live near other UploadEngine::Impl out-of-class definitions.
+    bool clearRefreshLatchForInstance(std::uint64_t id);
+    bool applyRefreshResultForInstance(std::uint64_t id,
+                                       Error e,
+                                       std::vector<std::pair<std::string, m_off_t>>&& urls);
+
     // Queue mirrors TransferList ordering and priority.
     void enqueue(Transfer& t)
     {
@@ -4146,16 +4153,8 @@ void WsPoolMgr::refreshPools()
 
     auto clearRefreshing = [](MegaClient& client, const std::uint64_t id)
     {
-        auto* engine = client.wsEngine();
-        if (!engine || engine->instanceId() != id)
-            return;
-        // Re-validate under the lock to ensure the engine has not been replaced or
-        // entered teardown between the wsEngine() read and the mRefreshing write.
-        std::lock_guard<std::mutex> g(engine->pImpl->uploadMutex);
-        if (auto* current = client.wsEngine(); current == engine && current->instanceId() == id)
-        {
-            current->pImpl->poolMgr.mRefreshing.store(false, std::memory_order_release);
-        }
+        if (auto* engine = client.wsEngine())
+            engine->clearRefreshLatchForInstance(id);
     };
 
     mImpl->client.wsPostToClientThread(
@@ -4182,19 +4181,9 @@ void WsPoolMgr::refreshPools()
                         return;
                     }
 
-                    std::lock_guard<std::mutex> g(currentEngine->pImpl->uploadMutex);
-                    auto& poolMgr = currentEngine->pImpl->poolMgr;
-                    if (e == API_OK)
-                    {
-                        poolMgr.mRefreshFailCount = 0;
-                        poolMgr.mNextRefreshAttempt = 0;
-                        poolMgr.applyRefreshedUrls(std::move(sizeClasses));
-                    }
-                    else
-                    {
-                        poolMgr.applyRefreshBackoff(e);
-                    }
-                    poolMgr.mRefreshing = false;
+                    currentEngine->applyRefreshResultForInstance(engineId,
+                                                                 e,
+                                                                 std::move(sizeClasses));
                 }));
         });
 }
@@ -4327,6 +4316,50 @@ UploadEngine::~UploadEngine() = default;
 std::uint64_t UploadEngine::instanceId() const noexcept
 {
     return pImpl->instanceId();
+}
+
+bool UploadEngine::Impl::clearRefreshLatchForInstance(std::uint64_t id)
+{
+    std::lock_guard<std::mutex> g(uploadMutex);
+    if (mInstanceId != id)
+        return false;
+    poolMgr.mRefreshing.store(false, std::memory_order_release);
+    return true;
+}
+
+bool UploadEngine::Impl::applyRefreshResultForInstance(
+    std::uint64_t id,
+    Error e,
+    std::vector<std::pair<std::string, m_off_t>>&& urls)
+{
+    std::lock_guard<std::mutex> g(uploadMutex);
+    if (mInstanceId != id)
+        return false;
+    if (e == API_OK)
+    {
+        poolMgr.mRefreshFailCount = 0;
+        poolMgr.mNextRefreshAttempt = 0;
+        poolMgr.applyRefreshedUrls(std::move(urls));
+    }
+    else
+    {
+        poolMgr.applyRefreshBackoff(e);
+    }
+    poolMgr.mRefreshing.store(false, std::memory_order_release);
+    return true;
+}
+
+bool UploadEngine::clearRefreshLatchForInstance(std::uint64_t id)
+{
+    return pImpl->clearRefreshLatchForInstance(id);
+}
+
+bool UploadEngine::applyRefreshResultForInstance(
+    std::uint64_t id,
+    Error e,
+    std::vector<std::pair<std::string, m_off_t>>&& urls)
+{
+    return pImpl->applyRefreshResultForInstance(id, e, std::move(urls));
 }
 
 void UploadEngine::start()

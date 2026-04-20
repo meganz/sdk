@@ -20,8 +20,6 @@ struct Transfer;
 namespace ws
 {
 
-struct WsPoolMgr;
-
 namespace detail
 {
 
@@ -104,6 +102,24 @@ public:
     UploadEngine& operator=(const UploadEngine&) = delete;
 
     std::uint64_t instanceId() const noexcept;
+
+    // Internal: clear the "refresh in flight" latch on this engine iff `id` still
+    // matches `instanceId()`. Used by the refresh-pools callback orchestration in
+    // wsupload.cpp so `WsPoolMgr` does not need friend access to `pImpl`.
+    // Acquires `uploadMutex` internally; safe to call from the client thread.
+    // Returns true if the latch was cleared (id matched), false otherwise.
+    bool clearRefreshLatchForInstance(std::uint64_t id);
+
+    // Internal: apply the outcome of a USC refresh attempt on this engine iff `id`
+    // still matches `instanceId()`. On success, resets refresh-fail counters and
+    // applies the refreshed URL set; on error, bumps the fail counter and programs
+    // exponential backoff. In both cases, clears the "refresh in flight" latch at
+    // the end. Acquires `uploadMutex` internally.
+    // Returns true if the outcome was applied (id matched), false otherwise.
+    bool applyRefreshResultForInstance(std::uint64_t id,
+                                       Error e,
+                                       std::vector<std::pair<std::string, m_off_t>>&& urls);
+
     // Bring engine online (spawns manager thread).
     void start();
     // Shutdown engine: stop scheduling new WS work and request worker threads to exit.
@@ -181,7 +197,6 @@ public:
     class Impl; // pImpl keeps heavy includes out of headers
 
 private:
-    friend struct WsPoolMgr;
     std::unique_ptr<Impl> pImpl;
 };
 
