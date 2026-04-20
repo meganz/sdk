@@ -1078,6 +1078,11 @@ struct WsConn
     WsBuf mBufs[2];
     char mCurBuf{0};
     bool mClosing{false};
+    // Deferred-close flag: set by onmessage() when it detects an invalid inbound
+    // frame (TooShort/BadCrc) so that curlRecv() can finish draining libcurl's
+    // recv pipeline before tearing the socket down. Prevents ACK frames already
+    // in the recv queue from being silently dropped on reconnect.
+    bool mPendingClose{false};
 
     // server response (small frames)
     char mInBuf[64];
@@ -2691,6 +2696,10 @@ void WsConn::closeWS()
         LOG_debug << "[WsConn::closeWS] readyState=CLOSED, return [this = " << this << "]";
         return;
     }
+    // Clear the deferred-close flag: once closeWS actually runs, any pending
+    // request has been honoured. Worker thread is single-owner, so this is
+    // a belt-and-suspenders write documenting intent.
+    mPendingClose = false;
     readyState = ReadyState::CLOSED;
     resetBufferedSendState();
     onclose();
@@ -2751,6 +2760,7 @@ void WsConn::curlRecv()
 
     const struct curl_ws_frame* meta = nullptr;
     size_t recv = 0;
+    unsigned drainedAfterPendingClose = 0;
 
     for (;;)
     {
@@ -2765,12 +2775,20 @@ void WsConn::curlRecv()
                       << ") > 0 -> onmessage(mInBuf, static_cast<int>(recv)) [this = " << this
                       << "]";
             onmessage(mInBuf, static_cast<int>(recv));
-            if (readyState != ReadyState::OPEN)
+            // If the prior onmessage requested a deferred close, keep draining
+            // libcurl's recv pipeline. The curl handle remains valid because
+            // closeWS() does not invoke curl_easy_cleanup (that only happens in
+            // ~WsConn / the reconnect path). Break only when the state has
+            // transitioned to non-OPEN for any reason OTHER than our own
+            // pending-close request.
+            if (readyState != ReadyState::OPEN && !mPendingClose)
             {
                 LOG_debug << "[WsConn::curlRecv] onmessage closed connection -> break [this = "
                           << this << "]";
                 break;
             }
+            if (mPendingClose)
+                ++drainedAfterPendingClose;
         }
         else
         {
@@ -2787,6 +2805,16 @@ void WsConn::curlRecv()
             break;
         }
     }
+
+    // Honour any deferred-close request now that the recv pipeline has been
+    // drained. closeWS() is idempotent (guards on readyState==CLOSED), so a
+    // second call from the CURLE_AGAIN-else branch above harmlessly no-ops.
+    if (mPendingClose)
+    {
+        LOG_debug << "[WsConn::curlRecv] drained " << drainedAfterPendingClose
+                  << " frames before closeWS [this = " << this << "]";
+        closeWS();
+    }
     LOG_debug << "[WsConn::curlRecv] END [this = " << this << "]";
 }
 
@@ -2797,12 +2825,12 @@ void WsConn::onmessage(const char* msg, const int len)
     {
         case detail::InboundFrameValidationResult::TooShort:
             LOG_warn << "WsUpload: invalid server msg len=" << len;
-            closeWS();
+            mPendingClose = true;
             return;
 
         case detail::InboundFrameValidationResult::BadCrc:
             LOG_warn << "WsUpload: inbound CRC failed, byteLength=" << len;
-            closeWS();
+            mPendingClose = true;
             return;
 
         case detail::InboundFrameValidationResult::Ok:
