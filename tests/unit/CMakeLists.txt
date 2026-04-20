@@ -73,6 +73,7 @@ target_sources(test_unit
     megaclient_test.cpp
     SharedMemoryZone_test.cpp
     sc_streaming_parser_test.cpp
+    TestHooks_test.cpp
     WsUpload_test.cpp
 )
 
