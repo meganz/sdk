@@ -746,7 +746,7 @@ void Transfer::discardTempUrlsIfNoDataDownloadedOrTimeoutReached(
     const direction_t transferDirection,
     const m_time_t currentTime)
 {
-    DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastaccesstime)
+    DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastaccesstime);
 
     if (const auto discardTempURLs = (transferDirection == GET && !pos) ||
                                      ((currentTime - lastaccesstime) >= TEMPURL_TIMEOUT_TS);

@@ -173,6 +173,34 @@ namespace mega {
 
     struct MegaTestHooks
     {
+        // O-13: guards whole-struct assignment (e.g. `globalMegaTestHooks = MegaTestHooks();`
+        // at SdkTest_test.cpp:7368 and scoped-destructor reset sites) against concurrent
+        // worker-thread reads via DEBUG_TEST_HOOK_* macros. Every macro below uses the
+        // copy-under-lock / invoke-outside-lock idiom so that callbacks may themselves
+        // reset hooks without deadlocking. The move ctor/assign below acquire both mutexes
+        // (source + destination) atomically with std::scoped_lock.
+        mutable std::mutex mMutex;
+
+        MegaTestHooks() = default;
+
+        MegaTestHooks(const MegaTestHooks&) = delete;
+        MegaTestHooks& operator=(const MegaTestHooks&) = delete;
+
+        MegaTestHooks(MegaTestHooks&& other) noexcept
+        {
+            std::scoped_lock g(other.mMutex);
+            moveFieldsFrom(std::move(other));
+        }
+
+        MegaTestHooks& operator=(MegaTestHooks&& other) noexcept
+        {
+            if (this == &other)
+                return *this;
+            std::scoped_lock g(mMutex, other.mMutex);
+            moveFieldsFrom(std::move(other));
+            return *this;
+        }
+
         std::function<bool(HttpReq*)> onHttpReqPost;
         std::function<void(RaidBufferManager*)> onSetIsRaid;
         std::function<void(error e)> onUploadChunkFailed;
@@ -181,6 +209,16 @@ namespace mega {
         std::function<bool(Transfer*, TransferDbCommitter&)> onUploadChunkSucceeded;
         std::function<void(const double, const m_off_t, const m_off_t)> onTransferReportProgress;
         std::function<void(error e)> onDownloadFailed;
+        // interceptSCRequest / interceptSCChunk: read-only from the client thread.
+        // - globalMegaTestHooks.interceptSCRequest is read inside MegaClient::chooseScParsingMode()
+        //   (src/megaclient.cpp:26446) which runs on the client thread.
+        // - megaTestHooks.interceptSCChunk is a per-client member read inside
+        //   MegaClient::handleScInStreaming() (src/megaclient.cpp:26722), also client thread.
+        // No worker-thread reader exists, so these two fields intentionally have no
+        // DEBUG_TEST_HOOK_* macro and are read without taking mMutex. The outer
+        // move ctor/op= still include them so that `globalMegaTestHooks = MegaTestHooks();`
+        // resets them atomically w.r.t. any future worker-thread reader that might be
+        // introduced.
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCRequest;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCChunk;
         // Called when an HTTP 1xx (e.g. the 103 heartbeat) is received, with the status code and
@@ -211,6 +249,9 @@ namespace mega {
                            unsigned /*retryCount*/,
                            dstime /*firstFailureDs*/)>
             onWsPoolReconnectAttempt;
+        // WsUploadServerEventHook has its own internal mutex and its own locked move
+        // ctor/op=; the outer mMutex keeps the enclosing struct move atomic, and the
+        // sub-object's mutex keeps its fields safe for evaluate() from any thread.
         WsUploadServerEventHook wsUploadServerEventHook;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
@@ -233,80 +274,194 @@ namespace mega {
         // exercise the "created earlier but gone now" guard (e.g. deleted by another session).
         // Returns true to force the folder to be treated as not found.
         std::function<bool(const std::string& folderName)> onFolderUploadSimulateMissing;
+    
+    private:
+        // Helper used by the move ctor/op=; callers MUST already hold the relevant mutex(es).
+        // Must mention EVERY field above — missing one leaks on reset.
+        void moveFieldsFrom(MegaTestHooks&& other) noexcept
+        {
+            onHttpReqPost = std::move(other.onHttpReqPost);
+            onSetIsRaid = std::move(other.onSetIsRaid);
+            onUploadChunkFailed = std::move(other.onUploadChunkFailed);
+            onProgressCompletedUpdate = std::move(other.onProgressCompletedUpdate);
+            onProgressContiguousUpdate = std::move(other.onProgressContiguousUpdate);
+            onUploadChunkSucceeded = std::move(other.onUploadChunkSucceeded);
+            onTransferReportProgress = std::move(other.onTransferReportProgress);
+            onDownloadFailed = std::move(other.onDownloadFailed);
+            interceptSCRequest = std::move(other.interceptSCRequest);
+            interceptSCChunk = std::move(other.interceptSCChunk);
+            onLimitMaxReqSize = std::move(other.onLimitMaxReqSize);
+            onHookNumberOfConnections = std::move(other.onHookNumberOfConnections);
+            onHookDownloadRequestSingleUrl = std::move(other.onHookDownloadRequestSingleUrl);
+            onHookResetTransferLastAccessTime = std::move(other.onHookResetTransferLastAccessTime);
+            interceptLocklessCSRequest = std::move(other.interceptLocklessCSRequest);
+            onHttpReqFinish = std::move(other.onHttpReqFinish);
+            onWsHandshake = std::move(other.onWsHandshake);
+            onWsUploadSustainedHandshakeFailureWindowDs =
+                std::move(other.onWsUploadSustainedHandshakeFailureWindowDs);
+            onWsUploadFailureDetached = std::move(other.onWsUploadFailureDetached);
+            onWsUploadCorruptToken = std::move(other.onWsUploadCorruptToken);
+            onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
+            onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);
+            // WsUploadServerEventHook already has its own locked move-assign.
+            wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
+            onHookFileFingerprintUseLegacyBuggySparseCrc =
+                std::move(other.onHookFileFingerprintUseLegacyBuggySparseCrc);
+            onHookDeviceId = std::move(other.onHookDeviceId);
+            onHashcashCalculationStarted = std::move(other.onHashcashCalculationStarted);
+            onMacGenerationChunkRead = std::move(other.onMacGenerationChunkRead);
+        }
     };
 
     extern MegaTestHooks globalMegaTestHooks;
 
+    // O-13: all DEBUG_TEST_HOOK_* macros below use the copy-under-lock / invoke-outside-lock
+    // idiom. They take a local copy of the std::function while holding globalMegaTestHooks.mMutex,
+    // release the lock, then invoke the copy. This serializes reads against the whole-struct
+    // assignment `globalMegaTestHooks = MegaTestHooks();` without holding the lock across the
+    // callback (which prevents deadlock if the callback itself mutates globalMegaTestHooks).
+
     // allow the test client to skip an actual http request, and set the results directly.  The return statement, if activated, skips the http post()
-    #define DEBUG_TEST_HOOK_HTTPREQ_POST(HTTPREQPTR)  { if (globalMegaTestHooks.onHttpReqPost && globalMegaTestHooks.onHttpReqPost(HTTPREQPTR)) return; }
+    #define DEBUG_TEST_HOOK_HTTPREQ_POST(HTTPREQPTR) \
+    do { \
+        std::function<bool(HttpReq*)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHttpReqPost; \
+        } \
+        if (_fn && _fn(HTTPREQPTR)) return; \
+    } while (0)
 
     // allow the test client to confirm raid/nonraid is happening, or adjust the parameters of a raid download for smaller chunks etc
-    #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(RAIDBUFMGRPTR)  { if (globalMegaTestHooks.onSetIsRaid) globalMegaTestHooks.onSetIsRaid(RAIDBUFMGRPTR); }
+    #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(RAIDBUFMGRPTR) \
+    do { \
+        std::function<void(RaidBufferManager*)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onSetIsRaid; \
+        } \
+        if (_fn) _fn(RAIDBUFMGRPTR); \
+    } while (0)
 
     // watch out for upload issues
-    #define DEBUG_TEST_HOOK_UPLOADCHUNK_FAILED(X)  { if (globalMegaTestHooks.onUploadChunkFailed) globalMegaTestHooks.onUploadChunkFailed(X); }
+    #define DEBUG_TEST_HOOK_UPLOADCHUNK_FAILED(X) \
+    do { \
+        std::function<void(error)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onUploadChunkFailed; \
+        } \
+        if (_fn) _fn(X); \
+    } while (0)
 
-    // option to simulate something after an uploaded chunk
-    #define DEBUG_TEST_HOOK_UPLOADCHUNK_SUCCEEDED(transfer, committer)  {  \
-        if (globalMegaTestHooks.onUploadChunkSucceeded)  \
-        {                                                \
-            if (!globalMegaTestHooks.onUploadChunkSucceeded(transfer, committer)) return; \
-        }}
+    // option to simulate something after an uploaded chunk. Preserves the early-exit
+    // semantics: if the hook returns false, the caller's enclosing function returns.
+    #define DEBUG_TEST_HOOK_UPLOADCHUNK_SUCCEEDED(transfer, committer) \
+    do { \
+        std::function<bool(Transfer*, TransferDbCommitter&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onUploadChunkSucceeded; \
+        } \
+        if (_fn && !_fn((transfer), (committer))) return; \
+    } while (0)
 
     // get transfer progress completed updates
 #define DEBUG_TEST_HOOK_ON_PROGRESS_COMPLETED_UPDATE(p) \
-    { \
-        if (globalMegaTestHooks.onProgressCompletedUpdate) \
+    do { \
+        std::function<void(const m_off_t)> _fn; \
         { \
-            globalMegaTestHooks.onProgressCompletedUpdate(p); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onProgressCompletedUpdate; \
         } \
-    }
+        if (_fn) _fn(p); \
+    } while (0)
 
     // get transfer progress contiguous updates
 #define DEBUG_TEST_HOOK_ON_PROGRESS_CONTIGUOUS_UPDATE(p) \
-    { \
-        if (globalMegaTestHooks.onProgressContiguousUpdate) \
+    do { \
+        std::function<void(const m_off_t)> _fn; \
         { \
-            globalMegaTestHooks.onProgressContiguousUpdate(p); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onProgressContiguousUpdate; \
         } \
-    }
+        if (_fn) _fn(p); \
+    } while (0)
 
     // get reports counts updates
 #define DEBUG_TEST_HOOK_ON_TRANSFER_REPORT_PROGRESS(p, fp, pb) \
-    { \
-        if (globalMegaTestHooks.onTransferReportProgress) \
+    do { \
+        std::function<void(const double, const m_off_t, const m_off_t)> _fn; \
         { \
-            globalMegaTestHooks.onTransferReportProgress(p, fp, pb); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onTransferReportProgress; \
         } \
-    }
+        if (_fn) _fn((p), (fp), (pb)); \
+    } while (0)
 
     // watch out for download issues
-    #define DEBUG_TEST_HOOK_DOWNLOAD_FAILED(X)  { if (globalMegaTestHooks.onDownloadFailed) globalMegaTestHooks.onDownloadFailed(X); }
+    #define DEBUG_TEST_HOOK_DOWNLOAD_FAILED(X) \
+    do { \
+        std::function<void(error)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onDownloadFailed; \
+        } \
+        if (_fn) _fn(X); \
+    } while (0)
 
     // limit max request size for TransferBufferManager (non-raid) or new RaidReq
-    #define DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(X) { if (globalMegaTestHooks.onLimitMaxReqSize) globalMegaTestHooks.onLimitMaxReqSize(X); }
+    #define DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(X) \
+    do { \
+        std::function<void(m_off_t&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onLimitMaxReqSize; \
+        } \
+        if (_fn) _fn(X); \
+    } while (0)
 
     // Ensure new RaidReq number of connections is taken from the client's number of connections
-    #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections) { if (globalMegaTestHooks.onHookNumberOfConnections) globalMegaTestHooks.onHookNumberOfConnections(connectionsInOutVar, clientNumberOfConnections); }
+    #define DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connectionsInOutVar, clientNumberOfConnections) \
+    do { \
+        std::function<void(int&, unsigned)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHookNumberOfConnections; \
+        } \
+        if (_fn) _fn((connectionsInOutVar), (clientNumberOfConnections)); \
+    } while (0)
 
     // For CommandGetFile, so a raided file can request the unraided copy.
 #define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag) \
-    { \
-        if (globalMegaTestHooks.onHookDownloadRequestSingleUrl) \
-            globalMegaTestHooks.onHookDownloadRequestSingleUrl(singleUrlFlag); \
-    }
+    do { \
+        std::function<void(bool&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHookDownloadRequestSingleUrl; \
+        } \
+        if (_fn) _fn(singleUrlFlag); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime) \
-    { \
-        if (globalMegaTestHooks.onHookResetTransferLastAccessTime) \
-            globalMegaTestHooks.onHookResetTransferLastAccessTime(lastAccessTime); \
-    }
+    do { \
+        std::function<void(m_time_t&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHookResetTransferLastAccessTime; \
+        } \
+        if (_fn) _fn(lastAccessTime); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS) \
-    { \
-        if (globalMegaTestHooks.interceptLocklessCSRequest) \
-            globalMegaTestHooks.interceptLocklessCSRequest(pendingLocklessCS); \
-    }
+    do { \
+        std::function<void(std::unique_ptr<HttpReq>&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.interceptLocklessCSRequest; \
+        } \
+        if (_fn) _fn(pendingLocklessCS); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingCS) \
         { \
@@ -315,10 +470,14 @@ namespace mega {
         }
 
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED) \
-    { \
-        if (globalMegaTestHooks.onHttpReqFinish) \
-            globalMegaTestHooks.onHttpReqFinish((HTTPSTATUS), (CURLCODE), (FAILED)); \
-    }
+    do { \
+        std::function<void(const int, const unsigned, const bool)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHttpReqFinish; \
+        } \
+        if (_fn) _fn((HTTPSTATUS), (CURLCODE), (FAILED)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID) \
         { \
@@ -327,36 +486,49 @@ namespace mega {
         }
 
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL) \
-    { \
-        if (globalMegaTestHooks.onWsHandshake) \
+    do { \
+        std::function<bool(const std::string&, long, std::string&)> _fn; \
         { \
-            SHOULDFAIL = globalMegaTestHooks.onWsHandshake((URL), (TIMEOUTMS), (ERRSTRING)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsHandshake; \
         } \
-    }
+        if (_fn) (SHOULDFAIL) = _fn((URL), (TIMEOUTMS), (ERRSTRING)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS) \
-    { \
-        if (globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs) \
+    do { \
+        std::function<void(dstime&)> _fn; \
         { \
-            globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs((WINDOWDS)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs; \
         } \
-    }
+        if (_fn) _fn((WINDOWDS)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED) \
+    do { \
+        std::function<void(const char*, bool)> _fn; \
         { \
-            if (globalMegaTestHooks.onWsUploadFailureDetached) \
-            { \
-                globalMegaTestHooks.onWsUploadFailureDetached((REASON), (STILL_TRACKED)); \
-            } \
-        }
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadFailureDetached; \
+        } \
+        if (_fn) _fn((REASON), (STILL_TRACKED)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN) \
+    do { \
+        std::function<bool(std::uint32_t, std::string&)> _fn; \
         { \
-            if (globalMegaTestHooks.onWsUploadCorruptToken && \
-                globalMegaTestHooks.onWsUploadCorruptToken((FILENO), (PAYLOAD))) \
-                (PAYLEN) = static_cast<int>((PAYLOAD).size()); \
-        }
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadCorruptToken; \
+        } \
+        if (_fn && _fn((FILENO), (PAYLOAD))) \
+            (PAYLEN) = static_cast<int>((PAYLOAD).size()); \
+    } while (0)
 
+// WSUPLOAD_SERVER_EVENT reads the self-locked WsUploadServerEventHook sub-object.
+// evaluate() takes its own internal mutex, so no outer lock is needed here. The enclosing
+// struct's move ctor/op= still acquire mMutex to keep the whole-struct assignment atomic.
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT) \
         { \
             (RESULT) = globalMegaTestHooks.wsUploadServerEventHook.evaluate((FILENO), \
@@ -365,52 +537,63 @@ namespace mega {
         }
 
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL) \
-    { \
-        if (globalMegaTestHooks.onWsConnForceCloseNow) \
+    do { \
+        std::function<bool(ws::WsConn*)> _fn; \
         { \
-            (OUTBOOL) = globalMegaTestHooks.onWsConnForceCloseNow((CONNPTR)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsConnForceCloseNow; \
         } \
-    }
+        if (_fn) (OUTBOOL) = _fn((CONNPTR)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS) \
-    { \
-        if (globalMegaTestHooks.onWsPoolReconnectAttempt) \
+    do { \
+        std::function<void(ws::WsPool*, unsigned, dstime)> _fn; \
         { \
-            globalMegaTestHooks.onWsPoolReconnectAttempt((POOLPTR), \
-                                                        (RETRYCOUNT), \
-                                                        (FIRSTFAILUREDS)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsPoolReconnectAttempt; \
         } \
-    }
+        if (_fn) _fn((POOLPTR), (RETRYCOUNT), (FIRSTFAILUREDS)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
-    { \
-        if (globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc) \
+    do { \
+        std::function<void(bool&)> _fn; \
         { \
-            globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc((FLAG)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc; \
         } \
-    }
+        if (_fn) _fn((FLAG)); \
+    } while (0)
+
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID) \
-    { \
-        if (globalMegaTestHooks.onHookDeviceId) \
+    do { \
+        std::function<void(std::string&)> _fn; \
         { \
-            globalMegaTestHooks.onHookDeviceId((DEVICEID)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHookDeviceId; \
         } \
-    }
+        if (_fn) _fn((DEVICEID)); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED \
-    { \
-        if (globalMegaTestHooks.onHashcashCalculationStarted) \
+    do { \
+        std::function<void()> _fn; \
         { \
-            globalMegaTestHooks.onHashcashCalculationStarted(); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onHashcashCalculationStarted; \
         } \
-    }
+        if (_fn) _fn(); \
+    } while (0)
 
 #define DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(OFFSET) \
-    { \
-        if (globalMegaTestHooks.onMacGenerationChunkRead) \
+    do { \
+        std::function<void(const m_off_t)> _fn; \
         { \
-            globalMegaTestHooks.onMacGenerationChunkRead((OFFSET)); \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onMacGenerationChunkRead; \
         } \
+<<<<<<< HEAD
     }
 
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN) \
@@ -429,6 +612,10 @@ namespace mega {
                 (MEGANODE).reset(); \
             } \
         }
+=======
+        if (_fn) _fn((OFFSET)); \
+    } while (0)
+>>>>>>> ef671003d2 (test: SDK-5360 O-13 mutex-guard MegaTestHooks whole-struct assignment)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)

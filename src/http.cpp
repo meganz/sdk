@@ -305,7 +305,7 @@ void HttpReq::prepareMethod(HttpIO* clientHttpIo, const httpmethod_t reqMethod)
 void HttpReq::post(MegaClient* client, const char* data, size_t len)
 {
     prepareMethod(client->httpio, METHOD_POST);
-    DEBUG_TEST_HOOK_HTTPREQ_POST(this)
+    DEBUG_TEST_HOOK_HTTPREQ_POST(this);
     httpio->post(this, data, len);
 }
 

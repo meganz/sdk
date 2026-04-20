@@ -221,7 +221,7 @@ void RaidBufferManager::setIsRaid(const std::vector<std::string>& tempUrls, m_of
         LOG_debug << "[RaidBufferManager::setIsRaid] unusedRaidConnection = " << unusedRaidConnection;
     }
 
-    DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(this)
+    DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(this);
 }
 
 void RaidBufferManager::updateUrlsAndResetPos(const std::vector<std::string>& tempUrls)
@@ -974,7 +974,7 @@ std::pair<m_off_t, m_off_t> TransferBufferManager::nextNPosForConnection(unsigne
 
                 maxReqSize = static_cast<m_off_t>(maxReqsSize / transfer->slot->connections); // divided by the real number of connections
                 maxReqSize = std::max<m_off_t>(maxReqSize, (1 * 1024 * 1024) * EFFECTIVE_RAIDPARTS); // min 1MB for each raidpart
-                DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize) // Limit max request size if needed
+                DEBUG_TEST_HOOK_LIMIT_MAX_REQ_SIZE(maxReqSize); // Limit max request size if needed
                 maxReqSize = std::min<m_off_t>(maxReqSize, transfer->size); // Not greater than the transfer itself
                 if (transfer->size <= TransferSlot::UPPER_FILESIZE_LIMIT_FOR_SMALLER_CHUNKS)
                 {
