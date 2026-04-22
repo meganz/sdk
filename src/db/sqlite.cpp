@@ -1165,6 +1165,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         if (data && size)
         {
             node.mNode = std::string(static_cast<const char*>(data), static_cast<size_t>(size));
+            node.mMediaTs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 3));
             nodes.insert(nodes.end(), std::make_pair(nodeHandle, std::move(node)));
         }
     }
@@ -1420,6 +1421,19 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
         if (result)
         {
             LOG_err << "Data base error while creating index (listallnodeslabeldescidx): "
+                    << sqlite3_errmsg(db);
+        }
+
+        // Index for ORDER_MEDIATS_ASC and ORDER_MEDIATS_DESC.
+        // A single ASC index suffices for both directions: SQLite can scan a
+        // B-tree index in reverse when every ORDER BY column (mediats, name,
+        // nodehandle) is uniformly DESC, so no dedicated DESC index is needed.
+        sql = "CREATE INDEX IF NOT EXISTS listallnodesmediatsidx on nodes "
+              "(mimetypeVirtual, mediats, name COLLATE NATURALNOCASE, nodehandle)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (listallnodesmediatsidx): "
                     << sqlite3_errmsg(db);
         }
     }
@@ -1742,7 +1756,12 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
     int sqlResult = SQLITE_OK;
     if (!mStmtGetNode)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT counter, node FROM nodes  WHERE nodehandle = ?", -1, &mStmtGetNode, NULL);
+        sqlResult =
+            sqlite3_prepare_v2(db,
+                               "SELECT counter, node, mediats FROM nodes WHERE nodehandle = ?",
+                               -1,
+                               &mStmtGetNode,
+                               NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1766,6 +1785,8 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
                                                        static_cast<size_t>(sizeNodeCounter));
                     nodeSerialized.mNode.assign(static_cast<const char*>(dataNodeSerialized),
                                                 static_cast<size_t>(sizeNodeSerialized));
+                    nodeSerialized.mMediaTs =
+                        static_cast<uint64_t>(sqlite3_column_int64(mStmtGetNode, 2));
                     success = true;
                 }
             }
@@ -1793,7 +1814,12 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByOrigFp)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &mStmtNodeByOrigFp, NULL);
+        sqlResult = sqlite3_prepare_v2(
+            db,
+            "SELECT nodehandle, counter, node, mediats FROM nodes WHERE origfingerprint = ?",
+            -1,
+            &mStmtNodeByOrigFp,
+            NULL);
     }
 
     bool result = false;
@@ -1821,7 +1847,12 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
 
     sqlite3_stmt *stmt = nullptr;
     bool result = false;
-    int sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
+    int sqlResult = sqlite3_prepare_v2(
+        db,
+        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE type >= ? AND type <= ?",
+        -1,
+        &stmt,
+        NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
@@ -1854,13 +1885,13 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     // For example 10 coresponds to IN_SHARES = 0x01 + LINK = 0x08 and 12 corresponds to
     // PENDING_OUTSHARES = 0x04 + LINK = 0x08.
     static constexpr auto sqlQueryInshares =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
+        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
     static constexpr auto sqlQueryOutshares =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
+        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
     static constexpr auto sqlQueryPendingOutshares =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
-    static constexpr auto sqlQueryPubLink =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (8,9,10,11,12,13,14,15)";
+        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
+    static constexpr auto sqlQueryPubLink = "SELECT nodehandle, counter, node, mediats FROM nodes "
+                                            "WHERE share IN (8,9,10,11,12,13,14,15)";
 
     switch (shareType)
     {
@@ -2077,7 +2108,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter,
         // Disabling format for query readability
         // clang-format off
         const std::string sqlQuery =
-            "SELECT nodehandle, counter, node "s +
+            "SELECT nodehandle, counter, node, mediats "s +
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") "
             "AND (flags & " + idVerFlag + ") = 0 " // bound to versionFlag to skip, or 0 to include
@@ -2152,7 +2183,7 @@ bool SqliteAccountState::listChildNodesLexicographically(
                   "(s3keyVirtual = "  + idPageOffName + " AND nodehandle > " + idPageOffHandle + "))"
              : "";
         const std::string sqlQuery =
-            "SELECT nodehandle, counter, node "s +
+            "SELECT nodehandle, counter, node, mediats "s +
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") " // Versions aren't taken in consideration
             + offsetWhere +
@@ -2441,7 +2472,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                                                                              "fav",
                                                                              "label",
                                                                              "description",
-                                                                             "tags"};
+                                                                             "tags",
+                                                                             "mediats"};
         // Output: "nodehandle, parenthandle, flags, ..."
         static const std::string columnsForNodeAndFilters =
             joinStrings(std::cbegin(columnsForNodeAndFiltersVec),
@@ -2459,7 +2491,7 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                         });
 
         static const std::string columnsForNodeAndOrderBy =
-            "nodehandle, counter, node, " // for nodes
+            "nodehandle, counter, node, mediats, " // for nodes
             "type, sizeVirtual, ctime, mtime, name, label, fav"; // for ORDER BY only
 
         using namespace std::string_literals;
@@ -2602,6 +2634,10 @@ std::string buildOrderByForListAll(int order)
             return "CASE WHEN label = 0 THEN 1 ELSE 0 END ASC, label ASC, " + nA + ", " + hA;
         case OrderByClause::LABEL_DESC:
             return "label DESC, " + nA + ", " + hA;
+        case OrderByClause::MEDIATS_ASC:
+            return "mediats ASC, " + nA + ", " + hA;
+        case OrderByClause::MEDIATS_DESC:
+            return "mediats DESC, " + nD + ", " + hD;
         default:
             return nA + ", " + hA;
     }
@@ -2750,11 +2786,12 @@ static const std::string kLabelIsZeroExpr = "(CASE WHEN label = 0 THEN 1 ELSE 0 
 // is left to buildCursorWhereForListAll.
 // Slots used by this function:
 //   DEFAULT_ASC/DESC  : p1=name
-//   SIZE_ASC/DESC     : p1=size,   p2=name
-//   MTIME_ASC/DESC    : p1=mtime,  p2=name
-//   FAV_ASC/DESC      : p1=fav,    p2=name
-//   LABEL_ASC         : p1=isZero, p2=label, p3=name
-//   LABEL_DESC        : p1=label,  p2=name
+//   SIZE_ASC/DESC     : p1=size,    p2=name
+//   MTIME_ASC/DESC    : p1=mtime,   p2=name
+//   FAV_ASC/DESC      : p1=fav,     p2=name
+//   LABEL_ASC         : p1=isZero,  p2=label, p3=name
+//   LABEL_DESC        : p1=label,   p2=name
+//   MEDIATS_ASC/DESC  : p1=mediats, p2=name
 std::string buildBoundingWhereForListAll(int order, int startParam)
 {
     const std::string p1 = "?" + std::to_string(startParam);
@@ -2818,6 +2855,16 @@ std::string buildBoundingWhereForListAll(int order, int startParam)
             return "(label < " + p1 + " OR (label = " + p1 + " AND name >= " + p2 +
                    " COLLATE NATURALNOCASE))";
 
+        case OrderByClause::MEDIATS_ASC:
+            // p1=mediats, p2=name; ORDER BY mediats ASC, name ASC, nodehandle ASC
+            return "(mediats > " + p1 + " OR (mediats = " + p1 + " AND name >= " + p2 +
+                   " COLLATE NATURALNOCASE))";
+
+        case OrderByClause::MEDIATS_DESC:
+            // p1=mediats, p2=name; ORDER BY mediats DESC, name DESC, nodehandle DESC
+            return "(mediats < " + p1 + " OR (mediats = " + p1 + " AND name <= " + p2 +
+                   " COLLATE NATURALNOCASE))";
+
         default:
             return buildBoundingWhereForListAll(OrderByClause::DEFAULT_ASC, startParam);
     }
@@ -2826,12 +2873,13 @@ std::string buildBoundingWhereForListAll(int order, int startParam)
 // Cursor WHERE clause for resuming pagination at the row after the last seen item.
 // `type` is omitted since all results are FILENODEs. startParam is the first ?N slot.
 // Slot layout matches bindCursorParamsForListAll:
-//   DEFAULT_ASC/DESC  : p1=name,   p2=handle
-//   SIZE_ASC/DESC     : p1=size,   p2=name,  p3=handle
-//   MTIME_ASC/DESC    : p1=mtime,  p2=name,  p3=handle
-//   FAV_ASC/DESC      : p1=fav,    p2=name,  p3=handle
-//   LABEL_ASC         : p1=isZero, p2=label, p3=name, p4=handle
-//   LABEL_DESC        : p1=label,  p2=name,  p3=handle
+//   DEFAULT_ASC/DESC  : p1=name,    p2=handle
+//   SIZE_ASC/DESC     : p1=size,    p2=name,  p3=handle
+//   MTIME_ASC/DESC    : p1=mtime,   p2=name,  p3=handle
+//   FAV_ASC/DESC      : p1=fav,     p2=name,  p3=handle
+//   LABEL_ASC         : p1=isZero,  p2=label, p3=name, p4=handle
+//   LABEL_DESC        : p1=label,   p2=name,  p3=handle
+//   MEDIATS_ASC/DESC  : p1=mediats, p2=name,  p3=handle
 std::string buildCursorWhereForListAll(int order, int startParam)
 {
     const std::string p1 = "?" + std::to_string(startParam);
@@ -2926,6 +2974,22 @@ std::string buildCursorWhereForListAll(int order, int startParam)
                    p1 + " AND name = " + p2 + " COLLATE NATURALNOCASE AND nodehandle > " + p3 +
                    "))";
 
+        case OrderByClause::MEDIATS_ASC:
+            // ORDER BY mediats ASC, name ASC, nodehandle ASC
+            return "(mediats > " + p1 + " OR (mediats = " + p1 + " AND name > " + p2 +
+                   " COLLATE NATURALNOCASE)"
+                   " OR (mediats = " +
+                   p1 + " AND name = " + p2 + " COLLATE NATURALNOCASE AND nodehandle > " + p3 +
+                   "))";
+
+        case OrderByClause::MEDIATS_DESC:
+            // ORDER BY mediats DESC, name DESC, nodehandle DESC
+            return "(mediats < " + p1 + " OR (mediats = " + p1 + " AND name < " + p2 +
+                   " COLLATE NATURALNOCASE)"
+                   " OR (mediats = " +
+                   p1 + " AND name = " + p2 + " COLLATE NATURALNOCASE AND nodehandle < " + p3 +
+                   "))";
+
         default:
             return buildCursorWhereForListAll(OrderByClause::DEFAULT_ASC, startParam);
     }
@@ -3003,6 +3067,15 @@ bool bindCursorParamsForListAll(int& sqlResult,
             bindValue(sqlResult, stmt, kP3, h, bindI64);
             break;
 
+        case OrderByClause::MEDIATS_ASC:
+        case OrderByClause::MEDIATS_DESC:
+            if (!cursor.mLastMediaTs.has_value())
+                return false;
+            bindValue(sqlResult, stmt, kP1, *cursor.mLastMediaTs, bindI64);
+            bindText(sqlResult, stmt, kP2, cursor.mLastName);
+            bindValue(sqlResult, stmt, kP3, h, bindI64);
+            break;
+
         default:
             return bindCursorParamsForListAll(sqlResult,
                                               stmt,
@@ -3051,7 +3124,7 @@ bool bindTimestampAnchorParamForListAll(int& sqlResult,
 // Result columns for listAllNodesByPage (omits ctime, which no sort order uses).
 const std::string& listAllNodesResultCols()
 {
-    static const std::string s{"nodehandle, counter, node, "
+    static const std::string s{"nodehandle, counter, node, mediats, "
                                "type, sizeVirtual, mtime, name, label, fav"};
     return s;
 }
@@ -4192,7 +4265,7 @@ bool SqliteAccountState::getNodesByFingerprintNoMtime(
     {
         sqlResult = sqlite3_prepare_v2(
             db,
-            "SELECT nodehandle, counter, node FROM nodes WHERE fingerprintVirtual = ?",
+            "SELECT nodehandle, counter, node, mediats FROM nodes WHERE fingerprintVirtual = ?",
             -1,
             &mStmtNodesByFpNoMtime,
             NULL);
@@ -4231,7 +4304,12 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByFp)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE fingerprint = ? LIMIT 1", -1, &mStmtNodeByFp, NULL);
+        sqlResult = sqlite3_prepare_v2(
+            db,
+            "SELECT nodehandle, counter, node, mediats FROM nodes WHERE fingerprint = ? LIMIT 1",
+            -1,
+            &mStmtNodeByFp,
+            NULL);
     }
 
     bool result = false;
@@ -4271,7 +4349,7 @@ bool SqliteAccountState::getRecentNodes(const NodeSearchPage& page,
     constexpr uint64_t excludeFlags =
         (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
     static const std::string filenode = std::to_string(FILENODE);
-    static const std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+    static const std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node, n1.mediats "
                                         "FROM nodes n1 "
                                         "WHERE n1.flags & " +
                                         std::to_string(excludeFlags) +
@@ -4358,7 +4436,8 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
         return success;
     }
 
-    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name = ? AND type = ? limit 1";
+    std::string sqlQuery = "SELECT nodehandle, counter, node, mediats FROM nodes WHERE "
+                           "parenthandle = ? AND name = ? AND type = ? limit 1";
 
     int sqlResult = SQLITE_OK;
     if (!mStmtChildNode)
@@ -4825,6 +4904,10 @@ std::string OrderByClause::get(int order)
             return "fav DESC," + typeSort + ", " + nameSort;
         case FAV_DESC:
             return "fav, " + typeSort + ", " + nameSort;
+        case MEDIATS_ASC:
+            return typeSort + ", " + "mediats, " + nameSort;
+        case MEDIATS_DESC:
+            return typeSort + ", " + "mediats DESC, " + nameSort + " DESC";
         default:
             return typeSort + ", " + nameSort;
     }

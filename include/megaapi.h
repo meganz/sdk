@@ -1348,6 +1348,23 @@ class MegaNode
         virtual int64_t getModificationTime();
 
         /**
+         * @brief Returns the media capture timestamp of the node in milliseconds since epoch (UTC).
+         *
+         * This is the best-effort capture time for media files (photos, videos, audio).
+         * It is derived from the filename pattern, modification time, or creation time,
+         * in that priority order.
+         *
+         * The returned value is only meaningful for media file nodes (photo/video/audio).
+         * For non-media nodes, returns 0.
+         *
+         * Note: unlike getCreationTime() / getModificationTime() which return seconds,
+         * this method returns milliseconds. The "Ms" suffix makes the unit explicit.
+         *
+         * @return Media capture timestamp in milliseconds since epoch (UTC), or 0 if not available
+         */
+        virtual int64_t getMediaCaptureTimeMs();
+
+        /**
          * @brief Returns a handle to identify this MegaNode
          *
          * You can use MegaApi::getNodeByHandle to recover the node later.
@@ -10949,6 +10966,7 @@ public:
  *   ORDER_MODIFICATION_ASC / _DESC             : setLastName, setLastHandle, setLastMtime
  *   ORDER_LABEL_ASC / ORDER_LABEL_DESC         : setLastName, setLastHandle, setLastLabel
  *   ORDER_FAV_ASC   / ORDER_FAV_DESC           : setLastName, setLastHandle, setLastFav
+ *   ORDER_MEDIATS_ASC / ORDER_MEDIATS_DESC     : setLastName, setLastHandle, setLastMediaTsMs
  *
  * Note on ORDER_FAV_ASC / ORDER_FAV_DESC naming:
  *   Despite the "ASC" / "DESC" suffix, both orders sort non-favourites and
@@ -11032,6 +11050,18 @@ public:
     virtual void setLastFav(int lastFav);
 
     /**
+     * @brief Set the media capture timestamp of the last node returned in the previous page.
+     *
+     * Required for ORDER_MEDIATS_ASC / ORDER_MEDIATS_DESC.
+     *
+     * Note: the value is in milliseconds, unlike setLastMtime() which is in seconds.
+     * The "Ms" suffix makes the unit explicit.
+     *
+     * @param lastMediaTsMs Media capture timestamp in milliseconds since epoch (UTC).
+     */
+    virtual void setLastMediaTsMs(int64_t lastMediaTsMs);
+
+    /**
      * @brief Return the name of the last node.
      * @return Name set via setLastName(), or nullptr if not set.
      */
@@ -11066,6 +11096,17 @@ public:
      * @return Fav value set via setLastFav(), or -1 if not set.
      */
     virtual int getLastFav() const;
+
+    /**
+     * @brief Return the media capture timestamp of the last node in milliseconds.
+     *
+     * Note: -1 is used as the "not set" sentinel. It is technically a valid negative
+     * millisecond timestamp (1 ms before the Unix epoch), but no real media file is
+     * expected to carry such a value, so -1 remains an unambiguous sentinel in practice.
+     *
+     * @return MediaTs in milliseconds set via setLastMediaTsMs(), or -1 if not set.
+     */
+    virtual int64_t getLastMediaTsMs() const;
 };
 
 /**
@@ -19521,6 +19562,8 @@ class MegaApi
             ORDER_FAV_DESC = 20,
             ORDER_SHARE_CREATION_ASC = 21,
             ORDER_SHARE_CREATION_DESC = 22,
+            ORDER_MEDIATS_ASC = 23,
+            ORDER_MEDIATS_DESC = 24,
         };
 
         enum
@@ -19644,6 +19687,12 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
+         *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
          */
@@ -19657,13 +19706,14 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
-         * to MegaCancelToken::setCancelFlag(true).
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken
+         * and calling to MegaCancelToken::setCancelFlag(true).
          *
          * @param filter Container for filtering options. In order to be considered valid it must
          * - be not null
-         * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
-         *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
+         * - have valid ancestor handle (different than INVALID_HANDLE) set by calling
+         * byLocationHandle(), and in consequence it must have default value for location
+         * (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
          *
          * Note: First, the nodes are always sorted by type, being folders always first. Then, the
@@ -19708,6 +19758,12 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
+         *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
@@ -19769,6 +19825,12 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
+         *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
          *
          * @return List with all child MegaNode objects
          */
@@ -20863,6 +20925,12 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
+         *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
          *
@@ -20899,8 +20967,9 @@ class MegaApi
          *   - ORDER_DEFAULT_ASC      / ORDER_DEFAULT_DESC
          *   - ORDER_SIZE_ASC         / ORDER_SIZE_DESC
          *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
-         *   - ORDER_LABEL_ASC        / ORDER_LABEL_DESC
-         *   - ORDER_FAV_ASC          / ORDER_FAV_DESC
+         *   - ORDER_LABEL_ASC    / ORDER_LABEL_DESC
+         *   - ORDER_FAV_ASC      / ORDER_FAV_DESC
+         *   - ORDER_MEDIATS_ASC  / ORDER_MEDIATS_DESC
          *
          * To build a cursor for the next page, populate a MegaSearchCursorOffset
          * from the last MegaNode in the returned list. The fields required

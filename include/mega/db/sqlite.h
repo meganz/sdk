@@ -411,7 +411,9 @@ public:
         LABEL_ASC = 17, LABEL_DESC,
         FAV_ASC,
         FAV_DESC,
-        LAST = FAV_DESC // largest value; bump when adding orders (cache-key stride base)
+        MEDIATS_ASC = 23,
+        MEDIATS_DESC,
+        LAST = MEDIATS_DESC // largest value; bump when adding orders (cache-key stride base)
     };
 };
 

@@ -230,6 +230,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
     this->mtime = node->getModificationTime();
+    this->mMediaTs = node->getMediaCaptureTimeMs();
     this->nodehandle = node->getHandle();
     this->parenthandle = node->getParentHandle();
     mIsNodeKeyDecrypted = node->isNodeKeyDecrypted();
@@ -516,6 +517,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->size = node->size;
     this->ctime = node->ctime;
     this->mtime = node->mtime;
+    this->mMediaTs = static_cast<int64_t>(node->getMediaTs());
     this->nodehandle = node->nodehandle;
     this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
     this->owner = node->owner;
@@ -953,6 +955,11 @@ int64_t MegaNodePrivate::getCreationTime()
 int64_t MegaNodePrivate::getModificationTime()
 {
     return mtime;
+}
+
+int64_t MegaNodePrivate::getMediaCaptureTimeMs()
+{
+    return mMediaTs;
 }
 
 MegaHandle MegaNodePrivate::getRestoreHandle()
@@ -13353,7 +13360,8 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
-           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC));
+           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC) ||
+           (MegaApi::ORDER_MEDIATS_ASC <= order && order <= MegaApi::ORDER_MEDIATS_DESC));
 
     if (!filter ||
         (filter->byNodeType() == MegaNode::TYPE_FOLDER && filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT))
@@ -13698,6 +13706,20 @@ std::optional<ListAllNodesParams>
         case MegaApi::ORDER_LABEL_DESC:
         case MegaApi::ORDER_FAV_ASC:
         case MegaApi::ORDER_FAV_DESC:
+            break;
+        case MegaApi::ORDER_MEDIATS_ASC:
+        case MegaApi::ORDER_MEDIATS_DESC:
+            if (megaCursor)
+            {
+                const int64_t lastMediaTsMs = megaCursor->getLastMediaTsMs();
+                if (lastMediaTsMs < 0)
+                {
+                    LOG_warn << "listAllNodesByPage: cursor has missing or invalid last mediats: "
+                             << lastMediaTsMs;
+                    return new MegaNodeListPrivate();
+                }
+                c.mLastMediaTs = lastMediaTsMs;
+            }
             break;
         default:
             LOG_warn << "listAllNodesByPage: unsupported order value: " << order;
@@ -19453,7 +19475,8 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
-           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC));
+           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC) ||
+           (MegaApi::ORDER_MEDIATS_ASC <= order && order <= MegaApi::ORDER_MEDIATS_DESC));
 
     // validations
     if (!filter || filter->byLocationHandle() == INVALID_HANDLE ||

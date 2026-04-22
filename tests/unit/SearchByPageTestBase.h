@@ -427,6 +427,14 @@ protected:
             case OrderByClause::FAV_DESC:
                 c.mLastFav = m.fav;
                 break;
+            case OrderByClause::MEDIATS_ASC:
+            case OrderByClause::MEDIATS_DESC:
+                // mediats is a derived value (filename/mtime/ctime) computed by
+                // putNodeInDb(). Read the live value from the Node rather than
+                // duplicating the derivation in NodeMeta.
+                if (auto node = mClient->mNodeManager.getNodeByHandle(h))
+                    c.mLastMediaTs = static_cast<int64_t>(node->getMediaTs());
+                break;
             default:
                 break;
         }

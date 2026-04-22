@@ -505,6 +505,11 @@ int64_t MegaNode::getModificationTime()
     return 0;
 }
 
+int64_t MegaNode::getMediaCaptureTimeMs()
+{
+    return 0;
+}
+
 MegaHandle MegaNode::getHandle() const
 {
     return INVALID_HANDLE;
@@ -7793,6 +7798,8 @@ void MegaSearchCursorOffset::setLastLabel(int /*lastLabel*/) {}
 
 void MegaSearchCursorOffset::setLastFav(int /*lastFav*/) {}
 
+void MegaSearchCursorOffset::setLastMediaTsMs(int64_t /*lastMediaTsMs*/) {}
+
 const char* MegaSearchCursorOffset::getLastName() const
 {
     return nullptr;
@@ -7819,6 +7826,11 @@ int MegaSearchCursorOffset::getLastLabel() const
 }
 
 int MegaSearchCursorOffset::getLastFav() const
+{
+    return -1;
+}
+
+int64_t MegaSearchCursorOffset::getLastMediaTsMs() const
 {
     return -1;
 }

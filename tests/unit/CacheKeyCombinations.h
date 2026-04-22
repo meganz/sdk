@@ -39,8 +39,8 @@ inline constexpr std::array<MimeType_t, 14> kAllMimeTypes{{
 static_assert(kAllMimeTypes.size() == static_cast<size_t>(MIME_TYPE_MAX) + 1,
               "kAllMimeTypes out of sync with MimeType_t — add the new value");
 
-// All currently valid OrderByClause values (with gaps 9..16 omitted).
-inline constexpr std::array<int, 12> kAllValidOrders{{
+// All currently valid OrderByClause values (with gaps 9..16 and 21..22 omitted).
+inline constexpr std::array<int, 14> kAllValidOrders{{
     OrderByClause::DEFAULT_ASC,
     OrderByClause::DEFAULT_DESC,
     OrderByClause::SIZE_ASC,
@@ -53,6 +53,8 @@ inline constexpr std::array<int, 12> kAllValidOrders{{
     OrderByClause::LABEL_DESC,
     OrderByClause::FAV_ASC,
     OrderByClause::FAV_DESC,
+    OrderByClause::MEDIATS_ASC,
+    OrderByClause::MEDIATS_DESC,
 }};
 // Tripwire for a new order pair appended after FAV_DESC (which moves OrderByClause::LAST).
 // Won't catch re-use of a reserved gap (9..16), but those are obsolete slots.

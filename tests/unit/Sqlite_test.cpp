@@ -1883,11 +1883,15 @@ TEST_F(ListAllNodesByPageTest, Sensitive_ResultIsSubsetWhenEnabled)
 //  Only the nodehandle differs between nodes, so every sort order that reaches the
 //  nodehandle tiebreaker is exercised in its pure form.
 //
-//  Dataset: ROOT + 5 file nodes, all "tied.txt" (MIME_TYPE_DOCUMENT)
-//    size  = 500        (constant → SIZE sorts tie after primary key)
-//    mtime = 1'900'000'000  (constant → MTIME sorts tie)
-//    label = 2          (nonzero → LABEL_ASC isZero=0; all in same label bucket)
-//    fav   = 0
+//  Dataset: ROOT + 5 file nodes, all "tied.jpg" (MIME_TYPE_PHOTO)
+//    size    = 500                  (constant → SIZE sorts tie after primary key)
+//    mtime   = 1'900'000'000        (constant → MTIME sorts tie)
+//    label   = 2                    (nonzero → LABEL_ASC isZero=0; same label bucket)
+//    fav     = 0
+//    mediats = mtime * 1000 = 1'900'000'000'000  (derived; ties across all nodes)
+//  Extension is .jpg (not .txt) so mediats carries a real non-zero value — a
+//  tied-at-zero mediats would degenerate to a trivial case and mask bugs in
+//  integer comparison / column indexing / sign handling.
 //  Handles are assigned sequentially during insertion:
 //    mTiedHandles[0] has the smallest handle, mTiedHandles[4] the largest.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1895,11 +1899,13 @@ TEST_F(ListAllNodesByPageTest, Sensitive_ResultIsSubsetWhenEnabled)
 class TieBreakTest: public SearchByPageTest
 {
 protected:
-    static constexpr MimeType_t TEST_MIME = MIME_TYPE_DOCUMENT;
+    static constexpr MimeType_t TEST_MIME = MIME_TYPE_PHOTO;
     static constexpr int64_t kTiedSize = 500;
     static constexpr int64_t kTiedMtime = 1'900'000'000LL;
     static constexpr int kTiedLabel = 2;
     static constexpr int kNumTied = 5;
+    // Filename has no embedded timestamp, so mediats falls back to mtime * 1000.
+    static constexpr int64_t kExpectedMediats = kTiedMtime * 1000LL;
 
     std::vector<NodeHandle> mTiedHandles; ///< insertion order = ascending handle order
 
@@ -1911,13 +1917,17 @@ protected:
         for (int i = 0; i < kNumTied; ++i)
         {
             NodeMeta m;
-            m.name = "tied.txt";
+            m.name = "tied.jpg";
             m.size = kTiedSize;
             m.mtime = kTiedMtime;
             m.label = kTiedLabel;
             m.fav = 0;
             auto node = addNode(FILENODE, root, m);
             mTiedHandles.push_back(node->nodeHandle());
+
+            // Sanity-check the fixture: mediats must carry the expected real
+            // value so MEDIATS tie-break tests exercise the non-zero path.
+            ASSERT_EQ(static_cast<int64_t>(node->getMediaTs()), kExpectedMediats);
         }
         // mTiedHandles[0].as8byte() < … < mTiedHandles[4].as8byte()
     }
@@ -2056,6 +2066,48 @@ TEST_F(TieBreakTest, DefaultDesc_TiedName_UsesNodehandleDescTieBreak)
     assertTiedHandleOrder(collectAllByPage(OrderByClause::DEFAULT_DESC, 2),
                           /*ascending=*/false,
                           "DEFAULT_DESC");
+}
+
+// G5. MEDIATS_ASC with tied (mediats, name) – nodehandle ASC breaks the tie.
+//     Exercises buildCursorWhereForListAll (MEDIATS_ASC):
+//       mediats = p1 AND name = p2 AND nodehandle > p3
+TEST_F(TieBreakTest, MediaTsAsc_TiedMediatsAndName_UsesNodehandleTieBreak)
+{
+    const auto paged = collectAllByPage(OrderByClause::MEDIATS_ASC, 2);
+    ASSERT_EQ(paged.size(), static_cast<size_t>(kNumTied));
+
+    const std::set<NodeHandle> unique(paged.begin(), paged.end());
+    ASSERT_EQ(unique.size(), paged.size()) << "duplicate handles in MEDIATS_ASC tied result";
+
+    for (size_t i = 1; i < paged.size(); ++i)
+    {
+        EXPECT_GT(paged[i].as8byte(), paged[i - 1].as8byte())
+            << "nodehandle did not advance (ASC) in MEDIATS_ASC tied sequence at index " << i;
+    }
+
+    EXPECT_EQ(paged, mTiedHandles)
+        << "MEDIATS_ASC tied result does not match handle-ascending order";
+}
+
+// G6. MEDIATS_DESC with tied (mediats, name) – nodehandle DESC breaks the tie.
+//     Exercises buildCursorWhereForListAll (MEDIATS_DESC):
+//       mediats = p1 AND name = p2 AND nodehandle < p3
+TEST_F(TieBreakTest, MediaTsDesc_TiedMediatsAndName_UsesNodehandleDescTieBreak)
+{
+    const auto paged = collectAllByPage(OrderByClause::MEDIATS_DESC, 2);
+    ASSERT_EQ(paged.size(), static_cast<size_t>(kNumTied));
+
+    const std::set<NodeHandle> unique(paged.begin(), paged.end());
+    ASSERT_EQ(unique.size(), paged.size()) << "duplicate handles in MEDIATS_DESC tied result";
+
+    for (size_t i = 1; i < paged.size(); ++i)
+    {
+        EXPECT_LT(paged[i].as8byte(), paged[i - 1].as8byte())
+            << "nodehandle did not decrease (DESC) in MEDIATS_DESC tied sequence at index " << i;
+    }
+
+    const std::vector<NodeHandle> expected(mTiedHandles.rbegin(), mTiedHandles.rend());
+    EXPECT_EQ(paged, expected) << "MEDIATS_DESC tied result does not match handle-descending order";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3332,7 +3384,7 @@ size_t oracleComputeListAllCacheId(MimeType_t mimeType,
                                    size_t numExcludes,
                                    FavouriteFilter_t favourite)
 {
-    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::FAV_DESC) + 1;
+    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::MEDIATS_DESC) + 1;
     constexpr size_t maxRoots = 3; // mirrors kListAllMaxLocationHandles
     constexpr size_t maxExcludes = 3;
     constexpr size_t anchorStride = 3;
@@ -3360,7 +3412,7 @@ size_t oracleComputeDateSectionsCacheId(MimeType_t mimeType,
                                         size_t numExcludes,
                                         FavouriteFilter_t favourite)
 {
-    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::FAV_DESC) + 1;
+    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::MEDIATS_DESC) + 1;
     constexpr size_t maxRoots = 3;
     constexpr size_t maxExcludes = 3;
     constexpr size_t subtypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
@@ -3427,7 +3479,7 @@ TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
                                             << " fav=" << static_cast<int>(fav);
                                         ++checked;
                                     }
-    EXPECT_EQ(checked, 14u * 3u * 12u * 2u * 3u * 2u * 3u * 4u * 3u); // 217728
+    EXPECT_EQ(checked, 14u * 3u * 14u * 2u * 3u * 2u * 3u * 4u * 3u); // 254016
 }
 
 TEST(CacheKeyBuilder, DateSections_MatchesOracleArithmetic)
@@ -3467,7 +3519,7 @@ TEST(CacheKeyBuilder, DateSections_MatchesOracleArithmetic)
                                         << " fav=" << static_cast<int>(fav);
                                     ++checked;
                                 }
-    EXPECT_EQ(checked, 14u * 3u * 12u * 3u * 2u * 3u * 4u * 3u); // 108864
+    EXPECT_EQ(checked, 14u * 3u * 14u * 3u * 2u * 3u * 4u * 3u); // 127008
 }
 
 TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)

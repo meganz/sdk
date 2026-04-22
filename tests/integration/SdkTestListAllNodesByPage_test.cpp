@@ -86,6 +86,10 @@ std::unique_ptr<MegaSearchCursorOffset> makeCursor(MegaNode* node, int order)
         case MegaApi::ORDER_FAV_DESC:
             cursor->setLastFav(node->isFavourite() ? 1 : 0);
             break;
+        case MegaApi::ORDER_MEDIATS_ASC:
+        case MegaApi::ORDER_MEDIATS_DESC:
+            cursor->setLastMediaTsMs(node->getMediaCaptureTimeMs());
+            break;
         default:
             break;
     }
@@ -309,6 +313,10 @@ TEST_F(SdkTestListAllNodesByPage, AllOrders_Photo_Pagination)
         {"FAV_ASC",      MegaApi::ORDER_FAV_ASC,      {"delta.jpg", "golf.jpg"},  {"alpha.jpg"}},
         // FAV_DESC = ORDER BY fav ASC,  name ASC → non-fav (alpha) first, then delta,golf
         {"FAV_DESC",     MegaApi::ORDER_FAV_DESC,     {"alpha.jpg", "delta.jpg"}, {"golf.jpg"}},
+        // MEDIATS_ASC = ORDER BY mediats ASC → alpha(7h ago, oldest) < delta(4h) < golf(1h, newest)
+        {"MEDIATS_ASC",  MegaApi::ORDER_MEDIATS_ASC,  {"alpha.jpg", "delta.jpg"}, {"golf.jpg"}},
+        // MEDIATS_DESC = ORDER BY mediats DESC → golf(1h, newest) > delta(4h) > alpha(7h ago, oldest)
+        {"MEDIATS_DESC", MegaApi::ORDER_MEDIATS_DESC, {"golf.jpg",  "delta.jpg"}, {"alpha.jpg"}},
     };
     // clang-format on
 
@@ -435,6 +443,8 @@ TEST_F(SdkTestListAllNodesByPage, InvalidInputs_ReturnEmpty)
          [&](MegaSearchCursorOffset* c){ c->setLastName(alpha->getName()); c->setLastHandle(alpha->getHandle()); c->setLastLabel(99); }},
         {"invalid fav (2) for FAV order",         MegaApi::ORDER_FAV_ASC,
          [&](MegaSearchCursorOffset* c){ c->setLastName(alpha->getName()); c->setLastHandle(alpha->getHandle()); c->setLastFav(2); }},
+        {"missing mediats for MEDIATS order",                  MegaApi::ORDER_MEDIATS_ASC,
+         [&](MegaSearchCursorOffset* c){ c->setLastName(alpha->getName()); c->setLastHandle(alpha->getHandle()); }},
         {"unsupported order with cursor (ORDER_CREATION_ASC)", MegaApi::ORDER_CREATION_ASC,
          [&](MegaSearchCursorOffset* c){ c->setLastName(alpha->getName()); c->setLastHandle(alpha->getHandle()); }},
     };

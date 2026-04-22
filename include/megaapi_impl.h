@@ -1062,6 +1062,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t getSize() override;
         int64_t getCreationTime() override;
         int64_t getModificationTime() override;
+        int64_t getMediaCaptureTimeMs() override;
         MegaHandle getHandle() const override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
@@ -1136,6 +1137,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t size;
         int64_t ctime;
         int64_t mtime;
+        int64_t mMediaTs = 0;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
         MegaHandle restorehandle = UNDEF;
@@ -4052,6 +4054,11 @@ public:
         mLastFav = lastFav;
     }
 
+    void setLastMediaTsMs(int64_t lastMediaTsMs) override
+    {
+        mLastMediaTs = lastMediaTsMs;
+    }
+
     const char* getLastName() const override
     {
         return mLastName.c_str();
@@ -4082,6 +4089,11 @@ public:
         return mLastFav;
     }
 
+    int64_t getLastMediaTsMs() const override
+    {
+        return mLastMediaTs;
+    }
+
 private:
     std::string mLastName;
     MegaHandle mLastHandle = INVALID_HANDLE;
@@ -4089,6 +4101,7 @@ private:
     int64_t mLastMtime = -1;
     int mLastLabel = -1;
     int mLastFav = -1;
+    int64_t mLastMediaTs = -1;
 };
 
 class MegaGfxProviderPrivate : public MegaGfxProvider

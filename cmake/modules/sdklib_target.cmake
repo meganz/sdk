@@ -80,6 +80,7 @@ set(SDKLIB_HEADERS
     include/mega/version.h
     include/mega/node.h
     include/mega/mediafileattribute.h
+    include/mega/mediats_utils.h
     include/mega/process.h
     include/mega/name_collision.h
     include/mega/name_id.h

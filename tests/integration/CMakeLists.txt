@@ -61,6 +61,7 @@ target_sources(test_integration
     SdkTestListAllNodesByPage_test.cpp
     SdkTestTransferResume_test.cpp
     SdkTestNodeDateSections_test.cpp
+    SdkTestMediatsIntegration_test.cpp
     sdk_test_share.cpp
     sdk_test_share_nested.cpp
     SdkTestMassiveActionPackets_test.cpp

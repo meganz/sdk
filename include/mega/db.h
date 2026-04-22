@@ -39,6 +39,7 @@ class NodeSerialized
 public:
     std::string mNode;
     std::string mNodeCounter;
+    uint64_t mMediaTs = 0;
 };
 
 enum class DBError
