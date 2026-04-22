@@ -2923,7 +2923,11 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
             });
     }
 
-    if (resultFuture.wait_for(std::chrono::milliseconds(50)) != std::future_status::ready)
+    // Non-blocking poll: if the client thread has not yet run the posted action,
+    // return false so the pool worker releases uploadMutex and retries. This
+    // avoids a circular wait where the pool worker holds uploadMutex while the
+    // client thread needs it to service the posted preflight action.
+    if (resultFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
     {
         return false;
     }

@@ -2321,9 +2321,6 @@ public:
                 if (poolEligible && !f->paused() && f->continuingUpload(currentTime) &&
                     f->hasPendingBytesOrEofToSend())
                 {
-                    LOG_debug << "[UploadEngine::Impl::nextEligible] poolEligible && "
-                                 "!f->paused() && f->continuingUpload -> process file"
-                              << " [this = " << this << "]";
                     const auto& hint = f->sessionUrlHint();
                     if (requiredSessionUrl)
                     {
@@ -2354,21 +2351,7 @@ public:
                         return f;
                     }
 
-                    LOG_debug << "[UploadEngine::Impl::nextEligible] !f->size(=" << f->size()
-                              << ") >= min(=" << min << ") && (!max(=" << max
-                              << ") || f->size(=" << f->size() << ") < max(=" << max
-                              << ")) -> no process file, set consecutive=false and continue [this = "
-                              << this << "]";
-
                     consecutive = false;
-                }
-                else
-                {
-                    LOG_debug << "[UploadEngine::Impl::nextEligible] !poolEligible || "
-                                 "f->paused() || "
-                                 "!f->continuingUpload -> continue || "
-                                 "! f->hasPendingBytesOrEofToSend() [this = "
-                              << this << "]";
                 }
 
                 ++it;
