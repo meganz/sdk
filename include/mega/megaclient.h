@@ -547,13 +547,22 @@ class MEGA_API MegaClient
 
     std::deque<std::unique_ptr<WsVerifyPending>> mWsVerifyPending;
     std::atomic<bool> mWsCanStartAnotherFile{true};
+    enum class WsPreflightState : std::uint8_t
+    {
+        Queued,
+        Running,
+        Ready,
+        Failed
+    };
     struct WsPreflightRequest
     {
         UploadHandle uploadHandle{};
         std::shared_future<bool> future;
+        WsPreflightState state{WsPreflightState::Queued};
     };
     std::mutex mWsPreflightMutex;
     std::unordered_map<Transfer*, WsPreflightRequest> mWsPreflightRequests;
+    dstime mWsPreflightLastCleanupDs{0};
 
     struct WsFailureRequeuePosition
     {
@@ -641,7 +650,7 @@ public:
 
     void installWsEngineCallbacks();
     bool wsCanStartAnotherFile() const;
-    bool wsPrepareUploadForWsSync(Transfer& t);
+    ws::UploadEngine::PreflightStartResult wsPrepareUploadForWsSync(Transfer& t);
     bool prepareUploadForWs(Transfer& t);
     bool wsIsTransferAlive(direction_t type, const Transfer* tp) const;
 

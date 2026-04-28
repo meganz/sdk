@@ -49,6 +49,13 @@ InboundFrameValidationResult validateInboundFrame(const char* msg, int len);
 class UploadEngine
 {
 public:
+    enum class PreflightStartResult : std::uint8_t
+    {
+        Ready,        // preflight completed and result consumable now
+        Pending,      // queued/running (or racing with completion)
+        NotScheduled, // rejected before queueing (e.g. back-pressure cap)
+    };
+
     enum class FailureDisposition : std::uint8_t
     {
         Retryable,
@@ -68,11 +75,11 @@ public:
     // if required.
     struct Callbacks
     {
-        // Preflight before starting a new file. Return false to defer the start.
+
+        // Preflight before starting a new file.
         // Use this to run the upload "prep" that dispatchTransfers() performs for legacy PUTs
-        // (e.g., FA scheduling, metadata checks). The engine will keep the file queued and
-        // retry later until true is returned.
-        std::function<bool(Transfer&)> preflightStart;
+        // (e.g., FA scheduling, metadata checks).
+        std::function<PreflightStartResult(Transfer&)> preflightStart;
 
         // File selected to start sending (first chunk about to be read)
         std::function<void(Transfer&)> onStart;
@@ -158,6 +165,9 @@ public:
 
     // Hint the engine that conditions may have changed (e.g. FA queue).
     void kick();
+
+    // Wake worker threads waiting for preflight completion or new work.
+    void notifyWorkers();
 
     // Hint WS worker threads to drop current socket sessions and reconnect later.
     // Useful to keep disconnect semantics aligned with legacy HTTP transfers.

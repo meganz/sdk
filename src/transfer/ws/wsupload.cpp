@@ -5,6 +5,7 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
+#include <condition_variable>
 #include <cstddef> // offsetof
 #include <cstdint>
 #include <cstdlib>
@@ -1199,6 +1200,7 @@ struct WsPool
     int mNumPoolFiles{0};
     WsUploadFile* mUploadingFile{nullptr};
     std::uint32_t mUFTQversion{0};
+    bool mPreflightPending{false};
 
     dstime mPoolCreationTime{SteadyTime::ds()};
     std::string mUrl;
@@ -1343,6 +1345,7 @@ struct WsPool
     }
 
     bool getWsUploadFile(dstime now, class UploadEngine::Impl& impl);
+    WsUploadFile* findPreflightReadyCandidate(class UploadEngine::Impl& impl);
     WsUploadFile* findFile(std::uint32_t fileno, class UploadEngine::Impl& impl);
     bool nextChunk(WsChunk& chunk, class UploadEngine::Impl& impl, dstime* retryAfterDs = nullptr);
     void retryChunkLocked(const WsChunk& chunk);
@@ -1671,6 +1674,8 @@ public:
             for (auto& th: p->mExitingThreads)
                 th->terminate = true;
         }
+
+        notifyWorkersLocked();
     }
 
     bool stopping() const
@@ -2185,9 +2190,23 @@ public:
                   << "] [this = " << this << "]";
     }
 
+    // Requires uploadMutex to be held by caller.
+    void notifyWorkersLocked()
+    {
+        ++workerWakeEpoch;
+        workerWakeCv.notify_all();
+    }
+
+    void notifyWorkers()
+    {
+        std::lock_guard<std::mutex> g(uploadMutex);
+        notifyWorkersLocked();
+    }
+
     void notifyNetworkDisconnect()
     {
         disconnectEpoch.fetch_add(1, std::memory_order_release);
+        notifyWorkers();
     }
 
     unsigned char poolConnectionLimit() const
@@ -2321,6 +2340,13 @@ public:
                 if (poolEligible && !f->paused() && f->continuingUpload(currentTime) &&
                     f->hasPendingBytesOrEofToSend())
                 {
+                    // Retiring pools only drain already-owned files, shall not pick any new unbound work.
+                    if (requestingPool && requestingPool->mRetiring && !f->hasPool())
+                    {
+                        ++it;
+                        continue;
+                    }
+
                     const auto& hint = f->sessionUrlHint();
                     if (requiredSessionUrl)
                     {
@@ -2403,9 +2429,11 @@ public:
     WsPoolMgr poolMgr;
 
     mutable std::mutex uploadMutex;
+    std::condition_variable workerWakeCv;
     std::thread uploadThread;
     std::atomic<bool> uploadThreadRunning{false};
     std::atomic<std::uint64_t> disconnectEpoch{0};
+    std::uint64_t workerWakeEpoch{0};
     std::atomic<bool> mStopping{false};
 
     dstime currentTime{0};
@@ -3234,8 +3262,42 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
 }
 
 // ========== WsPool ==========
+
+WsUploadFile* WsPool::findPreflightReadyCandidate(UploadEngine::Impl& impl)
+{
+    const std::size_t scanBudget = impl.fileList.size();
+    for (std::size_t scanned = 0; scanned < scanBudget; ++scanned)
+    {
+        auto* candidate = impl.nextEligible(mMinFileSize, mMaxFileSize, mPinned ? &mUrl : nullptr, this);
+        if (!candidate)
+        {
+            break;
+        }
+
+        if (impl.mCb.preflightStart)
+        {
+            const auto preflightResult = impl.mCb.preflightStart(candidate->transfer());
+            if (preflightResult != UploadEngine::PreflightStartResult::Ready)
+            {
+                mPreflightPending = true;
+                continue;
+            }
+        }
+
+        // A ready candidate was selected in this round, clear pending hints.
+        mPreflightPending = false;
+        return candidate;
+    }
+
+    return nullptr;
+}
+
 bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
 {
+    // Mark true when we observe preflight pending (queued/running) so worker threads
+    // use short CV waits instead of coarse decisecond sleeps.
+    mPreflightPending = false;
+
     if (mUploadingFile && !mUploadingFile->paused() && mUploadingFile->continuingUpload(now) &&
         mUploadingFile->hasPendingBytesOrEofToSend() && mUFTQversion == impl.queueVersion)
     {
@@ -3246,71 +3308,52 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
         return true;
     }
 
-    auto* f = impl.nextEligible(mMinFileSize, mMaxFileSize, mPinned ? &mUrl : nullptr, this);
-    if (f)
+    // Back‑pressure gate: defer starting a new file while FA pipeline is saturated
+    if (impl.mCb.canStartAnotherFile && !impl.mCb.canStartAnotherFile())
     {
-        // Retiring pools should keep draining files already bound to this pool,
-        // but must not adopt new unbound files.
-        if (mRetiring && !f->hasPool())
-        {
-            LOG_debug << "[WsPool::getWsUploadFile] mRetiring=true and candidate is unbound -> "
-                         "return false [this = "
-                      << this << "]";
-            return false;
-        }
-
-        LOG_debug << "[WsPool::getWsUploadFile] BEGIN -> auto* f = impl.nextEligible(mMinFileSize(="
-                  << mMinFileSize << "), mMaxFileSize(=" << mMaxFileSize << "))  [this = " << this
-                  << "]";
-        // Back‑pressure gate: defer starting a new file while FA pipeline is saturated
-        if (impl.mCb.canStartAnotherFile && !impl.mCb.canStartAnotherFile())
-        {
-            LOG_debug << "[WsPool::getWsUploadFile] impl.mCb.canStartAnotherFile=true && "
-                         "!impl.mCb.canStartAnotherFile() -> return false [this = "
-                      << this << "]";
-            return false;
-        }
-
-        // Preflight: let MegaClient run its legacy "prep" (FA scheduling/metadata etc).
-        // If it returns false, keep the file queued and try again later.
-        if (impl.mCb.preflightStart && !impl.mCb.preflightStart(f->transfer()))
-        {
-            LOG_debug << "[WsPool::getWsUploadFile] impl.mCb.preflightStart=true && "
-                         "!impl.mCb.preflightStart(f->transfer()) -> return false [this = "
-                      << this << "]";
-            return false;
-        }
-
-        // Option C: snapshot write-once crypto material now that preflightStart has
-        // guaranteed f->transfer().transferkey and ctriv are populated.
-        f->snapshotCryptoMaterial(f->transfer());
-        // Defer start-marking until preflight succeeds so failed preflight does not leave
-        // the file stuck in an active attempt state.
-        f->setUploadStart(impl.currentTime);
-
-        if (mUploadingFile != f)
-        {
-            LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
-                      << ") != f(=" << (void*)f << ") -> picking file fileno=" << f->fileno()
-                      << " for [" << mMinFileSize << "," << mMaxFileSize
-                      << ") pool and set mUFTQversion(=" << impl.queueVersion
-                      << ") = impl.queueVersion(=" << impl.queueVersion << ") [this = " << this
-                      << "]";
-            mUploadingFile = f;
-            mUFTQversion = impl.queueVersion;
-            mUploadingFile->setPool(*this);
-            if (impl.mCb.onStart)
-                impl.mCb.onStart(mUploadingFile->transfer());
-        }
-        else
-        {
-            LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
-                      << ") == f(=" << (void*)f << ") -> return true [this = " << this << "]";
-        }
-        return true;
+        LOG_debug << "[WsPool::getWsUploadFile] impl.mCb.canStartAnotherFile=true && "
+                     "!impl.mCb.canStartAnotherFile() -> return false [this = "
+                  << this << "]";
+        return false;
     }
-    LOG_debug << "[WsPool::getWsUploadFile] !f -> return false [this = " << this << "]";
-    return false;
+
+    WsUploadFile* f = findPreflightReadyCandidate(impl);
+    if (!f)
+    {
+        LOG_debug << "[WsPool::getWsUploadFile] !f -> return false [this = " << this << "]";
+        return false;
+    }
+
+    LOG_debug << "[WsPool::getWsUploadFile] candidate selected [f=" << (void*)f
+              << "] [this = " << this << "]";
+
+    // snapshot write-once crypto material now that preflightStart has
+    // guaranteed f->transfer().transferkey and ctriv are populated.
+    f->snapshotCryptoMaterial(f->transfer());
+    // Defer start-marking until preflight succeeds so failed preflight does not leave
+    // the file stuck in an active attempt state.
+    f->setUploadStart(impl.currentTime);
+
+    if (mUploadingFile != f)
+    {
+        LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
+                  << ") != f(=" << (void*)f << ") -> picking file fileno=" << f->fileno()
+                  << " for [" << mMinFileSize << "," << mMaxFileSize
+                  << ") pool and set mUFTQversion(=" << impl.queueVersion
+                  << ") = impl.queueVersion(=" << impl.queueVersion << ") [this = " << this
+                  << "]";
+        mUploadingFile = f;
+        mUFTQversion = impl.queueVersion;
+        mUploadingFile->setPool(*this);
+        if (impl.mCb.onStart)
+            impl.mCb.onStart(mUploadingFile->transfer());
+    }
+    else
+    {
+        LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
+                  << ") == f(=" << (void*)f << ") -> return true [this = " << this << "]";
+    }
+    return true;
 }
 
 WsUploadFile* WsPool::findFile(const std::uint32_t fileno, UploadEngine::Impl& impl)
@@ -3943,10 +3986,26 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
         // fetch & enqueue next chunk (unlocks around disk I/O internally)
         dstime sendRetryAfterDs = 10;
+        const auto wakeEpochBeforeSend = mImpl->workerWakeEpoch;
         if (!sendChunk(ws.get(), *mImpl, &sendRetryAfterDs))
         {
             LOG_debug << "[WsPool::poolWorkerThread] sendChunk=false -> continue [this = " << this
                       << "]";
+            if (mPreflightPending)
+            {
+                // Preflight pending for at least one candidate file: wait on a
+                // condition variable and wake immediately when preflight completes.
+                static constexpr auto kPreflightPendingWait = std::chrono::milliseconds(100);
+                mImpl->workerWakeCv.wait_for(
+                    lk,
+                    kPreflightPendingWait,
+                    [&]
+                    {
+                        return mImpl->stopping() ||
+                               mImpl->workerWakeEpoch != wakeEpochBeforeSend;
+                    });
+            }
+            else
             {
                 ScopedUnlock unlock(lk);
                 SteadyTime::sleep_ds(sendRetryAfterDs);
@@ -4500,6 +4559,11 @@ std::uintptr_t UploadEngine::getFilePoolIdForTesting(Transfer& t) const
 void UploadEngine::kick()
 {
     pImpl->kick();
+}
+
+void UploadEngine::notifyWorkers()
+{
+    pImpl->notifyWorkers();
 }
 
 void UploadEngine::notifyNetworkDisconnect()

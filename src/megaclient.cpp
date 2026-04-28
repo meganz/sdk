@@ -2302,7 +2302,7 @@ void MegaClient::installWsEngineCallbacks()
         return wsCanStartAnotherFile();
     };
 
-    cb.preflightStart = [this](Transfer& t) -> bool
+    cb.preflightStart = [this](Transfer& t) -> ws::UploadEngine::PreflightStartResult
     {
         return wsPrepareUploadForWsSync(t);
     };
@@ -2871,19 +2871,18 @@ bool MegaClient::wsCanStartAnotherFile() const
     return mWsCanStartAnotherFile.load(std::memory_order_relaxed);
 }
 
-bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
+ws::UploadEngine::PreflightStartResult MegaClient::wsPrepareUploadForWsSync(Transfer& t)
 {
-    // Called by WS worker threads. Execute preflight on MegaClient thread and
-    // wait a short time for the result to keep WS worker behavior simple.
+    // Called by WS worker threads. Execute preflight on MegaClient thread.
     // Reuse a single in-flight future per (Transfer*, uploadhandle) so repeated
     // checks don't enqueue duplicate preflight jobs.
+    using PreflightStartResult = ws::UploadEngine::PreflightStartResult;
     Transfer* tp = &t;
     const direction_t type = t.type;
     const UploadHandle th = t.uploadhandle;
 
     std::shared_future<bool> resultFuture;
     std::shared_ptr<std::promise<bool>> resultPromise;
-
     {
         std::lock_guard<std::mutex> g(mWsPreflightMutex);
         auto it = mWsPreflightRequests.find(tp);
@@ -2902,7 +2901,10 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
 
             resultPromise = std::make_shared<std::promise<bool>>();
             resultFuture = resultPromise->get_future().share();
-            mWsPreflightRequests.emplace(tp, WsPreflightRequest{th, resultFuture});
+            mWsPreflightRequests.emplace(tp,
+                                         WsPreflightRequest{th,
+                                                            resultFuture,
+                                                            WsPreflightState::Queued});
         }
     }
 
@@ -2911,6 +2913,15 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
         wsPostToClientThread(
             [tp, type, th, resultPromise](MegaClient& c, TransferDbCommitter&) mutable
             {
+                {
+                    std::lock_guard<std::mutex> g(c.mWsPreflightMutex);
+                    const auto it = c.mWsPreflightRequests.find(tp);
+                    if (it != c.mWsPreflightRequests.end() && it->second.uploadHandle == th)
+                    {
+                        it->second.state = WsPreflightState::Running;
+                    }
+                }
+
                 bool ok = false;
                 if (tp)
                 {
@@ -2919,7 +2930,29 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
                         ok = c.prepareUploadForWs(*tp);
                     }
                 }
+
+                {
+                    std::lock_guard<std::mutex> g(c.mWsPreflightMutex);
+                    const auto it = c.mWsPreflightRequests.find(tp);
+                    if (it != c.mWsPreflightRequests.end() && it->second.uploadHandle == th)
+                    {
+                        // prepareUploadForWs() may assign uploadhandle on first activation.
+                        // Keep the cached request keyed to the assigned handle so future
+                        // reuse/consume matches the same request instead of re-scheduling.
+                        if (it->second.uploadHandle.isUndef() &&
+                            tp && !tp->uploadhandle.isUndef())
+                        {
+                            it->second.uploadHandle = tp->uploadhandle;
+                        }
+
+                        it->second.state = ok ? WsPreflightState::Ready : WsPreflightState::Failed;
+                    }
+                }
                 resultPromise->set_value(ok);
+                if (auto* engine = c.wsEngine())
+                {
+                    engine->notifyWorkers();
+                }
             });
     }
 
@@ -2929,7 +2962,7 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
     // client thread needs it to service the posted preflight action.
     if (resultFuture.wait_for(std::chrono::milliseconds(0)) != std::future_status::ready)
     {
-        return false;
+        return PreflightStartResult::Pending;
     }
 
     // Consume ready result atomically with map erase so only one caller can
@@ -2938,9 +2971,16 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
     {
         std::lock_guard<std::mutex> g(mWsPreflightMutex);
         const auto it = mWsPreflightRequests.find(tp);
+        const bool handleMatches =
+            (it != mWsPreflightRequests.end()) &&
+            ((it->second.uploadHandle == th) ||
+             (th.isUndef() && tp && !it->second.uploadHandle.isUndef() &&
+              tp->uploadhandle == it->second.uploadHandle));
         const bool mapFutureReady =
             (it != mWsPreflightRequests.end()) &&
-            (it->second.uploadHandle == th) &&
+            handleMatches &&
+            (it->second.state == WsPreflightState::Ready ||
+             it->second.state == WsPreflightState::Failed) &&
             it->second.future.valid();
         if (mapFutureReady)
         {
@@ -2951,9 +2991,9 @@ bool MegaClient::wsPrepareUploadForWsSync(Transfer& t)
 
     if (!canConsume)
     {
-        return false;
+        return PreflightStartResult::Pending;
     }
-    return resultFuture.get();
+    return resultFuture.get() ? PreflightStartResult::Ready : PreflightStartResult::Pending;
 }
 
 // Check transfer is alive by comparing its exact pointer identity.
@@ -2971,14 +3011,43 @@ bool MegaClient::wsIsTransferAlive(direction_t type, const Transfer* tp) const
     return false;
 }
 
+// Cleanup those preflight requests whose bound transfer had been invalid
 void MegaClient::wsCleanupPreflightRequests()
 {
+    static constexpr dstime WS_PREFLIGHT_CLEANUP_INTERVAL_DS = 20; // 2 second
+
+    const dstime now = waiter->ds;
+    if (mWsPreflightLastCleanupDs &&
+        now < mWsPreflightLastCleanupDs + WS_PREFLIGHT_CLEANUP_INTERVAL_DS)
+    {
+        return;
+    }
+
+    // Update cleanup timestamp for every attempt, including empty-map cases,
+    // to avoid retrying a no-op cleanup every exec iteration.
+    mWsPreflightLastCleanupDs = now;
+
+    {
+        std::lock_guard<std::mutex> g(mWsPreflightMutex);
+        if (mWsPreflightRequests.empty())
+        {
+            return;
+        }
+    }
+
+    // Snapshot currently tracked PUT transfers once, then filter preflight requests
+    // against that set to avoid (requests * transfers) scanning.
+    std::unordered_set<Transfer*> aliveTransfers;
+    aliveTransfers.reserve(multi_transfers[PUT].size());
+    for (const auto& transferEntry: multi_transfers[PUT])
+    {
+        aliveTransfers.insert(transferEntry.second);
+    }
+
     std::lock_guard<std::mutex> g(mWsPreflightMutex);
     for (auto it = mWsPreflightRequests.begin(); it != mWsPreflightRequests.end();)
     {
-        Transfer* tp = it->first;
-        const bool alive = wsIsTransferAlive(PUT, tp);
-        if (!alive)
+        if (aliveTransfers.find(it->first) == aliveTransfers.end())
         {
             it = mWsPreflightRequests.erase(it);
         }
