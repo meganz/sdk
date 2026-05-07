@@ -13584,6 +13584,19 @@ std::optional<NodeSearchCursorOffset>
             c.mLastFav = lastFav;
             break;
         }
+        case MegaApi::ORDER_MEDIATS_ASC:
+        case MegaApi::ORDER_MEDIATS_DESC:
+        {
+            const int64_t lastMediaTsMs = megaCursor.getLastMediaTsMs();
+            if (lastMediaTsMs < 0)
+            {
+                LOG_warn << "listAllNodesByPage: cursor has missing or invalid last mediats: "
+                         << lastMediaTsMs;
+                return std::nullopt;
+            }
+            c.mLastMediaTs = lastMediaTsMs;
+            break;
+        }
         default:
             // Caller is responsible for filtering out unsupported orders.
             assert(false && "buildNodeSearchCursorOffset: unsupported order leaked through");
@@ -13706,20 +13719,8 @@ std::optional<ListAllNodesParams>
         case MegaApi::ORDER_LABEL_DESC:
         case MegaApi::ORDER_FAV_ASC:
         case MegaApi::ORDER_FAV_DESC:
-            break;
         case MegaApi::ORDER_MEDIATS_ASC:
         case MegaApi::ORDER_MEDIATS_DESC:
-            if (megaCursor)
-            {
-                const int64_t lastMediaTsMs = megaCursor->getLastMediaTsMs();
-                if (lastMediaTsMs < 0)
-                {
-                    LOG_warn << "listAllNodesByPage: cursor has missing or invalid last mediats: "
-                             << lastMediaTsMs;
-                    return new MegaNodeListPrivate();
-                }
-                c.mLastMediaTs = lastMediaTsMs;
-            }
             break;
         default:
             LOG_warn << "listAllNodesByPage: unsupported order value: " << order;

@@ -32,6 +32,9 @@ namespace mega {
 
 static const char* NodeSearchFilterPtrStr = "NodeSearchFilterPtrStr";
 
+// Result columns shared by most node-fetch SELECTs in this file.
+static const std::string kNodeFetchCols = "nodehandle, counter, node, mediats";
+
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
 {
@@ -1814,12 +1817,9 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByOrigFp)
     {
-        sqlResult = sqlite3_prepare_v2(
-            db,
-            "SELECT nodehandle, counter, node, mediats FROM nodes WHERE origfingerprint = ?",
-            -1,
-            &mStmtNodeByOrigFp,
-            NULL);
+        static const std::string sqlQuery =
+            "SELECT " + kNodeFetchCols + " FROM nodes WHERE origfingerprint = ?";
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByOrigFp, NULL);
     }
 
     bool result = false;
@@ -1847,12 +1847,9 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
 
     sqlite3_stmt *stmt = nullptr;
     bool result = false;
-    int sqlResult = sqlite3_prepare_v2(
-        db,
-        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE type >= ? AND type <= ?",
-        -1,
-        &stmt,
-        NULL);
+    static const std::string sqlQuery =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE type >= ? AND type <= ?";
+    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
@@ -1884,22 +1881,25 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     // the possible combinations of ShareType_t binary map values.
     // For example 10 coresponds to IN_SHARES = 0x01 + LINK = 0x08 and 12 corresponds to
     // PENDING_OUTSHARES = 0x04 + LINK = 0x08.
-    static constexpr auto sqlQueryInshares =
-        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
-    static constexpr auto sqlQueryOutshares =
-        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
-    static constexpr auto sqlQueryPendingOutshares =
-        "SELECT nodehandle, counter, node, mediats FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
-    static constexpr auto sqlQueryPubLink = "SELECT nodehandle, counter, node, mediats FROM nodes "
-                                            "WHERE share IN (8,9,10,11,12,13,14,15)";
+    static const std::string sqlQueryInshares =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
+    static const std::string sqlQueryOutshares =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
+    static const std::string sqlQueryPendingOutshares =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
+    static const std::string sqlQueryPubLink =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (8,9,10,11,12,13,14,15)";
 
     switch (shareType)
     {
         case ShareType_t::IN_SHARES:
             if (!mStmtNodesWithInshares)
             {
-                sqlResult =
-                    sqlite3_prepare_v2(db, sqlQueryInshares, -1, &mStmtNodesWithInshares, nullptr);
+                sqlResult = sqlite3_prepare_v2(db,
+                                               sqlQueryInshares.c_str(),
+                                               -1,
+                                               &mStmtNodesWithInshares,
+                                               nullptr);
             }
             stmt = mStmtNodesWithInshares;
             break;
@@ -1907,7 +1907,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
             if (!mStmtNodesWithOutshares)
             {
                 sqlResult = sqlite3_prepare_v2(db,
-                                               sqlQueryOutshares,
+                                               sqlQueryOutshares.c_str(),
                                                -1,
                                                &mStmtNodesWithOutshares,
                                                nullptr);
@@ -1918,7 +1918,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
             if (!mStmtNodesWithPendingOutshares)
             {
                 sqlResult = sqlite3_prepare_v2(db,
-                                               sqlQueryPendingOutshares,
+                                               sqlQueryPendingOutshares.c_str(),
                                                -1,
                                                &mStmtNodesWithPendingOutshares,
                                                nullptr);
@@ -1928,8 +1928,11 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
         case ShareType_t::LINK:
             if (!mStmtNodesWithPubLink)
             {
-                sqlResult =
-                    sqlite3_prepare_v2(db, sqlQueryPubLink, -1, &mStmtNodesWithPubLink, nullptr);
+                sqlResult = sqlite3_prepare_v2(db,
+                                               sqlQueryPubLink.c_str(),
+                                               -1,
+                                               &mStmtNodesWithPubLink,
+                                               nullptr);
             }
             stmt = mStmtNodesWithPubLink;
             break;
@@ -2108,7 +2111,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter,
         // Disabling format for query readability
         // clang-format off
         const std::string sqlQuery =
-            "SELECT nodehandle, counter, node, mediats "s +
+            "SELECT "s + kNodeFetchCols + " "
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") "
             "AND (flags & " + idVerFlag + ") = 0 " // bound to versionFlag to skip, or 0 to include
@@ -2183,7 +2186,7 @@ bool SqliteAccountState::listChildNodesLexicographically(
                   "(s3keyVirtual = "  + idPageOffName + " AND nodehandle > " + idPageOffHandle + "))"
              : "";
         const std::string sqlQuery =
-            "SELECT nodehandle, counter, node, mediats "s +
+            "SELECT "s + kNodeFetchCols + " "
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") " // Versions aren't taken in consideration
             + offsetWhere +
@@ -2490,9 +2493,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                             return "N." + n;
                         });
 
+        // kNodeFetchCols for the node payload; remaining columns are for ORDER BY only.
         static const std::string columnsForNodeAndOrderBy =
-            "nodehandle, counter, node, mediats, " // for nodes
-            "type, sizeVirtual, ctime, mtime, name, label, fav"; // for ORDER BY only
+            kNodeFetchCols + ", type, sizeVirtual, ctime, mtime, name, label, fav";
 
         using namespace std::string_literals;
 
@@ -3124,8 +3127,7 @@ bool bindTimestampAnchorParamForListAll(int& sqlResult,
 // Result columns for listAllNodesByPage (omits ctime, which no sort order uses).
 const std::string& listAllNodesResultCols()
 {
-    static const std::string s{"nodehandle, counter, node, mediats, "
-                               "type, sizeVirtual, mtime, name, label, fav"};
+    static const std::string s = kNodeFetchCols + ", type, sizeVirtual, mtime, name, label, fav";
     return s;
 }
 
@@ -4263,12 +4265,9 @@ bool SqliteAccountState::getNodesByFingerprintNoMtime(
     int sqlResult = SQLITE_OK;
     if (!mStmtNodesByFpNoMtime)
     {
-        sqlResult = sqlite3_prepare_v2(
-            db,
-            "SELECT nodehandle, counter, node, mediats FROM nodes WHERE fingerprintVirtual = ?",
-            -1,
-            &mStmtNodesByFpNoMtime,
-            NULL);
+        static const std::string sqlQuery =
+            "SELECT " + kNodeFetchCols + " FROM nodes WHERE fingerprintVirtual = ?";
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodesByFpNoMtime, NULL);
     }
 
     bool result = false;
@@ -4304,12 +4303,9 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByFp)
     {
-        sqlResult = sqlite3_prepare_v2(
-            db,
-            "SELECT nodehandle, counter, node, mediats FROM nodes WHERE fingerprint = ? LIMIT 1",
-            -1,
-            &mStmtNodeByFp,
-            NULL);
+        static const std::string sqlQuery =
+            "SELECT " + kNodeFetchCols + " FROM nodes WHERE fingerprint = ? LIMIT 1";
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByFp, NULL);
     }
 
     bool result = false;
@@ -4436,7 +4432,8 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
         return success;
     }
 
-    std::string sqlQuery = "SELECT nodehandle, counter, node, mediats FROM nodes WHERE "
+    std::string sqlQuery = "SELECT " + kNodeFetchCols +
+                           " FROM nodes WHERE "
                            "parenthandle = ? AND name = ? AND type = ? limit 1";
 
     int sqlResult = SQLITE_OK;
