@@ -3701,20 +3701,58 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             if (pad)
                 std::memset(tlsBuf.get() + chunk.len, 0, pad);
 
-            thread_local std::unique_ptr<SymmCipher> tlsCipher;
-            if (!tlsCipher)
-                tlsCipher.reset(new SymmCipher(uf->transferKey().data()));
-            else
-                tlsCipher->setkey(uf->transferKey().data());
+            // SDK-5360 followup6-9 CP-WORKER-PARALLEL-CURL-CONSERVATIVE v2:
+            // snapshot crypto material to local stack and release impl.uploadMutex
+            // around encrypt+MAC so multiple worker threads can encrypt concurrently
+            // using their own thread_local SymmCipher. Re-validate inPool/aborted/paused
+            // after re-locking, mirroring the existing post-readData re-checks above.
+            // Mean throughput uplift measured at +98% to +147% over develop and +135%
+            // to +301% over G1 across SLU/1k-small/mixed at 8c/16c (followup6-9 Phase A).
+            std::array<byte, SymmCipher::KEYLENGTH> localKey = uf->transferKey();
+            const int64_t localCtrIv = uf->ctrIv();
+            const m_off_t localChunkPos = chunk.pos;
+            const int localChunkLen = chunk.len;
 
+            impl.uploadMutex.unlock();
             chunkmac_map macs;
-            macs.ctr_encrypt(chunk.pos,
-                             tlsCipher.get(),
-                             reinterpret_cast<byte*>(tlsBuf.get()),
-                             static_cast<unsigned>(chunk.len),
-                             chunk.pos,
-                             uf->ctrIv(),
-                             false);
+            {
+                thread_local std::unique_ptr<SymmCipher> tlsCipher;
+                if (!tlsCipher)
+                    tlsCipher.reset(new SymmCipher(localKey.data()));
+                else
+                    tlsCipher->setkey(localKey.data());
+
+                macs.ctr_encrypt(localChunkPos,
+                                 tlsCipher.get(),
+                                 reinterpret_cast<byte*>(tlsBuf.get()),
+                                 static_cast<unsigned>(localChunkLen),
+                                 localChunkPos,
+                                 localCtrIv,
+                                 false);
+            }
+            impl.uploadMutex.lock();
+
+            // Re-validate uf state. uf may have been pool-detached or aborted while
+            // we were unlocked. Re-look up by fileno to also catch the (rare) case
+            // where uf was replaced.
+            uf = findFile(chunk.fileno, impl);
+            if (!uf || !uf->inPool() || uf->aborted())
+            {
+                LOG_debug << "[WsPool::sendChunk] drop chunk after lock-released encrypt "
+                             "(uf invalidated) [pos="
+                          << localChunkPos << "] [fileno=" << chunk.fileno
+                          << "] [this = " << this << "]";
+                return false;
+            }
+            if (uf->paused())
+            {
+                LOG_debug << "[WsPool::sendChunk] requeue chunk after lock-released encrypt "
+                             "(paused) [pos="
+                          << localChunkPos << "] [fileno=" << chunk.fileno
+                          << "] [this = " << this << "]";
+                mToResend.push_back(chunk);
+                return false;
+            }
             update = ChunkFingerprintMacUpdate(chunk.pos, std::move(macs));
         }
         LOG_debug << "[WsPool::sendChunk] uf->readData(tlsBuf.get(), chunk.pos, chunk.len, "

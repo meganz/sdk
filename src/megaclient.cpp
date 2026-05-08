@@ -21030,7 +21030,7 @@ void MegaClient::applymaxconnections(const direction_t d, const uint8_t num)
                 wsEngine()->setMaxConnections(static_cast<unsigned char>(num));
             }
 #endif
-    
+ 
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end();)
     {
         TransferSlot* slot = *it++;
