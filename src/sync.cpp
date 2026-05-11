@@ -11150,6 +11150,12 @@ bool Sync::resolve_upsync(SyncRow& row,
         }
         else if (existingUpload->wasFileTransferCompleted && !existingUpload->upsyncStarted)
         {
+            // [SyncPutnodesDiag] sync-thread sees the WS-completed flag — RCA
+            // expects 120 firings over MoveSeveralExisting; if Windows shows
+            // only 32, confirms client-thread queue blocks the propagation.
+            LOG_debug << "[SyncPutnodesDiag] sync-thread: file completed WS, queuing putnodes. "
+                      << "fullPath=" << fullPath.localPath;
+
             // We issue putnodes from the sync thread like this because localnodes may have moved/renamed in the meantime
             // And consider that the old target parent node may not even exist anymore
 
@@ -11209,6 +11215,9 @@ bool Sync::resolve_upsync(SyncRow& row,
 
                     existingUpload->sendPutnodesOfUpload(&mc, displaceNode ? displaceNode->nodeHandle() : NodeHandle());
                 });
+
+            // [SyncPutnodesDiag] queueClient enqueued for putnodes-flush.
+            LOG_debug << "[SyncPutnodesDiag] queueClient[sendPutnodesOfUpload] enqueued.";
         }
         else if (existingUpload->wasUpsyncCompleted)
         {

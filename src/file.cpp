@@ -514,6 +514,11 @@ void File::sendPutnodesOfUpload(MegaClient* client,
         }
 
         DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
+        // [SyncPutnodesDiag] CommandPutNodes about to enqueue on the
+        // reqs.nextreqs.back() batch — RCA expects 88 of these to land in a
+        // single client-thread pass once the WS-action queue finally drains.
+        LOG_debug << "[SyncPutnodesDiag] queueCommand[CommandPutNodes] entered. source="
+                  << static_cast<int>(source) << " syncxfer=" << syncxfer;
         client->queueCommand(new CommandPutNodes(client,
                                                  th,
                                                  NULL,

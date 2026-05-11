@@ -2617,10 +2617,17 @@ void MegaClient::installWsEngineCallbacks()
 
 void MegaClient::wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f)
 {
+    size_t diagQueueSize = 0;
     {
         std::lock_guard<std::mutex> g(mWsClientActionsMutex);
         mWsClientActions.emplace_back(std::move(f));
+        diagQueueSize = mWsClientActions.size();
     }
+    // [SyncPutnodesDiag] track ws->client lambda queue depth — Windows-CI stall
+    // RCA hypothesis: queue grows >200 during slow cs round-trips, blocking
+    // sync-upload completion propagation. Logged AFTER unlock for low overhead.
+    LOG_debug << "[SyncPutnodesDiag] wsPostToClientThread enqueued. queueSize="
+              << diagQueueSize;
     waiter->notify(); // wake client thread to process actions in exec()
 }
 
@@ -2671,7 +2678,16 @@ void MegaClient::wsDrainClientActions(dstime maxExecTimeDs)
             f = std::move(mWsClientActions.front());
             mWsClientActions.pop_front();
         }
+        // [SyncPutnodesDiag] measure single-lambda drain time — identifies
+        // whether wsVerifyUploadUnchanged FS open is the slow leg on Windows.
+        const dstime diagLambdaStart = waiter->ds;
         f(*this, committer);
+        const dstime diagLambdaDt = waiter->ds - diagLambdaStart;
+        if (diagLambdaDt >= 1)
+        {
+            LOG_debug << "[SyncPutnodesDiag] WS action drained. dt_ds="
+                      << diagLambdaDt;
+        }
         ++ctr_N;
         waiter->bumpds();
         if (maxExecTimeDs > 0 && ctr_start + maxExecTimeDs < waiter->ds)
@@ -3769,6 +3785,17 @@ void MegaClient::exec()
         // handle API client-server requests
         for (;;)
         {
+            // [SyncPutnodesDiag] cs-dispatch entry — confirms single-pendingcs
+            // serialization is the bottleneck during the 5-min MoveSeveral stall.
+            // Conditional to keep volume low: only when there's something to log.
+            if (pendingcs || reqs.readyToSend())
+            {
+                LOG_debug << "[SyncPutnodesDiag] cs-dispatch entry. pendingcs="
+                          << (pendingcs ? "non-null" : "null")
+                          << " status=" << (pendingcs ? static_cast<int>(pendingcs->status) : -1)
+                          << " readyToSend=" << reqs.readyToSend()
+                          << " btcs.armed=" << btcs.armed();
+            }
             // do we have an API request outstanding?
             if (pendingcs)
             {
