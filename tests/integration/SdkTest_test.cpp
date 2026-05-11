@@ -11635,7 +11635,9 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
                             &bulkUploadOptions,
                             &uploadListener);
 
-    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+    // Bulk-upload SETUP can exceed the 60 s default on contended Windows
+    // runners (see followup7 RCA: 130 files / shared prod-storage egress).
+    ASSERT_EQ(API_OK, uploadListener.waitForResult(240));
 
     int currentMaxDownloadSpeed = megaApi[0]->getMaxDownloadSpeed();
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(1)); // set a small value for max download speed (bytes per second)
