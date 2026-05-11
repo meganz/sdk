@@ -47,3 +47,6 @@ option(ENABLE_TSAN "Enable thread sanitizer" OFF)
 option(ENABLE_C_ARES_BACKEND "Enable c-ares backend as the DNS resolver for curl" OFF)
 option(ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY "It builds a final dynamic library for Android." OFF)
 option(MEGA_USE_WSUPLOAD "Enable WebSocket-based uploads (experimental)" ON)
+option(MEGA_PRESERVE_V2_SHIP_SLEEP
+       "Preserve v2 ship's 1000ms backlog-empty sleep in WsPool worker loop (vs followup7's BACKLOG_EMPTY_RETRY_DS fallback)"
+       OFF)

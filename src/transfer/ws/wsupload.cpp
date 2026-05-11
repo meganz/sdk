@@ -4051,10 +4051,16 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
     }
 
     WsChunk chunk;
+#ifndef MEGA_PRESERVE_V2_SHIP_SLEEP
+    // Followup7 baseline: zero the out param so the worker loop's
+    // initializer (0) controls the fallback path. Under ship-parity
+    // (MEGA_PRESERVE_V2_SHIP_SLEEP) the caller's initial value (10)
+    // is preserved when nextChunk does not throttle.
     if (retryAfterDs)
     {
         *retryAfterDs = 0;
     }
+#endif
 
     if (!nextChunk(chunk, impl, retryAfterDs))
     {
@@ -4477,7 +4483,11 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         // Synchronous preflight on the pool worker means sendChunk=false fires only when the
         // queue is genuinely empty, the pool is paused, or throttling rejected the chunk - not
         // once per file the way the posted-lambda preflight did.
-        dstime retryAfterDs = 0;
+#ifdef MEGA_PRESERVE_V2_SHIP_SLEEP
+        dstime retryAfterDs = 10; // ship-parity: 1000 ms backlog-empty fallback
+#else
+        dstime retryAfterDs = 0;  // followup7: BACKLOG_EMPTY_RETRY_DS fallback below
+#endif
         const auto wakeEpochBeforeSend = mImpl->workerWakeEpoch;
 #ifndef NDEBUG
         const std::uint64_t chunkPrepStartMs = steadyMs();
@@ -4503,13 +4513,21 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             else
             {
                 ScopedUnlock unlock(lk);
+#ifdef MEGA_PRESERVE_V2_SHIP_SLEEP
+                SteadyTime::sleep_ds(retryAfterDs);
+#else
                 SteadyTime::sleep_ds(retryAfterDs ? retryAfterDs : BACKLOG_EMPTY_RETRY_DS);
+#endif
             }
 #ifndef NDEBUG
             ++mBacklogEmptyIters;
+#ifdef MEGA_PRESERVE_V2_SHIP_SLEEP
+            mBacklogEmptyMs += static_cast<std::uint64_t>(retryAfterDs) * 100;
+#else
             mBacklogEmptyMs +=
                 static_cast<std::uint64_t>(retryAfterDs ? retryAfterDs : BACKLOG_EMPTY_RETRY_DS) *
                 100;
+#endif
 #endif
             continue;
         }

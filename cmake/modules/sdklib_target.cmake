@@ -400,6 +400,11 @@ target_compile_definitions(SDKlib
     $<$<BOOL:${MEGA_USE_WSUPLOAD}>:MEGA_USE_WSUPLOAD>
 )
 
+target_compile_definitions(SDKlib
+    PRIVATE
+    $<$<BOOL:${MEGA_PRESERVE_V2_SHIP_SLEEP}>:MEGA_PRESERVE_V2_SHIP_SLEEP>
+)
+
 set_target_properties(SDKlib PROPERTIES
     VERSION ${PROJECT_VERSION}
     DEBUG_POSTFIX "d"
