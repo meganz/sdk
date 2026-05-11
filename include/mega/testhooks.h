@@ -240,6 +240,7 @@ namespace mega {
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
             onWsUploadCorruptToken;
+        std::function<void(int /*tag*/)> onUploadPutnodesStarted;
         // B9 regression hooks. Read/written only from the pool worker thread + test
         // thread; assignment to either field must go through globalMegaTestHooks like
         // every other hook. Returning true from onWsConnForceCloseNow requests that the
@@ -303,6 +304,7 @@ namespace mega {
                 std::move(other.onWsUploadSustainedHandshakeFailureWindowDs);
             onWsUploadFailureDetached = std::move(other.onWsUploadFailureDetached);
             onWsUploadCorruptToken = std::move(other.onWsUploadCorruptToken);
+            onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
             onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
             onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);
             // WsUploadServerEventHook already has its own locked move-assign.
@@ -528,6 +530,16 @@ namespace mega {
             (PAYLEN) = static_cast<int>((PAYLOAD).size()); \
     } while (0)
 
+#define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG) \
+    do { \
+        std::function<void(int)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onUploadPutnodesStarted; \
+        } \
+        if (_fn) _fn((TAG)); \
+    } while (0)
+
 // WSUPLOAD_SERVER_EVENT reads the self-locked WsUploadServerEventHook sub-object.
 // evaluate() takes its own internal mutex, so no outer lock is needed here. The enclosing
 // struct's move ctor/op= still acquire mMutex to keep the whole-struct assignment atomic.
@@ -639,6 +651,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS)
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED)
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
+#define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)

@@ -46,6 +46,16 @@ namespace mega
 namespace ws
 {
 
+#ifndef MEGA_WSUPLOAD_TRACE_LOGS
+#define MEGA_WSUPLOAD_TRACE_LOGS 0
+#endif
+
+#if MEGA_WSUPLOAD_TRACE_LOGS
+#define WSUPLOAD_TRACE LOG_debug
+#else
+#define WSUPLOAD_TRACE if (true) {} else LOG_debug
+#endif
+
 // ---------- small time helper (deciseconds) ----------
 struct SteadyTime
 {
@@ -68,6 +78,16 @@ struct SteadyTime
         return static_cast<std::int32_t>(a - b);
     }
 };
+
+#ifndef NDEBUG
+std::uint64_t steadyMs()
+{
+    return static_cast<std::uint64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+}
+#endif
 
 // ---------- RAII helper: temporarily release a unique_lock and re-acquire it on scope exit ----------
 class ScopedUnlock
@@ -229,7 +249,7 @@ public:
             mLastProgressReportDs = SteadyTime::ds();
         }
 
-        LOG_debug << "WsUploadFile: " << mLocalPath << " fileno=" << mFileNo << " size=" << mSize
+        WSUPLOAD_TRACE << "WsUploadFile: " << mLocalPath << " fileno=" << mFileNo << " size=" << mSize
                   << " mtime=" << mMtime << " [this = " << this << "]";
 
         // Preserve transfer-level paused state on enqueue (eg, restored from cache).
@@ -323,7 +343,7 @@ public:
                   const std::uint64_t expectedGeneration,
                   bool* interruptedByStateChange = nullptr)
     {
-        LOG_debug << "[WsUploadFile::readData] BEGIN [buf=" << (void*)buf << "] [pos=" << pos
+        WSUPLOAD_TRACE << "[WsUploadFile::readData] BEGIN [buf=" << (void*)buf << "] [pos=" << pos
                   << "] [len=" << len << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
         if (interruptedByStateChange)
@@ -335,7 +355,7 @@ public:
         std::unique_lock<std::mutex> ioLock(mReadMutex);
         if (!mFA)
         {
-            LOG_debug << "[WsUploadFile::readData] !mFA -> newfileaccess for localname="
+            WSUPLOAD_TRACE << "[WsUploadFile::readData] !mFA -> newfileaccess for localname="
                       << mLocalPath << " [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             engineMutex.unlock();
@@ -343,7 +363,7 @@ public:
             fa->mShareDelete =
                 true; // Allow file to be moved/deleted while WS upload holds the handle
             const bool okOpen = fa->fopen(mLocalPath, OPEN_RDONLY, FSLogging::logOnError);
-            LOG_debug << "[WsUploadFile::readData] okOpen=" << okOpen
+            WSUPLOAD_TRACE << "[WsUploadFile::readData] okOpen=" << okOpen
                       << " [localname=" << mLocalPath << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             ioLock.unlock(); // never re-lock engineMutex while holding mReadMutex
@@ -355,7 +375,7 @@ public:
                 {
                     *interruptedByStateChange = true;
                 }
-                LOG_debug << "[WsUploadFile::readData] upload state changed while opening; "
+                WSUPLOAD_TRACE << "[WsUploadFile::readData] upload state changed while opening; "
                              "treat as interrupted read [localname="
                           << mLocalPath << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
@@ -372,7 +392,7 @@ public:
             else if (!okOpen)
             {
                 ioLock.unlock();
-                LOG_debug << "[WsUploadFile::readData] !okOpen -> markFailed() and return false "
+                WSUPLOAD_TRACE << "[WsUploadFile::readData] !okOpen -> markFailed() and return false "
                              "[localname="
                           << mLocalPath << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
@@ -395,7 +415,7 @@ public:
                 mBytesSinceLastStat = 0;
                 mStatIntervalBytes =
                     (mSize >= STAT_INTERVAL_LARGE) ? STAT_INTERVAL_LARGE : STAT_INTERVAL_SMALL;
-                LOG_debug << "[WsUploadFile::readData] mFA=" << (void*)mFA.get() << " mSize=" << mSize
+                WSUPLOAD_TRACE << "[WsUploadFile::readData] mFA=" << (void*)mFA.get() << " mSize=" << mSize
                           << " mMtime=" << mMtime << " [localname=" << mLocalPath
                           << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id()
                           << "]";
@@ -449,7 +469,7 @@ public:
                 {
                     *interruptedByStateChange = true;
                 }
-                LOG_debug << "[WsUploadFile::readData] upload state changed during periodic stat; "
+                WSUPLOAD_TRACE << "[WsUploadFile::readData] upload state changed during periodic stat; "
                              "treat as interrupted read [localname="
                           << mLocalPath << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
@@ -497,7 +517,7 @@ public:
                 {
                     *interruptedByStateChange = true;
                 }
-                LOG_debug << "[WsUploadFile::readData] mFA cleared while switching locks; "
+                WSUPLOAD_TRACE << "[WsUploadFile::readData] mFA cleared while switching locks; "
                              "treat as interrupted read [localname="
                           << mLocalPath << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
@@ -514,7 +534,7 @@ public:
             if (!okRead)
             {
                 // Optional one-shot recover: reopen the blocking file handle and retry once.
-                LOG_debug << "[WsUploadFile::readData] !okRead -> reopen + retry once [localname="
+                WSUPLOAD_TRACE << "[WsUploadFile::readData] !okRead -> reopen + retry once [localname="
                           << mLocalPath << "] [this = " << this
                           << "] [thread_id=" << std::this_thread::get_id() << "]";
                 faRaw->fclose();
@@ -541,7 +561,7 @@ public:
             }
         }
         ioLock.unlock(); // do not re-lock engine while holding the I/O mutex (lock ordering)
-        LOG_debug << "[WsUploadFile::readData] okRead=" << okRead << " [localname=" << mLocalPath
+        WSUPLOAD_TRACE << "[WsUploadFile::readData] okRead=" << okRead << " [localname=" << mLocalPath
                   << "] [this = " << this << "] [thread_id=" << std::this_thread::get_id() << "]";
         engineMutex.lock();
 
@@ -551,7 +571,7 @@ public:
             {
                 *interruptedByStateChange = true;
             }
-            LOG_debug << "[WsUploadFile::readData] upload state changed while reading; "
+            WSUPLOAD_TRACE << "[WsUploadFile::readData] upload state changed while reading; "
                          "treat as interrupted read [localname="
                       << mLocalPath << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
@@ -566,13 +586,13 @@ public:
                 disposition = reopenSourceChanged ? UploadEngine::FailureDisposition::Permanent :
                                                     classifyOpenFailure(faRaw);
             }
-            LOG_debug << "[WsUploadFile::readData] !okRead -> markFailed() [localname="
+            WSUPLOAD_TRACE << "[WsUploadFile::readData] !okRead -> markFailed() [localname="
                       << mLocalPath << "] [this = " << this
                       << "] [thread_id=" << std::this_thread::get_id() << "]";
             closeFA();
             markFailed(disposition);
         }
-        LOG_debug << "[WsUploadFile::readData] return okRead=" << okRead
+        WSUPLOAD_TRACE << "[WsUploadFile::readData] return okRead=" << okRead
                   << " [localname=" << mLocalPath << "] [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
         return okRead;
@@ -643,7 +663,7 @@ public:
 
     std::uint32_t fileno() const noexcept
     {
-        LOG_debug << "[WsUploadFile::fileno] return mFileNo=" << mFileNo << " [this = " << this
+        WSUPLOAD_TRACE << "[WsUploadFile::fileno] return mFileNo=" << mFileNo << " [this = " << this
                   << "]";
         return mFileNo;
     }
@@ -663,14 +683,14 @@ public:
 
     bool paused() const noexcept
     {
-        LOG_debug << "[WsUploadFile::paused] return mPaused=" << mPaused << " [this = " << this
+        WSUPLOAD_TRACE << "[WsUploadFile::paused] return mPaused=" << mPaused << " [this = " << this
                   << "]";
         return mPaused;
     }
 
     void setPaused(const bool p) noexcept
     {
-        LOG_debug << "[WsUploadFile::setPaused] p=" << p << " [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsUploadFile::setPaused] p=" << p << " [this = " << this << "]";
         mPaused = p;
         invalidateOutstandingWork();
         closeFA();
@@ -678,14 +698,14 @@ public:
 
     bool aborted() const noexcept
     {
-        LOG_debug << "[WsUploadFile::aborted] return mAborted=" << mAborted << " [this = " << this
+        WSUPLOAD_TRACE << "[WsUploadFile::aborted] return mAborted=" << mAborted << " [this = " << this
                   << "]";
         return mAborted;
     }
 
     void setUploadStart(const dstime t) noexcept
     {
-        LOG_debug << "[WsUploadFile::setUploadStart] t=" << t << " [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsUploadFile::setUploadStart] t=" << t << " [this = " << this << "]";
         invalidateOutstandingWork();
         mUploadStartTime = t;
         mUploadFailedTime = 0;
@@ -763,7 +783,7 @@ public:
         const auto attemptConfirmed =
             std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
         const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * 10 / 1024) : 0;
-        LOG_info << "[WsUploadFile::uploadCompleted] upload completed (server payload len=" << len
+        WSUPLOAD_TRACE << "[WsUploadFile::uploadCompleted] upload completed (server payload len=" << len
                  << ") Progress: " << mBytesConfirmed << " of " << mSize
                  << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
                  << " KB/s [this = " << this << "]";
@@ -784,14 +804,14 @@ public:
         const auto attemptConfirmed =
             std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
         const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * 10 / 1024) : 0;
-        LOG_debug << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed << " of " << mSize
+        WSUPLOAD_TRACE << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed << " of " << mSize
                   << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
                   << " KB/s [this = " << this << "]";
     }
 
     bool isUploading() const noexcept
     {
-        LOG_debug << "[WsUploadFile::isUploading] mUploadStartTime= " << mUploadStartTime
+        WSUPLOAD_TRACE << "[WsUploadFile::isUploading] mUploadStartTime= " << mUploadStartTime
                   << " mPaused=" << mPaused << " mAborted=" << mAborted
                   << " mUploadFailedTime=" << mUploadFailedTime << " returning "
                   << (mUploadStartTime != 0 && !mPaused && !mAborted && mUploadFailedTime == 0)
@@ -808,6 +828,19 @@ public:
     {
         ++mNumFailedRequests;
     }
+
+#ifndef NDEBUG
+    bool markFirstByteSentForTesting() noexcept
+    {
+        if (mFirstByteSentForStats)
+        {
+            return false;
+        }
+
+        mFirstByteSentForStats = true;
+        return true;
+    }
+#endif
 
     bool getTransferStats(UploadEngine::WsTransferStats& stats) const
     {
@@ -938,6 +971,9 @@ private:
         mUploadCompletionTime = 0;
         mClientActiveFilesTick = false;
         mConfirmedChunkMacs.clear();
+#ifndef NDEBUG
+        mFirstByteSentForStats = false;
+#endif
     }
 
     void markFailed(const UploadEngine::FailureDisposition disposition =
@@ -1005,6 +1041,9 @@ private:
 
     // Server-confirmed chunk MAC updates awaiting application on the client thread.
     std::vector<chunkmac_map> mConfirmedChunkMacs;
+#ifndef NDEBUG
+    bool mFirstByteSentForStats{false};
+#endif
 };
 
 // ---------- WS payloads ----------
@@ -1088,6 +1127,21 @@ struct WsConn
     CURL* curl{nullptr};
     int bufferedAmount{0};
 
+#ifndef NDEBUG
+    // followup6-2 send-side counters (per-connection). Aggregated to the pool
+    // by WsPool::addWsUploadStatsForTesting.
+    std::uint64_t mCurlAgainSendCount{0};
+    std::uint64_t mCurlAgainRecvCount{0};
+    int mBufferedAmountHighWater{0};
+    unsigned mChunksInFlightHighWater{0};
+    // followup6-11: throttle-recovery telemetry (per-connection). Set on event=6 receipt,
+    // sampled on event=1 chunk-ack to compute pause-to-first-ack latency.
+    dstime mPauseStartedAtMs{0};
+    std::uint64_t mThrottleRecoveryAckSamples{0};
+    std::uint64_t mThrottleRecoveryAckTotalMs{0};
+    std::uint64_t mThrottleRecoveryAckMaxMs{0};
+#endif
+
     enum class ReadyState : std::uint8_t
     {
         CONNECTING,
@@ -1142,12 +1196,17 @@ struct WsConn
 
     void senddata(const int buf, const char* data, const int len)
     {
-        LOG_debug << "[WsConn::senddata] BEGIN [buf=" << buf << "] [data=" << (void*)data
+        WSUPLOAD_TRACE << "[WsConn::senddata] BEGIN [buf=" << buf << "] [data=" << (void*)data
                   << "] [len=" << len << "] [bufferedAmount=" << bufferedAmount
                   << "] [this = " << this << "]";
         mBufs[buf].add(data, len);
         bufferedAmount += len;
-        LOG_debug << "[WsConn::senddata] END [bufferedAmount=" << bufferedAmount
+#ifndef NDEBUG
+        // followup6-2: track per-conn buffered-bytes high-water.
+        if (bufferedAmount > mBufferedAmountHighWater)
+            mBufferedAmountHighWater = bufferedAmount;
+#endif
+        WSUPLOAD_TRACE << "[WsConn::senddata] END [bufferedAmount=" << bufferedAmount
                   << "] [this = " << this << "]";
     }
 
@@ -1178,9 +1237,9 @@ struct WsPoolThread
 
     ~WsPoolThread()
     {
-        LOG_debug << "[WsPoolThread::~WsPoolThread] BEGIN -> t.join() [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsPoolThread::~WsPoolThread] BEGIN -> t.join() [this = " << this << "]";
         join();
-        LOG_debug << "[WsPoolThread::~WsPoolThread] END [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsPoolThread::~WsPoolThread] END [this = " << this << "]";
     }
 };
 
@@ -1189,6 +1248,9 @@ struct WsPool
 {
     static constexpr std::int32_t CONNRETRYINTERVAL = 5 * 10;
     static constexpr std::int32_t UPLOADTIMEOUT = 180 * 10;
+    static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
+    static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
+    static constexpr dstime BACKLOG_EMPTY_RETRY_DS = 2;
 
     UploadEngine::Impl* mImpl{nullptr};
 
@@ -1217,6 +1279,49 @@ struct WsPool
     bool mPinned{false};
 #ifndef NDEBUG
     unsigned mMaxConnectionsWithInFlightSeen{0};
+    std::uint64_t mUploadingFileSinceMs{0};
+    std::uint64_t mUploadingFileOccupiedMs{0};
+    std::uint64_t mLastCompletedFileMs{0};
+    std::uint64_t mLastFirstByteSentMs{0};
+    std::uint64_t mLastAckToNextFirstByteSamples{0};
+    std::uint64_t mLastAckToNextFirstByteTotalMs{0};
+    std::uint64_t mLastAckToNextFirstByteMaxMs{0};
+    std::uint64_t mLastCounterSampleMs{0};
+    std::uint64_t mAllChunksInFlightBlockedMs{0};
+    std::uint64_t mEligibleFileSampleCount{0};
+    std::uint64_t mBlockedByInFlightSampleCount{0};
+    std::uint64_t mIdleEligibleConnectionMs{0};
+    std::uint64_t mIdleEligibleConnectionSampleCount{0};
+    std::uint32_t mLastCompletedFileno{0};
+    std::uint32_t mLastFirstByteSentFileno{0};
+
+    // followup6-2 send-side counters (per-pool aggregator for worker-thread events).
+    std::uint64_t mHaveSpaceFalseIters{0};
+    std::uint64_t mHaveSpaceFalseWaitMs{0};
+    std::uint64_t mReadyForDataFalseIters{0};
+    std::uint64_t mReadyForDataFalseWaitMs{0};
+    std::uint64_t mThrottleSleepIters{0};
+    std::uint64_t mThrottleSleepMs{0};
+    std::uint64_t mBacklogEmptyIters{0};
+    std::uint64_t mBacklogEmptyMs{0};
+    std::uint64_t mChunkPrepTotalMs{0};
+    std::uint64_t mChunkPrepMaxMs{0};
+    std::uint64_t mChunkPrepN{0};
+
+    // followup6-11: server throttle telemetry (per-pool aggregator).
+    std::uint64_t mThrottleEventCount{0};
+    std::uint64_t mThrottleEventTotalDs{0};
+    std::uint64_t mThrottleEventSumSqDs{0};
+    std::uint64_t mThrottleEventMinDs{0};
+    std::uint64_t mThrottleEventMaxDs{0};
+    std::uint64_t mThrottleBucket0to1s{0};
+    std::uint64_t mThrottleBucket1to5s{0};
+    std::uint64_t mThrottleBucket5to30s{0};
+    std::uint64_t mThrottleBucket30sPlus{0};
+    std::uint64_t mThrottleEventCodeCounts[16]{};
+    std::uint64_t mSimultaneousThrottledConnsMax{0};
+    std::uint64_t mSimultaneousThrottledConnsSamples{0};
+    std::uint64_t mSimultaneousThrottledConnsSum{0};
 #endif
 
     explicit WsPool(std::pair<std::string, m_off_t> urlmaxsize,
@@ -1235,7 +1340,7 @@ struct WsPool
         mLastServerResponse(SteadyTime::ds()),
         mNumberOfConnections(std::max<unsigned char>(1, numConnections))
     {
-        LOG_debug << "[WsPool] constructed [mMinFileSize=" << mMinFileSize
+        WSUPLOAD_TRACE << "[WsPool] constructed [mMinFileSize=" << mMinFileSize
                   << " mMaxFileSize=" << mMaxFileSize << "] [this = " << this << "]";
         checkThreads();
     }
@@ -1330,6 +1435,18 @@ struct WsPool
         // Touch mLastActive so a legitimate server-throttle window does not age into
         // SERVERTIMEOUT and trigger a redundant refreshPools().
         mLastActive = nowDs;
+#ifndef NDEBUG
+        // followup6-11: throttle event histogram + min/max/stdev accumulators.
+        ++mThrottleEventCount;
+        mThrottleEventTotalDs += static_cast<std::uint64_t>(ds);
+        mThrottleEventSumSqDs += static_cast<std::uint64_t>(ds) * static_cast<std::uint64_t>(ds);
+        if (mThrottleEventMinDs == 0 || static_cast<std::uint64_t>(ds) < mThrottleEventMinDs) mThrottleEventMinDs = static_cast<std::uint64_t>(ds);
+        if (static_cast<std::uint64_t>(ds) > mThrottleEventMaxDs) mThrottleEventMaxDs = static_cast<std::uint64_t>(ds);
+        if (ds <= 10) ++mThrottleBucket0to1s;
+        else if (ds <= 50) ++mThrottleBucket1to5s;
+        else if (ds <= 300) ++mThrottleBucket5to30s;
+        else ++mThrottleBucket30sPlus;
+#endif
     }
 
     bool throttledByServer()
@@ -1361,20 +1478,154 @@ struct WsPool
 
     void applyInFlightLocked(const std::uint32_t fileno);
     void applyInFlight(const std::uint32_t fileno);
-    bool sendChunk(WsConn* ws,
-                   class UploadEngine::Impl& impl,
-                   dstime* retryAfterDs = nullptr);
+    bool sendChunk(WsConn* ws, class UploadEngine::Impl& impl, dstime* retryAfterDs = nullptr);
+#ifndef NDEBUG
+    void assignUploadingFileLocked(WsUploadFile* file) noexcept;
+    void recordFirstByteSentLocked(WsUploadFile& file) noexcept;
+    void recordUploadCompletedLocked(std::uint32_t fileno) noexcept;
+    void recordWsUploadStatsSampleLocked(const class UploadEngine::Impl& impl);
+    void addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& out) const;
+#endif
 };
+
+#ifndef NDEBUG
+void WsPool::assignUploadingFileLocked(WsUploadFile* file) noexcept
+{
+    if (mUploadingFile == file)
+    {
+        return;
+    }
+
+    const auto now = steadyMs();
+    if (mUploadingFile && mUploadingFileSinceMs)
+    {
+        mUploadingFileOccupiedMs += now - mUploadingFileSinceMs;
+    }
+
+    mUploadingFile = file;
+    mUploadingFileSinceMs = file ? now : 0;
+}
+
+void WsPool::recordFirstByteSentLocked(WsUploadFile& file) noexcept
+{
+    if (!file.markFirstByteSentForTesting())
+    {
+        return;
+    }
+
+    const auto now = steadyMs();
+    const auto fileno = file.fileno();
+    mLastFirstByteSentMs = now;
+    mLastFirstByteSentFileno = fileno;
+
+    if (mLastCompletedFileMs && mLastCompletedFileno != fileno)
+    {
+        const auto deltaMs = now - mLastCompletedFileMs;
+        ++mLastAckToNextFirstByteSamples;
+        mLastAckToNextFirstByteTotalMs += deltaMs;
+        mLastAckToNextFirstByteMaxMs = std::max(mLastAckToNextFirstByteMaxMs, deltaMs);
+        mLastCompletedFileMs = 0;
+        mLastCompletedFileno = 0;
+    }
+}
+
+void WsPool::recordUploadCompletedLocked(const std::uint32_t fileno) noexcept
+{
+    const auto now = steadyMs();
+    if (mLastFirstByteSentMs && mLastFirstByteSentFileno != fileno)
+    {
+        ++mLastAckToNextFirstByteSamples;
+        mLastCompletedFileMs = 0;
+        mLastCompletedFileno = 0;
+        return;
+    }
+
+    mLastCompletedFileMs = now;
+    mLastCompletedFileno = fileno;
+}
+
+void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& out) const
+{
+    ++out.poolCount;
+    out.uploadingFileOccupiedMs +=
+        mUploadingFileOccupiedMs +
+        ((mUploadingFile && mUploadingFileSinceMs) ? (steadyMs() - mUploadingFileSinceMs) : 0);
+    out.lastAckToNextFirstByteSamples += mLastAckToNextFirstByteSamples;
+    out.lastAckToNextFirstByteTotalMs += mLastAckToNextFirstByteTotalMs;
+    out.lastAckToNextFirstByteMaxMs =
+        std::max(out.lastAckToNextFirstByteMaxMs, mLastAckToNextFirstByteMaxMs);
+    out.allChunksInFlightBlockedMs += mAllChunksInFlightBlockedMs;
+    out.eligibleFileSampleCount += mEligibleFileSampleCount;
+    out.blockedByInFlightSampleCount += mBlockedByInFlightSampleCount;
+    out.idleEligibleConnectionMs += mIdleEligibleConnectionMs;
+    out.idleEligibleConnectionSampleCount += mIdleEligibleConnectionSampleCount;
+
+    // followup6-2 send-side counters: per-pool aggregates.
+    out.haveSpaceFalseIters += mHaveSpaceFalseIters;
+    out.haveSpaceFalseWaitMs += mHaveSpaceFalseWaitMs;
+    out.readyForDataFalseIters += mReadyForDataFalseIters;
+    out.readyForDataFalseWaitMs += mReadyForDataFalseWaitMs;
+    out.throttleSleepIters += mThrottleSleepIters;
+    out.throttleSleepMs += mThrottleSleepMs;
+    out.backlogEmptyIters += mBacklogEmptyIters;
+    out.backlogEmptyMs += mBacklogEmptyMs;
+    out.chunkPrepTotalMs += mChunkPrepTotalMs;
+    if (mChunkPrepMaxMs > out.chunkPrepMaxMs)
+        out.chunkPrepMaxMs = mChunkPrepMaxMs;
+    out.chunkPrepN += mChunkPrepN;
+
+    // followup6-11: server throttle telemetry aggregates.
+    out.throttleEventCount += mThrottleEventCount;
+    out.throttleEventTotalDs += mThrottleEventTotalDs;
+    out.throttleEventSumSqDs += mThrottleEventSumSqDs;
+    if (out.throttleEventMinDs == 0 || (mThrottleEventMinDs && mThrottleEventMinDs < out.throttleEventMinDs))
+        out.throttleEventMinDs = mThrottleEventMinDs;
+    if (mThrottleEventMaxDs > out.throttleEventMaxDs) out.throttleEventMaxDs = mThrottleEventMaxDs;
+    out.throttleBucket0to1s += mThrottleBucket0to1s;
+    out.throttleBucket1to5s += mThrottleBucket1to5s;
+    out.throttleBucket5to30s += mThrottleBucket5to30s;
+    out.throttleBucket30sPlus += mThrottleBucket30sPlus;
+    for (int i = 0; i < 16; ++i) out.throttleEventCodeCounts[i] += mThrottleEventCodeCounts[i];
+    if (mSimultaneousThrottledConnsMax > out.simultaneousThrottledConnsMax)
+        out.simultaneousThrottledConnsMax = mSimultaneousThrottledConnsMax;
+    out.simultaneousThrottledConnsSamples += mSimultaneousThrottledConnsSamples;
+    out.simultaneousThrottledConnsSum += mSimultaneousThrottledConnsSum;
+
+    // Per-conn counters: aggregate across all live conns in this pool.
+    for (const WsConn* c: mConns)
+    {
+        if (!c)
+            continue;
+        out.curlAgainSendCount += c->mCurlAgainSendCount;
+        out.curlAgainRecvCount += c->mCurlAgainRecvCount;
+        if (static_cast<std::uint64_t>(c->mBufferedAmountHighWater) > out.bufferedAmountHighWater)
+            out.bufferedAmountHighWater =
+                static_cast<std::uint64_t>(c->mBufferedAmountHighWater);
+        if (static_cast<std::uint64_t>(c->mChunksInFlightHighWater) > out.chunksInFlightHighWater)
+            out.chunksInFlightHighWater =
+                static_cast<std::uint64_t>(c->mChunksInFlightHighWater);
+        // followup6-11: per-conn throttle-recovery aggregates.
+        out.throttleRecoveryAckSamples += c->mThrottleRecoveryAckSamples;
+        out.throttleRecoveryAckTotalMs += c->mThrottleRecoveryAckTotalMs;
+        if (c->mThrottleRecoveryAckMaxMs > out.throttleRecoveryAckMaxMs)
+            out.throttleRecoveryAckMaxMs = c->mThrottleRecoveryAckMaxMs;
+    }
+}
+#endif
 
 // WsUploadFile pool bindings — must be defined after WsPool is complete
 inline void WsUploadFile::unsetPool()
 {
-    LOG_debug << "[WsUploadFile::unsetPool] mPool=" << (void*)mPool << " [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsUploadFile::unsetPool] mPool=" << (void*)mPool << " [this = " << this << "]";
     if (mPool)
     {
         if (mPool->mUploadingFile == this)
         {
+#ifndef NDEBUG
+            mPool->assignUploadingFileLocked(nullptr);
+#else
             mPool->mUploadingFile = nullptr;
+#endif
         }
         mPool->decreaseNumPoolFiles();
         mPool = nullptr;
@@ -1383,7 +1634,7 @@ inline void WsUploadFile::unsetPool()
 
 inline void WsUploadFile::setPool(WsPool& p)
 {
-    LOG_debug << "[WsUploadFile::setPool] p=" << (void*)&p << " [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsUploadFile::setPool] p=" << (void*)&p << " [this = " << this << "]";
     if (mPool == &p)
     {
         // Idempotent rebind to the same pool (eg, resume path re-selects current pool).
@@ -1394,7 +1645,7 @@ inline void WsUploadFile::setPool(WsPool& p)
     mPool = &p;
     assert(mPool);
     mPool->increaseNumPoolFiles();
-    LOG_debug << "[WsUploadFile::setPool] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsUploadFile::setPool] END [this = " << this << "]";
 }
 
 inline bool WsUploadFile::hasPool() const
@@ -1620,12 +1871,12 @@ public:
     {
         mInstanceId = ++sInstanceCounter;
         //curl_global_init(CURL_GLOBAL_ALL);
-        LOG_debug << "[UploadEngine::Impl] constructed";
+        WSUPLOAD_TRACE << "[UploadEngine::Impl] constructed";
     }
 
     ~Impl()
     {
-        LOG_debug << "[UploadEngine::Impl::~Impl] BEGIN";
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::~Impl] BEGIN";
         stop();
 
         // Manager thread may be waiting up to 500ms in curl_multi_poll; then it exits.
@@ -1653,7 +1904,7 @@ public:
             }
         }
 
-        LOG_debug << "[UploadEngine::Impl::~Impl] END";
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::~Impl] END";
     }
 
     void stop()
@@ -1698,7 +1949,7 @@ public:
     // Queue mirrors TransferList ordering and priority.
     void enqueue(Transfer& t)
     {
-        LOG_debug << "[UploadEngine::Impl::enqueue] t=" << t.localfilename
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::enqueue] t=" << t.localfilename
                   << " files.size=" << files.size() << " [this = " << this << "]";
         std::lock_guard<std::mutex> g(uploadMutex);
         if (!nextFileNo)
@@ -1815,7 +2066,7 @@ public:
             if (!f)
                 return;
 
-            LOG_debug << "Removing transfer from queue: " << f->fileno();
+            WSUPLOAD_TRACE << "Removing transfer from queue: " << f->fileno();
 
             poolMgr.mActiveFiles.erase(f);
             for (auto& poolPtr: poolMgr.mPools)
@@ -1825,7 +2076,11 @@ public:
                 WsPool& pool = *poolPtr;
                 if (pool.mUploadingFile == f)
                 {
+#ifndef NDEBUG
+                    pool.assignUploadingFileLocked(nullptr);
+#else
                     pool.mUploadingFile = nullptr;
+#endif
                     pool.mUFTQversion = queueVersion;
                 }
                 pool.purgeFileLocked(f->fileno());
@@ -1876,12 +2131,12 @@ public:
 
     bool isUploading(Transfer& t) const
     {
-        LOG_debug << "[UploadEngine::Impl::isUploading] t=" << t.localfilename
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::isUploading] t=" << t.localfilename
                   << " [this = " << this << "]";
         std::lock_guard<std::mutex> g(uploadMutex);
         if (const auto it = files.find(&t); it != files.end())
             return it->second->isUploading();
-        LOG_debug << "[UploadEngine::Impl::isUploading] t=" << t.localfilename
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::isUploading] t=" << t.localfilename
                   << " not found [this = " << this << "]";
         return false;
     }
@@ -1978,6 +2233,23 @@ public:
         return false;
     }
 
+    bool getWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& out) const
+    {
+        out = {};
+
+        std::lock_guard<std::mutex> g(uploadMutex);
+        out.found = true;
+        for (const auto& poolPtr: poolMgr.mPools)
+        {
+            if (poolPtr)
+            {
+                poolPtr->addWsUploadStatsForTesting(out);
+            }
+        }
+
+        return true;
+    }
+
     bool isTrackedForTesting(const Transfer& t) const
     {
         std::lock_guard<std::mutex> g(uploadMutex);
@@ -2044,7 +2316,11 @@ public:
                     {
                         if (pool->mUploadingFile == uf)
                         {
+#ifndef NDEBUG
+                            pool->assignUploadingFileLocked(nullptr);
+#else
                             pool->mUploadingFile = nullptr;
+#endif
                             pool->mUFTQversion = queueVersion;
                         }
 
@@ -2176,17 +2452,17 @@ public:
 
     void kick()
     {
-        LOG_debug << "[UploadEngine::Impl::kick] BEGIN [this = " << this << "]";
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::kick] BEGIN [this = " << this << "]";
         std::lock_guard<std::mutex> g(uploadMutex);
         // if (poolMgr.mPools.empty())
         //     poolMgr.refreshPools();
         for (auto& p: poolMgr.mPools)
         {
-            LOG_debug << "[UploadEngine::Impl::kick] pool(" << (void*)p.get()
+            WSUPLOAD_TRACE << "[UploadEngine::Impl::kick] pool(" << (void*)p.get()
                       << ") checkThreads() [this = " << this << "]";
             p->checkThreads();
         }
-        LOG_debug << "[UploadEngine::Impl::kick] END [numPools=" << poolMgr.mPools.size()
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::kick] END [numPools=" << poolMgr.mPools.size()
                   << "] [this = " << this << "]";
     }
 
@@ -2313,7 +2589,7 @@ public:
                                const std::string* requiredSessionUrl,
                                const WsPool* requestingPool)
     {
-        LOG_debug << "[UploadEngine::Impl::nextEligible] BEGIN [fileList.size=" << fileList.size()
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::nextEligible] BEGIN [fileList.size=" << fileList.size()
                   << "] [this = " << this << "]";
 
         bool consecutive = true;
@@ -2330,7 +2606,7 @@ public:
                 WsUploadFile* f = *it;
                 if (!f)
                 {
-                    LOG_debug << "[UploadEngine::Impl::nextEligible] !f -> continue [this = "
+                    WSUPLOAD_TRACE << "[UploadEngine::Impl::nextEligible] !f -> continue [this = "
                               << this << "]";
                     ++it;
                     continue;
@@ -2365,7 +2641,7 @@ public:
 
                     if (f->size() >= min && (!max || f->size() < max))
                     {
-                        LOG_debug << "[UploadEngine::Impl::nextEligible] f->size(=" << f->size()
+                        WSUPLOAD_TRACE << "[UploadEngine::Impl::nextEligible] f->size(=" << f->size()
                                   << ") >= min(=" << min << ") && (!max(=" << max
                                   << ") || f->size(=" << f->size() << ") < max(=" << max
                                   << ")) -> candidate selected [consecutive=" << consecutive
@@ -2383,10 +2659,53 @@ public:
                 ++it;
             }
         }
-        LOG_debug << "[UploadEngine::Impl::nextEligible] END - return nullptr [this = " << this
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::nextEligible] END - return nullptr [this = " << this
                   << "]";
         return nullptr;
     }
+
+#ifndef NDEBUG
+    bool hasEligibleFileForPoolForTesting(const m_off_t min,
+                                          const m_off_t max,
+                                          const std::string* requiredSessionUrl,
+                                          const WsPool* requestingPool) const
+    {
+        for (WsUploadFile* f: fileList)
+        {
+            if (!f)
+            {
+                continue;
+            }
+
+            const bool poolEligible = !f->hasPool() || f->mPool == requestingPool;
+            if (!poolEligible || f->paused() || !f->continuingUpload(currentTime) ||
+                !f->hasPendingBytesOrEofToSend())
+            {
+                continue;
+            }
+
+            const auto& hint = f->sessionUrlHint();
+            if (requiredSessionUrl)
+            {
+                if (hint.empty() || hint != *requiredSessionUrl)
+                {
+                    continue;
+                }
+            }
+            else if (!hint.empty())
+            {
+                continue;
+            }
+
+            if (f->size() >= min && (!max || f->size() < max))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+#endif
 
     // Manager thread
     void run()
@@ -2490,14 +2809,14 @@ private:
     template<class F>
     void withFile(Transfer& t, F&& fn)
     {
-        LOG_debug << "[UploadEngine::Impl::withFile] BEGIN [t=" << t.localfilename
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::withFile] BEGIN [t=" << t.localfilename
                   << "] [this = " << this << "]";
         std::lock_guard<std::mutex> g(uploadMutex);
         auto it = files.find(&t);
         if (it == files.end() || !it->second)
             return;
         fn(*it->second);
-        LOG_debug << "[UploadEngine::Impl::withFile] END [this = " << this << "]";
+        WSUPLOAD_TRACE << "[UploadEngine::Impl::withFile] END [this = " << this << "]";
     }
 
     void cycleNextIt() noexcept
@@ -2546,16 +2865,16 @@ WsConn::~WsConn()
 /*
 bool WsConn::connectWS()
 {
-    LOG_debug << "[WsConn::connectWS] BEGIN [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::connectWS] BEGIN [this = " << this << "]";
     if (curl)
     {
-        LOG_debug << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
         curl_easy_cleanup(curl);
     }
     curl = curl_easy_init();
     if (!curl)
     {
-        LOG_debug << "[WsConn::connectWS] curl_easy_init failed, return false [this = " << this
+        WSUPLOAD_TRACE << "[WsConn::connectWS] curl_easy_init failed, return false [this = " << this
                   << "]";
         return false;
     }
@@ -2563,7 +2882,7 @@ bool WsConn::connectWS()
     // Share CurlHttpIO settings but don't attach to its multi
     if (auto* cio = dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio))
     {
-        LOG_debug << "[WsConn::connectWS] configureWsEasy [curl=" << (void*)curl << "] [this = " <<
+        WSUPLOAD_TRACE << "[WsConn::connectWS] configureWsEasy [curl=" << (void*)curl << "] [this = " <<
 this << "]"; cio->configureWsEasy(curl, false);
     }
     else
@@ -2584,14 +2903,14 @@ failed, return false [curl=" << (void*)curl << "] [this = " << this << "]"; retu
     const CURLcode res = curl_easy_perform(curl);
     if (res == CURLE_OK)
     {
-        LOG_debug << "[WsConn::connectWS] curl_easy_perform success, set readyState=OPEN and call "
+        WSUPLOAD_TRACE << "[WsConn::connectWS] curl_easy_perform success, set readyState=OPEN and call "
                      "onopen() -> return true [this = "
                   << this << "]";
         readyState = ReadyState::OPEN;
         onopen();
         return true;
     }
-    LOG_debug << "[WsConn::connectWS] curl_easy_perform failed, set readyState=CLOSED and return "
+    WSUPLOAD_TRACE << "[WsConn::connectWS] curl_easy_perform failed, set readyState=CLOSED and return "
                  "false [res="
               << res << "] [strError=" << curl_easy_strerror(res) << "] [err=" << err
               << "] [this = " << this << "]";
@@ -2602,7 +2921,7 @@ failed, return false [curl=" << (void*)curl << "] [this = " << this << "]"; retu
 
 bool WsConn::connectWS()
 {
-    LOG_debug << "[WsConn::connectWS] BEGIN [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::connectWS] BEGIN [this = " << this << "]";
     if (mPool->mImpl->stopping())
     {
         readyState = ReadyState::CLOSED;
@@ -2610,7 +2929,7 @@ bool WsConn::connectWS()
     }
     if (curl)
     {
-        LOG_debug << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
         curl_easy_cleanup(curl);
         curl = nullptr;
     }
@@ -2632,7 +2951,7 @@ bool WsConn::connectWS()
     mPool->mImpl->client.wsPostToClientThread(
         [baton, url, self](MegaClient& client, TransferDbCommitter&)
         {
-            LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] BEGIN [this = " << self
+            WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] BEGIN [this = " << self
                       << "]";
             if (auto* engine = client.wsEngine(); !engine || engine->isStopping())
             {
@@ -2654,7 +2973,7 @@ bool WsConn::connectWS()
                 {
                     if (!err.empty())
                     {
-                        LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                        WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
                                      "wsHandshakeForUpload failed, err="
                                   << err << ", set baton.easy=" << (void*)baton->easy.get()
                                   << " [this = " << self
@@ -2662,20 +2981,20 @@ bool WsConn::connectWS()
                     }
                     else
                     {
-                        LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                        WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
                                      "wsHandshakeForUpload success, set baton.easy="
                                   << (void*)baton->easy.get() << " [this = " << self << "]";
                     }
                 }
                 else
                 {
-                    LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                    WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
                                  "wsHandshakeForUpload returned nullptr, set baton.easy=nullptr [this = "
                               << self << "]";
                 }
             }
             baton->cv.notify_one();
-            LOG_debug << "[WsConn::connectWS] [client.wsPostToClientThread] END [this = " << self
+            WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] END [this = " << self
                       << "]";
         });
 
@@ -2695,7 +3014,7 @@ bool WsConn::connectWS()
 
         if (std::chrono::steady_clock::now() >= waitDeadline)
         {
-            LOG_debug << "[WsConn::connectWS] handshake baton timed out -> readyState=CLOSED and "
+            WSUPLOAD_TRACE << "[WsConn::connectWS] handshake baton timed out -> readyState=CLOSED and "
                          "return false [this = "
                       << this << "]";
             readyState = ReadyState::CLOSED;
@@ -2710,7 +3029,7 @@ bool WsConn::connectWS()
 
     if (!baton->easy)
     {
-        LOG_debug
+        WSUPLOAD_TRACE
             << "[WsConn::connectWS] !baton.easy -> readyState=CLOSED and return false [this = "
             << this << "]";
         readyState = ReadyState::CLOSED;
@@ -2720,16 +3039,16 @@ bool WsConn::connectWS()
     curl = baton->easy.release(); // worker thread exclusively owns the handle now
     readyState = ReadyState::OPEN;
     onopen(); // your existing callback
-    LOG_debug << "[WsConn::connectWS] END -> success, return true [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::connectWS] END -> success, return true [this = " << this << "]";
     return true;
 }
 
 void WsConn::closeWS()
 {
-    LOG_debug << "[WsConn::closeWS] BEGIN [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::closeWS] BEGIN [this = " << this << "]";
     if (readyState == ReadyState::CLOSED)
     {
-        LOG_debug << "[WsConn::closeWS] readyState=CLOSED, return [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsConn::closeWS] readyState=CLOSED, return [this = " << this << "]";
         return;
     }
     // Clear the deferred-close flag: once closeWS actually runs, any pending
@@ -2739,24 +3058,24 @@ void WsConn::closeWS()
     readyState = ReadyState::CLOSED;
     resetBufferedSendState();
     onclose();
-    LOG_debug << "[WsConn::closeWS] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::closeWS] END [this = " << this << "]";
 }
 
 void WsConn::onopen()
 {
-    LOG_debug << "[WsConn::onopen] Connected to " << mPool->mUrl;
+    WSUPLOAD_TRACE << "[WsConn::onopen] Connected to " << mPool->mUrl;
 }
 
 void WsConn::onclose()
 {
-    LOG_debug << "[WsConn::onclose] BEGIN [Disconnected from " << mPool->mUrl
+    WSUPLOAD_TRACE << "[WsConn::onclose] BEGIN [Disconnected from " << mPool->mUrl
               << "] [this = " << this << "]";
     if (mPool)
     {
-        LOG_debug << "[WsConn::onclose] mPool->retryChunksOnTheWire(this) [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsConn::onclose] mPool->retryChunksOnTheWire(this) [this = " << this << "]";
         mPool->retryChunksOnTheWire(this);
     }
-    LOG_debug << "[WsConn::onclose] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::onclose] END [this = " << this << "]";
 }
 
 void WsConn::resetBufferedSendState() noexcept
@@ -2770,26 +3089,26 @@ void WsConn::resetBufferedSendState() noexcept
 
 void WsConn::curlSend()
 {
-    LOG_debug << "[WsConn::curlSend] BEGIN [readyState=" << static_cast<int>(readyState)
+    WSUPLOAD_TRACE << "[WsConn::curlSend] BEGIN [readyState=" << static_cast<int>(readyState)
               << "] [this = " << this << "]";
     if (readyState != ReadyState::OPEN)
     {
-        LOG_debug << "[WsConn::curlSend] readyState != ReadyState::OPEN, return [this = " << this
+        WSUPLOAD_TRACE << "[WsConn::curlSend] readyState != ReadyState::OPEN, return [this = " << this
                   << "]";
         return;
     }
     while (mBufs[static_cast<unsigned char>(mCurBuf)].sendWS(this, bufferedAmount))
         mCurBuf = !mCurBuf;
-    LOG_debug << "[WsConn::curlSend] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::curlSend] END [this = " << this << "]";
 }
 
 void WsConn::curlRecv()
 {
-    LOG_debug << "[WsConn::curlRecv] BEGIN [readyState=" << static_cast<int>(readyState)
+    WSUPLOAD_TRACE << "[WsConn::curlRecv] BEGIN [readyState=" << static_cast<int>(readyState)
               << "] [this = " << this << "]";
     if (readyState != ReadyState::OPEN)
     {
-        LOG_debug << "[WsConn::curlRecv] readyState != ReadyState::OPEN, return [this = " << this
+        WSUPLOAD_TRACE << "[WsConn::curlRecv] readyState != ReadyState::OPEN, return [this = " << this
                   << "]";
         return;
     }
@@ -2800,13 +3119,13 @@ void WsConn::curlRecv()
 
     for (;;)
     {
-        LOG_debug << "[WsConn::curlRecv] curl_ws_recv(curl, mInBuf(=" << (void*)mInBuf
+        WSUPLOAD_TRACE << "[WsConn::curlRecv] curl_ws_recv(curl, mInBuf(=" << (void*)mInBuf
                   << "), sizeof(mInBuf)(=" << sizeof(mInBuf) << "), &recv, &meta) [this = " << this
                   << "]";
         const CURLcode res = curl_ws_recv(curl, mInBuf, sizeof(mInBuf), &recv, &meta);
         if (res == CURLE_OK && meta && !meta->bytesleft && recv > 0)
         {
-            LOG_debug << "[WsConn::curlRecv] res == CURLE_OK && meta && !meta->bytesleft && recv(="
+            WSUPLOAD_TRACE << "[WsConn::curlRecv] res == CURLE_OK && meta && !meta->bytesleft && recv(="
                       << recv
                       << ") > 0 -> onmessage(mInBuf, static_cast<int>(recv)) [this = " << this
                       << "]";
@@ -2819,7 +3138,7 @@ void WsConn::curlRecv()
             // pending-close request.
             if (readyState != ReadyState::OPEN && !mPendingClose)
             {
-                LOG_debug << "[WsConn::curlRecv] onmessage closed connection -> break [this = "
+                WSUPLOAD_TRACE << "[WsConn::curlRecv] onmessage closed connection -> break [this = "
                           << this << "]";
                 break;
             }
@@ -2830,11 +3149,18 @@ void WsConn::curlRecv()
         {
             if (res != CURLE_AGAIN || meta)
             {
-                LOG_debug << "[WsConn::curlRecv] res(=" << res
+                WSUPLOAD_TRACE << "[WsConn::curlRecv] res(=" << res
                           << ") != CURLE_AGAIN || meta -> closeWS() [this = " << this << "]";
                 closeWS();
             }
-            LOG_debug << "[WsConn::curlRecv] res(=" << res
+#ifndef NDEBUG
+            else
+            {
+                // followup6-2: count CURLE_AGAIN on recv (per-conn).
+                ++mCurlAgainRecvCount;
+            }
+#endif
+            WSUPLOAD_TRACE << "[WsConn::curlRecv] res(=" << res
                       << ") != CURLE_OK || !meta || meta->bytesleft(="
                       << (meta ? meta->bytesleft : 0) << ") > 0 || recv(=" << recv
                       << ") <= 0 -> break [this = " << this << "]";
@@ -2847,16 +3173,16 @@ void WsConn::curlRecv()
     // second call from the CURLE_AGAIN-else branch above harmlessly no-ops.
     if (mPendingClose)
     {
-        LOG_debug << "[WsConn::curlRecv] drained " << drainedAfterPendingClose
+        WSUPLOAD_TRACE << "[WsConn::curlRecv] drained " << drainedAfterPendingClose
                   << " frames before closeWS [this = " << this << "]";
         closeWS();
     }
-    LOG_debug << "[WsConn::curlRecv] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::curlRecv] END [this = " << this << "]";
 }
 
 void WsConn::onmessage(const char* msg, const int len)
 {
-    LOG_debug << "[WsConn::onmessage] BEGIN [len=" << len << "] [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::onmessage] BEGIN [len=" << len << "] [this = " << this << "]";
     switch (detail::validateInboundFrame(msg, len))
     {
         case detail::InboundFrameValidationResult::TooShort:
@@ -2900,7 +3226,7 @@ struct ChunkResponse
     const auto* response = reinterpret_cast<const ChunkResponse*>(msg);
     m_off_t chunkPos = response->chunkpos;
     auto event = static_cast<WsApiServerEvent>(response->event);
-    LOG_debug << "[WsConn::onmessage] response->fileno=" << response->fileno
+    WSUPLOAD_TRACE << "[WsConn::onmessage] response->fileno=" << response->fileno
               << " response->chunkpos=" << response->chunkpos
               << " response->event=" << static_cast<int>(event) << " [this = " << this << "]";
     WsChunk chunk;
@@ -2908,7 +3234,7 @@ struct ChunkResponse
     WsUploadFile* uf = mPool->findFile(response->fileno, *mPool->mImpl);
     if (!uf)
     {
-        LOG_debug << "[WsConn::onmessage] !uf -> return [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsConn::onmessage] !uf -> return [this = " << this << "]";
         return; // file cancelled or moved
     }
 
@@ -2935,7 +3261,7 @@ struct ChunkResponse
     {
         if (static_cast<int>(event) < 0)
         {
-            LOG_debug << "[WsConn::onmessage] response->event < 0 -> "
+            WSUPLOAD_TRACE << "[WsConn::onmessage] response->event < 0 -> "
                          "uf->uploadFailed(FailReason::ServerError) [this = "
                       << this << "]";
             // A server-side error aborts the current upload attempt.
@@ -2954,7 +3280,7 @@ struct ChunkResponse
             return;
         }
 
-        LOG_debug << "[WsConn::onmessage] response->event >= 0 -> chunk.pos = -1 [this = " << this
+        WSUPLOAD_TRACE << "[WsConn::onmessage] response->event >= 0 -> chunk.pos = -1 [this = " << this
                   << "]";
         chunk.pos = -1;
         const bool shouldApply = event == WsApiServerEvent::ChunkIngested ||
@@ -2984,7 +3310,7 @@ struct ChunkResponse
 
     if (len == kWsChunkResponseHeaderSize)
     {
-        LOG_debug << "[WsConn::onmessage] len == kWsChunkResponseHeaderSize -> "
+        WSUPLOAD_TRACE << "[WsConn::onmessage] len == kWsChunkResponseHeaderSize -> "
                      "uf->uploadFailed(FailReason::Unknown) [this = "
                   << this << "]";
         // Unknown/invalid server response for this upload attempt.
@@ -3001,7 +3327,19 @@ struct ChunkResponse
     switch (event)
     {
         case WsApiServerEvent::ChunkIngested: // non-final
-            LOG_debug
+#ifndef NDEBUG
+            // followup6-11: throttle-recovery latency = pause-start to first chunk-ack on this conn.
+            if (mPauseStartedAtMs)
+            {
+                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - mPauseStartedAtMs;
+                const auto deltaMs = static_cast<std::uint64_t>(deltaDs) * 100u;
+                ++mThrottleRecoveryAckSamples;
+                mThrottleRecoveryAckTotalMs += deltaMs;
+                if (deltaMs > mThrottleRecoveryAckMaxMs) mThrottleRecoveryAckMaxMs = deltaMs;
+                mPauseStartedAtMs = 0;
+            }
+#endif
+            WSUPLOAD_TRACE
                 << "[WsConn::onmessage] response->event == 1 chunk ingested (non-final) [chunk.len="
                 << chunk.len << "] [this = " << this << "]";
             if (chunk.len)
@@ -3030,7 +3368,7 @@ struct ChunkResponse
             break;
 
         case WsApiServerEvent::FinalDataIngested:
-            LOG_debug << "[WsConn::onmessage] response->event == 7 final data ingested (server "
+            WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 7 final data ingested (server "
                          "knows file is complete) [chunk.len="
                       << chunk.len << "] [this = " << this << "]";
             if (chunk.len)
@@ -3059,7 +3397,7 @@ struct ChunkResponse
             break;
 
         case WsApiServerEvent::AlreadyOnServer:
-            LOG_debug << "[WsConn::onmessage] response->event == 2 already on server (after "
+            WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 2 already on server (after "
                          "reconnect) [pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
@@ -3075,7 +3413,7 @@ struct ChunkResponse
 
         case WsApiServerEvent::UploadCompleted:
         {
-            LOG_debug << "[WsConn::onmessage] response->event == 4 upload completed -> "
+            WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 4 upload completed -> "
                          "mPool->applyInFlight(response->fileno) [this = "
                       << this << "]";
             mPool->applyInFlightLocked(response->fileno);
@@ -3127,6 +3465,9 @@ struct ChunkResponse
                 break;
             }
 
+#ifndef NDEBUG
+            mPool->recordUploadCompletedLocked(response->fileno);
+#endif
             uf->uploadCompleted(msg + kWsCompletionPayloadOffset, payLen);
             if (mPool->mImpl->mCb.onComplete)
             {
@@ -3158,7 +3499,14 @@ struct ChunkResponse
         case WsApiServerEvent::Throttle:
         {
             const dstime throttleDs = static_cast<dstime>(chunkPos / 100 + 1);
-            LOG_debug << "[WsConn::onmessage] response->event == 6 throttle (ms) -> ds -> "
+#ifndef NDEBUG
+            // followup6-11: tag opcode=6 in code-counts and anchor pause start for recovery latency.
+            if (mPool) ++mPool->mThrottleEventCodeCounts[6];
+            mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
+#endif
+            LOG_info << "[WsUpload] Server requested sending to pause for " << chunkPos
+                     << " ms";
+            WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 6 throttle (ms) -> ds -> "
                          "mPool->pauseSending(throttleDs) [this = "
                       << this << "]";
             mPool->pauseSending(throttleDs);
@@ -3166,13 +3514,13 @@ struct ChunkResponse
         }
 
         default:
-            LOG_debug << "[WsConn::onmessage] response->event == "
+            WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == "
                       << static_cast<int>(event)
                       << " -> unknown server opcode=" << static_cast<int>(event)
                       << " -> break [this = " << this << "]";
             break;
     }
-    LOG_debug << "[WsConn::onmessage] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::onmessage] END [this = " << this << "]";
 }
 
 void WsConn::sendChunkData(const std::uint32_t fileno,
@@ -3180,7 +3528,7 @@ void WsConn::sendChunkData(const std::uint32_t fileno,
                            const char* data,
                            const int len)
 {
-    LOG_debug << "[WsConn::sendChunkData] BEGIN [fileno=" << fileno << "] [pos=" << pos
+    WSUPLOAD_TRACE << "[WsConn::sendChunkData] BEGIN [fileno=" << fileno << "] [pos=" << pos
               << "] [len=" << len << "] [this = " << this << "]";
     ChunkHeader header;
     header.fileno = fileno;
@@ -3195,36 +3543,36 @@ void WsConn::sendChunkData(const std::uint32_t fileno,
     if (mBufs[static_cast<unsigned char>(bufIdx)].mDataLen)
         bufIdx = !bufIdx;
 
-    LOG_debug << "[WsConn::sendChunkData] senddata(bufIdx, reinterpret_cast<const char*>(&header), "
+    WSUPLOAD_TRACE << "[WsConn::sendChunkData] senddata(bufIdx, reinterpret_cast<const char*>(&header), "
                  "static_cast<int>(sizeof header)) [bufIdx="
               << static_cast<int>(bufIdx) << "] [this = " << this << "]";
     senddata(bufIdx, reinterpret_cast<const char*>(&header), static_cast<int>(sizeof header));
-    LOG_debug << "[WsConn::sendChunkData] senddata(bufIdx, data, len) [bufIdx="
+    WSUPLOAD_TRACE << "[WsConn::sendChunkData] senddata(bufIdx, data, len) [bufIdx="
               << static_cast<int>(bufIdx) << "] [this = " << this << "]";
     senddata(bufIdx, data, len);
-    LOG_debug << "[WsConn::sendChunkData] END [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsConn::sendChunkData] END [this = " << this << "]";
 }
 
 // ========== WsPoolThread (ctor after WsPool complete) ==========
 WsPoolThread::WsPoolThread(WsPool* pool):
     t(&WsPool::poolWorkerThread, pool, this)
 {
-    LOG_debug << "[WsPoolThread::WsPoolThread] pool=" << (void*)pool << " [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsPoolThread::WsPoolThread] pool=" << (void*)pool << " [this = " << this << "]";
 }
 
 // ========== WsBuf ==========
 bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
 {
-    LOG_debug << "[WsBuf::sendWS] BEGIN [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsBuf::sendWS] BEGIN [this = " << this << "]";
     if (mSendPos >= mDataLen)
     {
-        LOG_debug << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") >= mDataLen(=" << mDataLen
+        WSUPLOAD_TRACE << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") >= mDataLen(=" << mDataLen
                   << ") -> return false [this = " << this << "]";
         return false;
     }
 
     size_t sent = 0;
-    LOG_debug << "[WsBuf::sendWS] curl_ws_send(ws->curl, buf(=" << (void*)buf
+    WSUPLOAD_TRACE << "[WsBuf::sendWS] curl_ws_send(ws->curl, buf(=" << (void*)buf
               << ") + mSendPos(=" << mSendPos << ") = " << (void*)(buf + mSendPos)
               << ", mDataLen(=" << mDataLen << ") - mSendPos(=" << mSendPos
               << ") = " << (mDataLen - mSendPos) << ", &sent, 0, CURLWS_BINARY) [this = " << this
@@ -3233,7 +3581,7 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     const CURLcode res = curl_ws_send(ws->curl, buf + mSendPos, remaining, &sent, 0, CURLWS_BINARY);
     if (res == CURLE_OK)
     {
-        LOG_debug << "[WsBuf::sendWS] res == CURLE_OK -> mSendPos(=" << mSendPos
+        WSUPLOAD_TRACE << "[WsBuf::sendWS] res == CURLE_OK -> mSendPos(=" << mSendPos
                   << ") += static_cast<int>(sent(=" << sent
                   << ")), bufferedAmount(=" << bufferedAmount
                   << ") -= static_cast<int>(sent(=" << sent << ")) [this = " << this << "]";
@@ -3241,25 +3589,82 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
         bufferedAmount -= static_cast<int>(sent);
         if (mSendPos == mDataLen)
         {
-            LOG_debug << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") == mDataLen(=" << mDataLen
+            WSUPLOAD_TRACE << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") == mDataLen(=" << mDataLen
                       << ") -> reset() && return true [this = " << this << "]";
             reset();
             return true;
         }
-        LOG_debug << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") != mDataLen(=" << mDataLen
+        WSUPLOAD_TRACE << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") != mDataLen(=" << mDataLen
                   << ") -> return false [this = " << this << "]";
         return false;
     }
     if (res != CURLE_AGAIN)
     {
-        LOG_debug << "[WsBuf::sendWS] res(=" << res << ") != CURLE_AGAIN(=" << CURLE_AGAIN
+        WSUPLOAD_TRACE << "[WsBuf::sendWS] res(=" << res << ") != CURLE_AGAIN(=" << CURLE_AGAIN
                   << ") -> ws->closeWS() [this = " << this << "]";
         ws->closeWS();
     }
-    LOG_debug << "[WsBuf::sendWS] res(=" << res << ") != CURLE_OK -> return false [this = " << this
+#ifndef NDEBUG
+    else
+    {
+        // followup6-2: count CURLE_AGAIN on send (per-conn).
+        ++ws->mCurlAgainSendCount;
+    }
+#endif
+    WSUPLOAD_TRACE << "[WsBuf::sendWS] res(=" << res << ") != CURLE_OK -> return false [this = " << this
               << "]";
     return false;
 }
+
+#ifndef NDEBUG
+void WsPool::recordWsUploadStatsSampleLocked(const UploadEngine::Impl& impl)
+{
+    const auto now = steadyMs();
+    if (!mLastCounterSampleMs)
+    {
+        mLastCounterSampleMs = now;
+        return;
+    }
+
+    const auto elapsedMs = now - mLastCounterSampleMs;
+    mLastCounterSampleMs = now;
+    if (!elapsedMs)
+    {
+        return;
+    }
+
+    const bool hasEligibleFile = impl.hasEligibleFileForPoolForTesting(mMinFileSize,
+                                                                       mMaxFileSize,
+                                                                       mPinned ? &mUrl : nullptr,
+                                                                       this);
+    if (!hasEligibleFile)
+    {
+        return;
+    }
+
+    ++mEligibleFileSampleCount;
+
+    const unsigned openConnections = countOpenConnectionsLocked();
+    const unsigned connectionsWithInFlight = countConnectionsWithInFlightLocked();
+    const bool currentFileDrained =
+        mUploadingFile && !mUploadingFile->hasPendingBytesOrEofToSend();
+
+    if (currentFileDrained && mNumChunksInFlight > 0 && openConnections > 0 &&
+        connectionsWithInFlight >= openConnections)
+    {
+        mAllChunksInFlightBlockedMs += elapsedMs;
+        ++mBlockedByInFlightSampleCount;
+    }
+
+    if (openConnections > connectionsWithInFlight)
+    {
+        const auto idleConnections =
+            static_cast<std::uint64_t>(openConnections - connectionsWithInFlight);
+        mIdleEligibleConnectionMs += elapsedMs * idleConnections;
+        mIdleEligibleConnectionSampleCount += idleConnections;
+    }
+}
+#endif
 
 // ========== WsPool ==========
 
@@ -3301,7 +3706,7 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
     if (mUploadingFile && !mUploadingFile->paused() && mUploadingFile->continuingUpload(now) &&
         mUploadingFile->hasPendingBytesOrEofToSend() && mUFTQversion == impl.queueVersion)
     {
-        LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile->paused()=false && "
+        WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] mUploadingFile->paused()=false && "
                      "mUploadingFile->continuingUpload(now) && mUFTQversion(="
                   << mUFTQversion << ") == impl.queueVersion(=" << impl.queueVersion
                   << ") -> return true [this = " << this << "]";
@@ -3311,7 +3716,7 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
     // Back‑pressure gate: defer starting a new file while FA pipeline is saturated
     if (impl.mCb.canStartAnotherFile && !impl.mCb.canStartAnotherFile())
     {
-        LOG_debug << "[WsPool::getWsUploadFile] impl.mCb.canStartAnotherFile=true && "
+        WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] impl.mCb.canStartAnotherFile=true && "
                      "!impl.mCb.canStartAnotherFile() -> return false [this = "
                   << this << "]";
         return false;
@@ -3320,11 +3725,11 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
     WsUploadFile* f = findPreflightReadyCandidate(impl);
     if (!f)
     {
-        LOG_debug << "[WsPool::getWsUploadFile] !f -> return false [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] !f -> return false [this = " << this << "]";
         return false;
     }
 
-    LOG_debug << "[WsPool::getWsUploadFile] candidate selected [f=" << (void*)f
+    WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] candidate selected [f=" << (void*)f
               << "] [this = " << this << "]";
 
     // snapshot write-once crypto material now that preflightStart has
@@ -3336,13 +3741,17 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
 
     if (mUploadingFile != f)
     {
-        LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
+        WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
                   << ") != f(=" << (void*)f << ") -> picking file fileno=" << f->fileno()
                   << " for [" << mMinFileSize << "," << mMaxFileSize
                   << ") pool and set mUFTQversion(=" << impl.queueVersion
                   << ") = impl.queueVersion(=" << impl.queueVersion << ") [this = " << this
                   << "]";
+#ifndef NDEBUG
+        assignUploadingFileLocked(f);
+#else
         mUploadingFile = f;
+#endif
         mUFTQversion = impl.queueVersion;
         mUploadingFile->setPool(*this);
         if (impl.mCb.onStart)
@@ -3350,7 +3759,7 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
     }
     else
     {
-        LOG_debug << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
+        WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
                   << ") == f(=" << (void*)f << ") -> return true [this = " << this << "]";
     }
     return true;
@@ -3369,7 +3778,7 @@ WsUploadFile* WsPool::findFile(const std::uint32_t fileno, UploadEngine::Impl& i
 
 bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAfterDs)
 {
-    LOG_debug << "[WsPool::nextChunk] BEGIN [this = " << this << "]";
+    WSUPLOAD_TRACE << "[WsPool::nextChunk] BEGIN [this = " << this << "]";
     // queued retry first
     while (!mToResend.empty())
     {
@@ -3383,7 +3792,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             WsUploadFile* const ufStale = findFile(chunk.fileno, impl);
             if (!ufStale || (chunk.len && chunk.pos + chunk.len > ufStale->size()))
             {
-                LOG_debug << "[WsPool::nextChunk] discard stale resend entry [pos=" << chunk.pos
+                WSUPLOAD_TRACE << "[WsPool::nextChunk] discard stale resend entry [pos=" << chunk.pos
                           << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
                 mToResend.erase(mToResend.begin());
                 continue;
@@ -3397,7 +3806,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             return false;
         }
         mToResend.erase(mToResend.begin());
-        LOG_debug << "WsUpload: resending chunk pos=" << chunk.pos << " len=" << chunk.len
+        WSUPLOAD_TRACE << "WsUpload: resending chunk pos=" << chunk.pos << " len=" << chunk.len
                   << " fileno=" << chunk.fileno;
         if (findFile(chunk.fileno, impl))
             return true; // file still valid?
@@ -3405,7 +3814,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
 
     if (impl.paused)
     {
-        LOG_debug << "[WsPool::nextChunk] impl.paused=true -> return false [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsPool::nextChunk] impl.paused=true -> return false [this = " << this << "]";
         return false;
     }
 
@@ -3413,7 +3822,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
     {
         if (mUploadingFile->headPos() < mUploadingFile->size() || !mUploadingFile->eofSet())
         {
-            LOG_debug << "[WsPool::nextChunk] mUploadingFile->headPos(="
+            WSUPLOAD_TRACE << "[WsPool::nextChunk] mUploadingFile->headPos(="
                       << mUploadingFile->headPos()
                       << ") < mUploadingFile->size(=" << mUploadingFile->size()
                       << ") || !mUploadingFile->eofSet(=" << mUploadingFile->eofSet()
@@ -3455,12 +3864,16 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             mLastActive = impl.currentTime;
             return true;
         }
-        LOG_debug << "[WsPool::nextChunk] mUploadingFile->headPos() < mUploadingFile->size() || "
+        WSUPLOAD_TRACE << "[WsPool::nextChunk] mUploadingFile->headPos() < mUploadingFile->size() || "
                      "!mUploadingFile->eofSet() -> mUploadingFile = nullptr [this = "
                   << this << "]";
+#ifndef NDEBUG
+        assignUploadingFileLocked(nullptr);
+#else
         mUploadingFile = nullptr; // done with this file
+#endif
     }
-    LOG_debug << "[WsPool::nextChunk] END - !getWsUploadFile -> return false [this = " << this
+    WSUPLOAD_TRACE << "[WsPool::nextChunk] END - !getWsUploadFile -> return false [this = " << this
               << "]";
     return false;
 }
@@ -3473,7 +3886,7 @@ void WsPool::retryChunksOnTheWire(WsConn* ws)
 
 void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
 {
-    LOG_debug << "WsUpload: WS to " << mUrl << " lost; rescheduling " << ws->mChunksInFlight.size()
+    WSUPLOAD_TRACE << "WsUpload: WS to " << mUrl << " lost; rescheduling " << ws->mChunksInFlight.size()
               << " in-flight chunks";
     for (auto& p: ws->mChunksInFlight)
     {
@@ -3630,7 +4043,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
 {
     if (ws->readyState != WsConn::ReadyState::OPEN || !ws->haveSpace())
     {
-        LOG_debug << "[WsPool::sendChunk] ws->readyState=" << static_cast<int>(ws->readyState)
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] ws->readyState=" << static_cast<int>(ws->readyState)
                   << " (ReadyState::OPEN=" << static_cast<int>(WsConn::ReadyState::OPEN)
                   << ") ws->haveSpace=" << ws->haveSpace() << " -> return false [this = " << this
                   << "]";
@@ -3638,16 +4051,21 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
     }
 
     WsChunk chunk;
+    if (retryAfterDs)
+    {
+        *retryAfterDs = 0;
+    }
+
     if (!nextChunk(chunk, impl, retryAfterDs))
     {
-        LOG_debug << "[WsPool::sendChunk] !nextChunk -> return false [this = " << this << "]";
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] !nextChunk -> return false [this = " << this << "]";
         return false;
     }
 
     static thread_local std::unique_ptr<char[]> tlsBuf;
     if (!tlsBuf)
     {
-        LOG_debug << "[WsPool::sendChunk] !tlsBuf -> tlsBuf.reset(new char[MB]) [this = " << this
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] !tlsBuf -> tlsBuf.reset(new char[MB]) [this = " << this
                   << "]";
         tlsBuf.reset(new char[MB]);
     }
@@ -3667,14 +4085,14 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         uf = findFile(chunk.fileno, impl);
         if (!uf)
         {
-            LOG_debug << "[WsPool::sendChunk] drop chunk after read (file no longer in map) [pos="
+            WSUPLOAD_TRACE << "[WsPool::sendChunk] drop chunk after read (file no longer in map) [pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
             return false;
         }
         if (!uf->inPool() || uf->aborted())
         {
-            LOG_debug << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
+            WSUPLOAD_TRACE << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
                          "[pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
@@ -3682,7 +4100,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         }
         if (uf->paused())
         {
-            LOG_debug << "[WsPool::sendChunk] requeue chunk after read (paused) [pos=" << chunk.pos
+            WSUPLOAD_TRACE << "[WsPool::sendChunk] requeue chunk after read (paused) [pos=" << chunk.pos
                       << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
             mToResend.push_back(chunk);
@@ -3755,13 +4173,20 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             }
             update = ChunkFingerprintMacUpdate(chunk.pos, std::move(macs));
         }
-        LOG_debug << "[WsPool::sendChunk] uf->readData(tlsBuf.get(), chunk.pos, chunk.len, "
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] uf->readData(tlsBuf.get(), chunk.pos, chunk.len, "
                      "impl.uploadMutex) -> emplace mChunksInFlight, sendChunkData && return true "
                      "[mNumChunksInFlight="
                   << mNumChunksInFlight << "] [this = " << this << "]";
         ws->mChunksInFlight.emplace_back(chunk, std::move(update));
 #ifndef NDEBUG
         updateMaxConnectionsWithInFlightSeenLocked();
+        if (chunk.len > 0)
+        {
+            recordFirstByteSentLocked(*uf);
+        }
+        // followup6-2: per-conn chunks-in-flight high-water.
+        if (ws->mChunksInFlight.size() > ws->mChunksInFlightHighWater)
+            ws->mChunksInFlightHighWater = static_cast<unsigned>(ws->mChunksInFlight.size());
 #endif
         uf->onRequestSent();
         ws->sendChunkData(chunk.fileno, chunk.pos, tlsBuf.get(), chunk.len);
@@ -3777,7 +4202,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         // uploadFailed / uploadCompleted), mHeadPos is 0 and nextChunk will skip this
         // stale entry on drain. Never drop silently — there is no server opcode that
         // recovers a never-sent byte range.
-        LOG_debug << "[WsPool::sendChunk] requeue chunk after interrupted read/open [pos="
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] requeue chunk after interrupted read/open [pos="
                   << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
         mToResend.push_back(chunk);
         return false;
@@ -3811,7 +4236,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         return false;
     }
 
-    LOG_debug << "[WsPool::sendChunk] read/open failed but file is no longer active in this pool"
+    WSUPLOAD_TRACE << "[WsPool::sendChunk] read/open failed but file is no longer active in this pool"
               << " [pos=" << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
               << "]";
     return false;
@@ -3825,7 +4250,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     std::uint64_t seenDisconnectEpoch = mImpl->disconnectEpoch.load(std::memory_order_acquire);
     auto ws = std::make_unique<WsConn>(this);
 
-    LOG_debug << "[WsPool::poolWorkerThread] BEGIN [lastQueueVersion=" << lastQueueVersion
+    WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] BEGIN [lastQueueVersion=" << lastQueueVersion
               << "] [this = " << this << "]";
 
     std::unique_lock<std::mutex> lk(mImpl->uploadMutex);
@@ -3868,7 +4293,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 if (!retryCount++)
                 {
-                    LOG_debug << "[WsPool::poolWorkerThread] retryCount=" << retryCount
+                    WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] retryCount=" << retryCount
                               << " -> continue [this = " << this << "]";
                     continue;
                 }
@@ -3918,7 +4343,11 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                         uploadToFail->unsetPool();
                         if (mUploadingFile == uploadToFail)
                         {
+#ifndef NDEBUG
+                            assignUploadingFileLocked(nullptr);
+#else
                             mUploadingFile = nullptr;
+#endif
                         }
                         mUFTQversion = mImpl->queueVersion;
 
@@ -3939,13 +4368,13 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 if (!mRetiring && lastQueueVersion != mImpl->queueVersion)
                 {
-                    LOG_debug << "[WsPool::poolWorkerThread] !mRetiring && lastQueueVersion("
+                    WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] !mRetiring && lastQueueVersion("
                               << lastQueueVersion << ") != mImpl->queueVersion("
                               << mImpl->queueVersion << ") -> refreshPools [this = " << this << "]";
                     mImpl->poolMgr.refreshPools();
                 }
 
-                LOG_debug << "[WsPool::poolWorkerThread] !ok -> continue [retryCount=" << retryCount
+                WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] !ok -> continue [retryCount=" << retryCount
                           << "] [this = " << this << "]";
 
                 {
@@ -3974,7 +4403,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(ws.get(), forceClose);
             if (forceClose)
             {
-                LOG_debug << "[WsPool::poolWorkerThread] force-close via test hook [this = "
+                WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] force-close via test hook [this = "
                           << this << "]";
                 ScopedUnlock unlock(lk);
                 ws->closeWS();
@@ -3986,12 +4415,26 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         // server throttle?
         if (throttledByServer())
         {
-            LOG_debug << "[WsPool::poolWorkerThread] throttledByServer=true -> continue [this = "
+            WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] throttledByServer=true -> continue [this = "
                       << this << "]";
+#ifndef NDEBUG
+            // followup6-11: sample simultaneous throttled conns at throttle wait point.
+            {
+                unsigned simul = 0;
+                for (const auto* c: mConns) if (c && c->mPauseStartedAtMs) ++simul;
+                ++mSimultaneousThrottledConnsSamples;
+                mSimultaneousThrottledConnsSum += simul;
+                if (simul > mSimultaneousThrottledConnsMax) mSimultaneousThrottledConnsMax = simul;
+            }
+#endif
             {
                 ScopedUnlock unlock(lk);
                 SteadyTime::sleep_ds(1);
             }
+#ifndef NDEBUG
+            ++mThrottleSleepIters;
+            mThrottleSleepMs += 100;
+#endif
             continue;
         }
 
@@ -4003,31 +4446,45 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
         if (!ws->haveSpace())
         {
-            LOG_debug << "[WsPool::poolWorkerThread] haveSpace=false -> continue [this = " << this
+            WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] haveSpace=false -> continue [this = " << this
                       << "]";
             {
                 ScopedUnlock unlock(lk);
-                SteadyTime::sleep_ds(2);
+                SteadyTime::sleep_ds(HAVE_SPACE_RETRY_DS);
             }
+#ifndef NDEBUG
+            ++mHaveSpaceFalseIters;
+            mHaveSpaceFalseWaitMs += static_cast<std::uint64_t>(HAVE_SPACE_RETRY_DS) * 100;
+#endif
             continue;
         }
         if (!ws->readyForData())
         {
-            LOG_debug << "[WsPool::poolWorkerThread] readyForData=false -> continue [this = "
+            WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] readyForData=false -> continue [this = "
                       << this << "]";
             {
                 ScopedUnlock unlock(lk);
-                SteadyTime::sleep_ds(2);
+                SteadyTime::sleep_ds(READY_FOR_DATA_RETRY_DS);
             }
+#ifndef NDEBUG
+            ++mReadyForDataFalseIters;
+            mReadyForDataFalseWaitMs += static_cast<std::uint64_t>(READY_FOR_DATA_RETRY_DS) * 100;
+#endif
             continue;
         }
 
         // fetch & enqueue next chunk (unlocks around disk I/O internally)
-        dstime sendRetryAfterDs = 10;
+        // Synchronous preflight on the pool worker means sendChunk=false fires only when the
+        // queue is genuinely empty, the pool is paused, or throttling rejected the chunk - not
+        // once per file the way the posted-lambda preflight did.
+        dstime retryAfterDs = 0;
         const auto wakeEpochBeforeSend = mImpl->workerWakeEpoch;
-        if (!sendChunk(ws.get(), *mImpl, &sendRetryAfterDs))
+#ifndef NDEBUG
+        const std::uint64_t chunkPrepStartMs = steadyMs();
+#endif
+        if (!sendChunk(ws.get(), *mImpl, &retryAfterDs))
         {
-            LOG_debug << "[WsPool::poolWorkerThread] sendChunk=false -> continue [this = " << this
+            WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] sendChunk=false -> continue [this = " << this
                       << "]";
             if (mPreflightPending)
             {
@@ -4046,10 +4503,24 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             else
             {
                 ScopedUnlock unlock(lk);
-                SteadyTime::sleep_ds(sendRetryAfterDs);
+                SteadyTime::sleep_ds(retryAfterDs ? retryAfterDs : BACKLOG_EMPTY_RETRY_DS);
             }
+#ifndef NDEBUG
+            ++mBacklogEmptyIters;
+            mBacklogEmptyMs +=
+                static_cast<std::uint64_t>(retryAfterDs ? retryAfterDs : BACKLOG_EMPTY_RETRY_DS) *
+                100;
+#endif
             continue;
         }
+#ifndef NDEBUG
+        // followup6-2: chunk-prep latency = entry-to-success of sendChunk (read + encrypt + queue).
+        const std::uint64_t chunkPrepDtMs = steadyMs() - chunkPrepStartMs;
+        mChunkPrepTotalMs += chunkPrepDtMs;
+        if (chunkPrepDtMs > mChunkPrepMaxMs)
+            mChunkPrepMaxMs = chunkPrepDtMs;
+        ++mChunkPrepN;
+#endif
     }
 
     if (ws->readyState != WsConn::ReadyState::CLOSED)
@@ -4059,7 +4530,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     }
 
     th->terminated = true;
-    LOG_debug << "[WsPool::poolWorkerThread] END [lastQueueVersion=" << lastQueueVersion
+    WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] END [lastQueueVersion=" << lastQueueVersion
               << "] [this = " << this << "]";
 }
 
@@ -4228,6 +4699,10 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
         const bool pinnedHasReference = pool->mPinned && pinnedPoolHasReference(*pool, impl);
         const bool shouldScaleUp = !pool->mRetiring && (hasPoolWork || pinnedHasReference);
         const unsigned char targetConnLimit = impl.poolConnectionLimit();
+
+#ifndef NDEBUG
+        pool->recordWsUploadStatsSampleLocked(impl);
+#endif
 
         if (shouldScaleUp && pool->mNumberOfConnections < targetConnLimit)
         {
@@ -4581,6 +5056,11 @@ bool UploadEngine::getPoolStateForTesting(const std::string& url,
                                           UploadEngine::PoolStateForTesting& out) const
 {
     return pImpl->getPoolStateForTesting(url, out);
+}
+
+bool UploadEngine::getWsUploadStatsForTesting(WsUploadStatsForTesting& out) const
+{
+    return pImpl->getWsUploadStatsForTesting(out);
 }
 
 bool UploadEngine::isTrackedForTesting(const Transfer& t) const

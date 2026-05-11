@@ -42,12 +42,17 @@
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <fstream>
 #include <map>
 #include <mutex>
 #include <optional>
+#include <random>
 #include <set>
 #include <sstream>
+#include <system_error>
+#include <thread>
 #include <unordered_map>
 #include <vector>
 
@@ -707,6 +712,44 @@ namespace
                     client->wsEngine()->getPoolStateForTesting(url, state);
                 }
                 promise->set_value(std::move(state));
+            });
+
+        impl->executeOnThreadForTesting(exec);
+
+        if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+        {
+            return false;
+        }
+
+        out = future.get();
+        return true;
+    }
+
+    bool fetchWsUploadStatsForTesting(
+        MegaApi& api,
+        ws::UploadEngine::WsUploadStatsForTesting& out,
+        const int timeoutSeconds = defaultTimeout)
+    {
+        MegaApiImpl* impl = MegaApiImpl::ImplOf(&api);
+        if (!impl)
+        {
+            return false;
+        }
+
+        auto promise =
+            std::make_shared<std::promise<ws::UploadEngine::WsUploadStatsForTesting>>();
+        auto future = promise->get_future();
+
+        auto exec = std::make_shared<ExecuteOnce>(
+            [impl, promise]()
+            {
+                ws::UploadEngine::WsUploadStatsForTesting stats;
+                MegaClient* client = impl->getClientForTesting();
+                if (client && client->wsEngine())
+                {
+                    client->wsEngine()->getWsUploadStatsForTesting(stats);
+                }
+                promise->set_value(std::move(stats));
             });
 
         impl->executeOnThreadForTesting(exec);
@@ -19187,6 +19230,946 @@ TEST_F(SdkTest, SdkTestMultipleUploadsExpanded)
     {
         deleteFile(file);
     }
+}
+
+static void includeTransferWindow(const TransferTracker& tracker,
+                                  std::int64_t& firstStartMs,
+                                  std::int64_t& lastFinishMs)
+{
+    const auto startMs = tracker.mStartSteadyMs.load();
+    const auto finishMs = tracker.mFinishSteadyMs.load();
+    if (startMs > 0 && (!firstStartMs || startMs < firstStartMs))
+    {
+        firstStartMs = startMs;
+    }
+    if (finishMs > lastFinishMs)
+    {
+        lastFinishMs = finishMs;
+    }
+}
+
+static std::int64_t benchmarkSteadyMs()
+{
+    return static_cast<std::int64_t>(
+        std::chrono::duration_cast<std::chrono::milliseconds>(
+            std::chrono::steady_clock::now().time_since_epoch())
+            .count());
+}
+
+struct Followup6Distribution
+{
+    std::int64_t mean = 0;
+    std::int64_t median = 0;
+    std::int64_t p95 = 0;
+    std::int64_t min = 0;
+    std::int64_t max = 0;
+};
+
+static Followup6Distribution summarizeMsDistribution(std::vector<std::int64_t> values)
+{
+    EXPECT_FALSE(values.empty());
+    if (values.empty())
+    {
+        return {};
+    }
+
+    std::sort(values.begin(), values.end());
+    std::int64_t sum = 0;
+    for (const auto value: values)
+    {
+        sum += value;
+    }
+
+    Followup6Distribution out;
+    out.mean = sum / static_cast<std::int64_t>(values.size());
+    out.median = values[values.size() / 2];
+    out.p95 = values[std::min(values.size() - 1, (values.size() * 95) / 100)];
+    out.min = values.front();
+    out.max = values.back();
+    return out;
+}
+
+struct Followup6TimingSummary
+{
+    std::int64_t firstStartMs = 0;
+    std::int64_t lastFinishMs = 0;
+    std::int64_t lastPutnodesStartMs = 0;
+    std::int64_t callbackTransferMs = 0;
+    std::int64_t pureTransferMs = 0;
+    std::int64_t putnodesOverheadMs = 0;
+    std::int64_t completeTransferMs = 0;
+    Followup6Distribution perTransferPureTransferMs;
+    Followup6Distribution perTransferPutnodesOverheadMs;
+};
+
+class Followup6PutnodesTimingRecorder
+{
+public:
+    Followup6PutnodesTimingRecorder()
+    {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        globalMegaTestHooks.onUploadPutnodesStarted =
+            [this](const int tag)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mPutnodesStartMsByTag[tag] = benchmarkSteadyMs();
+        };
+#endif
+    }
+
+    ~Followup6PutnodesTimingRecorder()
+    {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        globalMegaTestHooks.onUploadPutnodesStarted = nullptr;
+#endif
+    }
+
+    std::int64_t putnodesStartMsForTag(const int tag) const
+    {
+        std::lock_guard<std::mutex> g(mMutex);
+        const auto it = mPutnodesStartMsByTag.find(tag);
+        return it == mPutnodesStartMsByTag.end() ? 0 : it->second;
+    }
+
+private:
+    mutable std::mutex mMutex;
+    std::unordered_map<int, std::int64_t> mPutnodesStartMsByTag;
+};
+
+static Followup6TimingSummary summarizeFollowup6Timings(
+    const std::vector<const TransferTracker*>& trackers,
+    const Followup6PutnodesTimingRecorder& putnodesRecorder)
+{
+    Followup6TimingSummary summary;
+    std::vector<std::int64_t> perPureMs;
+    std::vector<std::int64_t> perPutnodesMs;
+    perPureMs.reserve(trackers.size());
+    perPutnodesMs.reserve(trackers.size());
+
+    for (const auto* tracker: trackers)
+    {
+        if (!tracker)
+        {
+            ADD_FAILURE() << "Null transfer tracker";
+            continue;
+        }
+        const auto startMs = tracker->mStartSteadyMs.load();
+        const auto finishMs = tracker->mFinishSteadyMs.load();
+        const auto tag = tracker->mTag.load();
+        const auto putnodesMs = putnodesRecorder.putnodesStartMsForTag(tag);
+
+        EXPECT_GT(startMs, 0) << "Missing onTransferStart timestamp for tag " << tag;
+        EXPECT_GT(finishMs, startMs) << "Missing onTransferFinish timestamp for tag " << tag;
+        EXPECT_GT(tag, 0) << "Missing transfer tag for timing boundary";
+        EXPECT_GE(putnodesMs, startMs) << "Missing pre-putnodes timestamp for tag " << tag;
+        EXPECT_GE(finishMs, putnodesMs) << "Putnodes timestamp is after transfer finish for tag "
+                                        << tag;
+        if (startMs <= 0 || finishMs <= startMs || tag <= 0 || putnodesMs < startMs ||
+            finishMs < putnodesMs)
+        {
+            continue;
+        }
+
+        if (!summary.firstStartMs || startMs < summary.firstStartMs)
+        {
+            summary.firstStartMs = startMs;
+        }
+        summary.lastFinishMs = std::max(summary.lastFinishMs, finishMs);
+        summary.lastPutnodesStartMs = std::max(summary.lastPutnodesStartMs, putnodesMs);
+        perPureMs.push_back(putnodesMs - startMs);
+        perPutnodesMs.push_back(finishMs - putnodesMs);
+    }
+
+    EXPECT_GT(summary.firstStartMs, 0);
+    EXPECT_GT(summary.lastFinishMs, summary.firstStartMs);
+    EXPECT_GE(summary.lastPutnodesStartMs, summary.firstStartMs);
+    EXPECT_GE(summary.lastFinishMs, summary.lastPutnodesStartMs);
+    if (summary.firstStartMs <= 0 || summary.lastFinishMs <= summary.firstStartMs ||
+        summary.lastPutnodesStartMs < summary.firstStartMs ||
+        summary.lastFinishMs < summary.lastPutnodesStartMs)
+    {
+        return summary;
+    }
+
+    summary.callbackTransferMs = summary.lastFinishMs - summary.firstStartMs;
+    summary.pureTransferMs = summary.lastPutnodesStartMs - summary.firstStartMs;
+    summary.putnodesOverheadMs = summary.lastFinishMs - summary.lastPutnodesStartMs;
+    summary.completeTransferMs = summary.callbackTransferMs;
+    summary.perTransferPureTransferMs = summarizeMsDistribution(std::move(perPureMs));
+    summary.perTransferPutnodesOverheadMs = summarizeMsDistribution(std::move(perPutnodesMs));
+    return summary;
+}
+
+static void appendFollowup6TimingFields(std::ostream& out, const Followup6TimingSummary& summary)
+{
+    out << " callbackTransferMs=" << summary.callbackTransferMs
+        << " pureTransferMs=" << summary.pureTransferMs
+        << " putnodesOverheadMs=" << summary.putnodesOverheadMs
+        << " completeTransferMs=" << summary.completeTransferMs
+        << " perTransferPureTransferMeanMs=" << summary.perTransferPureTransferMs.mean
+        << " perTransferPureTransferMedianMs=" << summary.perTransferPureTransferMs.median
+        << " perTransferPureTransferP95Ms=" << summary.perTransferPureTransferMs.p95
+        << " perTransferPureTransferMinMs=" << summary.perTransferPureTransferMs.min
+        << " perTransferPureTransferMaxMs=" << summary.perTransferPureTransferMs.max
+        << " perTransferPutnodesOverheadMeanMs="
+        << summary.perTransferPutnodesOverheadMs.mean
+        << " perTransferPutnodesOverheadMedianMs="
+        << summary.perTransferPutnodesOverheadMs.median
+        << " perTransferPutnodesOverheadP95Ms=" << summary.perTransferPutnodesOverheadMs.p95
+        << " perTransferPutnodesOverheadMinMs=" << summary.perTransferPutnodesOverheadMs.min
+        << " perTransferPutnodesOverheadMaxMs=" << summary.perTransferPutnodesOverheadMs.max
+        << " lastPutnodesStartMs=" << summary.lastPutnodesStartMs;
+}
+
+static void runSmallUploadsBenchmark(SdkTest& test,
+                                     const size_t fileCount,
+                                     const char* testName,
+                                     const char* summaryTag)
+{
+    constexpr size_t kFileSize = 1 * 1024 * 1024; // 1 MiB
+    constexpr int kTimeoutS = 600; // per-file wait cap
+
+    LOG_info << "___TEST___ " << testName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string folderName =
+        std::string("bench_smallmany_") + testName + "_" +
+        std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    const fs::path tmpDir = fs::temp_directory_path() / ("bench_" + folderName);
+    fs::create_directories(tmpDir);
+    const auto cleanup = makeScopedDestructor(
+        [tmpDir]()
+        {
+            std::error_code ec;
+            fs::remove_all(tmpDir, ec);
+        });
+    std::vector<sdk_test::LocalTempFile> localFiles;
+    localFiles.reserve(fileCount);
+    for (size_t i = 0; i < fileCount; ++i)
+    {
+        localFiles.emplace_back(tmpDir / ("f" + std::to_string(i) + ".bin"), kFileSize);
+    }
+
+    std::vector<std::unique_ptr<TransferTracker>> trackers;
+    trackers.reserve(fileCount);
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    Followup6PutnodesTimingRecorder putnodesRecorder;
+
+    const auto apiStart = std::chrono::steady_clock::now();
+    for (size_t i = 0; i < fileCount; ++i)
+    {
+        trackers.emplace_back(std::make_unique<TransferTracker>(test.megaApi[0].get()));
+        test.megaApi[0]->startUpload(localFiles[i].getPath().string(),
+                                     folder.get(),
+                                     nullptr /*cancelToken*/,
+                                     &uploadOptions,
+                                     trackers.back().get());
+    }
+
+    std::vector<double> perFileKBps;
+    perFileKBps.reserve(fileCount);
+    for (size_t i = 0; i < fileCount; ++i)
+    {
+        const ErrorCodes res = trackers[i]->waitForResult(kTimeoutS);
+        ASSERT_EQ(res, API_OK) << "Upload " << i << " failed with code " << res;
+        perFileKBps.push_back(static_cast<double>(trackers[i]->mTransferMeanSpeed) / 1024.0);
+    }
+    const auto apiEnd = std::chrono::steady_clock::now();
+
+    std::int64_t firstTransferStartMs = 0;
+    std::int64_t lastTransferFinishMs = 0;
+    std::vector<const TransferTracker*> timingTrackers;
+    timingTrackers.reserve(trackers.size());
+    for (const auto& tracker: trackers)
+    {
+        includeTransferWindow(*tracker, firstTransferStartMs, lastTransferFinishMs);
+        timingTrackers.push_back(tracker.get());
+    }
+    ASSERT_GT(firstTransferStartMs, 0);
+    ASSERT_GT(lastTransferFinishMs, firstTransferStartMs);
+    const auto timingSummary = summarizeFollowup6Timings(timingTrackers, putnodesRecorder);
+
+    const auto totalMs = lastTransferFinishMs - firstTransferStartMs;
+    const auto apiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
+    const double totalKiB = static_cast<double>(fileCount) * kFileSize / 1024.0;
+    const double aggregateKBps =
+        (totalMs > 0) ? (totalKiB * 1000.0) / static_cast<double>(totalMs) : 0.0;
+
+    std::vector<double> sorted = perFileKBps;
+    std::sort(sorted.begin(), sorted.end());
+    const double minKBps = sorted.front();
+    const double maxKBps = sorted.back();
+    const double medianKBps = sorted[sorted.size() / 2];
+    double sumKBps = 0.0;
+    for (const double v: sorted)
+        sumKBps += v;
+    const double avgKBps = sumKBps / static_cast<double>(sorted.size());
+
+    std::ostringstream summary;
+    summary << summaryTag << " files=" << fileCount << " fileSize=" << kFileSize
+            << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
+            << " apiTotalMs=" << apiTotalMs
+            << " avgKBps=" << avgKBps << " medianKBps=" << medianKBps
+            << " minKBps=" << minKBps << " maxKBps=" << maxKBps;
+    appendFollowup6TimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
+    ws::UploadEngine::WsUploadStatsForTesting stats;
+    if (fetchWsUploadStatsForTesting(*test.megaApi[0], stats, 5) && stats.found)
+    {
+        LOG_info << "[WsUploadStats] files=" << fileCount
+                 << " pools=" << stats.poolCount
+                 << " uploadingFileOccupiedMs=" << stats.uploadingFileOccupiedMs
+                 << " lastAckToNextFirstByteSamples="
+                 << stats.lastAckToNextFirstByteSamples
+                 << " lastAckToNextFirstByteTotalMs="
+                 << stats.lastAckToNextFirstByteTotalMs
+                 << " lastAckToNextFirstByteMaxMs=" << stats.lastAckToNextFirstByteMaxMs
+                 << " allChunksInFlightBlockedMs=" << stats.allChunksInFlightBlockedMs
+                 << " eligibleFileSampleCount=" << stats.eligibleFileSampleCount
+                 << " blockedByInFlightSampleCount="
+                 << stats.blockedByInFlightSampleCount
+                 << " idleEligibleConnectionMs=" << stats.idleEligibleConnectionMs
+                 << " idleEligibleConnectionSampleCount="
+                 << stats.idleEligibleConnectionSampleCount
+                 << " curlAgainSendCount=" << stats.curlAgainSendCount
+                 << " curlAgainRecvCount=" << stats.curlAgainRecvCount
+                 << " haveSpaceFalseIters=" << stats.haveSpaceFalseIters
+                 << " haveSpaceFalseWaitMs=" << stats.haveSpaceFalseWaitMs
+                 << " readyForDataFalseIters=" << stats.readyForDataFalseIters
+                 << " readyForDataFalseWaitMs=" << stats.readyForDataFalseWaitMs
+                 << " throttleSleepIters=" << stats.throttleSleepIters
+                 << " throttleSleepMs=" << stats.throttleSleepMs
+                 << " backlogEmptyIters=" << stats.backlogEmptyIters
+                 << " backlogEmptyMs=" << stats.backlogEmptyMs
+                 << " bufferedAmountHighWater=" << stats.bufferedAmountHighWater
+                 << " chunksInFlightHighWater=" << stats.chunksInFlightHighWater
+                 << " chunkPrepTotalMs=" << stats.chunkPrepTotalMs
+                 << " chunkPrepMaxMs=" << stats.chunkPrepMaxMs
+                 << " chunkPrepN=" << stats.chunkPrepN
+                 << " throttleEventCount=" << stats.throttleEventCount
+                 << " throttleEventMinDs=" << stats.throttleEventMinDs
+                 << " throttleEventMaxDs=" << stats.throttleEventMaxDs
+                 << " throttleEventMeanDs=" << (stats.throttleEventCount ? static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount) : 0.0)
+                 << " throttleEventStdevDs=" << (stats.throttleEventCount > 1 ? std::sqrt(static_cast<double>(stats.throttleEventSumSqDs) / static_cast<double>(stats.throttleEventCount) - std::pow(static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount), 2.0)) : 0.0)
+                 << " throttleBucket0to1s=" << stats.throttleBucket0to1s
+                 << " throttleBucket1to5s=" << stats.throttleBucket1to5s
+                 << " throttleBucket5to30s=" << stats.throttleBucket5to30s
+                 << " throttleBucket30sPlus=" << stats.throttleBucket30sPlus
+                 << " throttleEventCode6=" << stats.throttleEventCodeCounts[6]
+                 << " simulThrottledConnsMax=" << stats.simultaneousThrottledConnsMax
+                 << " simulThrottledConnsMean=" << (stats.simultaneousThrottledConnsSamples ? static_cast<double>(stats.simultaneousThrottledConnsSum) / static_cast<double>(stats.simultaneousThrottledConnsSamples) : 0.0)
+                 << " throttleRecoveryAckSamples=" << stats.throttleRecoveryAckSamples
+                 << " throttleRecoveryAckMeanMs=" << (stats.throttleRecoveryAckSamples ? static_cast<double>(stats.throttleRecoveryAckTotalMs) / static_cast<double>(stats.throttleRecoveryAckSamples) : 0.0)
+                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs;
+    }
+#endif
+
+    test.deleteFolder(folderName);
+}
+
+static constexpr std::uintmax_t kFollowup5MiB = 1024ull * 1024ull;
+static constexpr std::uintmax_t kFollowup5GiB = 1024ull * kFollowup5MiB;
+static constexpr std::uintmax_t kFollowup5LargeFileSize = 10ull * kFollowup5GiB;
+static constexpr std::uintmax_t kFollowup5RequiredFreeBytes = 25ull * kFollowup5GiB;
+static constexpr size_t kFollowup5SmallFileCount = 500;
+static constexpr size_t kFollowup5SmallFileSize = 1 * 1024 * 1024;
+
+static fs::path followup5StagingRoot()
+{
+    return fs::path{"/home/vmga/mega_tests/followup5_staging"};
+}
+
+static std::string followup5UniqueSuffix(const char* testName)
+{
+    return std::string{testName} + "_" +
+           std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+}
+
+static std::uint64_t followup6ContentSeed(const std::string& uniqueSuffix,
+                                          const std::uint64_t salt)
+{
+    std::uint64_t hash = 1469598103934665603ull ^ salt;
+    for (const unsigned char ch: uniqueSuffix)
+    {
+        hash ^= ch;
+        hash *= 1099511628211ull;
+    }
+    return hash;
+}
+
+static void requireFollowup5StagingSpace()
+{
+    const auto root = followup5StagingRoot();
+    std::error_code ec;
+    fs::create_directories(root, ec);
+    ASSERT_FALSE(ec) << "Cannot create followup5 staging root: " << root << ": "
+                     << ec.message();
+
+    const auto space = fs::space(root, ec);
+    ASSERT_FALSE(ec) << "Cannot inspect followup5 staging space: " << root << ": "
+                     << ec.message();
+    ASSERT_GE(space.available, kFollowup5RequiredFreeBytes)
+        << "Need at least " << kFollowup5RequiredFreeBytes
+        << " bytes available for followup5 large-file staging under " << root
+        << ", got " << space.available;
+}
+
+static void createDenseDeterministicFile(const fs::path& path,
+                                         const std::uintmax_t sizeBytes,
+                                         const std::uint64_t seed)
+{
+    std::error_code ec;
+    fs::create_directories(path.parent_path(), ec);
+    ASSERT_FALSE(ec) << "Cannot create parent directory for " << path << ": " << ec.message();
+
+    std::ofstream out(path, std::ios::binary | std::ios::trunc);
+    ASSERT_TRUE(out) << "Cannot create dense benchmark file: " << path;
+
+    constexpr std::size_t kBlockSize = 4 * 1024 * 1024;
+    std::vector<char> block(kBlockSize);
+    std::mt19937_64 rng{seed};
+    std::uniform_int_distribution<int> dist(0, 255);
+    for (auto& ch: block)
+    {
+        ch = static_cast<char>(dist(rng));
+    }
+
+    for (std::uintmax_t remaining = sizeBytes; remaining > 0;)
+    {
+        const auto toWrite =
+            static_cast<std::size_t>(std::min<std::uintmax_t>(remaining, block.size()));
+        out.write(block.data(), static_cast<std::streamsize>(toWrite));
+        ASSERT_TRUE(out) << "Failed while writing dense benchmark file: " << path;
+        remaining -= toWrite;
+    }
+}
+
+static double aggregateKBpsForBytes(const std::uintmax_t bytes, const std::int64_t totalMs)
+{
+    return totalMs > 0 ? (static_cast<double>(bytes) / 1024.0 * 1000.0) /
+                             static_cast<double>(totalMs) :
+                         0.0;
+}
+
+static void appendTrackerMeanKBps(const TransferTracker& tracker, std::vector<double>& out)
+{
+    out.push_back(static_cast<double>(tracker.mTransferMeanSpeed) / 1024.0);
+}
+
+static void summarizeKBps(const std::vector<double>& values,
+                          double& avg,
+                          double& median,
+                          double& min,
+                          double& max)
+{
+    ASSERT_FALSE(values.empty());
+
+    std::vector<double> sorted = values;
+    std::sort(sorted.begin(), sorted.end());
+    double sum = 0.0;
+    for (const double v: sorted)
+    {
+        sum += v;
+    }
+
+    avg = sum / static_cast<double>(sorted.size());
+    median = sorted[sorted.size() / 2];
+    min = sorted.front();
+    max = sorted.back();
+}
+
+static void verifyUploadedFile(SdkTest& test,
+                               const MegaHandle nodeHandle,
+                               const std::string& expectedName,
+                               const std::uintmax_t expectedSize)
+{
+    ASSERT_NE(nodeHandle, ::mega::INVALID_HANDLE);
+    std::unique_ptr<MegaNode> uploadedNode(test.megaApi[0]->getNodeByHandle(nodeHandle));
+    ASSERT_NE(uploadedNode, nullptr);
+    ASSERT_STREQ(expectedName.c_str(), uploadedNode->getName());
+    ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(expectedSize));
+}
+
+static void logFollowup5WsStats(SdkTest& test, const size_t fileCount)
+{
+#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
+    ws::UploadEngine::WsUploadStatsForTesting stats;
+    if (fetchWsUploadStatsForTesting(*test.megaApi[0], stats, 5) && stats.found)
+    {
+        LOG_info << "[WsUploadStats] files=" << fileCount
+                 << " pools=" << stats.poolCount
+                 << " uploadingFileOccupiedMs=" << stats.uploadingFileOccupiedMs
+                 << " lastAckToNextFirstByteSamples="
+                 << stats.lastAckToNextFirstByteSamples
+                 << " lastAckToNextFirstByteTotalMs="
+                 << stats.lastAckToNextFirstByteTotalMs
+                 << " lastAckToNextFirstByteMaxMs=" << stats.lastAckToNextFirstByteMaxMs
+                 << " allChunksInFlightBlockedMs=" << stats.allChunksInFlightBlockedMs
+                 << " eligibleFileSampleCount=" << stats.eligibleFileSampleCount
+                 << " blockedByInFlightSampleCount="
+                 << stats.blockedByInFlightSampleCount
+                 << " idleEligibleConnectionMs=" << stats.idleEligibleConnectionMs
+                 << " idleEligibleConnectionSampleCount="
+                 << stats.idleEligibleConnectionSampleCount
+                 << " curlAgainSendCount=" << stats.curlAgainSendCount
+                 << " curlAgainRecvCount=" << stats.curlAgainRecvCount
+                 << " haveSpaceFalseIters=" << stats.haveSpaceFalseIters
+                 << " haveSpaceFalseWaitMs=" << stats.haveSpaceFalseWaitMs
+                 << " readyForDataFalseIters=" << stats.readyForDataFalseIters
+                 << " readyForDataFalseWaitMs=" << stats.readyForDataFalseWaitMs
+                 << " throttleSleepIters=" << stats.throttleSleepIters
+                 << " throttleSleepMs=" << stats.throttleSleepMs
+                 << " backlogEmptyIters=" << stats.backlogEmptyIters
+                 << " backlogEmptyMs=" << stats.backlogEmptyMs
+                 << " bufferedAmountHighWater=" << stats.bufferedAmountHighWater
+                 << " chunksInFlightHighWater=" << stats.chunksInFlightHighWater
+                 << " chunkPrepTotalMs=" << stats.chunkPrepTotalMs
+                 << " chunkPrepMaxMs=" << stats.chunkPrepMaxMs
+                 << " chunkPrepN=" << stats.chunkPrepN
+                 << " throttleEventCount=" << stats.throttleEventCount
+                 << " throttleEventMinDs=" << stats.throttleEventMinDs
+                 << " throttleEventMaxDs=" << stats.throttleEventMaxDs
+                 << " throttleEventMeanDs=" << (stats.throttleEventCount ? static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount) : 0.0)
+                 << " throttleEventStdevDs=" << (stats.throttleEventCount > 1 ? std::sqrt(static_cast<double>(stats.throttleEventSumSqDs) / static_cast<double>(stats.throttleEventCount) - std::pow(static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount), 2.0)) : 0.0)
+                 << " throttleBucket0to1s=" << stats.throttleBucket0to1s
+                 << " throttleBucket1to5s=" << stats.throttleBucket1to5s
+                 << " throttleBucket5to30s=" << stats.throttleBucket5to30s
+                 << " throttleBucket30sPlus=" << stats.throttleBucket30sPlus
+                 << " throttleEventCode6=" << stats.throttleEventCodeCounts[6]
+                 << " simulThrottledConnsMax=" << stats.simultaneousThrottledConnsMax
+                 << " simulThrottledConnsMean=" << (stats.simultaneousThrottledConnsSamples ? static_cast<double>(stats.simultaneousThrottledConnsSum) / static_cast<double>(stats.simultaneousThrottledConnsSamples) : 0.0)
+                 << " throttleRecoveryAckSamples=" << stats.throttleRecoveryAckSamples
+                 << " throttleRecoveryAckMeanMs=" << (stats.throttleRecoveryAckSamples ? static_cast<double>(stats.throttleRecoveryAckTotalMs) / static_cast<double>(stats.throttleRecoveryAckSamples) : 0.0)
+                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs;
+    }
+#else
+    (void)test;
+    (void)fileCount;
+#endif
+}
+
+static void runSingleLargeUploadBenchmark(SdkTest& test)
+{
+    constexpr int kTimeoutS = 4 * 60 * 60;
+    constexpr const char* kTestName = "SdkTestBenchmarkSingleLargeUpload";
+
+    LOG_info << "___TEST___ " << kTestName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+    ASSERT_NO_FATAL_FAILURE(requireFollowup5StagingSpace());
+
+    // followup6-5: env-var override of upload connection count
+    if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
+    {
+        const int n = std::atoi(envConns);
+        if (n > 0)
+        {
+            ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            LOG_info << "[BenchSingleLargeUpload] connections override = " << n;
+        }
+    }
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string suffix = followup5UniqueSuffix(kTestName);
+    const std::string folderName = "bench_single_large_" + suffix;
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    const fs::path stagingDir = followup5StagingRoot() / folderName;
+    std::error_code cleanupEc;
+    fs::remove_all(stagingDir, cleanupEc);
+    const auto cleanup = makeScopedDestructor(
+        [stagingDir]()
+        {
+            std::error_code ec;
+            fs::remove_all(stagingDir, ec);
+        });
+
+    const std::string largeName = "followup5_single_large_10g.bin";
+    const fs::path largePath = stagingDir / largeName;
+    ASSERT_NO_FATAL_FAILURE(
+        createDenseDeterministicFile(largePath,
+                                     kFollowup5LargeFileSize,
+                                     followup6ContentSeed(suffix, 0x5360f501ull)));
+
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    TransferTracker tracker(test.megaApi[0].get());
+    Followup6PutnodesTimingRecorder putnodesRecorder;
+
+    const auto apiStart = std::chrono::steady_clock::now();
+    test.megaApi[0]->startUpload(largePath.string(),
+                                 folder.get(),
+                                 nullptr,
+                                 &uploadOptions,
+                                 &tracker);
+
+    const ErrorCodes res = tracker.waitForResult(kTimeoutS);
+    const auto apiEnd = std::chrono::steady_clock::now();
+    ASSERT_EQ(res, API_OK) << "Large upload failed with code " << res;
+    ASSERT_NO_FATAL_FAILURE(
+        verifyUploadedFile(test, tracker.resultNodeHandle, largeName, kFollowup5LargeFileSize));
+
+    const auto startMs = tracker.mStartSteadyMs.load();
+    const auto finishMs = tracker.mFinishSteadyMs.load();
+    ASSERT_GT(startMs, 0);
+    ASSERT_GT(finishMs, startMs);
+    const auto timingSummary =
+        summarizeFollowup6Timings(std::vector<const TransferTracker*>{&tracker},
+                                  putnodesRecorder);
+
+    const auto totalMs = finishMs - startMs;
+    const auto apiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
+    const double aggregateKBps = aggregateKBpsForBytes(kFollowup5LargeFileSize, totalMs);
+
+    std::ostringstream summary;
+    summary << "[BenchSingleLargeUpload] files=1 fileSize=" << kFollowup5LargeFileSize
+            << " totalBytes=" << kFollowup5LargeFileSize
+            << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
+            << " apiTotalMs=" << apiTotalMs
+            << " avgKBps=" << aggregateKBps << " medianKBps=" << aggregateKBps
+            << " minKBps=" << aggregateKBps << " maxKBps=" << aggregateKBps
+            << " finishMs=" << tracker.mFinishSteadyMs.load()
+            << " contentSeed=" << followup6ContentSeed(suffix, 0x5360f501ull);
+    appendFollowup6TimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+    logFollowup5WsStats(test, 1);
+    test.deleteFolder(folderName);
+}
+
+static void runLargePlusManySmallBenchmark(SdkTest& test)
+{
+    constexpr int kSmallTimeoutS = 60 * 60;
+    constexpr int kLargeTimeoutS = 4 * 60 * 60;
+    constexpr auto kLargeGateTimeout = std::chrono::seconds{90};
+    constexpr m_off_t kLargeGateBytes = 512ll * 1024ll * 1024ll;
+    constexpr const char* kTestName = "SdkTestBenchmarkLargePlusManySmall";
+
+    LOG_info << "___TEST___ " << kTestName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+    ASSERT_NO_FATAL_FAILURE(requireFollowup5StagingSpace());
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string suffix = followup5UniqueSuffix(kTestName);
+    const std::string folderName = "bench_large_plus_small_" + suffix;
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    const fs::path stagingDir = followup5StagingRoot() / folderName;
+    std::error_code cleanupEc;
+    fs::remove_all(stagingDir, cleanupEc);
+    const auto cleanup = makeScopedDestructor(
+        [stagingDir]()
+        {
+            std::error_code ec;
+            fs::remove_all(stagingDir, ec);
+        });
+
+    const std::string largeName = "followup5_combined_large_10g.bin";
+    const fs::path largePath = stagingDir / largeName;
+    ASSERT_NO_FATAL_FAILURE(
+        createDenseDeterministicFile(largePath,
+                                     kFollowup5LargeFileSize,
+                                     followup6ContentSeed(suffix, 0x5360f502ull)));
+
+    const fs::path smallDir = stagingDir / "small";
+    fs::create_directories(smallDir);
+    std::vector<sdk_test::LocalTempFile> smallFiles;
+    smallFiles.reserve(kFollowup5SmallFileCount);
+    for (size_t i = 0; i < kFollowup5SmallFileCount; ++i)
+    {
+        smallFiles.emplace_back(smallDir / ("f" + std::to_string(i) + ".bin"),
+                                kFollowup5SmallFileSize);
+    }
+
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    TransferTracker largeTracker(test.megaApi[0].get());
+    Followup6PutnodesTimingRecorder putnodesRecorder;
+
+    const auto apiStart = std::chrono::steady_clock::now();
+    test.megaApi[0]->startUpload(largePath.string(),
+                                 folder.get(),
+                                 nullptr,
+                                 &uploadOptions,
+                                 &largeTracker);
+
+    const auto gateStart = std::chrono::steady_clock::now();
+    bool gateTimedOut = false;
+    while (!largeTracker.finished &&
+           largeTracker.mTransferredBytes.load() < kLargeGateBytes)
+    {
+        if (std::chrono::steady_clock::now() - gateStart >= kLargeGateTimeout)
+        {
+            gateTimedOut = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds{1});
+    }
+    const auto largeBytesAtSmallStart = largeTracker.mTransferredBytes.load();
+
+    std::vector<std::unique_ptr<TransferTracker>> smallTrackers;
+    smallTrackers.reserve(kFollowup5SmallFileCount);
+    const auto smallApiStart = std::chrono::steady_clock::now();
+    for (size_t i = 0; i < kFollowup5SmallFileCount; ++i)
+    {
+        smallTrackers.emplace_back(std::make_unique<TransferTracker>(test.megaApi[0].get()));
+        test.megaApi[0]->startUpload(smallFiles[i].getPath().string(),
+                                     folder.get(),
+                                     nullptr,
+                                     &uploadOptions,
+                                     smallTrackers.back().get());
+    }
+
+    std::vector<double> smallKBps;
+    smallKBps.reserve(kFollowup5SmallFileCount);
+    for (size_t i = 0; i < kFollowup5SmallFileCount; ++i)
+    {
+        const ErrorCodes res = smallTrackers[i]->waitForResult(kSmallTimeoutS);
+        ASSERT_EQ(res, API_OK) << "Small upload " << i << " failed with code " << res;
+        appendTrackerMeanKBps(*smallTrackers[i], smallKBps);
+    }
+    const auto smallApiEnd = std::chrono::steady_clock::now();
+
+    const ErrorCodes largeRes = largeTracker.waitForResult(kLargeTimeoutS);
+    const auto apiEnd = std::chrono::steady_clock::now();
+    ASSERT_EQ(largeRes, API_OK) << "Large upload failed with code " << largeRes;
+    ASSERT_NO_FATAL_FAILURE(verifyUploadedFile(test,
+                                               largeTracker.resultNodeHandle,
+                                               largeName,
+                                               kFollowup5LargeFileSize));
+
+    double avgKBps = 0.0;
+    double medianKBps = 0.0;
+    double minKBps = 0.0;
+    double maxKBps = 0.0;
+    ASSERT_NO_FATAL_FAILURE(summarizeKBps(smallKBps, avgKBps, medianKBps, minKBps, maxKBps));
+
+    std::int64_t firstTransferStartMs = 0;
+    std::int64_t lastTransferFinishMs = 0;
+    includeTransferWindow(largeTracker, firstTransferStartMs, lastTransferFinishMs);
+    std::vector<const TransferTracker*> timingTrackers;
+    timingTrackers.reserve(kFollowup5SmallFileCount + 1);
+    timingTrackers.push_back(&largeTracker);
+
+    std::int64_t firstSmallStartMs = 0;
+    std::int64_t lastSmallFinishMs = 0;
+    for (const auto& tracker: smallTrackers)
+    {
+        includeTransferWindow(*tracker, firstTransferStartMs, lastTransferFinishMs);
+        includeTransferWindow(*tracker, firstSmallStartMs, lastSmallFinishMs);
+        timingTrackers.push_back(tracker.get());
+    }
+
+    ASSERT_GT(firstTransferStartMs, 0);
+    ASSERT_GT(lastTransferFinishMs, firstTransferStartMs);
+    ASSERT_GT(firstSmallStartMs, 0);
+    ASSERT_GT(lastSmallFinishMs, firstSmallStartMs);
+
+    const auto totalMs = lastTransferFinishMs - firstTransferStartMs;
+    const auto smallTotalMs = lastSmallFinishMs - firstSmallStartMs;
+    const auto apiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
+    const auto smallApiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(smallApiEnd - smallApiStart)
+            .count();
+    const std::uintmax_t totalBytes =
+        kFollowup5LargeFileSize +
+        static_cast<std::uintmax_t>(kFollowup5SmallFileCount) * kFollowup5SmallFileSize;
+    const double aggregateKBps = aggregateKBpsForBytes(totalBytes, totalMs);
+    const double smallAggregateKBps =
+        aggregateKBpsForBytes(static_cast<std::uintmax_t>(kFollowup5SmallFileCount) *
+                                  kFollowup5SmallFileSize,
+                              smallTotalMs);
+    const auto largeStartMs = largeTracker.mStartSteadyMs.load();
+    const auto largeFinishMs = largeTracker.mFinishSteadyMs.load();
+    ASSERT_GT(largeStartMs, 0);
+    ASSERT_GT(largeFinishMs, largeStartMs);
+    const auto largeObservedMs = largeFinishMs - largeStartMs;
+    const auto timingSummary = summarizeFollowup6Timings(timingTrackers, putnodesRecorder);
+
+    std::ostringstream summary;
+    summary << "[BenchLargePlusManySmall] files=" << (kFollowup5SmallFileCount + 1)
+            << " smallFiles=" << kFollowup5SmallFileCount
+            << " fileSize=" << kFollowup5SmallFileSize
+            << " largeFileSize=" << kFollowup5LargeFileSize
+            << " totalBytes=" << totalBytes
+            << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
+            << " apiTotalMs=" << apiTotalMs
+            << " avgKBps=" << avgKBps << " medianKBps=" << medianKBps
+            << " minKBps=" << minKBps << " maxKBps=" << maxKBps
+            << " smallTotalMs=" << smallTotalMs
+            << " smallApiTotalMs=" << smallApiTotalMs
+            << " smallAggregateKBps=" << smallAggregateKBps
+            << " largeObservedMs=" << largeObservedMs
+            << " largeBytesAtSmallStart=" << largeBytesAtSmallStart
+            << " gateTimedOut=" << (gateTimedOut ? 1 : 0)
+            << " contentSeed=" << followup6ContentSeed(suffix, 0x5360f502ull);
+    appendFollowup6TimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+    logFollowup5WsStats(test, kFollowup5SmallFileCount + 1);
+    test.deleteFolder(folderName);
+}
+
+/**
+ * @brief TEST_F SdkTestBenchmarkManySmallUploads
+ *
+ * Benchmark: 500 random files of 1 MiB each are uploaded into one freshly created
+ * remote folder. The test emits a greppable [BenchManySmallUploads] summary line
+ * and, on debug wsupload builds, a [WsUploadStats] counter line.
+ */
+TEST_F(SdkTest, SdkTestBenchmarkManySmallUploads)
+{
+    runSmallUploadsBenchmark(*this,
+                             500,
+                             "SdkTestBenchmarkManySmallUploads",
+                             "[BenchManySmallUploads]");
+}
+
+TEST_F(SdkTest, SdkTestBenchmark1kSmallUploads)
+{
+    runSmallUploadsBenchmark(*this,
+                             1000,
+                             "SdkTestBenchmark1kSmallUploads",
+                             "[Bench1kSmallUploads]");
+}
+
+TEST_F(SdkTest, SdkTestBenchmarkSingleLargeUpload)
+{
+    runSingleLargeUploadBenchmark(*this);
+}
+
+TEST_F(SdkTest, SdkTestBenchmarkLargePlusManySmall)
+{
+    runLargePlusManySmallBenchmark(*this);
+}
+
+TEST_F(SdkTest, SdkWsUploadSampledByteCorrectness)
+{
+    constexpr size_t kFileCount = 20;
+    constexpr size_t kFileSize = 1 * 1024 * 1024;
+    constexpr int kTimeoutS = 600;
+
+    LOG_info << "___TEST___ SdkWsUploadSampledByteCorrectness";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    auto accountRestorer = scopedToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string folderName =
+        "wsupload_byte_correctness_" +
+        std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
+    const MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    const fs::path tmpDir = fs::temp_directory_path() / folderName;
+    const fs::path downloadDir = tmpDir / "downloads";
+    fs::create_directories(downloadDir);
+
+    std::vector<sdk_test::LocalTempFile> localFiles;
+    std::vector<std::string> expectedHashes;
+    std::vector<std::string> fileNames;
+    localFiles.reserve(kFileCount);
+    expectedHashes.reserve(kFileCount);
+    fileNames.reserve(kFileCount);
+
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        const std::string fileName = "byte_sample_" + std::to_string(i) + ".bin";
+        fileNames.emplace_back(fileName);
+        localFiles.emplace_back(tmpDir / fileName, kFileSize);
+        expectedHashes.emplace_back(sdk_test::hashFileHex(localFiles.back().getPath()));
+    }
+
+    std::vector<std::unique_ptr<TransferTracker>> uploadTrackers;
+    uploadTrackers.reserve(kFileCount);
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        uploadTrackers.emplace_back(std::make_unique<TransferTracker>(megaApi[0].get()));
+        megaApi[0]->startUpload(localFiles[i].getPath().string(),
+                                folder.get(),
+                                nullptr /*cancelToken*/,
+                                &uploadOptions,
+                                uploadTrackers.back().get());
+    }
+
+    std::vector<MegaHandle> uploadedHandles;
+    uploadedHandles.reserve(kFileCount);
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        const ErrorCodes res = uploadTrackers[i]->waitForResult(kTimeoutS);
+        ASSERT_EQ(res, API_OK) << "Upload " << i << " failed with code " << res;
+        ASSERT_NE(uploadTrackers[i]->resultNodeHandle, ::mega::INVALID_HANDLE);
+        uploadedHandles.push_back(uploadTrackers[i]->resultNodeHandle);
+    }
+
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        std::unique_ptr<MegaNode> node{megaApi[0]->getNodeByHandle(uploadedHandles[i])};
+        ASSERT_NE(node, nullptr) << "Cannot find uploaded sample " << i;
+
+        const fs::path downloadPath = downloadDir / fileNames[i];
+        TransferTracker downloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(node.get(),
+                                  downloadPath.string().c_str(),
+                                  nullptr /*customName*/,
+                                  nullptr /*appData*/,
+                                  false /*startFirst*/,
+                                  nullptr /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false /*undelete*/,
+                                  &downloadTracker);
+        ASSERT_EQ(downloadTracker.waitForResult(kTimeoutS), API_OK)
+            << "Download failed for sample " << i;
+
+        const auto actualHash = sdk_test::hashFileHex(downloadPath);
+        ASSERT_EQ(expectedHashes[i], actualHash) << "SHA-256 mismatch for sample " << i;
+    }
+
+    LOG_info << "[WsUploadByteCorrectness] files=" << kFileCount
+             << " fileSize=" << kFileSize << " sha256=pass";
+
+    deleteFolder(folderName);
 }
 
 /**

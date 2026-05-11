@@ -197,7 +197,58 @@ public:
         dstime pausedByServerUntilDs = 0;
     };
 
+    struct WsUploadStatsForTesting
+    {
+        bool found = false;
+        unsigned poolCount = 0;
+        std::uint64_t uploadingFileOccupiedMs = 0;
+        std::uint64_t lastAckToNextFirstByteSamples = 0;
+        std::uint64_t lastAckToNextFirstByteTotalMs = 0;
+        std::uint64_t lastAckToNextFirstByteMaxMs = 0;
+        std::uint64_t allChunksInFlightBlockedMs = 0;
+        std::uint64_t eligibleFileSampleCount = 0;
+        std::uint64_t blockedByInFlightSampleCount = 0;
+        std::uint64_t idleEligibleConnectionMs = 0;
+        std::uint64_t idleEligibleConnectionSampleCount = 0;
+
+        // followup6-2 send-side counters (aggregated across pools/conns).
+        std::uint64_t curlAgainSendCount = 0;
+        std::uint64_t curlAgainRecvCount = 0;
+        std::uint64_t haveSpaceFalseIters = 0;
+        std::uint64_t haveSpaceFalseWaitMs = 0;
+        std::uint64_t readyForDataFalseIters = 0;
+        std::uint64_t readyForDataFalseWaitMs = 0;
+        std::uint64_t throttleSleepIters = 0;
+        std::uint64_t throttleSleepMs = 0;
+        std::uint64_t backlogEmptyIters = 0;
+        std::uint64_t backlogEmptyMs = 0;
+        std::uint64_t bufferedAmountHighWater = 0;
+        std::uint64_t chunksInFlightHighWater = 0;
+        std::uint64_t chunkPrepTotalMs = 0;
+        std::uint64_t chunkPrepMaxMs = 0;
+        std::uint64_t chunkPrepN = 0;
+
+        // followup6-11: server throttle telemetry
+        std::uint64_t throttleEventCount = 0;
+        std::uint64_t throttleEventTotalDs = 0;
+        std::uint64_t throttleEventSumSqDs = 0;
+        std::uint64_t throttleEventMinDs = 0;
+        std::uint64_t throttleEventMaxDs = 0;
+        std::uint64_t throttleBucket0to1s = 0;
+        std::uint64_t throttleBucket1to5s = 0;
+        std::uint64_t throttleBucket5to30s = 0;
+        std::uint64_t throttleBucket30sPlus = 0;
+        std::uint64_t throttleEventCodeCounts[16] = {};
+        std::uint64_t simultaneousThrottledConnsMax = 0;
+        std::uint64_t simultaneousThrottledConnsSamples = 0;
+        std::uint64_t simultaneousThrottledConnsSum = 0;
+        std::uint64_t throttleRecoveryAckSamples = 0;
+        std::uint64_t throttleRecoveryAckTotalMs = 0;
+        std::uint64_t throttleRecoveryAckMaxMs = 0;
+    };
+
     bool getPoolStateForTesting(const std::string& url, PoolStateForTesting& out) const;
+    bool getWsUploadStatsForTesting(WsUploadStatsForTesting& out) const;
     bool isTrackedForTesting(const Transfer& t) const;
     std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;
 #endif

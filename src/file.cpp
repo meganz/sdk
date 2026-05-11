@@ -27,6 +27,7 @@
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/sync.h"
+#include "mega/testhooks.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 
@@ -479,6 +480,7 @@ void File::sendPutnodesOfUpload(MegaClient* client,
     if (targetuser.size())
     {
         // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
         client->putnodes(targetuser.c_str(), std::move(newnodes), tag, std::move(completion));
     }
     else
@@ -511,6 +513,7 @@ void File::sendPutnodesOfUpload(MegaClient* client,
             pitag->target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
         }
 
+        DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
         client->queueCommand(new CommandPutNodes(client,
                                                  th,
                                                  NULL,
