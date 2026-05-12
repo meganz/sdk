@@ -19640,7 +19640,11 @@ static constexpr size_t kFollowup5SmallFileSize = 1 * 1024 * 1024;
 
 static fs::path followup5StagingRoot()
 {
-    return fs::path{"/home/vmga/mega_tests/followup5_staging"};
+    // Use the test's PID-specific process folder ($HOME/mega_tests/pid_<PID>/ on
+    // Linux, c:\tmp\mega_tests\pid_<PID>\ on Windows, $WORKSPACE-derived on
+    // Jenkins). Never hardcode a user-specific path: that breaks on Jenkins and
+    // on any machine where the runner user is not the SDK author.
+    return TestFS::GetProcessFolder() / "followup5_staging";
 }
 
 static std::string followup5UniqueSuffix(const char* testName)
