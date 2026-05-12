@@ -19657,9 +19657,9 @@ static std::uint64_t followup6ContentSeed(const std::string& uniqueSuffix,
                                           const std::uint64_t salt)
 {
     std::uint64_t hash = 1469598103934665603ull ^ salt;
-    for (const unsigned char ch: uniqueSuffix)
+    for (const char rawCh: uniqueSuffix)
     {
-        hash ^= ch;
+        hash ^= static_cast<unsigned char>(rawCh);
         hash *= 1099511628211ull;
     }
     return hash;
