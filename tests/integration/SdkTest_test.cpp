@@ -52,6 +52,10 @@
 #include <set>
 #include <sstream>
 #include <system_error>
+
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
 #include <thread>
 #include <unordered_map>
 #include <vector>
@@ -19423,6 +19427,46 @@ static void appendFollowup6TimingFields(std::ostream& out, const Followup6Timing
         << " lastPutnodesStartMs=" << summary.lastPutnodesStartMs;
 }
 
+// SDK-5360 Goal 1: per-bench-cell RSS + CPU sampling via getrusage(RUSAGE_SELF).
+// Bench-harness-only; no engine instrumentation needed. Windows is a no-op.
+struct BenchProcessStatsSample
+{
+    std::uint64_t maxRssKB = 0;
+    std::uint64_t userCpuMs = 0;
+    std::uint64_t sysCpuMs = 0;
+};
+
+static BenchProcessStatsSample captureBenchProcessStats()
+{
+    BenchProcessStatsSample s;
+#ifndef _WIN32
+    struct rusage ru{};
+    if (getrusage(RUSAGE_SELF, &ru) == 0)
+    {
+        s.maxRssKB = static_cast<std::uint64_t>(ru.ru_maxrss);
+        s.userCpuMs = static_cast<std::uint64_t>(ru.ru_utime.tv_sec) * 1000ull
+                      + static_cast<std::uint64_t>(ru.ru_utime.tv_usec) / 1000ull;
+        s.sysCpuMs = static_cast<std::uint64_t>(ru.ru_stime.tv_sec) * 1000ull
+                     + static_cast<std::uint64_t>(ru.ru_stime.tv_usec) / 1000ull;
+    }
+#endif
+    return s;
+}
+
+static void logBenchProcessStatsDelta(const char* tag,
+                                       const BenchProcessStatsSample& start,
+                                       const BenchProcessStatsSample& end)
+{
+    const long long rssDeltaKB =
+        static_cast<long long>(end.maxRssKB) - static_cast<long long>(start.maxRssKB);
+    LOG_info << "[BenchProcessStats] " << tag
+             << " startMaxRssKB=" << start.maxRssKB
+             << " endMaxRssKB=" << end.maxRssKB
+             << " maxRssDeltaKB=" << rssDeltaKB
+             << " userCpuMs=" << (end.userCpuMs - start.userCpuMs)
+             << " sysCpuMs=" << (end.sysCpuMs - start.sysCpuMs);
+}
+
 static void runSmallUploadsBenchmark(SdkTest& test,
                                      const size_t fileCount,
                                      const char* testName,
@@ -19469,6 +19513,7 @@ static void runSmallUploadsBenchmark(SdkTest& test,
     uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
     Followup6PutnodesTimingRecorder putnodesRecorder;
 
+    const auto procStatsStart = captureBenchProcessStats();
     const auto apiStart = std::chrono::steady_clock::now();
     for (size_t i = 0; i < fileCount; ++i)
     {
@@ -19489,6 +19534,7 @@ static void runSmallUploadsBenchmark(SdkTest& test,
         perFileKBps.push_back(static_cast<double>(trackers[i]->mTransferMeanSpeed) / 1024.0);
     }
     const auto apiEnd = std::chrono::steady_clock::now();
+    const auto procStatsEnd = captureBenchProcessStats();
 
     std::int64_t firstTransferStartMs = 0;
     std::int64_t lastTransferFinishMs = 0;
@@ -19581,6 +19627,7 @@ static void runSmallUploadsBenchmark(SdkTest& test,
     }
 #endif
 
+    logBenchProcessStatsDelta(testName, procStatsStart, procStatsEnd);
     test.deleteFolder(folderName);
 }
 
@@ -19820,6 +19867,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     TransferTracker tracker(test.megaApi[0].get());
     Followup6PutnodesTimingRecorder putnodesRecorder;
 
+    const auto procStatsStart = captureBenchProcessStats();
     const auto apiStart = std::chrono::steady_clock::now();
     test.megaApi[0]->startUpload(largePath.string(),
                                  folder.get(),
@@ -19829,6 +19877,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
 
     const ErrorCodes res = tracker.waitForResult(kTimeoutS);
     const auto apiEnd = std::chrono::steady_clock::now();
+    const auto procStatsEnd = captureBenchProcessStats();
     ASSERT_EQ(res, API_OK) << "Large upload failed with code " << res;
     ASSERT_NO_FATAL_FAILURE(
         verifyUploadedFile(test, tracker.resultNodeHandle, largeName, kFollowup5LargeFileSize));
@@ -19858,6 +19907,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     appendFollowup6TimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
+    logBenchProcessStatsDelta("SingleLargeUpload", procStatsStart, procStatsEnd);
     logFollowup5WsStats(test, 1);
     test.deleteFolder(folderName);
 }
@@ -19919,6 +19969,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     TransferTracker largeTracker(test.megaApi[0].get());
     Followup6PutnodesTimingRecorder putnodesRecorder;
 
+    const auto procStatsStart = captureBenchProcessStats();
     const auto apiStart = std::chrono::steady_clock::now();
     test.megaApi[0]->startUpload(largePath.string(),
                                  folder.get(),
@@ -19965,6 +20016,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
 
     const ErrorCodes largeRes = largeTracker.waitForResult(kLargeTimeoutS);
     const auto apiEnd = std::chrono::steady_clock::now();
+    const auto procStatsEnd = captureBenchProcessStats();
     ASSERT_EQ(largeRes, API_OK) << "Large upload failed with code " << largeRes;
     ASSERT_NO_FATAL_FAILURE(verifyUploadedFile(test,
                                                largeTracker.resultNodeHandle,
@@ -20040,6 +20092,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     appendFollowup6TimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
+    logBenchProcessStatsDelta("LargePlusManySmall", procStatsStart, procStatsEnd);
     logFollowup5WsStats(test, kFollowup5SmallFileCount + 1);
     test.deleteFolder(folderName);
 }
