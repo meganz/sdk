@@ -353,7 +353,11 @@ std::vector<ChildNameAndFingerprint>
             if (std::filesystem::is_regular_file(path, ec) && !ec)
             {
                 std::unique_ptr<char[]> fp{megaApi->getFingerprint(path_u8string(path).c_str())};
-                fingerprint = std::string(fp.get());
+                if (fp)
+                    fingerprint = std::string(fp.get());
+                // else: file vanished between is_regular_file and getFingerprint
+                // (e.g. sync engine moved it into .debris); leave fingerprint
+                // as nullopt and let the caller's waitFor poll converge.
             }
 
             result.emplace_back(std::move(name), std::move(fingerprint));
