@@ -1,3 +1,5 @@
+#ifdef MEGA_USE_WSUPLOAD
+
 #include "mega/wsupload.h"
 
 #include <algorithm>
@@ -5144,3 +5146,5 @@ bool wsEnabled(const MegaClient&)
 
 } // namespace ws
 } // namespace mega
+
+#endif // MEGA_USE_WSUPLOAD

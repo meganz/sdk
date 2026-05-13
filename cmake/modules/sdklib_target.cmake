@@ -134,7 +134,6 @@ set(SDKLIB_SOURCES
     src/localpath.cpp
     src/mediafileattribute.cpp
     src/megaclient.cpp
-    src/megaclient_wsupload.cpp
     src/megaclientprefs.cpp
     src/node.cpp
     src/pendingcontactrequest.cpp
@@ -353,6 +352,7 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/wsupload.h
     src/transfer/ws/wsupload.cpp
+    src/megaclient_wsupload.cpp
 )
 
 # Include directories
