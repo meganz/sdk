@@ -250,6 +250,15 @@ namespace mega {
                            unsigned /*retryCount*/,
                            dstime /*firstFailureDs*/)>
             onWsPoolReconnectAttempt;
+        // Fires when Transfer::ws_session_url is rewritten by client-thread bookkeeping
+        // (onStart re-population or invalidatePinnedSessionUrl clearing). Used by the
+        // InvalidPinned test to deterministically observe WS pool transitions instead
+        // of polling. Fires on the client thread, after any engine mutex release.
+        std::function<void(int /*transferTag*/,
+                           const std::string& /*oldUrl*/,
+                           const std::string& /*newUrl*/,
+                           const char* /*reason*/)>
+            onWsSessionUrlTransition;
         // WsUploadServerEventHook has its own internal mutex and its own locked move
         // ctor/op=; the outer mMutex keeps the enclosing struct move atomic, and the
         // sub-object's mutex keeps its fields safe for evaluate() from any thread.
@@ -307,6 +316,7 @@ namespace mega {
             onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
             onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
             onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);
+            onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             // WsUploadServerEventHook already has its own locked move-assign.
             wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
             onHookFileFingerprintUseLegacyBuggySparseCrc =
@@ -570,6 +580,16 @@ namespace mega {
         if (_fn) _fn((POOLPTR), (RETRYCOUNT), (FIRSTFAILUREDS)); \
     } while (0)
 
+#define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON) \
+    do { \
+        std::function<void(int, const std::string&, const std::string&, const char*)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsSessionUrlTransition; \
+        } \
+        if (_fn) _fn((TAG), (OLDURL), (NEWURL), (REASON)); \
+    } while (0)
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     do { \
         std::function<void(bool&)> _fn; \
@@ -655,6 +675,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
+#define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

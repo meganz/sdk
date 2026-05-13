@@ -2341,7 +2341,16 @@ void MegaClient::installWsEngineCallbacks()
                             t.pos = 0;
                             t.setProgresscompleted(0);
                         }
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                        const std::string prevUrlForHook = t.ws_session_url;
+#endif
                         t.ws_session_url = std::move(sessionUrl);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                        DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(t.tag,
+                                                                  prevUrlForHook,
+                                                                  t.ws_session_url,
+                                                                  "onStart");
+#endif
                     }
                 }
                 transfercacheadd(&t, &committer);

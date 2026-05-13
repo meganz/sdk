@@ -21222,6 +21222,106 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
 #endif
 }
 
+namespace {
+
+// RAII helper for the WS session-URL transition hook (fu7-5 Goal 1.1). Registers
+// `globalMegaTestHooks.onWsSessionUrlTransition` on construction and unregisters
+// on destruction. Uses a shared_ptr-indirected state so any in-flight hook
+// callback retains its referent after the test scope exits (the macro idiom
+// inside DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION copies the std::function under
+// `mMutex` before invoking — so a hook firing during destruction operates on the
+// shared state, not on freed stack locals).
+//
+// Filters to transitions for one specific invalid-pinned URL. Records the first
+// transition observed (`oldUrl == invalidPinnedUrl` for invalidatePinned events,
+// or `newUrl != invalidPinnedUrl && !newUrl.empty()` for onStart events).
+class WsSessionUrlTransitionCapture
+{
+public:
+    explicit WsSessionUrlTransitionCapture(std::string invalidPinnedUrl)
+        : mShared(std::make_shared<Shared>())
+        , mInvalidPinnedUrl(std::move(invalidPinnedUrl))
+    {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        auto shared = mShared;
+        const std::string filterUrl = mInvalidPinnedUrl;
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsSessionUrlTransition =
+            [shared, filterUrl](int /*tag*/,
+                                const std::string& oldUrl,
+                                const std::string& newUrl,
+                                const char* reason)
+        {
+            std::lock_guard<std::mutex> lk(shared->m);
+            if (shared->observed)
+                return;
+            const std::string r = reason ? reason : "";
+            const bool isInvalidate =
+                r == "invalidatePinned" && oldUrl == filterUrl;
+            const bool isFreshOnStart =
+                r == "onStart" && !newUrl.empty() && newUrl != filterUrl;
+            if (isInvalidate || isFreshOnStart)
+            {
+                shared->observed = true;
+                shared->capturedNewUrl = newUrl;
+                shared->capturedReason = r;
+                shared->cv.notify_all();
+            }
+        };
+#endif
+    }
+
+    ~WsSessionUrlTransitionCapture()
+    {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsSessionUrlTransition = nullptr;
+#endif
+    }
+
+    WsSessionUrlTransitionCapture(const WsSessionUrlTransitionCapture&) = delete;
+    WsSessionUrlTransitionCapture& operator=(const WsSessionUrlTransitionCapture&) = delete;
+
+    // Returns true if a matching transition is observed within `timeout`.
+    bool waitForTransition(std::chrono::seconds timeout) const
+    {
+        std::unique_lock<std::mutex> lk(mShared->m);
+        return mShared->cv.wait_for(lk, timeout, [s = mShared] { return s->observed; });
+    }
+
+    bool observed() const
+    {
+        std::lock_guard<std::mutex> lk(mShared->m);
+        return mShared->observed;
+    }
+
+    std::string capturedNewUrl() const
+    {
+        std::lock_guard<std::mutex> lk(mShared->m);
+        return mShared->capturedNewUrl;
+    }
+
+    std::string capturedReason() const
+    {
+        std::lock_guard<std::mutex> lk(mShared->m);
+        return mShared->capturedReason;
+    }
+
+private:
+    struct Shared
+    {
+        std::mutex m;
+        std::condition_variable cv;
+        bool observed = false;
+        std::string capturedNewUrl;
+        std::string capturedReason;
+    };
+    std::shared_ptr<Shared> mShared;
+    std::string mInvalidPinnedUrl;
+};
+
+} // namespace
+
 /**
  * @brief Verify invalid pinned WS session URL falls back to a fresh session URL.
  *
@@ -21290,12 +21390,28 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
     }
 
     // Step 2: force invalid pinned URL, then logout/resume to exercise failover path.
+    // Step 2 retries the override to beat the `onStart` re-population race; Step 3
+    // listens on the WS session-URL transition hook (registered before override via
+    // `WsSessionUrlTransitionCapture`) for deterministic failover proof.
     const std::string invalidPinnedUrl = "wss://127.0.0.1:1/ul/invalid-pinned-session-url";
-    ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 10));
+    WsSessionUrlTransitionCapture capture{invalidPinnedUrl};
 
-    WsUploadTransferSnapshot forced;
-    ASSERT_TRUE(fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1));
-    ASSERT_TRUE(forced.found);
+    WsUploadTransferSnapshot forced{};
+    bool observedOverride = false;
+    second_timer overrideTimer;
+    while (overrideTimer.elapsed() < 15)
+    {
+        ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 5));
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1) && forced.found &&
+            forced.serializedWsSessionUrl == invalidPinnedUrl)
+        {
+            observedOverride = true;
+            break;
+        }
+        WaitMillisec(100);
+    }
+    ASSERT_TRUE(observedOverride)
+        << "Override did not become observable within 15 s; onStart race may be persistent";
     ASSERT_EQ(forced.serializedWsSessionUrl, invalidPinnedUrl);
     ASSERT_EQ(forced.wsFileno, beforeOverride.wsFileno);
 
@@ -21310,26 +21426,26 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
     // Uncap speed for the failover window so this check is not throttle-bound.
     megaApi[0]->setMaxUploadSpeed(-1);
 
-    // Step 3: require switch away from invalid pinned URL.
+    // Step 3: wait deterministically for the WS session-URL transition.
+    const bool gotTransition = capture.waitForTransition(std::chrono::seconds(210));
     WsUploadTransferSnapshot failover{};
     bool switchedToFreshUrl = false;
-    second_timer failoverTimer;
-    while (failoverTimer.elapsed() < 210)
+    if (fetchBestWsUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
+        !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
     {
-        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
-            !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
-        {
-            switchedToFreshUrl = true;
-            break;
-        }
-        WaitMillisec(1000);
+        switchedToFreshUrl = true;
     }
 
-    ASSERT_TRUE(switchedToFreshUrl)
-        << "Transfer did not switch away from invalid pinned URL within timeout";
-    ASSERT_GT(failover.wsFileno, 0u);
-    ASSERT_EQ(failover.wsFileno, beforeOverride.wsFileno);
-    ASSERT_NE(failover.wsSessionUrl, invalidPinnedUrl);
+    ASSERT_TRUE(gotTransition)
+        << "WS session-URL transition hook did not fire within 210 s post-resume";
+    ASSERT_NE(capture.capturedNewUrl(), invalidPinnedUrl)
+        << "Transition hook fired but reported the same invalidPinnedUrl";
+    if (switchedToFreshUrl)
+    {
+        ASSERT_GT(failover.wsFileno, 0u);
+        ASSERT_EQ(failover.wsFileno, beforeOverride.wsFileno);
+        ASSERT_NE(failover.wsSessionUrl, invalidPinnedUrl);
+    }
 
     // Step 4: cleanup active upload for test isolation.
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
@@ -21412,30 +21528,30 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
     // but `onStart` (`megaclient.cpp:2314-2328`) repopulates `t.ws_session_url` from
     // `wsEngine()->getSessionUrl(t, …)` whenever it fires for that transfer. When
     // `onStart` interleaves between the override-lambda completing and the readback
-    // snapshot, the URL appears unchanged in the snapshot. Treat the readback as a
-    // diagnostic signal — the strict end-to-end success criterion is Step 4 (the
-    // cloud node poll), which proves "completed on fresh pool" by construction
-    // regardless of whether the override window was observable.
+    // snapshot, the URL appears unchanged. Retry until the override wins or the
+    // window elapses, then strict-assert. The transition-capture pre-registers a
+    // hook so Step 3 can wait deterministically for the fresh-pool transition.
     const std::string invalidPinnedUrl = "wss://127.0.0.1:1/ul/invalid-pinned-session-url";
-    ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 10));
+    WsSessionUrlTransitionCapture capture{invalidPinnedUrl};
 
-    WsUploadTransferSnapshot forced;
-    const bool snapshotFetched = fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1);
-    const bool overrideObserved =
-        snapshotFetched && forced.found && forced.serializedWsSessionUrl == invalidPinnedUrl;
-    if (overrideObserved)
+    WsUploadTransferSnapshot forced{};
+    bool observedOverride = false;
+    second_timer overrideTimer;
+    while (overrideTimer.elapsed() < 15)
     {
-        EXPECT_EQ(forced.wsFileno, beforeOverride.wsFileno);
+        ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], invalidPinnedUrl, 5));
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1) && forced.found &&
+            forced.serializedWsSessionUrl == invalidPinnedUrl)
+        {
+            observedOverride = true;
+            break;
+        }
+        WaitMillisec(100);
     }
-    else
-    {
-        LOG_warn << "[SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool] "
-                    "Override-then-readback did not observe invalidPinnedUrl in the snapshot "
-                    "(onStart re-populated t.ws_session_url before snapshot ran). The "
-                    "override write hit `t->ws_session_url` and `transfercacheadd`, but visibility "
-                    "depends on inter-lambda client-thread scheduling. Step 4 (cloud node poll) "
-                    "remains the strict success signal.";
-    }
+    ASSERT_TRUE(observedOverride)
+        << "Override did not become observable within 15 s; onStart race may be persistent";
+    ASSERT_EQ(forced.serializedWsSessionUrl, invalidPinnedUrl);
+    ASSERT_EQ(forced.wsFileno, beforeOverride.wsFileno);
 
     std::unique_ptr<char[]> session(dumpSession());
     ASSERT_NO_FATAL_FAILURE(locallogout());
@@ -21448,41 +21564,28 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
     // Uncap speed before completion wait to keep this test fast.
     megaApi[0]->setMaxUploadSpeed(-1);
 
-    // Step 3 (diagnostic only): try to observe the URL switch in the live
-    // transfer snapshot. After `invalidatePinnedSessionUrl` fires (pinned
-    // pool gives up after ~60 s + 3 retries) the upload typically completes
-    // on the fresh pool in well under one second, so the predicate
-    // `wsSessionUrl != invalidPinnedUrl` is observable for only ~700 ms.
-    // With the snapshot helper polling at 1 Hz, a miss is expected ~30 % of
-    // the time. Treat the URL observation as diagnostic; Step 4
-    // (cloud node exists) is the strictly-stronger success signal — the
-    // bytes cannot reach the cloud unless the failover happened.
+    // Step 3: wait deterministically for the WS session-URL transition. The hook
+    // captures the moment when `invalidatePinnedSessionUrl` clears the URL OR when
+    // `onStart` re-populates with a fresh-pool URL. Snapshot the live state too,
+    // but the strict success signal is the hook event itself.
+    const bool gotTransition = capture.waitForTransition(std::chrono::seconds(210));
     WsUploadTransferSnapshot failover{};
     bool switchedToFreshUrl = false;
-    second_timer failoverTimer;
-    while (failoverTimer.elapsed() < 60)
+    if (fetchBestWsUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
+        !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
     {
-        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], failover, 1) && failover.found &&
-            !failover.wsSessionUrl.empty() && failover.wsSessionUrl != invalidPinnedUrl)
-        {
-            switchedToFreshUrl = true;
-            break;
-        }
-        WaitMillisec(1000);
+        switchedToFreshUrl = true;
     }
 
+    ASSERT_TRUE(gotTransition)
+        << "WS session-URL transition hook did not fire within 210 s post-resume";
+    ASSERT_NE(capture.capturedNewUrl(), invalidPinnedUrl)
+        << "Transition hook fired but reported the same invalidPinnedUrl";
     if (switchedToFreshUrl)
     {
-        EXPECT_GT(failover.wsFileno, 0u);
-        EXPECT_EQ(failover.wsFileno, beforeOverride.wsFileno);
-        EXPECT_NE(failover.wsSessionUrl, invalidPinnedUrl);
-    }
-    else
-    {
-        LOG_warn << "[SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool] "
-                    "Did not observe URL switch in live snapshot (transfer likely completed "
-                    "in the < 1 s window between fresh-pool attach and finish). Relying on "
-                    "Step 4 cloud-node poll as the strict success signal.";
+        ASSERT_GT(failover.wsFileno, 0u);
+        ASSERT_EQ(failover.wsFileno, beforeOverride.wsFileno);
+        ASSERT_NE(failover.wsSessionUrl, invalidPinnedUrl);
     }
 
     // Step 4: require completion on fresh pool and verify uploaded node exists.

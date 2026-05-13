@@ -2366,10 +2366,19 @@ public:
                         continue;
                     }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    const std::string prevUrlForHook = tp->ws_session_url;
+#endif
                     tp->ws_session_url.clear();
                     tp->chunkmacs.clear();
                     tp->pos = 0;
                     tp->setProgresscompleted(0);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(tp->tag,
+                                                              prevUrlForHook,
+                                                              std::string{},
+                                                              "invalidatePinned");
+#endif
 
                     client.transfercacheadd(tp, &committer);
                     if (client.app)
