@@ -1184,6 +1184,22 @@ struct WsConn
     void onmessage(const char* msg, int len);
     void resetBufferedSendState() noexcept;
 
+    // Helpers used by onmessage(). Caller must hold mPool->mImpl->uploadMutex.
+    // Purge in-flight/resend state for fileno, mark uf as failed, and dispatch
+    // the onFail callback. Control-flow (return/break) stays at the call site.
+    void failFileLocked(WsUploadFile* uf,
+                        std::uint32_t fileno,
+                        FailReason reason,
+                        int apierr,
+                        m_off_t aux,
+                        UploadEngine::FailureDisposition disp);
+
+    // Returns true if the server-confirmed byte count exceeds the file size.
+    // When true, failFileLocked() has already been invoked with StateLost / API_EINTERNAL
+    // and the caller MUST break out of the switch arm. The fileno is read from
+    // uf->fileno() so callers do not need to re-pass it.
+    bool handleBytesConfirmedOverflow(WsUploadFile* uf);
+
     bool haveSpace() const
     {
         return !bufferedAmount || !mBufs[0].mDataLen || !mBufs[1].mDataLen;
@@ -1355,6 +1371,18 @@ struct WsPool
         mNumPoolFiles--;
     }
 
+    // Clear mUploadingFile under uploadMutex. In Debug, also rolls up the
+    // mUploadingFileOccupiedMs accumulator via assignUploadingFileLocked(nullptr);
+    // in Release, this is a plain pointer reset.
+    void clearUploadingFileLocked() noexcept
+    {
+#ifndef NDEBUG
+        assignUploadingFileLocked(nullptr);
+#else
+        mUploadingFile = nullptr;
+#endif
+    }
+
     void poolWorkerThread(WsPoolThread* th);
     void checkThreads();
 
@@ -1436,12 +1464,15 @@ struct WsPool
         // SERVERTIMEOUT and trigger a redundant refreshPools().
         mLastActive = nowDs;
 #ifndef NDEBUG
-        // Throttle event histogram + min/max/stdev accumulators.
+        // Throttle event histogram + min/max/stdev accumulators. dstime is signed
+        // (int64_t); the explicit cast suppresses -Wsign-conversion for the unsigned
+        // accumulators. `ds` is a duration here, never negative.
+        const std::uint64_t dsU = static_cast<std::uint64_t>(ds);
         ++mThrottleEventCount;
-        mThrottleEventTotalDs += static_cast<std::uint64_t>(ds);
-        mThrottleEventSumSqDs += static_cast<std::uint64_t>(ds) * static_cast<std::uint64_t>(ds);
-        if (mThrottleEventMinDs == 0 || static_cast<std::uint64_t>(ds) < mThrottleEventMinDs) mThrottleEventMinDs = static_cast<std::uint64_t>(ds);
-        if (static_cast<std::uint64_t>(ds) > mThrottleEventMaxDs) mThrottleEventMaxDs = static_cast<std::uint64_t>(ds);
+        mThrottleEventTotalDs += dsU;
+        mThrottleEventSumSqDs += dsU * dsU;
+        if (mThrottleEventMinDs == 0 || dsU < mThrottleEventMinDs) mThrottleEventMinDs = dsU;
+        if (dsU > mThrottleEventMaxDs) mThrottleEventMaxDs = dsU;
         if (ds <= 10) ++mThrottleBucket0to1s;
         else if (ds <= 50) ++mThrottleBucket1to5s;
         else if (ds <= 300) ++mThrottleBucket5to30s;
@@ -1621,11 +1652,7 @@ inline void WsUploadFile::unsetPool()
     {
         if (mPool->mUploadingFile == this)
         {
-#ifndef NDEBUG
-            mPool->assignUploadingFileLocked(nullptr);
-#else
-            mPool->mUploadingFile = nullptr;
-#endif
+            mPool->clearUploadingFileLocked();
         }
         mPool->decreaseNumPoolFiles();
         mPool = nullptr;
@@ -2001,16 +2028,7 @@ public:
             return;
 
         // remove from current spot
-        for (auto lit = fileList.begin(); lit != fileList.end(); ++lit)
-        {
-            if (*lit == f)
-            {
-                if (nextIt == lit)
-                    ++nextIt;
-                fileList.erase(lit);
-                break;
-            }
-        }
+        eraseFromFileListLocked(f);
 
         // insert before (if valid), else push back
         if (before)
@@ -2076,27 +2094,14 @@ public:
                 WsPool& pool = *poolPtr;
                 if (pool.mUploadingFile == f)
                 {
-#ifndef NDEBUG
-                    pool.assignUploadingFileLocked(nullptr);
-#else
-                    pool.mUploadingFile = nullptr;
-#endif
+                    pool.clearUploadingFileLocked();
                     pool.mUFTQversion = queueVersion;
                 }
                 pool.purgeFileLocked(f->fileno());
             }
             f->unsetPool();
 
-            for (auto lit = fileList.begin(); lit != fileList.end(); ++lit)
-            {
-                if (*lit == f)
-                {
-                    if (nextIt == lit)
-                        ++nextIt;
-                    fileList.erase(lit);
-                    break;
-                }
-            }
+            eraseFromFileListLocked(f);
 
             if (nextIt == fileList.end())
                 nextIt = fileList.begin();
@@ -2316,11 +2321,7 @@ public:
                     {
                         if (pool->mUploadingFile == uf)
                         {
-#ifndef NDEBUG
-                            pool->assignUploadingFileLocked(nullptr);
-#else
-                            pool->mUploadingFile = nullptr;
-#endif
+                            pool->clearUploadingFileLocked();
                             pool->mUFTQversion = queueVersion;
                         }
 
@@ -2830,6 +2831,23 @@ private:
         nextIt = std::next(it);
         cycleNextIt();
     }
+
+    // Linear-scan fileList for f and erase it, rebasing nextIt to the successor on hit.
+    // Caller must hold uploadMutex. Does NOT cycle nextIt back to begin() on end() —
+    // callers that need that semantics must follow up with cycleNextIt().
+    void eraseFromFileListLocked(WsUploadFile* f)
+    {
+        for (auto lit = fileList.begin(); lit != fileList.end(); ++lit)
+        {
+            if (*lit == f)
+            {
+                if (nextIt == lit)
+                    ++nextIt;
+                fileList.erase(lit);
+                return;
+            }
+        }
+    }
 };
 
 // ========== WsConn ==========
@@ -3180,6 +3198,39 @@ void WsConn::curlRecv()
     WSUPLOAD_TRACE << "[WsConn::curlRecv] END [this = " << this << "]";
 }
 
+void WsConn::failFileLocked(WsUploadFile* uf,
+                            const std::uint32_t fileno,
+                            const FailReason reason,
+                            const int apierr,
+                            const m_off_t aux,
+                            const UploadEngine::FailureDisposition disp)
+{
+    mPool->purgeFileLocked(fileno);
+    uf->uploadFailed(reason);
+    if (mPool->mImpl->mCb.onFail)
+    {
+        mPool->mImpl->mCb.onFail(uf->transfer(), apierr, aux, disp);
+    }
+}
+
+bool WsConn::handleBytesConfirmedOverflow(WsUploadFile* uf)
+{
+    if (uf->bytesConfirmed() <= uf->size())
+        return false;
+
+    LOG_warn << "[WsConn::onmessage] uf->bytesConfirmed(=" << uf->bytesConfirmed()
+             << ") > uf->size(=" << uf->size()
+             << ") -> server confirmed beyond expected size, failing upload [this = "
+             << this << "]";
+    failFileLocked(uf,
+                   uf->fileno(),
+                   FailReason::StateLost,
+                   API_EINTERNAL,
+                   uf->bytesConfirmed(),
+                   UploadEngine::FailureDisposition::Retryable);
+    return true;
+}
+
 void WsConn::onmessage(const char* msg, const int len)
 {
     WSUPLOAD_TRACE << "[WsConn::onmessage] BEGIN [len=" << len << "] [this = " << this << "]";
@@ -3266,17 +3317,12 @@ struct ChunkResponse
                       << this << "]";
             // A server-side error aborts the current upload attempt.
             // Purge in-flight/resend state for this file before unbinding it from the pool.
-            mPool->purgeFileLocked(response->fileno);
-            uf->uploadFailed(FailReason::ServerError);
-            if (mPool->mImpl->mCb.onFail)
-            {
-                const int apierr = static_cast<int>(event);
-                const m_off_t aux = chunkPos;
-                mPool->mImpl->mCb.onFail(uf->transfer(),
-                                         apierr,
-                                         aux,
-                                         UploadEngine::FailureDisposition::Retryable);
-            }
+            failFileLocked(uf,
+                           response->fileno,
+                           FailReason::ServerError,
+                           static_cast<int>(event),
+                           chunkPos,
+                           UploadEngine::FailureDisposition::Retryable);
             return;
         }
 
@@ -3314,13 +3360,12 @@ struct ChunkResponse
                      "uf->uploadFailed(FailReason::Unknown) [this = "
                   << this << "]";
         // Unknown/invalid server response for this upload attempt.
-        mPool->purgeFileLocked(response->fileno);
-        uf->uploadFailed(FailReason::Unknown);
-        if (mPool->mImpl->mCb.onFail)
-            mPool->mImpl->mCb.onFail(uf->transfer(),
-                                     API_EAGAIN,
-                                     0,
-                                     UploadEngine::FailureDisposition::Retryable);
+        failFileLocked(uf,
+                       response->fileno,
+                       FailReason::Unknown,
+                       API_EAGAIN,
+                       0,
+                       UploadEngine::FailureDisposition::Retryable);
         return;
     }
 
@@ -3347,22 +3392,8 @@ struct ChunkResponse
                 uf->onServerConfirmedBytes(chunk.len);
                 if (mPool->mImpl->mCb.onProgress && uf->progressReportDue(SteadyTime::ds()))
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
-                if (uf->bytesConfirmed() > uf->size())
-                {
-                    LOG_warn
-                        << "[WsConn::onmessage] uf->bytesConfirmed(=" << uf->bytesConfirmed()
-                        << ") > uf->size(=" << uf->size()
-                        << ") -> server confirmed beyond expected size, failing upload [this = "
-                        << this << "]";
-                    mPool->purgeFileLocked(response->fileno);
-                    uf->uploadFailed(FailReason::StateLost);
-                    if (mPool->mImpl->mCb.onFail)
-                        mPool->mImpl->mCb.onFail(uf->transfer(),
-                                                 API_EINTERNAL,
-                                                 uf->bytesConfirmed(),
-                                                 UploadEngine::FailureDisposition::Retryable);
+                if (handleBytesConfirmedOverflow(uf))
                     break;
-                }
             }
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
@@ -3374,22 +3405,8 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
-                if (uf->bytesConfirmed() > uf->size())
-                {
-                    LOG_warn
-                        << "[WsConn::onmessage] uf->bytesConfirmed(=" << uf->bytesConfirmed()
-                        << ") > uf->size(=" << uf->size()
-                        << ") -> server confirmed beyond expected size, failing upload [this = "
-                        << this << "]";
-                    mPool->purgeFileLocked(response->fileno);
-                    uf->uploadFailed(FailReason::StateLost);
-                    if (mPool->mImpl->mCb.onFail)
-                        mPool->mImpl->mCb.onFail(uf->transfer(),
-                                                 API_EINTERNAL,
-                                                 uf->bytesConfirmed(),
-                                                 UploadEngine::FailureDisposition::Retryable);
+                if (handleBytesConfirmedOverflow(uf))
                     break;
-                }
             }
             if (mPool->mImpl->mCb.onProgress)
                 mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
@@ -3429,15 +3446,12 @@ struct ChunkResponse
             if (len < (kCompletionPrefixLen + kTrailerCrcLen))
             {
                 LOG_warn << "WsUpload: invalid completion frame len=" << len;
-                mPool->purgeFileLocked(response->fileno);
-                uf->uploadFailed(FailReason::Protocol);
-                if (mPool->mImpl->mCb.onFail)
-                {
-                    mPool->mImpl->mCb.onFail(uf->transfer(),
-                                             API_EINTERNAL,
-                                             0,
-                                             UploadEngine::FailureDisposition::Retryable);
-                }
+                failFileLocked(uf,
+                               response->fileno,
+                               FailReason::Protocol,
+                               API_EINTERNAL,
+                               0,
+                               UploadEngine::FailureDisposition::Retryable);
                 break;
             }
 
@@ -3453,15 +3467,12 @@ struct ChunkResponse
             {
                 LOG_warn << "WsUpload: invalid completion payload len=" << payLen
                          << " frame len=" << len;
-                mPool->purgeFileLocked(response->fileno);
-                uf->uploadFailed(FailReason::Protocol);
-                if (mPool->mImpl->mCb.onFail)
-                {
-                    mPool->mImpl->mCb.onFail(uf->transfer(),
-                                             API_EINTERNAL,
-                                             0,
-                                             UploadEngine::FailureDisposition::Retryable);
-                }
+                failFileLocked(uf,
+                               response->fileno,
+                               FailReason::Protocol,
+                               API_EINTERNAL,
+                               0,
+                               UploadEngine::FailureDisposition::Retryable);
                 break;
             }
 
@@ -3867,11 +3878,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
         WSUPLOAD_TRACE << "[WsPool::nextChunk] mUploadingFile->headPos() < mUploadingFile->size() || "
                      "!mUploadingFile->eofSet() -> mUploadingFile = nullptr [this = "
                   << this << "]";
-#ifndef NDEBUG
-        assignUploadingFileLocked(nullptr);
-#else
-        mUploadingFile = nullptr; // done with this file
-#endif
+        clearUploadingFileLocked(); // done with this file
     }
     WSUPLOAD_TRACE << "[WsPool::nextChunk] END - !getWsUploadFile -> return false [this = " << this
               << "]";
@@ -4347,11 +4354,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                         uploadToFail->unsetPool();
                         if (mUploadingFile == uploadToFail)
                         {
-#ifndef NDEBUG
-                            assignUploadingFileLocked(nullptr);
-#else
-                            mUploadingFile = nullptr;
-#endif
+                            clearUploadingFileLocked();
                         }
                         mUFTQversion = mImpl->queueVersion;
 
