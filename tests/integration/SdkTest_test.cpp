@@ -19631,23 +19631,23 @@ static void runSmallUploadsBenchmark(SdkTest& test,
     test.deleteFolder(folderName);
 }
 
-static constexpr std::uintmax_t kFollowup5MiB = 1024ull * 1024ull;
-static constexpr std::uintmax_t kFollowup5GiB = 1024ull * kFollowup5MiB;
-static constexpr std::uintmax_t kFollowup5LargeFileSize = 10ull * kFollowup5GiB;
-static constexpr std::uintmax_t kFollowup5RequiredFreeBytes = 25ull * kFollowup5GiB;
-static constexpr size_t kFollowup5SmallFileCount = 500;
-static constexpr size_t kFollowup5SmallFileSize = 1 * 1024 * 1024;
+static constexpr std::uintmax_t kBenchMiB = 1024ull * 1024ull;
+static constexpr std::uintmax_t kBenchGiB = 1024ull * kBenchMiB;
+static constexpr std::uintmax_t kBenchLargeFileSize = 10ull * kBenchGiB;
+static constexpr std::uintmax_t kBenchRequiredFreeBytes = 25ull * kBenchGiB;
+static constexpr size_t kBenchSmallFileCount = 500;
+static constexpr size_t kBenchSmallFileSize = 1 * 1024 * 1024;
 
-static fs::path followup5StagingRoot()
+static fs::path benchStagingRoot()
 {
     // Use the test's PID-specific process folder ($HOME/mega_tests/pid_<PID>/ on
     // Linux, c:\tmp\mega_tests\pid_<PID>\ on Windows, $WORKSPACE-derived on
     // Jenkins). Never hardcode a user-specific path: that breaks on Jenkins and
     // on any machine where the runner user is not the SDK author.
-    return TestFS::GetProcessFolder() / "followup5_staging";
+    return TestFS::GetProcessFolder() / "bench_staging";
 }
 
-static std::string followup5UniqueSuffix(const char* testName)
+static std::string benchUniqueSuffix(const char* testName)
 {
     return std::string{testName} + "_" +
            std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
@@ -19665,9 +19665,9 @@ static std::uint64_t followup6ContentSeed(const std::string& uniqueSuffix,
     return hash;
 }
 
-static void requireFollowup5StagingSpace()
+static void requireBenchStagingSpace()
 {
-    const auto root = followup5StagingRoot();
+    const auto root = benchStagingRoot();
     std::error_code ec;
     fs::create_directories(root, ec);
     ASSERT_FALSE(ec) << "Cannot create followup5 staging root: " << root << ": "
@@ -19676,8 +19676,8 @@ static void requireFollowup5StagingSpace()
     const auto space = fs::space(root, ec);
     ASSERT_FALSE(ec) << "Cannot inspect followup5 staging space: " << root << ": "
                      << ec.message();
-    ASSERT_GE(space.available, kFollowup5RequiredFreeBytes)
-        << "Need at least " << kFollowup5RequiredFreeBytes
+    ASSERT_GE(space.available, kBenchRequiredFreeBytes)
+        << "Need at least " << kBenchRequiredFreeBytes
         << " bytes available for followup5 large-file staging under " << root
         << ", got " << space.available;
 }
@@ -19758,7 +19758,7 @@ static void verifyUploadedFile(SdkTest& test,
     ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(expectedSize));
 }
 
-static void logFollowup5WsStats(SdkTest& test, const size_t fileCount)
+static void logBenchWsStats(SdkTest& test, const size_t fileCount)
 {
 #if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
     ws::UploadEngine::WsUploadStatsForTesting stats;
@@ -19823,7 +19823,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
 
     LOG_info << "___TEST___ " << kTestName;
     ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
-    ASSERT_NO_FATAL_FAILURE(requireFollowup5StagingSpace());
+    ASSERT_NO_FATAL_FAILURE(requireBenchStagingSpace());
 
     // followup6-5: env-var override of upload connection count
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
@@ -19842,14 +19842,14 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode, nullptr);
 
-    const std::string suffix = followup5UniqueSuffix(kTestName);
+    const std::string suffix = benchUniqueSuffix(kTestName);
     const std::string folderName = "bench_single_large_" + suffix;
     const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
     ASSERT_NE(folderHandle, UNDEF);
     std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
     ASSERT_NE(folder, nullptr);
 
-    const fs::path stagingDir = followup5StagingRoot() / folderName;
+    const fs::path stagingDir = benchStagingRoot() / folderName;
     std::error_code cleanupEc;
     fs::remove_all(stagingDir, cleanupEc);
     const auto cleanup = makeScopedDestructor(
@@ -19859,11 +19859,11 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
             fs::remove_all(stagingDir, ec);
         });
 
-    const std::string largeName = "followup5_single_large_10g.bin";
+    const std::string largeName = "bench_single_large_10g.bin";
     const fs::path largePath = stagingDir / largeName;
     ASSERT_NO_FATAL_FAILURE(
         createDenseDeterministicFile(largePath,
-                                     kFollowup5LargeFileSize,
+                                     kBenchLargeFileSize,
                                      followup6ContentSeed(suffix, 0x5360f501ull)));
 
     MegaUploadOptions uploadOptions;
@@ -19884,7 +19884,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     const auto procStatsEnd = captureBenchProcessStats();
     ASSERT_EQ(res, API_OK) << "Large upload failed with code " << res;
     ASSERT_NO_FATAL_FAILURE(
-        verifyUploadedFile(test, tracker.resultNodeHandle, largeName, kFollowup5LargeFileSize));
+        verifyUploadedFile(test, tracker.resultNodeHandle, largeName, kBenchLargeFileSize));
 
     const auto startMs = tracker.mStartSteadyMs.load();
     const auto finishMs = tracker.mFinishSteadyMs.load();
@@ -19897,11 +19897,11 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     const auto totalMs = finishMs - startMs;
     const auto apiTotalMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
-    const double aggregateKBps = aggregateKBpsForBytes(kFollowup5LargeFileSize, totalMs);
+    const double aggregateKBps = aggregateKBpsForBytes(kBenchLargeFileSize, totalMs);
 
     std::ostringstream summary;
-    summary << "[BenchSingleLargeUpload] files=1 fileSize=" << kFollowup5LargeFileSize
-            << " totalBytes=" << kFollowup5LargeFileSize
+    summary << "[BenchSingleLargeUpload] files=1 fileSize=" << kBenchLargeFileSize
+            << " totalBytes=" << kBenchLargeFileSize
             << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
             << " apiTotalMs=" << apiTotalMs
             << " avgKBps=" << aggregateKBps << " medianKBps=" << aggregateKBps
@@ -19912,7 +19912,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("SingleLargeUpload", procStatsStart, procStatsEnd);
-    logFollowup5WsStats(test, 1);
+    logBenchWsStats(test, 1);
     test.deleteFolder(folderName);
 }
 
@@ -19926,7 +19926,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
 
     LOG_info << "___TEST___ " << kTestName;
     ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
-    ASSERT_NO_FATAL_FAILURE(requireFollowup5StagingSpace());
+    ASSERT_NO_FATAL_FAILURE(requireBenchStagingSpace());
 
     auto accountRestorer = scopedToPro(*test.megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
@@ -19934,14 +19934,14 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode, nullptr);
 
-    const std::string suffix = followup5UniqueSuffix(kTestName);
+    const std::string suffix = benchUniqueSuffix(kTestName);
     const std::string folderName = "bench_large_plus_small_" + suffix;
     const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
     ASSERT_NE(folderHandle, UNDEF);
     std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
     ASSERT_NE(folder, nullptr);
 
-    const fs::path stagingDir = followup5StagingRoot() / folderName;
+    const fs::path stagingDir = benchStagingRoot() / folderName;
     std::error_code cleanupEc;
     fs::remove_all(stagingDir, cleanupEc);
     const auto cleanup = makeScopedDestructor(
@@ -19951,21 +19951,21 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
             fs::remove_all(stagingDir, ec);
         });
 
-    const std::string largeName = "followup5_combined_large_10g.bin";
+    const std::string largeName = "bench_combined_large_10g.bin";
     const fs::path largePath = stagingDir / largeName;
     ASSERT_NO_FATAL_FAILURE(
         createDenseDeterministicFile(largePath,
-                                     kFollowup5LargeFileSize,
+                                     kBenchLargeFileSize,
                                      followup6ContentSeed(suffix, 0x5360f502ull)));
 
     const fs::path smallDir = stagingDir / "small";
     fs::create_directories(smallDir);
     std::vector<sdk_test::LocalTempFile> smallFiles;
-    smallFiles.reserve(kFollowup5SmallFileCount);
-    for (size_t i = 0; i < kFollowup5SmallFileCount; ++i)
+    smallFiles.reserve(kBenchSmallFileCount);
+    for (size_t i = 0; i < kBenchSmallFileCount; ++i)
     {
         smallFiles.emplace_back(smallDir / ("f" + std::to_string(i) + ".bin"),
-                                kFollowup5SmallFileSize);
+                                kBenchSmallFileSize);
     }
 
     MegaUploadOptions uploadOptions;
@@ -19996,9 +19996,9 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     const auto largeBytesAtSmallStart = largeTracker.mTransferredBytes.load();
 
     std::vector<std::unique_ptr<TransferTracker>> smallTrackers;
-    smallTrackers.reserve(kFollowup5SmallFileCount);
+    smallTrackers.reserve(kBenchSmallFileCount);
     const auto smallApiStart = std::chrono::steady_clock::now();
-    for (size_t i = 0; i < kFollowup5SmallFileCount; ++i)
+    for (size_t i = 0; i < kBenchSmallFileCount; ++i)
     {
         smallTrackers.emplace_back(std::make_unique<TransferTracker>(test.megaApi[0].get()));
         test.megaApi[0]->startUpload(smallFiles[i].getPath().string(),
@@ -20009,8 +20009,8 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     }
 
     std::vector<double> smallKBps;
-    smallKBps.reserve(kFollowup5SmallFileCount);
-    for (size_t i = 0; i < kFollowup5SmallFileCount; ++i)
+    smallKBps.reserve(kBenchSmallFileCount);
+    for (size_t i = 0; i < kBenchSmallFileCount; ++i)
     {
         const ErrorCodes res = smallTrackers[i]->waitForResult(kSmallTimeoutS);
         ASSERT_EQ(res, API_OK) << "Small upload " << i << " failed with code " << res;
@@ -20025,7 +20025,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     ASSERT_NO_FATAL_FAILURE(verifyUploadedFile(test,
                                                largeTracker.resultNodeHandle,
                                                largeName,
-                                               kFollowup5LargeFileSize));
+                                               kBenchLargeFileSize));
 
     double avgKBps = 0.0;
     double medianKBps = 0.0;
@@ -20037,7 +20037,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     std::int64_t lastTransferFinishMs = 0;
     includeTransferWindow(largeTracker, firstTransferStartMs, lastTransferFinishMs);
     std::vector<const TransferTracker*> timingTrackers;
-    timingTrackers.reserve(kFollowup5SmallFileCount + 1);
+    timingTrackers.reserve(kBenchSmallFileCount + 1);
     timingTrackers.push_back(&largeTracker);
 
     std::int64_t firstSmallStartMs = 0;
@@ -20062,12 +20062,12 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
         std::chrono::duration_cast<std::chrono::milliseconds>(smallApiEnd - smallApiStart)
             .count();
     const std::uintmax_t totalBytes =
-        kFollowup5LargeFileSize +
-        static_cast<std::uintmax_t>(kFollowup5SmallFileCount) * kFollowup5SmallFileSize;
+        kBenchLargeFileSize +
+        static_cast<std::uintmax_t>(kBenchSmallFileCount) * kBenchSmallFileSize;
     const double aggregateKBps = aggregateKBpsForBytes(totalBytes, totalMs);
     const double smallAggregateKBps =
-        aggregateKBpsForBytes(static_cast<std::uintmax_t>(kFollowup5SmallFileCount) *
-                                  kFollowup5SmallFileSize,
+        aggregateKBpsForBytes(static_cast<std::uintmax_t>(kBenchSmallFileCount) *
+                                  kBenchSmallFileSize,
                               smallTotalMs);
     const auto largeStartMs = largeTracker.mStartSteadyMs.load();
     const auto largeFinishMs = largeTracker.mFinishSteadyMs.load();
@@ -20077,10 +20077,10 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     const auto timingSummary = summarizeFollowup6Timings(timingTrackers, putnodesRecorder);
 
     std::ostringstream summary;
-    summary << "[BenchLargePlusManySmall] files=" << (kFollowup5SmallFileCount + 1)
-            << " smallFiles=" << kFollowup5SmallFileCount
-            << " fileSize=" << kFollowup5SmallFileSize
-            << " largeFileSize=" << kFollowup5LargeFileSize
+    summary << "[BenchLargePlusManySmall] files=" << (kBenchSmallFileCount + 1)
+            << " smallFiles=" << kBenchSmallFileCount
+            << " fileSize=" << kBenchSmallFileSize
+            << " largeFileSize=" << kBenchLargeFileSize
             << " totalBytes=" << totalBytes
             << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
             << " apiTotalMs=" << apiTotalMs
@@ -20097,7 +20097,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("LargePlusManySmall", procStatsStart, procStatsEnd);
-    logFollowup5WsStats(test, kFollowup5SmallFileCount + 1);
+    logBenchWsStats(test, kBenchSmallFileCount + 1);
     test.deleteFolder(folderName);
 }
 
