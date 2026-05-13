@@ -2359,49 +2359,9 @@ void MegaClient::installWsEngineCallbacks()
                                            << ") [t.localfilename = " << t.localfilename << "]";
 
                                  // Apply any server-confirmed chunk MAC updates accumulated on the
-                                 // WS worker threads before persisting.
-                                 if (auto* wse = wsEngine())
-                                 {
-                                     std::vector<chunkmac_map> macUpdates;
-                                     wse->drainConfirmedChunkMacs(t, macUpdates);
-                                     bool mergedChunkMacs = false;
-                                     for (auto& m: macUpdates)
-                                     {
-                                         if (m.size())
-                                         {
-                                             t.chunkmacs.finishedUploadChunks(m);
-                                             mergedChunkMacs = true;
-                                         }
-                                     }
-
-                                     // Keep WS behavior aligned with legacy uploads: once new chunkmacs
-                                     // are merged, advance contiguous/macsmac consolidation before
-                                     // persisting transfer state.
-                                     if (mergedChunkMacs)
-                                     {
-                                         t.pos = t.chunkmacs.updateContiguousProgress(t.size);
-                                         t.chunkmacs.updateMacsmacProgress(t.transfercipher());
-                                     }
-
-                                     ws::UploadEngine::WsTransferStats wsStats;
-                                     if (wse->getTransferStats(t, wsStats))
-                                     {
-                                         m_off_t boundedSpeed = wsStats.windowSpeedBytesPerSecond;
-                                         const m_off_t maxUploadSpeed =
-                                             t.client->getmaxuploadspeed();
-                                         if (maxUploadSpeed > 0)
-                                         {
-                                             boundedSpeed =
-                                                 std::min(boundedSpeed, maxUploadSpeed);
-                                         }
-                                         t.ws_latched_speed = boundedSpeed;
-                                         t.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
-                                         t.ws_latched_avg_latency_ms =
-                                             static_cast<m_off_t>(wsStats.avgStartTransferTime.count());
-                                         t.ws_latched_failed_request_ratio =
-                                             wsStats.failedRequestRatio;
-                                     }
-                                 }
+                                 // WS worker threads before persisting (fu7-5 G2.2 helpers).
+                                 wsMergeDrainedChunkMacs(t);
+                                 wsApplyLatchedTransferStats(t);
 
                                  const auto diff = confirmed - t.progresscompleted;
                                  if (diff > 0 && t.client && t.client->httpio)
@@ -2524,27 +2484,9 @@ void MegaClient::installWsEngineCallbacks()
                 tt.ultoken.reset(new UploadToken);
                 memcpy(tt.ultoken->data(), payloadCopy.data(), UPLOADTOKENLEN);
 
-                // Apply any confirmed chunk MAC updates before computing the final macsmac.
-                if (c.wsEngine())
-                {
-                    std::vector<chunkmac_map> confirmedChunkMacs;
-                    c.wsEngine()->drainConfirmedChunkMacs(tt, confirmedChunkMacs);
-                    bool mergedChunkMacs = false;
-                    for (auto& m: confirmedChunkMacs)
-                    {
-                        if (m.size())
-                        {
-                            tt.chunkmacs.finishedUploadChunks(m);
-                            mergedChunkMacs = true;
-                        }
-                    }
-
-                    if (mergedChunkMacs)
-                    {
-                        tt.pos = tt.chunkmacs.updateContiguousProgress(tt.size);
-                        tt.chunkmacs.updateMacsmacProgress(tt.transfercipher());
-                    }
-                }
+                // Apply any confirmed chunk MAC updates before computing the final macsmac
+                // (fu7-5 G2.2 helper).
+                c.wsMergeDrainedChunkMacs(tt);
 
                 memcpy(&tt.filekey.key, tt.transferkey.data(), SymmCipher::KEYLENGTH);
                 tt.filekey.iv_u64 = static_cast<uint64_t>(tt.ctriv);
@@ -2552,24 +2494,7 @@ void MegaClient::installWsEngineCallbacks()
                     static_cast<uint64_t>(tt.chunkmacs.macsmac(tt.transfercipher()));
                 SymmCipher::xorblock(tt.filekey.iv_bytes.data(), tt.filekey.key.data());
 
-                if (c.wsEngine())
-                {
-                    ws::UploadEngine::WsTransferStats wsStats;
-                    if (c.wsEngine()->getTransferStats(tt, wsStats))
-                    {
-                        m_off_t boundedSpeed = wsStats.windowSpeedBytesPerSecond;
-                        const m_off_t maxUploadSpeed = c.getmaxuploadspeed();
-                        if (maxUploadSpeed > 0)
-                        {
-                            boundedSpeed = std::min(boundedSpeed, maxUploadSpeed);
-                        }
-                        tt.ws_latched_speed = boundedSpeed;
-                        tt.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
-                        tt.ws_latched_avg_latency_ms =
-                            static_cast<m_off_t>(wsStats.avgStartTransferTime.count());
-                        tt.ws_latched_failed_request_ratio = wsStats.failedRequestRatio;
-                    }
-                }
+                c.wsApplyLatchedTransferStats(tt);  // fu7-5 G2.2 helper.
                 if (c.wsEngine())
                     c.wsEngine()->remove(tt);
 
@@ -5300,6 +5225,148 @@ bool MegaClient::abortbackoff(bool includexfers)
     return r;
 }
 
+// Drain server-confirmed chunk MAC updates from the WS engine and merge them into the
+// Transfer's chunkmacs; advance contiguous/macsmac progress if anything merged.
+// Bails out if the WS engine is unavailable. fu7-5 G2.2: extracted from
+// installWsEngineCallbacks onProgress/onComplete callbacks.
+void MegaClient::wsMergeDrainedChunkMacs(Transfer& t)
+{
+    auto* wse = wsEngine();
+    if (!wse)
+        return;
+
+    std::vector<chunkmac_map> macUpdates;
+    wse->drainConfirmedChunkMacs(t, macUpdates);
+    bool mergedChunkMacs = false;
+    for (auto& m: macUpdates)
+    {
+        if (m.size())
+        {
+            t.chunkmacs.finishedUploadChunks(m);
+            mergedChunkMacs = true;
+        }
+    }
+    if (mergedChunkMacs)
+    {
+        t.pos = t.chunkmacs.updateContiguousProgress(t.size);
+        t.chunkmacs.updateMacsmacProgress(t.transfercipher());
+    }
+}
+
+// Snapshot WS transfer stats from the engine into Transfer's ws_latched_* fields,
+// capping the window speed by the user-configured max upload speed. Bails out if
+// wsEngine() is unavailable or getTransferStats returns false. fu7-5 G2.2.
+void MegaClient::wsApplyLatchedTransferStats(Transfer& t)
+{
+    auto* wse = wsEngine();
+    if (!wse)
+        return;
+
+    ws::UploadEngine::WsTransferStats wsStats;
+    if (!wse->getTransferStats(t, wsStats))
+        return;
+
+    m_off_t boundedSpeed = wsStats.windowSpeedBytesPerSecond;
+    const m_off_t maxUploadSpeed = getmaxuploadspeed();
+    if (maxUploadSpeed > 0)
+    {
+        boundedSpeed = std::min(boundedSpeed, maxUploadSpeed);
+    }
+    t.ws_latched_speed = boundedSpeed;
+    t.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
+    t.ws_latched_avg_latency_ms = static_cast<m_off_t>(wsStats.avgStartTransferTime.count());
+    t.ws_latched_failed_request_ratio = wsStats.failedRequestRatio;
+}
+
+// Exponential function to calculate the maximum transfer queue size.
+// This function uses a threshold (in KB/s) so the function has two different behaviors:
+// 1. Before the threshold, the function grows slowly from MIN_MAXTRANSFERS to MAXTRANSFERS.
+// 2. After the threshold, the function grows quickly to MAXTRANSFERS.
+unsigned MegaClient::calcDynamicQueueLimit() const
+{
+    const int minScalingFactor = 2000;   // KB/s
+    const int maxScalingFactor = 20000;  // KB/s
+
+    const int minSize = MIN_MAXTRANSFERS;
+    const int maxSize = MAXTRANSFERS;
+
+    const int threshold = 16500;  // KB/s — see in-function commentary above.
+    if (threshold <= minScalingFactor)
+    {
+        LOG_err << "[calcDynamicQueueLimit] threshold (" << threshold
+                << ") IS SMALLER OR EQUAL minScalingFactor(" << minScalingFactor
+                << ") !!!!!!!!!! This must be fixed!!!!";
+        assert(false && "[calcDynamicQueueLimit] thresold <= minScalingFactor!");
+        return maxSize;
+    }
+
+    const m_off_t throughputInKBPerSec = std::clamp<m_off_t>(
+        (httpio ? httpio->downloadSpeed : 0) / 1024,
+        minScalingFactor,
+        maxScalingFactor);
+    const double reductiveGrowthMultiplier = 0.12;
+    double scaleFactor =
+        (static_cast<double>(throughputInKBPerSec - minScalingFactor) /
+         (threshold - minScalingFactor)) *
+        reductiveGrowthMultiplier;
+    double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
+    size = std::min(size, static_cast<double>(maxSize));
+
+    if (throughputInKBPerSec >= threshold)
+    {
+        double minSizeAfterThreshold = size;
+        scaleFactor = static_cast<double>(throughputInKBPerSec - threshold) /
+                      (maxScalingFactor - threshold);
+
+        double additionalTerm =
+            20 * log(1 + static_cast<double>(throughputInKBPerSec - threshold) / threshold);
+        double sizeAfterThreshold =
+            minSizeAfterThreshold +
+            (maxSize - minSizeAfterThreshold) * (1 - exp(-scaleFactor)) + additionalTerm;
+        size = std::min(sizeAfterThreshold, static_cast<double>(maxSize));
+    }
+
+#if defined(__ANDROID__) || defined(USE_IOS)
+    return std::min<unsigned>(static_cast<unsigned>(size), MAX_RAIDTRANSFERS_FOR_MOBILE);
+#else
+    return static_cast<unsigned>(size);
+#endif
+}
+
+double MegaClient::calcTransferWeight(direction_t transferDirection, bool forceDynamicLimit) const
+{
+    if (transferDirection == GET &&
+        ((raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) ||
+         forceDynamicLimit))
+    {
+        double averageFileSize = 0;
+        for (TransferSlot* ts: tslots)
+        {
+            // VERY LARGE FILE SIZES: divide each iteration to avoid overflow on the running sum.
+            averageFileSize +=
+                (static_cast<double>(ts->transfer->size) / static_cast<double>(tslots.size()));
+        }
+        unsigned dynamicQueueLimit;
+        const unsigned maxAverageFilesizeForFixedLimit = 2 * 1024 * 1024;  // 2MB
+        if (static_cast<unsigned>(averageFileSize) <= maxAverageFilesizeForFixedLimit)
+        {
+#if defined(__ANDROID__) || defined(USE_IOS)
+            dynamicQueueLimit = MAX_RAIDTRANSFERS_FOR_MOBILE;
+#else
+            dynamicQueueLimit = MAXTRANSFERS + 10;
+#endif
+        }
+        else
+        {
+            dynamicQueueLimit = calcDynamicQueueLimit();
+        }
+        double transferWeight =
+            static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit);
+        return transferWeight;
+    }
+    return 1;
+}
+
 // activate enough queued transfers as necessary to keep the system busy - but not too busy
 void MegaClient::dispatchTransfers()
 {
@@ -5376,88 +5443,8 @@ void MegaClient::dispatchTransfers()
     };
     std::array<counter, 6> counters;
 
-    // Exponential function to calculate the maximum transfer queue size
-    // This function uses a threshold (in KB/s) so the function has two different behaviors:
-    // 1. Before the threshold, the function grows slowly from the minSize to the maxSize
-    // 2. After the threshold, the function grows very quickly to the maxSize
-    // This allows us to optimize the queue limit based on throughput.
-    auto calcDynamicQueueLimit = [this]() -> unsigned
-    {
-        // Define the minimum and maximum scaling factors
-        const int minScalingFactor = 2000; // KB/s
-        const int maxScalingFactor = 20000; // KB/s
-
-        // Define the minimum and maximum size limits
-        const int minSize = MIN_MAXTRANSFERS; // Adjusted minimum size
-        const int maxSize = MAXTRANSFERS;
-
-        const int threshold = 16500; // Threshold (KB/S) to activate the additional term -> before this threshold, dynamic size grows slowly from minSize to maxSize. After the threshold, it will quickly grow to maxSize.
-        if (threshold <= minScalingFactor)
-        {
-            LOG_err << "[calcDynamicQueueLimit] threshold (" << threshold << ") IS SMALLER OR EQUAL minScalingFactor(" << minScalingFactor << ") !!!!!!!!!! This must be fixed!!!!";
-            assert(false && "[calcDynamicQueueLimit] thresold <= minScalingFactor!");
-            return maxSize;
-        }
-
-        // Keep throughput within the calibrated range for this model.
-        const m_off_t throughputInKBPerSec =
-            std::clamp<m_off_t>((httpio ? httpio->downloadSpeed : 0) / 1024, minScalingFactor, maxScalingFactor); // KB/s
-        const double reductiveGrowthMultiplier = 0.12; // This allows us to keep the scaling factor within a very low growth rate
-        double scaleFactor = (static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor)) * reductiveGrowthMultiplier;
-        double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
-        size = std::min(size, static_cast<double>(maxSize));
-
-        if (throughputInKBPerSec >= threshold)
-        {
-            double minSizeAfterThreshold = size;
-            scaleFactor = static_cast<double>(throughputInKBPerSec - threshold) / (maxScalingFactor - threshold);
-
-            // Calculate size using exponential function with an additional term for a high growth rate after the threshold
-            double additionalTerm = 20 * log(1 + static_cast<double>(throughputInKBPerSec - threshold) / threshold);
-            double sizeAfterThreshold = minSizeAfterThreshold + (maxSize - minSizeAfterThreshold) * (1 - exp(-scaleFactor)) + additionalTerm;
-            size = std::min(sizeAfterThreshold, static_cast<double>(maxSize));
-        }
-
-        //LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
-#if defined(__ANDROID__) || defined(USE_IOS)
-        return std::min<unsigned>(static_cast<unsigned>(size), MAX_RAIDTRANSFERS_FOR_MOBILE);
-#else
-        return static_cast<unsigned>(size);
-#endif
-    };
-
-    auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection, bool forceDynamicLimit = false) -> double
-    {
-        if (transferDirection == GET &&
-            ((raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
-            || forceDynamicLimit))
-        {
-            double averageFileSize = 0;
-            for (TransferSlot* ts : tslots)
-            {
-                averageFileSize += (static_cast<double>(ts->transfer->size) / static_cast<double>(tslots.size())); // Take into account VERY LARGE FILE SIZES, that's why I divide for each iteration and not at the end
-            }
-            unsigned dynamicQueueLimit;
-            const unsigned maxAverageFilesizeForFixedLimit = 2 * 1024 * 1024; // 2MB, it's better to used a fixed limit (and a larger queue max size) for transfer queues whose average filesize is smaller than this value
-            if (static_cast<unsigned>(averageFileSize) <= maxAverageFilesizeForFixedLimit) // Truncate double averageFileSize (2,x MB ≡ 2MB)
-            {
-#if defined(__ANDROID__) || defined(USE_IOS)
-                dynamicQueueLimit = MAX_RAIDTRANSFERS_FOR_MOBILE;
-#else
-                dynamicQueueLimit = MAXTRANSFERS + 10;
-#endif
-            }
-            else
-            {
-                dynamicQueueLimit = calcDynamicQueueLimit();
-            }
-            double transferWeight =
-                static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit);
-            //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
-            return transferWeight;
-        }
-        return 1;
-    };
+    // calcDynamicQueueLimit + calcTransferWeight extracted to member functions in fu7-5 G2.1.
+    // See declarations in include/mega/megaclient.h.
 
     // Determine average speed and total amount of data remaining for the given direction/size-category
     // We prepare data for put/get in index 0..1, and the put/get/big/small combinations in index 2..5
@@ -5519,7 +5506,7 @@ void MegaClient::dispatchTransfers()
             return true;
     };
 
-    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this, &calcTransferWeight](Transfer* t)
+    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this](Transfer* t)
         {
             TransferCategory tc(t);
 
