@@ -442,6 +442,8 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
         std::filesystem::remove(linkName);
     }
+
+    ASSERT_NO_FATAL_FAILURE(removeSync(megaApi[0].get(), dir2BackupId));
 }
 
 /**
