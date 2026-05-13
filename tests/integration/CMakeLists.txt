@@ -99,6 +99,9 @@ include(common/common.cmake)
 # Load File Service test sources.
 include(file_service/file_service.cmake)
 
+# Load bench_framework module (gated by MEGA_BENCH_FRAMEWORK_ENABLED).
+include(bench_framework/bench_framework.cmake)
+
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
 

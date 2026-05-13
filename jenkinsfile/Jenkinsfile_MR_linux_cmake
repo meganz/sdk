@@ -275,6 +275,11 @@ pipeline {
 
                                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
                                         rm test_integration.log || :
+                                        # Archive bench_framework JSON reports (fu7-5 G6). One file per
+                                        # test_integration PID, emitted when MEGA_BENCH_FRAMEWORK_ENABLED.
+                                        for benchReport in pid_*/bench_report_*.json; do
+                                            [ -f \"\$benchReport\" ] && cp \"\$benchReport\" .
+                                        done
                                         if [ -n \"\$FAILED\" ]; then
                                             exit \"\$FAILED\"
                                         fi
@@ -306,7 +311,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json', fingerprint: true
                     deleteDir()
                 }
             }

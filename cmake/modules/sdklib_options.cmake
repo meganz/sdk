@@ -50,3 +50,6 @@ option(MEGA_USE_WSUPLOAD "Enable WebSocket-based uploads (experimental)" ON)
 option(MEGA_PRESERVE_V2_SHIP_SLEEP
        "Preserve v2 ship's 1000ms backlog-empty sleep in WsPool worker loop (vs followup7's BACKLOG_EMPTY_RETRY_DS fallback)"
        OFF)
+option(MEGA_BENCH_FRAMEWORK_ENABLED
+       "Build bench_framework module under tests/integration/bench_framework/ (BenchSession, BenchProcessStats, etc.) and emit bench_report_<PID>.json"
+       OFF)
