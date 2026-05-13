@@ -86,12 +86,14 @@ pipeline {
                                     CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
                                     RUN_TSAN_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-tsan" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                                    RUN_BENCH_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-bench" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
                                     println CUSTOM_TIMEOUT
                                     println "RUN_TSAN_SWEEP=${RUN_TSAN_SWEEP}"
+                                    println "RUN_BENCH_SWEEP=${RUN_BENCH_SWEEP}"
                                 }
                             }
                         }
@@ -336,6 +338,61 @@ pipeline {
                         }
                     }
                 }
+                stage('Run Benchmarks') {
+                    when {
+                        expression { return RUN_BENCH_SWEEP == 'true' }
+                    }
+                    environment {
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        BUILD_DIR = "build_dir"
+                        BENCH_FILTER = "SdkTest.SdkTestBenchmark*"
+                    }
+                    steps {
+                        timeout(time: 120, unit: 'MINUTES') {
+                            script {
+                                def lockLabel = ''
+                                if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts'
+                                } else  {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                                }
+                                lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                    dir("${linux_sources_workspace}") {
+                                        script{
+                                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                        }
+                                        sh """#!/bin/bash
+                                        set -x
+                                        ulimit -c unlimited
+                                        # Bench cells emit bench_report_<PID>.json when MEGA_BENCH_FRAMEWORK_ENABLED=ON;
+                                        # the framework cmake option must be enabled at configure time. The default MR
+                                        # build does not enable it, so a separate configure+build under
+                                        # ${env.BUILD_DIR}_bench keeps the bench artifacts isolated from the main build.
+                                        rm -rf ${env.BUILD_DIR}_bench; mkdir ${env.BUILD_DIR}_bench
+                                        cmake -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DMEGA_BENCH_FRAMEWORK_ENABLED=ON -DVCPKG_ROOT=/opt/vcpkg \
+                                            \${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${env.BUILD_DIR}_bench
+                                        cmake --build ${linux_sources_workspace}/${env.BUILD_DIR}_bench -j5 --target test_integration
+                                        ${env.BUILD_DIR}_bench/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter='${env.BENCH_FILTER}' 2>&1 | tee bench_sweep.log || true
+                                        # Copy bench_report JSONs from the bench-build's pid_<PID> dirs to top-level for archival.
+                                        for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_report_*.json pid_*/bench_report_*.json; do
+                                            [ -f "\$benchReport" ] && cp "\$benchReport" .
+                                        done
+                                        gzip -c bench_sweep.log > bench_sweep_${BUILD_ID}.log.gz || :
+                                        rm bench_sweep.log || :
+                                        """
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        failure {
+                            echo 'Error: Bench sweep failed'
+                        }
+                    }
+                }
                 stage('Run TSAN sweep') {
                     when {
                         expression { return RUN_TSAN_SWEEP == 'true' }
@@ -399,7 +456,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz', fingerprint: true, allowEmptyArchive: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz, bench_sweep*.log.gz', fingerprint: true, allowEmptyArchive: true
                     deleteDir()
                 }
             }
