@@ -11640,7 +11640,7 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
                             &uploadListener);
 
     // Bulk-upload SETUP can exceed the 60 s default on contended Windows
-    // runners (see followup7 RCA: 130 files / shared prod-storage egress).
+    // runners (130 files / shared prod-storage egress).
     ASSERT_EQ(API_OK, uploadListener.waitForResult(240));
 
     int currentMaxDownloadSpeed = megaApi[0]->getMaxDownloadSpeed();
@@ -19262,7 +19262,7 @@ static std::int64_t benchmarkSteadyMs()
             .count());
 }
 
-struct Followup6Distribution
+struct BenchDistribution
 {
     std::int64_t mean = 0;
     std::int64_t median = 0;
@@ -19271,7 +19271,7 @@ struct Followup6Distribution
     std::int64_t max = 0;
 };
 
-static Followup6Distribution summarizeMsDistribution(std::vector<std::int64_t> values)
+static BenchDistribution summarizeMsDistribution(std::vector<std::int64_t> values)
 {
     EXPECT_FALSE(values.empty());
     if (values.empty())
@@ -19286,7 +19286,7 @@ static Followup6Distribution summarizeMsDistribution(std::vector<std::int64_t> v
         sum += value;
     }
 
-    Followup6Distribution out;
+    BenchDistribution out;
     out.mean = sum / static_cast<std::int64_t>(values.size());
     out.median = values[values.size() / 2];
     out.p95 = values[std::min(values.size() - 1, (values.size() * 95) / 100)];
@@ -19295,7 +19295,7 @@ static Followup6Distribution summarizeMsDistribution(std::vector<std::int64_t> v
     return out;
 }
 
-struct Followup6TimingSummary
+struct BenchTimingSummary
 {
     std::int64_t firstStartMs = 0;
     std::int64_t lastFinishMs = 0;
@@ -19304,14 +19304,14 @@ struct Followup6TimingSummary
     std::int64_t pureTransferMs = 0;
     std::int64_t putnodesOverheadMs = 0;
     std::int64_t completeTransferMs = 0;
-    Followup6Distribution perTransferPureTransferMs;
-    Followup6Distribution perTransferPutnodesOverheadMs;
+    BenchDistribution perTransferPureTransferMs;
+    BenchDistribution perTransferPutnodesOverheadMs;
 };
 
-class Followup6PutnodesTimingRecorder
+class BenchPutnodesTimingRecorder
 {
 public:
-    Followup6PutnodesTimingRecorder()
+    BenchPutnodesTimingRecorder()
     {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         globalMegaTestHooks.onUploadPutnodesStarted =
@@ -19323,7 +19323,7 @@ public:
 #endif
     }
 
-    ~Followup6PutnodesTimingRecorder()
+    ~BenchPutnodesTimingRecorder()
     {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         globalMegaTestHooks.onUploadPutnodesStarted = nullptr;
@@ -19342,11 +19342,11 @@ private:
     std::unordered_map<int, std::int64_t> mPutnodesStartMsByTag;
 };
 
-static Followup6TimingSummary summarizeFollowup6Timings(
+static BenchTimingSummary summarizeBenchTimings(
     const std::vector<const TransferTracker*>& trackers,
-    const Followup6PutnodesTimingRecorder& putnodesRecorder)
+    const BenchPutnodesTimingRecorder& putnodesRecorder)
 {
-    Followup6TimingSummary summary;
+    BenchTimingSummary summary;
     std::vector<std::int64_t> perPureMs;
     std::vector<std::int64_t> perPutnodesMs;
     perPureMs.reserve(trackers.size());
@@ -19406,7 +19406,7 @@ static Followup6TimingSummary summarizeFollowup6Timings(
     return summary;
 }
 
-static void appendFollowup6TimingFields(std::ostream& out, const Followup6TimingSummary& summary)
+static void appendBenchTimingFields(std::ostream& out, const BenchTimingSummary& summary)
 {
     out << " callbackTransferMs=" << summary.callbackTransferMs
         << " pureTransferMs=" << summary.pureTransferMs
@@ -19511,7 +19511,7 @@ static void runSmallUploadsBenchmark(SdkTest& test,
     trackers.reserve(fileCount);
     MegaUploadOptions uploadOptions;
     uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
-    Followup6PutnodesTimingRecorder putnodesRecorder;
+    BenchPutnodesTimingRecorder putnodesRecorder;
 
     const auto procStatsStart = captureBenchProcessStats();
     const auto apiStart = std::chrono::steady_clock::now();
@@ -19547,7 +19547,7 @@ static void runSmallUploadsBenchmark(SdkTest& test,
     }
     ASSERT_GT(firstTransferStartMs, 0);
     ASSERT_GT(lastTransferFinishMs, firstTransferStartMs);
-    const auto timingSummary = summarizeFollowup6Timings(timingTrackers, putnodesRecorder);
+    const auto timingSummary = summarizeBenchTimings(timingTrackers, putnodesRecorder);
 
     const auto totalMs = lastTransferFinishMs - firstTransferStartMs;
     const auto apiTotalMs =
@@ -19572,7 +19572,7 @@ static void runSmallUploadsBenchmark(SdkTest& test,
             << " apiTotalMs=" << apiTotalMs
             << " avgKBps=" << avgKBps << " medianKBps=" << medianKBps
             << " minKBps=" << minKBps << " maxKBps=" << maxKBps;
-    appendFollowup6TimingFields(summary, timingSummary);
+    appendBenchTimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
 #if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
@@ -19653,7 +19653,7 @@ static std::string benchUniqueSuffix(const char* testName)
            std::to_string(std::chrono::system_clock::now().time_since_epoch().count());
 }
 
-static std::uint64_t followup6ContentSeed(const std::string& uniqueSuffix,
+static std::uint64_t benchUploadContentSeed(const std::string& uniqueSuffix,
                                           const std::uint64_t salt)
 {
     std::uint64_t hash = 1469598103934665603ull ^ salt;
@@ -19670,15 +19670,15 @@ static void requireBenchStagingSpace()
     const auto root = benchStagingRoot();
     std::error_code ec;
     fs::create_directories(root, ec);
-    ASSERT_FALSE(ec) << "Cannot create followup5 staging root: " << root << ": "
+    ASSERT_FALSE(ec) << "Cannot create bench staging root: " << root << ": "
                      << ec.message();
 
     const auto space = fs::space(root, ec);
-    ASSERT_FALSE(ec) << "Cannot inspect followup5 staging space: " << root << ": "
+    ASSERT_FALSE(ec) << "Cannot inspect bench staging space: " << root << ": "
                      << ec.message();
     ASSERT_GE(space.available, kBenchRequiredFreeBytes)
         << "Need at least " << kBenchRequiredFreeBytes
-        << " bytes available for followup5 large-file staging under " << root
+        << " bytes available for bench large-file staging under " << root
         << ", got " << space.available;
 }
 
@@ -19825,7 +19825,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
     ASSERT_NO_FATAL_FAILURE(requireBenchStagingSpace());
 
-    // followup6-5: env-var override of upload connection count
+    // Env-var override of upload connection count.
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
     {
         const int n = std::atoi(envConns);
@@ -19864,12 +19864,12 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     ASSERT_NO_FATAL_FAILURE(
         createDenseDeterministicFile(largePath,
                                      kBenchLargeFileSize,
-                                     followup6ContentSeed(suffix, 0x5360f501ull)));
+                                     benchUploadContentSeed(suffix, 0x5360f501ull)));
 
     MegaUploadOptions uploadOptions;
     uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
     TransferTracker tracker(test.megaApi[0].get());
-    Followup6PutnodesTimingRecorder putnodesRecorder;
+    BenchPutnodesTimingRecorder putnodesRecorder;
 
     const auto procStatsStart = captureBenchProcessStats();
     const auto apiStart = std::chrono::steady_clock::now();
@@ -19891,7 +19891,7 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
     ASSERT_GT(startMs, 0);
     ASSERT_GT(finishMs, startMs);
     const auto timingSummary =
-        summarizeFollowup6Timings(std::vector<const TransferTracker*>{&tracker},
+        summarizeBenchTimings(std::vector<const TransferTracker*>{&tracker},
                                   putnodesRecorder);
 
     const auto totalMs = finishMs - startMs;
@@ -19907,8 +19907,8 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
             << " avgKBps=" << aggregateKBps << " medianKBps=" << aggregateKBps
             << " minKBps=" << aggregateKBps << " maxKBps=" << aggregateKBps
             << " finishMs=" << tracker.mFinishSteadyMs.load()
-            << " contentSeed=" << followup6ContentSeed(suffix, 0x5360f501ull);
-    appendFollowup6TimingFields(summary, timingSummary);
+            << " contentSeed=" << benchUploadContentSeed(suffix, 0x5360f501ull);
+    appendBenchTimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("SingleLargeUpload", procStatsStart, procStatsEnd);
@@ -19956,7 +19956,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     ASSERT_NO_FATAL_FAILURE(
         createDenseDeterministicFile(largePath,
                                      kBenchLargeFileSize,
-                                     followup6ContentSeed(suffix, 0x5360f502ull)));
+                                     benchUploadContentSeed(suffix, 0x5360f502ull)));
 
     const fs::path smallDir = stagingDir / "small";
     fs::create_directories(smallDir);
@@ -19971,7 +19971,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     MegaUploadOptions uploadOptions;
     uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
     TransferTracker largeTracker(test.megaApi[0].get());
-    Followup6PutnodesTimingRecorder putnodesRecorder;
+    BenchPutnodesTimingRecorder putnodesRecorder;
 
     const auto procStatsStart = captureBenchProcessStats();
     const auto apiStart = std::chrono::steady_clock::now();
@@ -20074,7 +20074,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
     ASSERT_GT(largeStartMs, 0);
     ASSERT_GT(largeFinishMs, largeStartMs);
     const auto largeObservedMs = largeFinishMs - largeStartMs;
-    const auto timingSummary = summarizeFollowup6Timings(timingTrackers, putnodesRecorder);
+    const auto timingSummary = summarizeBenchTimings(timingTrackers, putnodesRecorder);
 
     std::ostringstream summary;
     summary << "[BenchLargePlusManySmall] files=" << (kBenchSmallFileCount + 1)
@@ -20092,8 +20092,8 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
             << " largeObservedMs=" << largeObservedMs
             << " largeBytesAtSmallStart=" << largeBytesAtSmallStart
             << " gateTimedOut=" << (gateTimedOut ? 1 : 0)
-            << " contentSeed=" << followup6ContentSeed(suffix, 0x5360f502ull);
-    appendFollowup6TimingFields(summary, timingSummary);
+            << " contentSeed=" << benchUploadContentSeed(suffix, 0x5360f502ull);
+    appendBenchTimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("LargePlusManySmall", procStatsStart, procStatsEnd);

@@ -1128,13 +1128,13 @@ struct WsConn
     int bufferedAmount{0};
 
 #ifndef NDEBUG
-    // followup6-2 send-side counters (per-connection). Aggregated to the pool
+    // Send-side counters (per-connection). Aggregated to the pool
     // by WsPool::addWsUploadStatsForTesting.
     std::uint64_t mCurlAgainSendCount{0};
     std::uint64_t mCurlAgainRecvCount{0};
     int mBufferedAmountHighWater{0};
     unsigned mChunksInFlightHighWater{0};
-    // followup6-11: throttle-recovery telemetry (per-connection). Set on event=6 receipt,
+    // Throttle-recovery telemetry (per-connection). Set on event=6 receipt,
     // sampled on event=1 chunk-ack to compute pause-to-first-ack latency.
     dstime mPauseStartedAtMs{0};
     std::uint64_t mThrottleRecoveryAckSamples{0};
@@ -1202,7 +1202,7 @@ struct WsConn
         mBufs[buf].add(data, len);
         bufferedAmount += len;
 #ifndef NDEBUG
-        // followup6-2: track per-conn buffered-bytes high-water.
+        // Track per-conn buffered-bytes high-water.
         if (bufferedAmount > mBufferedAmountHighWater)
             mBufferedAmountHighWater = bufferedAmount;
 #endif
@@ -1295,7 +1295,7 @@ struct WsPool
     std::uint32_t mLastCompletedFileno{0};
     std::uint32_t mLastFirstByteSentFileno{0};
 
-    // followup6-2 send-side counters (per-pool aggregator for worker-thread events).
+    // Send-side counters (per-pool aggregator for worker-thread events).
     std::uint64_t mHaveSpaceFalseIters{0};
     std::uint64_t mHaveSpaceFalseWaitMs{0};
     std::uint64_t mReadyForDataFalseIters{0};
@@ -1308,7 +1308,7 @@ struct WsPool
     std::uint64_t mChunkPrepMaxMs{0};
     std::uint64_t mChunkPrepN{0};
 
-    // followup6-11: server throttle telemetry (per-pool aggregator).
+    // Server throttle telemetry (per-pool aggregator).
     std::uint64_t mThrottleEventCount{0};
     std::uint64_t mThrottleEventTotalDs{0};
     std::uint64_t mThrottleEventSumSqDs{0};
@@ -1436,7 +1436,7 @@ struct WsPool
         // SERVERTIMEOUT and trigger a redundant refreshPools().
         mLastActive = nowDs;
 #ifndef NDEBUG
-        // followup6-11: throttle event histogram + min/max/stdev accumulators.
+        // Throttle event histogram + min/max/stdev accumulators.
         ++mThrottleEventCount;
         mThrottleEventTotalDs += static_cast<std::uint64_t>(ds);
         mThrottleEventSumSqDs += static_cast<std::uint64_t>(ds) * static_cast<std::uint64_t>(ds);
@@ -1560,7 +1560,7 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
     out.idleEligibleConnectionMs += mIdleEligibleConnectionMs;
     out.idleEligibleConnectionSampleCount += mIdleEligibleConnectionSampleCount;
 
-    // followup6-2 send-side counters: per-pool aggregates.
+    // Send-side counters: per-pool aggregates.
     out.haveSpaceFalseIters += mHaveSpaceFalseIters;
     out.haveSpaceFalseWaitMs += mHaveSpaceFalseWaitMs;
     out.readyForDataFalseIters += mReadyForDataFalseIters;
@@ -1574,7 +1574,7 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
         out.chunkPrepMaxMs = mChunkPrepMaxMs;
     out.chunkPrepN += mChunkPrepN;
 
-    // followup6-11: server throttle telemetry aggregates.
+    // Server throttle telemetry aggregates.
     out.throttleEventCount += mThrottleEventCount;
     out.throttleEventTotalDs += mThrottleEventTotalDs;
     out.throttleEventSumSqDs += mThrottleEventSumSqDs;
@@ -1604,7 +1604,7 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
         if (static_cast<std::uint64_t>(c->mChunksInFlightHighWater) > out.chunksInFlightHighWater)
             out.chunksInFlightHighWater =
                 static_cast<std::uint64_t>(c->mChunksInFlightHighWater);
-        // followup6-11: per-conn throttle-recovery aggregates.
+        // Per-conn throttle-recovery aggregates.
         out.throttleRecoveryAckSamples += c->mThrottleRecoveryAckSamples;
         out.throttleRecoveryAckTotalMs += c->mThrottleRecoveryAckTotalMs;
         if (c->mThrottleRecoveryAckMaxMs > out.throttleRecoveryAckMaxMs)
@@ -3156,7 +3156,7 @@ void WsConn::curlRecv()
 #ifndef NDEBUG
             else
             {
-                // followup6-2: count CURLE_AGAIN on recv (per-conn).
+                // Count CURLE_AGAIN on recv (per-conn).
                 ++mCurlAgainRecvCount;
             }
 #endif
@@ -3328,7 +3328,7 @@ struct ChunkResponse
     {
         case WsApiServerEvent::ChunkIngested: // non-final
 #ifndef NDEBUG
-            // followup6-11: throttle-recovery latency = pause-start to first chunk-ack on this conn.
+            // Throttle-recovery latency = pause-start to first chunk-ack on this conn.
             if (mPauseStartedAtMs)
             {
                 const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - mPauseStartedAtMs;
@@ -3500,7 +3500,7 @@ struct ChunkResponse
         {
             const dstime throttleDs = static_cast<dstime>(chunkPos / 100 + 1);
 #ifndef NDEBUG
-            // followup6-11: tag opcode=6 in code-counts and anchor pause start for recovery latency.
+            // Tag opcode=6 in code-counts and anchor pause start for recovery latency.
             if (mPool) ++mPool->mThrottleEventCodeCounts[6];
             mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
 #endif
@@ -3607,7 +3607,7 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
 #ifndef NDEBUG
     else
     {
-        // followup6-2: count CURLE_AGAIN on send (per-conn).
+        // Count CURLE_AGAIN on send (per-conn).
         ++ws->mCurlAgainSendCount;
     }
 #endif
@@ -4052,10 +4052,10 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
 
     WsChunk chunk;
 #ifndef MEGA_PRESERVE_V2_SHIP_SLEEP
-    // Followup7 baseline: zero the out param so the worker loop's
-    // initializer (0) controls the fallback path. Under ship-parity
-    // (MEGA_PRESERVE_V2_SHIP_SLEEP) the caller's initial value (10)
-    // is preserved when nextChunk does not throttle.
+    // Zero the out param so the worker loop's initializer (0) controls
+    // the fallback path. Under ship-parity (MEGA_PRESERVE_V2_SHIP_SLEEP)
+    // the caller's initial value (10) is preserved when nextChunk does
+    // not throttle.
     if (retryAfterDs)
     {
         *retryAfterDs = 0;
@@ -4125,13 +4125,11 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             if (pad)
                 std::memset(tlsBuf.get() + chunk.len, 0, pad);
 
-            // SDK-5360 followup6-9 CP-WORKER-PARALLEL-CURL-CONSERVATIVE v2:
-            // snapshot crypto material to local stack and release impl.uploadMutex
-            // around encrypt+MAC so multiple worker threads can encrypt concurrently
-            // using their own thread_local SymmCipher. Re-validate inPool/aborted/paused
-            // after re-locking, mirroring the existing post-readData re-checks above.
-            // Mean throughput uplift measured at +98% to +147% over develop and +135%
-            // to +301% over G1 across SLU/1k-small/mixed at 8c/16c (followup6-9 Phase A).
+            // SDK-5360 worker-parallel encrypt/MAC: snapshot crypto material to
+            // local stack and release impl.uploadMutex around encrypt+MAC so
+            // multiple worker threads can encrypt concurrently using their own
+            // thread_local SymmCipher. Re-validate inPool/aborted/paused after
+            // re-locking, mirroring the existing post-readData re-checks above.
             std::array<byte, SymmCipher::KEYLENGTH> localKey = uf->transferKey();
             const int64_t localCtrIv = uf->ctrIv();
             const m_off_t localChunkPos = chunk.pos;
@@ -4190,7 +4188,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         {
             recordFirstByteSentLocked(*uf);
         }
-        // followup6-2: per-conn chunks-in-flight high-water.
+        // Per-conn chunks-in-flight high-water.
         if (ws->mChunksInFlight.size() > ws->mChunksInFlightHighWater)
             ws->mChunksInFlightHighWater = static_cast<unsigned>(ws->mChunksInFlight.size());
 #endif
@@ -4424,7 +4422,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] throttledByServer=true -> continue [this = "
                       << this << "]";
 #ifndef NDEBUG
-            // followup6-11: sample simultaneous throttled conns at throttle wait point.
+            // Sample simultaneous throttled conns at throttle wait point.
             {
                 unsigned simul = 0;
                 for (const auto* c: mConns) if (c && c->mPauseStartedAtMs) ++simul;
@@ -4486,7 +4484,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 #ifdef MEGA_PRESERVE_V2_SHIP_SLEEP
         dstime retryAfterDs = 10; // ship-parity: 1000 ms backlog-empty fallback
 #else
-        dstime retryAfterDs = 0;  // followup7: BACKLOG_EMPTY_RETRY_DS fallback below
+        dstime retryAfterDs = 0;  // BACKLOG_EMPTY_RETRY_DS fallback below
 #endif
         const auto wakeEpochBeforeSend = mImpl->workerWakeEpoch;
 #ifndef NDEBUG
@@ -4532,7 +4530,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             continue;
         }
 #ifndef NDEBUG
-        // followup6-2: chunk-prep latency = entry-to-success of sendChunk (read + encrypt + queue).
+        // Chunk-prep latency = entry-to-success of sendChunk (read + encrypt + queue).
         const std::uint64_t chunkPrepDtMs = steadyMs() - chunkPrepStartMs;
         mChunkPrepTotalMs += chunkPrepDtMs;
         if (chunkPrepDtMs > mChunkPrepMaxMs)

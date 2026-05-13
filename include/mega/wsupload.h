@@ -211,7 +211,7 @@ public:
         std::uint64_t idleEligibleConnectionMs = 0;
         std::uint64_t idleEligibleConnectionSampleCount = 0;
 
-        // followup6-2 send-side counters (aggregated across pools/conns).
+        // Send-side counters (aggregated across pools/conns).
         std::uint64_t curlAgainSendCount = 0;
         std::uint64_t curlAgainRecvCount = 0;
         std::uint64_t haveSpaceFalseIters = 0;
@@ -228,7 +228,7 @@ public:
         std::uint64_t chunkPrepMaxMs = 0;
         std::uint64_t chunkPrepN = 0;
 
-        // followup6-11: server throttle telemetry
+        // Server throttle telemetry.
         std::uint64_t throttleEventCount = 0;
         std::uint64_t throttleEventTotalDs = 0;
         std::uint64_t throttleEventSumSqDs = 0;
