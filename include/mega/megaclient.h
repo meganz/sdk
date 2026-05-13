@@ -2686,20 +2686,26 @@ public:
     // transfer queue dispatch/retry handling
     void dispatchTransfers();
 
-    // Helpers extracted from dispatchTransfers (fu7-5 G2.1). Both pure-math; no
-    // state mutation. Exposed as const members so any future caller in
-    // megaclient.cpp can reuse them.
+    // Pure-math helpers used by dispatchTransfers. No state mutation; const so any
+    // caller in megaclient.cpp can reuse them.
     unsigned calcDynamicQueueLimit() const;
     double calcTransferWeight(direction_t transferDirection,
                               bool forceDynamicLimit = false) const;
 
-    // Helpers extracted from installWsEngineCallbacks onProgress/onComplete (fu7-5 G2.2).
     // Run on the client thread; no engine mutex acquired here. Both bail out when
     // wsEngine() is null. `wsMergeDrainedChunkMacs` drains server-confirmed chunk MACs
     // and advances contiguous/macsmac progress; `wsApplyLatchedTransferStats` snapshots
     // WS transfer stats into the `ws_latched_*` fields capped by getmaxuploadspeed().
     void wsMergeDrainedChunkMacs(Transfer& t);
     void wsApplyLatchedTransferStats(Transfer& t);
+
+#ifdef MEGA_USE_WSUPLOAD
+    // Mirror legacy slot-based behavior for local-source invalidation by forcing
+    // Transfer::failed(API_EREAD) to skip deferred retries. Used by
+    // installWsEngineCallbacks and prepareUploadForWs when the local read path
+    // signals permanent failure (file vanished, fingerprint mismatch, etc.).
+    static void forcePermanentWsReadFailure(Transfer& transfer);
+#endif
 
     void freeq(direction_t);
 

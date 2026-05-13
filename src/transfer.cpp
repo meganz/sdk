@@ -38,10 +38,11 @@ namespace mega {
 #ifdef MEGA_USE_WSUPLOAD
 namespace {
 
-// fu7-5 G2.3: returns the WS upload engine pointer iff `t` is a WS-channel transfer
-// and its client has a live wsEngine. Replaces the repeated `transfer->channel ==
-// Transfer::Channel::WebSocket && client->wsEngine()` guard pattern at simple call sites.
-// More complex call sites (with extra conditional logic) keep their inline guard.
+// Returns the WS upload engine pointer iff `t` is a WS-channel transfer and its client
+// has a live wsEngine. Replaces the repeated
+// `transfer->channel == Transfer::Channel::WebSocket && client->wsEngine()` guard pattern
+// at simple call sites. Complex call sites with extra conditional logic keep their
+// inline guard.
 inline ws::UploadEngine* wsEngineForTransfer(const Transfer* t)
 {
     if (!t || !t->client || t->channel != Transfer::Channel::WebSocket)

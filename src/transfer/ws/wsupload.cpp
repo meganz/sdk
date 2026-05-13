@@ -89,6 +89,15 @@ std::uint64_t steadyMs()
 }
 #endif
 
+// WS upload session-URL handshake timeout passed to CurlHttpIO::wsHandshakeForUpload.
+// Mirrors the prior CurlHttpIO 15s POST timeout used for the legacy upload-start request.
+constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
+
+// Poll interval for the WsConn::connectWS handshake-completion condition variable.
+// Short enough to react to stopping() in <1s; large enough to avoid spinning while
+// the curl handshake makes progress on the client thread.
+constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
+
 // ---------- RAII helper: temporarily release a unique_lock and re-acquire it on scope exit ----------
 class ScopedUnlock
 {
@@ -2990,7 +2999,7 @@ bool WsConn::connectWS()
             }
             std::string err;
             CURL* e = static_cast<CURL*>(
-                client.wsHandshakeForUpload(url, /*timeoutMs*/ 15000, &err));
+                client.wsHandshakeForUpload(url, WSUPLOAD_HANDSHAKE_TIMEOUT_MS, &err));
 
             {
                 std::lock_guard<std::mutex> g(baton->m);
@@ -3048,7 +3057,7 @@ bool WsConn::connectWS()
             return false;
         }
 
-        baton->cv.wait_for(lk, std::chrono::milliseconds(200), [&]
+        baton->cv.wait_for(lk, std::chrono::milliseconds(WSUPLOAD_HANDSHAKE_CV_POLL_MS), [&]
                            {
                                return baton->done;
                            });

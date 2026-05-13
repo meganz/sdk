@@ -21224,7 +21224,7 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
 
 namespace {
 
-// RAII helper for the WS session-URL transition hook (fu7-5 Goal 1.1). Registers
+// RAII helper for the WS session-URL transition hook. Registers
 // `globalMegaTestHooks.onWsSessionUrlTransition` on construction and unregisters
 // on destruction. Uses a shared_ptr-indirected state so any in-flight hook
 // callback retains its referent after the test scope exits (the macro idiom
