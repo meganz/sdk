@@ -35,6 +35,23 @@
 
 namespace mega {
 
+#ifdef MEGA_USE_WSUPLOAD
+namespace {
+
+// fu7-5 G2.3: returns the WS upload engine pointer iff `t` is a WS-channel transfer
+// and its client has a live wsEngine. Replaces the repeated `transfer->channel ==
+// Transfer::Channel::WebSocket && client->wsEngine()` guard pattern at simple call sites.
+// More complex call sites (with extra conditional logic) keep their inline guard.
+inline ws::UploadEngine* wsEngineForTransfer(const Transfer* t)
+{
+    if (!t || !t->client || t->channel != Transfer::Channel::WebSocket)
+        return nullptr;
+    return t->client->wsEngine();
+}
+
+} // namespace
+#endif
+
 TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
     , sizetype(s)
@@ -96,8 +113,8 @@ Transfer::~Transfer()
     // Idempotent with TransferList::removetransfer()'s detach and with Option A's
     // wsDetachTransferBeforeFailure() (UploadEngine::Impl::remove() early-returns
     // when the transfer is no longer tracked).
-    if (client->wsEngine() && channel == Transfer::Channel::WebSocket)
-        client->wsEngine()->remove(*this);
+    if (auto* wse = wsEngineForTransfer(this))
+        wse->remove(*this);
 #endif
 
     auto keepDownloadTarget = false;
@@ -2934,8 +2951,8 @@ void TransferList::removetransfer(Transfer *transfer)
     if (getIterator(transfer, it, true))
     {
 #ifdef MEGA_USE_WSUPLOAD
-        if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
-            client->wsEngine()->remove(*transfer);
+        if (auto* wse = wsEngineForTransfer(transfer))
+            wse->remove(*transfer);
 #endif
         transfers[transfer->type].erase(it);
     }
@@ -3077,9 +3094,9 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     client->app->transfer_update(transfer);
 
 #ifdef MEGA_USE_WSUPLOAD
-    if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+    if (auto* wse = wsEngineForTransfer(transfer))
     {
-        client->wsEngine()->reposition(*transfer, wsBefore);
+        wse->reposition(*transfer, wsBefore);
     }
 #endif
 }
@@ -3215,9 +3232,9 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
         }
         transfer->state = TRANSFERSTATE_PAUSED;
 #ifdef MEGA_USE_WSUPLOAD
-        if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+        if (auto* wse = wsEngineForTransfer(transfer))
         {
-            client->wsEngine()->pause(*transfer);
+            wse->pause(*transfer);
         }
 #endif
         client->transfercacheadd(transfer, &committer);
