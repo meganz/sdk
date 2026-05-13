@@ -118,6 +118,17 @@
             ]
         },
         {
+            "name": "dev-unix-tsan",
+            "inherits": [
+                "dev",
+                "unix"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "ENABLE_TSAN": "ON"
+            }
+        },
+        {
             "name": "dev-windows",
             "inherits": [
                 "dev",

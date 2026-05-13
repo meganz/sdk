@@ -85,11 +85,13 @@ pipeline {
                                     GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
+                                    RUN_TSAN_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-tsan" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
                                     println CUSTOM_TIMEOUT
+                                    println "RUN_TSAN_SWEEP=${RUN_TSAN_SWEEP}"
                                 }
                             }
                         }
@@ -304,6 +306,92 @@ pipeline {
                         }
                     }
                 }
+                stage('Build TSAN') {
+                    when {
+                        expression { return RUN_TSAN_SWEEP == 'true' }
+                    }
+                    options {
+                        timeout(time: 120, unit: 'MINUTES')
+                    }
+                    environment {
+                        VCPKGPATH = "/opt/vcpkg"
+                        TSAN_BUILD_DIR = "build_dir_tsan"
+                        VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+                        AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+                        AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+                        AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
+                    }
+                    steps {
+                        dir("${linux_sources_workspace}") {
+                            sh "rm -rf ${TSAN_BUILD_DIR}; mkdir ${TSAN_BUILD_DIR}"
+                            sh "echo Building SDK with TSAN"
+                            sh "cmake -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DENABLE_TSAN=ON -DVCPKG_ROOT=${VCPKGPATH} \
+                            ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${TSAN_BUILD_DIR}"
+                            sh "cmake --build ${linux_sources_workspace}/${TSAN_BUILD_DIR} -j5 --target test_integration"
+                        }
+                    }
+                    post {
+                        failure {
+                            echo "Error: TSAN build stage failed. TSAN sweep skipped."
+                        }
+                    }
+                }
+                stage('Run TSAN sweep') {
+                    when {
+                        expression { return RUN_TSAN_SWEEP == 'true' }
+                    }
+                    environment {
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        TSAN_BUILD_DIR = "build_dir_tsan"
+                        TSAN_OPTIONS = "halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0"
+                        TSAN_V2_SURFACE_FILTER = "SdkTest.SdkTestBenchmarkSingleLargeUpload:SdkTest.SdkTestUploads:SdkTest.SdkTestMultipleUploads:SdkTest.SdkWsUploadActivePoolUsesParallelConnections"
+                    }
+                    steps {
+                        timeout(time: 90, unit: 'MINUTES') {
+                            script {
+                                def lockLabel = ''
+                                if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts'
+                                } else  {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                                }
+                                lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                    dir("${linux_sources_workspace}") {
+                                        script{
+                                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                        }
+                                        sh """#!/bin/bash
+                                        set -x
+                                        ulimit -c unlimited
+                                        ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter="${TSAN_V2_SURFACE_FILTER}" 2>&1 | tee tsan_sweep.log || true
+                                        # Surface race summary: total reports + v2-surface field hits
+                                        echo "===TSAN SUMMARY==="
+                                        grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || echo 0
+                                        echo "===V2 SURFACE FIELDS==="
+                                        for fld in mChunksInFlight mNumChunksInFlight mUploadingFile WsConn::mLastActive WsConn::mPausedByServerUntilDs WsConn::mReadyState WsUploadFile mWorkGeneration; do
+                                            cnt=\$(grep -cE "\$fld" tsan_sweep.log || echo 0)
+                                            echo "\$fld: \$cnt"
+                                            if [ \"\$cnt\" != \"0\" ]; then
+                                                echo "[ERROR] new v2-surface race on \$fld" >&2
+                                                exit 1
+                                            fi
+                                        done
+                                        gzip -c tsan_sweep.log > tsan_sweep_${BUILD_ID}.log.gz || :
+                                        rm tsan_sweep.log || :
+                                        """
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        failure {
+                            echo 'Error: TSAN sweep failed — NEW v2-surface race detected'
+                        }
+                    }
+                }
             }
             post{
                 always {
@@ -311,7 +399,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json', fingerprint: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz', fingerprint: true, allowEmptyArchive: true
                     deleteDir()
                 }
             }
