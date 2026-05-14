@@ -13,7 +13,9 @@ target_sources_conditional(test_integration
     wsupload/SdkWsUploadTest.h
     wsupload/SdkWsUploadTest.cpp
     wsupload/WsChunkSendOverquotaCapture.h
+    wsupload/WsUploadDebugHelpers.h
     wsupload/WsUploadRetryTracker.h
+    wsupload/WsUploadTestHelpers.h
     wsupload/WsUploadTransitionCapture.h
     wsupload/WsUscCommand.h
     wsupload/WsUscCommand.cpp

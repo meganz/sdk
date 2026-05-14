@@ -39,7 +39,9 @@
 #include "test.h"
 #include "wsupload/SdkWsUploadTest.h"
 #include "wsupload/WsChunkSendOverquotaCapture.h"
+#include "wsupload/WsUploadDebugHelpers.h"
 #include "wsupload/WsUploadRetryTracker.h"
+#include "wsupload/WsUploadTestHelpers.h"
 #include "wsupload/WsUploadTransitionCapture.h"
 #include "wsupload/WsUscCommand.h"
 
@@ -76,9 +78,22 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
+using ::mega::test::wsupload::fetchBestWsUploadTransferSnapshot;
 using ::mega::test::wsupload::fetchUscSizeClasses;
+using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
+using ::mega::test::wsupload::kWsUploadDefaultFileSize;
+using ::mega::test::wsupload::overrideFirstUploadSessionUrlForTesting;
+using ::mega::test::wsupload::waitForFirstUploadTransferSnapshot;
 using ::mega::test::wsupload::WsSessionUrlTransitionCapture;
 using ::mega::test::wsupload::WsUploadRetryTracker;
+using ::mega::test::wsupload::WsUploadTransferSnapshot;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+using ::mega::test::wsupload::fetchWsUploadPoolStateForTesting;
+using ::mega::test::wsupload::fetchWsUploadStatsForTesting;
+using ::mega::test::wsupload::notifyWsUploadNetworkDisconnectForTesting;
+using ::mega::test::wsupload::restartWsUploadEngineForTesting;
+using ::mega::test::wsupload::waitForWsUploadPoolStateForTesting;
+#endif
 
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
@@ -246,6 +261,7 @@ namespace
     }
 
 #ifdef MEGA_USE_WSUPLOAD
+#if 0  // Replaced by tests/integration/wsupload/WsUploadTestHelpers.h + WsUploadDebugHelpers.h (Goal 4.1 Step 1b)
     constexpr size_t kWsUploadDefaultFileSize = 12 * 1024 * 1024;
 
     struct WsUploadTransferSnapshot
@@ -688,6 +704,7 @@ namespace
     }
 
 #endif
+#endif  // 0 (block replaced by wsupload/ headers — see fu7-8 Goal 4.1)
 #endif // MEGA_USE_WSUPLOAD
 
     //
