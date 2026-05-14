@@ -1079,6 +1079,170 @@ void MegaClient::wsApplyLatchedTransferStats(Transfer& t)
     t.ws_latched_failed_request_ratio = wsStats.failedRequestRatio;
 }
 
+// WS logout cleanup: process pending WS client-thread actions before engine teardown.
+// This helps flush state/cache updates and avoids worker shutdown waiting on queued
+// client-side work (for example handshake-related tasks) while httpio is still valid.
+// maybeStartWsUploadEngine() will recreate the engine lazily after the next login.
+void MegaClient::wsLocallogoutCleanup()
+{
+    if (m_wsEngine)
+        m_wsEngine->stop();
+    wsDrainClientActions(30);
+    m_wsEngine.reset();
+    mWsEngineStarted = false;
+}
+
+// freeq() bypasses TransferList::removetransfer(), so explicitly detach the WS
+// upload from the engine before the loop's `delete transferPtr.second` deletes the
+// Transfer behind the engine's back.
+void MegaClient::wsFreeqCleanupTransfer(direction_t d, Transfer* transfer)
+{
+    if (d == PUT && wsEngine() && transfer &&
+        transfer->channel == Transfer::Channel::WebSocket)
+    {
+        wsEngine()->remove(*transfer);
+    }
+}
+
+// Called from MegaClient::disconnect() so the WS engine can fast-fail in-flight
+// chunk-sends and surface the disconnect to retry/backoff timers immediately.
+void MegaClient::wsNotifyNetworkDisconnect()
+{
+    if (wsEngine())
+    {
+        wsEngine()->notifyNetworkDisconnect();
+    }
+}
+
+// Activate overquota for the WS channel of a transfer that has no legacy slot.
+// `alreadyOverquota` is captured by the caller BEFORE its `bt.backoff(NEVER)` runs,
+// because that backoff() mutates bt state and we need the pre-mutation value to
+// decide whether this is a fresh overquota event or a repeat (already retrying).
+// Mirrors the non-WS slot-based branch in MegaClient::activateoverquota().
+void MegaClient::wsActivateOverquotaForTransfer(Transfer* t,
+                                                bool alreadyOverquota,
+                                                bool isPaywall)
+{
+    if (wsEngine())
+        wsEngine()->markFailed(*t, NEVER);
+    if (!alreadyOverquota)
+    {
+        t->state = TRANSFERSTATE_RETRYING;
+        app->transfer_failed(t, isPaywall ? API_EPAYWALL : API_EOVERQUOTA, 0);
+        ++performanceStats.transferTempErrors;
+    }
+    else if (t->state != TRANSFERSTATE_RETRYING)
+    {
+        t->state = TRANSFERSTATE_RETRYING;
+    }
+}
+
+// Re-arm the WS retry timer for `transfer` while the caller's abortbackoff() walks
+// the multi_transfers loop. Uses the latched Waiter::ds (already bumpds()-updated by
+// the caller) so all transfers in the same loop see a consistent "now".
+void MegaClient::wsAbortBackoffForTransfer(Transfer* transfer)
+{
+    if (transfer && transfer->channel == Transfer::Channel::WebSocket && wsEngine())
+    {
+        wsEngine()->setRetryUntil(*transfer, Waiter::ds);
+    }
+}
+
+// Legacy uploads are effectively stopped while blocked (doio gate). Mirror that for
+// WS uploads by pausing active WS transfers and nudging worker threads to drop
+// current socket sessions.
+void MegaClient::wsHandleAccountBlocked()
+{
+    if (!wsEngine())
+        return;
+    for (auto& it: multi_transfers[PUT])
+    {
+        Transfer* t = it.second;
+        if (!t || t->channel != Transfer::Channel::WebSocket)
+        {
+            continue;
+        }
+        wsEngine()->pause(*t);
+    }
+    wsEngine()->notifyNetworkDisconnect();
+}
+
+// Restore WS uploads that were paused because of account blocked state. Respect
+// explicit user-per-transfer pauses and global PUT pause.
+void MegaClient::wsHandleAccountUnblocked()
+{
+    if (!wsEngine() || xferpaused[PUT])
+        return;
+    for (auto& it: multi_transfers[PUT])
+    {
+        Transfer* t = it.second;
+        if (!t || t->channel != Transfer::Channel::WebSocket)
+        {
+            continue;
+        }
+        if (t->state == TRANSFERSTATE_PAUSED)
+        {
+            continue;
+        }
+        wsEngine()->unpause(*t);
+    }
+}
+
+// Pause/resume WS uploads when the caller's pausexfers() runs. Mirrors the
+// legacy-slot pause/unpause for WS-channel transfers; honours support-upload
+// bypass on pause; on a `hard` pause, additionally notifies network-disconnect
+// so worker sockets drop in-flight chunks immediately.
+void MegaClient::wsApplyTransferPause(direction_t d, bool pause, bool hard)
+{
+    if (d != PUT || !wsEngine())
+        return;
+
+    for (auto& it: multi_transfers[d])
+    {
+        Transfer* t = it.second;
+        if (!t || t->channel != Transfer::Channel::WebSocket)
+        {
+            continue;
+        }
+
+        if (pause)
+        {
+            // Support uploads should bypass global pause.
+            if (!t->isForSupport())
+            {
+                wsEngine()->pause(*t);
+            }
+        }
+        else
+        {
+            wsEngine()->unpause(*t);
+        }
+    }
+
+    if (pause && hard)
+    {
+        wsEngine()->notifyNetworkDisconnect();
+    }
+}
+
+// Propagate applymaxconnections() updates to the WS engine for PUT.
+void MegaClient::wsApplyMaxConnections(direction_t d, int num)
+{
+    if (d == PUT && wsEngine())
+    {
+        wsEngine()->setMaxConnections(static_cast<unsigned char>(num));
+    }
+}
+
+// Propagate setmaxuploadspeed() updates to the WS engine.
+void MegaClient::wsApplyMaxUploadSpeed(m_off_t normalizedLimit)
+{
+    if (wsEngine())
+    {
+        wsEngine()->setMaxUploadSpeed(normalizedLimit);
+    }
+}
+
 } // namespace mega
 
 #endif // MEGA_USE_WSUPLOAD

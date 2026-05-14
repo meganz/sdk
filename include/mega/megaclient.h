@@ -585,6 +585,16 @@ class MEGA_API MegaClient
     void maybeStartWsUploadEngine();
     WsFailureRequeuePosition wsDetachTransferBeforeFailure(Transfer& t);
     void wsReenqueueTransferAfterFailure(Transfer& t, const WsFailureRequeuePosition& position);
+    void wsLocallogoutCleanup();
+    void wsFreeqCleanupTransfer(direction_t d, Transfer* transfer);
+    void wsNotifyNetworkDisconnect();
+    void wsActivateOverquotaForTransfer(Transfer* t, bool alreadyOverquota, bool isPaywall);
+    void wsAbortBackoffForTransfer(Transfer* transfer);
+    void wsHandleAccountBlocked();
+    void wsHandleAccountUnblocked();
+    void wsApplyTransferPause(direction_t d, bool pause, bool hard);
+    void wsApplyMaxConnections(direction_t d, int num);
+    void wsApplyMaxUploadSpeed(m_off_t normalizedLimit);
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     bool wsIsTransferTrackedForTesting(const Transfer& t) const;
 #endif

@@ -1759,20 +1759,7 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
 #ifdef MEGA_USE_WSUPLOAD
                 else if (t->channel == Transfer::Channel::WebSocket)
                 {
-                    if (wsEngine())
-                        wsEngine()->markFailed(*t, NEVER);
-                    if (!alreadyOverquota)
-                    {
-                        t->state = TRANSFERSTATE_RETRYING;
-                        app->transfer_failed(t,
-                                             isPaywall ? API_EPAYWALL : API_EOVERQUOTA,
-                                             0);
-                        ++performanceStats.transferTempErrors;
-                    }
-                    else if (t->state != TRANSFERSTATE_RETRYING)
-                    {
-                        t->state = TRANSFERSTATE_RETRYING;
-                    }
+                    wsActivateOverquotaForTransfer(t, alreadyOverquota, isPaywall);
                 }
 #endif
             }
@@ -4145,10 +4132,6 @@ bool MegaClient::abortbackoff(bool includexfers)
     {
         overquotauntil = 0;
         mLastStreamOverquotaNotifyDs = 0;
-
-#ifdef MEGA_USE_WSUPLOAD
-        const dstime now = Waiter::ds;
-#endif
         if (ststatus != STORAGE_PAYWALL)    // in ODQ Paywall, ULs/DLs are not allowed
         {
             // in ODQ Red, only ULs are disallowed
@@ -4170,10 +4153,7 @@ bool MegaClient::abortbackoff(bool includexfers)
                         }
                     }
 #ifdef MEGA_USE_WSUPLOAD
-                    if (it.second->channel == Transfer::Channel::WebSocket && wsEngine())
-                    {
-                        wsEngine()->setRetryUntil(*it.second, now);
-                    }
+                    wsAbortBackoffForTransfer(it.second);
 #endif
                 }
             }
@@ -5048,13 +5028,7 @@ void MegaClient::freeq(direction_t d)
     for (auto transferPtr : multi_transfers[d])
     {
 #ifdef MEGA_USE_WSUPLOAD
-        if (d == PUT && wsEngine() && transferPtr.second->channel == Transfer::Channel::WebSocket &&
-            transferPtr.second)
-        {
-            // freeq() bypasses TransferList::removetransfer(), so explicitly detach
-            // from WS engine before deleting the Transfer.
-            wsEngine()->remove(*transferPtr.second);
-        }
+        wsFreeqCleanupTransfer(d, transferPtr.second);
 #endif
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
         app->transfer_removed(transferPtr.second);
@@ -5116,10 +5090,7 @@ void MegaClient::disconnect()
     }
 
 #ifdef MEGA_USE_WSUPLOAD
-    if (wsEngine())
-    {
-        wsEngine()->notifyNetworkDisconnect();
-    }
+    wsNotifyNetworkDisconnect();
 #endif
 
     for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
@@ -5347,15 +5318,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     freeq(PUT);
 
 #ifdef MEGA_USE_WSUPLOAD
-    // WS logout cleanup: process pending WS client-thread actions before engine teardown.
-    // This helps flush state/cache updates and avoids worker shutdown waiting on queued
-    // client-side work (for example handshake-related tasks) while httpio is still valid.
-    // maybeStartWsUploadEngine() will recreate the engine lazily after the next login.
-    if (m_wsEngine)
-        m_wsEngine->stop();
-    wsDrainClientActions(30);
-    m_wsEngine.reset();
-    mWsEngineStarted = false;
+    wsLocallogoutCleanup();
 #endif
 
     disconnect();
@@ -15248,22 +15211,7 @@ void MegaClient::block(bool fromServerClientResponse)
     setBlocked(true);
 
 #ifdef MEGA_USE_WSUPLOAD
-    if (wsEngine())
-    {
-        // Legacy uploads are effectively stopped while blocked (doio gate).
-        // Mirror that for WS uploads by pausing active WS transfers and nudging
-        // worker threads to drop current socket sessions.
-        for (auto& it: multi_transfers[PUT])
-        {
-            Transfer* t = it.second;
-            if (!t || t->channel != Transfer::Channel::WebSocket)
-            {
-                continue;
-            }
-            wsEngine()->pause(*t);
-        }
-        wsEngine()->notifyNetworkDisconnect();
-    }
+    wsHandleAccountBlocked();
 #endif
 
 #ifdef ENABLE_SYNC
@@ -15277,24 +15225,7 @@ void MegaClient::unblock()
     setBlocked(false);
 
 #ifdef MEGA_USE_WSUPLOAD
-    if (wsEngine() && !xferpaused[PUT])
-    {
-        // Restore WS uploads that were paused because of account blocked state.
-        // Respect explicit user-per-transfer pauses and global PUT pause.
-        for (auto& it: multi_transfers[PUT])
-        {
-            Transfer* t = it.second;
-            if (!t || t->channel != Transfer::Channel::WebSocket)
-            {
-                continue;
-            }
-            if (t->state == TRANSFERSTATE_PAUSED)
-            {
-                continue;
-            }
-            wsEngine()->unpause(*t);
-        }
-    }
+    wsHandleAccountUnblocked();
 #endif
 }
 
@@ -19730,35 +19661,7 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbComm
     }
 
 #ifdef MEGA_USE_WSUPLOAD
-    if (d == PUT && wsEngine())
-    {
-        for (auto& it: multi_transfers[d])
-        {
-            Transfer* t = it.second;
-            if (!t || t->channel != Transfer::Channel::WebSocket)
-            {
-                continue;
-            }
-
-            if (pause)
-            {
-                // Support uploads should bypass global pause.
-                if (!t->isForSupport())
-                {
-                    wsEngine()->pause(*t);
-                }
-            }
-            else
-            {
-                wsEngine()->unpause(*t);
-            }
-        }
-
-        if (pause && hard)
-        {
-            wsEngine()->notifyNetworkDisconnect();
-        }
-    }
+    wsApplyTransferPause(d, pause, hard);
 #endif
 
 #ifdef ENABLE_SYNC
@@ -19992,10 +19895,7 @@ void MegaClient::applymaxconnections(const direction_t d, const uint8_t num)
     connections[d] = static_cast<unsigned char>(num);
 
 #ifdef MEGA_USE_WSUPLOAD
-            if (d == PUT && wsEngine())
-            {
-                wsEngine()->setMaxConnections(static_cast<unsigned char>(num));
-            }
+    wsApplyMaxConnections(d, num);
 #endif
  
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end();)
@@ -20266,10 +20166,7 @@ bool MegaClient::setmaxuploadspeed(m_off_t bpslimit)
     const bool updated = httpio->setmaxuploadspeed(normalizedLimit);
 
 #ifdef MEGA_USE_WSUPLOAD
-    if (wsEngine())
-    {
-        wsEngine()->setMaxUploadSpeed(normalizedLimit);
-    }
+    wsApplyMaxUploadSpeed(normalizedLimit);
 #endif
 
     return updated;
