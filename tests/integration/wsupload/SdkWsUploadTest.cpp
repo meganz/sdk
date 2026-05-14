@@ -1570,6 +1570,9 @@ TEST_F(SdkWsUploadTest, FileDeletedDuringTransfer)
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 3: wait for confirmed progress before deleting local source file.
+    // 120s timeout (was 60s in fu7-9) gives session-negotiation more headroom under
+    // server-side throttle storms; the skip below only fires when even 2x window is
+    // insufficient (a genuine "engine could not progress" case, not a timing flake).
     WsUploadTransferSnapshot snapshot{};
     const bool gotProgress = waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -1578,7 +1581,7 @@ TEST_F(SdkWsUploadTest, FileDeletedDuringTransfer)
         {
             return s.progressCompleted > 0;
         },
-        60,
+        120,
         200);
 
     if (!gotProgress)
@@ -1703,6 +1706,9 @@ TEST_F(SdkWsUploadTest, FileModifiedDuringTransfer)
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 3: wait until transfer enters active progress.
+    // 120s timeout (was 60s in fu7-9) gives session-negotiation more headroom under
+    // server-side throttle storms; the skip below only fires when even 2x window is
+    // insufficient.
     WsUploadTransferSnapshot snapshot{};
     const bool gotProgress = waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -1711,7 +1717,7 @@ TEST_F(SdkWsUploadTest, FileModifiedDuringTransfer)
         {
             return s.progressCompleted > 0;
         },
-        60,
+        120,
         200);
 
     if (!gotProgress)
@@ -2024,6 +2030,9 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
 
     // Step 4: wait for active WS progress before installing the hook — this confirms
     // chunk-sends are happening and gives us a stable transfer tag.
+    // 120s timeout (was 60s in fu7-9) gives session-negotiation more headroom under
+    // server-side throttle storms; the skip below only fires when even 2x window is
+    // insufficient.
     WsUploadTransferSnapshot beforeOverquota{};
     const bool gotProgress = waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -2032,7 +2041,7 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
         {
             return s.progressCompleted > 0;
         },
-        60,
+        120,
         200);
     if (!gotProgress)
     {
