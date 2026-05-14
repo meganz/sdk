@@ -83,9 +83,6 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
-using ::mega::test::benchmark::runLargePlusManySmallBenchmark;
-using ::mega::test::benchmark::runSingleLargeUploadBenchmark;
-using ::mega::test::benchmark::runSmallUploadsBenchmark;
 using ::mega::test::wsupload::fetchBestWsUploadTransferSnapshot;
 using ::mega::test::wsupload::fetchUscSizeClasses;
 using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
@@ -18994,39 +18991,6 @@ TEST_F(SdkTest, SdkTestMultipleUploadsExpanded)
     }
 }
 
-
-/**
- * @brief TEST_F SdkTestBenchmarkManySmallUploads
- *
- * Benchmark: 500 random files of 1 MiB each are uploaded into one freshly created
- * remote folder. The test emits a greppable [BenchManySmallUploads] summary line
- * and, on debug wsupload builds, a [WsUploadStats] counter line.
- */
-TEST_F(SdkBenchmarkTest, ManySmallUploads)
-{
-    runSmallUploadsBenchmark(*this,
-                             500,
-                             "SdkTestBenchmarkManySmallUploads",
-                             "[BenchManySmallUploads]");
-}
-
-TEST_F(SdkBenchmarkTest, 1kSmallUploads)
-{
-    runSmallUploadsBenchmark(*this,
-                             1000,
-                             "SdkTestBenchmark1kSmallUploads",
-                             "[Bench1kSmallUploads]");
-}
-
-TEST_F(SdkBenchmarkTest, SingleLargeUpload)
-{
-    runSingleLargeUploadBenchmark(*this);
-}
-
-TEST_F(SdkBenchmarkTest, LargePlusManySmall)
-{
-    runLargePlusManySmallBenchmark(*this);
-}
 
 TEST_F(SdkWsUploadTest, SampledByteCorrectness)
 {

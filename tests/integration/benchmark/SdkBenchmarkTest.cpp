@@ -1,20 +1,50 @@
 /**
  * @file SdkBenchmarkTest.cpp
- * @brief Benchmark fixture-class wiring (fu7-7 G4 partial).
+ * @brief Benchmark-cell TEST_F bodies for SdkBenchmarkTest.
  *
- * The SdkBenchmarkTest class (declared in SdkBenchmarkTest.h) is currently
- * realized as a thin SdkTest subclass so that TEST_F(SdkBenchmarkTest, X)
- * tests group separately in gtest output. The test bodies themselves live
- * in tests/integration/SdkTest_test.cpp for now — their helper dependencies
- * form a tightly coupled cluster with the rest of SdkTest_test.cpp. Future
- * work (a separate follow-up) can complete the physical TU extraction once
- * those helpers are pulled out as shared headers as well.
- *
- * G6 recordCell wiring (Phase E) inserts BenchReportWriter::recordCell(...)
- * inside the 4 bench runners' bodies at their current home in
- * SdkTest_test.cpp.
+ * The 4 cells delegate to the runner functions defined in BenchmarkRunners.cpp.
+ * The cells live here so that the gtest fixture grouping
+ * (`SdkBenchmarkTest.*`) is owned by the benchmark module and gtest output
+ * cleanly separates the bench cells from the rest of the SDK integration
+ * suite.
  */
 
 #include "benchmark/SdkBenchmarkTest.h"
 
-// Bench bodies live in tests/integration/SdkTest_test.cpp (fu7-7 G4 partial).
+#include "benchmark/BenchmarkRunners.h"
+
+using ::mega::test::benchmark::runLargePlusManySmallBenchmark;
+using ::mega::test::benchmark::runSingleLargeUploadBenchmark;
+using ::mega::test::benchmark::runSmallUploadsBenchmark;
+
+/**
+ * @brief Benchmark: 500 random files of 1 MiB each are uploaded into one
+ * freshly created remote folder. The test emits a greppable
+ * [BenchManySmallUploads] summary line and, on debug wsupload builds, a
+ * [WsUploadStats] counter line.
+ */
+TEST_F(SdkBenchmarkTest, ManySmallUploads)
+{
+    runSmallUploadsBenchmark(*this,
+                             500,
+                             "SdkTestBenchmarkManySmallUploads",
+                             "[BenchManySmallUploads]");
+}
+
+TEST_F(SdkBenchmarkTest, 1kSmallUploads)
+{
+    runSmallUploadsBenchmark(*this,
+                             1000,
+                             "SdkTestBenchmark1kSmallUploads",
+                             "[Bench1kSmallUploads]");
+}
+
+TEST_F(SdkBenchmarkTest, SingleLargeUpload)
+{
+    runSingleLargeUploadBenchmark(*this);
+}
+
+TEST_F(SdkBenchmarkTest, LargePlusManySmall)
+{
+    runLargePlusManySmallBenchmark(*this);
+}
