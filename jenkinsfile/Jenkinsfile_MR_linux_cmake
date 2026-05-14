@@ -347,7 +347,7 @@ pipeline {
                         MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         BUILD_DIR = "build_dir"
-                        BENCH_FILTER = "SdkTest.SdkTestBenchmark*"
+                        BENCH_FILTER = "SdkBenchmarkTest.*"
                     }
                     steps {
                         timeout(time: 120, unit: 'MINUTES') {
