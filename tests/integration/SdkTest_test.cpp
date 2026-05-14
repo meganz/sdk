@@ -38,14 +38,8 @@
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
 #include "test.h"
-#include "wsupload/SdkWsUploadTest.h"
 #include "wsupload/SecondTimer.h"
 #include "wsupload/TransferTempErrorTracker.h"
-#include "wsupload/WsChunkSendOverquotaCapture.h"
-#include "wsupload/WsUploadDebugHelpers.h"
-#include "wsupload/WsUploadRetryTracker.h"
-#include "wsupload/WsUploadTestHelpers.h"
-#include "wsupload/WsUploadTransitionCapture.h"
 #include "wsupload/WsUscCommand.h"
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
 #include "bench_framework/BenchReportWriter.h"
@@ -84,24 +78,9 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
-using ::mega::test::wsupload::fetchBestWsUploadTransferSnapshot;
 using ::mega::test::wsupload::fetchUscSizeClasses;
-using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
-using ::mega::test::wsupload::kWsUploadDefaultFileSize;
-using ::mega::test::wsupload::overrideFirstUploadSessionUrlForTesting;
 using ::mega::test::wsupload::second_timer;
 using ::mega::test::wsupload::TransferTempErrorTracker;
-using ::mega::test::wsupload::waitForFirstUploadTransferSnapshot;
-using ::mega::test::wsupload::WsSessionUrlTransitionCapture;
-using ::mega::test::wsupload::WsUploadRetryTracker;
-using ::mega::test::wsupload::WsUploadTransferSnapshot;
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-using ::mega::test::wsupload::fetchWsUploadPoolStateForTesting;
-using ::mega::test::wsupload::fetchWsUploadStatsForTesting;
-using ::mega::test::wsupload::notifyWsUploadNetworkDisconnectForTesting;
-using ::mega::test::wsupload::restartWsUploadEngineForTesting;
-using ::mega::test::wsupload::waitForWsUploadPoolStateForTesting;
-#endif
 
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
