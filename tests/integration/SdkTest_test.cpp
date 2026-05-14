@@ -32,6 +32,7 @@
 #include "mega/types.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
+#include "benchmark/SdkBenchmarkTest.h"
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
@@ -20112,7 +20113,7 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
  * remote folder. The test emits a greppable [BenchManySmallUploads] summary line
  * and, on debug wsupload builds, a [WsUploadStats] counter line.
  */
-TEST_F(SdkTest, SdkTestBenchmarkManySmallUploads)
+TEST_F(SdkBenchmarkTest, ManySmallUploads)
 {
     runSmallUploadsBenchmark(*this,
                              500,
@@ -20120,7 +20121,7 @@ TEST_F(SdkTest, SdkTestBenchmarkManySmallUploads)
                              "[BenchManySmallUploads]");
 }
 
-TEST_F(SdkTest, SdkTestBenchmark1kSmallUploads)
+TEST_F(SdkBenchmarkTest, 1kSmallUploads)
 {
     runSmallUploadsBenchmark(*this,
                              1000,
@@ -20128,12 +20129,12 @@ TEST_F(SdkTest, SdkTestBenchmark1kSmallUploads)
                              "[Bench1kSmallUploads]");
 }
 
-TEST_F(SdkTest, SdkTestBenchmarkSingleLargeUpload)
+TEST_F(SdkBenchmarkTest, SingleLargeUpload)
 {
     runSingleLargeUploadBenchmark(*this);
 }
 
-TEST_F(SdkTest, SdkTestBenchmarkLargePlusManySmall)
+TEST_F(SdkBenchmarkTest, LargePlusManySmall)
 {
     runLargePlusManySmallBenchmark(*this);
 }
