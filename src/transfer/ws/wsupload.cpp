@@ -2111,7 +2111,7 @@ public:
                 if (pool.mUploadingFile == f)
                 {
                     pool.clearUploadingFileLocked();
-                    pool.mUFTQversion = queueVersion;
+                    pool.mUFTQversion = queueVersion.load(std::memory_order_relaxed);
                 }
                 pool.purgeFileLocked(f->fileno());
             }
@@ -2338,7 +2338,7 @@ public:
                         if (pool->mUploadingFile == uf)
                         {
                             pool->clearUploadingFileLocked();
-                            pool->mUFTQversion = queueVersion;
+                            pool->mUFTQversion = queueVersion.load(std::memory_order_relaxed);
                         }
 
                         pool->purgeFileLocked(uf->fileno());
@@ -2768,7 +2768,12 @@ public:
     std::unordered_map<std::uint32_t, WsUploadFile*> fileByNo;
 
     ListWsUploadFile::iterator nextIt = fileList.begin();
-    std::uint32_t queueVersion{0};
+    // Atomic because poolWorkerThread reads queueVersion before acquiring
+    // uploadMutex at wsupload.cpp:4315 (race with bumpQueueVersion writer).
+    // Relaxed memory order is sufficient: the value is used as a change-counter
+    // for "should I refreshPools?"; transitive ordering of work-state is
+    // separately protected by uploadMutex.
+    std::atomic<std::uint32_t> queueVersion{0};
     UploadEngine::Callbacks mCb{};
 
     WsPoolMgr poolMgr;
@@ -2824,11 +2829,12 @@ private:
 
     void bumpQueueVersion()
     {
-        ++queueVersion;
+        const std::uint32_t newVersion =
+            queueVersion.fetch_add(1, std::memory_order_relaxed) + 1;
         for (auto& pool: poolMgr.mPools)
         {
             if (pool && pool->mUploadingFile && inQueue.count(pool->mUploadingFile))
-                pool->mUFTQversion = queueVersion;
+                pool->mUFTQversion = newVersion;
         }
     }
 
@@ -3739,12 +3745,13 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
     // use short CV waits instead of coarse decisecond sleeps.
     mPreflightPending = false;
 
+    const std::uint32_t implQueueVersion = impl.queueVersion.load(std::memory_order_relaxed);
     if (mUploadingFile && !mUploadingFile->paused() && mUploadingFile->continuingUpload(now) &&
-        mUploadingFile->hasPendingBytesOrEofToSend() && mUFTQversion == impl.queueVersion)
+        mUploadingFile->hasPendingBytesOrEofToSend() && mUFTQversion == implQueueVersion)
     {
         WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] mUploadingFile->paused()=false && "
                      "mUploadingFile->continuingUpload(now) && mUFTQversion(="
-                  << mUFTQversion << ") == impl.queueVersion(=" << impl.queueVersion
+                  << mUFTQversion << ") == impl.queueVersion(=" << implQueueVersion
                   << ") -> return true [this = " << this << "]";
         return true;
     }
@@ -3780,15 +3787,15 @@ bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
         WSUPLOAD_TRACE << "[WsPool::getWsUploadFile] mUploadingFile(=" << (void*)mUploadingFile
                   << ") != f(=" << (void*)f << ") -> picking file fileno=" << f->fileno()
                   << " for [" << mMinFileSize << "," << mMaxFileSize
-                  << ") pool and set mUFTQversion(=" << impl.queueVersion
-                  << ") = impl.queueVersion(=" << impl.queueVersion << ") [this = " << this
+                  << ") pool and set mUFTQversion(=" << implQueueVersion
+                  << ") = impl.queueVersion(=" << implQueueVersion << ") [this = " << this
                   << "]";
 #ifndef NDEBUG
         assignUploadingFileLocked(f);
 #else
         mUploadingFile = f;
 #endif
-        mUFTQversion = impl.queueVersion;
+        mUFTQversion = implQueueVersion;
         mUploadingFile->setPool(*this);
         if (impl.mCb.onStart)
             impl.mCb.onStart(mUploadingFile->transfer());
@@ -4312,7 +4319,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 {
     int retryCount{0};
     dstime firstConnectFailureDs{0};
-    std::uint32_t lastQueueVersion = mImpl->queueVersion;
+    std::uint32_t lastQueueVersion = mImpl->queueVersion.load(std::memory_order_relaxed);
     std::uint64_t seenDisconnectEpoch = mImpl->disconnectEpoch.load(std::memory_order_acquire);
     auto ws = std::make_unique<WsConn>(this);
 
@@ -4411,7 +4418,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                         {
                             clearUploadingFileLocked();
                         }
-                        mUFTQversion = mImpl->queueVersion;
+                        mUFTQversion = mImpl->queueVersion.load(std::memory_order_relaxed);
 
                         if (mImpl->mCb.onFail)
                         {
@@ -4428,11 +4435,13 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                     }
                 }
 
-                if (!mRetiring && lastQueueVersion != mImpl->queueVersion)
+                const std::uint32_t curQueueVersion =
+                    mImpl->queueVersion.load(std::memory_order_relaxed);
+                if (!mRetiring && lastQueueVersion != curQueueVersion)
                 {
                     WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] !mRetiring && lastQueueVersion("
                               << lastQueueVersion << ") != mImpl->queueVersion("
-                              << mImpl->queueVersion << ") -> refreshPools [this = " << this << "]";
+                              << curQueueVersion << ") -> refreshPools [this = " << this << "]";
                     mImpl->poolMgr.refreshPools();
                 }
 
@@ -4449,7 +4458,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             firstConnectFailureDs = 0;
         }
 
-        lastQueueVersion = mImpl->queueVersion;
+        lastQueueVersion = mImpl->queueVersion.load(std::memory_order_relaxed);
 
         // recv server frames
         {
