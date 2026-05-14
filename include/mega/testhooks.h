@@ -259,6 +259,15 @@ namespace mega {
                            const std::string& /*newUrl*/,
                            const char* /*reason*/)>
             onWsSessionUrlTransition;
+        // Fires inside WsPool::sendChunk just before a chunk is enqueued in mChunksInFlight
+        // and written to the wire. Returning true requests that the chunk-send be
+        // short-circuited and the transfer driven through its OVERQUOTA failure path
+        // (mCb.onFail(t, API_EOVERQUOTA, 0, Retryable) → Transfer::failed(API_EOVERQUOTA)
+        // → activateoverquota(0, false) → app->transfer_failed(t, API_EOVERQUOTA, 0)).
+        // Hook receives the transfer's tag so tests can inject on a specific transfer.
+        // Used by SdkWsUploadTest.OverquotaDuringTransfer to deterministically exercise
+        // the WS-channel OVERQUOTA path without depending on staging quota state.
+        std::function<bool(int /*transferTag*/)> onWsChunkSendOverquota;
         // WsUploadServerEventHook has its own internal mutex and its own locked move
         // ctor/op=; the outer mMutex keeps the enclosing struct move atomic, and the
         // sub-object's mutex keeps its fields safe for evaluate() from any thread.
@@ -317,6 +326,7 @@ namespace mega {
             onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
             onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
+            onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
             // WsUploadServerEventHook already has its own locked move-assign.
             wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
             onHookFileFingerprintUseLegacyBuggySparseCrc =
@@ -590,6 +600,16 @@ namespace mega {
         if (_fn) _fn((TAG), (OLDURL), (NEWURL), (REASON)); \
     } while (0)
 
+#define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA) \
+    do { \
+        std::function<bool(int)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsChunkSendOverquota; \
+        } \
+        if (_fn) (OUT_INJECT_OVERQUOTA) = _fn((TAG)); \
+    } while (0)
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     do { \
         std::function<void(bool&)> _fn; \
@@ -676,6 +696,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
+#define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

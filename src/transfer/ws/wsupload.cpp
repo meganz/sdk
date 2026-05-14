@@ -4204,6 +4204,36 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             }
             update = ChunkFingerprintMacUpdate(chunk.pos, std::move(macs));
         }
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        // Test seam: deterministically inject OVERQUOTA on this chunk-send by
+        // short-circuiting through the same purgeFileLocked + mCb.onFail pattern
+        // that the local-I/O-error path below uses. Drives the existing
+        // Transfer::failed(API_EOVERQUOTA, ..., 0) plumbing — does NOT introduce
+        // a new propagation path. Hook fires with impl.uploadMutex held, after uf
+        // has been re-validated post-encrypt, so chunk.fileno / uf->transfer().tag
+        // are stable for the duration of the call.
+        {
+            bool injectOverquota = false;
+            DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(uf->transfer().tag, injectOverquota);
+            if (injectOverquota)
+            {
+                LOG_warn << "[WsPool::sendChunk] test hook requested OVERQUOTA injection "
+                            "[pos="
+                         << chunk.pos << "] [fileno=" << chunk.fileno
+                         << "] [tag=" << uf->transfer().tag << "] [this = " << this << "]";
+                purgeFileLocked(chunk.fileno);
+                uf->uploadFailed(FailReason::ServerError);
+                if (impl.mCb.onFail)
+                {
+                    impl.mCb.onFail(uf->transfer(),
+                                    API_EOVERQUOTA,
+                                    chunk.pos,
+                                    UploadEngine::FailureDisposition::Retryable);
+                }
+                return false;
+            }
+        }
+#endif
         WSUPLOAD_TRACE << "[WsPool::sendChunk] uf->readData(tlsBuf.get(), chunk.pos, chunk.len, "
                      "impl.uploadMutex) -> emplace mChunksInFlight, sendChunkData && return true "
                      "[mNumChunksInFlight="

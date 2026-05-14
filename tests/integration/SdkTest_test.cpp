@@ -38,6 +38,7 @@
 #include "sdk_test_utils.h"
 #include "test.h"
 #include "wsupload/SdkWsUploadTest.h"
+#include "wsupload/WsChunkSendOverquotaCapture.h"
 #include "wsupload/WsUploadTransitionCapture.h"
 
 #include <gtest/gtest.h>
@@ -22044,20 +22045,10 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
 #ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
 #else
-    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled";
-    auto resetHooks = makeScopedDestructor(
-        []()
-        {
-            globalMegaTestHooks.onHttpReqPost = {};
-            globalMegaTestHooks.onSetIsRaid = {};
-            DebugTestHook::resetForTests();
-        });
-
+    // Step 1: source file
     const std::string fileName =
         "ws_overquota_mid_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
-
-    // Step 1: create source file for mid-transfer overquota injection.
     constexpr size_t fileSize = kWsUploadDefaultFileSize;
     ASSERT_TRUE(createFileWithSize(fileName, fileSize, "Q")) << "Couldn't create " << fileName;
 
@@ -22072,6 +22063,9 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
             (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
         });
 
+    // Step 2: limit conns + throttle upload to keep it alive long enough to install the hook
+    // and observe chunk-sends. setMaxConnections(1) keeps WsPool churn to a minimum so the
+    // single chunk-send firing the hook is deterministic.
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
@@ -22079,7 +22073,6 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    // Step 2: throttle and start transfer to open overquota injection window.
     megaApi[0]->setMaxUploadSpeed(100000);
     auto restoreUploadSpeed = makeScopedDestructor(
         [this]()
@@ -22087,12 +22080,14 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
             megaApi[0]->setMaxUploadSpeed(-1);
         });
 
+    // Step 3: start upload + capture transferTag once it has been assigned.
     TransferTempErrorTracker tracker(megaApi[0].get());
     MegaUploadOptions uploadOptions;
     uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
 
-    // Step 3: wait for active progress before enabling debug overquota hook.
+    // Step 4: wait for active WS progress before installing the hook — this confirms
+    // chunk-sends are happening and gives us a stable transfer tag.
     WsUploadTransferSnapshot beforeOverquota{};
     const bool gotProgress = waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -22105,47 +22100,39 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
         200);
     if (!gotProgress)
     {
-        // Skip after starting upload: cancel in-flight uploads explicitly before unwinding local
-        // listeners/trackers to avoid cleanup races during stack teardown.
         megaApi[0]->setMaxUploadSpeed(-1);
         (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
         GTEST_SKIP() << "Upload did not show WS progress; cannot test WS mid-transfer overquota";
     }
+    const int targetTag = tracker.transferTag.load();
+    ASSERT_GE(targetTag, 0) << "transfer tag not captured before installing hook";
 
-    // Step 4: inject overquota signal through debug hooks.
-    DebugTestHook::isRaid = false;
-    DebugTestHook::isRaidKnown = false;
-    DebugTestHook::countdownToOverquota = 0;
-    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost509;
-    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid;
-    // Once hooks are armed, uncap upload speed so the test doesn't timeout waiting for completion
-    // in environments where overquota injection cannot be reached on the WS data path.
+    // Step 5: install the WS chunk-send OVERQUOTA injection hook. One-shot semantics —
+    // the next chunk-send for this transfer-tag is force-failed via the same code path
+    // a real server-side OVERQUOTA event would take (purgeFileLocked + mCb.onFail(EOVERQUOTA, Retryable)
+    // → Transfer::failed(API_EOVERQUOTA, ..., 0) → app->transfer_failed).
+    mega::test::wsupload::WsChunkSendOverquotaCapture overquotaHook(targetTag);
+
+    // Uncap upload speed so chunk-sends proceed quickly and the hook fires promptly.
     megaApi[0]->setMaxUploadSpeed(-1);
 
-    // Step 5: verify temporary error path resolves to API_EOVERQUOTA.
-    const auto result = tracker.waitForResult(120);
+    // Step 6: wait for the hook to fire (chunk-send observed).
+    ASSERT_TRUE(overquotaHook.waitForFire(std::chrono::seconds(60)))
+        << "OVERQUOTA hook never fired — no chunk-sends observed within 60s "
+        << "(totalSeen=" << overquotaHook.totalSeen() << ")";
 
-    if (!tracker.wasTemporaryError() && result == API_OK)
-    {
-        GTEST_SKIP() << "Could not inject overquota into active WS upload path in this environment";
-    }
-    if (!tracker.wasTemporaryError() &&
-        result == static_cast<ErrorCodes>(LOCAL_ETIMEOUT) &&
-        DebugTestHook::countdownToOverquota == 0)
-    {
-        GTEST_SKIP() << "Overquota hook was never hit on REQ_BINARY during WS upload path";
-    }
-
+    // Step 7: assert the resulting failure is API_EOVERQUOTA via temporary-error path.
+    const auto result = tracker.waitForResult(60);
     ASSERT_TRUE(tracker.wasTemporaryError())
-        << "Expected temporary error after overquota injection, got result: " << result;
+        << "Expected temporary error after OVERQUOTA injection, got result: " << result;
     ASSERT_EQ(result, API_EOVERQUOTA)
         << "Expected API_EOVERQUOTA after injection, got: " << result;
 
-    // Step 6: cancel by tag if still present to leave clean transfer state.
-    const int transferTag = tracker.transferTag.load();
-    if (transferTag >= 0)
+    // Step 8: cancel in-flight transfer (Retryable disposition would keep retrying).
+    const int finalTag = tracker.transferTag.load();
+    if (finalTag >= 0)
     {
-        megaApi[0]->cancelTransferByTag(transferTag);
+        megaApi[0]->cancelTransferByTag(finalTag);
     }
 #endif
 }
