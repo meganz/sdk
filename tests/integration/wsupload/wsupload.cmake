@@ -13,7 +13,10 @@ target_sources_conditional(test_integration
     wsupload/SdkWsUploadTest.h
     wsupload/SdkWsUploadTest.cpp
     wsupload/WsChunkSendOverquotaCapture.h
+    wsupload/WsUploadRetryTracker.h
     wsupload/WsUploadTransitionCapture.h
+    wsupload/WsUscCommand.h
+    wsupload/WsUscCommand.cpp
 )
 
 target_include_directories(test_integration PRIVATE

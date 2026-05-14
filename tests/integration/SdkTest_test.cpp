@@ -39,7 +39,9 @@
 #include "test.h"
 #include "wsupload/SdkWsUploadTest.h"
 #include "wsupload/WsChunkSendOverquotaCapture.h"
+#include "wsupload/WsUploadRetryTracker.h"
 #include "wsupload/WsUploadTransitionCapture.h"
+#include "wsupload/WsUscCommand.h"
 
 #include <gtest/gtest.h>
 
@@ -74,7 +76,9 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
+using ::mega::test::wsupload::fetchUscSizeClasses;
 using ::mega::test::wsupload::WsSessionUrlTransitionCapture;
+using ::mega::test::wsupload::WsUploadRetryTracker;
 
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
@@ -238,191 +242,6 @@ namespace
             fs.seekp((byteSize << 10) - 1);
         }
         fs << name;
-        return true;
-    }
-
-    class CommandUscForTest final: public Command
-    {
-    public:
-        using SizeClass = std::pair<std::string, m_off_t>;
-        using Completion = std::function<void(Error, std::vector<SizeClass>&&)>;
-
-        CommandUscForTest(MegaClient& client, Completion completion):
-            mCompletion(std::move(completion))
-        {
-            cmd("usc");
-            tag = client.reqtag;
-            mLockless = true;
-        }
-
-        bool procresult(Result r, JSON& json) override
-        {
-            if (r.wasErrorOrOK())
-            {
-                if (r.wasError(API_OK))
-                    mCompletion(API_EINTERNAL, {});
-                else
-                    mCompletion(r.errorOrOK(), {});
-                return true;
-            }
-
-            if (!r.hasJsonArray())
-            {
-                mCompletion(API_EINTERNAL, {});
-                return true;
-            }
-
-            std::vector<SizeClass> sizeClasses;
-
-            auto peek = [](const JSON& j) -> char
-            {
-                const char* p = j.pos;
-                while (*p == ' ' || *p == '\t' || *p == '\n' || *p == '\r' || *p == ',' ||
-                       *p == ':')
-                    ++p;
-                return *p;
-            };
-
-            auto parseEntryArray = [&](JSON& j)
-            {
-                std::string host;
-                std::string path;
-                m_off_t maxSize = 0;
-
-                const bool okHost = j.storeobject(&host);
-                const bool okPath = j.storeobject(&path);
-                if (okHost && okPath)
-                {
-                    if (j.isnumeric())
-                    {
-                        maxSize = j.getint();
-                    }
-
-                    while (j.storeobject())
-                        ;
-
-                    std::string url = "wss://";
-                    url.append(host);
-                    url.append("/");
-                    url.append(path);
-                    sizeClasses.emplace_back(std::move(url), maxSize);
-                }
-                else
-                {
-                    while (j.storeobject())
-                        ;
-                }
-            };
-
-            std::function<void(JSON&)> parseArrayContents;
-            parseArrayContents = [&](JSON& j)
-            {
-                const char next = peek(j);
-                if (next == ']')
-                {
-                    return;
-                }
-
-                if (next == '[')
-                {
-                    while (j.enterarray())
-                    {
-                        parseArrayContents(j);
-                        j.leavearray();
-                    }
-                    return;
-                }
-
-                if (next != '"')
-                {
-                    while (j.storeobject())
-                        ;
-                    return;
-                }
-
-                parseEntryArray(j);
-            };
-
-            JSON jsonCopy = json;
-            while (jsonCopy.enterarray())
-            {
-                parseArrayContents(jsonCopy);
-                jsonCopy.leavearray();
-            }
-
-            while (json.storeobject())
-                ;
-
-            if (sizeClasses.empty())
-            {
-                mCompletion(API_EINTERNAL, {});
-            }
-            else
-            {
-                mCompletion(API_OK, std::move(sizeClasses));
-            }
-            return true;
-        }
-
-    private:
-        Completion mCompletion;
-    };
-
-    bool fetchUscSizeClasses(MegaApi& api,
-                             std::vector<m_off_t>& maxSizes,
-                             const int timeoutSeconds = defaultTimeout)
-    {
-        MegaApiImpl* impl = MegaApiImpl::ImplOf(&api);
-        if (!impl)
-        {
-            return false;
-        }
-
-        auto promise = std::make_shared<std::promise<std::vector<CommandUscForTest::SizeClass>>>();
-        auto future = promise->get_future();
-
-        auto exec = std::make_shared<ExecuteOnce>(
-            [impl, promise]()
-            {
-                MegaClient* client = impl->getClientForTesting();
-                if (!client)
-                {
-                    promise->set_value({});
-                    return;
-                }
-
-                client->queueCommand(new CommandUscForTest(
-                    *client,
-                    [promise](Error e, std::vector<CommandUscForTest::SizeClass>&& classes)
-                    {
-                        if (e != API_OK)
-                        {
-                            promise->set_value({});
-                            return;
-                        }
-                        promise->set_value(std::move(classes));
-                    }));
-            });
-
-        impl->executeOnThreadForTesting(exec);
-
-        if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
-        {
-            return false;
-        }
-
-        auto classes = future.get();
-        if (classes.empty())
-        {
-            return false;
-        }
-
-        maxSizes.clear();
-        maxSizes.reserve(classes.size());
-        for (const auto& entry: classes)
-        {
-            maxSizes.push_back(entry.second);
-        }
         return true;
     }
 
@@ -18723,90 +18542,6 @@ private:
     }
 };
 
-struct WsUploadRetryTracker: public ::mega::MegaTransferListener
-{
-    std::atomic<int> startCount{0};
-    std::atomic<int> updateCount{0};
-    std::atomic<int> temporaryErrorCount{0};
-    std::atomic<ErrorCodes> lastTemporaryError{ErrorCodes::API_OK};
-    std::atomic<int> lastState{-1};
-    std::atomic<int> activeStateUpdateCount{0};
-    std::atomic<bool> sawActiveAfterTemporaryError{false};
-    std::atomic<bool> finished{false};
-    std::atomic<ErrorCodes> result{ErrorCodes::API_EINTERNAL};
-    std::promise<ErrorCodes> promiseResult;
-    MegaApi* mApi;
-    std::future<ErrorCodes> futureResult;
-
-    explicit WsUploadRetryTracker(MegaApi* api):
-        mApi(api),
-        futureResult(promiseResult.get_future())
-    {}
-
-    ~WsUploadRetryTracker() override
-    {
-        if (!finished && mApi)
-        {
-            mApi->removeTransferListener(this);
-        }
-    }
-
-    void onTransferStart(MegaApi*, MegaTransfer*) override
-    {
-        ++startCount;
-    }
-
-    void onTransferUpdate(MegaApi*, MegaTransfer* transfer) override
-    {
-        ++updateCount;
-        if (!transfer)
-        {
-            return;
-        }
-
-        lastState = transfer->getState();
-        if (transfer->getState() == MegaTransfer::STATE_ACTIVE)
-        {
-            ++activeStateUpdateCount;
-            if (temporaryErrorCount.load() >= 1)
-            {
-                sawActiveAfterTemporaryError = true;
-            }
-        }
-    }
-
-    void onTransferTemporaryError(MegaApi*, MegaTransfer*, MegaError* error) override
-    {
-        ++temporaryErrorCount;
-        lastTemporaryError =
-            static_cast<ErrorCodes>(error ? error->getErrorCode() : API_EINTERNAL);
-    }
-
-    void onTransferFinish(MegaApi*, MegaTransfer*, MegaError* error) override
-    {
-        bool expected = false;
-        if (!finished.compare_exchange_strong(expected, true))
-            return;
-
-        result = static_cast<ErrorCodes>(error ? error->getErrorCode() : API_EINTERNAL);
-
-        std::promise<ErrorCodes> localPromise = std::move(promiseResult);
-        localPromise.set_value(result);
-    }
-
-    ErrorCodes waitForResult(int seconds = defaultTimeout, bool unregisterListenerOnTimeout = true)
-    {
-        if (std::future_status::ready != futureResult.wait_for(std::chrono::seconds(seconds)))
-        {
-            if (unregisterListenerOnTimeout && mApi)
-            {
-                mApi->removeTransferListener(this);
-            }
-            return static_cast<ErrorCodes>(LOCAL_ETIMEOUT);
-        }
-        return futureResult.get();
-    }
-};
 } // namespace
 
 TEST_F(SdkTest, SdkTestUploadsOverquota)
