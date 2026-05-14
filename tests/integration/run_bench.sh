@@ -15,7 +15,7 @@
 set -euo pipefail
 
 BENCH_BUILD_DIR="${BENCH_BUILD_DIR:-${HOME}/repo/build-sdk-dev-unix-wsupload-benchOn}"
-USERAGENT="${USERAGENT:-fu7-13-bench}"
+USERAGENT="${USERAGENT:-JenkinsCanSpam-SDK}"
 BIN="${BENCH_BUILD_DIR}/tests/integration/test_integration"
 
 if [[ $# -lt 1 ]]; then
