@@ -4,11 +4,10 @@
  *
  * Lightweight subclass of SdkTest so that TEST_F(SdkBenchmarkTest, X) groups
  * the benchmark cells separately in gtest output, matching how SdkWsUploadTest
- * groups the WS-upload tests (fu7-7 G3). Test bodies live in
- * tests/integration/SdkTest_test.cpp pending full TU extraction (their helper
- * dependencies — bench_framework BenchSession/BenchSummary, plus
- * file-scope helpers in SdkTest_test.cpp's anonymous namespace — form a
- * tightly-coupled cluster, deferred along with the WS-upload extraction).
+ * groups the WS-upload tests. The 4 cells delegate to the runner functions
+ * exposed in benchmark/BenchmarkRunners.h; test bodies live in
+ * benchmark/SdkBenchmarkTest.cpp and the runner/helper cluster lives in
+ * benchmark/BenchmarkRunners.cpp.
  */
 
 #pragma once

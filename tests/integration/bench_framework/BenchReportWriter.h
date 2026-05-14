@@ -5,15 +5,13 @@
  * Part of the `bench_framework` reusable module gated by `MEGA_BENCH_FRAMEWORK_ENABLED`.
  * Mirrors the gfx-test artifact pattern (`gfxworker_test_integration_*.log` emitted from
  * `tools/gfxworker/tests/integration/main.cpp:19`). Emits `bench_report_<PID>.json` into
- * the per-process directory (`/home/vmga/mega_tests/pid_<PID>/` on the dev Jenkins host),
- * suitable for CI-side archival via Jenkinsfile.
+ * the per-process directory (`<TestFS::GetProcessFolder()>/bench_report_<PID>.json` —
+ * typically `$HOME/mega_tests/pid_<PID>/` on POSIX, `c:\tmp\mega_tests\pid_<PID>\` on
+ * Windows), suitable for CI-side archival via Jenkinsfile.
  *
  * Schema (versioned via `schema_version` field) — see BENCHMARKS.md `## Bench-report JSON`.
  *
  * Thread-safety: `recordCell` and `flush` are mutex-guarded.
- *
- * G6 will fill in the JSON emission; G5 lands the stub interface so G4 can wire bench
- * cells through it without a follow-up source-shape change.
  */
 #pragma once
 
