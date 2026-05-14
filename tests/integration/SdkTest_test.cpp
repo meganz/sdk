@@ -74,7 +74,7 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
-using mega::test::wsupload::WsSessionUrlTransitionCapture;
+using ::mega::test::wsupload::WsSessionUrlTransitionCapture;
 
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
@@ -22111,7 +22111,7 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
     // the next chunk-send for this transfer-tag is force-failed via the same code path
     // a real server-side OVERQUOTA event would take (purgeFileLocked + mCb.onFail(EOVERQUOTA, Retryable)
     // → Transfer::failed(API_EOVERQUOTA, ..., 0) → app->transfer_failed).
-    mega::test::wsupload::WsChunkSendOverquotaCapture overquotaHook(targetTag);
+    ::mega::test::wsupload::WsChunkSendOverquotaCapture overquotaHook(targetTag);
 
     // Uncap upload speed so chunk-sends proceed quickly and the hook fires promptly.
     megaApi[0]->setMaxUploadSpeed(-1);
