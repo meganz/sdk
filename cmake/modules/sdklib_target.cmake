@@ -351,7 +351,9 @@ target_sources_conditional(SDKlib
     FLAG MEGA_USE_WSUPLOAD
     PRIVATE
     include/mega/wsupload.h
+    include/mega/transfer/ws/ws_encryption.h
     src/transfer/ws/wsupload.cpp
+    src/transfer/ws/ws_encryption.cpp
     src/megaclient_wsupload.cpp
 )
 
@@ -399,11 +401,6 @@ target_compile_definitions(SDKlib
 target_compile_definitions(SDKlib
     PUBLIC
     $<$<BOOL:${MEGA_USE_WSUPLOAD}>:MEGA_USE_WSUPLOAD>
-)
-
-target_compile_definitions(SDKlib
-    PRIVATE
-    $<$<BOOL:${MEGA_PRESERVE_V2_SHIP_SLEEP}>:MEGA_PRESERVE_V2_SHIP_SLEEP>
 )
 
 set_target_properties(SDKlib PROPERTIES
@@ -474,26 +471,6 @@ if(ENABLE_SDKLIB_WERROR)
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
     )
-endif()
-
-# SDK-5360: catch sign-conversion narrowings (e.g., dstime -> uint64_t) in the
-# wsupload module specifically — macOS Jenkins caught one in followup7-2
-# (wsupload.cpp:1441 mThrottleEventTotalDs += ds). Scoped per-file because the
-# rest of the SDK carries ~19 pre-existing sign-conversion warnings that are
-# out of scope for this gate. Promote to wider scope after those are paid down.
-if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|AppleClang|GNU"
-   AND (CMAKE_SYSTEM_NAME STREQUAL "Linux" OR CMAKE_SYSTEM_NAME STREQUAL "Darwin"))
-    set(_sdk5360_wsupload_extra_flags "-Wsign-conversion")
-    if(ENABLE_SDKLIB_WERROR)
-        list(APPEND _sdk5360_wsupload_extra_flags "-Werror=sign-conversion")
-    endif()
-    set_property(
-        SOURCE
-            ${CMAKE_CURRENT_SOURCE_DIR}/src/transfer/ws/wsupload.cpp
-        APPEND PROPERTY COMPILE_OPTIONS
-            "$<$<CONFIG:Debug>:${_sdk5360_wsupload_extra_flags}>"
-    )
-    unset(_sdk5360_wsupload_extra_flags)
 endif()
 
 ## Create config files ##

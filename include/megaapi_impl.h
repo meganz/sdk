@@ -4189,6 +4189,7 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
+#ifndef NDEBUG
         // Test-only helper to access the internal MegaClient instance.
         MegaClient* getClientForTesting() const { return client; }
         // Test-only helper to execute work on the MegaApiImpl thread.
@@ -4196,6 +4197,7 @@ class MegaApiImpl : public MegaApp
         {
             executeOnThread(std::move(request));
         }
+#endif // !NDEBUG
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
