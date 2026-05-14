@@ -118,6 +118,16 @@
             ]
         },
         {
+            "name": "dev-unix-wsupload-benchOn",
+            "inherits": [
+                "dev",
+                "unix"
+            ],
+            "cacheVariables": {
+                "MEGA_BENCH_FRAMEWORK_ENABLED": "ON"
+            }
+        },
+        {
             "name": "dev-unix-tsan",
             "inherits": [
                 "dev",
