@@ -379,6 +379,21 @@ pipeline {
                                         for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_report_*.json pid_*/bench_report_*.json; do
                                             [ -f "\$benchReport" ] && cp "\$benchReport" .
                                         done
+                                        # SDK-5360 fu7-12 G5.c: per-cell bench log split. csplit on gtest [ RUN ]
+                                        # markers, rename per-cell, tar.gz into bench_logs_${BUILD_ID}.tar.gz so
+                                        # reviewers can wget one cell directly (analogous to gfx-log separation).
+                                        mkdir -p bench_logs_${BUILD_ID} || :
+                                        if [ -s bench_sweep.log ]; then
+                                            csplit -z -s -b '%04d' -f bench_logs_${BUILD_ID}/_split_ bench_sweep.log '/\\[ RUN      \\]/' '{*}' || :
+                                            for sf in bench_logs_${BUILD_ID}/_split_*; do
+                                                [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                [ -n "\$cellName" ] || cellName="preamble"
+                                                mv "\$sf" "bench_logs_${BUILD_ID}/\${cellName}.log" || :
+                                            done
+                                        fi
+                                        tar -czf bench_logs_${BUILD_ID}.tar.gz bench_logs_${BUILD_ID} || :
+                                        rm -rf bench_logs_${BUILD_ID} || :
                                         gzip -c bench_sweep.log > bench_sweep_${BUILD_ID}.log.gz || :
                                         rm bench_sweep.log || :
                                         """
@@ -403,7 +418,10 @@ pipeline {
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         TSAN_BUILD_DIR = "build_dir_tsan"
                         TSAN_OPTIONS = "halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0"
-                        TSAN_V2_SURFACE_FILTER = "SdkTest.SdkTestBenchmarkSingleLargeUpload:SdkTest.SdkTestUploads:SdkTest.SdkTestMultipleUploads:SdkTest.SdkWsUploadActivePoolUsesParallelConnections"
+                        // SDK-5360 fu7-12 G5.b: current v2-surface cells (post-fu7-7 rename;
+                        // pre-fu7-7 SdkTest.* names removed). HR23 strict: any NEW race on
+                        // v2 fields (mChunksInFlight, mUploadingFile, etc.) fails the stage.
+                        TSAN_V2_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools"
                     }
                     steps {
                         timeout(time: 90, unit: 'MINUTES') {
@@ -456,7 +474,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz, bench_sweep*.log.gz', fingerprint: true, allowEmptyArchive: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz, bench_sweep*.log.gz, bench_logs_*.tar.gz', fingerprint: true, allowEmptyArchive: true
                     deleteDir()
                 }
             }
