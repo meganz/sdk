@@ -44,6 +44,9 @@
 #include "wsupload/WsUploadTestHelpers.h"
 #include "wsupload/WsUploadTransitionCapture.h"
 #include "wsupload/WsUscCommand.h"
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+#include "bench_framework/BenchReportWriter.h"
+#endif
 
 #include <gtest/gtest.h>
 
@@ -19225,6 +19228,44 @@ static void logBenchProcessStatsDelta(const char* tag,
              << " sysCpuMs=" << (end.sysCpuMs - start.sysCpuMs);
 }
 
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+// Wires bench-runner results to the bench_framework JSON channel. Inert on builds
+// without MEGA_BENCH_FRAMEWORK_ENABLED.
+static void recordBenchCell(const char* name,
+                            std::int64_t fileSizeMib,
+                            unsigned connections,
+                            std::int64_t totalMs,
+                            double aggregateKBps,
+                            const BenchTimingSummary& timing,
+                            const BenchProcessStatsSample& procStart,
+                            const BenchProcessStatsSample& procEnd,
+                            std::size_t chunkSamples)
+{
+    ::mega::bench::BenchReportCell cell;
+    cell.name = name;
+    cell.fileSizeMib = fileSizeMib;
+    cell.connections = connections;
+    cell.durationMs = totalMs;
+    cell.aggregateKbps = aggregateKBps;
+    cell.firstByteMs = timing.firstStartMs;
+    cell.lastByteMs = timing.lastFinishMs;
+    cell.rssCpuDelta.rssMaxKb =
+        static_cast<std::int64_t>(procEnd.maxRssKB) - static_cast<std::int64_t>(procStart.maxRssKB);
+    cell.rssCpuDelta.userCpuMs =
+        static_cast<std::int64_t>(procEnd.userCpuMs) - static_cast<std::int64_t>(procStart.userCpuMs);
+    cell.rssCpuDelta.sysCpuMs =
+        static_cast<std::int64_t>(procEnd.sysCpuMs) - static_cast<std::int64_t>(procStart.sysCpuMs);
+    cell.rssCpuDelta.sampled = true;
+    cell.chunkMsDist.min = static_cast<double>(timing.perTransferPureTransferMs.min);
+    cell.chunkMsDist.max = static_cast<double>(timing.perTransferPureTransferMs.max);
+    cell.chunkMsDist.mean = static_cast<double>(timing.perTransferPureTransferMs.mean);
+    cell.chunkMsDist.median = static_cast<double>(timing.perTransferPureTransferMs.median);
+    cell.chunkMsDist.p95 = static_cast<double>(timing.perTransferPureTransferMs.p95);
+    cell.chunkMsDist.n = chunkSamples;
+    ::mega::bench::BenchReportWriter::instance().recordCell(cell);
+}
+#endif
+
 static void runSmallUploadsBenchmark(SdkTest& test,
                                      const size_t fileCount,
                                      const char* testName,
@@ -19386,6 +19427,17 @@ static void runSmallUploadsBenchmark(SdkTest& test,
 #endif
 
     logBenchProcessStatsDelta(testName, procStatsStart, procStatsEnd);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    recordBenchCell(testName,
+                    /*fileSizeMib=*/static_cast<std::int64_t>(kFileSize / (1024 * 1024)),
+                    /*connections=*/0,
+                    /*totalMs=*/static_cast<std::int64_t>(totalMs),
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/fileCount);
+#endif
     test.deleteFolder(folderName);
 }
 
@@ -19671,6 +19723,17 @@ static void runSingleLargeUploadBenchmark(SdkTest& test)
 
     logBenchProcessStatsDelta("SingleLargeUpload", procStatsStart, procStatsEnd);
     logBenchWsStats(test, 1);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    recordBenchCell("SingleLargeUpload",
+                    /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
+                    /*connections=*/0,
+                    /*totalMs=*/static_cast<std::int64_t>(totalMs),
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/1);
+#endif
     test.deleteFolder(folderName);
 }
 
@@ -19856,6 +19919,17 @@ static void runLargePlusManySmallBenchmark(SdkTest& test)
 
     logBenchProcessStatsDelta("LargePlusManySmall", procStatsStart, procStatsEnd);
     logBenchWsStats(test, kBenchSmallFileCount + 1);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    recordBenchCell("LargePlusManySmall",
+                    /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
+                    /*connections=*/0,
+                    /*totalMs=*/static_cast<std::int64_t>(totalMs),
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/kBenchSmallFileCount + 1);
+#endif
     test.deleteFolder(folderName);
 }
 

@@ -3,6 +3,9 @@
 #include "gtest_common.h"
 #include <cstdio>
 #include <fstream>
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+#include "bench_framework/BenchReportWriter.h"
+#endif
 #ifdef WIN32
 #include <winhttp.h>
 #endif
@@ -656,6 +659,20 @@ int main (int argc, char *argv[])
     ::testing::InitGoogleTest(&argc, argv);
 
     int gtestRet = RUN_ALL_TESTS();
+
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    // G6: flush bench cells accumulated by recordBenchCell() to bench_report_<PID>.json
+    // in the PID-specific process folder. No-op if no cells were recorded.
+    {
+        const std::string reportDir = TestFS::GetProcessFolder().string();
+        const std::string out =
+            ::mega::bench::BenchReportWriter::instance().flush(reportDir);
+        if (!out.empty())
+        {
+            std::cout << "Bench report written: " << out << std::endl;
+        }
+    }
+#endif
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
     if (CurlHttpIO::sslMutexes)
