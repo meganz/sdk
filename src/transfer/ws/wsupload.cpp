@@ -1484,9 +1484,14 @@ struct WsPool
         mThrottleEventSumSqDs += dsU * dsU;
         if (mThrottleEventMinDs == 0 || dsU < mThrottleEventMinDs) mThrottleEventMinDs = dsU;
         if (dsU > mThrottleEventMaxDs) mThrottleEventMaxDs = dsU;
-        if (ds <= 10) ++mThrottleBucket0to1s;
-        else if (ds <= 50) ++mThrottleBucket1to5s;
-        else if (ds <= 300) ++mThrottleBucket5to30s;
+        // Throttle bucket boundaries in deciseconds (ds = 1/10 s). Field names encode
+        // the human-readable second range (0-1s, 1-5s, 5-30s, 30s+).
+        constexpr int kThrottleBucket0to1sMaxDs = 10;    // ≤ 1.0 s
+        constexpr int kThrottleBucket1to5sMaxDs = 50;    // ≤ 5.0 s
+        constexpr int kThrottleBucket5to30sMaxDs = 300;  // ≤ 30.0 s
+        if (ds <= kThrottleBucket0to1sMaxDs) ++mThrottleBucket0to1s;
+        else if (ds <= kThrottleBucket1to5sMaxDs) ++mThrottleBucket1to5s;
+        else if (ds <= kThrottleBucket5to30sMaxDs) ++mThrottleBucket5to30s;
         else ++mThrottleBucket30sPlus;
 #endif
     }
