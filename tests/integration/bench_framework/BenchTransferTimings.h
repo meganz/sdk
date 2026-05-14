@@ -16,8 +16,15 @@
 namespace mega::bench
 {
 
+enum class Direction
+{
+    Upload,
+    Download,
+};
+
 struct BenchTransferTiming
 {
+    Direction direction = Direction::Upload;
     std::int64_t apiStartMs = 0;
     std::int64_t firstByteMs = 0;
     std::int64_t lastByteMs = 0;

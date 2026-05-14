@@ -17,6 +17,7 @@
 
 #include "BenchProcessStats.h"
 #include "BenchSummary.h"
+#include "BenchTransferTimings.h"
 
 #include <cstdint>
 #include <string>
@@ -27,6 +28,7 @@ namespace mega::bench
 struct BenchReportCell
 {
     std::string name;
+    Direction direction = Direction::Upload;
     std::int64_t fileSizeMib = 0;
     unsigned connections = 0;
     std::int64_t durationMs = 0;

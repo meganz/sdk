@@ -111,7 +111,7 @@ std::string BenchReportWriter::flush(const std::string& reportDir)
         return {};
 
     ofs << "{\n";
-    ofs << "  \"schema_version\": 1,\n";
+    ofs << "  \"schema_version\": 2,\n";
     ofs << "  \"session_pid\": " << pid << ",\n";
     ofs << "  \"cells\": [\n";
     for (std::size_t i = 0; i < storage().size(); ++i)
@@ -119,6 +119,8 @@ std::string BenchReportWriter::flush(const std::string& reportDir)
         const auto& c = storage()[i];
         ofs << "    {\n";
         ofs << "      \"name\": " << jsonEscape(c.name) << ",\n";
+        ofs << "      \"direction\": \""
+            << (c.direction == Direction::Download ? "download" : "upload") << "\",\n";
         ofs << "      \"file_size_mib\": " << c.fileSizeMib << ",\n";
         ofs << "      \"connections\": " << c.connections << ",\n";
         ofs << "      \"duration_ms\": " << c.durationMs << ",\n";
