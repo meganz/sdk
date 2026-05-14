@@ -2,9 +2,9 @@
  * @file WsUploadTransitionCapture.h
  * @brief RAII helper class capturing WS session-URL transitions for tests.
  *
- * Extracted from SdkTest_test.cpp (G3, fu7-7). Used by InvalidPinned*
+ * Extracted from SdkTest_test.cpp. Used by InvalidPinned*
  * SdkWsUpload tests to capture the failover transition driven by
- * `globalMegaTestHooks.onWsSessionUrlTransition` (hook added in fu7-5
+ * `globalMegaTestHooks.onWsSessionUrlTransition` (hook added in
  * commit `26718098cc`).
  *
  * The class is fully inline so the header is self-contained — multiple

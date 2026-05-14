@@ -2,7 +2,7 @@
  * @file WsChunkSendOverquotaCapture.h
  * @brief RAII helper class injecting OVERQUOTA via the WS chunk-send test hook.
  *
- * Mirrors WsUploadTransitionCapture.h (fu7-5/fu7-7) — installs
+ * Mirrors WsUploadTransitionCapture.h — installs
  * `globalMegaTestHooks.onWsChunkSendOverquota` on construction and removes it
  * on destruction. Used by `SdkWsUploadTest.OverquotaDuringTransfer` to
  * deterministically drive the WS-channel OVERQUOTA failure path without
