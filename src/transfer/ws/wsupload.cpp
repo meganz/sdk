@@ -60,6 +60,13 @@ namespace ws
 #endif
 
 // ---------- small time helper (deciseconds) ----------
+constexpr dstime kDsPerSecond = 10;
+
+constexpr dstime secondsToDs(const std::int64_t seconds)
+{
+    return static_cast<dstime>(seconds * kDsPerSecond);
+}
+
 struct SteadyTime
 {
     static dstime ds()
@@ -100,6 +107,14 @@ constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
 // Short enough to react to stopping() in <1s; large enough to avoid spinning while
 // the curl handshake makes progress on the client thread.
 constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
+
+// Block timeout for curl_multi_poll() in the WsPoolMgr IO loop. Caps the time
+// the manager thread waits for socket activity per iteration; bounded so that
+// stop signals (mStopping) and refresh-timer expiries are honoured promptly.
+constexpr int WSUPLOAD_CURL_MULTI_POLL_MS = 500;
+
+// Mebibyte (2^20). Used for chunk-size constants and the per-chunk send buffer.
+constexpr int kMiB = 1048576;
 
 // ---------- RAII helper: temporarily release a unique_lock and re-acquire it on scope exit ----------
 class ScopedUnlock
@@ -794,7 +809,7 @@ public:
         const auto dsElapsed = SteadyTime::difference(mUploadCompletionTime, mUploadStartTime);
         const auto attemptConfirmed =
             std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
-        const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * 10 / 1024) : 0;
+        const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * kDsPerSecond / 1024) : 0;
         WSUPLOAD_TRACE << "[WsUploadFile::uploadCompleted] upload completed (server payload len=" << len
                  << ") Progress: " << mBytesConfirmed << " of " << mSize
                  << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
@@ -815,7 +830,7 @@ public:
         const auto dsElapsed = SteadyTime::difference(now, mUploadStartTime);
         const auto attemptConfirmed =
             std::max<m_off_t>(0, mBytesConfirmed - mAttemptBaseConfirmed);
-        const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * 10 / 1024) : 0;
+        const auto kbps = dsElapsed ? (attemptConfirmed / dsElapsed * kDsPerSecond / 1024) : 0;
         WSUPLOAD_TRACE << "[WsUploadFile::maybeReportThroughput] " << mBytesConfirmed << " of " << mSize
                   << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
                   << " KB/s [this = " << this << "]";
@@ -1039,8 +1054,8 @@ private:
     m_off_t mBytesSinceLastStat = 0;
     m_off_t mStatIntervalBytes = STAT_INTERVAL_LARGE;
 
-    static constexpr m_off_t STAT_INTERVAL_LARGE = 8 * 1024 * 1024; // 8 MB
-    static constexpr m_off_t STAT_INTERVAL_SMALL = 2 * 1024 * 1024; // 2 MB
+    static constexpr m_off_t STAT_INTERVAL_LARGE = 8 * kMiB; // 8 MiB
+    static constexpr m_off_t STAT_INTERVAL_SMALL = 2 * kMiB; // 2 MiB
 
     bool mEofSet{false};
     bool mAborted{false};
@@ -1071,8 +1086,6 @@ struct ChunkHeader
 
 #pragma pack(pop)
 
-static constexpr int MB = 1048576;
-
 struct WsChunk
 {
     m_off_t pos{0};
@@ -1085,7 +1098,7 @@ struct WsChunk
 
 struct WsBuf
 {
-    char buf[20 + MB];
+    char buf[20 + kMiB];
     int mSendPos{0};
     int mDataLen{0};
 
@@ -1274,8 +1287,8 @@ struct WsPoolThread
 // ---------- Pool per size class ----------
 struct WsPool
 {
-    static constexpr std::int32_t CONNRETRYINTERVAL = 5 * 10;
-    static constexpr std::int32_t UPLOADTIMEOUT = 180 * 10;
+    static constexpr std::int32_t CONNRETRYINTERVAL = secondsToDs(5);
+    static constexpr std::int32_t UPLOADTIMEOUT = secondsToDs(180);
     static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
     static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
     static constexpr dstime BACKLOG_EMPTY_RETRY_DS = 2;
@@ -1710,9 +1723,9 @@ inline bool WsUploadFile::getCurrentSessionUrl(std::string& outUrl) const
 // ---------- Pool manager (USC refresh + cURL multi) ----------
 struct WsPoolMgr
 {
-    static constexpr std::int32_t POOLCONNKEEPALIVE = 60 * 10;
-    static constexpr std::int32_t POOLFRESHNESS = 24 * 3600 * 10;
-    const std::int32_t SERVERTIMEOUT = 20 * 10;
+    static constexpr std::int32_t POOLCONNKEEPALIVE = secondsToDs(60);
+    static constexpr std::int32_t POOLFRESHNESS = secondsToDs(24 * 3600);
+    const std::int32_t SERVERTIMEOUT = secondsToDs(20);
 
     CURLM* curlm = nullptr; // Phase 1: private multi (USC only)
     UploadEngine::Impl* mImpl{nullptr}; // backpointer
@@ -1923,7 +1936,7 @@ public:
         WSUPLOAD_TRACE << "[UploadEngine::Impl::~Impl] BEGIN";
         stop();
 
-        // Manager thread may be waiting up to 500ms in curl_multi_poll; then it exits.
+        // Manager thread may be waiting up to WSUPLOAD_CURL_MULTI_POLL_MS in curl_multi_poll; then it exits.
         if (uploadThread.joinable())
             uploadThread.join();
 
@@ -4107,9 +4120,9 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
     static thread_local std::unique_ptr<char[]> tlsBuf;
     if (!tlsBuf)
     {
-        WSUPLOAD_TRACE << "[WsPool::sendChunk] !tlsBuf -> tlsBuf.reset(new char[MB]) [this = " << this
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] !tlsBuf -> tlsBuf.reset(new char[kMiB]) [this = " << this
                   << "]";
-        tlsBuf.reset(new char[MB]);
+        tlsBuf.reset(new char[kMiB]);
     }
 
     WsUploadFile* uf = findFile(chunk.fileno, impl);
@@ -4363,7 +4376,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                 // is invalid. Require both a minimum retry count and sustained failure window
                 // (60s).
                 const auto failedForDs = SteadyTime::difference(nowDs, firstConnectFailureDs);
-                if (mPinned && !mRetiring && retryCount >= 3 && failedForDs >= 60 * 10)
+                if (mPinned && !mRetiring && retryCount >= 3 && failedForDs >= secondsToDs(60))
                 {
                     LOG_warn << "[WsPool::poolWorkerThread] pinned session URL failed to connect "
                                 "after retries: "
@@ -4629,7 +4642,7 @@ void WsPoolMgr::curlIO(std::unique_lock<std::mutex>& lk)
     // Don't hold the engine mutex while blocking in curl I/O.
     {
         ScopedUnlock unlock(lk);
-        (void)curl_multi_poll(curlm, nullptr, 0, 500, nullptr);
+        (void)curl_multi_poll(curlm, nullptr, 0, WSUPLOAD_CURL_MULTI_POLL_MS, nullptr);
     }
 }
 
@@ -4868,8 +4881,8 @@ void WsPoolMgr::applyRefreshBackoff(Error e)
     assert(mRefreshFailCount > 0 && "mRefreshFailCount must be positive at this point");
     const unsigned count = mRefreshFailCount - 1;
     const unsigned exponent = std::min<unsigned>(count, 6);
-    const dstime baseDelay = 10 * 10; // 10 seconds (dstime is deciseconds)
-    const dstime maxDelay = 10 * 60 * 10; // 10 minutes
+    const dstime baseDelay = secondsToDs(10); // 10 seconds
+    const dstime maxDelay = secondsToDs(10 * 60); // 10 minutes
     dstime backoff = baseDelay * (static_cast<dstime>(1) << exponent);
     if (backoff > maxDelay)
     {
