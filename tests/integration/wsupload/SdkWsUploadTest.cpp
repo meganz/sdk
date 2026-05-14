@@ -58,6 +58,7 @@ using ::mega::test::wsupload::fetchBestWsUploadTransferSnapshot;
 using ::mega::test::wsupload::fetchUscSizeClasses;
 using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
 using ::mega::test::wsupload::kWsUploadDefaultFileSize;
+using ::mega::test::wsupload::makeDefaultUploadOptions;
 using ::mega::test::wsupload::overrideFirstUploadSessionUrlForTesting;
 using ::mega::test::wsupload::second_timer;
 using ::mega::test::wsupload::TransferTempErrorTracker;
@@ -121,8 +122,7 @@ TEST_F(SdkWsUploadTest, SampledByteCorrectness)
 
     std::vector<std::unique_ptr<TransferTracker>> uploadTrackers;
     uploadTrackers.reserve(kFileCount);
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
 
     for (size_t i = 0; i < kFileCount; ++i)
     {
@@ -240,8 +240,7 @@ TEST_F(SdkWsUploadTest, ResumeKeepsSerializedWsMetadata)
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(std::string{UPFILE},
                             rootnode.get(),
                             nullptr,
@@ -384,8 +383,7 @@ TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession)
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(std::string{UPFILE},
                             rootnode.get(),
                             nullptr,
@@ -525,8 +523,7 @@ TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession2)
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(std::string{UPFILE},
                             rootnode.get(),
                             nullptr,
@@ -682,8 +679,7 @@ TEST_F(SdkWsUploadTest, CancelledPinnedPoolRetiresAfterTransferRemoval)
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName,
                             rootnode.get(),
                             nullptr,
@@ -853,8 +849,7 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
     megaApi[0]->setMaxUploadSpeed(-1);
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut /*listener*/);
 
     WsUploadTransferSnapshot activeUpload{};
@@ -976,8 +971,7 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
         });
 
     WsUploadRetryTracker tracker(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName,
                             rootnode.get(),
                             nullptr,
@@ -1196,8 +1190,7 @@ TEST_F(SdkWsUploadTest, InvalidPinnedSessionFallsBackToFreshSession)
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(std::string{UPFILE},
                             rootnode.get(),
                             nullptr,
@@ -1334,8 +1327,7 @@ TEST_F(SdkWsUploadTest, InvalidPinnedSessionDetachedTransferCompletesOnFreshPool
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut /*listener*/);
 
     second_timer timer;
@@ -1491,8 +1483,7 @@ TEST_F(SdkWsUploadTest, CancelDuringActiveTransfer)
         });
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 3: wait until the WS engine confirms forward progress.
@@ -1565,8 +1556,7 @@ TEST_F(SdkWsUploadTest, FileDeletedDuringTransfer)
         });
 
     WsUploadRetryTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 3: wait for confirmed progress before deleting local source file.
@@ -1701,8 +1691,7 @@ TEST_F(SdkWsUploadTest, FileModifiedDuringTransfer)
         });
 
     WsUploadRetryTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 3: wait until transfer enters active progress.
@@ -1802,8 +1791,7 @@ TEST_F(SdkWsUploadTest, StopStartSameEngineDuringTransfer)
         });
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     WsUploadTransferSnapshot beforeRestart{};
@@ -1913,8 +1901,7 @@ TEST_F(SdkWsUploadTest, DisconnectReconnectDuringTransfer)
         });
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 3: wait until upload has confirmed progress.
@@ -2024,8 +2011,7 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
 
     // Step 3: start upload + capture transferTag once it has been assigned.
     TransferTempErrorTracker tracker(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
 
     // Step 4: wait for active WS progress before installing the hook — this confirms
@@ -2128,8 +2114,7 @@ TEST_F(SdkWsUploadTest, MultiplePauseResumeCycles)
         });
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 2: wait until upload is active and confirmed progress has started.
@@ -2284,8 +2269,7 @@ TEST_F(SdkWsUploadTest, PauseOneTransferNotBlockOthersInSamePool)
 
     TransferTracker trackerA(megaApi[0].get());
     TransferTracker trackerB(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileA, rootnode.get(), nullptr, &uploadOptions, &trackerA);
     megaApi[0]->startUpload(fileB, rootnode.get(), nullptr, &uploadOptions, &trackerB);
 
@@ -2583,8 +2567,7 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
     TransferTracker trackerA2(megaApi[0].get());
     TransferTracker trackerB1(megaApi[0].get());
     TransferTracker trackerB2(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileA1, rootnode.get(), nullptr, &uploadOptions, &trackerA1);
     megaApi[0]->startUpload(fileA2, rootnode.get(), nullptr, &uploadOptions, &trackerA2);
     megaApi[0]->startUpload(fileB1, rootnode.get(), nullptr, &uploadOptions, &trackerB1);
@@ -3105,8 +3088,7 @@ TEST_F(SdkWsUploadTest, PauseHandlesLateInFlightAck)
     };
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     ASSERT_TRUE(WaitFor(
@@ -3261,8 +3243,7 @@ TEST_F(SdkWsUploadTest, DropCompletionDoesNotBlockOthersInSamePool)
     ASSERT_TRUE(rootnode);
 
     TransferTracker trackerA(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileA, rootnode.get(), nullptr, &uploadOptions, &trackerA);
 
     ASSERT_TRUE(WaitFor(
@@ -3380,8 +3361,7 @@ TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
     };
 
     WsUploadRetryTracker tracker(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
 
     WsUploadTransferSnapshot activeUpload{};
@@ -3496,8 +3476,7 @@ TEST_F(SdkWsUploadTest, FailThenRetryWithAnotherQueuedTransfer)
     ASSERT_TRUE(rootnode);
 
     TransferTracker trackerA(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileA, rootnode.get(), nullptr, &uploadOptions, &trackerA);
 
     ASSERT_TRUE(WaitFor(
@@ -3621,8 +3600,7 @@ TEST_F(SdkWsUploadTest, DropChunkIngestedAckStillCompletes)
 
     // Step 2: start upload A (single transfer) and require one ACK drop to occur.
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     ASSERT_TRUE(WaitFor(
@@ -3734,8 +3712,7 @@ TEST_F(SdkWsUploadTest, ThrottleEventStillCompletes)
     };
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     ASSERT_TRUE(WaitFor(
@@ -3870,8 +3847,7 @@ TEST_F(SdkWsUploadTest, AlreadyOnServerEventStillCompletes)
 
     // Step 2: start upload and confirm injected AlreadyOnServer was observed.
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     ASSERT_TRUE(WaitFor(
@@ -3973,8 +3949,7 @@ TEST_F(SdkWsUploadTest, B8ThrottleDuringSaturatedInFlightCompletes)
                    kInjectedThrottleMs);
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     // Step 2: wait until the hook fires (Throttle injected).
@@ -4127,8 +4102,7 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
     ASSERT_TRUE(rootnode);
 
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     ASSERT_TRUE(WaitFor(
@@ -4242,8 +4216,7 @@ TEST_F(SdkWsUploadTest, NegativeServerEventRetriesAndCompletes)
 
     // Step 2: start upload and require injected negative event was observed.
     WsUploadRetryTracker tracker(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
 
     ASSERT_TRUE(WaitFor(
@@ -4346,8 +4319,7 @@ TEST_F(SdkWsUploadTest, CrcFailureRetryStillCompletes)
 
     // Step 2: start upload and confirm the CRC failure injection was observed.
     TransferTracker ut(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
 
     ASSERT_TRUE(WaitFor(
@@ -4432,8 +4404,7 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
 
     // Step 1: start upload and capture the initial pool ID and session URL.
     WsUploadRetryTracker tracker(megaApi[0].get());
-    MegaUploadOptions uploadOptions;
-    uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
 
     std::uintptr_t initialPoolId = 0;

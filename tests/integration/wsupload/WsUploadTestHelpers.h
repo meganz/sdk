@@ -33,6 +33,13 @@ namespace mega::test::wsupload
 
 inline constexpr std::size_t kWsUploadDefaultFileSize = 12 * 1024 * 1024;
 
+inline ::MegaUploadOptions makeDefaultUploadOptions()
+{
+    ::MegaUploadOptions options;
+    options.mtime = ::MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    return options;
+}
+
 struct WsUploadTransferSnapshot
 {
     bool found = false;
