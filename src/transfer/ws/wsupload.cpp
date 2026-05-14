@@ -62,10 +62,21 @@ namespace ws
 
 // ---------- small time helper (deciseconds) ----------
 constexpr dstime kDsPerSecond = 10;
+constexpr std::int64_t kMsPerDeciSecond = 100;
 
 constexpr dstime secondsToDs(const std::int64_t seconds)
 {
     return static_cast<dstime>(seconds * kDsPerSecond);
+}
+
+constexpr dstime msToDs(const std::int64_t ms)
+{
+    return static_cast<dstime>(ms / kMsPerDeciSecond);
+}
+
+constexpr std::int64_t dsToMs(const std::int64_t ds)
+{
+    return ds * kMsPerDeciSecond;
 }
 
 struct SteadyTime
@@ -75,13 +86,13 @@ struct SteadyTime
         const auto ms = std::chrono::duration_cast<std::chrono::milliseconds>(
                             std::chrono::steady_clock::now().time_since_epoch())
                             .count();
-        const dstime v = static_cast<dstime>(ms / 100);
+        const dstime v = msToDs(ms);
         return v ? v : 1; // never return 0 (0 used as sentinel)
     }
 
     static void sleep_ds(const dstime ds)
     {
-        std::this_thread::sleep_for(std::chrono::milliseconds(ds * 100));
+        std::this_thread::sleep_for(std::chrono::milliseconds(dsToMs(ds)));
     }
 
     static std::int32_t difference(const dstime a, const dstime b)
@@ -893,7 +904,7 @@ public:
             latencyDs = 0;
         if (latencyDs == 0 && (mBytesConfirmed > 0 || mUploadCompletionTime))
             latencyDs = 1;
-        stats.avgStartTransferTime = std::chrono::milliseconds(latencyDs * 100);
+        stats.avgStartTransferTime = std::chrono::milliseconds(dsToMs(latencyDs));
 
         if (mNumRequests > 0)
         {
@@ -3289,7 +3300,7 @@ struct ChunkResponse
             if (mPauseStartedAtMs)
             {
                 const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - mPauseStartedAtMs;
-                const auto deltaMs = static_cast<std::uint64_t>(deltaDs) * 100u;
+                const auto deltaMs = static_cast<std::uint64_t>(dsToMs(deltaDs));
                 ++mThrottleRecoveryAckSamples;
                 mThrottleRecoveryAckTotalMs += deltaMs;
                 if (deltaMs > mThrottleRecoveryAckMaxMs) mThrottleRecoveryAckMaxMs = deltaMs;
@@ -4392,7 +4403,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             }
 #ifndef NDEBUG
             ++mHaveSpaceFalseIters;
-            mHaveSpaceFalseWaitMs += static_cast<std::uint64_t>(HAVE_SPACE_RETRY_DS) * 100;
+            mHaveSpaceFalseWaitMs += static_cast<std::uint64_t>(dsToMs(HAVE_SPACE_RETRY_DS));
 #endif
             continue;
         }
@@ -4406,7 +4417,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             }
 #ifndef NDEBUG
             ++mReadyForDataFalseIters;
-            mReadyForDataFalseWaitMs += static_cast<std::uint64_t>(READY_FOR_DATA_RETRY_DS) * 100;
+            mReadyForDataFalseWaitMs += static_cast<std::uint64_t>(dsToMs(READY_FOR_DATA_RETRY_DS));
 #endif
             continue;
         }
