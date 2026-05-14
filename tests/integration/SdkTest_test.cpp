@@ -38,6 +38,7 @@
 #include "sdk_test_utils.h"
 #include "test.h"
 #include "wsupload/SdkWsUploadTest.h"
+#include "wsupload/SecondTimer.h"
 #include "wsupload/WsChunkSendOverquotaCapture.h"
 #include "wsupload/WsUploadDebugHelpers.h"
 #include "wsupload/WsUploadRetryTracker.h"
@@ -86,6 +87,7 @@ using ::mega::test::wsupload::fetchUscSizeClasses;
 using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
 using ::mega::test::wsupload::kWsUploadDefaultFileSize;
 using ::mega::test::wsupload::overrideFirstUploadSessionUrlForTesting;
+using ::mega::test::wsupload::second_timer;
 using ::mega::test::wsupload::waitForFirstUploadTransferSnapshot;
 using ::mega::test::wsupload::WsSessionUrlTransitionCapture;
 using ::mega::test::wsupload::WsUploadRetryTracker;
@@ -7143,17 +7145,6 @@ static void incrementFilename(string& s)
         }
     }
 }
-
-struct second_timer
-{
-    m_time_t t;
-    m_time_t pause_t;
-    second_timer() { t = m_time(); }
-    void reset () { t = m_time(); }
-    void pause() { pause_t = m_time(); }
-    void resume() { t += m_time() - pause_t; }
-    size_t elapsed() { return size_t(m_time() - t); }
-};
 
 namespace mega
 {
