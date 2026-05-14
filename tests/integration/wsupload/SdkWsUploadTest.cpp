@@ -25,6 +25,7 @@
 #include "megautils.h"
 #include "sdk_test_utils.h"
 #include "test.h"
+#include "wsupload/ScopedUploadSpeedLimit.h"
 #include "wsupload/SecondTimer.h"
 #include "wsupload/TransferTempErrorTracker.h"
 #include "wsupload/WsChunkSendOverquotaCapture.h"
@@ -60,6 +61,7 @@ using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
 using ::mega::test::wsupload::kWsUploadDefaultFileSize;
 using ::mega::test::wsupload::makeDefaultUploadOptions;
 using ::mega::test::wsupload::overrideFirstUploadSessionUrlForTesting;
+using ::mega::test::wsupload::ScopedUploadSpeedLimit;
 using ::mega::test::wsupload::second_timer;
 using ::mega::test::wsupload::TransferTempErrorTracker;
 using ::mega::test::wsupload::waitForFirstUploadTransferSnapshot;
@@ -231,12 +233,7 @@ TEST_F(SdkWsUploadTest, ResumeKeepsSerializedWsMetadata)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -374,12 +371,7 @@ TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(600000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 600000};
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -514,12 +506,7 @@ TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession2)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(600000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 600000};
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -670,12 +657,7 @@ TEST_F(SdkWsUploadTest, CancelledPinnedPoolRetiresAfterTransferRemoval)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(600000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 600000};
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -963,12 +945,7 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     WsUploadRetryTracker tracker(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -1181,12 +1158,7 @@ TEST_F(SdkWsUploadTest, InvalidPinnedSessionFallsBackToFreshSession)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -1318,12 +1290,7 @@ TEST_F(SdkWsUploadTest, InvalidPinnedSessionDetachedTransferCompletesOnFreshPool
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
     onTransferUpdate_progress = 0;
 
     TransferTracker ut(megaApi[0].get());
@@ -1475,12 +1442,7 @@ TEST_F(SdkWsUploadTest, CancelDuringActiveTransfer)
     ASSERT_TRUE(rootnode);
 
     // Step 2: start a throttled upload so cancel happens while chunks are in flight.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     TransferTracker ut(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -1548,12 +1510,7 @@ TEST_F(SdkWsUploadTest, FileDeletedDuringTransfer)
     ASSERT_TRUE(rootnode);
 
     // Step 2: throttle upload so we have a stable mid-transfer window.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     WsUploadRetryTracker ut(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -1683,12 +1640,7 @@ TEST_F(SdkWsUploadTest, FileModifiedDuringTransfer)
     ASSERT_TRUE(rootnode);
 
     // Step 2: throttle to guarantee we can modify file mid-transfer.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     WsUploadRetryTracker ut(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -1783,12 +1735,7 @@ TEST_F(SdkWsUploadTest, StopStartSameEngineDuringTransfer)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     TransferTracker ut(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -1893,12 +1840,7 @@ TEST_F(SdkWsUploadTest, DisconnectReconnectDuringTransfer)
     ASSERT_TRUE(rootnode);
 
     // Step 2: start throttled upload to keep transfer active during disconnect simulation.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     TransferTracker ut(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -2002,12 +1944,7 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     // Step 3: start upload + capture transferTag once it has been assigned.
     TransferTempErrorTracker tracker(megaApi[0].get());
@@ -2106,12 +2043,7 @@ TEST_F(SdkWsUploadTest, MultiplePauseResumeCycles)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     TransferTracker ut(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -2233,12 +2165,7 @@ TEST_F(SdkWsUploadTest, PauseOneTransferNotBlockOthersInSamePool)
     megaApi[0]->setMaxConnections(1, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -2527,14 +2454,10 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
 
     const m_off_t uploadSpeedLimit =
         std::max<m_off_t>(10000, static_cast<m_off_t>(fileSizeB / 500));
-    megaApi[0]->setMaxUploadSpeed(uploadSpeedLimit);
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0],
+                                              static_cast<int>(uploadSpeedLimit)};
     LOG_debug << "[SdkWsUploadRepeatedPauseResumeMixedPools] Max upload speed set to "
               << uploadSpeedLimit << " B/s";
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -3056,12 +2979,7 @@ TEST_F(SdkWsUploadTest, PauseHandlesLateInFlightAck)
     megaApi[0]->setMaxConnections(1, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -3232,12 +3150,7 @@ TEST_F(SdkWsUploadTest, DropCompletionDoesNotBlockOthersInSamePool)
     megaApi[0]->setMaxConnections(1, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -3465,12 +3378,7 @@ TEST_F(SdkWsUploadTest, FailThenRetryWithAnotherQueuedTransfer)
     megaApi[0]->setMaxConnections(1, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -3670,12 +3578,7 @@ TEST_F(SdkWsUploadTest, ThrottleEventStillCompletes)
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
     // Keep upload active long enough to observe throttling behavior reliably.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -3929,12 +3832,7 @@ TEST_F(SdkWsUploadTest, B8ThrottleDuringSaturatedInFlightCompletes)
     megaApi[0]->setMaxConnections(2, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
-    megaApi[0]->setMaxUploadSpeed(-1); // wire rate to keep chunks saturated
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], -1}; // wire rate to keep chunks saturated
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -4198,12 +4096,7 @@ TEST_F(SdkWsUploadTest, NegativeServerEventRetriesAndCompletes)
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
     // Keep upload active long enough to observe retry behavior.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -4392,12 +4285,7 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
     // Throttle upload speed so we can capture the initial pool ID before the hook fires.
-    megaApi[0]->setMaxUploadSpeed(100000);
-    auto restoreUploadSpeed = makeScopedDestructor(
-        [this]()
-        {
-            megaApi[0]->setMaxUploadSpeed(-1);
-        });
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
