@@ -350,8 +350,10 @@ target_sources_conditional(SDKlib
 target_sources_conditional(SDKlib
     FLAG MEGA_USE_WSUPLOAD
     PRIVATE
+    include/mega/commands_ws.h
     include/mega/wsupload.h
     include/mega/transfer/ws/ws_encryption.h
+    src/commands_ws.cpp
     src/transfer/ws/wsupload.cpp
     src/transfer/ws/ws_encryption.cpp
     src/megaclient_wsupload.cpp
