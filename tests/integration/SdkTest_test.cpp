@@ -36,6 +36,8 @@
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
 #include "test.h"
+#include "wsupload/SdkWsUploadTest.h"
+#include "wsupload/WsUploadTransitionCapture.h"
 
 #include <gtest/gtest.h>
 
@@ -69,6 +71,8 @@ using ::mega::gfx::SocketUtils;
         (  std::ostringstream() << std::dec << x ) ).str()
 
 using namespace std;
+
+using mega::test::wsupload::WsSessionUrlTransitionCapture;
 
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
@@ -20134,7 +20138,7 @@ TEST_F(SdkTest, SdkTestBenchmarkLargePlusManySmall)
     runLargePlusManySmallBenchmark(*this);
 }
 
-TEST_F(SdkTest, SdkWsUploadSampledByteCorrectness)
+TEST_F(SdkWsUploadTest, SampledByteCorrectness)
 {
     constexpr size_t kFileCount = 20;
     constexpr size_t kFileSize = 1 * 1024 * 1024;
@@ -20273,7 +20277,7 @@ TEST_F(SdkTest, SdkResumableTrasfers)
  * - TEST2: Logout/login to force transfer-cache restore and observe resumed onTransferStart.
  * - TEST3: Assert resumed metadata matches cached metadata and upload finishes in cloud.
  */
-TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
+TEST_F(SdkWsUploadTest, ResumeKeepsSerializedWsMetadata)
 {
     LOG_info << "___TEST SdkWsUploadResumeKeepsSerializedWsMetadata___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -20416,7 +20420,7 @@ TEST_F(SdkTest, SdkWsUploadResumeKeepsSerializedWsMetadata)
  * - TEST3: Modify local source file before session resume.
  * - TEST4: Require resumed transfer switches to non-stale URL and cloud node size equals modified file.
  */
-TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
+TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession)
 {
     LOG_info << "___TEST SdkWsUploadModifiedCachedFileStartsFreshSession___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -20558,7 +20562,7 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession)
  * Uses the serialized transfer metadata for the pre-logout assertion, and the live
  * WS engine view for the post-resume "fresh session" assertion.
  */
-TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession2)
+TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession2)
 {
     LOG_info << "___TEST SdkWsUploadModifiedCachedFileStartsFreshSession2___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -20697,7 +20701,7 @@ TEST_F(SdkTest, SdkWsUploadModifiedCachedFileStartsFreshSession2)
  * - TEST2: Cancel upload transfers and poll pool state for the pinned URL.
  * - TEST3: Assert numPoolFiles=0, no uploading file, no in-flight/resend chunks, then pool retires.
  */
-TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
+TEST_F(SdkWsUploadTest, CancelledPinnedPoolRetiresAfterTransferRemoval)
 {
     LOG_info << "___TEST SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -20874,7 +20878,7 @@ TEST_F(SdkTest, SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval)
  * - TEST2: Poll active pool state and require observed concurrent in-flight connections >= 2.
  * - TEST3: Assert upload still completes successfully.
  */
-TEST_F(SdkTest, SdkWsUploadActivePoolUsesParallelConnections)
+TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
 {
     LOG_info << "___TEST SdkWsUploadActivePoolUsesParallelConnections___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -20987,7 +20991,7 @@ TEST_F(SdkTest, SdkWsUploadActivePoolUsesParallelConnections)
  * - TEST2: Inject handshake failures during the sustained-failure window.
  * - TEST3: Require transfer start is re-observed and upload still completes with API_OK.
  */
-TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
+TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
 {
     LOG_info << "___TEST SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -21222,106 +21226,6 @@ TEST_F(SdkTest, SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart)
 #endif
 }
 
-namespace {
-
-// RAII helper for the WS session-URL transition hook. Registers
-// `globalMegaTestHooks.onWsSessionUrlTransition` on construction and unregisters
-// on destruction. Uses a shared_ptr-indirected state so any in-flight hook
-// callback retains its referent after the test scope exits (the macro idiom
-// inside DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION copies the std::function under
-// `mMutex` before invoking — so a hook firing during destruction operates on the
-// shared state, not on freed stack locals).
-//
-// Filters to transitions for one specific invalid-pinned URL. Records the first
-// transition observed (`oldUrl == invalidPinnedUrl` for invalidatePinned events,
-// or `newUrl != invalidPinnedUrl && !newUrl.empty()` for onStart events).
-class WsSessionUrlTransitionCapture
-{
-public:
-    explicit WsSessionUrlTransitionCapture(std::string invalidPinnedUrl)
-        : mShared(std::make_shared<Shared>())
-        , mInvalidPinnedUrl(std::move(invalidPinnedUrl))
-    {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-        auto shared = mShared;
-        const std::string filterUrl = mInvalidPinnedUrl;
-        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
-        globalMegaTestHooks.onWsSessionUrlTransition =
-            [shared, filterUrl](int /*tag*/,
-                                const std::string& oldUrl,
-                                const std::string& newUrl,
-                                const char* reason)
-        {
-            std::lock_guard<std::mutex> lk(shared->m);
-            if (shared->observed)
-                return;
-            const std::string r = reason ? reason : "";
-            const bool isInvalidate =
-                r == "invalidatePinned" && oldUrl == filterUrl;
-            const bool isFreshOnStart =
-                r == "onStart" && !newUrl.empty() && newUrl != filterUrl;
-            if (isInvalidate || isFreshOnStart)
-            {
-                shared->observed = true;
-                shared->capturedNewUrl = newUrl;
-                shared->capturedReason = r;
-                shared->cv.notify_all();
-            }
-        };
-#endif
-    }
-
-    ~WsSessionUrlTransitionCapture()
-    {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
-        globalMegaTestHooks.onWsSessionUrlTransition = nullptr;
-#endif
-    }
-
-    WsSessionUrlTransitionCapture(const WsSessionUrlTransitionCapture&) = delete;
-    WsSessionUrlTransitionCapture& operator=(const WsSessionUrlTransitionCapture&) = delete;
-
-    // Returns true if a matching transition is observed within `timeout`.
-    bool waitForTransition(std::chrono::seconds timeout) const
-    {
-        std::unique_lock<std::mutex> lk(mShared->m);
-        return mShared->cv.wait_for(lk, timeout, [s = mShared] { return s->observed; });
-    }
-
-    bool observed() const
-    {
-        std::lock_guard<std::mutex> lk(mShared->m);
-        return mShared->observed;
-    }
-
-    std::string capturedNewUrl() const
-    {
-        std::lock_guard<std::mutex> lk(mShared->m);
-        return mShared->capturedNewUrl;
-    }
-
-    std::string capturedReason() const
-    {
-        std::lock_guard<std::mutex> lk(mShared->m);
-        return mShared->capturedReason;
-    }
-
-private:
-    struct Shared
-    {
-        std::mutex m;
-        std::condition_variable cv;
-        bool observed = false;
-        std::string capturedNewUrl;
-        std::string capturedReason;
-    };
-    std::shared_ptr<Shared> mShared;
-    std::string mInvalidPinnedUrl;
-};
-
-} // namespace
-
 /**
  * @brief Verify invalid pinned WS session URL falls back to a fresh session URL.
  *
@@ -21329,7 +21233,7 @@ private:
  * - TEST2: Override cached session URL with an invalid endpoint and resume.
  * - TEST3: Require observed wsSessionUrl differs from stale pinned URL.
  */
-TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
+TEST_F(SdkWsUploadTest, InvalidPinnedSessionFallsBackToFreshSession)
 {
     LOG_info << "___TEST SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -21458,7 +21362,7 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionFallsBackToFreshSession)
  * - TEST2: Observe transfer is no longer attached to stale pinned pool URL.
  * - TEST3: Require upload completes and cloud node exists with expected size.
  */
-TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool)
+TEST_F(SdkWsUploadTest, InvalidPinnedSessionDetachedTransferCompletesOnFreshPool)
 {
     LOG_info << "___TEST SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshPool___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -21614,7 +21518,7 @@ TEST_F(SdkTest, SdkWsUploadInvalidPinnedSessionDetachedTransferCompletesOnFreshP
  * - TEST2: Cancel active upload via synchronousCancelTransfers(TYPE_UPLOAD).
  * - TEST3: Assert transfer finishes with expected cancel/incomplete result and no crash.
  */
-TEST_F(SdkTest, SdkWsUploadCancelDuringActiveTransfer)
+TEST_F(SdkWsUploadTest, CancelDuringActiveTransfer)
 {
     LOG_info << "___TEST SdkWsUploadCancelDuringActiveTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -21683,7 +21587,7 @@ TEST_F(SdkTest, SdkWsUploadCancelDuringActiveTransfer)
  * - TEST2: Delete local file during active transfer window.
  * - TEST3: Require Require terminal failure (read/incomplete path) without crash.
  */
-TEST_F(SdkTest, SdkWsUploadFileDeletedDuringTransfer)
+TEST_F(SdkWsUploadTest, FileDeletedDuringTransfer)
 {
     LOG_info << "___TEST SdkWsUploadFileDeletedDuringTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -21814,7 +21718,7 @@ TEST_F(SdkTest, SdkWsUploadFileDeletedDuringTransfer)
  * - TEST2: Modify file content/size while transfer is active.
  * - TEST3: Require completion with modified size, or safe read/incomplete failure; no crash.
  */
-TEST_F(SdkTest, SdkWsUploadFileModifiedDuringTransfer)
+TEST_F(SdkWsUploadTest, FileModifiedDuringTransfer)
 {
     LOG_info << "___TEST SdkWsUploadFileModifiedDuringTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -21915,7 +21819,7 @@ TEST_F(SdkTest, SdkWsUploadFileModifiedDuringTransfer)
  * - TEST2: Trigger same-instance stop()/start() on the current WS engine.
  * - TEST3: Require meaningful forward progress and eventual API_OK completion.
  */
-TEST_F(SdkTest, SdkWsUploadStopStartSameEngineDuringTransfer)
+TEST_F(SdkWsUploadTest, StopStartSameEngineDuringTransfer)
 {
     LOG_info << "___TEST SdkWsUploadStopStartSameEngineDuringTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -22025,7 +21929,7 @@ TEST_F(SdkTest, SdkWsUploadStopStartSameEngineDuringTransfer)
  * - TEST2: Trigger notifyNetworkDisconnectForTesting() and wait for reconnect path.
  * - TEST3: Require transfer completes and uploaded node size matches local size.
  */
-TEST_F(SdkTest, SdkWsUploadDisconnectReconnectDuringTransfer)
+TEST_F(SdkWsUploadTest, DisconnectReconnectDuringTransfer)
 {
     LOG_info << "___TEST SdkWsUploadDisconnectReconnectDuringTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -22131,7 +22035,7 @@ TEST_F(SdkTest, SdkWsUploadDisconnectReconnectDuringTransfer)
  * - TEST2: Observe transfer temp error/terminal result callbacks.
  * - TEST3: If injection lands, require expected overquota error handling.
  */
-TEST_F(SdkTest, SdkWsUploadOverquotaDuringTransfer)
+TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
 {
     LOG_info << "___TEST SdkWsUploadOverquotaDuringTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -22252,7 +22156,7 @@ TEST_F(SdkTest, SdkWsUploadOverquotaDuringTransfer)
  * - TEST2: Execute multiple pause/resume cycles while transfer is active.
  * - TEST3: Assert paused state is observed, progress resumes after unpause, and transfer ends API_OK.
  */
-TEST_F(SdkTest, SdkWsUploadMultiplePauseResumeCycles)
+TEST_F(SdkWsUploadTest, MultiplePauseResumeCycles)
 {
     LOG_info << "___TEST SdkWsUploadMultiplePauseResumeCycles___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -22379,7 +22283,7 @@ TEST_F(SdkTest, SdkWsUploadMultiplePauseResumeCycles)
  * - TEST2: Pause transfer A and assert transfer B continues progressing.
  * - TEST3: Resume A and require both A/B finish with API_OK.
  */
-TEST_F(SdkTest, SdkWsUploadPauseOneTransferNotBlockOthersInSamePool)
+TEST_F(SdkWsUploadTest, PauseOneTransferNotBlockOthersInSamePool)
 {
     LOG_info << "___TEST SdkWsUploadPauseOneTransferNotBlockOthersInSamePool___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -22609,7 +22513,7 @@ TEST_F(SdkTest, SdkWsUploadPauseOneTransferNotBlockOthersInSamePool)
  * - TEST2: Start A1/A2 and B1/B2, then alternate pause/resume across pool groups.
  * - TEST3: Assert non-paused peers keep progressing and all files uploading finish API_OK.
  */
-TEST_F(SdkTest, SdkWsUploadRepeatedPauseResumeMixedPools)
+TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
 {
     LOG_info << "___TEST SdkWsUploadRepeatedPauseResumeMixedPools___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23208,7 +23112,7 @@ TEST_F(SdkTest, SdkWsUploadRepeatedPauseResumeMixedPools)
  * - TEST2: Keep paused for a delay window, then resume the same transfer.
  * - TEST3: Require transfer resumes progress and completes API_OK.
  */
-TEST_F(SdkTest, SdkWsUploadPauseHandlesLateInFlightAck)
+TEST_F(SdkWsUploadTest, PauseHandlesLateInFlightAck)
 {
     LOG_info << "___TEST SdkWsUploadPauseHandlesLateInFlightAck___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23372,7 +23276,7 @@ TEST_F(SdkTest, SdkWsUploadPauseHandlesLateInFlightAck)
  * - TEST2: Drop A's UploadCompleted event (code 4) via debug hook.
  * - TEST3: Require B still reaches API_OK even when A completion frame is dropped.
  */
-TEST_F(SdkTest, SdkWsUploadDropCompletionDoesNotBlockOthersInSamePool)
+TEST_F(SdkWsUploadTest, DropCompletionDoesNotBlockOthersInSamePool)
 {
     LOG_info << "___TEST SdkWsUploadDropCompletionDoesNotBlockOthersInSamePool___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23494,7 +23398,7 @@ TEST_F(SdkTest, SdkWsUploadDropCompletionDoesNotBlockOthersInSamePool)
  * - TEST2: Start upload and require temporary error API_EAGAIN is observed.
  * - TEST3: Require retry converges to API_OK and uploaded node size matches local source.
  */
-TEST_F(SdkTest, SdkWsUploadInvalidCompletionTokenTriggersRetry)
+TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
 {
     LOG_info << "___TEST SdkWsUploadInvalidCompletionTokenTriggersRetry___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23609,7 +23513,7 @@ TEST_F(SdkTest, SdkWsUploadInvalidCompletionTokenTriggersRetry)
  * - TEST3: Start transfer B in same pool while A is retrying.
  * - TEST4: Require hook hit and both A/B complete successfully.
  */
-TEST_F(SdkTest, SdkWsUploadFailThenRetryWithAnotherQueuedTransfer)
+TEST_F(SdkWsUploadTest, FailThenRetryWithAnotherQueuedTransfer)
 {
     LOG_info << "___TEST SdkWsUploadFailThenRetryWithAnotherQueuedTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23740,7 +23644,7 @@ TEST_F(SdkTest, SdkWsUploadFailThenRetryWithAnotherQueuedTransfer)
  * - TEST2: Start upload and confirm one ACK drop was observed.
  * - TEST3: Require upload API_OK and cloud node size equals local file size.
  */
-TEST_F(SdkTest, SdkWsUploadDropChunkIngestedAckStillCompletes)
+TEST_F(SdkWsUploadTest, DropChunkIngestedAckStillCompletes)
 {
     LOG_info << "___TEST SdkWsUploadDropChunkIngestedAckStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23820,7 +23724,7 @@ TEST_F(SdkTest, SdkWsUploadDropChunkIngestedAckStillCompletes)
  * - TEST3: Capture transfer progress and require delayed forward progress (meaningful stall).
  * - TEST4: Require upload API_OK and cloud node size equals local file size.
  */
-TEST_F(SdkTest, SdkWsUploadThrottleEventStillCompletes)
+TEST_F(SdkWsUploadTest, ThrottleEventStillCompletes)
 {
     LOG_info << "___TEST SdkWsUploadThrottleEventStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -23986,7 +23890,7 @@ TEST_F(SdkTest, SdkWsUploadThrottleEventStillCompletes)
  * - TEST2: Start upload and confirm the modification was observed.
  * - TEST3: Require upload API_OK and cloud node size equals local file size.
  */
-TEST_F(SdkTest, SdkWsUploadAlreadyOnServerEventStillCompletes)
+TEST_F(SdkWsUploadTest, AlreadyOnServerEventStillCompletes)
 {
     LOG_info << "___TEST SdkWsUploadAlreadyOnServerEventStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -24081,7 +23985,7 @@ TEST_F(SdkTest, SdkWsUploadAlreadyOnServerEventStillCompletes)
  *          (no CLOSED tear-down).
  * - TEST4: Require upload API_OK and cloud node size equals local file size.
  */
-TEST_F(SdkTest, SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes)
+TEST_F(SdkWsUploadTest, B8ThrottleDuringSaturatedInFlightCompletes)
 {
     LOG_info << "___TEST SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -24206,7 +24110,7 @@ TEST_F(SdkTest, SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes)
  *      deleted 1-ds sleep.
  *   5. After the forced failures, handshakes succeed and the upload converges to API_OK.
  */
-TEST_F(SdkTest, SdkWsUploadB9ClosedThrottleReconnectPacing)
+TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
 {
     LOG_info << "___TEST SdkWsUploadB9ClosedThrottleReconnectPacing___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -24352,7 +24256,7 @@ TEST_F(SdkTest, SdkWsUploadB9ClosedThrottleReconnectPacing)
  * - TEST3: Require at least one temporary error (API_EAGAIN) and recovery back to ACTIVE.
  * - TEST4: Require upload API_OK and cloud node size equals local file size.
  */
-TEST_F(SdkTest, SdkWsUploadNegativeServerEventRetriesAndCompletes)
+TEST_F(SdkWsUploadTest, NegativeServerEventRetriesAndCompletes)
 {
     LOG_info << "___TEST SdkWsUploadNegativeServerEventRetriesAndCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -24464,7 +24368,7 @@ TEST_F(SdkTest, SdkWsUploadNegativeServerEventRetriesAndCompletes)
  * - TEST3: Require upload API_OK — the CRC-failed chunk must have been retried successfully.
  * - TEST4: Verify cloud node size matches local file size.
  */
-TEST_F(SdkTest, SdkWsUploadCrcFailureRetryStillCompletes)
+TEST_F(SdkWsUploadTest, CrcFailureRetryStillCompletes)
 {
     LOG_info << "___TEST SdkWsUploadCrcFailureRetryStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
@@ -24548,7 +24452,7 @@ TEST_F(SdkTest, SdkWsUploadCrcFailureRetryStillCompletes)
  * - TEST5: Require no transfer restart or temporary error due to Distress.
  * - TEST6: Require upload API_OK and cloud node size equals local file size.
  */
-TEST_F(SdkTest, SdkWsUploadDistressRetiresPoolWithoutRestartingInFlightUpload)
+TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
 {
     LOG_info << "___TEST SdkWsUploadDistressRetiresPoolWithoutRestartingInFlightUpload___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));

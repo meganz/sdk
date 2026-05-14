@@ -102,6 +102,9 @@ include(file_service/file_service.cmake)
 # Load bench_framework module (gated by MEGA_BENCH_FRAMEWORK_ENABLED).
 include(bench_framework/bench_framework.cmake)
 
+# Load WS-upload integration-test module (gated by MEGA_USE_WSUPLOAD).
+include(wsupload/wsupload.cmake)
+
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
 
