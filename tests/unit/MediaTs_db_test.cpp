@@ -78,6 +78,7 @@ protected:
     NodeManager::MissingParentNodes mMissingParentNodes;
     std::shared_ptr<MegaClient> mClient;
     fs::path mTestDir;
+    fs::path mSctablePath;
     uint64_t mNextHandle = 1;
     NodeHandle mRootHandle;
 
@@ -93,6 +94,18 @@ protected:
         mClient->sid =
             "AWA5YAbtb4JO-y2zWxmKZpSe5-6XM7CTEkA-3Nv7J4byQUpOazdfSC1ZUFlS-kah76gPKUEkTF9g7MeE";
         mClient->opensctable();
+
+        // Mirror MegaClient::opensctable()'s dbname derivation. Lets the
+        // migration test address the statecache directly instead of scanning
+        // mTestDir, whose order is platform-dependent.
+        constexpr unsigned kPayload = MegaClient::SIDLEN - SymmCipher::KEYLENGTH;
+        std::string dbname(kPayload * 4 / 3 + 3, '\0');
+        dbname.resize(
+            Base64::btoa(reinterpret_cast<const byte*>(mClient->sid.data()) + SymmCipher::KEYLENGTH,
+                         static_cast<int>(kPayload),
+                         dbname.data()));
+        mSctablePath =
+            dbAccess->databasePath(*mClient->fsaccess, dbname, DbAccess::DB_VERSION).toPath(false);
 
         NodeHandle rootH = NodeHandle().set6byte(mNextHandle++);
         auto rootNode = mt::makeNode(*mClient, ROOTNODE, rootH, nullptr);
@@ -386,17 +399,8 @@ TEST_F(MediaTsDbFixture, MigrationBackfillsMediatsFromBlob)
     mClient->sctable->commit();
     mClient.reset();
 
-    // Find the .db file
-    fs::path dbPath;
-    for (auto& entry: fs::directory_iterator(mTestDir))
-    {
-        if (entry.path().extension() == ".db")
-        {
-            dbPath = entry.path();
-            break;
-        }
-    }
-    ASSERT_FALSE(dbPath.empty()) << "DB file not found in test directory";
+    const fs::path dbPath = mSctablePath;
+    ASSERT_TRUE(fs::exists(dbPath)) << "Statecache DB not found: " << dbPath;
 
     // Drop the mediats column to simulate an old schema (requires SQLite >= 3.35,
     // guaranteed on all CI/dev machines targeted by unit tests).
