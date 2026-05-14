@@ -353,6 +353,7 @@ target_sources_conditional(SDKlib
     include/mega/commands_ws.h
     include/mega/wsupload.h
     include/mega/transfer/ws/ws_encryption.h
+    include/mega/transfer/ws/ws_pool_mgr.h
     src/commands_ws.cpp
     src/transfer/ws/wsupload.cpp
     src/transfer/ws/ws_encryption.cpp

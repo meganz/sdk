@@ -37,6 +37,7 @@
 #include "mega/testhooks.h"
 #include "mega/transfer.h"
 #include "mega/transfer/ws/ws_encryption.h"
+#include "mega/transfer/ws/ws_pool_mgr.h"
 #include "mega/types.h"
 #include "mega/utils.h"
 
@@ -61,23 +62,9 @@ namespace ws
 #endif
 
 // ---------- small time helper (deciseconds) ----------
-constexpr dstime kDsPerSecond = 10;
-constexpr std::int64_t kMsPerDeciSecond = 100;
-
-constexpr dstime secondsToDs(const std::int64_t seconds)
-{
-    return static_cast<dstime>(seconds * kDsPerSecond);
-}
-
-constexpr dstime msToDs(const std::int64_t ms)
-{
-    return static_cast<dstime>(ms / kMsPerDeciSecond);
-}
-
-constexpr std::int64_t dsToMs(const std::int64_t ds)
-{
-    return ds * kMsPerDeciSecond;
-}
+// kDsPerSecond / kMsPerDeciSecond and the secondsToDs / msToDs / dsToMs helpers
+// live in include/mega/transfer/ws/ws_pool_mgr.h so that WsPoolMgr's
+// secondsToDs(...) constexpr member initialisers resolve from that header.
 
 struct SteadyTime
 {
@@ -1733,69 +1720,39 @@ inline bool WsUploadFile::getCurrentSessionUrl(std::string& outUrl) const
 }
 
 // ---------- Pool manager (USC refresh + cURL multi) ----------
-struct WsPoolMgr
+// struct WsPoolMgr is declared in include/mega/transfer/ws/ws_pool_mgr.h.
+// Its method bodies (including the simple ctor/dtor + bumpLastNetRead /
+// bumpAllPools) are defined here in this TU so that the header stays
+// free of dependencies on the internal WsPool / SteadyTime types.
+
+WsPoolMgr::WsPoolMgr()
 {
-    static constexpr std::int32_t POOLCONNKEEPALIVE = secondsToDs(60);
-    static constexpr std::int32_t POOLFRESHNESS = secondsToDs(24 * 3600);
-    const std::int32_t SERVERTIMEOUT = secondsToDs(20);
+    curlm = curl_multi_init();
+}
 
-    CURLM* curlm = nullptr; // Phase 1: private multi (USC only)
-    UploadEngine::Impl* mImpl{nullptr}; // backpointer
-
-    std::vector<std::unique_ptr<WsPool>> mPools;
-
-    std::unordered_set<WsUploadFile*> mActiveFiles; // progress reporting
-    dstime mLastNetRead{0};
-    std::atomic_bool mRefreshing{false};
-    dstime mNextRefreshAttempt{0};
-    unsigned mRefreshFailCount{0};
-
-    WsPoolMgr()
+WsPoolMgr::~WsPoolMgr()
+{
+    if (curlm)
     {
-        curlm = curl_multi_init();
+        curl_multi_cleanup(curlm);
+        curlm = nullptr;
     }
+}
 
-    ~WsPoolMgr()
+void WsPoolMgr::bumpLastNetRead(const dstime now)
+{
+    if (SteadyTime::difference(now, mLastNetRead) > 0)
+        mLastNetRead = now;
+}
+
+void WsPoolMgr::bumpAllPools(const dstime now)
+{
+    for (auto& p: mPools)
     {
-        if (curlm)
-        {
-            curl_multi_cleanup(curlm);
-            curlm = nullptr;
-        }
+        p->mLastActive = now;
+        p->mLastServerResponse = now;
     }
-
-    void curlIO(std::unique_lock<std::mutex>& lk); // defined later
-    void checkPools(class UploadEngine::Impl& impl); // defined later
-    void refreshPools(); // defined later
-    void applyRefreshBackoff(Error e); // defined later
-
-    // Shared tail for USC refresh responses (parsing can be done via string parsing or JSON).
-    void applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> urls);
-
-    // Ensure a dedicated pool exists for a pinned (resumed) session URL.
-    void ensurePinnedPool(const std::string& url);
-
-    void markPoolRetiring(WsPool& pool);
-    bool poolHasNoWork(const WsPool& pool) const;
-    bool pinnedPoolHasReference(const WsPool& pool, const UploadEngine::Impl& impl) const;
-    void retireUnusedPinnedPools(UploadEngine::Impl& impl);
-    void cleanupRetiringPools();
-
-    void bumpLastNetRead(const dstime now)
-    {
-        if (SteadyTime::difference(now, mLastNetRead) > 0)
-            mLastNetRead = now;
-    }
-
-    void bumpAllPools(const dstime now)
-    {
-        for (auto& p: mPools)
-        {
-            p->mLastActive = now;
-            p->mLastServerResponse = now;
-        }
-    }
-};
+}
 
 // ========== UploadEngine::Impl (queue + mgr + thread) ==========
 class UploadEngine::Impl
