@@ -139,6 +139,19 @@
             }
         },
         {
+            "name": "dev-unix-strict",
+            "inherits": [
+                "dev",
+                "unix"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "environment": {
+                "CXXFLAGS": "-Wmismatched-tags -Wsign-conversion -Wno-error=sign-conversion"
+            }
+        },
+        {
             "name": "dev-windows",
             "inherits": [
                 "dev",

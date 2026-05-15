@@ -257,3 +257,36 @@ csplit -k -f bench_logs_local_ -b '%03d.log' "${PID_DIR}/test_integration.log" \
 tar -czf bench_logs_local.tar.gz bench_logs_local_*.log
 ```
 
+## Pre-push strict-warning check (HR42)
+
+Before pushing wsupload-touching changes, run the `dev-unix-strict` preset on
+Linux to catch Win/Mac-only warnings (e.g., MSVC `C4244` narrowing, clang
+`-Wmismatched-tags` struct-vs-class) that the regular `dev-unix-wsupload`
+preset on gcc misses. Configure once per session, then build the changed
+target:
+
+```bash
+cmake --preset dev-unix-strict
+cmake --build ../build-sdk-dev-unix-strict -j8 --target=SDKlib --target=test_integration
+```
+
+The preset is a Debug build (which enables `-Werror` via the project's
+existing `target_platform_compile_options`) plus `-Wmismatched-tags` and
+`-Wsign-conversion`. Sign-conversion is demoted to a warning via
+`-Wno-error=sign-conversion` so the ~19 pre-existing narrowings in unrelated
+files (`megaapi_impl.{h,cpp}`, `filefingerprint.cpp` — tracked separately)
+don't block compilation. Tag-mismatch stays a hard error since the codebase
+is otherwise clean on that axis.
+
+After building, grep the log for warnings touching files in your changeset:
+
+```bash
+cmake --build ../build-sdk-dev-unix-strict -j8 --target=SDKlib 2>&1 \
+    | tee /tmp/strict_build.log | grep -E "warning:|error:" \
+    | grep -E "src/transfer/ws/|include/mega/transfer/ws/|tests/integration/wsupload/"
+```
+
+The preset is not committed to any CI stage — it's an author-side gate. Its
+presence in `CMakePresets.json` is intentional so all checkouts pick it up;
+the individual feature commits should NOT enable the strict flags by default.
+
