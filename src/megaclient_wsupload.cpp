@@ -718,10 +718,12 @@ ws::UploadEngine::PreflightStartResult MegaClient::wsPrepareUploadForWsSync(Tran
                 }
 
                 bool ok = false;
+                bool transferStillAlive = false;
                 if (tp)
                 {
                     if (c.wsIsTransferAlive(type, tp) && (th.isUndef() || (tp->uploadhandle == th)))
                     {
+                        transferStillAlive = true;
                         ok = c.prepareUploadForWs(*tp);
                     }
                 }
@@ -734,8 +736,12 @@ ws::UploadEngine::PreflightStartResult MegaClient::wsPrepareUploadForWsSync(Tran
                         // prepareUploadForWs() may assign uploadhandle on first activation.
                         // Keep the cached request keyed to the assigned handle so future
                         // reuse/consume matches the same request instead of re-scheduling.
-                        if (it->second.uploadHandle.isUndef() &&
-                            tp && !tp->uploadhandle.isUndef())
+                        // Guard the tp->uploadhandle dereference with the alive-check we
+                        // already performed above; freeq(PUT) in locallogout can destroy
+                        // the Transfer before this lambda drains via wsLocallogoutCleanup.
+                        if (transferStillAlive &&
+                            it->second.uploadHandle.isUndef() &&
+                            !tp->uploadhandle.isUndef())
                         {
                             it->second.uploadHandle = tp->uploadhandle;
                         }
