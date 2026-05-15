@@ -1286,8 +1286,8 @@ struct WsPoolThread
 // ---------- Pool per size class ----------
 struct WsPool
 {
-    static constexpr std::int32_t CONNRETRYINTERVAL = secondsToDs(5);
-    static constexpr std::int32_t UPLOADTIMEOUT = secondsToDs(180);
+    static constexpr dstime CONNRETRYINTERVAL = secondsToDs(5);
+    static constexpr dstime UPLOADTIMEOUT = secondsToDs(180);
     static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
     static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
     static constexpr dstime BACKLOG_EMPTY_RETRY_DS = 2;
@@ -4306,7 +4306,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         // after a server ACK (e.g. a Throttle event) so it can observe reconnect pacing.
         {
             bool forceClose = false;
-            DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(ws.get(), forceClose);
+            DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(ws.get(), this, mUrl, forceClose);
             if (forceClose)
             {
                 WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] force-close via test hook [this = "

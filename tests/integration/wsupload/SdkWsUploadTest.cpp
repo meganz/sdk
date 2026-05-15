@@ -3961,12 +3961,23 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
                      std::nullopt,
                      kInjectedThrottleMs);
 
+    // The target pool whose worker we want to observe — captured at force-close
+    // time. Without scoping the reconnect + handshake hooks to this pool, an
+    // unrelated server event (e.g. distress -> refreshPools()) that spawns
+    // sibling pool workers would conflate their first-attempt observations
+    // (each fresh worker has its own local retryCount=0) with the target
+    // worker's 2nd/3rd retries. See fu7-14 Goal 1.c RCA.
+    std::atomic<::mega::ws::WsPool*> targetPool{nullptr};
+    std::mutex targetUrlMu;
+    std::string targetUrl;
     std::mutex attemptMu;
     std::vector<std::chrono::steady_clock::time_point> attemptTimes;
     std::vector<unsigned> attemptRetryCounts;
     globalMegaTestHooks.onWsPoolReconnectAttempt =
-        [&](::mega::ws::WsPool*, unsigned retryCount, dstime /*firstFailureDs*/)
+        [&](::mega::ws::WsPool* pool, unsigned retryCount, dstime /*firstFailureDs*/)
     {
+        if (pool != targetPool.load(std::memory_order_acquire))
+            return;
         std::lock_guard<std::mutex> lk(attemptMu);
         attemptTimes.push_back(std::chrono::steady_clock::now());
         attemptRetryCounts.push_back(retryCount);
@@ -3974,19 +3985,32 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
 
     std::atomic<bool> throttleObserved{false};
     std::atomic<int> forceCloseFired{0};
-    globalMegaTestHooks.onWsConnForceCloseNow = [&](::mega::ws::WsConn*) -> bool
+    globalMegaTestHooks.onWsConnForceCloseNow =
+        [&](::mega::ws::WsConn*, ::mega::ws::WsPool* pool, const std::string& url) -> bool
     {
         if (!throttleObserved.load(std::memory_order_acquire))
             return false;
-        return forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
+        const bool fire = forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
+        if (fire)
+        {
+            targetPool.store(pool, std::memory_order_release);
+            std::lock_guard<std::mutex> lk(targetUrlMu);
+            targetUrl = url;
+        }
+        return fire;
     };
 
     std::atomic<int> handshakeFailsRemaining{2};
     globalMegaTestHooks.onWsHandshake =
-        [&](const std::string& /*url*/, long /*timeoutMs*/, std::string& err) -> bool
+        [&](const std::string& url, long /*timeoutMs*/, std::string& err) -> bool
     {
         if (!throttleObserved.load(std::memory_order_acquire))
             return false;
+        {
+            std::lock_guard<std::mutex> lk(targetUrlMu);
+            if (targetUrl.empty() || url != targetUrl)
+                return false;
+        }
         if (handshakeFailsRemaining.load(std::memory_order_acquire) <= 0)
             return false;
         handshakeFailsRemaining.fetch_sub(1, std::memory_order_acq_rel);

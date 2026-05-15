@@ -38,7 +38,7 @@ namespace ws
 {
 
 struct WsPool;
-struct WsUploadFile;
+class WsUploadFile;
 
 // Time-domain constants and conversion helpers shared between wsupload.cpp
 // and the WsPoolMgr split (future ws_curl.cpp). Kept in this header rather
@@ -72,9 +72,9 @@ constexpr std::int64_t dsToMs(const std::int64_t ds)
 // those bodies.
 struct WsPoolMgr
 {
-    static constexpr std::int32_t POOLCONNKEEPALIVE = secondsToDs(60);
-    static constexpr std::int32_t POOLFRESHNESS = secondsToDs(24 * 3600);
-    const std::int32_t SERVERTIMEOUT = secondsToDs(20);
+    static constexpr dstime POOLCONNKEEPALIVE = secondsToDs(60);
+    static constexpr dstime POOLFRESHNESS = secondsToDs(24 * 3600);
+    const dstime SERVERTIMEOUT = secondsToDs(20);
 
     CURLM* curlm = nullptr; // Phase 1: private multi (USC only)
     UploadEngine::Impl* mImpl{nullptr}; // backpointer

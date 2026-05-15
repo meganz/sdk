@@ -245,7 +245,10 @@ namespace mega {
         // thread; assignment to either field must go through globalMegaTestHooks like
         // every other hook. Returning true from onWsConnForceCloseNow requests that the
         // caller transition the WsConn to CLOSED before the next loop iteration.
-        std::function<bool(ws::WsConn* /*conn*/)> onWsConnForceCloseNow;
+        std::function<bool(ws::WsConn* /*conn*/,
+                           ws::WsPool* /*pool*/,
+                           const std::string& /*poolUrl*/)>
+            onWsConnForceCloseNow;
         std::function<void(ws::WsPool* /*pool*/,
                            unsigned /*retryCount*/,
                            dstime /*firstFailureDs*/)>
@@ -570,14 +573,14 @@ namespace mega {
                                                                             (CHUNKPOS)); \
         }
 
-#define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL) \
+#define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL) \
     do { \
-        std::function<bool(ws::WsConn*)> _fn; \
+        std::function<bool(ws::WsConn*, ws::WsPool*, const std::string&)> _fn; \
         { \
             std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
             _fn = globalMegaTestHooks.onWsConnForceCloseNow; \
         } \
-        if (_fn) (OUTBOOL) = _fn((CONNPTR)); \
+        if (_fn) (OUTBOOL) = _fn((CONNPTR), (POOLPTR), (POOLURL)); \
     } while (0)
 
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS) \
@@ -693,7 +696,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
-#define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, OUTBOOL)
+#define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
