@@ -446,6 +446,37 @@ void SdkTest::TearDown()
         releaseMegaApi(i);
     }
     sdk_test::resetScParserMode();
+
+    // HR45: cumulative RSS + CPU snapshot per cell, written to
+    // test_integration.log. The fu7-15 vs develop comparison reads these lines
+    // to compute Δ on non-bench cells (bench cells already write bench_report
+    // JSON via BenchProcessStats). Cheap (single getrusage call).
+#if defined(__unix__) || defined(__APPLE__)
+    {
+        struct rusage ru
+        {};
+        if (getrusage(RUSAGE_SELF, &ru) == 0)
+        {
+            const auto suiteAndName = getTestSuiteAndName();
+            const std::int64_t rssMaxKb =
+#if defined(__APPLE__)
+                static_cast<std::int64_t>(ru.ru_maxrss) / 1024;
+#else
+                static_cast<std::int64_t>(ru.ru_maxrss);
+#endif
+            const std::int64_t userMs =
+                static_cast<std::int64_t>(ru.ru_utime.tv_sec) * 1000 +
+                static_cast<std::int64_t>(ru.ru_utime.tv_usec) / 1000;
+            const std::int64_t sysMs =
+                static_cast<std::int64_t>(ru.ru_stime.tv_sec) * 1000 +
+                static_cast<std::int64_t>(ru.ru_stime.tv_usec) / 1000;
+            LOG_info << "[ProcessStats] suite=" << suiteAndName.first
+                     << " name=" << suiteAndName.second << " rss_max_kb=" << rssMaxKb
+                     << " user_cpu_ms=" << userMs << " sys_cpu_ms=" << sysMs;
+        }
+    }
+#endif
+
     out() << "Teardown done, test exiting";
 }
 
