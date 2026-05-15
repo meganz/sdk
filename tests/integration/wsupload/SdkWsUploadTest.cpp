@@ -55,30 +55,12 @@
 
 using namespace std;
 
-using ::mega::test::wsupload::fetchBestWsUploadTransferSnapshot;
-using ::mega::test::wsupload::fetchUscSizeClasses;
-using ::mega::test::wsupload::fetchWsUploadTransferSnapshots;
-using ::mega::test::wsupload::kWsUploadDefaultFileSize;
-using ::mega::test::wsupload::makeDefaultUploadOptions;
-using ::mega::test::wsupload::overrideFirstUploadSessionUrlForTesting;
-using ::mega::test::wsupload::ScopedUploadSpeedLimit;
-using ::mega::test::wsupload::second_timer;
-using ::mega::test::wsupload::TransferTempErrorTracker;
-using ::mega::test::wsupload::waitForFirstUploadTransferSnapshot;
-
 // Forward declaration — defined in SdkTest_test.cpp:132. External linkage so we
 // reuse the single definition rather than duplicating the stat() wrapper.
+// Must stay at GLOBAL namespace since the definition is at global scope.
 bool fileexists(const std::string& fn);
-using ::mega::test::wsupload::WsSessionUrlTransitionCapture;
-using ::mega::test::wsupload::WsUploadRetryTracker;
-using ::mega::test::wsupload::WsUploadTransferSnapshot;
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-using ::mega::test::wsupload::fetchWsUploadPoolStateForTesting;
-using ::mega::test::wsupload::fetchWsUploadStatsForTesting;
-using ::mega::test::wsupload::notifyWsUploadNetworkDisconnectForTesting;
-using ::mega::test::wsupload::restartWsUploadEngineForTesting;
-using ::mega::test::wsupload::waitForWsUploadPoolStateForTesting;
-#endif
+
+namespace mega::test::wsupload {
 
 TEST_F(SdkWsUploadTest, SampledByteCorrectness)
 {
@@ -4445,3 +4427,5 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
 }
 
 #endif // defined(DEBUG)
+
+} // namespace mega::test::wsupload
