@@ -2213,63 +2213,6 @@ WsConn::~WsConn()
     }
 }
 
-/*
-bool WsConn::connectWS()
-{
-    WSUPLOAD_TRACE << "[WsConn::connectWS] BEGIN [this = " << this << "]";
-    if (curl)
-    {
-        WSUPLOAD_TRACE << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
-        curl_easy_cleanup(curl);
-    }
-    curl = curl_easy_init();
-    if (!curl)
-    {
-        WSUPLOAD_TRACE << "[WsConn::connectWS] curl_easy_init failed, return false [this = " << this
-                  << "]";
-        return false;
-    }
-
-    // Share CurlHttpIO settings but don't attach to its multi
-    if (auto* cio = dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio))
-    {
-        WSUPLOAD_TRACE << "[WsConn::connectWS] configureWsEasy [curl=" << (void*)curl << "] [this = " <<
-this << "]"; cio->configureWsEasy(curl, false);
-    }
-    else
-    {
-        LOG_warn << "[WsConn::connectWS] dynamic_cast<CurlHttpIO*>(mPool->mImpl->client.httpio)
-failed, return false [curl=" << (void*)curl << "] [this = " << this << "]"; return false;
-    }
-
-    readyState = ReadyState::CONNECTING;
-
-    char err[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, err);
-
-    curl_easy_setopt(curl, CURLOPT_URL, mPool->mUrl.c_str());
-    // WebSocket mode
-    curl_easy_setopt(curl, CURLOPT_CONNECT_ONLY, 2L);
-
-    const CURLcode res = curl_easy_perform(curl);
-    if (res == CURLE_OK)
-    {
-        WSUPLOAD_TRACE << "[WsConn::connectWS] curl_easy_perform success, set readyState=OPEN and call "
-                     "onopen() -> return true [this = "
-                  << this << "]";
-        readyState = ReadyState::OPEN;
-        onopen();
-        return true;
-    }
-    WSUPLOAD_TRACE << "[WsConn::connectWS] curl_easy_perform failed, set readyState=CLOSED and return "
-                 "false [res="
-              << res << "] [strError=" << curl_easy_strerror(res) << "] [err=" << err
-              << "] [this = " << this << "]";
-    readyState = ReadyState::CLOSED;
-    return false;
-}
-*/
-
 bool WsConn::connectWS()
 {
     WSUPLOAD_TRACE << "[WsConn::connectWS] BEGIN [this = " << this << "]";
