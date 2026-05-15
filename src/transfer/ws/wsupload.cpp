@@ -172,7 +172,7 @@ class WsUploadFile
     class ActiveIOGuard;
 
 public:
-    static constexpr std::int32_t RETRYINTERVAL{60 * 10}; // ds
+    static constexpr dstime RETRYINTERVAL{60 * 10};
 
     WsUploadFile(MegaClient& client, Transfer& t, const std::uint32_t fileno):
         mClient(client),
