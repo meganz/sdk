@@ -152,6 +152,16 @@
             }
         },
         {
+            "name": "dev-unix-hooks-off",
+            "inherits": [
+                "dev",
+                "unix"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
             "name": "dev-windows",
             "inherits": [
                 "dev",

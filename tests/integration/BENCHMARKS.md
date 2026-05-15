@@ -290,3 +290,29 @@ The preset is not committed to any CI stage — it's an author-side gate. Its
 presence in `CMakePresets.json` is intentional so all checkouts pick it up;
 the individual feature commits should NOT enable the strict flags by default.
 
+## Hooks-off compile gate (post-hook-ABI redesign)
+
+The `dev-unix-hooks-off` preset (Release build → defines `NDEBUG` →
+disables `MEGASDK_DEBUG_TEST_HOOKS_ENABLED`) verifies that the WS upload
+test fixtures still compile after the Phase 2.a hook-ABI redesign
+(commits `b1cb43b4b2` + `be84f481dd`) when the hook surface is gone.
+
+```bash
+cmake --preset dev-unix-hooks-off
+cmake --build ../build-sdk-dev-unix-hooks-off -j8 --target=SDKlib --target=test_integration
+```
+
+The `MegaTestHooks` struct, the `globalMegaTestHooks` global, the
+`WsUploadDebugHelpers.h` free functions, and the `getClientForTesting()` /
+`executeOnThreadForTesting()` accessors are all unconditionally compiled
+after the redesign. The `DEBUG_TEST_HOOK_*` macros remain gated and
+expand to nothing in NDEBUG, so hook installation at test sites is a
+runtime no-op. `WSUPLOAD_REQUIRE_TEST_HOOKS()` from
+`tests/integration/wsupload/WsUploadHookGate.h` expands to
+`GTEST_SKIP() << "..."` in NDEBUG; tests using it run-skip on the
+hooks-off binary.
+
+Run this gate any time the migration of remaining hook-gated TEST_F
+bodies (Phase 2.d 14-site migration in `SdkWsUploadTest.cpp`) touches
+new TEST_F bodies, to catch hooks-OFF compile breakage early.
+
