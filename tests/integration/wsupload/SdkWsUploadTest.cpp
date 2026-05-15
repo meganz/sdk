@@ -30,6 +30,7 @@
 #include "wsupload/TransferTempErrorTracker.h"
 #include "wsupload/WsChunkSendOverquotaCapture.h"
 #include "wsupload/WsUploadDebugHelpers.h"
+#include "wsupload/WsUploadHookGate.h"
 #include "wsupload/WsUploadRetryTracker.h"
 #include "wsupload/WsUploadTestHelpers.h"
 #include "wsupload/WsUploadTransitionCapture.h"
@@ -1892,11 +1893,9 @@ TEST_F(SdkWsUploadTest, DisconnectReconnectDuringTransfer)
 TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
 {
     LOG_info << "___TEST SdkWsUploadOverquotaDuringTransfer___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
     // Step 1: source file
     const std::string fileName =
         "ws_overquota_mid_" +
@@ -1982,7 +1981,6 @@ TEST_F(SdkWsUploadTest, OverquotaDuringTransfer)
     {
         megaApi[0]->cancelTransferByTag(finalTag);
     }
-#endif
 }
 
 /**

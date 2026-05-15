@@ -17,6 +17,7 @@ target_sources_conditional(test_integration
     wsupload/TransferTempErrorTracker.h
     wsupload/WsChunkSendOverquotaCapture.h
     wsupload/WsUploadDebugHelpers.h
+    wsupload/WsUploadHookGate.h
     wsupload/WsUploadRetryTracker.h
     wsupload/WsUploadTestHelpers.h
     wsupload/WsUploadTransitionCapture.h
