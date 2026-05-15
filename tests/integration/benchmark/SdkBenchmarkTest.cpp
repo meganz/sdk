@@ -13,9 +13,7 @@
 
 #include "benchmark/BenchmarkRunners.h"
 
-using ::mega::test::benchmark::runLargePlusManySmallBenchmark;
-using ::mega::test::benchmark::runSingleLargeUploadBenchmark;
-using ::mega::test::benchmark::runSmallUploadsBenchmark;
+namespace mega::test::benchmark {
 
 /**
  * @brief Benchmark: 500 random files of 1 MiB each are uploaded into one
@@ -48,3 +46,5 @@ TEST_F(SdkBenchmarkTest, LargePlusManySmall)
 {
     runLargePlusManySmallBenchmark(*this);
 }
+
+} // namespace mega::test::benchmark
