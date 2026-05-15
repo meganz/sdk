@@ -2275,7 +2275,7 @@ bool WsConn::connectWS()
     WSUPLOAD_TRACE << "[WsConn::connectWS] BEGIN [this = " << this << "]";
     if (mPool->mImpl->stopping())
     {
-        readyState = ReadyState::CLOSED;
+        readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
         return false;
     }
     if (curl)
@@ -2284,7 +2284,7 @@ bool WsConn::connectWS()
         curl_easy_cleanup(curl);
         curl = nullptr;
     }
-    readyState = ReadyState::CONNECTING;
+    readyState.store(ReadyState::CONNECTING, std::memory_order_relaxed);
 
     struct Baton
     {
@@ -2359,7 +2359,7 @@ bool WsConn::connectWS()
     {
         if (mPool->mImpl->stopping())
         {
-            readyState = ReadyState::CLOSED;
+            readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
             return false;
         }
 
@@ -2368,7 +2368,7 @@ bool WsConn::connectWS()
             WSUPLOAD_TRACE << "[WsConn::connectWS] handshake baton timed out -> readyState=CLOSED and "
                          "return false [this = "
                       << this << "]";
-            readyState = ReadyState::CLOSED;
+            readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
             return false;
         }
 
@@ -2383,12 +2383,12 @@ bool WsConn::connectWS()
         WSUPLOAD_TRACE
             << "[WsConn::connectWS] !baton.easy -> readyState=CLOSED and return false [this = "
             << this << "]";
-        readyState = ReadyState::CLOSED;
+        readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
         return false;
     }
 
     curl = baton->easy.release(); // worker thread exclusively owns the handle now
-    readyState = ReadyState::OPEN;
+    readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
     onopen(); // your existing callback
     WSUPLOAD_TRACE << "[WsConn::connectWS] END -> success, return true [this = " << this << "]";
     return true;
@@ -2397,7 +2397,7 @@ bool WsConn::connectWS()
 void WsConn::closeWS()
 {
     WSUPLOAD_TRACE << "[WsConn::closeWS] BEGIN [this = " << this << "]";
-    if (readyState == ReadyState::CLOSED)
+    if (readyState.load(std::memory_order_relaxed) == ReadyState::CLOSED)
     {
         WSUPLOAD_TRACE << "[WsConn::closeWS] readyState=CLOSED, return [this = " << this << "]";
         return;
@@ -2406,7 +2406,7 @@ void WsConn::closeWS()
     // request has been honoured. Worker thread is single-owner, so this is
     // a belt-and-suspenders write documenting intent.
     mPendingClose = false;
-    readyState = ReadyState::CLOSED;
+    readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
     resetBufferedSendState();
     onclose();
     WSUPLOAD_TRACE << "[WsConn::closeWS] END [this = " << this << "]";
@@ -2440,9 +2440,10 @@ void WsConn::resetBufferedSendState() noexcept
 
 void WsConn::curlSend()
 {
-    WSUPLOAD_TRACE << "[WsConn::curlSend] BEGIN [readyState=" << static_cast<int>(readyState)
+    WSUPLOAD_TRACE << "[WsConn::curlSend] BEGIN [readyState="
+              << static_cast<int>(readyState.load(std::memory_order_relaxed))
               << "] [this = " << this << "]";
-    if (readyState != ReadyState::OPEN)
+    if (readyState.load(std::memory_order_relaxed) != ReadyState::OPEN)
     {
         WSUPLOAD_TRACE << "[WsConn::curlSend] readyState != ReadyState::OPEN, return [this = " << this
                   << "]";
@@ -2455,9 +2456,10 @@ void WsConn::curlSend()
 
 void WsConn::curlRecv()
 {
-    WSUPLOAD_TRACE << "[WsConn::curlRecv] BEGIN [readyState=" << static_cast<int>(readyState)
+    WSUPLOAD_TRACE << "[WsConn::curlRecv] BEGIN [readyState="
+              << static_cast<int>(readyState.load(std::memory_order_relaxed))
               << "] [this = " << this << "]";
-    if (readyState != ReadyState::OPEN)
+    if (readyState.load(std::memory_order_relaxed) != ReadyState::OPEN)
     {
         WSUPLOAD_TRACE << "[WsConn::curlRecv] readyState != ReadyState::OPEN, return [this = " << this
                   << "]";
@@ -2487,7 +2489,7 @@ void WsConn::curlRecv()
             // ~WsConn / the reconnect path). Break only when the state has
             // transitioned to non-OPEN for any reason OTHER than our own
             // pending-close request.
-            if (readyState != ReadyState::OPEN && !mPendingClose)
+            if (readyState.load(std::memory_order_relaxed) != ReadyState::OPEN && !mPendingClose)
             {
                 WSUPLOAD_TRACE << "[WsConn::curlRecv] onmessage closed connection -> break [this = "
                           << this << "]";
@@ -3395,9 +3397,10 @@ void WsPool::applyInFlight(const std::uint32_t fileno)
 
 bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterDs)
 {
-    if (ws->readyState != WsConn::ReadyState::OPEN || !ws->haveSpace())
+    if (ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::OPEN || !ws->haveSpace())
     {
-        WSUPLOAD_TRACE << "[WsPool::sendChunk] ws->readyState=" << static_cast<int>(ws->readyState)
+        WSUPLOAD_TRACE << "[WsPool::sendChunk] ws->readyState="
+                  << static_cast<int>(ws->readyState.load(std::memory_order_relaxed))
                   << " (ReadyState::OPEN=" << static_cast<int>(WsConn::ReadyState::OPEN)
                   << ") ws->haveSpace=" << ws->haveSpace() << " -> return false [this = " << this
                   << "]";
@@ -3635,7 +3638,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         if (disconnectEpoch != seenDisconnectEpoch)
         {
             seenDisconnectEpoch = disconnectEpoch;
-            if (ws->readyState != WsConn::ReadyState::CLOSED)
+            if (ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::CLOSED)
             {
                 // Reuse normal close path so in-flight chunks are re-queued safely.
                 ScopedUnlock unlock(lk);
@@ -3643,7 +3646,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             }
         }
 
-        if (ws->readyState == WsConn::ReadyState::CLOSED)
+        if (ws->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::CLOSED)
         {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(this,
@@ -3895,7 +3898,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 #endif
     }
 
-    if (ws->readyState != WsConn::ReadyState::CLOSED)
+    if (ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::CLOSED)
     {
         ScopedUnlock unlock(lk);
         ws->closeWS();

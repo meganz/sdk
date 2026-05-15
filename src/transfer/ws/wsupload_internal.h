@@ -250,7 +250,12 @@ struct WsConn
         CLOSING,
         CLOSED
     };
-    ReadyState readyState{ReadyState::CLOSED};
+    // Writes happen on the pool worker thread inside connectWS()/closeWS() which run
+    // under ScopedUnlock (uploadMutex released during the blocking handshake/close).
+    // Cross-thread reads happen on the engine run thread under uploadMutex
+    // (countOpenConnectionsLocked, sendChunk). Used as a value, not a synchronisation
+    // signal: relaxed atomic suffices and adds zero hot-path overhead on x86/ARM64.
+    std::atomic<ReadyState> readyState{ReadyState::CLOSED};
 
     WsBuf mBufs[2];
     char mCurBuf{0};
@@ -499,7 +504,7 @@ struct WsPool
         unsigned openConnections = 0;
         for (const auto* conn: mConns)
         {
-            if (conn && conn->readyState == WsConn::ReadyState::OPEN)
+            if (conn && conn->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN)
             {
                 ++openConnections;
             }
