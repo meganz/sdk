@@ -1,18 +1,23 @@
 /**
  * @file WsUploadDebugHelpers.h
  * @brief WS-upload DEBUG-only helpers: pool-state / stats fetchers, network-disconnect /
- *        engine-restart hooks. Gated under MEGASDK_DEBUG_TEST_HOOKS_ENABLED.
+ *        engine-restart hooks.
  *
  * Extracted from SdkTest_test.cpp anonymous-namespace helpers gated under
  * `#ifdef MEGA_USE_WSUPLOAD && MEGASDK_DEBUG_TEST_HOOKS_ENABLED`. Header-only inline.
+ *
+ * Since fu7-15 G2.a-2 (Option a — always-compile hook ABI), the file is
+ * UNGATED at the file scope. The 5 inline free functions are odr-used
+ * only from hooks-ON tests; the test fixtures runtime-gate their
+ * invocation behind WSUPLOAD_REQUIRE_TEST_HOOKS() which expands to
+ * GTEST_SKIP() in Release. Release builds carry ~150 LOC of dead inline-
+ * helper bodies linked in but never reached — negligible.
  *
  * Default `timeoutSeconds` values match SdkTest_test.h's `defaultTimeout = 60` constant
  * (inlined as a literal).
  */
 
 #pragma once
-
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 #include "megaapi.h"
 #include "megaapi_impl.h"
@@ -200,5 +205,3 @@ inline bool restartWsUploadEngineForTesting(::mega::MegaApi& api, int timeoutSec
 }
 
 } // namespace mega::test::wsupload
-
-#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED

@@ -4189,15 +4189,17 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
-#ifndef NDEBUG
-        // Test-only helper to access the internal MegaClient instance.
+        // Test-only helpers: since fu7-15 G2.a-2 (Option a — always-compile
+        // hook ABI), these wrappers are unconditionally available so that
+        // header-only test helpers (WsUploadDebugHelpers.h) can be compiled
+        // in Release. Production callers do not exist; the wrappers expose
+        // the internal MegaClient + executeOnThread path. Release impact:
+        // 2 always-inline accessor bodies linked in, never invoked.
         MegaClient* getClientForTesting() const { return client; }
-        // Test-only helper to execute work on the MegaApiImpl thread.
         void executeOnThreadForTesting(std::shared_ptr<ExecuteOnce> request)
         {
             executeOnThread(std::move(request));
         }
-#endif // !NDEBUG
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
