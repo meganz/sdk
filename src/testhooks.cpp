@@ -24,7 +24,11 @@
 
 namespace mega
 {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    // fu7-15 G2.a-1: always-compile MegaTestHooks struct. The struct
+    // definition and this storage are unconditionally present so the
+    // hook-install ABI is identical across NDEBUG and non-NDEBUG. Only
+    // the DEBUG_TEST_HOOK_* macros in include/mega/testhooks.h remain
+    // gated on MEGASDK_DEBUG_TEST_HOOKS_ENABLED, so Release builds emit
+    // zero instructions at SDK-side hook call sites.
     MegaTestHooks globalMegaTestHooks;
-#endif
 }

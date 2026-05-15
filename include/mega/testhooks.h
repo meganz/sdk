@@ -41,7 +41,15 @@ namespace mega {
 #ifndef NDEBUG
     #define MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 #endif
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+
+    // Forward declarations, enum, sub-struct, MegaTestHooks struct, and the
+    // globalMegaTestHooks extern are ALWAYS compiled (since fu7-15 G2.a-1).
+    // Only the DEBUG_TEST_HOOK_* macros below are gated on
+    // MEGASDK_DEBUG_TEST_HOOKS_ENABLED — they expand to nothing in Release.
+    // This keeps the struct ABI-stable across NDEBUG/non-NDEBUG, so test
+    // code (and helpers like WsUploadDebugHelpers.h) can reference the
+    // fields under both configurations; assignment in Release is a no-op
+    // because the macro at the SDK call site emits zero instructions.
 
     struct MEGA_API HttpReq;
     class MEGA_API RaidBufferManager;
@@ -377,6 +385,8 @@ namespace mega {
     };
 
     extern MegaTestHooks globalMegaTestHooks;
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
     // O-13: all DEBUG_TEST_HOOK_* macros below use the copy-under-lock / invoke-outside-lock
     // idiom. They take a local copy of the std::function while holding globalMegaTestHooks.mMutex,
