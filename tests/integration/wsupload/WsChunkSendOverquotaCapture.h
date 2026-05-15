@@ -36,7 +36,6 @@ public:
         : mShared(std::make_shared<Shared>())
         , mTargetTag(targetTransferTag)
     {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         auto shared = mShared;
         const int filterTag = mTargetTag;
         std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
@@ -53,15 +52,12 @@ public:
             shared->cv.notify_all();
             return true;
         };
-#endif
     }
 
     ~WsChunkSendOverquotaCapture()
     {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
         ::mega::globalMegaTestHooks.onWsChunkSendOverquota = nullptr;
-#endif
     }
 
     WsChunkSendOverquotaCapture(const WsChunkSendOverquotaCapture&) = delete;

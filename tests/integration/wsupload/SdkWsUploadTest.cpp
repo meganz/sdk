@@ -611,9 +611,8 @@ TEST_F(SdkWsUploadTest, CancelledPinnedPoolRetiresAfterTransferRemoval)
     LOG_info << "___TEST SdkWsUploadCancelledPinnedPoolRetiresAfterTransferRemoval___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_pinned_pool_retire_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -767,7 +766,6 @@ TEST_F(SdkWsUploadTest, CancelledPinnedPoolRetiresAfterTransferRemoval)
         << " retiring=" << lastObservedReferenceState.retiring
         << " activeThreads=" << lastObservedReferenceState.activeThreads
         << " exitingThreads=" << lastObservedReferenceState.exitingThreads << "]";
-#endif
 }
 
 /**
@@ -782,9 +780,8 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
     LOG_info << "___TEST SdkWsUploadActivePoolUsesParallelConnections___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_parallel_conn_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -879,7 +876,6 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
 
     ASSERT_EQ(API_OK, ut.waitForResult(240))
         << "Upload did not complete after parallel in-flight verification";
-#endif
 }
 
 /**
@@ -894,9 +890,8 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
     LOG_info << "___TEST SdkWsUploadRetryAfterHandshakeFailureRestartsTransferStart___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     // Step 1: start upload and capture active WS session URL.
     const std::string fileName =
         "ws_retry_handshake_" +
@@ -1115,7 +1110,6 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
 
     ASSERT_TRUE(uploadedNode)
         << "Upload completed locally but the uploaded node was not visible in the cloud";
-#endif
 }
 
 /**
@@ -3092,9 +3086,8 @@ TEST_F(SdkWsUploadTest, DropCompletionDoesNotBlockOthersInSamePool)
     LOG_info << "___TEST SdkWsUploadDropCompletionDoesNotBlockOthersInSamePool___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileA =
         "ws_drop_completion_A_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3193,7 +3186,6 @@ TEST_F(SdkWsUploadTest, DropCompletionDoesNotBlockOthersInSamePool)
     // Step 4: require B to complete while A completion remains dropped.
     const auto resultB = trackerB.waitForResult(300);
     ASSERT_EQ(resultB, API_OK) << "Transfer B did not complete";
-#endif
 }
 
 /**
@@ -3208,9 +3200,8 @@ TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
     LOG_info << "___TEST SdkWsUploadInvalidCompletionTokenTriggersRetry___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_invalid_completion_token_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3303,7 +3294,6 @@ TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -3322,9 +3312,8 @@ TEST_F(SdkWsUploadTest, FailThenRetryWithAnotherQueuedTransfer)
     LOG_info << "___TEST SdkWsUploadFailThenRetryWithAnotherQueuedTransfer___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileA =
         "ws_fail_reenqueue_A_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3432,7 +3421,6 @@ TEST_F(SdkWsUploadTest, FailThenRetryWithAnotherQueuedTransfer)
     ASSERT_TRUE(cloudNodeB) << "Uploaded file B not found in cloud";
     ASSERT_EQ(cloudNodeA->getSize(), static_cast<int64_t>(fileSize));
     ASSERT_EQ(cloudNodeB->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -3447,9 +3435,8 @@ TEST_F(SdkWsUploadTest, DropChunkIngestedAckStillCompletes)
     LOG_info << "___TEST SdkWsUploadDropChunkIngestedAckStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_drop_chunk_ack_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3509,7 +3496,6 @@ TEST_F(SdkWsUploadTest, DropChunkIngestedAckStillCompletes)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -3526,9 +3512,8 @@ TEST_F(SdkWsUploadTest, ThrottleEventStillCompletes)
     LOG_info << "___TEST SdkWsUploadThrottleEventStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_throttle_event_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3670,7 +3655,6 @@ TEST_F(SdkWsUploadTest, ThrottleEventStillCompletes)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -3686,9 +3670,8 @@ TEST_F(SdkWsUploadTest, AlreadyOnServerEventStillCompletes)
     LOG_info << "___TEST SdkWsUploadAlreadyOnServerEventStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_already_on_server_event_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3757,7 +3740,6 @@ TEST_F(SdkWsUploadTest, AlreadyOnServerEventStillCompletes)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -3780,9 +3762,8 @@ TEST_F(SdkWsUploadTest, B8ThrottleDuringSaturatedInFlightCompletes)
     LOG_info << "___TEST SdkWsUploadB8ThrottleDuringSaturatedInFlightCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_b8_throttle_saturated_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -3873,7 +3854,6 @@ TEST_F(SdkWsUploadTest, B8ThrottleDuringSaturatedInFlightCompletes)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -3899,9 +3879,8 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
     LOG_info << "___TEST SdkWsUploadB9ClosedThrottleReconnectPacing___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_b9_closed_throttle_reconnect_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -4059,7 +4038,6 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -4075,9 +4053,8 @@ TEST_F(SdkWsUploadTest, NegativeServerEventRetriesAndCompletes)
     LOG_info << "___TEST SdkWsUploadNegativeServerEventRetriesAndCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_negative_server_event_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -4164,7 +4141,6 @@ TEST_F(SdkWsUploadTest, NegativeServerEventRetriesAndCompletes)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -4181,9 +4157,8 @@ TEST_F(SdkWsUploadTest, CrcFailureRetryStillCompletes)
     LOG_info << "___TEST SdkWsUploadCrcFailureRetryStillCompletes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_crc_failure_retry_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -4243,7 +4218,6 @@ TEST_F(SdkWsUploadTest, CrcFailureRetryStillCompletes)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 /**
@@ -4264,9 +4238,8 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     LOG_info << "___TEST SdkWsUploadDistressRetiresPoolWithoutRestartingInFlightUpload___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
-#else
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
     const std::string fileName =
         "ws_distress_refresh_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
@@ -4428,7 +4401,6 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
-#endif
 }
 
 #endif // defined(DEBUG)

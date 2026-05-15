@@ -47,7 +47,6 @@ public:
         : mShared(std::make_shared<Shared>())
         , mInvalidPinnedUrl(std::move(invalidPinnedUrl))
     {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         auto shared = mShared;
         const std::string filterUrl = mInvalidPinnedUrl;
         std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
@@ -73,15 +72,12 @@ public:
                 shared->cv.notify_all();
             }
         };
-#endif
     }
 
     ~WsSessionUrlTransitionCapture()
     {
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
         ::mega::globalMegaTestHooks.onWsSessionUrlTransition = nullptr;
-#endif
     }
 
     WsSessionUrlTransitionCapture(const WsSessionUrlTransitionCapture&) = delete;
