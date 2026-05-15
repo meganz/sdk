@@ -176,7 +176,12 @@ public:
     // Set desired WS per-transfer upload concurrency (worker threads per non-pinned pool).
     void setMaxConnections(unsigned char maxConnections);
 
-#ifndef NDEBUG
+    // Test-only types + accessors below were #ifndef NDEBUG-gated until fu7-15 G2.a:
+    // making them always-compile is required so tests/integration/wsupload/
+    // WsUploadDebugHelpers.h can include this header in hooks-OFF builds (where
+    // WSUPLOAD_REQUIRE_TEST_HOOKS() expands to GTEST_SKIP at runtime, but the body
+    // must still compile). Release-build code-segment cost: ~80 LOC of dead types
+    // and forwarder bodies, never reached at runtime.
     struct PoolStateForTesting
     {
         bool found = false;
@@ -251,7 +256,7 @@ public:
     bool getWsUploadStatsForTesting(WsUploadStatsForTesting& out) const;
     bool isTrackedForTesting(const Transfer& t) const;
     std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;
-#endif
+
     // Set desired WS upload speed limit in bytes per second (<=0 means unlimited).
     void setMaxUploadSpeed(m_off_t bytesPerSecond);
 

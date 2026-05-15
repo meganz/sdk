@@ -1504,12 +1504,16 @@ public:
         return it->second->getCurrentSessionUrl(outUrl);
     }
 
-#ifndef NDEBUG
+    // fu7-15 G2.a-3: signatures always-compile so WsUploadDebugHelpers.h can include
+    // this header in hooks-OFF builds. Bodies internally gate via
+    // MEGASDK_DEBUG_TEST_HOOKS_ENABLED — in hooks-OFF they return a default-constructed
+    // out with `found=false`, since the NDEBUG-only internal counters they would
+    // otherwise read are not compiled in.
     bool getPoolStateForTesting(const std::string& url,
                                 UploadEngine::PoolStateForTesting& out) const
     {
         out = {};
-
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         std::lock_guard<std::mutex> g(uploadMutex);
         auto populateState = [&out](const WsPool& pool)
         {
@@ -1554,12 +1558,16 @@ public:
         }
 
         return false;
+#else
+        (void)url;
+        return false;
+#endif
     }
 
     bool getWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& out) const
     {
         out = {};
-
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         std::lock_guard<std::mutex> g(uploadMutex);
         out.found = true;
         for (const auto& poolPtr: poolMgr.mPools)
@@ -1571,6 +1579,9 @@ public:
         }
 
         return true;
+#else
+        return false;
+#endif
     }
 
     bool isTrackedForTesting(const Transfer& t) const
@@ -1589,7 +1600,6 @@ public:
         }
         return 0;
     }
-#endif
 
     void invalidatePinnedSessionUrl(const std::string& url)
     {
@@ -4334,7 +4344,7 @@ bool UploadEngine::getTransferStats(const Transfer& t, UploadEngine::WsTransferS
     return pImpl->getTransferStats(t, stats);
 }
 
-#ifndef NDEBUG
+// fu7-15 G2.a-3: forwarders always-compile; see wsupload.h note above.
 bool UploadEngine::getPoolStateForTesting(const std::string& url,
                                           UploadEngine::PoolStateForTesting& out) const
 {
@@ -4355,7 +4365,6 @@ std::uintptr_t UploadEngine::getFilePoolIdForTesting(Transfer& t) const
 {
     return pImpl->getFilePoolIdForTesting(t);
 }
-#endif
 
 void UploadEngine::kick()
 {
