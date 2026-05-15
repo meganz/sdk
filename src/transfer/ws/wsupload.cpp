@@ -3923,56 +3923,12 @@ void WsPool::checkThreads()
 }
 
 // ========== WsPoolMgr ==========
-void WsPoolMgr::curlIO(std::unique_lock<std::mutex>& lk)
-{
-    // Refresh runs via CommandUSCForWsUpload + queueCommand + wsPostToClientThread
-    // (see refreshPools()); no curl-easy handles are ever added to `curlm` on the live
-    // path, so the perform/info-read drain here is a no-op in practice. The shell is
-    // kept to preserve the manager-thread cadence and to allow a future live consumer
-    // to slot handles in without reintroducing scaffolding.
-    int still_running = 0, msgs_left = 0;
-    curl_multi_perform(curlm, &still_running);
-
-    CURLMsg* msg;
-    while ((msg = curl_multi_info_read(curlm, &msgs_left)) != nullptr)
-    {
-        // Drain the message queue; no handlers are registered on `curlm` today.
-        (void)msg;
-    }
-
-    // Don't hold the engine mutex while blocking in curl I/O.
-    {
-        ScopedUnlock unlock(lk);
-        (void)curl_multi_poll(curlm, nullptr, 0, WSUPLOAD_CURL_MULTI_POLL_MS, nullptr);
-    }
-}
-
-void WsPoolMgr::ensurePinnedPool(const std::string& url)
-{
-    if (!mImpl || url.empty())
-    {
-        return;
-    }
-
-    for (const auto& pool: mPools)
-    {
-        if (pool && pool->mPinned && !pool->mRetiring && pool->mUrl == url)
-        {
-            return;
-        }
-    }
-
-    // Create a dedicated pool that will only serve transfers pinned to this session URL.
-    auto pool = std::make_unique<WsPool>(std::make_pair(url, static_cast<m_off_t>(0)),
-                                         0,
-                                         mImpl,
-                                         mImpl->poolConnectionLimit());
-    pool->mPinned = true;
-    mPools.emplace_back(std::move(pool));
-
-    bumpAllPools(SteadyTime::ds());
-}
-
+// WsPoolMgr::curlIO and WsPoolMgr::ensurePinnedPool bodies live in the sibling
+// translation unit src/transfer/ws/ws_curl.cpp; they only depend on the helpers
+// exposed via wsupload_internal.h (WsPool, SteadyTime, ScopedUnlock,
+// WSUPLOAD_CURL_MULTI_POLL_MS) plus the pinnedPoolConnectionLimit() forwarding
+// helper defined at the bottom of this file so the .cpp split does not have to
+// pull in the full UploadEngine::Impl definition.
 void WsPoolMgr::markPoolRetiring(WsPool& pool)
 {
     if (pool.mRetiring)
@@ -4290,6 +4246,15 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
 
     bumpAllPools(now);
     LOG_info << "WsUpload: refreshed pools (" << apiSizeClasses.size() << " size classes)";
+}
+
+// Forwarding helper for ws_curl.cpp. Lives here because UploadEngine::Impl is
+// only fully defined in this translation unit; declaring the method on
+// WsPoolMgr lets sibling TUs query the pool-connection limit without pulling
+// the Impl definition into ws_pool_mgr.h.
+unsigned char WsPoolMgr::pinnedPoolConnectionLimit() const
+{
+    return mImpl->poolConnectionLimit();
 }
 
 // ========== UploadEngine (public facade) ==========

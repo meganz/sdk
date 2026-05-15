@@ -109,6 +109,11 @@ struct WsPoolMgr
 
     void bumpLastNetRead(const dstime now);
     void bumpAllPools(const dstime now);
+
+    // Forwarding helper so sibling TUs (ws_curl.cpp) can query connection
+    // limits without pulling in UploadEngine::Impl's full definition. Body
+    // lives in src/transfer/ws/wsupload.cpp where Impl is visible.
+    unsigned char pinnedPoolConnectionLimit() const;
 };
 
 } // namespace ws
