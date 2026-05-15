@@ -3940,6 +3940,13 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
                      6,
                      std::nullopt,
                      kInjectedThrottleMs);
+    // fu7-15 G2.b: drop server event=5 Distress for the test's duration. Staging can
+    // emit Distress in the same curlRecv batch as the rewritten ChunkIngested ACK;
+    // Distress fires refreshPools() and the USC reply marks the throttled pool retiring
+    // before the worker can record 3 reconnect attempts. See followup7-15/Goal0_audit/
+    // b9_macos_rca.md for the full RCA.
+    constexpr int kDistressEvent = 5;
+    evHook.configureSecondaryDrop(kDistressEvent);
 
     // The target pool whose worker we want to observe — captured at force-close
     // time. Without scoping the reconnect + handshake hooks to this pool, an

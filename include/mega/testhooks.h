@@ -78,6 +78,8 @@ namespace mega {
             fileno = other.fileno;
             maxHits = other.maxHits;
             hitCount = other.hitCount;
+            secondaryDropEvent = other.secondaryDropEvent;
+            secondaryDropHits = other.secondaryDropHits;
         }
 
         WsUploadServerEventHook& operator=(WsUploadServerEventHook&& other) noexcept
@@ -95,6 +97,8 @@ namespace mega {
             fileno = other.fileno;
             maxHits = other.maxHits;
             hitCount = other.hitCount;
+            secondaryDropEvent = other.secondaryDropEvent;
+            secondaryDropHits = other.secondaryDropHits;
             return *this;
         }
 
@@ -115,6 +119,18 @@ namespace mega {
             hitCount = 0;
         }
 
+        // Secondary unconditional Drop rule: independent of the primary Modify/Drop
+        // configure() above. Matches any inbound event whose id equals eventIdIn,
+        // regardless of fileno or primary rule state. Used by B9 to suppress
+        // out-of-band server event=5 Distress frames that would otherwise retire
+        // the throttled pool mid-test.
+        void configureSecondaryDrop(int eventIdIn)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            secondaryDropEvent = eventIdIn;
+            secondaryDropHits = 0;
+        }
+
         void reset()
         {
             std::lock_guard<std::mutex> g(mMutex);
@@ -125,6 +141,8 @@ namespace mega {
             fileno.reset();
             maxHits = 1;
             hitCount = 0;
+            secondaryDropEvent.reset();
+            secondaryDropHits = 0;
         }
 
         int getHitCount() const
@@ -133,11 +151,27 @@ namespace mega {
             return hitCount;
         }
 
+        int getSecondaryDropHits() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return secondaryDropHits;
+        }
+
         WsUploadServerEventAction evaluate(const std::uint32_t filenoIn,
                                            int& eventInOut,
                                            m_off_t& chunkPosInOut)
         {
             std::lock_guard<std::mutex> g(mMutex);
+
+            // Secondary Drop rule runs first and is independent of the primary
+            // action — needed so B9 can drop event=5 Distress while still
+            // running a one-shot Modify on event=1.
+            if (secondaryDropEvent.has_value() && *secondaryDropEvent == eventInOut)
+            {
+                ++secondaryDropHits;
+                return WsUploadServerEventAction::Drop;
+            }
+
             if (action == WsUploadServerEventAction::None || sourceEvent != eventInOut ||
                 (fileno.has_value() && *fileno != filenoIn) ||
                 (maxHits != 0 && hitCount >= maxHits))
@@ -169,6 +203,8 @@ namespace mega {
         std::optional<std::uint32_t> fileno;
         int maxHits = 1;
         int hitCount = 0;
+        std::optional<int> secondaryDropEvent;
+        int secondaryDropHits = 0;
     };
 
     struct MegaTestHooks
