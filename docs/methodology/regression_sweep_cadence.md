@@ -119,3 +119,105 @@ Record per-cell outcomes in the Goal directory:
 
 This table belongs in `Goal5_final_regression_sweep_v<N>/fu7_N_final.md`
 and is the basis of the Verdict's "Goal 5 sweep result" line.
+
+## HR50 — Shell-detachment mitigation for long-running children
+
+Triggered by: agent-driven launches of `test_integration` (or any
+binary expected to run >2 minutes) under `bash &` /
+`run_in_background`.
+
+Mandatory: use `setsid` (or `nohup` on macOS-style systems lacking
+`util-linux`'s `setsid`) so the child becomes its own session leader
+(`SID == PID`, `PPID == 1` after wrapper exit). The launching agent
+must verify with `ps -o pid,ppid,sid,pgid -p <pid>` before declaring
+the run "started."
+
+Failure mode if skipped: the child shares the launching shell's
+session. When the shell is reaped — by agent harness timeout, session
+reset, or any external cleanup — the kernel sends SIGHUP to the
+process group. Default action is `Term` (terminate without core
+dump). The process vanishes with NO crash markers (FATAL / SEGV /
+abort), NO OOM in `dmesg`, NO journalctl session-scope teardown. The
+launching agent's `run_in_background` task reports "completed" but
+the test never finished.
+
+Observed at: SDK-5360 fu7-17 Failure 2 (`pid_996793`, 2026-05-18
+22:26:47 UTC), MN test killed mid-enqueue at file 10,941/16,000 after
+~1 minute, ~4 hours of wall budget consumed before detection.
+
+### Canonical wrapper
+
+```bash
+# Required: env vars set in the SAME bash invocation as the launch
+fu_run() {
+  local FILTER="$1"
+  local REPEAT="${2:-1}"
+  local LABEL="${3:-unlabeled}"
+  local BUILD="${4:-build-sdk-dev-unix-wsupload}"
+  local STDOUT_LOG=/tmp/fu_${LABEL}.log
+
+  setsid bash -c "
+    cd ~/repo/${BUILD}/tests/integration
+    source ./environment2.txt
+    if [[ -z \"\$MEGA_PWD\" ]]; then
+      echo 'FATAL: MEGA_PWD not set after sourcing environment2.txt' >&2
+      exit 99
+    fi
+    exec ./test_integration --CI --COUT --USERAGENT:JenkinsCanSpam-SDK \\
+      --gtest_filter=\"$FILTER\" --gtest_repeat=$REPEAT
+  " </dev/null >"$STDOUT_LOG" 2>&1 &
+  disown
+
+  sleep 4
+  local PID
+  PID=$(ps -eo pid,args | awk -v f="$FILTER" '$2 ~ /test_integration$/ && $0 ~ ("--gtest_filter="f) {print $1; exit}')
+  [[ -n "$PID" ]] || { echo "FATAL: child not launched"; return 1; }
+
+  local SID PPID_VAL
+  SID=$(ps -o sid= -p $PID | tr -d ' ')
+  PPID_VAL=$(ps -o ppid= -p $PID | tr -d ' ')
+
+  if [[ "$SID" != "$PID" ]]; then
+    echo "FATAL: SID=$SID != PID=$PID; setsid failed"
+    return 2
+  fi
+
+  echo "OK: $LABEL launched PID=$PID PPID=$PPID_VAL SID=$SID log=$STDOUT_LOG"
+  echo "$PID"
+}
+```
+
+### Watchdog
+
+```bash
+PID=<from fu_run>
+PID_LOG="${HOME}/mega_tests/pid_${PID}/test_integration.log"
+STDOUT_LOG=/tmp/fu_<label>.log
+
+while true; do
+  if [[ ! -d /proc/$PID ]]; then
+    grep -qE "PASS|GTEST: PASSED|\[       OK \]" "$STDOUT_LOG" && { echo DONE_PASS; break; }
+    grep -qE "FAIL|GTEST: FAILED|\[  FAILED  \]" "$STDOUT_LOG" && { echo DONE_FAIL; break; }
+    echo "VANISHED — re-verify SID/PPID and consider HR50 wrapper bug"
+    break
+  fi
+  sleep 30
+done
+```
+
+For MN cells specifically, enforce the HR40 + HR47 90-min watchdog
+cap.
+
+### Scope and exceptions
+
+Required for: `test_integration` cells expected to run >2 min,
+specifically MN, B9 stress, SLU multi-iter, IP, the
+`SdkWsUploadTest.*` sweep, and any HR38 cell.
+
+NOT required for: short utility commands (cmake build,
+`--gtest_list_tests`, env sanity checks) that finish before the
+launching shell can be reaped.
+
+Jenkins-driven launches already detach via Jenkins's own process
+management — HR50 applies primarily to **agent-driven** launches, not
+Jenkins-driven.

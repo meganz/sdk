@@ -43,6 +43,7 @@ stable references in session reports and Verdicts.
 | HR47 | Agent wait budget ≥90 min | Long-running tests (MN n=5, full SLU n=15, full WS-other sweep) get ≥90 min agent wait budget. | fu7-15's 60-min budget killed MN iter 4 mid-run; HR47 prevents the batch-stitch fallback. | fu7-16 |
 | HR48 | Defer only with measured wall | Defer rationale must include a measured wall estimate (not "TBD"). | Unmeasured defers accumulate into vague backlog items. | fu7-17 |
 | HR49 | Jenkins green before push | All Jenkins MR stages (Linux/macOS/Windows + bench + tsan when triggered) must be green before user push. | Push-then-revert cycles waste user time; the gate is the MR build, not local-only. | fu7-17 |
+| HR50 | Shell-detachment mitigation | Long-running test children launched by agents MUST use `setsid` (or `nohup`) with explicit `SID == PID` + `PPID == 1` verification before declaring the run "started." | Subshell reap (timeout, session reset) sends SIGHUP to non-detached children → silent termination, no crash markers. | fu7-17-2 (Failure 2 RCA, pid_996793) |
 
 ## Reading the catalog
 
@@ -55,6 +56,8 @@ stable references in session reports and Verdicts.
 - **Hygiene / documentation**: HR16 (push protocol), HR22 (skip
   audit), HR30 (path scrub), HR36 (carry-forward), HR48 (measured
   defer), HR49 (Jenkins green).
+- **Process management**: HR50 (setsid for agent-driven long-running
+  children).
 
 ## Adding HR50+
 
