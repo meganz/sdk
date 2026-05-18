@@ -160,40 +160,6 @@ TEST_F(SdkWsUploadTest, SampledByteCorrectness)
 }
 
 /**
- * @brief TEST_F SdkResumableTrasfers
- *
- * Tests resumption for file upload and download.
- */
-TEST_F(SdkTest, SdkResumableTrasfers)
-{
-    auto genStr = [](const size_t len) -> std::string
-    {
-        const std::string base = std::to_string(len) + " MB test file. ";
-        std::string result;
-        result.reserve(len);
-
-        while (result.size() < len)
-        {
-            result += base;
-        }
-
-        result.resize(len);
-        return result;
-    };
-
-    // Note: testResumableTrasfers limits maxConnections and max Upload/Download speed
-    auto i = 0;
-    const std::map<size_t, size_t> files = {{16, 120}, {19, 240}, {24, 300}};
-    for (const auto& [fileSize, timeout]: files)
-    {
-        auto data = genStr(fileSize);
-        LOG_info << "___TEST Resumable Trasfers. Iteration (" << ++i << ") FileSize ("
-                 << data.size() << " MB)___";
-        ASSERT_NO_FATAL_FAILURE(testResumableTrasfers(data, timeout));
-    }
-}
-
-/**
  * @brief Verify WS resume keeps previous serialized metadata.
  *
  * - TEST1: Start throttled upload and capture serialized wsFileno/wsSessionUrl/pos..
@@ -1672,7 +1638,6 @@ TEST_F(SdkWsUploadTest, FileModifiedDuringTransfer)
     }
 }
 
-#if defined(DEBUG)
 /**
  * @brief Verify same-instance WS engine stop/start does not stall an active upload.
  *
@@ -4402,7 +4367,5 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
 }
-
-#endif // defined(DEBUG)
 
 } // namespace mega::test::wsupload
