@@ -291,6 +291,64 @@ static void logBenchProcessStatsDelta(const char* tag,
              << " sysCpuMs=" << (end.sysCpuMs - start.sysCpuMs);
 }
 
+static void logBenchWsStats(SdkTest& test, const size_t fileCount)
+{
+#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
+    ws::UploadEngine::WsUploadStatsForTesting stats;
+    if (fetchWsUploadStatsForTesting(*test.megaApi[0], stats, 5) && stats.found)
+    {
+        LOG_info << "[WsUploadStats] files=" << fileCount
+                 << " pools=" << stats.poolCount
+                 << " uploadingFileOccupiedMs=" << stats.uploadingFileOccupiedMs
+                 << " lastAckToNextFirstByteSamples="
+                 << stats.lastAckToNextFirstByteSamples
+                 << " lastAckToNextFirstByteTotalMs="
+                 << stats.lastAckToNextFirstByteTotalMs
+                 << " lastAckToNextFirstByteMaxMs=" << stats.lastAckToNextFirstByteMaxMs
+                 << " allChunksInFlightBlockedMs=" << stats.allChunksInFlightBlockedMs
+                 << " eligibleFileSampleCount=" << stats.eligibleFileSampleCount
+                 << " blockedByInFlightSampleCount="
+                 << stats.blockedByInFlightSampleCount
+                 << " idleEligibleConnectionMs=" << stats.idleEligibleConnectionMs
+                 << " idleEligibleConnectionSampleCount="
+                 << stats.idleEligibleConnectionSampleCount
+                 << " curlAgainSendCount=" << stats.curlAgainSendCount
+                 << " curlAgainRecvCount=" << stats.curlAgainRecvCount
+                 << " haveSpaceFalseIters=" << stats.haveSpaceFalseIters
+                 << " haveSpaceFalseWaitMs=" << stats.haveSpaceFalseWaitMs
+                 << " readyForDataFalseIters=" << stats.readyForDataFalseIters
+                 << " readyForDataFalseWaitMs=" << stats.readyForDataFalseWaitMs
+                 << " throttleSleepIters=" << stats.throttleSleepIters
+                 << " throttleSleepMs=" << stats.throttleSleepMs
+                 << " backlogEmptyIters=" << stats.backlogEmptyIters
+                 << " backlogEmptyMs=" << stats.backlogEmptyMs
+                 << " bufferedAmountHighWater=" << stats.bufferedAmountHighWater
+                 << " chunksInFlightHighWater=" << stats.chunksInFlightHighWater
+                 << " chunkPrepTotalMs=" << stats.chunkPrepTotalMs
+                 << " chunkPrepMaxMs=" << stats.chunkPrepMaxMs
+                 << " chunkPrepN=" << stats.chunkPrepN
+                 << " throttleEventCount=" << stats.throttleEventCount
+                 << " throttleEventMinDs=" << stats.throttleEventMinDs
+                 << " throttleEventMaxDs=" << stats.throttleEventMaxDs
+                 << " throttleEventMeanDs=" << (stats.throttleEventCount ? static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount) : 0.0)
+                 << " throttleEventStdevDs=" << (stats.throttleEventCount > 1 ? std::sqrt(static_cast<double>(stats.throttleEventSumSqDs) / static_cast<double>(stats.throttleEventCount) - std::pow(static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount), 2.0)) : 0.0)
+                 << " throttleBucket0to1s=" << stats.throttleBucket0to1s
+                 << " throttleBucket1to5s=" << stats.throttleBucket1to5s
+                 << " throttleBucket5to30s=" << stats.throttleBucket5to30s
+                 << " throttleBucket30sPlus=" << stats.throttleBucket30sPlus
+                 << " throttleEventCode6=" << stats.throttleEventCodeCounts[6]
+                 << " simulThrottledConnsMax=" << stats.simultaneousThrottledConnsMax
+                 << " simulThrottledConnsMean=" << (stats.simultaneousThrottledConnsSamples ? static_cast<double>(stats.simultaneousThrottledConnsSum) / static_cast<double>(stats.simultaneousThrottledConnsSamples) : 0.0)
+                 << " throttleRecoveryAckSamples=" << stats.throttleRecoveryAckSamples
+                 << " throttleRecoveryAckMeanMs=" << (stats.throttleRecoveryAckSamples ? static_cast<double>(stats.throttleRecoveryAckTotalMs) / static_cast<double>(stats.throttleRecoveryAckSamples) : 0.0)
+                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs;
+    }
+#else
+    (void)test;
+    (void)fileCount;
+#endif
+}
+
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
 // Wires bench-runner results to the bench_framework JSON channel. Inert on builds
 // without MEGA_BENCH_FRAMEWORK_ENABLED.
@@ -437,57 +495,7 @@ void runSmallUploadsBenchmark(SdkTest& test,
     appendBenchTimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
-#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
-    ws::UploadEngine::WsUploadStatsForTesting stats;
-    if (fetchWsUploadStatsForTesting(*test.megaApi[0], stats, 5) && stats.found)
-    {
-        LOG_info << "[WsUploadStats] files=" << fileCount
-                 << " pools=" << stats.poolCount
-                 << " uploadingFileOccupiedMs=" << stats.uploadingFileOccupiedMs
-                 << " lastAckToNextFirstByteSamples="
-                 << stats.lastAckToNextFirstByteSamples
-                 << " lastAckToNextFirstByteTotalMs="
-                 << stats.lastAckToNextFirstByteTotalMs
-                 << " lastAckToNextFirstByteMaxMs=" << stats.lastAckToNextFirstByteMaxMs
-                 << " allChunksInFlightBlockedMs=" << stats.allChunksInFlightBlockedMs
-                 << " eligibleFileSampleCount=" << stats.eligibleFileSampleCount
-                 << " blockedByInFlightSampleCount="
-                 << stats.blockedByInFlightSampleCount
-                 << " idleEligibleConnectionMs=" << stats.idleEligibleConnectionMs
-                 << " idleEligibleConnectionSampleCount="
-                 << stats.idleEligibleConnectionSampleCount
-                 << " curlAgainSendCount=" << stats.curlAgainSendCount
-                 << " curlAgainRecvCount=" << stats.curlAgainRecvCount
-                 << " haveSpaceFalseIters=" << stats.haveSpaceFalseIters
-                 << " haveSpaceFalseWaitMs=" << stats.haveSpaceFalseWaitMs
-                 << " readyForDataFalseIters=" << stats.readyForDataFalseIters
-                 << " readyForDataFalseWaitMs=" << stats.readyForDataFalseWaitMs
-                 << " throttleSleepIters=" << stats.throttleSleepIters
-                 << " throttleSleepMs=" << stats.throttleSleepMs
-                 << " backlogEmptyIters=" << stats.backlogEmptyIters
-                 << " backlogEmptyMs=" << stats.backlogEmptyMs
-                 << " bufferedAmountHighWater=" << stats.bufferedAmountHighWater
-                 << " chunksInFlightHighWater=" << stats.chunksInFlightHighWater
-                 << " chunkPrepTotalMs=" << stats.chunkPrepTotalMs
-                 << " chunkPrepMaxMs=" << stats.chunkPrepMaxMs
-                 << " chunkPrepN=" << stats.chunkPrepN
-                 << " throttleEventCount=" << stats.throttleEventCount
-                 << " throttleEventMinDs=" << stats.throttleEventMinDs
-                 << " throttleEventMaxDs=" << stats.throttleEventMaxDs
-                 << " throttleEventMeanDs=" << (stats.throttleEventCount ? static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount) : 0.0)
-                 << " throttleEventStdevDs=" << (stats.throttleEventCount > 1 ? std::sqrt(static_cast<double>(stats.throttleEventSumSqDs) / static_cast<double>(stats.throttleEventCount) - std::pow(static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount), 2.0)) : 0.0)
-                 << " throttleBucket0to1s=" << stats.throttleBucket0to1s
-                 << " throttleBucket1to5s=" << stats.throttleBucket1to5s
-                 << " throttleBucket5to30s=" << stats.throttleBucket5to30s
-                 << " throttleBucket30sPlus=" << stats.throttleBucket30sPlus
-                 << " throttleEventCode6=" << stats.throttleEventCodeCounts[6]
-                 << " simulThrottledConnsMax=" << stats.simultaneousThrottledConnsMax
-                 << " simulThrottledConnsMean=" << (stats.simultaneousThrottledConnsSamples ? static_cast<double>(stats.simultaneousThrottledConnsSum) / static_cast<double>(stats.simultaneousThrottledConnsSamples) : 0.0)
-                 << " throttleRecoveryAckSamples=" << stats.throttleRecoveryAckSamples
-                 << " throttleRecoveryAckMeanMs=" << (stats.throttleRecoveryAckSamples ? static_cast<double>(stats.throttleRecoveryAckTotalMs) / static_cast<double>(stats.throttleRecoveryAckSamples) : 0.0)
-                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs;
-    }
-#endif
+    logBenchWsStats(test, fileCount);
 
     logBenchProcessStatsDelta(testName, procStatsStart, procStatsEnd);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
@@ -629,64 +637,6 @@ static void verifyUploadedFile(SdkTest& test,
     ASSERT_NE(uploadedNode, nullptr);
     ASSERT_STREQ(expectedName.c_str(), uploadedNode->getName());
     ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(expectedSize));
-}
-
-static void logBenchWsStats(SdkTest& test, const size_t fileCount)
-{
-#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
-    ws::UploadEngine::WsUploadStatsForTesting stats;
-    if (fetchWsUploadStatsForTesting(*test.megaApi[0], stats, 5) && stats.found)
-    {
-        LOG_info << "[WsUploadStats] files=" << fileCount
-                 << " pools=" << stats.poolCount
-                 << " uploadingFileOccupiedMs=" << stats.uploadingFileOccupiedMs
-                 << " lastAckToNextFirstByteSamples="
-                 << stats.lastAckToNextFirstByteSamples
-                 << " lastAckToNextFirstByteTotalMs="
-                 << stats.lastAckToNextFirstByteTotalMs
-                 << " lastAckToNextFirstByteMaxMs=" << stats.lastAckToNextFirstByteMaxMs
-                 << " allChunksInFlightBlockedMs=" << stats.allChunksInFlightBlockedMs
-                 << " eligibleFileSampleCount=" << stats.eligibleFileSampleCount
-                 << " blockedByInFlightSampleCount="
-                 << stats.blockedByInFlightSampleCount
-                 << " idleEligibleConnectionMs=" << stats.idleEligibleConnectionMs
-                 << " idleEligibleConnectionSampleCount="
-                 << stats.idleEligibleConnectionSampleCount
-                 << " curlAgainSendCount=" << stats.curlAgainSendCount
-                 << " curlAgainRecvCount=" << stats.curlAgainRecvCount
-                 << " haveSpaceFalseIters=" << stats.haveSpaceFalseIters
-                 << " haveSpaceFalseWaitMs=" << stats.haveSpaceFalseWaitMs
-                 << " readyForDataFalseIters=" << stats.readyForDataFalseIters
-                 << " readyForDataFalseWaitMs=" << stats.readyForDataFalseWaitMs
-                 << " throttleSleepIters=" << stats.throttleSleepIters
-                 << " throttleSleepMs=" << stats.throttleSleepMs
-                 << " backlogEmptyIters=" << stats.backlogEmptyIters
-                 << " backlogEmptyMs=" << stats.backlogEmptyMs
-                 << " bufferedAmountHighWater=" << stats.bufferedAmountHighWater
-                 << " chunksInFlightHighWater=" << stats.chunksInFlightHighWater
-                 << " chunkPrepTotalMs=" << stats.chunkPrepTotalMs
-                 << " chunkPrepMaxMs=" << stats.chunkPrepMaxMs
-                 << " chunkPrepN=" << stats.chunkPrepN
-                 << " throttleEventCount=" << stats.throttleEventCount
-                 << " throttleEventMinDs=" << stats.throttleEventMinDs
-                 << " throttleEventMaxDs=" << stats.throttleEventMaxDs
-                 << " throttleEventMeanDs=" << (stats.throttleEventCount ? static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount) : 0.0)
-                 << " throttleEventStdevDs=" << (stats.throttleEventCount > 1 ? std::sqrt(static_cast<double>(stats.throttleEventSumSqDs) / static_cast<double>(stats.throttleEventCount) - std::pow(static_cast<double>(stats.throttleEventTotalDs) / static_cast<double>(stats.throttleEventCount), 2.0)) : 0.0)
-                 << " throttleBucket0to1s=" << stats.throttleBucket0to1s
-                 << " throttleBucket1to5s=" << stats.throttleBucket1to5s
-                 << " throttleBucket5to30s=" << stats.throttleBucket5to30s
-                 << " throttleBucket30sPlus=" << stats.throttleBucket30sPlus
-                 << " throttleEventCode6=" << stats.throttleEventCodeCounts[6]
-                 << " simulThrottledConnsMax=" << stats.simultaneousThrottledConnsMax
-                 << " simulThrottledConnsMean=" << (stats.simultaneousThrottledConnsSamples ? static_cast<double>(stats.simultaneousThrottledConnsSum) / static_cast<double>(stats.simultaneousThrottledConnsSamples) : 0.0)
-                 << " throttleRecoveryAckSamples=" << stats.throttleRecoveryAckSamples
-                 << " throttleRecoveryAckMeanMs=" << (stats.throttleRecoveryAckSamples ? static_cast<double>(stats.throttleRecoveryAckTotalMs) / static_cast<double>(stats.throttleRecoveryAckSamples) : 0.0)
-                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs;
-    }
-#else
-    (void)test;
-    (void)fileCount;
-#endif
 }
 
 void runSingleLargeUploadBenchmark(SdkTest& test)

@@ -2,12 +2,9 @@
  * @file WsUscCommand.h
  * @brief Test helper for issuing the `usc` (USC size-class) command and parsing the response.
  *
- * Extracted from SdkTest_test.cpp anonymous-namespace helpers (CommandUscForTest +
- * fetchUscSizeClasses). The Command-derived class lives in the SDK's mega::Command
- * hierarchy; we keep both the class and the free function in mega::test::wsupload
- * so consumers can call fetchUscSizeClasses(...) directly. Implementations live in
- * WsUscCommand.cpp to avoid pulling SDK-internal headers (command.h, json.h) into
- * every consumer TU.
+ * Implementation routes through the production mega::CommandUSCForWsUpload parser
+ * (declared in mega/commands_ws.h) — no test-side reimplementation. Implementation
+ * lives in WsUscCommand.cpp to keep SDK-internal includes out of consumer TUs.
  */
 
 #pragma once
