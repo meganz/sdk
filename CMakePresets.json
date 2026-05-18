@@ -1,5 +1,5 @@
 {
-    "version": 2,
+    "version": 3,
     "configurePresets": [
         {
             "name": "default",
@@ -167,6 +167,106 @@
                 "dev",
                 "windows"
             ]
+        },
+        {
+            "name": "dev-windows-wsupload-benchOn",
+            "inherits": [
+                "dev",
+                "windows"
+            ],
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "MEGA_BENCH_FRAMEWORK_ENABLED": "ON"
+            }
+        },
+        {
+            "name": "dev-windows-strict",
+            "inherits": [
+                "dev",
+                "windows"
+            ],
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "environment": {
+                "CXXFLAGS": "/W4 /WX-"
+            }
+        },
+        {
+            "name": "dev-windows-hooks-off",
+            "inherits": [
+                "dev",
+                "windows"
+            ],
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Windows"
+            },
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
+        },
+        {
+            "name": "dev-macos",
+            "inherits": [
+                "dev",
+                "unix"
+            ],
+            "condition": {
+                "type": "equals",
+                "lhs": "${hostSystemName}",
+                "rhs": "Darwin"
+            }
+        },
+        {
+            "name": "dev-macos-wsupload-benchOn",
+            "inherits": [
+                "dev-macos"
+            ],
+            "cacheVariables": {
+                "MEGA_BENCH_FRAMEWORK_ENABLED": "ON"
+            }
+        },
+        {
+            "name": "dev-macos-tsan",
+            "inherits": [
+                "dev-macos"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug",
+                "ENABLE_TSAN": "ON"
+            }
+        },
+        {
+            "name": "dev-macos-strict",
+            "inherits": [
+                "dev-macos"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Debug"
+            },
+            "environment": {
+                "CXXFLAGS": "-Wmismatched-tags -Wsign-conversion -Wno-error=sign-conversion"
+            }
+        },
+        {
+            "name": "dev-macos-hooks-off",
+            "inherits": [
+                "dev-macos"
+            ],
+            "cacheVariables": {
+                "CMAKE_BUILD_TYPE": "Release"
+            }
         },
         {
             "name": "mega-android",
