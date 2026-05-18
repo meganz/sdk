@@ -1180,38 +1180,8 @@ inline bool WsUploadFile::getCurrentSessionUrl(std::string& outUrl) const
 
 // ---------- Pool manager (USC refresh + cURL multi) ----------
 // struct WsPoolMgr is declared in include/mega/transfer/ws/ws_pool_mgr.h.
-// Its method bodies (including the simple ctor/dtor + bumpLastNetRead /
-// bumpAllPools) are defined here in this TU so that the header stays
-// free of dependencies on the internal WsPool / SteadyTime types.
-
-WsPoolMgr::WsPoolMgr()
-{
-    curlm = curl_multi_init();
-}
-
-WsPoolMgr::~WsPoolMgr()
-{
-    if (curlm)
-    {
-        curl_multi_cleanup(curlm);
-        curlm = nullptr;
-    }
-}
-
-void WsPoolMgr::bumpLastNetRead(const dstime now)
-{
-    if (SteadyTime::difference(now, mLastNetRead) > 0)
-        mLastNetRead = now;
-}
-
-void WsPoolMgr::bumpAllPools(const dstime now)
-{
-    for (auto& p: mPools)
-    {
-        p->mLastActive = now;
-        p->mLastServerResponse = now;
-    }
-}
+// Its method bodies live in src/transfer/ws/ws_pool_mgr.cpp (fu7-16
+// Goal 2.Step1) and src/transfer/ws/ws_curl.cpp (fu7-14 G2.a-β).
 
 // ========== UploadEngine::Impl ==========
 // Definition lives in wsupload_engine.h to allow other WS-internal TUs to
@@ -2915,30 +2885,19 @@ void WsPool::checkThreads()
     }
 }
 
-// ========== WsPoolMgr ==========
-// WsPoolMgr::curlIO and WsPoolMgr::ensurePinnedPool bodies live in the sibling
-// translation unit src/transfer/ws/ws_curl.cpp; they only depend on the helpers
-// exposed via wsupload_internal.h (WsPool, SteadyTime, ScopedUnlock,
-// WSUPLOAD_CURL_MULTI_POLL_MS) plus the pinnedPoolConnectionLimit() forwarding
-// helper defined at the bottom of this file so the .cpp split does not have to
-// pull in the full UploadEngine::Impl definition.
-void WsPoolMgr::markPoolRetiring(WsPool& pool)
-{
-    if (pool.mRetiring)
-    {
-        return;
-    }
-
-    pool.mRetiring = true;
-    pool.setPoolNumConn(0);
-}
-
-bool WsPoolMgr::poolHasNoWork(const WsPool& pool) const
-{
-    return (pool.mNumPoolFiles == 0) && (pool.mUploadingFile == nullptr) &&
-           (pool.mNumChunksInFlight == 0) && pool.mToResend.empty();
-}
-
+// ========== WsPoolMgr (Impl/WsUploadFile-coupled remainder) ==========
+// Most WsPoolMgr method bodies live in sibling translation units:
+//  - src/transfer/ws/ws_pool_mgr.cpp (fu7-16 Goal 2.Step1): ctor/dtor,
+//    bumpLastNetRead, bumpAllPools, markPoolRetiring, poolHasNoWork,
+//    cleanupRetiringPools, applyRefreshBackoff.
+//  - src/transfer/ws/ws_curl.cpp (fu7-14 G2.a-β): curlIO, ensurePinnedPool.
+//
+// The bodies kept here all need UploadEngine::Impl members (which transitively
+// require WsUploadFile complete via wsupload_engine.h's inline accessors)
+// and/or WsUploadFile members directly. WsUploadFile is TU-local to this TU
+// until fu7-16 Goal 2.Step2 promotes its declaration to a header.
+// The header declaration for WsPoolMgr is in
+// include/mega/transfer/ws/ws_pool_mgr.h.
 bool WsPoolMgr::pinnedPoolHasReference(const WsPool& pool, const UploadEngine::Impl& impl) const
 {
     for (const auto& entry: impl.files)
@@ -2976,18 +2935,6 @@ void WsPoolMgr::retireUnusedPinnedPools(UploadEngine::Impl& impl)
         if (!hasReference && hasNoWork && idleLongEnough)
         {
             markPoolRetiring(*pool);
-        }
-    }
-}
-
-void WsPoolMgr::cleanupRetiringPools()
-{
-    for (std::size_t i = mPools.size(); i-- > 0;)
-    {
-        if (mPools[i] && mPools[i]->mRetiring && !mPools[i]->stillActive())
-        {
-            LOG_info << "WsUpload: closing idle pool " << i << " (" << mPools[i]->mUrl << ")";
-            mPools.erase(mPools.begin() + static_cast<std::ptrdiff_t>(i));
         }
     }
 }
@@ -3123,27 +3070,6 @@ void WsPoolMgr::refreshPools()
         });
 }
 
-void WsPoolMgr::applyRefreshBackoff(Error e)
-{
-    ++mRefreshFailCount;
-    // Protects the mRefreshFailCount - 1 expression below from wrap-around if a future
-    // caller ever routes here without the increment above.
-    assert(mRefreshFailCount > 0 && "mRefreshFailCount must be positive at this point");
-    const unsigned count = mRefreshFailCount - 1;
-    const unsigned exponent = std::min<unsigned>(count, 6);
-    const dstime baseDelay = secondsToDs(10); // 10 seconds
-    const dstime maxDelay = secondsToDs(10 * 60); // 10 minutes
-    dstime backoff = baseDelay * (static_cast<dstime>(1) << exponent);
-    if (backoff > maxDelay)
-    {
-        backoff = maxDelay;
-    }
-    mNextRefreshAttempt = SteadyTime::ds() + backoff;
-
-    LOG_warn << "[WsPoolMgr::refreshPools] USC command failed: " << e
-             << " [poolMgr=" << this << "]";
-}
-
 void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> apiSizeClasses)
 {
     if (apiSizeClasses.empty())
@@ -3242,9 +3168,8 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
 }
 
 // Forwarding helper for ws_curl.cpp. Lives here because UploadEngine::Impl is
-// only fully defined in this translation unit; declaring the method on
-// WsPoolMgr lets sibling TUs query the pool-connection limit without pulling
-// the Impl definition into ws_pool_mgr.h.
+// only fully usable via wsupload_engine.h once WsUploadFile is in scope; this
+// TU is where WsUploadFile is defined, so the include resolves cleanly.
 unsigned char WsPoolMgr::pinnedPoolConnectionLimit() const
 {
     return mImpl->poolConnectionLimit();
