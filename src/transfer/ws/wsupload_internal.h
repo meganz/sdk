@@ -54,12 +54,27 @@ namespace mega
 namespace ws
 {
 
-class WsUploadFile; // full definition stays in src/transfer/ws/wsupload.cpp
+// Full definition of `class WsUploadFile` lives in
+// src/transfer/ws/ws_upload_file.h (fu7-16 Goal 2.Step2). The public header
+// include/mega/transfer/ws/ws_pool_mgr.h declares its own
+// `class WsUploadFile;` forward declaration for the `std::unordered_set<
+// WsUploadFile*> mActiveFiles;` member; consumers of this internal header
+// that need the full type include "ws_upload_file.h" directly.
 
-// Strongly-typed enum with fixed underlying type — forward-declarable. Full
-// definition stays in src/transfer/ws/wsupload.cpp alongside the WsUploadFile
-// implementation that produces these values.
-enum class FailReason : std::uint8_t;
+// FailReason is shared between the WsUploadFile inline `uploadFailed` body
+// (in ws_upload_file.h) and the WsConn::failFileLocked body (in wsupload.cpp).
+// Promoted here from wsupload.cpp in fu7-16 Goal 2.Step2 so the forward decl
+// alone (was insufficient) becomes a full definition.
+enum class FailReason : std::uint8_t
+{
+    ServerError,
+    OpenFailed,
+    ReadFailed,
+    StateLost,
+    Protocol,
+    CrcFailed,
+    Unknown
+};
 
 // ---------- WSUPLOAD_TRACE macro ----------
 // Quiet by default in Release/Debug. Set MEGA_WSUPLOAD_TRACE_LOGS=1 at compile

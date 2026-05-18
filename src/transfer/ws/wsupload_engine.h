@@ -31,11 +31,16 @@
 
 #ifdef MEGA_USE_WSUPLOAD
 
-// File-internal types (WsPool, WsConn, WsPoolThread, WsUploadFile fwd,
-// SteadyTime, ScopedUnlock, WSUPLOAD_TRACE, FailReason fwd) plus, via its
-// own includes, mega/wsupload.h (UploadEngine, Callbacks) and
-// mega/transfer/ws/ws_pool_mgr.h (WsPoolMgr).
+// File-internal types (WsPool, WsConn, WsPoolThread, SteadyTime, ScopedUnlock,
+// WSUPLOAD_TRACE, FailReason) plus, via its own includes, mega/wsupload.h
+// (UploadEngine, Callbacks) and mega/transfer/ws/ws_pool_mgr.h (WsPoolMgr).
 #include "wsupload_internal.h"
+
+// Full definition of `class WsUploadFile` (split out of wsupload.cpp in fu7-16
+// Goal 2.Step2). Needed because the inline member bodies of
+// `UploadEngine::Impl` below dereference WsUploadFile members
+// (`f->fileno()`, `f->setPool(...)`, `f->paused()`, etc.).
+#include "ws_upload_file.h"
 
 #include "mega/megaclient.h" // MegaClient, TransferDbCommitter, wsPostToClientThread
 #include "mega/testhooks.h" // DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION
