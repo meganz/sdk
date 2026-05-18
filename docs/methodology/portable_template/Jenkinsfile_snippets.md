@@ -7,7 +7,7 @@ variable names, presets, and build dirs to your project. These cover:
 2. **Opt-in bench stage** (`--bench`): build with bench framework ON,
    run the bench filter, archive JSON + per-cell logs.
 3. **Opt-in TSAN stage** (`--tsan`): build with TSAN ON, run the
-   v2-surface filter, archive logs.
+   surface filter, archive logs.
 4. **Per-cell log split**: split a combined `[ RUN ]`-delimited log
    into per-cell `<TestName>.log` files for easier review.
 
@@ -154,8 +154,8 @@ stage('TSAN Sweep') {
     environment {
         TSAN_BUILD_DIR = "build_dir_tsan"
         TSAN_OPTIONS = 'halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0'
-        // V2-surface filter (your project: customise the cell list)
-        TSAN_V2_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.B9ClosedThrottleReconnectPacing:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer"
+        // Surface filter (your project: customise the cell list)
+        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.B9ClosedThrottleReconnectPacing:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer"
     }
     steps {
         timeout(time: 120, unit: 'MINUTES') {
@@ -164,7 +164,7 @@ stage('TSAN Sweep') {
                 if [ -n "${GTEST_FILTER}" ]; then
                     TSAN_FILTER_ARG="${GTEST_FILTER}"
                 else
-                    TSAN_FILTER_ARG="--gtest_filter=${env.TSAN_V2_SURFACE_FILTER}"
+                    TSAN_FILTER_ARG="--gtest_filter=${env.TSAN_SURFACE_FILTER}"
                 fi
                 ${TSAN_BUILD_DIR}/tests/integration/test_integration \\
                     --CI --USERAGENT:JenkinsCanSpam-SDK \\
@@ -213,7 +213,7 @@ rm bench_sweep.log || :
   contaminate the regular build with the bench framework.
 - The opt-in stages default to a sensible fallback filter when no
   `--gtest_filter=` is supplied. Keep that fallback narrow (the
-  v2-surface filter, not the whole TSAN test suite).
+  surface filter, not the whole TSAN test suite).
 - Honour `--gtest_repeat=` from the trigger phrase; HR43 calls for
   n≥15 on timing cells.
 - USERAGENT must be the team's whitelisted value (in SDK-5360:

@@ -72,7 +72,7 @@ agent parse historical artefacts.
 | **fast-mode** | A bench iteration with no observed throttle storm; the upper envelope of throughput. |
 | **slow-mode** | A throttle-stormed iteration; high variance, dominant in long sweeps. |
 | **TSAN** | ThreadSanitizer; the `-fsanitize=thread` build (`dev-unix-tsan` preset). |
-| **v2-surface** | The 4-cell TSAN filter (T1, B9, IP, Overquota) that covers the WS pool + worker thread + URL fallback paths. |
+| **surface** (was `v2-surface` pre-fu7-17) | The 4-cell TSAN filter (T1, B9, IP, Overquota) that covers the WS pool + worker thread + URL fallback paths. The "v2" prefix referred to the WS-upload v2 implementation; dropped in fu7-17 once WS-upload became the main path. |
 | **NEW race** | A TSAN race present on fu7-N but absent on develop; HR23 says fix. |
 | **carry-over race** | A race present on both develop and fu7-N; pre-existing, not this session's responsibility. |
 

@@ -435,12 +435,12 @@ pipeline {
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         TSAN_BUILD_DIR = "build_dir_tsan"
                         TSAN_OPTIONS = "halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0"
-                        // SDK-5360 fu7-12 G5.b: current v2-surface cells (post-fu7-7 rename;
+                        // SDK-5360 fu7-12 G5.b: current WS-upload surface cells (post-fu7-7 rename;
                         // pre-fu7-7 SdkTest.* names removed). HR23 strict: any NEW race on
-                        // v2 fields (mChunksInFlight, mUploadingFile, etc.) fails the stage.
+                        // surface fields (mChunksInFlight, mUploadingFile, etc.) fails the stage.
                         // SDK-5360 fu7-17 G6.S1: this is the fallback used when the user did
                         // NOT supply --gtest_filter= alongside --tsan. User filter wins below.
-                        TSAN_V2_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools"
+                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools"
                     }
                     steps {
                         timeout(time: 90, unit: 'MINUTES') {
@@ -464,18 +464,18 @@ pipeline {
                                         if [ -n \"${GTEST_FILTER}\" ]; then
                                             TSAN_FILTER_ARG=\"${GTEST_FILTER}\"
                                         else
-                                            TSAN_FILTER_ARG=\"--gtest_filter=${TSAN_V2_SURFACE_FILTER}\"
+                                            TSAN_FILTER_ARG=\"--gtest_filter=${TSAN_SURFACE_FILTER}\"
                                         fi
                                         ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$TSAN_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee tsan_sweep.log || true
-                                        # Surface race summary: total reports + v2-surface field hits
+                                        # Surface race summary: total reports + WS-upload surface field hits
                                         echo "===TSAN SUMMARY==="
                                         grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || echo 0
-                                        echo "===V2 SURFACE FIELDS==="
+                                        echo "===WS-UPLOAD SURFACE FIELDS==="
                                         for fld in mChunksInFlight mNumChunksInFlight mUploadingFile WsConn::mLastActive WsConn::mPausedByServerUntilDs WsConn::mReadyState WsUploadFile mWorkGeneration; do
                                             cnt=\$(grep -cE "\$fld" tsan_sweep.log || echo 0)
                                             echo "\$fld: \$cnt"
                                             if [ \"\$cnt\" != \"0\" ]; then
-                                                echo "[ERROR] new v2-surface race on \$fld" >&2
+                                                echo "[ERROR] new WS-upload surface race on \$fld" >&2
                                                 exit 1
                                             fi
                                         done
@@ -504,7 +504,7 @@ pipeline {
                     }
                     post {
                         failure {
-                            echo 'Error: TSAN sweep failed — NEW v2-surface race detected'
+                            echo 'Error: TSAN sweep failed — NEW WS-upload surface race detected'
                         }
                     }
                 }

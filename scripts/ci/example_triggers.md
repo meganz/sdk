@@ -39,7 +39,7 @@ worker is single-tenant, so no explicit pin needed.
 Hits: all OSes. Runs the MassNotify cell five times to catch livelock
 regressions.
 
-## All v2-surface TSAN
+## All WS-upload surface TSAN
 
     trigger compilation --tsan
 

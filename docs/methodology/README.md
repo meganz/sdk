@@ -25,7 +25,7 @@ landing on the codebase or an agent-led follow-up session.
 | [memory_discipline.md](memory_discipline.md) | Auto-memory protocol: types, naming, when to save/update/delete, ephemeral vs persistent. |
 | [regression_sweep_cadence.md](regression_sweep_cadence.md) | HR14/33/34/40/43/46/47 — what runs at every commit, between Goals, and at the final sweep. |
 | [benchmark_discipline.md](benchmark_discipline.md) | Bench binary build, JSON artifact, throttle-storm caveats, USERAGENT, comparison recipes. |
-| [tsan_discipline.md](tsan_discipline.md) | `dev-unix-tsan` (no Windows), TSAN_OPTIONS, v2-surface filter, NEW-vs-develop classification. |
+| [tsan_discipline.md](tsan_discipline.md) | `dev-unix-tsan` (no Windows), TSAN_OPTIONS, WS-upload surface filter, NEW-vs-develop classification, expansion ideas. |
 | [hard_rules_catalog.md](hard_rules_catalog.md) | Single canonical table HR1..HR49 — name, rule, rationale, origin fu7-N. |
 | [fu7_N_session_template.md](fu7_N_session_template.md) | Copy-paste FollowupRequest.md skeleton for the next session. |
 | [glossary.md](glossary.md) | SDK-5360 acronyms — SLU, T1, IP, MN, B9, fu7-N, HR<N>, etc. |

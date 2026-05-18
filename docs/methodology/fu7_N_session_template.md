@@ -111,7 +111,7 @@ See [docs/methodology/hard_rules_catalog.md](hard_rules_catalog.md).
 
 - <!-- TODO: per-Goal stop conditions. -->
 - HR24 >700 → halt and audit.
-- Goal N TSAN deep-dive surfaces a NEW v2-surface race that can't be
+- Goal N TSAN deep-dive surfaces a NEW WS-upload surface race that can't be
   fixed within session wall → halt + escalate per HR21.
 - Final sweep MN HUNG (>90 min single iter) → escalate.
 - Any cell <80% PASS rate in final sweep → escalate.

@@ -110,10 +110,81 @@ bench JSON is never emitted. Use `dev-unix-wsupload-benchOn` (or the
 macOS / Windows equivalents). Same for Jenkins — the `--bench` stage
 uses a separate build dir with the flag ON.
 
-## Expansion ideas (fu7-18+)
+## What does TSAN actually cover today?
+
+The `--tsan` stage runs a narrow **WS-upload surface filter** (the 4
+cells that exercise the WS pool / worker thread / session URL
+fallback / overquota signalling state machine):
+
+| Cell | Exercises |
+|---|---|
+| `SdkWsUploadTest.ActivePoolUsesParallelConnections` | Pool fan-out across 8 worker threads |
+| `SdkWsUploadTest.B9ClosedThrottleReconnectPacing` | Throttle reconnect pacing |
+| `SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession` | Session URL fallback |
+| `SdkWsUploadTest.OverquotaDuringTransfer` | Mid-transfer overquota signalling |
+
+The stage **fails** if any race signature touches one of the watched
+WS-upload-surface fields (`mChunksInFlight`, `mNumChunksInFlight`,
+`mUploadingFile`, `WsConn::mLastActive`, `WsConn::mPausedByServerUntilDs`,
+`WsConn::mReadyState`, `WsUploadFile`, `mWorkGeneration`).
+
+**What's NOT covered yet** (expansion candidates):
+
+- **Downloads** — `DirectReadSlot`, `MegaFileGet`, `SyncDownload_inClient`.
+- **Sync engine** — `src/sync.cpp`, `src/syncinternals/*`,
+  `Notifier*`, posix/win32 filesystem observers.
+- **HTTP-layer non-WS commands** — `CommandPutFile`, `CommandSetAttr`,
+  sync action-packet processing.
+
+### Ideas to expand TSAN coverage
+
+1. **`TSAN_DOWNLOAD_SURFACE_FILTER`** — add 2-3 cells like
+   `SdkTest.SdkResumableTrasfers`, `SdkTest.SdkTestTransferStats` so
+   download races land in the per-MR gate alongside upload ones.
+2. **`TSAN_SYNC_SURFACE_FILTER`** — `BasicSync_*` smoke cells. Sync
+   cells run slower under TSAN — bump the stage `timeout=` budget.
+3. **Drop the field-list guard** — today the Jenkinsfile fails only
+   if a race hits a curated whitelist. Once broader cells are
+   enumerated, gate on **any** race in `src/transfer/`, `src/sync.cpp`,
+   `src/syncinternals/`, `src/file.cpp`.
+4. **Nightly full TSAN cron** — parallel to per-MR triggers, run the
+   FULL `SdkTest.*` + `SdkWsUploadTest.*` + `SyncTest.*` suite at
+   n=1 weekly. Archive race signatures into the trend store so
+   pre-existing-race drift on develop surfaces between MRs.
+
+## What does the bench stage cover today?
+
+| Cell | Workload |
+|---|---|
+| `SdkBenchmarkTest.SingleLargeUpload` | One ~1-10 GiB upload |
+| `SdkBenchmarkTest.ManySmallUploads` | Many small (16 KiB) uploads |
+| `SdkBenchmarkTest.1kSmallUploads` | 1 000 × small uploads |
+| `SdkBenchmarkTest.LargePlusManySmall` | Mixed workload |
+
+All four are **upload-only**. The bench framework
+(`tests/integration/bench_framework/`) is generic and the cmake file
+already anticipates `SdkBenchmarkDownload*` cells — none written yet.
+
+### Ideas to expand bench coverage
+
+1. **Add `SdkBenchmarkDownload*` cells** — single-large-download,
+   many-small-downloads, mixed. Reuse the same `BenchSession` /
+   `BenchReportWriter` plumbing; new `BenchmarkRunners.h` entries
+   for download workloads. The JSON schema is workload-agnostic.
+2. **Add a `SdkBenchmarkSync*` set** — measure sync-engine throughput
+   on `BasicSync_*` workloads (file-add storm, rename storm, MN-like
+   16k-file trees). Probably a separate `bench_sync.cmake` target.
+3. **Cross-protocol head-to-head** — once download bench exists,
+   add a single combined "round-trip" cell: upload large, then
+   download same large, asserting both legs land within budget.
+4. **Per-cell baseline file in repo** — check `bench_baseline.json`
+   into `tests/integration/` with last-known-good throughput per
+   cell. `compare_bench.py` compares the bench artifact against
+   the baseline; PR fails if Δ > 5 % without a documented reason.
+
+## Expansion ideas (general fu7-18+)
 
 - Jenkins trend-graph plugin (throughput-over-time per cell).
-- Slack-bot for regression > 5% vs last-N median.
-- Per-cell baseline file checked into repo (last-known-good throughput).
+- Slack-bot for regression > 5 % vs last-N median.
 - Side-by-side artifact diff UI extension.
 - Windows TSAN if/when MEGA migrates Windows builds to clang.

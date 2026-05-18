@@ -2,7 +2,7 @@
 
 ThreadSanitizer (TSAN) finds data races dynamically. On SDK-5360 it is
 the principal gate against thread-safety regressions on the WS upload
-v2 surface.
+surface.
 
 ## Where TSAN is available
 
@@ -42,11 +42,11 @@ Recommended TSAN_OPTIONS (matches the Jenkinsfile lines ~420):
 | `history_size=7` | More memory-access history; slower but more diagnostic. |
 | `report_thread_leaks=0` | Don't flag worker threads as leaked — known false positives. |
 
-## v2-surface filter vs full sweep
+## Surface filter vs full sweep
 
 The full TSAN sweep is expensive. For per-commit gates, use the
-4-cell **v2-surface filter** (matches the Jenkinsfile
-`TSAN_V2_SURFACE_FILTER` introduced in fu7-12):
+4-cell **WS-upload surface filter** (matches the Jenkinsfile
+`TSAN_SURFACE_FILTER` introduced in fu7-12, renamed in fu7-17):
 
 ```
 SdkWsUploadTest.ActivePoolUsesParallelConnections          # T1
@@ -75,7 +75,7 @@ Procedure:
 1. Build `~/repo/sdk-develop` at current `origin/develop` HEAD.
 2. Build `~/repo/sdk-develop-dev-unix-tsan` (cherry-pick the bench
    instrumentation if needed for parity per HR4).
-3. Run the v2-surface filter on the develop binary, n=2.
+3. Run the WS-upload surface filter on the develop binary, n=2.
 4. Capture top-frame signatures in
    `…/followup7-N/Goal4_tsan_deep_dive/develop_baseline_races_fu7_N.md`.
 5. Run the same filter on the fu7-N binary, n=2.
@@ -130,6 +130,40 @@ input. Lines unique to one input are flagged.
   (rate-limited accounts, see [feedback_tests_sequential.md]).
 - Don't suppress races globally via a `.tsan_suppressions` file
   without explicit team sign-off; per-site `__attribute__((no_sanitize("thread")))`
-  is preferred but discouraged for v2-surface code.
+  is preferred but discouraged for code on the WS-upload surface.
+
+## Coverage today vs expansion ideas
+
+**What the surface filter actually exercises today.** The 4 cells
+(`ActivePoolUsesParallelConnections`, `B9ClosedThrottleReconnectPacing`,
+`InvalidPinnedSessionFallsBackToFreshSession`, `OverquotaDuringTransfer`)
+together cover the WS pool lifecycle, worker thread spin-up/tear-down,
+session URL fallback, and overquota signalling — i.e. the WS **upload**
+state machine. They do NOT exercise:
+
+- Downloads (any code path through `DirectReadSlot` / `MegaFileGet`).
+- Sync engine (`SyncDownload_inClient`, `syncinternals/*`).
+- File system observers (`Notifier*`, posix/win32 platform code).
+- HTTP-layer commands that aren't on the WS code path
+  (`CommandPutFile`, `CommandSetAttr`, sync action-packet processing).
+
+**Expansion ideas** (file as fu7-18+ candidate tickets):
+
+1. Add a `TSAN_DOWNLOAD_SURFACE_FILTER` with 2-3 cells exercising
+   `SdkTest.SdkResumableTrasfers` + `SdkTest.SdkTestTransferStats` so
+   download races surface alongside upload ones in the per-MR gate.
+2. Add a `TSAN_SYNC_SURFACE_FILTER` with the `BasicSync_*` smoke
+   cells. SyncTest cells are slower under TSAN — consider a longer
+   `timeout=` budget on the stage.
+3. Drop the field-list guard on the Linux Jenkinsfile (`mChunksInFlight`
+   etc.) — that whitelist is conservative; once the broader surface
+   is enumerated, the gate can fail on **any** race in
+   `src/transfer/`, `src/sync.cpp`, `src/syncinternals/`,
+   `src/file.cpp`, narrowing-not-broadening over time.
+4. Run TSAN in a nightly cron (parallel to MR triggers) over the
+   FULL `SdkTest.*` + `SdkWsUploadTest.*` + `SyncTest.*` suite at n=1
+   so we accumulate a churn signal independent of per-MR gating.
+   Archive race signatures into the bench-trend store so we can
+   spot regressions on develop weeks before they're hit on an MR.
 - Don't quote TSAN counts from different binaries with different
   `TSAN_OPTIONS` settings; `history_size` affects sensitivity.

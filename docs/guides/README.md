@@ -32,7 +32,7 @@ Single starting point: [docs/methodology/README.md](../methodology/README.md).
   — Bench binary build, JSON artifact, throttle-storm caveats,
   USERAGENT, comparison recipes.
 - [docs/methodology/tsan_discipline.md](../methodology/tsan_discipline.md)
-  — `dev-unix-tsan` (no Windows), TSAN_OPTIONS, v2-surface filter,
+  — `dev-unix-tsan` (no Windows), TSAN_OPTIONS, WS-upload surface filter,
   NEW-vs-develop classification.
 - [docs/methodology/hard_rules_catalog.md](../methodology/hard_rules_catalog.md)
   — Single canonical table HR1..HR49.
