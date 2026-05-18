@@ -10,10 +10,10 @@ source ./environment2.txt                   # mandatory: sets MEGA_EMAIL etc.
 ./test_integration --CI --COUT --USERAGENT:<tag> --gtest_filter=<pattern>
 ```
 
-Test logs land at `/home/vmga/mega_tests/pid_<PID>/test_integration.log`. To find the latest run:
+Test logs land at `${HOME}/mega_tests/pid_<PID>/test_integration.log`. To find the latest run:
 
 ```bash
-ls -td /home/vmga/mega_tests/pid_* | head -1
+ls -td ${HOME}/mega_tests/pid_* | head -1
 ```
 
 **Never `cat` a multi-GB log.** Use `grep`, `head`, `tail`, `wc -l` only.
@@ -68,7 +68,7 @@ Do **not** attribute these to your fix without evidence.
 ## Metrics worth grepping for upload-path changes
 
 ```bash
-PID=$(ls -td /home/vmga/mega_tests/pid_* | head -1)
+PID=$(ls -td ${HOME}/mega_tests/pid_* | head -1)
 log="$PID/test_integration.log"
 
 # Preflight dynamics (Fix-B-relevant)
@@ -107,7 +107,7 @@ The `MEGA_BENCH_FRAMEWORK_ENABLED` CMake option defaults to **OFF** — see the
 "Benchmark procedure" section below for the local build that has it ON.
 When the binary is built with `-DMEGA_BENCH_FRAMEWORK_ENABLED=ON`, each
 `SdkBenchmark*` test emits a JSON cell into
-`/home/vmga/mega_tests/pid_<PID>/bench_report_<PID>.json` summarising that
+`${HOME}/mega_tests/pid_<PID>/bench_report_<PID>.json` summarising that
 cell's measurements. Schema (version 1):
 
 ```json
@@ -193,7 +193,7 @@ and prints the resulting JSON path.
 bash tests/integration/run_bench.sh 'SdkBenchmarkTest.SingleLargeUpload' 1
 # … run output …
 # Latest bench_report:
-#   /home/vmga/mega_tests/pid_<PID>/bench_report_<PID>.json
+#   ${HOME}/mega_tests/pid_<PID>/bench_report_<PID>.json
 ```
 
 Override the build dir with `BENCH_BUILD_DIR=...` if needed.
@@ -232,8 +232,8 @@ across versions with `jq`:
 jq '.cells[] | select(.name=="SdkBenchmarkTest.SingleLargeUpload") |
     {pid: input_filename, kbps: .aggregate_kbps, duration_ms: .duration_ms,
      rss_delta_kb: .rss_delta_kb}' \
-   /home/vmga/mega_tests/pid_AAAA/bench_report_AAAA.json \
-   /home/vmga/mega_tests/pid_BBBB/bench_report_BBBB.json
+   ${HOME}/mega_tests/pid_AAAA/bench_report_AAAA.json \
+   ${HOME}/mega_tests/pid_BBBB/bench_report_BBBB.json
 ```
 
 The schema is version-locked (`schema_version` field); the same `jq` recipe
