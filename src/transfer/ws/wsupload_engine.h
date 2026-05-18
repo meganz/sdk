@@ -42,6 +42,15 @@
 // (`f->fileno()`, `f->setPool(...)`, `f->paused()`, etc.).
 #include "ws_upload_file.h"
 
+// `mega/megaapp.h` must precede `mega/megaclient.h` (which only forward-declares
+// `struct MegaApp* app`) so that the inline `UploadEngine::Impl` member bodies
+// below see `MegaApp` as a complete type — `invalidatePinnedSessionUrl` posts a
+// lambda that calls `client.app->transfer_update(tp)`. Pulling this in
+// unconditionally here makes any sibling TU that includes `wsupload_engine.h`
+// self-contained, removing the include-order fragility that fu7-16 Goal 2.Step3
+// flagged when ws_conn.cpp had to add a manual `#include "mega/megaapp.h"`
+// before this header.
+#include "mega/megaapp.h"
 #include "mega/megaclient.h" // MegaClient, TransferDbCommitter, wsPostToClientThread
 #include "mega/testhooks.h" // DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION
 #include "mega/transfer.h" // Transfer, SpeedController

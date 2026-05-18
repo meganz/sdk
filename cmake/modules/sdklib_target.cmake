@@ -361,6 +361,7 @@ target_sources_conditional(SDKlib
     src/transfer/ws/ws_conn.cpp
     src/transfer/ws/ws_encryption.cpp
     src/transfer/ws/ws_curl.cpp
+    src/transfer/ws/ws_pool.cpp
     src/transfer/ws/ws_pool_mgr.cpp
     src/transfer/ws/ws_upload_file.h
     src/transfer/ws/ws_upload_file.cpp
