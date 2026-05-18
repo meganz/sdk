@@ -8,10 +8,11 @@
  *          - `getTransferStats` — debug speed reporting.
  *          - `setPool` / `unsetPool` / `getCurrentSessionUrl` — pool bindings
  *            that need the full `WsPool` definition (visible via
- *            `wsupload_internal.h`).
+ *            `mega/transfer/ws/wsupload_internal.h`).
  *
  *        Small accessors and inline state transitions live inline in
- *        `src/transfer/ws/ws_upload_file.h`. See
+ *        `include/mega/transfer/ws/ws_upload_file.h` (fu7-17 G1.a relocated).
+ *        See
  *        `Goal2_cross_followup_refactor_sweep/domain_coupling_map.md` (§1
  *        WsUploadFile inventory) for the per-method breakdown.
  *
@@ -27,13 +28,13 @@
 
 #ifdef MEGA_USE_WSUPLOAD
 
-#include "ws_upload_file.h"
+#include "mega/transfer/ws/ws_upload_file.h"
 
 // `WsPool` full definition (and the `SteadyTime` / `WSUPLOAD_TRACE` cluster)
 // is needed by setPool/unsetPool/getCurrentSessionUrl and the readData
 // implementation. ws_upload_file.h already pulls this in, but re-state for
 // clarity.
-#include "wsupload_internal.h"
+#include "mega/transfer/ws/wsupload_internal.h"
 
 #include "mega/logging.h"
 #include "mega/megaclient.h" // mClient.fsaccess->newfileaccess()

@@ -18,14 +18,16 @@
  *
  *        Larger bodies live in sibling TUs:
  *
- *          - src/transfer/ws/wsupload_engine.h  — UploadEngine::Impl class
- *            (fu7-16 G2.Step0).
+ *          - include/mega/transfer/ws/wsupload_engine.h  — UploadEngine::Impl
+ *            class (fu7-16 G2.Step0; fu7-17 G1.a relocated header to
+ *            include/mega/transfer/ws/).
  *          - src/transfer/ws/ws_pool_mgr.cpp    — WsPoolMgr method bodies
  *            (fu7-16 G2.Step1 + G2.Step4).
  *          - src/transfer/ws/ws_curl.cpp        — WsPoolMgr::curlIO and
  *            ensurePinnedPool (fu7-14 G2.a-β).
- *          - src/transfer/ws/ws_upload_file.{h,cpp} — WsUploadFile class
- *            (fu7-16 G2.Step2).
+ *          - include/mega/transfer/ws/ws_upload_file.h + src/transfer/ws/
+ *            ws_upload_file.cpp — WsUploadFile class (fu7-16 G2.Step2;
+ *            fu7-17 G1.a relocated header).
  *          - src/transfer/ws/ws_conn.cpp        — WsConn + WsBuf::sendWS +
  *            WsPoolThread ctor + ChunkFingerprintMacUpdate::apply (fu7-16
  *            G2.Step3).
@@ -47,19 +49,19 @@
 #include "mega/wsupload.h"
 
 // File-internal types shared with sibling WS TUs (CRC32 trailer check used by
-// detail::validateInboundFrame). Private header under src/, not include/.
-#include "wsupload_internal.h"
+// detail::validateInboundFrame). SDK-internal architecture header.
+#include "mega/transfer/ws/wsupload_internal.h"
 
 // Full WsUploadFile definition — pulled in by wsupload_engine.h transitively,
 // but listed explicitly for symmetry with the sibling TUs. Needed because the
 // out-of-class Impl::clearRefreshLatchForInstance / applyRefreshResultForInstance
 // bodies indirectly include it via wsupload_engine.h.
-#include "ws_upload_file.h"
+#include "mega/transfer/ws/ws_upload_file.h"
 
 // Full UploadEngine::Impl definition. Needed for every pImpl forwarder body
 // below (`pImpl->X`). Transitively pulls in mega/megaapp.h since fu7-16
 // G2.Step4 hardened the engine header to be self-contained.
-#include "wsupload_engine.h"
+#include "mega/transfer/ws/wsupload_engine.h"
 
 #include <chrono>
 #include <cstdint>

@@ -354,16 +354,16 @@ target_sources_conditional(SDKlib
     include/mega/wsupload.h
     include/mega/transfer/ws/ws_encryption.h
     include/mega/transfer/ws/ws_pool_mgr.h
+    include/mega/transfer/ws/ws_upload_file.h
+    include/mega/transfer/ws/wsupload_engine.h
+    include/mega/transfer/ws/wsupload_internal.h
     src/commands_ws.cpp
     src/transfer/ws/wsupload.cpp
-    src/transfer/ws/wsupload_engine.h
-    src/transfer/ws/wsupload_internal.h
     src/transfer/ws/ws_conn.cpp
     src/transfer/ws/ws_encryption.cpp
     src/transfer/ws/ws_curl.cpp
     src/transfer/ws/ws_pool.cpp
     src/transfer/ws/ws_pool_mgr.cpp
-    src/transfer/ws/ws_upload_file.h
     src/transfer/ws/ws_upload_file.cpp
     src/megaclient_wsupload.cpp
 )

@@ -6,11 +6,12 @@
  *        WsPoolMgr::ensurePinnedPool() live here; everything else (declarations,
  *        sibling helpers, UploadEngine::Impl) stays where it already was.
  *
- *        Relies on src/transfer/ws/wsupload_internal.h for WsPool, SteadyTime,
- *        ScopedUnlock, WSUPLOAD_CURL_MULTI_POLL_MS and WSUPLOAD_TRACE; uses the
- *        WsPoolMgr::pinnedPoolConnectionLimit() forwarding helper (body in
- *        src/transfer/ws/wsupload.cpp) to query the pool-connection limit
- *        without pulling in UploadEngine::Impl's full definition.
+ *        Relies on include/mega/transfer/ws/wsupload_internal.h for WsPool,
+ *        SteadyTime, ScopedUnlock, WSUPLOAD_CURL_MULTI_POLL_MS and
+ *        WSUPLOAD_TRACE; uses the WsPoolMgr::pinnedPoolConnectionLimit()
+ *        forwarding helper (body in src/transfer/ws/wsupload.cpp) to query the
+ *        pool-connection limit without pulling in UploadEngine::Impl's full
+ *        definition.
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
  *
@@ -27,10 +28,9 @@
 #include "mega/transfer/ws/ws_pool_mgr.h"
 
 // File-internal types shared with wsupload.cpp (WsPool, SteadyTime,
-// ScopedUnlock, WSUPLOAD_CURL_MULTI_POLL_MS, WSUPLOAD_TRACE). Private header
-// under src/, not include/; relative include since src/ is not on the SDKlib
-// include path.
-#include "wsupload_internal.h"
+// ScopedUnlock, WSUPLOAD_CURL_MULTI_POLL_MS, WSUPLOAD_TRACE). SDK-internal
+// architecture header (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+#include "mega/transfer/ws/wsupload_internal.h"
 
 #include <memory>
 #include <mutex>

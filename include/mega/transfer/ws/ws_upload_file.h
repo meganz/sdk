@@ -1,5 +1,5 @@
 /**
- * @file src/transfer/ws/ws_upload_file.h
+ * @file include/mega/transfer/ws/ws_upload_file.h
  * @brief Full definition of `mega::ws::WsUploadFile`, the per-file state owned
  *        by `UploadEngine::Impl` and consumed by `WsPool` / `WsConn` /
  *        `ChunkFingerprintMacUpdate`.
@@ -12,10 +12,11 @@
  *        `Goal2_cross_followup_refactor_sweep/domain_coupling_map.md` (§1
  *        WsUploadFile inventory + §6 Step 2 row) for the coupling rationale.
  *
- *        NOT part of the public SDK API: lives under src/ rather than
- *        include/ so consumers cannot include it. Sibling translation units
- *        in src/transfer/ws/ include it as `#include "ws_upload_file.h"`
- *        (relative to the source file).
+ *        SDK-internal architecture header (fu7-17 Goal 1.a relocated it from
+ *        `src/transfer/ws/` to `include/mega/transfer/ws/` alongside
+ *        `ws_encryption.h` and `ws_pool_mgr.h`). Sibling translation units in
+ *        `src/transfer/ws/` include it as
+ *        `#include "mega/transfer/ws/ws_upload_file.h"`.
  *
  *        Small accessors and the hot-path read/write paths kept inline here
  *        because `wsupload_engine.h`'s inline `Impl` bodies call them under
@@ -40,9 +41,9 @@
 #ifdef MEGA_USE_WSUPLOAD
 
 // File-internal WS types (WsPool, SteadyTime, WSUPLOAD_TRACE, kMiB,
-// FailReason). Private header under src/, not include/. Relative include
-// since src/ is not on the SDKlib include path.
-#include "wsupload_internal.h"
+// FailReason). SDK-internal architecture header under include/mega/transfer/ws/
+// (fu7-17 Goal 1.a relocated it alongside ws_encryption.h / ws_pool_mgr.h).
+#include "mega/transfer/ws/wsupload_internal.h"
 
 #include "mega/file.h" // File (for frontFile())
 #include "mega/filesystem.h" // FileAccess, LocalPath, FSLogging

@@ -16,13 +16,14 @@
  *          - `ChunkFingerprintMacUpdate::apply` (out-of-line because it calls
  *            `WsUploadFile::queueConfirmedChunkMacs`).
  *
- *        Relies on `wsupload_internal.h` for the `WsConn` / `WsBuf` /
- *        `WsPoolThread` / `ChunkFingerprintMacUpdate` / `WsPool` cluster,
- *        `wsupload_engine.h` for the full `UploadEngine::Impl` definition
- *        (every `mPool->mImpl->X` deref in `onmessage` requires it), and
- *        `ws_upload_file.h` for the `WsUploadFile` complete type touched by
- *        `findFile`, `onmessage`, `failFileLocked`, `handleBytesConfirmedOverflow`,
- *        and `ChunkFingerprintMacUpdate::apply`.
+ *        Relies on `mega/transfer/ws/wsupload_internal.h` for the `WsConn` /
+ *        `WsBuf` / `WsPoolThread` / `ChunkFingerprintMacUpdate` / `WsPool`
+ *        cluster, `mega/transfer/ws/wsupload_engine.h` for the full
+ *        `UploadEngine::Impl` definition (every `mPool->mImpl->X` deref in
+ *        `onmessage` requires it), and `mega/transfer/ws/ws_upload_file.h`
+ *        for the `WsUploadFile` complete type touched by `findFile`,
+ *        `onmessage`, `failFileLocked`, `handleBytesConfirmedOverflow`, and
+ *        `ChunkFingerprintMacUpdate::apply`.
  *
  *        The TU-local `enum class WsApiServerEvent` (server-event opcodes)
  *        moves with `WsConn::onmessage` since that is its sole consumer.
@@ -39,30 +40,31 @@
 
 #ifdef MEGA_USE_WSUPLOAD
 
-// `mega/megaapp.h` must precede `wsupload_engine.h` so that the inline
-// `UploadEngine::Impl::onTransferAdded`-style member bodies in the engine
-// header see `MegaApp` as a complete type (they dereference `client.app`).
-// Also pulled in by wsupload.cpp for the same reason.
+// `mega/megaapp.h` must precede `mega/transfer/ws/wsupload_engine.h` so that
+// the inline `UploadEngine::Impl::onTransferAdded`-style member bodies in the
+// engine header see `MegaApp` as a complete type (they dereference
+// `client.app`). Also pulled in by wsupload.cpp for the same reason.
 #include "mega/megaapp.h"
 
 // File-internal types shared with wsupload.cpp (WsConn, WsBuf, WsPoolThread,
 // ChunkFingerprintMacUpdate, WsPool, SteadyTime, WSUPLOAD_TRACE, FailReason,
-// CRC32, ChunkHeader, WsChunk). Private header under src/, not include/;
-// relative include since src/ is not on the SDKlib include path.
-#include "wsupload_internal.h"
+// CRC32, ChunkHeader, WsChunk). SDK-internal architecture header
+// (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+#include "mega/transfer/ws/wsupload_internal.h"
 
-// Full definition of `UploadEngine::Impl` (promoted in fu7-16 Goal 2.Step0).
-// Required because every `mPool->mImpl->X` dereference in WsConn::onmessage /
-// connectWS / failFileLocked needs Impl to be a complete type. The header
-// transitively includes `ws_upload_file.h` so `WsUploadFile` is complete too.
-#include "wsupload_engine.h"
+// Full definition of `UploadEngine::Impl` (promoted in fu7-16 Goal 2.Step0;
+// fu7-17 G1.a relocated header). Required because every `mPool->mImpl->X`
+// dereference in WsConn::onmessage / connectWS / failFileLocked needs Impl to
+// be a complete type. The header transitively includes
+// `mega/transfer/ws/ws_upload_file.h` so `WsUploadFile` is complete too.
+#include "mega/transfer/ws/wsupload_engine.h"
 
 // `class WsUploadFile` is also pulled in directly: `findFile` returns
 // `WsUploadFile*`, and `failFileLocked` / `handleBytesConfirmedOverflow` /
 // `onmessage` invoke its inline accessors. Already pulled in via
 // wsupload_engine.h, but re-state for clarity (mirrors the pattern in
 // ws_upload_file.cpp / ws_curl.cpp).
-#include "ws_upload_file.h"
+#include "mega/transfer/ws/ws_upload_file.h"
 
 #include "mega/logging.h"
 #include "mega/megaclient.h" // MegaClient::wsPostToClientThread / wsHandshakeForUpload / wsEngine

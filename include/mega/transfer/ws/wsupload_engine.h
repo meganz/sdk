@@ -1,5 +1,5 @@
 /**
- * @file src/transfer/ws/wsupload_engine.h
+ * @file include/mega/transfer/ws/wsupload_engine.h
  * @brief Full definition of `UploadEngine::Impl`, the queue + manager-thread
  *        + pool-coordinator pImpl body backing the public `UploadEngine`
  *        facade declared in `mega/wsupload.h`.
@@ -11,10 +11,12 @@
  *        `Goal2_cross_followup_refactor_sweep/domain_coupling_map.md` (§5
  *        SS-1) for the coupling rationale.
  *
- *        NOT part of the public SDK API: lives under src/ rather than
- *        include/ so consumers cannot include it. Sibling translation units
- *        in src/transfer/ws/ include it as `#include "wsupload_engine.h"`
- *        (relative to the source file).
+ *        SDK-internal architecture header (fu7-17 Goal 1.a relocated it from
+ *        `src/transfer/ws/` to `include/mega/transfer/ws/` alongside
+ *        `ws_encryption.h` and `ws_pool_mgr.h`). Sibling translation units in
+ *        `src/transfer/ws/` and `src/megaclient_wsupload.cpp` /
+ *        `src/commands_ws.cpp` include it as
+ *        `#include "mega/transfer/ws/wsupload_engine.h"`.
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
  *
@@ -34,13 +36,13 @@
 // File-internal types (WsPool, WsConn, WsPoolThread, SteadyTime, ScopedUnlock,
 // WSUPLOAD_TRACE, FailReason) plus, via its own includes, mega/wsupload.h
 // (UploadEngine, Callbacks) and mega/transfer/ws/ws_pool_mgr.h (WsPoolMgr).
-#include "wsupload_internal.h"
+#include "mega/transfer/ws/wsupload_internal.h"
 
 // Full definition of `class WsUploadFile` (split out of wsupload.cpp in fu7-16
 // Goal 2.Step2). Needed because the inline member bodies of
 // `UploadEngine::Impl` below dereference WsUploadFile members
 // (`f->fileno()`, `f->setPool(...)`, `f->paused()`, etc.).
-#include "ws_upload_file.h"
+#include "mega/transfer/ws/ws_upload_file.h"
 
 // `mega/megaapp.h` must precede `mega/megaclient.h` (which only forward-declares
 // `struct MegaApp* app`) so that the inline `UploadEngine::Impl` member bodies

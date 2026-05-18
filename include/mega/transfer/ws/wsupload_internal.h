@@ -1,15 +1,17 @@
 /**
- * @file src/transfer/ws/wsupload_internal.h
+ * @file include/mega/transfer/ws/wsupload_internal.h
  * @brief File-internal types and helpers shared by the websocket-upload
  *        engine implementation. Defines kMiB, WSUPLOAD_CURL_MULTI_POLL_MS,
  *        the WSUPLOAD_TRACE macro, SteadyTime, ScopedUnlock, CRC32, and the
  *        WsBuf/WsChunk/ChunkHeader/ChunkFingerprintMacUpdate/WsConn/
  *        WsPoolThread/WsPool struct cluster.
  *
- *        NOT part of the public SDK API: lives under src/ rather than
- *        include/ so consumers cannot include it. Sibling translation units
- *        in src/transfer/ws/ (wsupload.cpp, future ws_curl.cpp) include it
- *        as `#include "wsupload_internal.h"` (relative to the source file).
+ *        SDK-internal architecture header (fu7-17 Goal 1.a relocated it from
+ *        `src/transfer/ws/` to `include/mega/transfer/ws/` alongside
+ *        `ws_encryption.h` and `ws_pool_mgr.h`). Sibling translation units in
+ *        `src/transfer/ws/` (wsupload.cpp, ws_curl.cpp, ws_conn.cpp,
+ *        ws_pool.cpp, ws_pool_mgr.cpp, ws_upload_file.cpp) include it as
+ *        `#include "mega/transfer/ws/wsupload_internal.h"`.
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
  *
@@ -55,16 +57,18 @@ namespace ws
 {
 
 // Full definition of `class WsUploadFile` lives in
-// src/transfer/ws/ws_upload_file.h (fu7-16 Goal 2.Step2). The public header
+// include/mega/transfer/ws/ws_upload_file.h (fu7-16 Goal 2.Step2 split,
+// fu7-17 Goal 1.a relocated). The public header
 // include/mega/transfer/ws/ws_pool_mgr.h declares its own
 // `class WsUploadFile;` forward declaration for the `std::unordered_set<
 // WsUploadFile*> mActiveFiles;` member; consumers of this internal header
-// that need the full type include "ws_upload_file.h" directly.
+// that need the full type include "mega/transfer/ws/ws_upload_file.h" directly.
 
 // FailReason is shared between the WsUploadFile inline `uploadFailed` body
-// (in ws_upload_file.h) and the WsConn::failFileLocked body (in wsupload.cpp).
-// Promoted here from wsupload.cpp in fu7-16 Goal 2.Step2 so the forward decl
-// alone (was insufficient) becomes a full definition.
+// (in include/mega/transfer/ws/ws_upload_file.h) and the WsConn::failFileLocked
+// body (in src/transfer/ws/ws_conn.cpp). Promoted here from wsupload.cpp in
+// fu7-16 Goal 2.Step2 so the forward decl alone (was insufficient) becomes a
+// full definition.
 enum class FailReason : std::uint8_t
 {
     ServerError,

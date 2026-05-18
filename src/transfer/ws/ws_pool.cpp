@@ -19,11 +19,11 @@
  *        Couplings (per coupling-map §1 / §2 — domain_coupling_map.md):
  *          - WsPool↔UploadEngine::Impl (DEEP): poolWorkerThread (~20 derefs),
  *            sendChunk (~13), getWsUploadFile (~7), nextChunk (~6). Full Impl
- *            definition reached via wsupload_engine.h.
+ *            definition reached via mega/transfer/ws/wsupload_engine.h.
  *          - WsPool↔WsConn / WsBuf / WsPoolThread (OK): all-public struct
- *            cluster, full type via wsupload_internal.h.
+ *            cluster, full type via mega/transfer/ws/wsupload_internal.h.
  *          - WsPool↔WsUploadFile (OK): public accessor API, full type via
- *            ws_upload_file.h.
+ *            mega/transfer/ws/ws_upload_file.h.
  *          - ws::detail / TU-local helpers (ChunkMap / g_chunkMap /
  *            chunkSizeAtPosition / steadyMs) stay in wsupload.cpp; this TU
  *            only consumes them via the inline accessors / via
@@ -63,13 +63,14 @@
 
 // File-internal types shared with wsupload.cpp (WsPool, WsConn, WsPoolThread,
 // WsChunk, ChunkFingerprintMacUpdate, ScopedUnlock, SteadyTime, FailReason,
-// WSUPLOAD_TRACE, kMiB). Private header under src/, not include/.
-#include "wsupload_internal.h"
+// WSUPLOAD_TRACE, kMiB). SDK-internal architecture header
+// (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+#include "mega/transfer/ws/wsupload_internal.h"
 
 // Full WsUploadFile definition — every chunk-prep + worker-thread call site
 // dereferences WsUploadFile members directly (paused/aborted/inPool/headPos/
 // transferKey/ctrIv/readData/markEOF/unsetPool/uploadFailed/etc.).
-#include "ws_upload_file.h"
+#include "mega/transfer/ws/ws_upload_file.h"
 
 // Full UploadEngine::Impl definition — sendChunk / poolWorkerThread /
 // nextChunk / getWsUploadFile / handshakeFailureCandidateLocked etc. all
@@ -81,7 +82,7 @@
 // Transitively includes mega/megaapp.h (UploadEngine::Impl's
 // invalidatePinnedSessionUrl body posts a lambda that dereferences
 // client.app), so this TU is self-contained.
-#include "wsupload_engine.h"
+#include "mega/transfer/ws/wsupload_engine.h"
 
 #include "mega/logging.h"
 #include "mega/testhooks.h" // DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA / WSCONN_FORCE_CLOSE_NOW / WSPOOL_RECONNECT_ATTEMPT / WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS

@@ -22,14 +22,15 @@
  *
  *        Includes:
  *          - mega/transfer/ws/ws_pool_mgr.h for the WsPoolMgr declaration.
- *          - wsupload_internal.h for the WsPool / SteadyTime / WSUPLOAD_TRACE
- *            cluster.
- *          - wsupload_engine.h for the full UploadEngine::Impl definition
- *            (needed by the Step-4 methods that dereference Impl members).
- *          - ws_upload_file.h for the WsUploadFile complete type (used by
- *            pinnedPoolHasReference, retireUnusedPinnedPools, refreshPools'
- *            wsPostToClientThread captures and applyRefreshedUrls via
- *            poolHasNoWork).
+ *          - mega/transfer/ws/wsupload_internal.h for the WsPool / SteadyTime
+ *            / WSUPLOAD_TRACE cluster.
+ *          - mega/transfer/ws/wsupload_engine.h for the full
+ *            UploadEngine::Impl definition (needed by the Step-4 methods that
+ *            dereference Impl members).
+ *          - mega/transfer/ws/ws_upload_file.h for the WsUploadFile complete
+ *            type (used by pinnedPoolHasReference, retireUnusedPinnedPools,
+ *            refreshPools' wsPostToClientThread captures and applyRefreshedUrls
+ *            via poolHasNoWork).
  *          - mega/commands_ws.h for CommandUSCForWsUpload used by refreshPools.
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
@@ -47,26 +48,26 @@
 #include "mega/transfer/ws/ws_pool_mgr.h"
 
 // File-internal types shared with wsupload.cpp (WsPool, SteadyTime,
-// WSUPLOAD_TRACE, etc.). Private header under src/, not include/; relative
-// include since src/ is not on the SDKlib include path.
-#include "wsupload_internal.h"
+// WSUPLOAD_TRACE, etc.). SDK-internal architecture header
+// (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+#include "mega/transfer/ws/wsupload_internal.h"
 
 // Full WsUploadFile definition. Used by Goal 2.Step4 bodies below
 // (pinnedPoolHasReference dereferences uf->mPool / uf->sessionUrlHint(),
 // retireUnusedPinnedPools through pinnedPoolHasReference, applyRefreshedUrls
 // indirectly via poolHasNoWork → pool.mUploadingFile).
-#include "ws_upload_file.h"
+#include "mega/transfer/ws/ws_upload_file.h"
 
 // Full UploadEngine::Impl definition. Needed by Goal 2.Step4 bodies that
 // dereference mImpl-> / impl. members (refreshPools posts captures using
 // mImpl->{client.wsPostToClientThread, instanceId, stopping};
 // applyRefreshedUrls reads impl.poolConnectionLimit() via mImpl;
 // retireUnusedPinnedPools / checkPools read impl.currentTime).
-// `wsupload_engine.h` transitively pulls in `ws_upload_file.h` and
-// `mega/megaapp.h` so the inline Impl bodies see MegaApp complete; the
-// explicit `ws_upload_file.h` include above is kept for clarity (same
-// pattern used in ws_conn.cpp).
-#include "wsupload_engine.h"
+// `mega/transfer/ws/wsupload_engine.h` transitively pulls in
+// `mega/transfer/ws/ws_upload_file.h` and `mega/megaapp.h` so the inline Impl
+// bodies see MegaApp complete; the explicit `ws_upload_file.h` include above
+// is kept for clarity (same pattern used in ws_conn.cpp).
+#include "mega/transfer/ws/wsupload_engine.h"
 
 #include "mega/commands_ws.h" // CommandUSCForWsUpload (refreshPools)
 #include "mega/logging.h"
