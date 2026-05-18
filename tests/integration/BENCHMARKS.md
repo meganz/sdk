@@ -220,7 +220,11 @@ Notes:
   `COLLISION_RESOLUTION_NEW_WITH_N` semantics in the SDK download API when
   the same target name is used across iterations. This is the intended
   rename, not a cleanup bug. If a test wants per-iter cleanup, it must
-  remove the file between runs explicitly.
+  remove the file between runs explicitly. SDK-5360 fu7-17 Goal 3.5.b
+  added per-iter `deleteFile()` calls before the `downfile1.txt` /
+  `downfile2.txt` downloads in `SdkTestTransferStats_test.cpp` so this
+  specific cell no longer accumulates `(N)` suffixes — generic guidance
+  for other tests still applies.
 
 ### Cross-version comparison from the JSON
 
