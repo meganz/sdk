@@ -53,6 +53,11 @@ pipeline {
         APIURL_TO_TEST = ''
         GTEST_REPEAT = ''
         GTEST_FILTER = ''
+        // SDK-5360 fu7-17 G6.S1: opt-in gates parsed from $gitlabTriggerPhrase (see
+        // 'Get build and run paramters' stage). Default 'false' so the bench+tsan
+        // stages are skipped on regular MRs (HR14: bench gate only on wsupload-touching).
+        RUN_TSAN_SWEEP = 'false'
+        RUN_BENCH_SWEEP = 'false'
     }
 
     stages {
@@ -347,6 +352,10 @@ pipeline {
                         MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
                         MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
                         BUILD_DIR = "build_dir"
+                        // SDK-5360 fu7-17 G6.S1: BENCH_FILTER is the fallback used when the user
+                        // did NOT supply --gtest_filter= alongside --bench in the trigger phrase.
+                        // When GTEST_FILTER is non-empty it wins; otherwise this default runs the
+                        // full SdkBenchmarkTest.* cell.
                         BENCH_FILTER = "SdkBenchmarkTest.*"
                     }
                     steps {
@@ -374,7 +383,15 @@ pipeline {
                                         cmake -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DMEGA_BENCH_FRAMEWORK_ENABLED=ON -DVCPKG_ROOT=/opt/vcpkg \
                                             \${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${env.BUILD_DIR}_bench
                                         cmake --build ${linux_sources_workspace}/${env.BUILD_DIR}_bench -j5 --target test_integration
-                                        ${env.BUILD_DIR}_bench/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter='${env.BENCH_FILTER}' 2>&1 | tee bench_sweep.log || true
+                                        # SDK-5360 fu7-17 G6.S1: prefer user-supplied --gtest_filter= when present.
+                                        # GTEST_FILTER (line ~85) already includes the --gtest_filter= prefix when set.
+                                        # GTEST_REPEAT (line ~84) is appended unconditionally; empty when not given.
+                                        if [ -n \"${GTEST_FILTER}\" ]; then
+                                            BENCH_FILTER_ARG=\"${GTEST_FILTER}\"
+                                        else
+                                            BENCH_FILTER_ARG=\"--gtest_filter=${env.BENCH_FILTER}\"
+                                        fi
+                                        ${env.BUILD_DIR}_bench/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$BENCH_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee bench_sweep.log || true
                                         # Copy bench_report JSONs from the bench-build's pid_<PID> dirs to top-level for archival.
                                         for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_report_*.json pid_*/bench_report_*.json; do
                                             [ -f "\$benchReport" ] && cp "\$benchReport" .
@@ -421,6 +438,8 @@ pipeline {
                         // SDK-5360 fu7-12 G5.b: current v2-surface cells (post-fu7-7 rename;
                         // pre-fu7-7 SdkTest.* names removed). HR23 strict: any NEW race on
                         // v2 fields (mChunksInFlight, mUploadingFile, etc.) fails the stage.
+                        // SDK-5360 fu7-17 G6.S1: this is the fallback used when the user did
+                        // NOT supply --gtest_filter= alongside --tsan. User filter wins below.
                         TSAN_V2_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools"
                     }
                     steps {
@@ -440,7 +459,14 @@ pipeline {
                                         sh """#!/bin/bash
                                         set -x
                                         ulimit -c unlimited
-                                        ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter="${TSAN_V2_SURFACE_FILTER}" 2>&1 | tee tsan_sweep.log || true
+                                        # SDK-5360 fu7-17 G6.S1: prefer user-supplied --gtest_filter= when present.
+                                        # GTEST_FILTER already includes the --gtest_filter= prefix when set.
+                                        if [ -n \"${GTEST_FILTER}\" ]; then
+                                            TSAN_FILTER_ARG=\"${GTEST_FILTER}\"
+                                        else
+                                            TSAN_FILTER_ARG=\"--gtest_filter=${TSAN_V2_SURFACE_FILTER}\"
+                                        fi
+                                        ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$TSAN_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee tsan_sweep.log || true
                                         # Surface race summary: total reports + v2-surface field hits
                                         echo "===TSAN SUMMARY==="
                                         grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || echo 0
@@ -453,6 +479,21 @@ pipeline {
                                                 exit 1
                                             fi
                                         done
+                                        # SDK-5360 fu7-17 G6.S1: per-cell TSAN log split (same shape as bench).
+                                        # csplit on gtest [ RUN ] markers, rename per-cell, tar.gz so reviewers
+                                        # can wget one cell's TSAN output directly.
+                                        mkdir -p tsan_logs_${BUILD_ID} || :
+                                        if [ -s tsan_sweep.log ]; then
+                                            csplit -z -s -b '%04d' -f tsan_logs_${BUILD_ID}/_split_ tsan_sweep.log '/\\[ RUN      \\]/' '{*}' || :
+                                            for sf in tsan_logs_${BUILD_ID}/_split_*; do
+                                                [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                [ -n "\$cellName" ] || cellName="preamble"
+                                                mv "\$sf" "tsan_logs_${BUILD_ID}/\${cellName}.log" || :
+                                            done
+                                        fi
+                                        tar -czf tsan_logs_${BUILD_ID}.tar.gz tsan_logs_${BUILD_ID} || :
+                                        rm -rf tsan_logs_${BUILD_ID} || :
                                         gzip -c tsan_sweep.log > tsan_sweep_${BUILD_ID}.log.gz || :
                                         rm tsan_sweep.log || :
                                         """
@@ -474,7 +515,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz, bench_sweep*.log.gz, bench_logs_*.tar.gz', fingerprint: true, allowEmptyArchive: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz, bench_sweep*.log.gz, bench_logs_*.tar.gz, tsan_logs_*.tar.gz', fingerprint: true, allowEmptyArchive: true
                     deleteDir()
                 }
             }
