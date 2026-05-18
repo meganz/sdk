@@ -32,17 +32,17 @@
 #include "mega/types.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
-#include "benchmark/BenchmarkRunners.h"
-#include "benchmark/SdkBenchmarkTest.h"
+#include "benchmark/headers/BenchmarkRunners.h"
+#include "benchmark/headers/SdkBenchmarkTest.h"
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
 #include "test.h"
-#include "wsupload/SecondTimer.h"
-#include "wsupload/TransferTempErrorTracker.h"
-#include "wsupload/WsUscCommand.h"
+#include "wsupload/headers/SecondTimer.h"
+#include "wsupload/headers/TransferTempErrorTracker.h"
+#include "wsupload/headers/WsUscCommand.h"
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-#include "bench_framework/BenchReportWriter.h"
+#include "bench_framework/headers/BenchReportWriter.h"
 #endif
 
 #include <gtest/gtest.h>

@@ -4,7 +4,7 @@
 #include <cstdio>
 #include <fstream>
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-#include "bench_framework/BenchReportWriter.h"
+#include "bench_framework/headers/BenchReportWriter.h"
 #endif
 #ifdef WIN32
 #include <winhttp.h>

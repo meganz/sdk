@@ -11,8 +11,8 @@
 
 target_sources(test_integration
     PRIVATE
-    benchmark/BenchmarkRunners.h
+    benchmark/headers/BenchmarkRunners.h
     benchmark/BenchmarkRunners.cpp
-    benchmark/SdkBenchmarkTest.h
+    benchmark/headers/SdkBenchmarkTest.h
     benchmark/SdkBenchmarkTest.cpp
 )

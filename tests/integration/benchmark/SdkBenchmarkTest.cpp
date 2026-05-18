@@ -9,9 +9,9 @@
  * suite.
  */
 
-#include "benchmark/SdkBenchmarkTest.h"
+#include "benchmark/headers/SdkBenchmarkTest.h"
 
-#include "benchmark/BenchmarkRunners.h"
+#include "benchmark/headers/BenchmarkRunners.h"
 
 namespace mega::test::benchmark {
 

@@ -14,7 +14,7 @@
  * per feedback_cxx_standard_per_target.md.
  */
 
-#include "wsupload/SdkWsUploadTest.h"
+#include "wsupload/headers/SdkWsUploadTest.h"
 
 #include "SdkTest_test.h"
 #include "../stdfs.h"
@@ -25,16 +25,16 @@
 #include "megautils.h"
 #include "sdk_test_utils.h"
 #include "test.h"
-#include "wsupload/ScopedUploadSpeedLimit.h"
-#include "wsupload/SecondTimer.h"
-#include "wsupload/TransferTempErrorTracker.h"
-#include "wsupload/WsChunkSendOverquotaCapture.h"
-#include "wsupload/WsUploadDebugHelpers.h"
-#include "wsupload/WsUploadHookGate.h"
-#include "wsupload/WsUploadRetryTracker.h"
-#include "wsupload/WsUploadTestHelpers.h"
-#include "wsupload/WsUploadTransitionCapture.h"
-#include "wsupload/WsUscCommand.h"
+#include "wsupload/headers/ScopedUploadSpeedLimit.h"
+#include "wsupload/headers/SecondTimer.h"
+#include "wsupload/headers/TransferTempErrorTracker.h"
+#include "wsupload/headers/WsChunkSendOverquotaCapture.h"
+#include "wsupload/headers/WsUploadDebugHelpers.h"
+#include "wsupload/headers/WsUploadHookGate.h"
+#include "wsupload/headers/WsUploadRetryTracker.h"
+#include "wsupload/headers/WsUploadTestHelpers.h"
+#include "wsupload/headers/WsUploadTransitionCapture.h"
+#include "wsupload/headers/WsUscCommand.h"
 
 #include <gtest/gtest.h>
 

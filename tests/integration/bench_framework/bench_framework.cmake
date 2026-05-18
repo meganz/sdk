@@ -10,19 +10,19 @@
 target_sources_conditional(test_integration
     FLAG MEGA_BENCH_FRAMEWORK_ENABLED
     PRIVATE
-    bench_framework/BenchSession.h
+    bench_framework/headers/BenchSession.h
     bench_framework/BenchSession.cpp
-    bench_framework/BenchProcessStats.h
+    bench_framework/headers/BenchProcessStats.h
     bench_framework/BenchProcessStats.cpp
-    bench_framework/BenchTransferTimings.h
-    bench_framework/BenchSummary.h
+    bench_framework/headers/BenchTransferTimings.h
+    bench_framework/headers/BenchSummary.h
     bench_framework/BenchSummary.cpp
-    bench_framework/BenchReportWriter.h
+    bench_framework/headers/BenchReportWriter.h
     bench_framework/BenchReportWriter.cpp
 )
 
 target_include_directories(test_integration PRIVATE
-    $<$<BOOL:${MEGA_BENCH_FRAMEWORK_ENABLED}>:${CMAKE_CURRENT_SOURCE_DIR}/bench_framework>
+    $<$<BOOL:${MEGA_BENCH_FRAMEWORK_ENABLED}>:${CMAKE_CURRENT_SOURCE_DIR}/bench_framework/headers>
 )
 
 target_compile_definitions(test_integration PRIVATE

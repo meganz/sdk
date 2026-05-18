@@ -1,4 +1,4 @@
-#include "WsUscCommand.h"
+#include "headers/WsUscCommand.h"
 
 #include "megaapi_impl.h"
 #include "mega/command.h"

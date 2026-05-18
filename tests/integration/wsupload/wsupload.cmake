@@ -10,18 +10,18 @@
 target_sources_conditional(test_integration
     FLAG MEGA_USE_WSUPLOAD
     PRIVATE
-    wsupload/SdkWsUploadTest.h
+    wsupload/headers/SdkWsUploadTest.h
     wsupload/SdkWsUploadTest.cpp
-    wsupload/ScopedUploadSpeedLimit.h
-    wsupload/SecondTimer.h
-    wsupload/TransferTempErrorTracker.h
-    wsupload/WsChunkSendOverquotaCapture.h
-    wsupload/WsUploadDebugHelpers.h
-    wsupload/WsUploadHookGate.h
-    wsupload/WsUploadRetryTracker.h
-    wsupload/WsUploadTestHelpers.h
-    wsupload/WsUploadTransitionCapture.h
-    wsupload/WsUscCommand.h
+    wsupload/headers/ScopedUploadSpeedLimit.h
+    wsupload/headers/SecondTimer.h
+    wsupload/headers/TransferTempErrorTracker.h
+    wsupload/headers/WsChunkSendOverquotaCapture.h
+    wsupload/headers/WsUploadDebugHelpers.h
+    wsupload/headers/WsUploadHookGate.h
+    wsupload/headers/WsUploadRetryTracker.h
+    wsupload/headers/WsUploadTestHelpers.h
+    wsupload/headers/WsUploadTransitionCapture.h
+    wsupload/headers/WsUscCommand.h
     wsupload/WsUscCommand.cpp
 )
 

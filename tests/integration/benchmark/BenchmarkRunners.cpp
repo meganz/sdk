@@ -14,7 +14,7 @@
  * namespace static.
  */
 
-#include "benchmark/BenchmarkRunners.h"
+#include "benchmark/headers/BenchmarkRunners.h"
 
 #include "SdkTest_test.h"
 #include "../stdfs.h"
@@ -25,9 +25,9 @@
 #include "megaapi.h"
 #include "sdk_test_utils.h"
 #include "test.h"
-#include "wsupload/WsUploadDebugHelpers.h"
+#include "wsupload/headers/WsUploadDebugHelpers.h"
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-#include "bench_framework/BenchReportWriter.h"
+#include "bench_framework/headers/BenchReportWriter.h"
 #endif
 
 #include <gtest/gtest.h>
