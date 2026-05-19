@@ -1,8 +1,10 @@
 #include "headers/BenchReportWriter.h"
 
+#include <filesystem>
 #include <fstream>
 #include <mutex>
 #include <sstream>
+#include <system_error>
 #include <vector>
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -24,6 +26,12 @@ std::vector<BenchReportCell>& storage()
 {
     static std::vector<BenchReportCell> cells;
     return cells;
+}
+
+std::string& jsonlReportDir()
+{
+    static std::string dir;
+    return dir;
 }
 
 std::int64_t currentPid()
@@ -66,6 +74,65 @@ std::string jsonEscape(const std::string& s)
     out.push_back('"');
     return out;
 }
+
+// Serialize a single cell's fields into the JSON object body. The caller is
+// responsible for the surrounding `{` and `}` (which differ between the
+// consolidated array form and the single-line JSONL form).
+void writeCellBody(std::ostream& ofs, const BenchReportCell& c, const char* indent)
+{
+    ofs << indent << "\"name\": " << jsonEscape(c.name) << ",";
+    ofs << indent << "\"direction\": \""
+        << (c.direction == Direction::Download ? "download" : "upload") << "\",";
+    ofs << indent << "\"file_size_mib\": " << c.fileSizeMib << ",";
+    ofs << indent << "\"connections\": " << c.connections << ",";
+    ofs << indent << "\"duration_ms\": " << c.durationMs << ",";
+    ofs << indent << "\"aggregate_kbps\": " << c.aggregateKbps << ",";
+    ofs << indent << "\"first_byte_ms\": " << c.firstByteMs << ",";
+    ofs << indent << "\"last_byte_ms\": " << c.lastByteMs << ",";
+    ofs << indent << "\"rss_delta_kb\": " << c.rssCpuDelta.rssMaxKb << ",";
+    ofs << indent << "\"user_cpu_ms\": " << c.rssCpuDelta.userCpuMs << ",";
+    ofs << indent << "\"sys_cpu_ms\": " << c.rssCpuDelta.sysCpuMs << ",";
+    ofs << indent << "\"chunk_ms_min\": " << c.chunkMsDist.min << ",";
+    ofs << indent << "\"chunk_ms_max\": " << c.chunkMsDist.max << ",";
+    ofs << indent << "\"chunk_ms_mean\": " << c.chunkMsDist.mean << ",";
+    ofs << indent << "\"chunk_ms_median\": " << c.chunkMsDist.median << ",";
+    ofs << indent << "\"chunk_ms_p95\": " << c.chunkMsDist.p95 << ",";
+    ofs << indent << "\"chunk_n\": " << c.chunkMsDist.n;
+}
+
+// Build the absolute path `<reportDir>/bench_reports/bench_report_<PID>.<ext>`,
+// ensuring the `bench_reports/` sub-directory exists. Returns empty on failure.
+std::string buildBenchPath(const std::string& reportDir, const char* ext)
+{
+    if (reportDir.empty())
+        return {};
+
+    std::filesystem::path subdir = std::filesystem::path(reportDir) / "bench_reports";
+    std::error_code ec;
+    std::filesystem::create_directories(subdir, ec);
+    if (ec)
+        return {};
+
+    std::ostringstream pathStream;
+    pathStream << subdir.string();
+    pathStream << '/' << "bench_report_" << currentPid() << '.' << ext;
+    return pathStream.str();
+}
+
+// Append one cell as a single-line JSON object to `path`. Each call opens, writes,
+// flushes, and closes so the line survives a mid-run process kill.
+void appendJsonlLine(const std::string& path, const BenchReportCell& c)
+{
+    std::ofstream ofs(path, std::ios::app);
+    if (!ofs.is_open())
+        return;
+
+    ofs << '{';
+    // No newlines between fields → entire cell on one line.
+    writeCellBody(ofs, c, " ");
+    ofs << " }\n";
+    ofs.flush();
+}
 } // namespace
 
 BenchReportWriter& BenchReportWriter::instance()
@@ -74,10 +141,34 @@ BenchReportWriter& BenchReportWriter::instance()
     return inst;
 }
 
+void BenchReportWriter::setReportDir(const std::string& reportDir)
+{
+    std::lock_guard<std::mutex> g(reportMutex());
+    jsonlReportDir() = reportDir;
+    // Eagerly create the sub-directory so the consumer can rely on its presence
+    // even before the first recordCell() arrives.
+    if (!reportDir.empty())
+    {
+        std::error_code ec;
+        std::filesystem::create_directories(
+            std::filesystem::path(reportDir) / "bench_reports", ec);
+    }
+}
+
 void BenchReportWriter::recordCell(const BenchReportCell& cell)
 {
     std::lock_guard<std::mutex> g(reportMutex());
     storage().push_back(cell);
+
+    const std::string& dir = jsonlReportDir();
+    if (dir.empty())
+        return;
+
+    const std::string path = buildBenchPath(dir, "jsonl");
+    if (path.empty())
+        return;
+
+    appendJsonlLine(path, cell);
 }
 
 void BenchReportWriter::reset()
@@ -98,13 +189,9 @@ std::string BenchReportWriter::flush(const std::string& reportDir)
     if (storage().empty() || reportDir.empty())
         return {};
 
-    const auto pid = currentPid();
-    std::ostringstream pathStream;
-    pathStream << reportDir;
-    if (!reportDir.empty() && reportDir.back() != '/')
-        pathStream << '/';
-    pathStream << "bench_report_" << pid << ".json";
-    const std::string path = pathStream.str();
+    const std::string path = buildBenchPath(reportDir, "json");
+    if (path.empty())
+        return {};
 
     std::ofstream ofs(path, std::ios::trunc);
     if (!ofs.is_open())
@@ -112,31 +199,13 @@ std::string BenchReportWriter::flush(const std::string& reportDir)
 
     ofs << "{\n";
     ofs << "  \"schema_version\": 2,\n";
-    ofs << "  \"session_pid\": " << pid << ",\n";
+    ofs << "  \"session_pid\": " << currentPid() << ",\n";
     ofs << "  \"cells\": [\n";
     for (std::size_t i = 0; i < storage().size(); ++i)
     {
-        const auto& c = storage()[i];
-        ofs << "    {\n";
-        ofs << "      \"name\": " << jsonEscape(c.name) << ",\n";
-        ofs << "      \"direction\": \""
-            << (c.direction == Direction::Download ? "download" : "upload") << "\",\n";
-        ofs << "      \"file_size_mib\": " << c.fileSizeMib << ",\n";
-        ofs << "      \"connections\": " << c.connections << ",\n";
-        ofs << "      \"duration_ms\": " << c.durationMs << ",\n";
-        ofs << "      \"aggregate_kbps\": " << c.aggregateKbps << ",\n";
-        ofs << "      \"first_byte_ms\": " << c.firstByteMs << ",\n";
-        ofs << "      \"last_byte_ms\": " << c.lastByteMs << ",\n";
-        ofs << "      \"rss_delta_kb\": " << c.rssCpuDelta.rssMaxKb << ",\n";
-        ofs << "      \"user_cpu_ms\": " << c.rssCpuDelta.userCpuMs << ",\n";
-        ofs << "      \"sys_cpu_ms\": " << c.rssCpuDelta.sysCpuMs << ",\n";
-        ofs << "      \"chunk_ms_min\": " << c.chunkMsDist.min << ",\n";
-        ofs << "      \"chunk_ms_max\": " << c.chunkMsDist.max << ",\n";
-        ofs << "      \"chunk_ms_mean\": " << c.chunkMsDist.mean << ",\n";
-        ofs << "      \"chunk_ms_median\": " << c.chunkMsDist.median << ",\n";
-        ofs << "      \"chunk_ms_p95\": " << c.chunkMsDist.p95 << ",\n";
-        ofs << "      \"chunk_n\": " << c.chunkMsDist.n << "\n";
-        ofs << "    }";
+        ofs << "    {";
+        writeCellBody(ofs, storage()[i], "\n      ");
+        ofs << "\n    }";
         if (i + 1 < storage().size())
             ofs << ",";
         ofs << "\n";
