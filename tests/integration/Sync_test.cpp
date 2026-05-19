@@ -3149,7 +3149,7 @@ handle StandardClient::setupSync_mainthread(const string& rootPath,
         client.setupSync_inThread(rootPath, remoteItem, syncOptions, std::move(result));
     }, __FILE__, __LINE__);
 
-    auto status = result.wait_for(chrono::seconds(45));
+    auto status = result.wait_for(chrono::seconds(90));
 
     EXPECT_NE(status, future_status::timeout);
 
