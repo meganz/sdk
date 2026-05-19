@@ -200,7 +200,8 @@ TEST(Sqlite, checkDbFileAndAdjustLegacy_useLegacyDB)
 {
     if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD ||
         DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
-        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
+        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT ||
+        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_MEDIATS)
     {
         GTEST_SKIP()
             << "use-legacy-DB branch is unreachable: LEGACY_DB_VERSION sits at a migration cutoff";

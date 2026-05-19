@@ -12711,10 +12711,13 @@ void MegaClient::opensctable()
             // new DB scheme. Similarly, for SRW, we just need to rename the existing legacy DB, and
             // only delete the DB if there is a downgrade (SRW to NO SRW), hence why we need to
             // increase the DB version, but without affecting the upgrade from NO SRW to SRW.
+            // Similarly, for MEDIATS (Nodes table with mediats int64 column), we
+            // rename the legacy DB and backfill the column on first open.
             int recycleDBVersion =
                 (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD ||
                  DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
-                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT) ?
+                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT ||
+                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_MEDIATS) ?
                     DB_OPEN_FLAG_RECYCLE :
                     0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)

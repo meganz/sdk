@@ -87,7 +87,8 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
             if (currentDbVersion == LEGACY_DB_VERSION &&
                 LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD &&
                 LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_SRW &&
-                LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
+                LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_VFINGERPRINT &&
+                LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_MEDIATS)
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);

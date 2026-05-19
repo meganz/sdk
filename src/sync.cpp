@@ -1152,8 +1152,10 @@ void UnifiedSync::changeState(SyncError newSyncError, bool newEnableFlag, bool n
                 // purpose. A similar case happens if user is upgrading from No Fingerprint virtual
                 // column in Nodes table to a newer version with this column.
                 int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                // NOD migration predates per-sync DBs; intentionally not in this chain.
                 if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
-                    DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
+                    DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT ||
+                    DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_MEDIATS)
                 {
                     dbFlags |= DB_OPEN_FLAG_RECYCLE;
                 }
@@ -5771,9 +5773,11 @@ error Syncs::syncConfigStoreLoad(SyncConfigVector& configs)
                     // Fingerprint virtual column in Nodes table to a newer version with this
                     // column.
                     int dbFlags = DB_OPEN_FLAG_TRANSACTED; // Unused
+                    // NOD migration predates per-sync DBs; intentionally not here.
                     if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
                         DbAccess::LEGACY_DB_VERSION ==
-                            DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
+                            DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT ||
+                        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_MEDIATS)
                     {
                         dbFlags |= DB_OPEN_FLAG_RECYCLE;
                     }

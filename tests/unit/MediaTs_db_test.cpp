@@ -45,6 +45,7 @@
 #include <filesystem>
 #include <functional>
 #include <map>
+#include <memory>
 #include <stdfs.h>
 
 namespace fs = std::filesystem;
@@ -79,8 +80,21 @@ protected:
     std::shared_ptr<MegaClient> mClient;
     fs::path mTestDir;
     fs::path mSctablePath;
+    fs::path mSctableLegacyPath;
     uint64_t mNextHandle = 1;
     NodeHandle mRootHandle;
+
+    static constexpr const char* kFixtureSid =
+        "AWA5YAbtb4JO-y2zWxmKZpSe5-6XM7CTEkA-3Nv7J4byQUpOazdfSC1ZUFlS-kah76gPKUEkTF9g7MeE";
+
+    // Seed values for tests that exercise the mediats migration path.
+    // kSeedPatternMediats is derived from the filename's date-time pattern
+    // (2024-01-15T10:30:45Z → 1705314645000 ms), so these four constants
+    // must change together.
+    static constexpr m_time_t kSeedMtime = 1700000000LL;
+    static constexpr m_time_t kSeedCtime = 1600000000LL;
+    static constexpr const char* kSeedPatternFilename = "IMG_20240115_103045.jpg";
+    static constexpr uint64_t kSeedPatternMediats = 1705314645000ULL;
 
     void SetUp() override
     {
@@ -91,8 +105,7 @@ protected:
         auto* dbAccess = new SqliteDbAccess(LocalPath::fromAbsolutePath(path_u8string(mTestDir)));
 
         mClient = mt::makeClient(mApp, dbAccess);
-        mClient->sid =
-            "AWA5YAbtb4JO-y2zWxmKZpSe5-6XM7CTEkA-3Nv7J4byQUpOazdfSC1ZUFlS-kah76gPKUEkTF9g7MeE";
+        mClient->sid = kFixtureSid;
         mClient->opensctable();
 
         // Mirror MegaClient::opensctable()'s dbname derivation. Lets the
@@ -106,7 +119,17 @@ protected:
                          dbname.data()));
         mSctablePath =
             dbAccess->databasePath(*mClient->fsaccess, dbname, DbAccess::DB_VERSION).toPath(false);
+        mSctableLegacyPath =
+            dbAccess->databasePath(*mClient->fsaccess, dbname, DbAccess::LEGACY_DB_VERSION)
+                .toPath(false);
 
+        seedRoot();
+    }
+
+    // Callable mid-test to re-seed mRootHandle after a fresh reopen against
+    // a new DB (the SetUp-time root only lives in the original DB file).
+    void seedRoot()
+    {
         NodeHandle rootH = NodeHandle().set6byte(mNextHandle++);
         auto rootNode = mt::makeNode(*mClient, ROOTNODE, rootH, nullptr);
         rootNode->attrs.map[kNameId] = "ROOT";
@@ -119,6 +142,64 @@ protected:
     {
         mClient.reset();
         fs::remove_all(mTestDir);
+    }
+
+    // Explicit commit() before reset(): ~SqliteDbTable rolls back open
+    // transactions instead of flushing (src/db/sqlite.cpp:707-934).
+    void closeClient()
+    {
+        ASSERT_NE(mClient, nullptr);
+        ASSERT_NE(mClient->sctable, nullptr);
+        mClient->sctable->commit();
+        mClient.reset();
+    }
+
+    void reopenClient()
+    {
+        auto* dbAccess = new SqliteDbAccess(LocalPath::fromAbsolutePath(path_u8string(mTestDir)));
+        mClient = mt::makeClient(mApp, dbAccess);
+        mClient->sid = kFixtureSid;
+        mClient->opensctable();
+        ASSERT_NE(mClient->sctable, nullptr);
+    }
+
+    void renameCurrentToLegacy()
+    {
+        ASSERT_TRUE(fs::exists(mSctablePath)) << "Statecache DB not found: " << mSctablePath;
+        fs::rename(mSctablePath, mSctableLegacyPath);
+        ASSERT_TRUE(fs::exists(mSctableLegacyPath))
+            << "Rename to legacy path failed: " << mSctableLegacyPath;
+        ASSERT_FALSE(fs::exists(mSctablePath))
+            << "Current-version path should be gone after rename: " << mSctablePath;
+    }
+
+    // Simulates a LEGACY DB shape by dropping the mediats
+    // column from the renamed legacy file via raw sqlite3.
+    void dropMediatsColumnFromLegacy()
+    {
+        sqlite3* rawDb = nullptr;
+        const int openRc = sqlite3_open_v2(mSctableLegacyPath.string().c_str(),
+                                           &rawDb,
+                                           SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX,
+                                           nullptr);
+        // sqlite3_open_v2 may allocate rawDb even on failure; the guard
+        // ensures the ASSERT_EQ early-return path still calls sqlite3_close.
+        std::unique_ptr<sqlite3, decltype(&sqlite3_close)> dbGuard{rawDb, &sqlite3_close};
+        ASSERT_EQ(openRc, SQLITE_OK) << "Failed to open DB: " << sqlite3_errmsg(rawDb);
+        char* errMsg = nullptr;
+        const int execRc =
+            sqlite3_exec(rawDb, "ALTER TABLE nodes DROP COLUMN mediats", nullptr, nullptr, &errMsg);
+        const std::string sqlErr = errMsg ? errMsg : "";
+        sqlite3_free(errMsg);
+        ASSERT_EQ(execRc, SQLITE_OK) << "SQL error dropping mediats column: " << sqlErr;
+    }
+
+    void expectRecycleSucceeded()
+    {
+        EXPECT_FALSE(fs::exists(mSctableLegacyPath))
+            << "Legacy DB file should have been renamed during recycle: " << mSctableLegacyPath;
+        EXPECT_TRUE(fs::exists(mSctablePath))
+            << "Current-version DB file should exist after recycle: " << mSctablePath;
     }
 
     // Add and persist a file node. mediats is computed by putNodeInDb() from filename/mtime/ctime.
@@ -288,6 +369,15 @@ protected:
             return UINT64_MAX;
         return ns.mMediaTs;
     }
+
+    // Existence-only check.
+    bool nodeExistsInDb(NodeHandle h)
+    {
+        auto* table = dynamic_cast<SqliteAccountState*>(mClient->sctable.get());
+        EXPECT_NE(table, nullptr);
+        NodeSerialized ns;
+        return table != nullptr && table->getNode(h, ns);
+    }
 };
 
 } // anonymous namespace
@@ -365,82 +455,59 @@ TEST_F(MediaTsDbFixture, MultipleNodesCorrectMediats)
 }
 
 // ---------------------------------------------------------------------------
-// Test: migration backfills mediats from blob when column is first added
+// Test: migration backfills mediats from blob during the v(LEGACY)→v recycle
+// triggered by SDK-6162's DB version bump.
 //
-// Simulates upgrading from an old DB that doesn't have the mediats column.
-// 1. Create DB with nodes (mediats column exists, values computed)
-// 2. Close SDK, drop mediats column via raw SQL (simulates old schema)
-// 3. Re-open via SDK → addAndPopulateColumns detects missing column →
-//    migrateDataToColumns backfills from blob + ctime column
-// 4. Verify correct mediats values
+// 1. Create DB with nodes (mediats column populated).
+// 2. Close SDK, rename file to v(LEGACY) path, drop mediats column to
+//    simulate a true pre-SDK-6070 on-disk shape.
+// 3. Re-open via SDK → checkDbFileAndAdjustLegacy recycle branch renames
+//    v(LEGACY) → v(DB_VERSION), then addAndPopulateColumns detects the
+//    missing column and migrateDataToColumns backfills from blob.
+// 4. Verify correct mediats values.
 // ---------------------------------------------------------------------------
 TEST_F(MediaTsDbFixture, MigrationBackfillsMediatsFromBlob)
 {
     // Phase 1: Create nodes in a DB that has the mediats column.
-    const m_time_t mediaMtime = 1700000000LL;
-    const m_time_t mediaCtime = 1600000000LL;
 
     // Media file with filename pattern → expect filename timestamp
-    NodeHandle hPattern = addFileNode("IMG_20240115_103045.jpg", mediaMtime, mediaCtime);
+    NodeHandle hPattern = addFileNode(kSeedPatternFilename, kSeedMtime, kSeedCtime);
     // Media file without pattern → expect mtime * 1000
-    NodeHandle hMtime = addFileNode("photo.jpg", mediaMtime, mediaCtime);
+    NodeHandle hMtime = addFileNode("photo.jpg", kSeedMtime, kSeedCtime);
     // Media file, no pattern, mtime=0 → expect ctime * 1000
-    NodeHandle hCtime = addFileNode("image.png", 0, mediaCtime);
+    NodeHandle hCtime = addFileNode("image.png", 0, kSeedCtime);
     // Non-media file → expect 0
-    NodeHandle hNonMedia = addFileNode("document.pdf", mediaMtime, mediaCtime);
+    NodeHandle hNonMedia = addFileNode("document.pdf", kSeedMtime, kSeedCtime);
     // Folder node → expect 0
     NodeHandle hFolder = addFolderNode("MyFolder");
 
     // Sanity: verify mediats was computed correctly before migration test.
-    ASSERT_EQ(getMediatsFromDb(hPattern), 1705314645000LL);
+    ASSERT_EQ(getMediatsFromDb(hPattern), kSeedPatternMediats);
     ASSERT_GT(getMediatsFromDb(hMtime), uint64_t{0});
 
-    // Phase 2: Close SDK and drop the mediats column to simulate old schema.
-    mClient->sctable->commit();
-    mClient.reset();
-
-    const fs::path dbPath = mSctablePath;
-    ASSERT_TRUE(fs::exists(dbPath)) << "Statecache DB not found: " << dbPath;
-
-    // Drop the mediats column to simulate an old schema (requires SQLite >= 3.35,
-    // guaranteed on all CI/dev machines targeted by unit tests).
-    {
-        sqlite3* rawDb = nullptr;
-        int rc = sqlite3_open_v2(dbPath.string().c_str(),
-                                 &rawDb,
-                                 SQLITE_OPEN_READWRITE | SQLITE_OPEN_NOMUTEX,
-                                 nullptr);
-        ASSERT_EQ(rc, SQLITE_OK) << "Failed to open DB: " << sqlite3_errmsg(rawDb);
-        char* errMsg = nullptr;
-        rc =
-            sqlite3_exec(rawDb, "ALTER TABLE nodes DROP COLUMN mediats", nullptr, nullptr, &errMsg);
-        std::string sqlErr = errMsg ? errMsg : "";
-        sqlite3_free(errMsg);
-        sqlite3_close(rawDb);
-        ASSERT_EQ(rc, SQLITE_OK) << "SQL error dropping mediats column: " << sqlErr;
-    }
+    // Phase 2: Close SDK, rename DB to the legacy (pre-bump) path, and drop the
+    // mediats column. This reproduces a true pre-SDK-6162 v(LEGACY) DB on disk
+    // so the reopen exercises the rename-and-backfill branch in
+    // checkDbFileAndAdjustLegacy, not only the in-place column add.
+    closeClient();
+    renameCurrentToLegacy();
+    dropMediatsColumnFromLegacy();
 
     // Phase 3: Re-open via SDK — this triggers migration.
-    {
-        auto* dbAccess = new SqliteDbAccess(LocalPath::fromAbsolutePath(path_u8string(mTestDir)));
-        mClient = mt::makeClient(mApp, dbAccess);
-        mClient->sid =
-            "AWA5YAbtb4JO-y2zWxmKZpSe5-6XM7CTEkA-3Nv7J4byQUpOazdfSC1ZUFlS-kah76gPKUEkTF9g7MeE";
-        mClient->opensctable();
-    }
+    reopenClient();
 
     // Phase 4: Verify migration computed correct mediats values.
 
-    // Media file with filename pattern → 2024-01-15T10:30:45Z = 1705314645000
-    EXPECT_EQ(getMediatsFromDb(hPattern), 1705314645000LL)
+    // Media file with filename pattern → 2024-01-15T10:30:45Z
+    EXPECT_EQ(getMediatsFromDb(hPattern), kSeedPatternMediats)
         << "Migration should compute mediats from filename pattern in blob";
 
     // Media file without pattern → mtime * 1000
-    EXPECT_EQ(getMediatsFromDb(hMtime), static_cast<uint64_t>(mediaMtime) * 1000)
+    EXPECT_EQ(getMediatsFromDb(hMtime), static_cast<uint64_t>(kSeedMtime) * 1000)
         << "Migration should fall back to mtime from blob fingerprint";
 
     // Media file, mtime=0 → ctime * 1000
-    EXPECT_EQ(getMediatsFromDb(hCtime), static_cast<uint64_t>(mediaCtime) * 1000)
+    EXPECT_EQ(getMediatsFromDb(hCtime), static_cast<uint64_t>(kSeedCtime) * 1000)
         << "Migration should fall back to ctime from DB column";
 
     // Non-media file → 0
@@ -448,6 +515,61 @@ TEST_F(MediaTsDbFixture, MigrationBackfillsMediatsFromBlob)
 
     // Folder → 0
     EXPECT_EQ(getMediatsFromDb(hFolder), 0) << "Migration should set 0 for folder nodes";
+
+    expectRecycleSucceeded();
+}
+
+// ---------------------------------------------------------------------------
+// Test: RecycleLegacyWinsWhenBothFilesExist
+//
+// When both the legacy and current-version DB files exist on disk at reopen
+// time, the recycle branch in checkDbFileAndAdjustLegacy must remove the
+// pre-existing current-version file before renaming the legacy file into its
+// place (src/db/sqlite.cpp:99-112). Simulates the documented "downgrade is
+// executed and come back to newer version" scenario.
+// ---------------------------------------------------------------------------
+TEST_F(MediaTsDbFixture, RecycleLegacyWinsWhenBothFilesExist)
+{
+    // Phase 1: Seed the to-be-legacy DB (currently at v(DB_VERSION)).
+    NodeHandle hLegacyMarker = addFileNode(kSeedPatternFilename, kSeedMtime, kSeedCtime);
+    ASSERT_EQ(getMediatsFromDb(hLegacyMarker), kSeedPatternMediats);
+
+    // Phase 2: Make the seeded DB look like a pre-SDK-6070 v(LEGACY) file on
+    // disk, then generate a separate current-version DB so both files coexist.
+    closeClient();
+    renameCurrentToLegacy();
+    dropMediatsColumnFromLegacy();
+    // Stash legacy out of view first so the reopen creates a fresh DB
+    // instead of immediately recycling it.
+    const fs::path stash = mSctableLegacyPath.string() + ".stashed";
+    fs::rename(mSctableLegacyPath, stash);
+    reopenClient();
+    seedRoot();
+    NodeHandle hCurrentMarker = addFileNode("current_marker.jpg", kSeedMtime, kSeedCtime);
+    ASSERT_EQ(getMediatsFromDb(hCurrentMarker), static_cast<uint64_t>(kSeedMtime) * 1000)
+        << "Failed to seed hCurrentMarker into the fresh v(DB_VERSION) DB";
+    closeClient();
+    fs::rename(stash, mSctableLegacyPath);
+    ASSERT_TRUE(fs::exists(mSctablePath));
+    ASSERT_TRUE(fs::exists(mSctableLegacyPath));
+
+    // Phase 3: Reopen with both files present — recycle branch must wipe
+    // v(DB_VERSION) (including hCurrentMarker) and rename v(LEGACY) into
+    // its place.
+    reopenClient();
+
+    // Phase 4: Legacy data wins.
+    expectRecycleSucceeded();
+
+    // hLegacyMarker (from legacy file) is queryable; mediats was recomputed
+    // from the filename during recycle's addAndPopulateColumns backfill.
+    EXPECT_EQ(getMediatsFromDb(hLegacyMarker), kSeedPatternMediats)
+        << "Legacy DB data lost during recycle";
+
+    // hCurrentMarker (only existed in the wiped current-version DB) is no
+    // longer findable — proves removeDBFiles(dbPath) ran before rename.
+    EXPECT_FALSE(nodeExistsInDb(hCurrentMarker))
+        << "Current-version marker node survived recycle — legacy did not win";
 }
 
 // ---------------------------------------------------------------------------
