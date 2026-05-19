@@ -9,16 +9,16 @@
  * builds — so the test body always compiles, but only runs when hooks are
  * available.
  *
- * Use is gated by a separate fu7-15+ refactor: today, most TEST_F bodies in
- * SdkWsUploadTest.cpp reference globalMegaTestHooks.<field> directly (the
- * MegaTestHooks struct itself is gated under MEGASDK_DEBUG_TEST_HOOKS_ENABLED
- * in include/mega/testhooks.h:43), so a runtime gate cannot stand alone for
- * those tests — they still need #ifdef gating at the field-access site.
- * See Goal2_deferred_items/g2c7_design_constraints.md for the audit.
+ * The fu7-15 hook-ABI redesign migrated WS-upload TEST_F bodies that rely on
+ * MegaTestHooks struct fields to wrap their hook-callback invocations in the
+ * always-compile MegaTestHookCallContext pattern, allowing the bodies to compile
+ * in both hooks-ON and hooks-OFF builds. Combined with this macro at the body
+ * entry, the GTEST_SKIP path keeps the runtime behaviour correct in hooks-OFF.
  *
- * The single compile-safe site that uses this macro today is
- * OverquotaDuringTransfer (relies only on WsChunkSendOverquotaCapture, a
- * self-stubbing helper class).
+ * Current usage: ~14+ TEST_F sites across SdkWsUploadTest.cpp (the macro and
+ * the field-access wrappers were rolled out in lockstep). Search the
+ * tests/integration/wsupload/ tree for `WSUPLOAD_REQUIRE_TEST_HOOKS()` to
+ * enumerate the live sites.
  */
 
 #pragma once

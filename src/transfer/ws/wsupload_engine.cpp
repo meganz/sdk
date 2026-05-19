@@ -224,8 +224,6 @@ void UploadEngine::Impl::kick()
 {
     WSUPLOAD_TRACE << "[UploadEngine::Impl::kick] BEGIN [this = " << this << "]";
     std::lock_guard<std::mutex> g(uploadMutex);
-    // if (poolMgr.mPools.empty())
-    //     poolMgr.refreshPools();
     for (auto& p: poolMgr.mPools)
     {
         WSUPLOAD_TRACE << "[UploadEngine::Impl::kick] pool(" << (void*)p.get()
