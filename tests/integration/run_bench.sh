@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Wrapper for running SDK benchmark cells against the ON binary.
 # The default dev-unix-wsupload build has MEGA_BENCH_FRAMEWORK_ENABLED=OFF, so
-# bench_report_<PID>.json is never emitted from it. Use this script (or the
-# dev-unix-wsupload-benchOn preset directly) for any benchmarking work.
+# bench_report_<PID>.{json,jsonl} are never emitted from it. Use this script (or
+# the dev-unix-wsupload-benchOn preset directly) for any benchmarking work.
+# Artifacts land under pid_<PID>/bench_reports/ (fu7-18 G1).
 #
 # Usage:
 #   bash tests/integration/run_bench.sh '<gtest_filter>' [repeat]
@@ -57,10 +58,15 @@ fi
     --gtest_repeat="${repeat}"
 
 echo
-echo "Latest bench_report:"
-latest_json=$(ls -t "${HOME}/mega_tests/pid_"*"/bench_report_"*".json" 2>/dev/null | head -1 || true)
+echo "Latest bench_reports:"
+latest_json=$(ls -t "${HOME}/mega_tests/pid_"*"/bench_reports/bench_report_"*".json" 2>/dev/null | head -1 || true)
+latest_jsonl=$(ls -t "${HOME}/mega_tests/pid_"*"/bench_reports/bench_report_"*".jsonl" 2>/dev/null | head -1 || true)
 if [[ -n "${latest_json}" ]]; then
-    echo "  ${latest_json}"
-else
+    echo "  json:  ${latest_json}"
+fi
+if [[ -n "${latest_jsonl}" ]]; then
+    echo "  jsonl: ${latest_jsonl}"
+fi
+if [[ -z "${latest_json}" && -z "${latest_jsonl}" ]]; then
     echo "  (none found — verify MEGA_BENCH_FRAMEWORK_ENABLED=ON and that bench cells were exercised)"
 fi

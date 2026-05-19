@@ -101,45 +101,62 @@ grep -E 'mean speed|KB/s|upload time' "$log" | head -20
 - Sequential multi-test driver (pattern): see `/tmp/phase5_validate.sh` retained from the 2026-04-22 session — it writes per-phase stdout + pid dirs + summary under `/tmp/phase5/`.
 - Example baseline / before-after reports for the WS upload engine: `~/investigationTests/SDK-5360_serialization_new/SyncTest/followup/` — `{01_baseline, 04_fixB_results, 07_isolation_matrix, 08_fixB_prime_results}.md`.
 
-## Bench-report JSON (fu7-5 G6)
+## Bench-report JSON (fu7-5 G6 + fu7-18 G1)
 
 The `MEGA_BENCH_FRAMEWORK_ENABLED` CMake option defaults to **OFF** — see the
 "Benchmark procedure" section below for the local build that has it ON.
 When the binary is built with `-DMEGA_BENCH_FRAMEWORK_ENABLED=ON`, each
-`SdkBenchmark*` test emits a JSON cell into
-`${HOME}/mega_tests/pid_<PID>/bench_report_<PID>.json` summarising that
-cell's measurements. Schema (version 1):
+`SdkBenchmark*` test emits a JSON cell into the dedicated
+`bench_reports/` sub-directory of the per-process folder, separate from
+`test_integration.log` so partial-run artifacts survive truncation:
+
+```
+${HOME}/mega_tests/pid_<PID>/
+├── test_integration.log
+└── bench_reports/
+    ├── bench_report_<PID>.jsonl    # per-iter stream (fu7-18 G1)
+    └── bench_report_<PID>.json     # consolidated array (final flush)
+```
+
+**`bench_report_<PID>.jsonl`** — JSON Lines stream, one cell per line, appended
+synchronously on every `recordCell()` call and flushed to disk immediately. Mid-run
+safe: if the process is killed (throttle storm, SIGKILL, crash) the lines completed
+so far are durable on disk. Consume with `jq -s` or any JSONL reader.
+
+**`bench_report_<PID>.json`** — consolidated array, only written on explicit
+`flush()` at test tear-down. Identical cell schema, wrapped in a top-level
+`{ "schema_version": 2, "session_pid": <PID>, "cells": [ ... ] }` object. Use
+this when post-processing tooling expects a single document.
+
+Each cell (whether a JSONL line or an entry in the consolidated `cells` array)
+has the shape:
 
 ```json
 {
-  "schema_version": 1,
-  "session_pid": 12345,
-  "cells": [
-    {
-      "name": "SdkBenchmarkTest.SingleLargeUpload",
-      "file_size_mib": 1024,
-      "connections": 8,
-      "duration_ms": 87234,
-      "aggregate_kbps": 12345,
-      "first_byte_ms": 234,
-      "last_byte_ms": 87100,
-      "rss_delta_kb": 42000,
-      "user_cpu_ms": 12300,
-      "sys_cpu_ms": 4500,
-      "chunk_ms_min": 10,
-      "chunk_ms_max": 250,
-      "chunk_ms_mean": 47,
-      "chunk_ms_median": 42,
-      "chunk_ms_p95": 95,
-      "chunk_n": 1024
-    }
-  ]
+  "name": "SdkBenchmarkTest.SingleLargeUpload",
+  "direction": "upload",
+  "file_size_mib": 1024,
+  "connections": 8,
+  "duration_ms": 87234,
+  "aggregate_kbps": 12345,
+  "first_byte_ms": 234,
+  "last_byte_ms": 87100,
+  "rss_delta_kb": 42000,
+  "user_cpu_ms": 12300,
+  "sys_cpu_ms": 4500,
+  "chunk_ms_min": 10,
+  "chunk_ms_max": 250,
+  "chunk_ms_mean": 47,
+  "chunk_ms_median": 42,
+  "chunk_ms_p95": 95,
+  "chunk_n": 1024
 }
 ```
 
-The file is intended to be archived by Jenkins as a CI artifact (glob `pid_*/bench_report_*.json`).
-Use this in preference to grepping `[WsUploadStats]` from `test_integration.log` for ≥5 % regression
-detection — the JSON file is small, version-locked, and diffable across runs.
+Both files are archived by Jenkins as CI artifacts (glob
+`pid_*/bench_reports/bench_report_*.{json,jsonl}`). Use them in preference to
+grepping `[WsUploadStats]` from `test_integration.log` for ≥5 % regression
+detection — they are small, version-locked, and diffable across runs.
 
 The framework module (`tests/integration/bench_framework/`) provides reusable helpers:
 - `mega::bench::BenchSession` — wall-clock lifecycle wrapper.
@@ -204,7 +221,9 @@ After a bench run, `pid_<PID>/` should contain:
 
 ```
 pid_<PID>/
-├── bench_report_<PID>.json   # BenchReportWriter output (ON binary only)
+├── bench_reports/                 # BenchReportWriter outputs (ON binary only, fu7-18 G1)
+│   ├── bench_report_<PID>.jsonl   #   per-recordCell append; mid-run safe
+│   └── bench_report_<PID>.json    #   consolidated array, written at tear-down only
 ├── bench_staging/            # speculative staging dir; empty for cells that don't stage local files (see BenchmarkRunners)
 ├── test_integration.log      # gtest stdout + line summaries
 └── mega.gfxworker.*.log      # gfx worker logs
@@ -228,20 +247,27 @@ Notes:
 
 ### Cross-version comparison from the JSON
 
-The JSON is per-PID and additive (one cell entry per gtest cell). Compare
-across versions with `jq`:
+The consolidated JSON is per-PID and additive (one cell entry per gtest cell).
+Compare across versions with `jq`:
 
 ```bash
-# Compare SingleLargeUpload aggregate_kbps across two PIDs
+# Compare SingleLargeUpload aggregate_kbps across two PIDs (consolidated form)
 jq '.cells[] | select(.name=="SdkBenchmarkTest.SingleLargeUpload") |
     {pid: input_filename, kbps: .aggregate_kbps, duration_ms: .duration_ms,
      rss_delta_kb: .rss_delta_kb}' \
-   ${HOME}/mega_tests/pid_AAAA/bench_report_AAAA.json \
-   ${HOME}/mega_tests/pid_BBBB/bench_report_BBBB.json
+   ${HOME}/mega_tests/pid_AAAA/bench_reports/bench_report_AAAA.json \
+   ${HOME}/mega_tests/pid_BBBB/bench_reports/bench_report_BBBB.json
+
+# Same query against the JSONL stream (partial-run-safe form). `jq -s` slurps
+# the JSONL lines into an array; the cell schema is identical.
+jq -s 'map(select(.name=="SdkBenchmarkTest.SingleLargeUpload")) |
+    map({kbps: .aggregate_kbps, duration_ms: .duration_ms,
+         rss_delta_kb: .rss_delta_kb})' \
+   ${HOME}/mega_tests/pid_AAAA/bench_reports/bench_report_AAAA.jsonl
 ```
 
-The schema is version-locked (`schema_version` field); the same `jq` recipe
-keeps working across runs.
+The schema is version-locked (`schema_version` field on the consolidated form);
+the same `jq` recipe keeps working across runs.
 
 ### Jenkins-side artifacts
 
@@ -249,8 +275,9 @@ MR builds run a separate `${BUILD_DIR}_bench` configured with
 `-DMEGA_BENCH_FRAMEWORK_ENABLED=ON` (see `jenkinsfile/Jenkinsfile_MR_linux_cmake`).
 After the bench stage the pipeline csplits `bench_sweep.log` into per-cell
 logs and packs them into `bench_logs_<BUILD_ID>.tar.gz`; both that tarball
-and the raw `bench_report_*.json` are archived via the Jenkins
-`archiveArtifacts` glob.
+and the raw `bench_report_*.{json,jsonl}` (from the `pid_*/bench_reports/`
+sub-directory; fu7-18 G1) are archived via the Jenkins `archiveArtifacts`
+glob.
 
 To reproduce the per-cell csplit locally for a sweep that emitted a single
 log:

@@ -284,9 +284,11 @@ pipeline {
 
                                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
                                         rm test_integration.log || :
-                                        # Archive bench_framework JSON reports (fu7-5 G6). One file per
-                                        # test_integration PID, emitted when MEGA_BENCH_FRAMEWORK_ENABLED.
-                                        for benchReport in pid_*/bench_report_*.json; do
+                                        # Archive bench_framework reports (fu7-5 G6 + fu7-18 G1). Two files per
+                                        # test_integration PID, emitted when MEGA_BENCH_FRAMEWORK_ENABLED: a
+                                        # per-iter JSONL (mid-run safe) plus a consolidated JSON written at
+                                        # tear-down. Both live under pid_<PID>/bench_reports/.
+                                        for benchReport in pid_*/bench_reports/bench_report_*.json pid_*/bench_reports/bench_report_*.jsonl; do
                                             [ -f \"\$benchReport\" ] && cp \"\$benchReport\" .
                                         done
                                         if [ -n \"\$FAILED\" ]; then
@@ -392,8 +394,9 @@ pipeline {
                                             BENCH_FILTER_ARG=\"--gtest_filter=${env.BENCH_FILTER}\"
                                         fi
                                         ${env.BUILD_DIR}_bench/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$BENCH_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee bench_sweep.log || true
-                                        # Copy bench_report JSONs from the bench-build's pid_<PID> dirs to top-level for archival.
-                                        for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_report_*.json pid_*/bench_report_*.json; do
+                                        # Copy bench reports (consolidated JSON + per-iter JSONL, fu7-18 G1) from
+                                        # the bench-build's pid_<PID>/bench_reports/ dirs to top-level for archival.
+                                        for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_reports/bench_report_*.json ${env.BUILD_DIR}_bench/pid_*/bench_reports/bench_report_*.jsonl pid_*/bench_reports/bench_report_*.json pid_*/bench_reports/bench_report_*.jsonl; do
                                             [ -f "\$benchReport" ] && cp "\$benchReport" .
                                         done
                                         # SDK-5360 fu7-12 G5.c: per-cell bench log split. csplit on gtest [ RUN ]
@@ -515,7 +518,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, tsan_sweep*.log.gz, bench_sweep*.log.gz, bench_logs_*.tar.gz, tsan_logs_*.tar.gz', fingerprint: true, allowEmptyArchive: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, bench_report_*.jsonl, tsan_sweep*.log.gz, bench_sweep*.log.gz, bench_logs_*.tar.gz, tsan_logs_*.tar.gz', fingerprint: true, allowEmptyArchive: true
                     deleteDir()
                 }
             }

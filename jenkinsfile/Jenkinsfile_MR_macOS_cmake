@@ -369,8 +369,9 @@ pipeline {
                                             BENCH_FILTER_ARG=\"--gtest_filter=${env.BENCH_FILTER}\"
                                         fi
                                         ${env.BUILD_DIR}_bench/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$BENCH_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee bench_sweep.log || true
-                                        # Copy bench_report JSONs from the bench-build's pid_<PID> dirs to top-level for archival.
-                                        for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_report_*.json pid_*/bench_report_*.json; do
+                                        # Copy bench reports (consolidated JSON + per-iter JSONL, fu7-18 G1) from
+                                        # the bench-build's pid_<PID>/bench_reports/ dirs to top-level for archival.
+                                        for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_reports/bench_report_*.json ${env.BUILD_DIR}_bench/pid_*/bench_reports/bench_report_*.jsonl pid_*/bench_reports/bench_report_*.json pid_*/bench_reports/bench_report_*.jsonl; do
                                             [ -f \"\$benchReport\" ] && cp \"\$benchReport\" .
                                         done
                                         # SDK-5360 fu7-17 G6.S2: per-cell bench log split (BSD-csplit compatible).
@@ -480,7 +481,7 @@ pipeline {
                 always {
                     archiveArtifacts artifacts: 'build_dir/*log.gz, build_dir/examples-*.tar.gz', fingerprint: true, onlyIfSuccessful: false
                     archiveArtifacts artifacts: 'build_dir/*.ips', allowEmptyArchive: true, onlyIfSuccessful: false
-                    archiveArtifacts artifacts: 'bench_report_*.json, bench_sweep*.log.gz, bench_logs_*.tar.gz, tsan_sweep*.log.gz, tsan_logs_*.tar.gz', allowEmptyArchive: true, onlyIfSuccessful: false
+                    archiveArtifacts artifacts: 'bench_report_*.json, bench_report_*.jsonl, bench_sweep*.log.gz, bench_logs_*.tar.gz, tsan_sweep*.log.gz, tsan_logs_*.tar.gz', allowEmptyArchive: true, onlyIfSuccessful: false
                     deleteDir()
                 }
             }
