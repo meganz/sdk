@@ -194,10 +194,22 @@ void UploadEngine::Impl::start()
     poolMgr.mImpl = this;
     for (auto& pool: poolMgr.mPools)
     {
-        if (!pool || pool->mRetiring)
+        if (!pool)
             continue;
 
-        pool->setPoolNumConn(mPoolConnectionLimit);
+        // Non-retiring pools always re-arm to the configured pool limit.
+        // Retiring pools re-arm only if they still own work — otherwise they
+        // would be picked up by cleanupRetiringPools on the next manager-thread
+        // tick. The active-upload case fixes a stop()/start() race where a
+        // server-side Distress (opcode 5) had retired the original size-class
+        // pool serving an in-flight file, and applyRefreshedUrls had not yet
+        // migrated the file off that pool because
+        // UploadEngine::Impl::nextEligible() reserves a bound file to f->mPool.
+        const bool retiringHasWork = pool->mRetiring &&
+            (pool->mUploadingFile || pool->mNumPoolFiles ||
+             pool->mNumChunksInFlight || !pool->mToResend.empty());
+        if (!pool->mRetiring || retiringHasWork)
+            pool->setPoolNumConn(mPoolConnectionLimit);
     }
     poolMgr.refreshPools();
 
