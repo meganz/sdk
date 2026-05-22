@@ -17,6 +17,7 @@ target_sources_conditional(test_integration
     bench_framework/headers/BenchTransferTimings.h
     bench_framework/headers/BenchSummary.h
     bench_framework/BenchSummary.cpp
+    bench_framework/headers/BenchThrottleStats.h
     bench_framework/headers/BenchReportWriter.h
     bench_framework/BenchReportWriter.cpp
 )

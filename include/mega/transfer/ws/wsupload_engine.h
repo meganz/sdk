@@ -152,6 +152,9 @@ public:
 
     bool getWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& out) const;
 
+    // fu7-19 G7: Release-safe — see UploadEngine::getAndResetBenchThrottleStats.
+    UploadEngine::BenchThrottleSnapshot getAndResetBenchThrottleStats();
+
     bool isTrackedForTesting(const Transfer& t) const;
 
     std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;

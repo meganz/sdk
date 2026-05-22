@@ -309,6 +309,11 @@ bool UploadEngine::getWsUploadStatsForTesting(WsUploadStatsForTesting& out) cons
     return pImpl->getWsUploadStatsForTesting(out);
 }
 
+UploadEngine::BenchThrottleSnapshot UploadEngine::getAndResetBenchThrottleStats()
+{
+    return pImpl->getAndResetBenchThrottleStats();
+}
+
 bool UploadEngine::isTrackedForTesting(const Transfer& t) const
 {
     return pImpl->isTrackedForTesting(t);

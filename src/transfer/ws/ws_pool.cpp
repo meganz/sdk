@@ -297,6 +297,18 @@ void WsPool::recordWsUploadStatsSampleLocked(const UploadEngine::Impl& impl)
 }
 #endif // NDEBUG (Debug-only stats block)
 
+// fu7-19 G7: Release-safe — atomically swaps each per-pool throttle counter to
+// zero and accumulates the previous value into `out`. `exchange` with
+// memory_order_relaxed is sufficient because the bench framework only reads
+// these at iter boundaries (no ordering relationship with surrounding data).
+void WsPool::addAndResetBenchThrottleStatsTo(UploadEngine::BenchThrottleSnapshot& out)
+{
+    out.event6Count += mBenchThrottleEvent6Count.exchange(0, std::memory_order_relaxed);
+    out.event6TotalMs += mBenchThrottleEvent6TotalMs.exchange(0, std::memory_order_relaxed);
+    out.pauseCount += mBenchThrottlePauseCount.exchange(0, std::memory_order_relaxed);
+    out.pauseTotalMs += mBenchThrottlePauseTotalMs.exchange(0, std::memory_order_relaxed);
+}
+
 // ========== WsPool ==========
 
 WsUploadFile* WsPool::findPreflightReadyCandidate(UploadEngine::Impl& impl)

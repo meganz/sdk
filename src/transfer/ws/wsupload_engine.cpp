@@ -572,6 +572,25 @@ bool UploadEngine::Impl::getWsUploadStatsForTesting(
 #endif
 }
 
+UploadEngine::BenchThrottleSnapshot UploadEngine::Impl::getAndResetBenchThrottleStats()
+{
+    UploadEngine::BenchThrottleSnapshot out;
+    // Snapshot+reset is Release-safe and always-compiled: it reads only the
+    // `WsPool::mBenchThrottle*` atomics (always present, no NDEBUG/hook gating).
+    // `uploadMutex` is held to stabilize `poolMgr.mPools` against
+    // creation/teardown for the duration of the iteration; per-counter resets
+    // remain `memory_order_relaxed`.
+    std::lock_guard<std::mutex> g(uploadMutex);
+    for (const auto& poolPtr: poolMgr.mPools)
+    {
+        if (poolPtr)
+        {
+            poolPtr->addAndResetBenchThrottleStatsTo(out);
+        }
+    }
+    return out;
+}
+
 bool UploadEngine::Impl::isTrackedForTesting(const Transfer& t) const
 {
     std::lock_guard<std::mutex> g(uploadMutex);

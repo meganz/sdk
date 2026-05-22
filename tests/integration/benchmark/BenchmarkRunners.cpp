@@ -352,7 +352,12 @@ static void logBenchWsStats(SdkTest& test, const size_t fileCount)
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
 // Wires bench-runner results to the bench_framework JSON channel. Inert on builds
 // without MEGA_BENCH_FRAMEWORK_ENABLED.
-static void recordBenchCell(const char* name,
+//
+// fu7-19 G7: Drains `UploadEngine::getAndResetBenchThrottleStats()` from the
+// MegaApi just before constructing the cell so each cell's
+// `throttleStats` snapshot is independent (no carry-over across iters).
+static void recordBenchCell(SdkTest& test,
+                            const char* name,
                             std::int64_t fileSizeMib,
                             unsigned connections,
                             std::int64_t totalMs,
@@ -383,6 +388,23 @@ static void recordBenchCell(const char* name,
     cell.chunkMsDist.median = static_cast<double>(timing.perTransferPureTransferMs.median);
     cell.chunkMsDist.p95 = static_cast<double>(timing.perTransferPureTransferMs.p95);
     cell.chunkMsDist.n = chunkSamples;
+
+#ifdef MEGA_USE_WSUPLOAD
+    {
+        ::mega::ws::UploadEngine::BenchThrottleSnapshot snap;
+        if (::mega::test::wsupload::fetchAndResetWsUploadBenchThrottleStats(
+                *test.megaApi[0], snap, /*timeoutSeconds=*/5))
+        {
+            cell.throttleStats.event6Count = snap.event6Count;
+            cell.throttleStats.event6TotalMs = snap.event6TotalMs;
+            cell.throttleStats.pauseCount = snap.pauseCount;
+            cell.throttleStats.pauseTotalMs = snap.pauseTotalMs;
+        }
+    }
+#else
+    (void)test;
+#endif
+
     ::mega::bench::BenchReportWriter::instance().recordCell(cell);
 }
 #endif
@@ -499,7 +521,8 @@ void runSmallUploadsBenchmark(SdkTest& test,
 
     logBenchProcessStatsDelta(testName, procStatsStart, procStatsEnd);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-    recordBenchCell(testName,
+    recordBenchCell(test,
+                    testName,
                     /*fileSizeMib=*/static_cast<std::int64_t>(kFileSize / (1024 * 1024)),
                     /*connections=*/0,
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
@@ -737,7 +760,8 @@ void runSingleLargeUploadBenchmark(SdkTest& test)
     logBenchProcessStatsDelta("SingleLargeUpload", procStatsStart, procStatsEnd);
     logBenchWsStats(test, 1);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-    recordBenchCell("SingleLargeUpload",
+    recordBenchCell(test,
+                    "SingleLargeUpload",
                     /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
                     /*connections=*/0,
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
@@ -933,7 +957,8 @@ void runLargePlusManySmallBenchmark(SdkTest& test)
     logBenchProcessStatsDelta("LargePlusManySmall", procStatsStart, procStatsEnd);
     logBenchWsStats(test, kBenchSmallFileCount + 1);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-    recordBenchCell("LargePlusManySmall",
+    recordBenchCell(test,
+                    "LargePlusManySmall",
                     /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
                     /*connections=*/0,
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),

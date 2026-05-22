@@ -729,6 +729,20 @@ struct ChunkResponse
             if (mPool) ++mPool->mThrottleEventCodeCounts[6];
             mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
 #endif
+            // fu7-19 G7: Release-safe bench-framework throttle counters. Relaxed
+            // memory order — these are pure accumulators read at iter boundaries
+            // by `UploadEngine::getAndResetBenchThrottleStats()` (no
+            // happens-before relationship with surrounding state required).
+            if (mPool)
+            {
+                mPool->mBenchThrottleEvent6Count.fetch_add(1, std::memory_order_relaxed);
+                mPool->mBenchThrottleEvent6TotalMs.fetch_add(
+                    static_cast<std::int64_t>(chunkPos), std::memory_order_relaxed);
+                mPool->mBenchThrottlePauseCount.fetch_add(1, std::memory_order_relaxed);
+                // throttleDs is ds (1/10s); convert to ms for the bench summary.
+                mPool->mBenchThrottlePauseTotalMs.fetch_add(
+                    static_cast<std::int64_t>(throttleDs) * 100, std::memory_order_relaxed);
+            }
             LOG_info << "[WsUpload] Server requested sending to pause for " << chunkPos
                      << " ms";
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 6 throttle (ms) -> ds -> "

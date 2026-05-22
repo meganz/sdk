@@ -418,6 +418,19 @@ struct WsPool
     unsigned char mNumberOfConnections{3};
     bool mRetiring{false};
     bool mPinned{false};
+
+    // fu7-19 G7: Release-safe throttle counters consumed by the bench framework
+    // (`tests/integration/bench_framework/BenchReportWriter.cpp`). Incremented
+    // with `memory_order_relaxed` on the WS hot path (see ws_conn.cpp,
+    // `case WsApiServerEvent::Throttle`). Independent from the DEBUG-only
+    // `mThrottleEventCodeCounts`/`mThrottleEvent*` histogram below: those are
+    // unbounded accumulators used by `getWsUploadStatsForTesting`; these are
+    // *resettable* per-iter accumulators consumed by
+    // `getAndResetBenchThrottleStats()`.
+    std::atomic<std::int64_t> mBenchThrottleEvent6Count{0};
+    std::atomic<std::int64_t> mBenchThrottleEvent6TotalMs{0};
+    std::atomic<std::int64_t> mBenchThrottlePauseCount{0};
+    std::atomic<std::int64_t> mBenchThrottlePauseTotalMs{0};
 #ifndef NDEBUG
     unsigned mMaxConnectionsWithInFlightSeen{0};
     std::uint64_t mUploadingFileSinceMs{0};
@@ -640,6 +653,11 @@ struct WsPool
     void applyInFlightLocked(const std::uint32_t fileno);
     void applyInFlight(const std::uint32_t fileno);
     bool sendChunk(WsConn* ws, class UploadEngine::Impl& impl, dstime* retryAfterDs = nullptr);
+
+    // fu7-19 G7: Atomically `exchange(0)` each Release-safe throttle counter and
+    // accumulate the previous values into `out`. Caller iterates over all pools.
+    void addAndResetBenchThrottleStatsTo(UploadEngine::BenchThrottleSnapshot& out);
+
 #ifndef NDEBUG
     void assignUploadingFileLocked(WsUploadFile* file) noexcept;
     void recordFirstByteSentLocked(WsUploadFile& file) noexcept;

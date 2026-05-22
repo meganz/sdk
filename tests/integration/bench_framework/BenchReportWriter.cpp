@@ -5,6 +5,7 @@
 #include <mutex>
 #include <sstream>
 #include <system_error>
+#include <unordered_map>
 #include <vector>
 
 #if defined(__unix__) || defined(__APPLE__)
@@ -26,6 +27,15 @@ std::vector<BenchReportCell>& storage()
 {
     static std::vector<BenchReportCell> cells;
     return cells;
+}
+
+// fu7-19 G7: per-cell-name 0-based iter counter. Incremented inside
+// `recordCell()` so each repeated invocation of the same cell name gets a
+// distinct iter index without callers having to track it. `reset()` clears it.
+std::unordered_map<std::string, std::int64_t>& iterCounters()
+{
+    static std::unordered_map<std::string, std::int64_t> m;
+    return m;
 }
 
 std::string& jsonlReportDir()
@@ -85,6 +95,7 @@ void writeCellBody(std::ostream& ofs, const BenchReportCell& c, const char* inde
         << (c.direction == Direction::Download ? "download" : "upload") << "\",";
     ofs << indent << "\"file_size_mib\": " << c.fileSizeMib << ",";
     ofs << indent << "\"connections\": " << c.connections << ",";
+    ofs << indent << "\"iter\": " << c.iter << ",";
     ofs << indent << "\"duration_ms\": " << c.durationMs << ",";
     ofs << indent << "\"aggregate_kbps\": " << c.aggregateKbps << ",";
     ofs << indent << "\"first_byte_ms\": " << c.firstByteMs << ",";
@@ -100,9 +111,11 @@ void writeCellBody(std::ostream& ofs, const BenchReportCell& c, const char* inde
     ofs << indent << "\"chunk_n\": " << c.chunkMsDist.n;
 }
 
-// Build the absolute path `<reportDir>/bench_reports/bench_report_<PID>.<ext>`,
+// Build the absolute path `<reportDir>/bench_reports/<basename>_<PID>.<ext>`,
 // ensuring the `bench_reports/` sub-directory exists. Returns empty on failure.
-std::string buildBenchPath(const std::string& reportDir, const char* ext)
+std::string buildBenchPath(const std::string& reportDir,
+                           const char* basename,
+                           const char* ext)
 {
     if (reportDir.empty())
         return {};
@@ -115,7 +128,7 @@ std::string buildBenchPath(const std::string& reportDir, const char* ext)
 
     std::ostringstream pathStream;
     pathStream << subdir.string();
-    pathStream << '/' << "bench_report_" << currentPid() << '.' << ext;
+    pathStream << '/' << basename << '_' << currentPid() << '.' << ext;
     return pathStream.str();
 }
 
@@ -130,6 +143,34 @@ void appendJsonlLine(const std::string& path, const BenchReportCell& c)
     ofs << '{';
     // No newlines between fields → entire cell on one line.
     writeCellBody(ofs, c, " ");
+    ofs << " }\n";
+    ofs.flush();
+}
+
+// fu7-19 G7: Append one throttle-summary line to
+// `throttle_summary_<PID>.jsonl`. Cross-references the bench JSONL by name + iter.
+void appendThrottleSummaryLine(const std::string& path, const BenchReportCell& c)
+{
+    std::ofstream ofs(path, std::ios::app);
+    if (!ofs.is_open())
+        return;
+
+    const double durationMs = static_cast<double>(c.durationMs);
+    const double pressure =
+        durationMs > 0
+            ? static_cast<double>(c.throttleStats.event6TotalMs) / durationMs
+            : 0.0;
+
+    ofs << '{';
+    ofs << " \"schema_version\": 1,";
+    ofs << " \"name\": " << jsonEscape(c.name) << ",";
+    ofs << " \"iter\": " << c.iter << ",";
+    ofs << " \"duration_ms\": " << c.durationMs << ",";
+    ofs << " \"throttle_event6_count\": " << c.throttleStats.event6Count << ",";
+    ofs << " \"throttle_event6_total_ms\": " << c.throttleStats.event6TotalMs << ",";
+    ofs << " \"wsupload_pause_count\": " << c.throttleStats.pauseCount << ",";
+    ofs << " \"wsupload_pause_total_ms\": " << c.throttleStats.pauseTotalMs << ",";
+    ofs << " \"throttle_pressure\": " << pressure;
     ofs << " }\n";
     ofs.flush();
 }
@@ -158,23 +199,42 @@ void BenchReportWriter::setReportDir(const std::string& reportDir)
 void BenchReportWriter::recordCell(const BenchReportCell& cell)
 {
     std::lock_guard<std::mutex> g(reportMutex());
-    storage().push_back(cell);
+
+    // Assign a 0-based iter index per cell name so the JSONL artifacts'
+    // (`name`, `iter`) tuple is unique and cross-references trivially. If the
+    // caller has pre-populated `cell.iter` to a non-zero value, we still
+    // overwrite it for consistency — there is one authoritative counter.
+    BenchReportCell stored = cell;
+    auto& counters = iterCounters();
+    stored.iter = counters[stored.name]++;
+
+    storage().push_back(stored);
 
     const std::string& dir = jsonlReportDir();
     if (dir.empty())
         return;
 
-    const std::string path = buildBenchPath(dir, "jsonl");
-    if (path.empty())
-        return;
+    const std::string benchPath = buildBenchPath(dir, "bench_report", "jsonl");
+    if (!benchPath.empty())
+    {
+        appendJsonlLine(benchPath, stored);
+    }
 
-    appendJsonlLine(path, cell);
+    // fu7-19 G7: sibling per-iter throttle artifact. Emitted alongside the
+    // bench JSONL so cross-session comparisons can normalize against throttle
+    // exposure (see fu7-18 Goal 9.a `THROTTLE_VARIANCE_CONFIRMED`).
+    const std::string throttlePath = buildBenchPath(dir, "throttle_summary", "jsonl");
+    if (!throttlePath.empty())
+    {
+        appendThrottleSummaryLine(throttlePath, stored);
+    }
 }
 
 void BenchReportWriter::reset()
 {
     std::lock_guard<std::mutex> g(reportMutex());
     storage().clear();
+    iterCounters().clear();
 }
 
 std::size_t BenchReportWriter::cellCount() const
@@ -189,7 +249,7 @@ std::string BenchReportWriter::flush(const std::string& reportDir)
     if (storage().empty() || reportDir.empty())
         return {};
 
-    const std::string path = buildBenchPath(reportDir, "json");
+    const std::string path = buildBenchPath(reportDir, "bench_report", "json");
     if (path.empty())
         return {};
 

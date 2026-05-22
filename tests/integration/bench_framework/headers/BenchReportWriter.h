@@ -28,6 +28,7 @@
 
 #include "BenchProcessStats.h"
 #include "BenchSummary.h"
+#include "BenchThrottleStats.h"
 #include "BenchTransferTimings.h"
 
 #include <cstdint>
@@ -42,12 +43,17 @@ struct BenchReportCell
     Direction direction = Direction::Upload;
     std::int64_t fileSizeMib = 0;
     unsigned connections = 0;
+    std::int64_t iter = 0; // 0-based iter index within the run (fu7-19 G7).
     std::int64_t durationMs = 0;
     double aggregateKbps = 0;
     std::int64_t firstByteMs = 0;
     std::int64_t lastByteMs = 0;
     BenchProcessStats rssCpuDelta;
     BenchSummaryDistribution chunkMsDist;
+    // fu7-19 G7: per-iter throttle snapshot drained from
+    // `UploadEngine::getAndResetBenchThrottleStats()` before each
+    // `recordCell()` so iters are independent.
+    BenchThrottleStats throttleStats;
 };
 
 class BenchReportWriter

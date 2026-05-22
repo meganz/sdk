@@ -257,6 +257,21 @@ public:
     bool isTrackedForTesting(const Transfer& t) const;
     std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;
 
+    // fu7-19 G7: Release-safe per-iter throttle snapshot consumed by the
+    // bench framework (`tests/integration/bench_framework/`). Atomically swaps
+    // the underlying `WsPool::mBenchThrottle*` accumulators to zero across all
+    // pools and returns the previous values, so each iter's snapshot is
+    // independent. Always-compile (NOT gated on MEGASDK_DEBUG_TEST_HOOKS_ENABLED),
+    // because `MEGA_BENCH_FRAMEWORK_ENABLED` is independent of test-hooks.
+    struct BenchThrottleSnapshot
+    {
+        std::int64_t event6Count = 0;
+        std::int64_t event6TotalMs = 0;
+        std::int64_t pauseCount = 0;
+        std::int64_t pauseTotalMs = 0;
+    };
+    BenchThrottleSnapshot getAndResetBenchThrottleStats();
+
     // Set desired WS upload speed limit in bytes per second (<=0 means unlimited).
     void setMaxUploadSpeed(m_off_t bytesPerSecond);
 

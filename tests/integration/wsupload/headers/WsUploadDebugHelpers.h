@@ -204,4 +204,49 @@ inline bool restartWsUploadEngineForTesting(::mega::MegaApi& api, int timeoutSec
     return future.get();
 }
 
+// fu7-19 G7: Release-safe — drains the per-iter throttle snapshot from
+// `UploadEngine::getAndResetBenchThrottleStats()`. Unlike the sibling
+// `fetchWsUploadStatsForTesting` (which is `MEGASDK_DEBUG_TEST_HOOKS_ENABLED`-
+// gated via the DEBUG-only counters), this function returns a meaningful
+// snapshot in any build that links the WS engine. Returns true iff the
+// request completed within `timeoutSeconds`.
+inline bool fetchAndResetWsUploadBenchThrottleStats(
+    ::mega::MegaApi& api,
+    ::mega::ws::UploadEngine::BenchThrottleSnapshot& out,
+    int timeoutSeconds = 60)
+{
+    out = {};
+    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
+    if (!impl)
+    {
+        return false;
+    }
+
+    auto promise =
+        std::make_shared<std::promise<::mega::ws::UploadEngine::BenchThrottleSnapshot>>();
+    auto future = promise->get_future();
+
+    auto exec = std::make_shared<::mega::ExecuteOnce>(
+        [impl, promise]()
+        {
+            ::mega::ws::UploadEngine::BenchThrottleSnapshot snap;
+            ::mega::MegaClient* client = impl->getClientForTesting();
+            if (client && client->wsEngine())
+            {
+                snap = client->wsEngine()->getAndResetBenchThrottleStats();
+            }
+            promise->set_value(snap);
+        });
+
+    impl->executeOnThreadForTesting(exec);
+
+    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+    {
+        return false;
+    }
+
+    out = future.get();
+    return true;
+}
+
 } // namespace mega::test::wsupload
