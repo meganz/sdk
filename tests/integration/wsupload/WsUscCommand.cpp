@@ -1,10 +1,10 @@
 #include "headers/WsUscCommand.h"
 
+#include "headers/WsOneShotHelper.h"
 #include "megaapi_impl.h"
 #include "mega/commands_ws.h"
 #include "mega/scoped_helpers.h"
 
-#include <chrono>
 #include <future>
 #include <memory>
 #include <string>
@@ -17,20 +17,14 @@ bool fetchUscSizeClasses(::mega::MegaApi& api,
                          std::vector<int64_t>& maxSizes,
                          int timeoutSeconds)
 {
-    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
-    if (!impl)
-    {
-        return false;
-    }
-
     using SizeClass = ::mega::CommandUSCForWsUpload::SizeClass;
-    auto promise = std::make_shared<std::promise<std::vector<SizeClass>>>();
-    auto future = promise->get_future();
+    std::vector<SizeClass> classes;
 
-    auto exec = std::make_shared<::mega::ExecuteOnce>(
-        [impl, promise]()
+    const bool dispatched = runOnClientThreadWithResult<std::vector<SizeClass>>(
+        api, classes, timeoutSeconds,
+        [](::mega::MegaClient* client,
+           std::shared_ptr<std::promise<std::vector<SizeClass>>> promise)
         {
-            ::mega::MegaClient* client = impl->getClientForTesting();
             if (!client)
             {
                 promise->set_value({});
@@ -39,26 +33,18 @@ bool fetchUscSizeClasses(::mega::MegaApi& api,
 
             client->queueCommand(new ::mega::CommandUSCForWsUpload(
                 *client,
-                [promise](::mega::Error e, std::vector<SizeClass>&& classes)
+                [promise](::mega::Error e, std::vector<SizeClass>&& result)
                 {
                     if (e != ::mega::API_OK)
                     {
                         promise->set_value({});
                         return;
                     }
-                    promise->set_value(std::move(classes));
+                    promise->set_value(std::move(result));
                 }));
         });
 
-    impl->executeOnThreadForTesting(exec);
-
-    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
-    {
-        return false;
-    }
-
-    auto classes = future.get();
-    if (classes.empty())
+    if (!dispatched || classes.empty())
     {
         return false;
     }

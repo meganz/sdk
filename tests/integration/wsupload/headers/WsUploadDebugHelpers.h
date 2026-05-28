@@ -6,7 +6,7 @@
  * Extracted from SdkTest_test.cpp anonymous-namespace helpers gated under
  * `#ifdef MEGA_USE_WSUPLOAD && MEGASDK_DEBUG_TEST_HOOKS_ENABLED`. Header-only inline.
  *
- * Since fu7-15 G2.a-2 (Option a — always-compile hook ABI), the file is
+ * Since the hook-ABI redesign (Option a — always-compile hook ABI), the file is
  * UNGATED at the file scope. The 5 inline free functions are odr-used
  * only from hooks-ON tests; the test fixtures runtime-gate their
  * invocation behind WSUPLOAD_REQUIRE_TEST_HOOKS() which expands to
@@ -15,6 +15,9 @@
  *
  * Default `timeoutSeconds` values match SdkTest_test.h's `defaultTimeout = 60` constant
  * (inlined as a literal).
+ *
+ * The promise/`ExecuteOnce`/future boilerplate is now factored into
+ * `runOnClientThreadWithResult` from `WsOneShotHelper.h` (D1 refactor).
  */
 
 #pragma once
@@ -22,6 +25,7 @@
 #include "megaapi.h"
 #include "megaapi_impl.h"
 #include "mega/wsupload.h"
+#include "wsupload/headers/WsOneShotHelper.h"
 
 #include <chrono>
 #include <functional>
@@ -38,37 +42,19 @@ inline bool fetchWsUploadPoolStateForTesting(::mega::MegaApi& api,
                                              ::mega::ws::UploadEngine::PoolStateForTesting& out,
                                              int timeoutSeconds = 60)
 {
-    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
-    if (!impl)
-    {
-        return false;
-    }
-
-    auto promise =
-        std::make_shared<std::promise<::mega::ws::UploadEngine::PoolStateForTesting>>();
-    auto future = promise->get_future();
-
-    auto exec = std::make_shared<::mega::ExecuteOnce>(
-        [impl, promise, url]()
+    return runOnClientThreadWithResult<::mega::ws::UploadEngine::PoolStateForTesting>(
+        api, out, timeoutSeconds,
+        [url](::mega::MegaClient* client,
+              std::shared_ptr<std::promise<::mega::ws::UploadEngine::PoolStateForTesting>>
+                  promise)
         {
             ::mega::ws::UploadEngine::PoolStateForTesting state;
-            ::mega::MegaClient* client = impl->getClientForTesting();
             if (client && client->wsEngine())
             {
                 client->wsEngine()->getPoolStateForTesting(url, state);
             }
             promise->set_value(std::move(state));
         });
-
-    impl->executeOnThreadForTesting(exec);
-
-    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
-    {
-        return false;
-    }
-
-    out = future.get();
-    return true;
 }
 
 inline bool fetchWsUploadStatsForTesting(
@@ -76,37 +62,19 @@ inline bool fetchWsUploadStatsForTesting(
     ::mega::ws::UploadEngine::WsUploadStatsForTesting& out,
     int timeoutSeconds = 60)
 {
-    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
-    if (!impl)
-    {
-        return false;
-    }
-
-    auto promise =
-        std::make_shared<std::promise<::mega::ws::UploadEngine::WsUploadStatsForTesting>>();
-    auto future = promise->get_future();
-
-    auto exec = std::make_shared<::mega::ExecuteOnce>(
-        [impl, promise]()
+    return runOnClientThreadWithResult<::mega::ws::UploadEngine::WsUploadStatsForTesting>(
+        api, out, timeoutSeconds,
+        [](::mega::MegaClient* client,
+           std::shared_ptr<std::promise<::mega::ws::UploadEngine::WsUploadStatsForTesting>>
+               promise)
         {
             ::mega::ws::UploadEngine::WsUploadStatsForTesting stats;
-            ::mega::MegaClient* client = impl->getClientForTesting();
             if (client && client->wsEngine())
             {
                 client->wsEngine()->getWsUploadStatsForTesting(stats);
             }
             promise->set_value(std::move(stats));
         });
-
-    impl->executeOnThreadForTesting(exec);
-
-    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
-    {
-        return false;
-    }
-
-    out = future.get();
-    return true;
 }
 
 inline bool waitForWsUploadPoolStateForTesting(
@@ -136,75 +104,49 @@ inline bool waitForWsUploadPoolStateForTesting(
 inline bool notifyWsUploadNetworkDisconnectForTesting(::mega::MegaApi& api,
                                                       int timeoutSeconds = 60)
 {
-    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
-    if (!impl)
-    {
-        return false;
-    }
-
-    auto promise = std::make_shared<std::promise<bool>>();
-    auto future = promise->get_future();
-
-    auto exec = std::make_shared<::mega::ExecuteOnce>(
-        [impl, promise]()
-        {
-            bool notified = false;
-            ::mega::MegaClient* client = impl->getClientForTesting();
-            if (client && client->wsEngine())
+    bool notified = false;
+    if (!runOnClientThreadWithResult<bool>(
+            api, notified, timeoutSeconds,
+            [](::mega::MegaClient* client, std::shared_ptr<std::promise<bool>> promise)
             {
-                client->wsEngine()->notifyNetworkDisconnect();
-                notified = true;
-            }
-            promise->set_value(notified);
-        });
-
-    impl->executeOnThreadForTesting(exec);
-
-    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+                bool ok = false;
+                if (client && client->wsEngine())
+                {
+                    client->wsEngine()->notifyNetworkDisconnect();
+                    ok = true;
+                }
+                promise->set_value(ok);
+            }))
     {
         return false;
     }
-
-    return future.get();
+    return notified;
 }
 
 inline bool restartWsUploadEngineForTesting(::mega::MegaApi& api, int timeoutSeconds = 60)
 {
-    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
-    if (!impl)
-    {
-        return false;
-    }
-
-    auto promise = std::make_shared<std::promise<bool>>();
-    auto future = promise->get_future();
-
-    auto exec = std::make_shared<::mega::ExecuteOnce>(
-        [impl, promise]()
-        {
-            bool restarted = false;
-            ::mega::MegaClient* client = impl->getClientForTesting();
-            if (client && client->wsEngine())
+    bool restarted = false;
+    if (!runOnClientThreadWithResult<bool>(
+            api, restarted, timeoutSeconds,
+            [](::mega::MegaClient* client, std::shared_ptr<std::promise<bool>> promise)
             {
-                client->wsEngine()->stop();
-                client->wsEngine()->start();
-                client->wsEngine()->kick();
-                restarted = true;
-            }
-            promise->set_value(restarted);
-        });
-
-    impl->executeOnThreadForTesting(exec);
-
-    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
+                bool ok = false;
+                if (client && client->wsEngine())
+                {
+                    client->wsEngine()->stop();
+                    client->wsEngine()->start();
+                    client->wsEngine()->kick();
+                    ok = true;
+                }
+                promise->set_value(ok);
+            }))
     {
         return false;
     }
-
-    return future.get();
+    return restarted;
 }
 
-// fu7-19 G7: Release-safe — drains the per-iter throttle snapshot from
+// Release-safe — drains the per-iter throttle snapshot from
 // `UploadEngine::getAndResetBenchThrottleStats()`. Unlike the sibling
 // `fetchWsUploadStatsForTesting` (which is `MEGASDK_DEBUG_TEST_HOOKS_ENABLED`-
 // gated via the DEBUG-only counters), this function returns a meaningful
@@ -216,37 +158,19 @@ inline bool fetchAndResetWsUploadBenchThrottleStats(
     int timeoutSeconds = 60)
 {
     out = {};
-    ::mega::MegaApiImpl* impl = ::mega::MegaApiImpl::ImplOf(&api);
-    if (!impl)
-    {
-        return false;
-    }
-
-    auto promise =
-        std::make_shared<std::promise<::mega::ws::UploadEngine::BenchThrottleSnapshot>>();
-    auto future = promise->get_future();
-
-    auto exec = std::make_shared<::mega::ExecuteOnce>(
-        [impl, promise]()
+    return runOnClientThreadWithResult<::mega::ws::UploadEngine::BenchThrottleSnapshot>(
+        api, out, timeoutSeconds,
+        [](::mega::MegaClient* client,
+           std::shared_ptr<std::promise<::mega::ws::UploadEngine::BenchThrottleSnapshot>>
+               promise)
         {
             ::mega::ws::UploadEngine::BenchThrottleSnapshot snap;
-            ::mega::MegaClient* client = impl->getClientForTesting();
             if (client && client->wsEngine())
             {
                 snap = client->wsEngine()->getAndResetBenchThrottleStats();
             }
             promise->set_value(snap);
         });
-
-    impl->executeOnThreadForTesting(exec);
-
-    if (future.wait_for(std::chrono::seconds(timeoutSeconds)) != std::future_status::ready)
-    {
-        return false;
-    }
-
-    out = future.get();
-    return true;
 }
 
 } // namespace mega::test::wsupload

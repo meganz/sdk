@@ -1,7 +1,8 @@
 # wsupload integration-test module.
 #
-# WS-upload test bodies and supporting helpers extracted from SdkTest_test.cpp
-# (G3, fu7-7). Tests rename from SdkTest.SdkWsUploadX to SdkWsUploadTest.X.
+# WS-upload test bodies and supporting helpers extracted from SdkTest_test.cpp.
+# Test names were renamed from SdkTest.SdkWsUploadX to SdkWsUploadTest.X during
+# the extraction.
 #
 # Module is gated by MEGA_USE_WSUPLOAD because every test here exercises the
 # WS upload path; consumers of test_integration with MEGA_USE_WSUPLOAD=OFF would
@@ -16,6 +17,7 @@ target_sources_conditional(test_integration
     wsupload/headers/SecondTimer.h
     wsupload/headers/TransferTempErrorTracker.h
     wsupload/headers/WsChunkSendOverquotaCapture.h
+    wsupload/headers/WsOneShotHelper.h
     wsupload/headers/WsUploadDebugHelpers.h
     wsupload/headers/WsUploadHookGate.h
     wsupload/headers/WsUploadRetryTracker.h
