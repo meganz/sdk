@@ -19,6 +19,7 @@ target_sources_conditional(test_integration
     wsupload/headers/WsChunkSendOverquotaCapture.h
     wsupload/headers/WsOneShotHelper.h
     wsupload/headers/WsUploadDebugHelpers.h
+    wsupload/headers/WsUploadHelpers.h
     wsupload/headers/WsUploadHookGate.h
     wsupload/headers/WsUploadRetryTracker.h
     wsupload/headers/WsUploadTestHelpers.h

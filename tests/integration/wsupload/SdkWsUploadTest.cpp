@@ -25,16 +25,7 @@
 #include "megautils.h"
 #include "sdk_test_utils.h"
 #include "test.h"
-#include "wsupload/headers/ScopedUploadSpeedLimit.h"
-#include "wsupload/headers/SecondTimer.h"
-#include "wsupload/headers/TransferTempErrorTracker.h"
-#include "wsupload/headers/WsChunkSendOverquotaCapture.h"
-#include "wsupload/headers/WsUploadDebugHelpers.h"
-#include "wsupload/headers/WsUploadHookGate.h"
-#include "wsupload/headers/WsUploadRetryTracker.h"
-#include "wsupload/headers/WsUploadTestHelpers.h"
-#include "wsupload/headers/WsUploadTransitionCapture.h"
-#include "wsupload/headers/WsUscCommand.h"
+#include "wsupload/headers/WsUploadHelpers.h"
 
 #include <gtest/gtest.h>
 
