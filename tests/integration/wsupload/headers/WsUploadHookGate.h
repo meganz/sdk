@@ -9,7 +9,7 @@
  * builds — so the test body always compiles, but only runs when hooks are
  * available.
  *
- * The fu7-15 hook-ABI redesign migrated WS-upload TEST_F bodies that rely on
+ * The hook-ABI redesign migrated WS-upload TEST_F bodies that rely on
  * MegaTestHooks struct fields to wrap their hook-callback invocations in the
  * always-compile MegaTestHookCallContext pattern, allowing the bodies to compile
  * in both hooks-ON and hooks-OFF builds. Combined with this macro at the body

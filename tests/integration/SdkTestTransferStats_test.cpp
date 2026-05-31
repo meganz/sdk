@@ -204,7 +204,7 @@ TEST_F(SdkTestTransferStats, SdkTestTransferStats)
     ASSERT_TRUE(testFileNode2);
 
     // 1.2. Download both files.
-    // SDK-5360 fu7-17 Goal 3.5.b: clean any per-iter remnants from prior runs so
+    // SDK-5360: clean any per-iter remnants from prior runs so
     // COLLISION_RESOLUTION_NEW_WITH_N (set in downloadFileForStats) does not
     // accumulate `downfile1 (N).txt` / `downfile2 (N).txt` suffixes across
     // repeated invocations (see BENCHMARKS.md "downfile<N> (M).txt" note).

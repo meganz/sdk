@@ -447,10 +447,10 @@ void SdkTest::TearDown()
     }
     sdk_test::resetScParserMode();
 
-    // HR45: cumulative RSS + CPU snapshot per cell, written to
-    // test_integration.log. The fu7-15 vs develop comparison reads these lines
-    // to compute Δ on non-bench cells (bench cells already write bench_report
-    // JSON via BenchProcessStats). Cheap (single getrusage call).
+    // Cumulative RSS + CPU snapshot per cell, written to test_integration.log.
+    // Used by the bench-vs-develop comparison tooling to compute Δ on non-bench
+    // cells (bench cells already write bench_report JSON via BenchProcessStats).
+    // Cheap (single getrusage call).
 #if defined(__unix__) || defined(__APPLE__)
     {
         struct rusage ru

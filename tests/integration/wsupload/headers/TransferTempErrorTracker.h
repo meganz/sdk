@@ -3,8 +3,8 @@
  * @brief MegaTransferListener that records first finish/error and exposes a
  *        wait-for-result future, distinguishing transient vs final outcomes.
  *
- * Extracted from SdkTest_test.cpp's anonymous-namespace helper cluster
- * (followup7-9 Goal 1.1c). Consumed both by the WS-upload overquota test
+ * Extracted from SdkTest_test.cpp's anonymous-namespace helper cluster.
+ * Consumed both by the WS-upload overquota test
  * (SdkWsUploadTest.OverquotaDuringTransfer in wsupload/SdkWsUploadTest.cpp)
  * and by the SDK-side overquota test (SdkTest.SdkTestUploadsOverquota in
  * SdkTest_test.cpp).
