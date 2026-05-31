@@ -1,60 +1,121 @@
 # MEGA SDK — Operational methodology
 
-This directory captures the operational methodology developed during
-SDK-5360 (WS uploads). Use it as the starting point for any session that
-needs to maintain the same discipline, whether you are a new contributor
-landing on the codebase or an agent-led follow-up session.
+## Purpose
 
-## When to use this
+`docs/methodology/` holds the operational session methodology used to
+land long-running performance, concurrency, and refactoring work on the
+MEGA SDK. It documents **how** a multi-session ticket is run end to
+end: the FollowupRequest → execution → Verdict loop, the
+regression-sweep cadence between commits, the hard-rules catalogue, and
+the per-session memory protocol. It is a per-contributor and per-ticket
+artifact — different maintainers and different tickets each maintain
+their own live versions.
 
-- **New contributors** — read in order: `glossary.md` →
-  `followup_workflow.md` → `regression_sweep_cadence.md` →
-  `hard_rules_catalog.md`.
-- **New fu7-N+ sessions** (or any "followupN" continuation on a long-lived
-  branch) — start from `fu7_N_session_template.md`; cite the catalog
-  entries you need; consult `memory_discipline.md` before recording new
-  observations.
-- **Adoption in another repo** — copy `portable_template/` into the
-  target repo's `docs/methodology/` and follow `portable_template/README.md`.
+## How this differs from `CLAUDE.md` and `AGENTS.md`
 
-## Files in this directory
+- **`CLAUDE.md`** and **`AGENTS.md`** at the repo root document how
+  an AI agent should behave when working on this codebase — build
+  commands, code style, where logs go, test-running etiquette. Each
+  contributor keeps their own copy locally; both files are gitignored.
+  Scope is **agent behaviour on this codebase**.
+- **`docs/methodology/`** documents how to structure a multi-session
+  ticket: the loop, the rules, the regression-sweep cadence, the
+  vocabulary. Most of it is per-contributor and per-ticket too;
+  see "What's tracked vs not" below. Scope is **ticket structure
+  and procedure**.
 
-| File | Purpose |
+Both are agent-friendly artifacts. `CLAUDE.md` / `AGENTS.md` cover the
+**codebase**; `docs/methodology/` covers the **ticket workflow**.
+
+## What's tracked vs gitignored in this directory
+
+**Tracked (committed to the SDK repo):**
+
+| Path | What it is |
 |---|---|
-| [followup_workflow.md](followup_workflow.md) | The `FollowupRequest → plan → execute → Verdict → memory → push` loop and per-Goal pattern. |
-| [memory_discipline.md](memory_discipline.md) | Auto-memory protocol: types, naming, when to save/update/delete, ephemeral vs persistent. |
-| [regression_sweep_cadence.md](regression_sweep_cadence.md) | HR14/33/34/40/43/46/47 — what runs at every commit, between Goals, and at the final sweep. |
-| [benchmark_discipline.md](benchmark_discipline.md) | Bench binary build, JSON artifact, throttle-storm caveats, USERAGENT, comparison recipes. |
-| [tsan_discipline.md](tsan_discipline.md) | `dev-unix-tsan` (no Windows), TSAN_OPTIONS, WS-upload surface filter, NEW-vs-develop classification, expansion ideas. |
-| [hard_rules_catalog.md](hard_rules_catalog.md) | Single canonical table HR1..HR49 — name, rule, rationale, origin fu7-N. |
-| [fu7_N_session_template.md](fu7_N_session_template.md) | Copy-paste FollowupRequest.md skeleton for the next session. |
-| [glossary.md](glossary.md) | SDK-5360 acronyms — SLU, T1, IP, MN, B9, fu7-N, HR<N>, etc. |
-| [portable_template/](portable_template/README.md) | Adoption scaffold for OTHER repos. |
+| `README.md` (this file) | Explanation of the directory. |
+| `portable_template/` | Starter scaffold for adopting the methodology in a new repo or new ticket. Self-contained; safe to copy out. |
+| `benchmark_discipline.md` | SDK-universal bench framework usage guide (build, JSON artifact schema, throttle-storm caveats, comparison recipes). |
+| `tsan_discipline.md` | SDK-universal TSAN usage guide (presets, TSAN_OPTIONS, WS-upload surface filter, race classification). |
 
-## How this body of work was built
+**Gitignored (per-contributor / per-ticket):**
 
-Across ~17 followup sessions on SDK-5360 (`feature/SDK-5360_Websockets-uploads`)
-the team converged on a small set of repeatable practices:
+| Path (live, on-disk only) | What it is |
+|---|---|
+| `followup_workflow.md` | The FollowupRequest → plan → execute → Verdict → memory → push loop and per-Goal pattern. |
+| `fu7_N_session_template.md` | Copy-paste FollowupRequest skeleton for the next session in a series. |
+| `glossary.md` | Live session-specific terminology (cell short names, session IDs, hard-rule IDs, internal labels). |
+| `hard_rules_catalog.md` | Live catalogue of hard rules with origin tags. |
+| `memory_discipline.md` | Per-contributor auto-memory protocol (Claude harness memory layout, naming, lifecycle). |
+| `regression_sweep_cadence.md` | Live regression-sweep tier scope and cadence rules. |
+| Any other contributor-added session files | Per-session notes, draft hard rules, draft Verdicts. |
 
-1. Every session writes a `FollowupRequest.md` (input) and a
-   `FollowupVerdict.md` (output) under
-   `~/investigationTests/.../followup7-N/`.
-2. Persistent observations land in `~/.claude/projects/.../memory/` as
-   `feedback_*.md` / `project_*.md` / `reference_*.md`.
-3. Each fu7-N adds at most a handful of "hard rules" (HR<N>); these are
-   carried forward and accreted into a single catalog.
-4. No commit lands without the relevant regression sweep cells.
-5. The agent does NOT push — the user re-signs commits (GPG, HR1) and
-   pushes manually at session close.
+The gitignored files exist on a contributor's local disk and travel
+with their working tree, but they don't land in the public SDK history.
 
-## Pointers back into the rest of the docs tree
+## Recommended usage
 
-- [docs/guides/](../guides/README.md) — single guides index (CI, tests,
-  benchmarks, methodology).
+**For a new ticket adopting this methodology**
+
+1. Copy `portable_template/` into your local working directory **outside
+   the SDK tree** (e.g. into a separate methodology repo you own).
+2. Instantiate the placeholders for your ticket (rename
+   `CLAUDE.template.md` → `CLAUDE.md`, fill in the
+   `hard_rules_catalog.template.md` with your initial rules, etc.).
+3. Run your sessions following the loop in the portable template.
+4. Land code changes in the SDK; archive the live methodology
+   artifacts (FollowupRequest / Verdict pairs, hard-rules log, memory
+   entries) to your own private repo.
+
+**For an existing ticket**
+
+- Keep your live `followup_workflow.md`, `fu7_N_session_template.md`,
+  `hard_rules_catalog.md`, etc. in `docs/methodology/` locally —
+  they are gitignored, so they stay on your machine.
+- Push only the code changes to the SDK; keep the methodology archive
+  in your private repo.
+
+## Examples
+
+### Example 1 — SDK-5360 (the originating ticket)
+
+The ticket that produced this methodology ran for ~20 multi-session
+"followup7-N" cycles over several months. The live archive includes:
+
+- Hard rules HR1..HR52, each with an origin tag.
+- A regression-sweep cadence that mapped each commit to the tier of
+  tests it had to satisfy before the next commit could land.
+- A FollowupRequest + Verdict pair for every session.
+- ~150 auto-memory entries capturing intermediate findings.
+
+All session artifacts live in the contributor's private methodology
+repository (which mirrors the gitignored portion of this directory).
+The public SDK tree retains only the universal pieces: the bench
+framework, the TSAN surface-filter list, and the `portable_template/`
+starter scaffold.
+
+### Example 2 — a future ticket (e.g. SDK-XXXX adopting this methodology)
+
+1. The contributor copies `portable_template/` into their local
+   workspace, **not** into the SDK tree.
+2. They draft their own `FollowupRequest.md` per the template's loop.
+3. They add hard rules as discovered (HR1, HR2, ... each with an
+   origin marker).
+4. They run sessions; each session's Verdict goes into their private
+   repo.
+5. They land code changes in the SDK; the methodology archive stays
+   private.
+
+## Pointers
+
+- [portable_template/README.md](portable_template/README.md) — adoption
+  scaffold for a new repo or new ticket.
+- [benchmark_discipline.md](benchmark_discipline.md) — SDK bench
+  framework usage (universal).
+- [tsan_discipline.md](tsan_discipline.md) — SDK TSAN usage (universal).
 - [docs/ci/CI_TESTING_GUIDE.md](../ci/CI_TESTING_GUIDE.md) — Jenkins
-  trigger phrases, preset glossary, artifact diffs.
+  trigger phrases, preset glossary, artifact patterns.
 - [tests/integration/BENCHMARKS.md](../../tests/integration/BENCHMARKS.md)
-  — benchmark cell catalog (live operational reference).
-- [CLAUDE.md](../../CLAUDE.md) — codebase guidance (build/test/style).
-- [AGENTS.md](../../AGENTS.md) — environment, log locations,
-  `environment2.txt`.
+  — benchmark cell catalogue.
+- `CLAUDE.md` / `AGENTS.md` at the repo root (gitignored) —
+  per-contributor agent guidance for this codebase.

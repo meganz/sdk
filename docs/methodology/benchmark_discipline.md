@@ -1,10 +1,10 @@
 # Benchmark discipline
 
-The benchmark surface for SDK-5360 is the `SdkBenchmarkTest.*` family
-plus a number of `SdkWsUploadTest.*` cells (T1, B9, IP, Resume,
-RepeatedPauseResume, MultiplePauseResume) that double as throughput
-gates. The discipline below is what makes the numbers comparable across
-fu7-N sessions, OSes, and against `origin/develop`.
+The benchmark surface is the `SdkBenchmarkTest.*` family plus a number
+of `SdkWsUploadTest.*` cells (T1, B9, IP, Resume, RepeatedPauseResume,
+MultiplePauseResume) that double as throughput gates. The discipline
+below is what makes the numbers comparable across sessions, OSes, and
+against `origin/develop`.
 
 ## Build
 
@@ -15,7 +15,7 @@ cmake --preset dev-unix-wsupload-benchOn
 cmake --build ../build-sdk-dev-unix-wsupload-benchOn -j16 --target=test_integration
 ```
 
-Other OS presets (post-fu7-17):
+Other OS presets:
 
 - `dev-macos-wsupload-benchOn`
 - `dev-windows-wsupload-benchOn`
@@ -42,7 +42,7 @@ When the binary is `MEGA_BENCH_FRAMEWORK_ENABLED=ON`, each
 ${HOME}/mega_tests/pid_<PID>/bench_report_<PID>.json
 ```
 
-Schema (`schema_version: 2` since fu7-10):
+Schema (current):
 
 ```json
 {
@@ -109,6 +109,49 @@ i.e. `API_EACCESS` at setup. If this fires, FIRST check the
 USERAGENT; the symptom is NOT account drift. See
 [feedback_scopedtopro_account_requirement.md] memory.
 
+## `rss_delta_kb` topology dependence — HR45 + HR56 corollary
+
+`rss_delta_kb` is computed as `getrusage(RUSAGE_SELF).ru_maxrss(after) -
+ru_maxrss(before)` (see `tests/integration/bench_framework/BenchProcessStats.cpp`).
+On Linux, `ru_maxrss` is the **process-lifetime peak RSS** — it is
+monotonically non-decreasing within a process and resets on every new
+process.
+
+**Practical consequence**: `rss_delta_kb` is only comparable across two
+bench runs that share the SAME process topology.
+
+- **Single process × `--gtest_repeat=N`** (HR56 canonical topology):
+  iter 1 reports the cold-start peak (typically tens of MB for the
+  upload subsystem); iters 2..N report ~0 KB as the peak is already
+  past. The MEDIAN across N iters is dominated by the trailing zeros,
+  not by the cold-start cost. This is the topology that `BENCHMARKS.md`
+  expects.
+- **N independent processes × `--gtest_repeat=1` each**: every iter
+  is a fresh process and pays the full cold-start cost; the per-iter
+  series is flat at the cold-start peak. The median across N
+  independent processes is ~`peak`, NOT comparable to the single-
+  process median.
+
+Comparing the two topologies produces a multi-hundred-percent "leak"
+that is entirely an artifact of `ru_maxrss`'s scope; fu7-20 Session 2
+spent significant wall-clock chasing one such artifact (see
+`empirical_3variant_verdict.md` under `RSSLeakBisect/` in the fu7-20
+investigation tree, and the HR56 codification).
+
+**Rules**:
+1. The canonical bench topology is single-process `--gtest_repeat=N`
+   (HR56). Drivers that fan out across N processes per cell are NOT
+   permitted to populate `rss_delta_kb` for cross-session comparison.
+2. When comparing RSS across sessions / variants / commits, verify
+   topology identity FIRST (look at `session_pid` cardinality in the
+   JSONLs being compared). The aggregator emits a warning when the
+   candidate's per-iter PID cardinality differs from any baseline.
+3. If you need cross-process RSS comparability, sample `rss_max_kb`
+   (high-water for that process; same cold-start semantics) or
+   `/proc/self/statm` resident RSS (current, not peak — comparable
+   across processes) at a deterministic point in each iter, not
+   `ru_maxrss(after) - ru_maxrss(before)`.
+
 ## Throttle-storm caveat
 
 The production gfs270n* storage hosts run an event=6 throttle regime
@@ -119,8 +162,8 @@ by ~30-50%. Always:
 - Use the **top-2 mean** of n=3 (or top-3 mean of n=5) as the
   comparison statistic.
 - Quote the median + IQR (not just the mean) when reporting.
-- For fu7-N vs develop comparison, run BOTH binaries in alternating
-  iterations on the same day (HR31), not in separate sessions.
+- For candidate-vs-baseline comparison, run BOTH binaries in alternating
+  iterations on the same day, not in separate sessions.
 
 The endpoint is throttle-frequency-sensitive but not
 throughput-sensitive in steady state — see
@@ -140,22 +183,23 @@ asterisk.
 
 For TSAN log archives use `scripts/ci/compare_tsan.sh`.
 
-## Multi-session bench (HR31)
+## Multi-session bench (paired alternating-iter)
 
-A multi-session bench produces n≥3 paired (fu7-N, develop) measurements
-on the same hardware on the same day. Procedure:
+A multi-session bench produces n≥3 paired (candidate, baseline)
+measurements on the same hardware on the same day. Procedure:
 
-1. Build BOTH binaries (`build-sdk-dev-unix-wsupload-benchOn` and
-   `build-sdk-develop-dev-unix-wsupload-benchOn`).
-2. Run alternating cells: fu7-N iter 1, develop iter 1, fu7-N iter 2, ...
+1. Build BOTH binaries (`build-sdk-dev-unix-wsupload-benchOn` and the
+   baseline equivalent under a separate build dir).
+2. Run alternating cells: candidate iter 1, baseline iter 1,
+   candidate iter 2, ...
 3. Collect both `bench_report_*.json` files.
-4. Mann-Whitney U for significance (HR45 + Goal 5 stats).
+4. Mann-Whitney U for significance (see project's stats convention).
 
-## Cross-OS scope (post-fu7-17)
+## Cross-OS scope
 
-Linux is the primary bench platform but macOS and Windows now have
-their own presets. Use the Jenkins `--bench` flag in an MR comment to
-fire all three:
+Linux is the primary bench platform but macOS and Windows have their
+own presets. Use the Jenkins `--bench` flag in an MR comment to fire
+all three:
 
 ```
 trigger compilation --bench --gtest_filter=SdkBenchmarkTest.SingleLargeUpload
@@ -170,6 +214,22 @@ full trigger-phrase catalogue.
   `MEGA_BENCH_FRAMEWORK_ENABLED` settings; the JSON schema differs.
 - Don't parallelize integration tests — bench numbers depend on
   stable wall-clock; the shared test account is rate-limited
-  (`API_ETOOMANY`). See [feedback_tests_sequential.md] memory.
+  (`API_ETOOMANY`).
 - Don't quote single-iteration throughput as a fix outcome — the
   storm noise will eat the signal.
+
+## Bench-proof report standard
+
+Every bench-proof report should include full distribution stats per
+cell × axis:
+
+- min, p25, median, mean, p75, p95, max
+- σ (population standard deviation)
+- σ/μ (coefficient of variation)
+
+Use `scripts/ci/aggregate_bench.py` to compute and emit these stats
+plus Mann-Whitney U significance + Cliff's d effect size in one pass.
+Do not leave placeholder values (e.g. `TBD`) in any committed
+bench-proof markdown. If a stat cannot be computed (e.g. n<5 for the
+chosen baseline), state the reason inline ("n=3, IQR not computed")
+rather than using a placeholder.

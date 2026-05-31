@@ -1,9 +1,9 @@
 # Regression sweep cadence
 
 The regression sweep cadence is encoded in hard rules HR14, HR33, HR34,
-HR40, HR43, HR46, HR47, HR51 (fu7-18). Each rule has a specific trigger
-and a specific incident that motivated it. Together they define the
-minimum gate on any wsupload-touching change.
+HR40, HR43, HR46, HR47, HR51 (fu7-18), HR52 (fu7-20). Each rule has a
+specific trigger and a specific incident that motivated it. Together
+they define the minimum gate on any wsupload-touching change.
 
 ## At a glance
 
@@ -17,6 +17,7 @@ minimum gate on any wsupload-touching change.
 | HR46 | B9 specifically | Add `taskset -c 0 nice -n 19` for macOS-style single-CPU scheduling stress. | fu7-15 (macOS-only B9 Distress race). |
 | HR47 | Agent wait budgets | ≥90 min minimum on long-running tests (MN, large benches). | fu7-16 — 60-min budget killed MN iter 4. |
 | HR51 | Jenkins-MR mirror gate | Empty-filter `test_integration` run on Linux (3 sub-runs to mitigate long-process SIGSEGV) before declaring `TECHQA_READY`. | fu7-18 — `StopStartSameEngineDuringTransfer` + `TwoWay_Highlevel_Symmetries` caught by Jenkins post-push instead of agent sweep. |
+| HR52 | Sweep n-floor + no-defer (fu7-20) | Tier 1 n=15, Tier 2.1 MN n=5 absolute (HR40), Tier 2.3 strict n=10, Tier 3 HR38 paired n=10, Tier 4 SLU n=15 + other bench cells n=10 paired, Tier 5 TSAN n=5 + develop parity n=5. Tier 2.2 (other SyncTest unchanged-by-fu7-N) stays n=3. No tier deferred on time-budget grounds without measured wall (HR48). | fu7-20 — Jenkins MR macOS DetectsAndReportsSyncProblems would have been caught at n=10 floor; n=1/3 missed it. |
 
 ## HR14 — per-commit bench gate (amended fu7-18: + Tier S smoke before push)
 
@@ -94,21 +95,36 @@ The HR21 "audit-only Δ=0 claim" rationale is NOT a valid defer for Tier S.
 
 ### Tier 3 — HR38 transfer cells (paired develop comparison)
 
-- 6 cells × n=5 on BOTH fu7-N binary AND develop binary (HR4 + HR31 +
-  HR38 + HR45 RSS+CPU).
-- `SdkResumableTrasfers` additionally at n=10 (HR15 effect-detection
-  power threshold).
+- 6 cells × **n=10** on BOTH fu7-N binary AND develop binary (HR4 +
+  HR31 + HR38 + HR45 RSS+CPU + **HR52 elevated n-floor**, raised from
+  the original n=5).
+- `SdkResumableTrasfers` stays at n=10 (HR15 effect-detection power
+  threshold; already the Tier 3 floor under HR52).
 
 ### Tier 4 — Bench throughput (paired SLU n=15 + 3 throughput cells)
 
 - SLU n=15 on both binaries (HR14 + HR15 + HR43).
-- ManySmall / 1kSmall / LargePlusManySmall n=3 each on both binaries
-  (HR14 minimum). Requires `dev-unix-wsupload-benchOn` preset for
-  bench framework registration.
+- ManySmall / 1kSmall / LargePlusManySmall **n=10** each on both
+  binaries (HR52 elevated floor, raised from the original n=3).
+  Requires `dev-unix-wsupload-benchOn` preset for bench framework
+  registration.
+- Bench-proof report standard (HR15 + HR45 fu7-20 amend): every cell ×
+  baseline × axis is reported with full distribution (min / p25 /
+  median / mean / p75 / p95 / max / σ / σ/μ); **no `TBD` placeholders
+  in any committed bench-proof markdown**. Use `aggregate_bench.py`
+  (in `scripts/ci/`) to extract from per-iter JSONL; per-cell
+  markdowns plus a single `master_summary.md` are mandatory in the
+  `Goal1_bench_proof/` deliverable directory.
 
-### Tier 5 — TSAN refresh (10 v2-surface cells)
+### Tier 5 — TSAN refresh (10+ v2-surface cells, parity n=5)
 
-- 10 v2-surface cells × n=3 on `build-sdk-dev-unix-tsan` (HR23).
+- 10+ v2-surface cells × **n=5** on `build-sdk-dev-unix-tsan` (HR23 +
+  HR52 elevated floor, raised from the original n=3).
+- **Parity floor** (HR52 + HR23 fu7-20 amend): same cell list × n=5 on
+  the develop-side TSAN binary so NEW-vs-develop race classification
+  is empirical, not inherited from a prior fu7-N. Any race present on
+  fu7-N but absent on develop is `ON_fu7-N_ONLY` and must be fixed
+  before close (HR23).
 
 ### Tier 6 — LOW-risk smoke (fall-back when Tier S blocked)
 
@@ -188,6 +204,36 @@ Origin: fu7-18 — `SdkWsUploadTest.StopStartSameEngineDuringTransfer`
 Jenkins MR post-push instead of by the fu7-17-2 agent sweep. The
 fu7-17-2 sweep covered 8 of 749 cells (1.07%); HR51 makes the floor
 structural rather than enumerative.
+
+## HR52 — sweep n-floor + no-defer (fu7-20)
+
+Triggered by: every fu7-N close before declaring `TECHQA_READY`.
+
+The elevated n-floor (Tier 1 n=15, Tier 2.1 MN n=5 absolute, Tier 2.3
+strict cells n=10, Tier 3 HR38 paired n=10, Tier 4 SLU n=15 + other
+bench cells n=10 paired, Tier 5 TSAN n=5 fu7-N + n=5 develop parity)
+is the new floor. Tier 2.2 (other `SyncTest.*` cells fu7-N does not
+modify) stays at n=3 — Tier 2.2 elevation would 3× the sweep wall
+budget for cells that fu7-N is not the suspect for; this is an
+explicit scope decision.
+
+**No tier may be deferred on time-budget grounds** unless measured
+wall proves the cost (HR48). Audit-only Δ=0 deferrals are forbidden
+(HR21). If the closing sweep cannot complete in one session, defer to
+the next session with explicit RCA (which cells, which n, which
+infrastructure constraint) — never declare techQA-ready on a partial
+sweep.
+
+Origin: fu7-20 — the latest Jenkins MR after fu7-19's push caught
+`SyncTest.DetectsAndReportsSyncProblems` on macOS only. The fu7-19
+agent sweep had this cell in Tier 2.2 at n=3, and at n=3 the failure
+was below the agent's flake-detection threshold. Jenkins effectively
+applies a higher n by running across multiple OSes and stage retries;
+the agent sweep must structurally mirror that breadth. fu7-20 does
+NOT promote Tier 2.2 to n=10 (per Phase 1 plan decision) — the cell
+is documented as NF-4 (pre-existing) and the rule going forward is
+that v2/bench/timing surfaces — where fu7-N IS the suspect — stay at
+the elevated floor.
 
 ## HR47 — agent wait budget ≥90 min
 

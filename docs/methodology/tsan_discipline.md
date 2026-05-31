@@ -1,15 +1,14 @@
 # TSAN discipline
 
-ThreadSanitizer (TSAN) finds data races dynamically. On SDK-5360 it is
-the principal gate against thread-safety regressions on the WS upload
-surface.
+ThreadSanitizer (TSAN) finds data races dynamically. It is the principal
+gate against thread-safety regressions on the WS upload surface.
 
 ## Where TSAN is available
 
 | OS | Compiler | TSAN preset | Notes |
 |---|---|---|---|
 | Linux | gcc / clang | `dev-unix-tsan` | Primary platform. |
-| macOS | AppleClang | `dev-macos-tsan` (post-fu7-17) | clang's TSAN works natively. |
+| macOS | AppleClang | `dev-macos-tsan` | clang's TSAN works natively. |
 | Windows | MSVC | **NOT SUPPORTED** | MSVC has no TSAN runtime; clang-cl's is incomplete. |
 
 For Windows, rely on the regular sweep + Linux/macOS TSAN coverage.
@@ -46,7 +45,7 @@ Recommended TSAN_OPTIONS (matches the Jenkinsfile lines ~420):
 
 The full TSAN sweep is expensive. For per-commit gates, use the
 4-cell **WS-upload surface filter** (matches the Jenkinsfile
-`TSAN_SURFACE_FILTER` introduced in fu7-12, renamed in fu7-17):
+`TSAN_SURFACE_FILTER`):
 
 ```
 SdkWsUploadTest.ActivePoolUsesParallelConnections          # T1
@@ -61,57 +60,21 @@ This is the minimum surface that exercises the WS pool + worker thread
 For final session sweeps, extend with the full `SdkWsUploadTest.*`
 suite at lower n.
 
-## NEW-vs-develop classification protocol
+## NEW-vs-develop race classification
 
-A race detected on the fu7-N binary is one of:
+Compare TSAN race signatures between the candidate binary and a
+baseline binary (typically `origin/develop`). The top-frame signature
+is the minimum identity for grouping: two race events are "the same"
+if their top frame and second-frame function names match.
 
-| Class | Action |
-|---|---|
-| Present on both develop and fu7-N | **Pre-existing** — document, don't fix in this session. |
-| Present on fu7-N, NOT on develop | **NEW** — HR23 says fix this session. |
+- **NEW races** (present on candidate, absent on baseline) are
+  blocking — fix before merge.
+- **Pre-existing races** (present on both) are enumerated but not
+  fixed in the candidate session unless explicitly scoped.
 
-Procedure:
-
-1. Build `~/repo/sdk-develop` at current `origin/develop` HEAD.
-2. Build `~/repo/sdk-develop-dev-unix-tsan` (cherry-pick the bench
-   instrumentation if needed for parity per HR4).
-3. Run the WS-upload surface filter on the develop binary, n=2.
-4. Capture top-frame signatures in
-   `…/followup7-N/Goal4_tsan_deep_dive/develop_baseline_races_fu7_N.md`.
-5. Run the same filter on the fu7-N binary, n=2.
-6. Diff signatures. Classify each.
-
-## Race signature
-
-The top-frame signature is the minimum identity for grouping. Two
-race events are "the same" if their top frame and second-frame
-function names match. Use `scripts/ci/compare_tsan.sh` to bucket.
-
-## Pre-existing race tracking
-
-Pre-existing races are NOT ignored — they are enumerated. Each session
-records:
-
-- Total race count (e.g. fu7-16: 68 events).
-- Unique top-frame signatures (e.g. fu7-16: 6 signatures).
-- Top-frame breakdown by site (e.g. SdkTest_test.cpp accessors,
-  MegaFolderInfo getters).
-
-Drift in this catalogue signals churn even when no NEW race appeared.
-
-## When a NEW race surfaces
-
-Per HR23 the session must fix it before close. Procedure:
-
-1. Reproduce with `--gtest_repeat=3` to confirm reproducibility.
-2. Inspect the access pattern via `LOG_debug` at the racing sites.
-3. Apply the minimum-invasive fix (atomic, mutex, ordering).
-4. Re-run TSAN to confirm closure.
-5. Re-run the bench gate (HR14) — the fix must not regress throughput.
-
-If the structural fix is too invasive for the session wall budget:
-HR21 escalation — document in `…/Goal4/…/escalation.md` and revert
-the change that introduced the race.
+Run both binaries at the same `n` (typically n=2-3 on the surface
+filter) on the same OS, same TSAN_OPTIONS, same day. Use
+`scripts/ci/compare_tsan.sh` to bucket signatures by top frame.
 
 ## Comparison: scripts/ci/compare_tsan.sh
 
@@ -147,7 +110,7 @@ state machine. They do NOT exercise:
 - HTTP-layer commands that aren't on the WS code path
   (`CommandPutFile`, `CommandSetAttr`, sync action-packet processing).
 
-**Expansion ideas** (file as fu7-18+ candidate tickets):
+**Expansion ideas** (file as candidate tickets):
 
 1. Add a `TSAN_DOWNLOAD_SURFACE_FILTER` with 2-3 cells exercising
    `SdkTest.SdkResumableTrasfers` + `SdkTest.SdkTestTransferStats` so
