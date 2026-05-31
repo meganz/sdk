@@ -28,7 +28,7 @@ emits `bench_report_*.json`.
 
     trigger compilation --gtest_filter=SdkWsUploadTest.B9ClosedThrottleReconnectPacing --gtest_repeat=15
 
-Hits: all OSes. (HR43 minimum for the B9 timing assertion.) The local
+Hits: all OSes. (Minimum recommended repeat count for the B9 timing assertion.) The local
 `run_bench.sh` equivalent already pins CPU0 via `taskset`; the Jenkins
 worker is single-tenant, so no explicit pin needed.
 

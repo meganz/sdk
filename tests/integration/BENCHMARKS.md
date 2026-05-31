@@ -99,9 +99,8 @@ grep -E 'mean speed|KB/s|upload time' "$log" | head -20
 
 - Single-test timing: `time ./test_integration --gtest_filter=<test>`.
 - Sequential multi-test driver (pattern): see `/tmp/phase5_validate.sh` retained from the 2026-04-22 session — it writes per-phase stdout + pid dirs + summary under `/tmp/phase5/`.
-- Example baseline / before-after reports for the WS upload engine: `~/investigationTests/SDK-5360_serialization_new/SyncTest/followup/` — `{01_baseline, 04_fixB_results, 07_isolation_matrix, 08_fixB_prime_results}.md`.
 
-## Bench-report JSON (fu7-5 G6 + fu7-18 G1)
+## Bench-report JSON
 
 The `MEGA_BENCH_FRAMEWORK_ENABLED` CMake option defaults to **OFF** — see the
 "Benchmark procedure" section below for the local build that has it ON.
@@ -114,7 +113,7 @@ When the binary is built with `-DMEGA_BENCH_FRAMEWORK_ENABLED=ON`, each
 ${HOME}/mega_tests/pid_<PID>/
 ├── test_integration.log
 └── bench_reports/
-    ├── bench_report_<PID>.jsonl    # per-iter stream (fu7-18 G1)
+    ├── bench_report_<PID>.jsonl    # per-iter stream
     └── bench_report_<PID>.json     # consolidated array (final flush)
 ```
 
@@ -221,7 +220,7 @@ After a bench run, `pid_<PID>/` should contain:
 
 ```
 pid_<PID>/
-├── bench_reports/                 # BenchReportWriter outputs (ON binary only, fu7-18 G1)
+├── bench_reports/                 # BenchReportWriter outputs (ON binary only)
 │   ├── bench_report_<PID>.jsonl   #   per-recordCell append; mid-run safe
 │   └── bench_report_<PID>.json    #   consolidated array, written at tear-down only
 ├── bench_staging/            # speculative staging dir; empty for cells that don't stage local files (see BenchmarkRunners)
@@ -239,11 +238,10 @@ Notes:
   `COLLISION_RESOLUTION_NEW_WITH_N` semantics in the SDK download API when
   the same target name is used across iterations. This is the intended
   rename, not a cleanup bug. If a test wants per-iter cleanup, it must
-  remove the file between runs explicitly. SDK-5360 fu7-17 Goal 3.5.b
-  added per-iter `deleteFile()` calls before the `downfile1.txt` /
-  `downfile2.txt` downloads in `SdkTestTransferStats_test.cpp` so this
-  specific cell no longer accumulates `(N)` suffixes — generic guidance
-  for other tests still applies.
+  remove the file between runs explicitly. (A per-iter `deleteFile()`
+  was added before the downloads in `SdkTestTransferStats_test.cpp` so
+  this specific cell no longer accumulates `(N)` suffixes — generic
+  guidance for other tests still applies.)
 
 ### Cross-version comparison from the JSON
 
@@ -276,7 +274,7 @@ MR builds run a separate `${BUILD_DIR}_bench` configured with
 After the bench stage the pipeline csplits `bench_sweep.log` into per-cell
 logs and packs them into `bench_logs_<BUILD_ID>.tar.gz`; both that tarball
 and the raw `bench_report_*.{json,jsonl}` (from the `pid_*/bench_reports/`
-sub-directory; fu7-18 G1) are archived via the Jenkins `archiveArtifacts`
+sub-directory) are archived via the Jenkins `archiveArtifacts`
 glob.
 
 To reproduce the per-cell csplit locally for a sweep that emitted a single
@@ -288,7 +286,7 @@ csplit -k -f bench_logs_local_ -b '%03d.log' "${PID_DIR}/test_integration.log" \
 tar -czf bench_logs_local.tar.gz bench_logs_local_*.log
 ```
 
-## Pre-push strict-warning check (HR42)
+## Pre-push strict-warning check
 
 Before pushing wsupload-touching changes, run the `dev-unix-strict` preset on
 Linux to catch Win/Mac-only warnings (e.g., MSVC `C4244` narrowing, clang

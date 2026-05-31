@@ -26,7 +26,7 @@ respects the flags it understands.
 | `trigger compilation --tsan`                                  | TSAN sweep           | Lin + Mac (NOT Win) |
 | `trigger compilation --gtest_filter=Foo.Bar`                  | filter regular tests | all                 |
 | `trigger compilation --gtest_filter=Foo --gtest_repeat=15`    | filter + repeat      | all                 |
-| `trigger compilation --bench --gtest_filter=…`                | filter bench         | all (post-fu7-17)   |
+| `trigger compilation --bench --gtest_filter=…`                | filter bench         | all                 |
 | `trigger compilation --tsan --gtest_filter=…`                 | filter TSAN          | Lin + Mac           |
 | `trigger compilation --windows-32bits`                        | 32-bit build         | Win                 |
 | `trigger compilation --sequence`                              | serial tests         | all                 |
@@ -69,7 +69,7 @@ coexist; you can have all of them present at once.
 | Bench (one or more cells)         | `bash tests/integration/run_bench.sh 'SdkBenchmarkTest.SingleLargeUpload' 3`                                                                                                                                                                                                                                                  |
 | TSAN build                        | `cmake --preset dev-unix-tsan && cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration`                                                                                                                                                                                                                  |
 | TSAN run                          | `TSAN_OPTIONS='halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0' ~/repo/build-sdk-dev-unix-tsan/tests/integration/test_integration --USERAGENT:JenkinsCanSpam-SDK --CI --COUT --gtest_filter='SdkWsUploadTest.OverquotaDuringTransfer'`                                                              |
-| Strict pre-push gate (HR42)       | `cmake --preset dev-unix-strict && cmake --build ~/repo/build-sdk-dev-unix-strict -j16 --target SDKlib`                                                                                                                                                                                                                       |
+| Strict pre-push compile gate      | `cmake --preset dev-unix-strict && cmake --build ~/repo/build-sdk-dev-unix-strict -j16 --target SDKlib`                                                                                                                                                                                                                       |
 
 (Replace `dev-unix-*` with `dev-macos-*` or `dev-windows-*` on the
 respective hosts.)
@@ -85,7 +85,7 @@ On the Jenkins build page → "Build Artifacts":
 | `bench_logs_<BUILDID>.tar.gz`        | bench per-cell logs             |
 | `bench_sweep_<BUILDID>.log.gz`       | bench full log                  |
 | `tsan_sweep_<BUILDID>.log.gz`        | TSAN full log                   |
-| `tsan_logs_<BUILDID>.tar.gz`         | TSAN per-cell (post-fu7-17)     |
+| `tsan_logs_<BUILDID>.tar.gz`         | TSAN per-cell                   |
 | `core.tar.gz`                        | crash dumps                     |
 
 **Local equivalent**: `bench_report_*.json` files land in
@@ -182,7 +182,7 @@ already anticipates `SdkBenchmarkDownload*` cells — none written yet.
    cell. `compare_bench.py` compares the bench artifact against
    the baseline; PR fails if Δ > 5 % without a documented reason.
 
-## Expansion ideas (general fu7-18+)
+## Expansion ideas
 
 - Jenkins trend-graph plugin (throughput-over-time per cell).
 - Slack-bot for regression > 5 % vs last-N median.
