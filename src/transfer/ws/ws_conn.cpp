@@ -1,8 +1,7 @@
 /**
  * @file src/transfer/ws/ws_conn.cpp
  * @brief Non-trivial method bodies for the WebSocket-upload connection layer,
- *        split out of `src/transfer/ws/wsupload.cpp` in fu7-16 Goal 2.Step3.
- *        Hosts:
+ *        split out of `src/transfer/ws/wsupload.cpp`. Hosts:
  *
  *          - `WsConn` ctor/dtor + connectWS/closeWS/onopen/onclose lifecycle.
  *          - `WsConn::curlSend` / `curlRecv` cURL drain loops.
@@ -48,15 +47,14 @@
 
 // File-internal types shared with wsupload.cpp (WsConn, WsBuf, WsPoolThread,
 // ChunkFingerprintMacUpdate, WsPool, SteadyTime, WSUPLOAD_TRACE, FailReason,
-// CRC32, ChunkHeader, WsChunk). SDK-internal architecture header
-// (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+// CRC32, ChunkHeader, WsChunk). SDK-internal architecture header.
 #include "mega/transfer/ws/wsupload_internal.h"
 
-// Full definition of `UploadEngine::Impl` (promoted in fu7-16 Goal 2.Step0;
-// fu7-17 G1.a relocated header). Required because every `mPool->mImpl->X`
-// dereference in WsConn::onmessage / connectWS / failFileLocked needs Impl to
-// be a complete type. The header transitively includes
-// `mega/transfer/ws/ws_upload_file.h` so `WsUploadFile` is complete too.
+// Full definition of `UploadEngine::Impl`. Required because every
+// `mPool->mImpl->X` dereference in WsConn::onmessage / connectWS /
+// failFileLocked needs Impl to be a complete type. The header transitively
+// includes `mega/transfer/ws/ws_upload_file.h` so `WsUploadFile` is complete
+// too.
 #include "mega/transfer/ws/wsupload_engine.h"
 
 // `class WsUploadFile` is also pulled in directly: `findFile` returns
@@ -94,8 +92,7 @@ namespace
 
 // WS upload session-URL handshake timeout passed to CurlHttpIO::wsHandshakeForUpload.
 // Mirrors the prior CurlHttpIO 15s POST timeout used for the legacy upload-start request.
-// Moved out of wsupload.cpp in fu7-16 Goal 2.Step3 alongside its sole consumer
-// (WsConn::connectWS).
+// Lives alongside its sole consumer (WsConn::connectWS).
 constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
 
 // Poll interval for the WsConn::connectWS handshake-completion condition variable.
@@ -104,8 +101,7 @@ constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
 constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
 
 // TU-local enum: server-event opcodes for the WS upload response stream.
-// Only used by WsConn::onmessage; moved together with the body in fu7-16
-// Goal 2.Step3 (was declared at the top of wsupload.cpp).
+// Only used by WsConn::onmessage; moved together with the body.
 enum class WsApiServerEvent: signed char
 {
     ChunkIngested = 1, // chunk ingested (non-final)
@@ -729,9 +725,9 @@ struct ChunkResponse
             if (mPool) ++mPool->mThrottleEventCodeCounts[6];
             mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
 #endif
-            // fu7-19 G7: Release-safe bench-framework throttle counters. Relaxed
-            // memory order — these are pure accumulators read at iter boundaries
-            // by `UploadEngine::getAndResetBenchThrottleStats()` (no
+            // Release-safe bench-framework throttle counters. Relaxed memory
+            // order — these are pure accumulators read at iter boundaries by
+            // `UploadEngine::getAndResetBenchThrottleStats()` (no
             // happens-before relationship with surrounding state required).
             if (mPool)
             {

@@ -6,10 +6,9 @@
  *        WsBuf/WsChunk/ChunkHeader/ChunkFingerprintMacUpdate/WsConn/
  *        WsPoolThread/WsPool struct cluster.
  *
- *        SDK-internal architecture header (fu7-17 Goal 1.a relocated it from
- *        `src/transfer/ws/` to `include/mega/transfer/ws/` alongside
- *        `ws_encryption.h` and `ws_pool_mgr.h`). Sibling translation units in
- *        `src/transfer/ws/` (wsupload.cpp, ws_curl.cpp, ws_conn.cpp,
+ *        SDK-internal architecture header under `include/mega/transfer/ws/`
+ *        alongside `ws_encryption.h` and `ws_pool_mgr.h`. Sibling translation
+ *        units in `src/transfer/ws/` (wsupload.cpp, ws_curl.cpp, ws_conn.cpp,
  *        ws_pool.cpp, ws_pool_mgr.cpp, ws_upload_file.cpp) include it as
  *        `#include "mega/transfer/ws/wsupload_internal.h"`.
  *
@@ -57,8 +56,7 @@ namespace ws
 {
 
 // Full definition of `class WsUploadFile` lives in
-// include/mega/transfer/ws/ws_upload_file.h (fu7-16 Goal 2.Step2 split,
-// fu7-17 Goal 1.a relocated). The public header
+// include/mega/transfer/ws/ws_upload_file.h. The public header
 // include/mega/transfer/ws/ws_pool_mgr.h declares its own
 // `class WsUploadFile;` forward declaration for the `std::unordered_set<
 // WsUploadFile*> mActiveFiles;` member; consumers of this internal header
@@ -66,9 +64,8 @@ namespace ws
 
 // FailReason is shared between the WsUploadFile inline `uploadFailed` body
 // (in include/mega/transfer/ws/ws_upload_file.h) and the WsConn::failFileLocked
-// body (in src/transfer/ws/ws_conn.cpp). Promoted here from wsupload.cpp in
-// fu7-16 Goal 2.Step2 so the forward decl alone (was insufficient) becomes a
-// full definition.
+// body (in src/transfer/ws/ws_conn.cpp). Defined here so the forward decl
+// alone (insufficient) becomes a full definition for all consumers.
 enum class FailReason : std::uint8_t
 {
     ServerError,
@@ -419,7 +416,7 @@ struct WsPool
     bool mRetiring{false};
     bool mPinned{false};
 
-    // fu7-19 G7: Release-safe throttle counters consumed by the bench framework
+    // Release-safe throttle counters consumed by the bench framework
     // (`tests/integration/bench_framework/BenchReportWriter.cpp`). Incremented
     // with `memory_order_relaxed` on the WS hot path (see ws_conn.cpp,
     // `case WsApiServerEvent::Throttle`). Independent from the DEBUG-only
@@ -654,7 +651,7 @@ struct WsPool
     void applyInFlight(const std::uint32_t fileno);
     bool sendChunk(WsConn* ws, class UploadEngine::Impl& impl, dstime* retryAfterDs = nullptr);
 
-    // fu7-19 G7: Atomically `exchange(0)` each Release-safe throttle counter and
+    // Atomically `exchange(0)` each Release-safe throttle counter and
     // accumulate the previous values into `out`. Caller iterates over all pools.
     void addAndResetBenchThrottleStatsTo(UploadEngine::BenchThrottleSnapshot& out);
 

@@ -1,9 +1,9 @@
 /**
  * @file src/transfer/ws/ws_pool.cpp
  * @brief All `struct WsPool` member function bodies — split out of
- *        src/transfer/ws/wsupload.cpp in fu7-16 Goal 2.Step4.
+ *        src/transfer/ws/wsupload.cpp.
  *
- *        Bodies hosted here (in declaration order, per coupling-map §1):
+ *        Bodies hosted here (in declaration order):
  *
  *          - Debug stats: assignUploadingFileLocked, recordFirstByteSentLocked,
  *            recordUploadCompletedLocked, addWsUploadStatsForTesting,
@@ -16,13 +16,13 @@
  *          - Chunk-prep + worker thread (HOT PATH): sendChunk, poolWorkerThread,
  *            checkThreads.
  *
- *        Couplings (per coupling-map §1 / §2 — domain_coupling_map.md):
- *          - WsPool↔UploadEngine::Impl (DEEP): poolWorkerThread (~20 derefs),
+ *        Couplings:
+ *          - WsPool/UploadEngine::Impl (DEEP): poolWorkerThread (~20 derefs),
  *            sendChunk (~13), getWsUploadFile (~7), nextChunk (~6). Full Impl
  *            definition reached via mega/transfer/ws/wsupload_engine.h.
- *          - WsPool↔WsConn / WsBuf / WsPoolThread (OK): all-public struct
+ *          - WsPool/WsConn / WsBuf / WsPoolThread (OK): all-public struct
  *            cluster, full type via mega/transfer/ws/wsupload_internal.h.
- *          - WsPool↔WsUploadFile (OK): public accessor API, full type via
+ *          - WsPool/WsUploadFile (OK): public accessor API, full type via
  *            mega/transfer/ws/ws_upload_file.h.
  *          - ws::detail / TU-local helpers (ChunkMap / g_chunkMap /
  *            chunkSizeAtPosition / steadyMs) stay in wsupload.cpp; this TU
@@ -31,23 +31,16 @@
  *
  *        WsPool's mega::ws::encryptChunk consumer needs ws_encryption.h. The
  *        WS chunk-encrypt API takes a stack-snapshotted SymmCipher key + ctrIv
- *        so this TU never touches the live cipher under uploadMutex (that is
- *        the fu7-16 v2-ship invariant; see project_sdk5360_followup6_8_results
- *        memory).
+ *        so this TU never touches the live cipher under uploadMutex.
  *
  *        The chunk-size table `g_chunkMap` and its inline accessor
  *        `g_chunkMap.chunksize(pos)` remain in wsupload.cpp because the
- *        ChunkMap struct is TU-local; this TU calls it through the same
- *        re-exported `chunkSizeAtPosition` test wrapper. Actually no — the
- *        worker calls `g_chunkMap.chunksize(pos)` directly. To preserve the
- *        single-table invariant, this TU declares ChunkMap as `extern` via
- *        a small private decl re-included from wsupload_internal.h additions.
- *        See ws_pool.cpp implementation note near `nextChunk` for the chosen
- *        approach: forward-declare `chunkSizeForWsPool(m_off_t)` in
- *        wsupload_internal.h and define it once in wsupload.cpp (already
- *        existing pattern: the existing Debug-only `chunkSizeAtPosition`
- *        wrapper). Step 4 reuses that wrapper by exposing a release-build
- *        non-test version under the same name kept in wsupload.cpp.
+ *        ChunkMap struct is TU-local. The worker in this TU calls
+ *        `chunkSizeAtPosition(pos)` declared in wsupload_internal.h; the
+ *        single definition lives in wsupload.cpp so there is one table per
+ *        process. The wrapper is a release-build always-on free function (it
+ *        was previously Debug-only when only unit tests called it; sibling
+ *        TUs now need it in Release too).
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
  *
@@ -63,8 +56,7 @@
 
 // File-internal types shared with wsupload.cpp (WsPool, WsConn, WsPoolThread,
 // WsChunk, ChunkFingerprintMacUpdate, ScopedUnlock, SteadyTime, FailReason,
-// WSUPLOAD_TRACE, kMiB). SDK-internal architecture header
-// (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+// WSUPLOAD_TRACE, kMiB). SDK-internal architecture header.
 #include "mega/transfer/ws/wsupload_internal.h"
 
 // Full WsUploadFile definition — every chunk-prep + worker-thread call site
@@ -297,10 +289,11 @@ void WsPool::recordWsUploadStatsSampleLocked(const UploadEngine::Impl& impl)
 }
 #endif // NDEBUG (Debug-only stats block)
 
-// fu7-19 G7: Release-safe — atomically swaps each per-pool throttle counter to
-// zero and accumulates the previous value into `out`. `exchange` with
-// memory_order_relaxed is sufficient because the bench framework only reads
-// these at iter boundaries (no ordering relationship with surrounding data).
+// Release-safe bench-framework hook: atomically swaps each per-pool throttle
+// counter to zero and accumulates the previous value into `out`. `exchange`
+// with memory_order_relaxed is sufficient because the bench framework only
+// reads these at iter boundaries (no ordering relationship with surrounding
+// data).
 void WsPool::addAndResetBenchThrottleStatsTo(UploadEngine::BenchThrottleSnapshot& out)
 {
     out.event6Count += mBenchThrottleEvent6Count.exchange(0, std::memory_order_relaxed);

@@ -2,7 +2,7 @@
  * @file src/transfer/ws/wsupload.cpp
  * @brief Public UploadEngine facade — the pImpl forwarding shell that backs
  *        the `mega::ws::UploadEngine` declared in `mega/wsupload.h`. The TU is
- *        deliberately small after the fu7-16 Goal 2 split:
+ *        deliberately small after the multi-TU split:
  *
  *          - Anonymous-namespace TU-local helpers: detail::validateInboundFrame
  *            (declared in mega/wsupload.h), ChunkMap + g_chunkMap +
@@ -19,20 +19,16 @@
  *        Larger bodies live in sibling TUs:
  *
  *          - include/mega/transfer/ws/wsupload_engine.h  — UploadEngine::Impl
- *            class (fu7-16 G2.Step0; fu7-17 G1.a relocated header to
- *            include/mega/transfer/ws/).
- *          - src/transfer/ws/ws_pool_mgr.cpp    — WsPoolMgr method bodies
- *            (fu7-16 G2.Step1 + G2.Step4).
+ *            class.
+ *          - src/transfer/ws/ws_pool_mgr.cpp    — WsPoolMgr method bodies.
  *          - src/transfer/ws/ws_curl.cpp        — WsPoolMgr::curlIO and
- *            ensurePinnedPool (fu7-14 G2.a-β).
+ *            ensurePinnedPool.
  *          - include/mega/transfer/ws/ws_upload_file.h + src/transfer/ws/
- *            ws_upload_file.cpp — WsUploadFile class (fu7-16 G2.Step2;
- *            fu7-17 G1.a relocated header).
+ *            ws_upload_file.cpp — WsUploadFile class.
  *          - src/transfer/ws/ws_conn.cpp        — WsConn + WsBuf::sendWS +
- *            WsPoolThread ctor + ChunkFingerprintMacUpdate::apply (fu7-16
- *            G2.Step3).
+ *            WsPoolThread ctor + ChunkFingerprintMacUpdate::apply.
  *          - src/transfer/ws/ws_pool.cpp        — every WsPool method body
- *            including sendChunk + poolWorkerThread (fu7-16 G2.Step4).
+ *            including sendChunk + poolWorkerThread.
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
  *
@@ -59,8 +55,8 @@
 #include "mega/transfer/ws/ws_upload_file.h"
 
 // Full UploadEngine::Impl definition. Needed for every pImpl forwarder body
-// below (`pImpl->X`). Transitively pulls in mega/megaapp.h since fu7-16
-// G2.Step4 hardened the engine header to be self-contained.
+// below (`pImpl->X`). Transitively pulls in mega/megaapp.h because the engine
+// header is intentionally self-contained.
 #include "mega/transfer/ws/wsupload_engine.h"
 
 #include <chrono>
@@ -152,8 +148,8 @@ ChunkMap g_chunkMap;
 
 } // namespace
 
-// Free function wrapper. Always-on (was Debug-only in fu7-15 to support unit
-// tests) so ws_pool.cpp's WsPool::nextChunk can call it in Release builds too.
+// Free function wrapper. Always-on (released from a former Debug-only gate)
+// so ws_pool.cpp's WsPool::nextChunk can call it in Release builds too.
 // Forward-declared in ws_pool.cpp; unit tests still extern-declare it.
 int chunkSizeAtPosition(m_off_t pos)
 {
@@ -297,7 +293,7 @@ bool UploadEngine::getTransferStats(const Transfer& t, UploadEngine::WsTransferS
     return pImpl->getTransferStats(t, stats);
 }
 
-// fu7-15 G2.a-3: forwarders always-compile; see wsupload.h note above.
+// Forwarders always-compile (the hook-ABI struct is unconditional); see wsupload.h note above.
 bool UploadEngine::getPoolStateForTesting(const std::string& url,
                                           UploadEngine::PoolStateForTesting& out) const
 {

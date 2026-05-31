@@ -1,7 +1,7 @@
 /**
  * @file src/transfer/ws/ws_upload_file.cpp
  * @brief Non-trivial method bodies for `mega::ws::WsUploadFile`, split out of
- *        `src/transfer/ws/wsupload.cpp` in fu7-16 Goal 2.Step2. Hosts:
+ *        `src/transfer/ws/wsupload.cpp`. Hosts:
  *
  *          - `readData` — the I/O hot path (open-on-first-use, periodic stat,
  *            reopen + retry, generation-check interruptions).
@@ -11,10 +11,7 @@
  *            `mega/transfer/ws/wsupload_internal.h`).
  *
  *        Small accessors and inline state transitions live inline in
- *        `include/mega/transfer/ws/ws_upload_file.h` (fu7-17 G1.a relocated).
- *        See
- *        `Goal2_cross_followup_refactor_sweep/domain_coupling_map.md` (§1
- *        WsUploadFile inventory) for the per-method breakdown.
+ *        `include/mega/transfer/ws/ws_upload_file.h`.
  *
  * (c) 2026 by Mega Limited, Auckland, New Zealand
  *

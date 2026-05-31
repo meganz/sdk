@@ -1,10 +1,9 @@
 /**
  * @file src/transfer/ws/wsupload_engine.cpp
  * @brief Non-trivial `UploadEngine::Impl` member bodies — split out of
- *        include/mega/transfer/ws/wsupload_engine.h in fu7-17 Goal 2.a so the
- *        header keeps to declarations + the inline-required pieces (ctor,
- *        trivial accessors, the `withFile<F>` private template, and the
- *        one-line iterator helpers).
+ *        include/mega/transfer/ws/wsupload_engine.h so the header keeps to
+ *        declarations + the inline-required pieces (ctor, trivial accessors,
+ *        the `withFile<F>` private template, and the one-line iterator helpers).
  *
  *        Bodies hosted here (lifecycle / queue / pause / state / pools):
  *

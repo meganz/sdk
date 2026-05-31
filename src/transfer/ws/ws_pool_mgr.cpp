@@ -1,32 +1,29 @@
 /**
  * @file src/transfer/ws/ws_pool_mgr.cpp
- * @brief WsPoolMgr lifecycle bodies — split out of wsupload.cpp in fu7-16
- *        Goal 2.Step1 (ctor/dtor + simple WsPool-only bookkeeping) and
- *        Goal 2.Step4 (the remaining Impl/WsUploadFile-coupled methods that
- *        Step 1 deferred while WsUploadFile was still TU-local).
+ * @brief WsPoolMgr lifecycle bodies — split out of wsupload.cpp.
  *
- *        Bodies now hosted here:
+ *        Bodies hosted here:
  *
- *          - ctor / dtor (Step 1)
- *          - bumpLastNetRead / bumpAllPools (Step 1)
- *          - markPoolRetiring / poolHasNoWork / cleanupRetiringPools (Step 1)
- *          - applyRefreshBackoff (Step 1)
- *          - pinnedPoolHasReference / retireUnusedPinnedPools (Step 4)
- *          - checkPools (Step 4)
- *          - refreshPools (Step 4)
- *          - applyRefreshedUrls (Step 4)
- *          - pinnedPoolConnectionLimit (Step 4)
+ *          - ctor / dtor
+ *          - bumpLastNetRead / bumpAllPools
+ *          - markPoolRetiring / poolHasNoWork / cleanupRetiringPools
+ *          - applyRefreshBackoff
+ *          - pinnedPoolHasReference / retireUnusedPinnedPools
+ *          - checkPools
+ *          - refreshPools
+ *          - applyRefreshedUrls
+ *          - pinnedPoolConnectionLimit
  *
  *        WsPoolMgr::curlIO and WsPoolMgr::ensurePinnedPool live in the sibling
- *        TU src/transfer/ws/ws_curl.cpp (fu7-14 G2.a-β).
+ *        TU src/transfer/ws/ws_curl.cpp.
  *
  *        Includes:
  *          - mega/transfer/ws/ws_pool_mgr.h for the WsPoolMgr declaration.
  *          - mega/transfer/ws/wsupload_internal.h for the WsPool / SteadyTime
  *            / WSUPLOAD_TRACE cluster.
  *          - mega/transfer/ws/wsupload_engine.h for the full
- *            UploadEngine::Impl definition (needed by the Step-4 methods that
- *            dereference Impl members).
+ *            UploadEngine::Impl definition (needed by methods that dereference
+ *            Impl members).
  *          - mega/transfer/ws/ws_upload_file.h for the WsUploadFile complete
  *            type (used by pinnedPoolHasReference, retireUnusedPinnedPools,
  *            refreshPools' wsPostToClientThread captures and applyRefreshedUrls
@@ -48,18 +45,17 @@
 #include "mega/transfer/ws/ws_pool_mgr.h"
 
 // File-internal types shared with wsupload.cpp (WsPool, SteadyTime,
-// WSUPLOAD_TRACE, etc.). SDK-internal architecture header
-// (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+// WSUPLOAD_TRACE, etc.). SDK-internal architecture header.
 #include "mega/transfer/ws/wsupload_internal.h"
 
-// Full WsUploadFile definition. Used by Goal 2.Step4 bodies below
+// Full WsUploadFile definition. Used by the bodies below
 // (pinnedPoolHasReference dereferences uf->mPool / uf->sessionUrlHint(),
 // retireUnusedPinnedPools through pinnedPoolHasReference, applyRefreshedUrls
 // indirectly via poolHasNoWork → pool.mUploadingFile).
 #include "mega/transfer/ws/ws_upload_file.h"
 
-// Full UploadEngine::Impl definition. Needed by Goal 2.Step4 bodies that
-// dereference mImpl-> / impl. members (refreshPools posts captures using
+// Full UploadEngine::Impl definition. Needed by bodies that dereference
+// mImpl-> / impl. members (refreshPools posts captures using
 // mImpl->{client.wsPostToClientThread, instanceId, stopping};
 // applyRefreshedUrls reads impl.poolConnectionLimit() via mImpl;
 // retireUnusedPinnedPools / checkPools read impl.currentTime).
@@ -173,11 +169,10 @@ void WsPoolMgr::applyRefreshBackoff(Error e)
 }
 
 // ========== WsPoolMgr methods coupled to UploadEngine::Impl / WsUploadFile ==========
-// Promoted out of src/transfer/ws/wsupload.cpp in fu7-16 Goal 2.Step4. Each
-// method either dereferences `mImpl->X` / `impl.X` (needs the full
-// `UploadEngine::Impl` from wsupload_engine.h) or touches `WsUploadFile`
-// members (needs the full class from ws_upload_file.h). Both headers are
-// included above.
+// Methods coupled to UploadEngine::Impl / WsUploadFile. Each method either
+// dereferences `mImpl->X` / `impl.X` (needs the full `UploadEngine::Impl`
+// from wsupload_engine.h) or touches `WsUploadFile` members (needs the full
+// class from ws_upload_file.h). Both headers are included above.
 
 bool WsPoolMgr::pinnedPoolHasReference(const WsPool& pool, const UploadEngine::Impl& impl) const
 {
@@ -281,9 +276,10 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 // refreshPools posts a series of lambdas to the client thread via wsPostToClientThread().
 // Those lambdas capture `MegaClient&` by reference and rely on the SDK-wide contract that
 // MegaClient destroys its UploadEngine synchronously on the client thread during teardown
-// (~MegaClient), so every queued work item sees a live MegaClient. NF-4's clearRefreshing
+// (~MegaClient), so every queued work item sees a live MegaClient. The `clearRefreshing`
 // closure additionally re-validates wsEngine() identity under uploadMutex to guard against
-// engine-replacement mid-flight.
+// engine-replacement mid-flight (race scenario: an engine instance is replaced while a
+// refresh-pools USC reply is in-flight).
 void WsPoolMgr::refreshPools()
 {
     if (!mImpl)

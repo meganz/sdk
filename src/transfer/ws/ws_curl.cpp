@@ -29,7 +29,7 @@
 
 // File-internal types shared with wsupload.cpp (WsPool, SteadyTime,
 // ScopedUnlock, WSUPLOAD_CURL_MULTI_POLL_MS, WSUPLOAD_TRACE). SDK-internal
-// architecture header (fu7-17 G1.a relocated to include/mega/transfer/ws/).
+// architecture header.
 #include "mega/transfer/ws/wsupload_internal.h"
 
 #include <memory>

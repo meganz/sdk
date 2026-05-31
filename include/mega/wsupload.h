@@ -176,12 +176,12 @@ public:
     // Set desired WS per-transfer upload concurrency (worker threads per non-pinned pool).
     void setMaxConnections(unsigned char maxConnections);
 
-    // Test-only types + accessors below were #ifndef NDEBUG-gated until fu7-15 G2.a:
-    // making them always-compile is required so tests/integration/wsupload/
-    // WsUploadDebugHelpers.h can include this header in hooks-OFF builds (where
-    // WSUPLOAD_REQUIRE_TEST_HOOKS() expands to GTEST_SKIP at runtime, but the body
-    // must still compile). Release-build code-segment cost: ~80 LOC of dead types
-    // and forwarder bodies, never reached at runtime.
+    // Test-only types + accessors below are always-compile (not NDEBUG-gated)
+    // so tests/integration/wsupload/headers/WsUploadDebugHelpers.h can include
+    // this header in hooks-OFF builds where WSUPLOAD_REQUIRE_TEST_HOOKS()
+    // expands to GTEST_SKIP at runtime but the body must still compile.
+    // Release-build code-segment cost: ~80 LOC of dead types and forwarder
+    // bodies, never reached at runtime.
     struct PoolStateForTesting
     {
         bool found = false;
@@ -257,12 +257,12 @@ public:
     bool isTrackedForTesting(const Transfer& t) const;
     std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;
 
-    // fu7-19 G7: Release-safe per-iter throttle snapshot consumed by the
-    // bench framework (`tests/integration/bench_framework/`). Atomically swaps
-    // the underlying `WsPool::mBenchThrottle*` accumulators to zero across all
-    // pools and returns the previous values, so each iter's snapshot is
-    // independent. Always-compile (NOT gated on MEGASDK_DEBUG_TEST_HOOKS_ENABLED),
-    // because `MEGA_BENCH_FRAMEWORK_ENABLED` is independent of test-hooks.
+    // Release-safe per-iter throttle snapshot consumed by the bench framework
+    // (`tests/integration/bench_framework/`). Atomically swaps the underlying
+    // `WsPool::mBenchThrottle*` accumulators to zero across all pools and
+    // returns the previous values, so each iter's snapshot is independent.
+    // Always-compile (NOT gated on MEGASDK_DEBUG_TEST_HOOKS_ENABLED) because
+    // `MEGA_BENCH_FRAMEWORK_ENABLED` is independent of test-hooks.
     struct BenchThrottleSnapshot
     {
         std::int64_t event6Count = 0;

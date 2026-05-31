@@ -4,18 +4,15 @@
  *        by `UploadEngine::Impl` and consumed by `WsPool` / `WsConn` /
  *        `ChunkFingerprintMacUpdate`.
  *
- *        Promoted out of `src/transfer/ws/wsupload.cpp` in fu7-16 Goal 2.Step2
- *        so that sibling WS-internal translation units (`wsupload_engine.h`'s
- *        inline `UploadEngine::Impl` bodies + the future ws_conn.cpp /
- *        ws_pool.cpp splits) can dereference WsUploadFile members without
- *        relying on the class being TU-local to wsupload.cpp. See
- *        `Goal2_cross_followup_refactor_sweep/domain_coupling_map.md` (§1
- *        WsUploadFile inventory + §6 Step 2 row) for the coupling rationale.
+ *        Promoted out of `src/transfer/ws/wsupload.cpp` so that sibling
+ *        WS-internal translation units (`wsupload_engine.h`'s inline
+ *        `UploadEngine::Impl` bodies + ws_conn.cpp / ws_pool.cpp) can
+ *        dereference WsUploadFile members without relying on the class being
+ *        TU-local to wsupload.cpp.
  *
- *        SDK-internal architecture header (fu7-17 Goal 1.a relocated it from
- *        `src/transfer/ws/` to `include/mega/transfer/ws/` alongside
- *        `ws_encryption.h` and `ws_pool_mgr.h`). Sibling translation units in
- *        `src/transfer/ws/` include it as
+ *        SDK-internal architecture header under `include/mega/transfer/ws/`
+ *        alongside `ws_encryption.h` and `ws_pool_mgr.h`. Sibling translation
+ *        units in `src/transfer/ws/` include it as
  *        `#include "mega/transfer/ws/ws_upload_file.h"`.
  *
  *        Small accessors and the hot-path read/write paths kept inline here
@@ -41,8 +38,7 @@
 #ifdef MEGA_USE_WSUPLOAD
 
 // File-internal WS types (WsPool, SteadyTime, WSUPLOAD_TRACE, kMiB,
-// FailReason). SDK-internal architecture header under include/mega/transfer/ws/
-// (fu7-17 Goal 1.a relocated it alongside ws_encryption.h / ws_pool_mgr.h).
+// FailReason). SDK-internal architecture header under include/mega/transfer/ws/.
 #include "mega/transfer/ws/wsupload_internal.h"
 
 #include "mega/file.h" // File (for frontFile())

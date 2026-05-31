@@ -43,8 +43,8 @@ namespace mega {
 #endif
 
     // Forward declarations, enum, sub-struct, MegaTestHooks struct, and the
-    // globalMegaTestHooks extern are ALWAYS compiled (since fu7-15 G2.a-1).
-    // Only the DEBUG_TEST_HOOK_* macros below are gated on
+    // globalMegaTestHooks extern are ALWAYS compiled. Only the
+    // DEBUG_TEST_HOOK_* macros below are gated on
     // MEGASDK_DEBUG_TEST_HOOKS_ENABLED — they expand to nothing in Release.
     // This keeps the struct ABI-stable across NDEBUG/non-NDEBUG, so test
     // code (and helpers like WsUploadDebugHelpers.h) can reference the

@@ -4,20 +4,17 @@
  *        + pool-coordinator pImpl body backing the public `UploadEngine`
  *        facade declared in `mega/wsupload.h`.
  *
- *        Promoted out of `src/transfer/ws/wsupload.cpp` in fu7-16 Goal 2.Step0
- *        so that sibling WS-internal translation units (ws_pool.cpp,
- *        ws_conn.cpp, ws_pool_mgr.cpp) can dereference `mImpl->X` members
- *        without ODR-violating duplicate definitions.
+ *        Promoted out of `src/transfer/ws/wsupload.cpp` so that sibling
+ *        WS-internal translation units (ws_pool.cpp, ws_conn.cpp,
+ *        ws_pool_mgr.cpp) can dereference `mImpl->X` members without
+ *        ODR-violating duplicate definitions. The header was later split into
+ *        declarations-only + a sibling `src/transfer/ws/wsupload_engine.cpp`
+ *        for the non-trivial method bodies. Trivial accessors and the
+ *        `withFile<F>` private template helper remain inline here.
  *
- *        fu7-17 Goal 2.a split this header into declarations-only + a sibling
- *        `src/transfer/ws/wsupload_engine.cpp` for the non-trivial method
- *        bodies. Trivial accessors and the `withFile<F>` private template
- *        helper remain inline in this header.
- *
- *        SDK-internal architecture header (fu7-17 Goal 1.a relocated it from
- *        `src/transfer/ws/` to `include/mega/transfer/ws/` alongside
- *        `ws_encryption.h` and `ws_pool_mgr.h`). Sibling translation units in
- *        `src/transfer/ws/` and `src/megaclient_wsupload.cpp` /
+ *        SDK-internal architecture header under `include/mega/transfer/ws/`
+ *        alongside `ws_encryption.h` and `ws_pool_mgr.h`. Sibling translation
+ *        units in `src/transfer/ws/` and `src/megaclient_wsupload.cpp` /
  *        `src/commands_ws.cpp` include it as
  *        `#include "mega/transfer/ws/wsupload_engine.h"`.
  *
@@ -41,9 +38,8 @@
 // (UploadEngine, Callbacks) and mega/transfer/ws/ws_pool_mgr.h (WsPoolMgr).
 #include "mega/transfer/ws/wsupload_internal.h"
 
-// Full definition of `class WsUploadFile` (split out of wsupload.cpp in fu7-16
-// Goal 2.Step2). Needed because the inline `withFile<F>` template body below
-// dereferences WsUploadFile members.
+// Full definition of `class WsUploadFile`. Needed because the inline
+// `withFile<F>` template body below dereferences WsUploadFile members.
 #include "mega/transfer/ws/ws_upload_file.h"
 
 // `mega/megaapp.h` must precede `mega/megaclient.h` (which only forward-declares
@@ -74,8 +70,8 @@ namespace ws
 
 // ========== UploadEngine::Impl (queue + mgr + thread) ==========
 //
-// All non-trivial method bodies live in src/transfer/ws/wsupload_engine.cpp
-// (fu7-17 Goal 2.a). This header keeps:
+// All non-trivial method bodies live in src/transfer/ws/wsupload_engine.cpp.
+// This header keeps:
 //   - The class declaration + member variables.
 //   - Trivial one-line accessors (stopping/instanceId/poolConnectionLimit).
 //   - The inline ctor.
@@ -142,17 +138,17 @@ public:
 
     bool getSessionUrl(Transfer& t, std::string& outUrl) const;
 
-    // fu7-15 G2.a-3: signatures always-compile so WsUploadDebugHelpers.h can include
-    // this header in hooks-OFF builds. Bodies internally gate via
+    // Signatures always-compile so tests/integration/wsupload/headers/WsUploadDebugHelpers.h
+    // can include this header in hooks-OFF builds. Bodies internally gate via
     // MEGASDK_DEBUG_TEST_HOOKS_ENABLED — in hooks-OFF they return a default-constructed
-    // out with `found=false`, since the NDEBUG-only internal counters they would
+    // out with `found=false` because the NDEBUG-only internal counters they would
     // otherwise read are not compiled in.
     bool getPoolStateForTesting(const std::string& url,
                                 UploadEngine::PoolStateForTesting& out) const;
 
     bool getWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& out) const;
 
-    // fu7-19 G7: Release-safe — see UploadEngine::getAndResetBenchThrottleStats.
+    // Release-safe bench-framework hook — see UploadEngine::getAndResetBenchThrottleStats.
     UploadEngine::BenchThrottleSnapshot getAndResetBenchThrottleStats();
 
     bool isTrackedForTesting(const Transfer& t) const;

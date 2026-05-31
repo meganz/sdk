@@ -64,12 +64,10 @@ constexpr std::int64_t dsToMs(const std::int64_t ds)
 
 // Pool manager (USC refresh + cURL multi). Owned by UploadEngine::Impl; not
 // part of the public SDK ABI. Forward-declared types (WsPool, WsUploadFile,
-// UploadEngine::Impl) keep this header lightweight; member function bodies
-// are defined in src/transfer/ws/wsupload.cpp. A subsequent fu7-N change is
-// expected to extract WsPoolMgr::curlIO() and WsPoolMgr::ensurePinnedPool()
-// into a sibling ws_curl.cpp once an internal header exposes the helper
-// types (WsPool, UploadEngine::Impl, ScopedUnlock, SteadyTime) needed by
-// those bodies.
+// UploadEngine::Impl) keep this header lightweight. Member function bodies
+// are defined in src/transfer/ws/ws_pool_mgr.cpp and the sibling
+// src/transfer/ws/ws_curl.cpp, which hosts WsPoolMgr::curlIO() and
+// WsPoolMgr::ensurePinnedPool().
 struct WsPoolMgr
 {
     static constexpr dstime POOLCONNKEEPALIVE = secondsToDs(60);
