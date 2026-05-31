@@ -29,9 +29,9 @@ std::vector<BenchReportCell>& storage()
     return cells;
 }
 
-// fu7-19 G7: per-cell-name 0-based iter counter. Incremented inside
-// `recordCell()` so each repeated invocation of the same cell name gets a
-// distinct iter index without callers having to track it. `reset()` clears it.
+// Per-cell-name 0-based iter counter. Incremented inside `recordCell()` so
+// each repeated invocation of the same cell name gets a distinct iter index
+// without callers having to track it. `reset()` clears it.
 std::unordered_map<std::string, std::int64_t>& iterCounters()
 {
     static std::unordered_map<std::string, std::int64_t> m;
@@ -147,8 +147,8 @@ void appendJsonlLine(const std::string& path, const BenchReportCell& c)
     ofs.flush();
 }
 
-// fu7-19 G7: Append one throttle-summary line to
-// `throttle_summary_<PID>.jsonl`. Cross-references the bench JSONL by name + iter.
+// Append one throttle-summary line to `throttle_summary_<PID>.jsonl`.
+// Cross-references the bench JSONL by name + iter.
 void appendThrottleSummaryLine(const std::string& path, const BenchReportCell& c)
 {
     std::ofstream ofs(path, std::ios::app);
@@ -220,9 +220,9 @@ void BenchReportWriter::recordCell(const BenchReportCell& cell)
         appendJsonlLine(benchPath, stored);
     }
 
-    // fu7-19 G7: sibling per-iter throttle artifact. Emitted alongside the
-    // bench JSONL so cross-session comparisons can normalize against throttle
-    // exposure (see fu7-18 Goal 9.a `THROTTLE_VARIANCE_CONFIRMED`).
+    // Sibling per-iter throttle artifact. Emitted alongside the bench JSONL
+    // so cross-session comparisons can normalise against throttle exposure
+    // (see BENCHMARKS.md "Throttle variance" note).
     const std::string throttlePath = buildBenchPath(dir, "throttle_summary", "jsonl");
     if (!throttlePath.empty())
     {

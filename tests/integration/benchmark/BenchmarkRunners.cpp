@@ -251,7 +251,7 @@ static void appendBenchTimingFields(std::ostream& out, const BenchTimingSummary&
         << " lastPutnodesStartMs=" << summary.lastPutnodesStartMs;
 }
 
-// SDK-5360 Goal 1: per-bench-cell RSS + CPU sampling via getrusage(RUSAGE_SELF).
+// SDK-5360: per-bench-cell RSS + CPU sampling via getrusage(RUSAGE_SELF).
 // Bench-harness-only; no engine instrumentation needed. Windows is a no-op.
 struct BenchProcessStatsSample
 {
@@ -353,9 +353,9 @@ static void logBenchWsStats(SdkTest& test, const size_t fileCount)
 // Wires bench-runner results to the bench_framework JSON channel. Inert on builds
 // without MEGA_BENCH_FRAMEWORK_ENABLED.
 //
-// fu7-19 G7: Drains `UploadEngine::getAndResetBenchThrottleStats()` from the
-// MegaApi just before constructing the cell so each cell's
-// `throttleStats` snapshot is independent (no carry-over across iters).
+// Drains `UploadEngine::getAndResetBenchThrottleStats()` from the MegaApi
+// just before constructing the cell so each cell's `throttleStats` snapshot
+// is independent (no carry-over across iters).
 static void recordBenchCell(SdkTest& test,
                             const char* name,
                             std::int64_t fileSizeMib,

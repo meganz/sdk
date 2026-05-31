@@ -639,9 +639,9 @@ int main (int argc, char *argv[])
     testFS.ChangeToProcessFolder();
 
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-    // SDK-5360 fu7-18 G1: tell BenchReportWriter where to stream per-iter JSONL so
-    // partial runs (e.g. process killed mid-test, throttle storm truncation) still
-    // leave usable artifacts under `bench_reports/bench_report_<PID>.jsonl`. The
+    // SDK-5360: tell BenchReportWriter where to stream per-iter JSONL so partial
+    // runs (e.g. process killed mid-test, throttle storm truncation) still leave
+    // usable artifacts under `bench_reports/bench_report_<PID>.jsonl`. The
     // consolidated `bench_report_<PID>.json` is still written at flush() below.
     ::mega::bench::BenchReportWriter::instance().setReportDir(
         TestFS::GetProcessFolder().string());
@@ -670,10 +670,10 @@ int main (int argc, char *argv[])
     int gtestRet = RUN_ALL_TESTS();
 
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-    // G6: flush bench cells accumulated by recordBenchCell() to
+    // Flush bench cells accumulated by recordBenchCell() to
     // `bench_reports/bench_report_<PID>.json` under the PID-specific process folder.
     // No-op if no cells were recorded. Per-iter JSONL (`.jsonl` sibling) is appended
-    // synchronously in recordCell() via the setReportDir() set at startup (fu7-18 G1).
+    // synchronously in recordCell() via the setReportDir() set at startup.
     {
         const std::string reportDir = TestFS::GetProcessFolder().string();
         const std::string out =

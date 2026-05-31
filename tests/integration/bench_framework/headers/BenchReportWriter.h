@@ -11,7 +11,7 @@
  * `c:\tmp\mega_tests\pid_<PID>\bench_reports\` on Windows), suitable for CI-side
  * archival via Jenkinsfile.
  *
- * Two artifacts are produced (fu7-18 G1):
+ * Two artifacts are produced:
  * - `bench_report_<PID>.jsonl` — JSON Lines stream, one cell per line, appended on
  *   every `recordCell()` call and flushed-to-disk immediately so partial runs that
  *   are killed mid-test still leave usable data behind. Requires `setReportDir()` to
@@ -43,14 +43,14 @@ struct BenchReportCell
     Direction direction = Direction::Upload;
     std::int64_t fileSizeMib = 0;
     unsigned connections = 0;
-    std::int64_t iter = 0; // 0-based iter index within the run (fu7-19 G7).
+    std::int64_t iter = 0; // 0-based iter index within the run.
     std::int64_t durationMs = 0;
     double aggregateKbps = 0;
     std::int64_t firstByteMs = 0;
     std::int64_t lastByteMs = 0;
     BenchProcessStats rssCpuDelta;
     BenchSummaryDistribution chunkMsDist;
-    // fu7-19 G7: per-iter throttle snapshot drained from
+    // Per-iter throttle snapshot drained from
     // `UploadEngine::getAndResetBenchThrottleStats()` before each
     // `recordCell()` so iters are independent.
     BenchThrottleStats throttleStats;

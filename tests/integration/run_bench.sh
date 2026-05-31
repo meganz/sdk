@@ -3,7 +3,7 @@
 # The default dev-unix-wsupload build has MEGA_BENCH_FRAMEWORK_ENABLED=OFF, so
 # bench_report_<PID>.{json,jsonl} are never emitted from it. Use this script (or
 # the dev-unix-wsupload-benchOn preset directly) for any benchmarking work.
-# Artifacts land under pid_<PID>/bench_reports/ (fu7-18 G1).
+# Artifacts land under pid_<PID>/bench_reports/.
 #
 # Usage:
 #   bash tests/integration/run_bench.sh '<gtest_filter>' [repeat]
@@ -11,7 +11,7 @@
 # Overrides:
 #   BENCH_BUILD_DIR  path to a build dir compiled with MEGA_BENCH_FRAMEWORK_ENABLED=ON
 #                    (default: $HOME/repo/build-sdk-dev-unix-wsupload-benchOn)
-#   USERAGENT        --USERAGENT value (default: fu7-13-bench)
+#   USERAGENT        --USERAGENT value (default: JenkinsCanSpam-SDK)
 
 set -euo pipefail
 

@@ -3,9 +3,9 @@
  * @brief RSS + CPU sampling via getrusage for benchmark cells.
  *
  * Part of the `bench_framework` reusable module gated by `MEGA_BENCH_FRAMEWORK_ENABLED`.
- * Mirrors the per-bench-cell RSS+CPU sampling that fu7-3 commit `38c88c09d3` added
- * inline to `SdkTest_test.cpp`. Provides a portable POSIX `getrusage(RUSAGE_SELF)`
- * wrapper. Windows callers receive zeros (not supported here; bench cells run on Linux CI).
+ * Mirrors the per-bench-cell RSS+CPU sampling previously added inline to
+ * `SdkTest_test.cpp`. Provides a portable POSIX `getrusage(RUSAGE_SELF)` wrapper.
+ * Windows callers receive zeros (not supported here; bench cells run on Linux CI).
  */
 #pragma once
 
