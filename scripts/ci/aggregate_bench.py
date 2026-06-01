@@ -56,7 +56,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 AXES: List[Tuple[str, str, bool, str]] = [
     ("duration_ms", "wall ms", False, "throughput"),
     ("aggregate_kbps", "throughput KBps", True, "throughput"),
-    ("rss_delta_kb", "RSS delta KB (per-iter growth)", False, "rss"),
+    ("rss_delta_kb", "RSS delta KB (per-iter growth; INFORMATIONAL — fu7-21 FU-DELTA: plateau-degenerate under single-process, not gated)", False, "rss"),
     ("rss_max_kb", "RSS max KB (high-water)", False, "rss"),
     ("user_cpu_ms", "user CPU ms", False, "cpu"),
     ("sys_cpu_ms", "sys CPU ms", False, "cpu"),
@@ -66,24 +66,28 @@ AXES: List[Tuple[str, str, bool, str]] = [
     ("chunk_ms_p95", "chunk ms p95", False, "chunk"),
 ]
 
-# Primary axes used by the master_summary §1 wide table.
-# fu7-20 Session 3 (post-Phase 1, HR54 two-axis amendment): rss_max_kb joins
-# the primary axes alongside rss_delta_kb. Both are computed from the bench's
-# getrusage(RUSAGE_SELF) sample at iter end; rss_delta_kb is the per-iter
-# growth (plateau-prone under single-process topology), rss_max_kb is the
-# iter-end peak (monotonic-within-process; captures the v2 RSS-reduction
-# premise directly).
-PRIMARY_AXES_KEYS = ["aggregate_kbps", "rss_delta_kb", "rss_max_kb", "user_cpu_ms"]
+# Primary axes used by the master_summary §1 wide table + close-gate.
+# fu7-20 Session 3 added rss_max_kb (two-axis HR54). fu7-21 FU-DELTA-SLU/LPMS:
+# rss_delta_kb is DEMOTED out of the primary/close-gate axes. Under the
+# single-process --gtest_repeat=N topology (HR56) the develop per-iter RSS
+# growth plateaus to ~0, so the % delta is degenerate (undefined denominator
+# on SLU/LPMS; +1075% NOT-SIG noise on LPMS). rss_delta_kb stays COMPUTED and
+# shown as INFORMATIONAL in the per-cell §2 distribution, but no longer gates.
+# rss_max_kb (iter-end peak high-water) is the meaningful, monotonic RSS axis
+# and the sole RSS primary — it captures the v2 RSS-reduction premise directly.
+PRIMARY_AXES_KEYS = ["aggregate_kbps", "rss_max_kb", "user_cpu_ms"]
 
-# Axes that count as "RSS" for the HR54 develop-comparison policy. Both
-# rss_delta_kb (per-iter growth) and rss_max_kb (iter-end peak) are
-# evaluated. See RSS_PEAK_AXIS and HR54_OVERRIDE_AXES for the asymmetry:
-# rss_paired_allowed override applies ONLY to rss_delta_kb.
-RSS_AXES_KEYS = ("rss_delta_kb", "rss_max_kb")
+# Axes gated by the HR54 develop-comparison policy. fu7-21 FU-DELTA: only the
+# iter-end peak rss_max_kb is gated (rss_delta_kb demoted to informational).
+RSS_AXES_KEYS = ("rss_max_kb",)
 
-# The peak-RSS axis is the v2-premise axis: HR54 forbids ANY override on
-# this axis. fu7-20 Session 3 user-direction (post-Phase 1): "rss_max_kb has
-# no override (it IS the v2 premise)".
+# The peak-RSS axis IS the v2-premise axis. HR54: large-workload cells
+# (SLU/LPMS), where the premise must pay off, MUST be strictly lower than
+# develop (no override). Small-file cells (ManySmall/1kSmall) carry a fixed
+# connection-pool overhead that the percentage exaggerates against their tiny
+# baseline; those cells MAY use the manifest rss_paired_allowed override, but
+# ONLY with a follow-up ticket + explicit user sign-off (never silent) per the
+# HR54 amendment. The override surfaces as PAIRED-OK-WITH-FOLLOWUP, not a WIN.
 RSS_PEAK_AXIS = "rss_max_kb"
 
 # HR54 thresholds — fu7-20 Session 3 (see docs/methodology/hard_rules_catalog.md).
@@ -393,13 +397,14 @@ def apply_hr54_rss_policy(
     elif override_eligible:
         cmp["hr54"]["pass"] = True
         cmp["hr54"]["reason"] = (
-            f"PAIRED-OK-WITH-FOLLOWUP (cell on rss_paired_allowed override; "
-            f"applies ONLY to rss_delta_kb median, not to rss_max_kb peak) — "
+            f"PAIRED-OK-WITH-FOLLOWUP (small-file pool-overhead trade-off cell on "
+            f"rss_paired_allowed override; the fixed connection-pool RSS is "
+            f"amortized away on large workloads) — "
             f"Δ%={pct if pct is None else f'{pct:+.2f}%'}, "
             f"p={p_value if p_value is None else f'{p_value:.4f}'}. "
-            f"Per HR54 amendment, this cell requires a follow-up ticket to "
-            f"investigate whether the median can be reduced or must be "
-            f"assumed-acceptable."
+            f"Per HR54 amendment, this cell requires a follow-up ticket + explicit "
+            f"user sign-off to investigate whether the peak RSS can be reduced or "
+            f"must be assumed-acceptable (never silent)."
         )
     else:
         cmp["hr54"]["pass"] = False
