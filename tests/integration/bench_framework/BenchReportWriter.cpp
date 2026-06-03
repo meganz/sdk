@@ -101,6 +101,7 @@ void writeCellBody(std::ostream& ofs, const BenchReportCell& c, const char* inde
     ofs << indent << "\"first_byte_ms\": " << c.firstByteMs << ",";
     ofs << indent << "\"last_byte_ms\": " << c.lastByteMs << ",";
     ofs << indent << "\"rss_delta_kb\": " << c.rssCpuDelta.rssMaxKb << ",";
+    ofs << indent << "\"rss_max_kb\": " << c.rssMaxKb << ",";
     ofs << indent << "\"user_cpu_ms\": " << c.rssCpuDelta.userCpuMs << ",";
     ofs << indent << "\"sys_cpu_ms\": " << c.rssCpuDelta.sysCpuMs << ",";
     ofs << indent << "\"chunk_ms_min\": " << c.chunkMsDist.min << ",";

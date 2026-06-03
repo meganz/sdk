@@ -12,6 +12,9 @@
 #   BENCH_BUILD_DIR  path to a build dir compiled with MEGA_BENCH_FRAMEWORK_ENABLED=ON
 #                    (default: $HOME/repo/build-sdk-dev-unix-wsupload-benchOn)
 #   USERAGENT        --USERAGENT value (default: JenkinsCanSpam-SDK)
+#   BENCH_COLLECT_DIR if set, copy the produced bench_report_<PID>.{jsonl,json}
+#                    to this dir under a UTC-timestamped name (stable path for
+#                    the candidate-then-develop comparison sequence)
 
 set -euo pipefail
 
@@ -51,11 +54,15 @@ if [[ -f environment2.txt ]]; then
     set +a
 fi
 
+echo "[run_bench] $(date -u +%Y-%m-%dT%H:%M:%SZ) starting filter='${filter}' repeat=${repeat} bin=${BIN}"
+
 "${BIN}" \
     --CI --COUT \
     --USERAGENT:"${USERAGENT}" \
     --gtest_filter="${filter}" \
     --gtest_repeat="${repeat}"
+
+echo "[run_bench] $(date -u +%Y-%m-%dT%H:%M:%SZ) finished filter='${filter}'"
 
 echo
 echo "Latest bench_reports:"
@@ -66,6 +73,16 @@ if [[ -n "${latest_json}" ]]; then
 fi
 if [[ -n "${latest_jsonl}" ]]; then
     echo "  jsonl: ${latest_jsonl}"
+fi
+# Optional stable-location copy for the candidate-then-develop sequence: set
+# BENCH_COLLECT_DIR to copy the freshly-produced JSONL out of the easily-lost
+# pid_<PID>/ dir under a UTC-timestamped name.
+if [[ -n "${BENCH_COLLECT_DIR:-}" && -n "${latest_jsonl}" ]]; then
+    mkdir -p "${BENCH_COLLECT_DIR}"
+    stamp=$(date -u +%Y%m%dT%H%M%SZ)
+    cp "${latest_jsonl}" "${BENCH_COLLECT_DIR}/bench_report_${stamp}.jsonl"
+    [[ -n "${latest_json}" ]] && cp "${latest_json}" "${BENCH_COLLECT_DIR}/bench_report_${stamp}.json"
+    echo "  collected -> ${BENCH_COLLECT_DIR}/bench_report_${stamp}.jsonl"
 fi
 if [[ -z "${latest_json}" && -z "${latest_jsonl}" ]]; then
     echo "  (none found — verify MEGA_BENCH_FRAMEWORK_ENABLED=ON and that bench cells were exercised)"

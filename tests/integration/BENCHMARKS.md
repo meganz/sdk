@@ -286,6 +286,163 @@ csplit -k -f bench_logs_local_ -b '%03d.log' "${PID_DIR}/test_integration.log" \
 tar -czf bench_logs_local.tar.gz bench_logs_local_*.log
 ```
 
+## Benchmarking a branch vs develop (standard procedure)
+
+End-to-end, tracked-only procedure for proving a feature branch's upload
+performance against `develop`. It needs nothing outside this repository: the
+`dev-unix-wsupload-benchOn` build, the four `SdkBenchmarkTest` cells, and
+`scripts/ci/aggregate_bench.py`. No local post-processing scripts are required
+on the candidate side — the bench JSONL is self-describing (each per-iter line
+carries `aggregate_kbps`, `rss_max_kb`, `rss_delta_kb`, `user_cpu_ms`,
+`sys_cpu_ms`, and chunk stats).
+
+The four bench cells (all uploads):
+
+| Cell | Workload |
+| --- | --- |
+| `SdkBenchmarkTest.ManySmallUploads` | 500 × 1 MiB |
+| `SdkBenchmarkTest.1kSmallUploads` | 1000 × 1 MiB |
+| `SdkBenchmarkTest.SingleLargeUpload` | 1 × large (≈1 GiB) |
+| `SdkBenchmarkTest.LargePlusManySmall` | 1 large + many small |
+
+### 1. Build the two binaries
+
+**Candidate (your branch)** — bench framework ON:
+
+```bash
+cmake --preset dev-unix-wsupload-benchOn
+cmake --build ../build-sdk-dev-unix-wsupload-benchOn -j16 --target=test_integration
+grep MEGA_BENCH_FRAMEWORK_ENABLED ../build-sdk-dev-unix-wsupload-benchOn/CMakeCache.txt
+# expected: MEGA_BENCH_FRAMEWORK_ENABLED:BOOL=ON
+```
+
+**develop comparison** — `develop` has no bench framework and no
+`SdkBenchmarkTest.*` cells, so it requires a small measurement overlay (next
+subsection).
+
+### How the develop side is benched (measurement overlay)
+
+`develop` ships neither `MEGA_BENCH_FRAMEWORK_ENABLED` nor the `SdkBenchmarkTest`
+cells, so nothing on `develop` emits a comparable per-iter artifact. The
+reproducible way to get a develop baseline is a throwaway measurement overlay
+on a clean `develop` checkout:
+
+1. **The four workloads as `SdkTest.SdkTestBenchmark*` cells.** Port the runner
+   bodies from `tests/integration/benchmark/BenchmarkRunners.cpp`
+   (`runSmallUploadsBenchmark`, `runSingleLargeUploadBenchmark`,
+   `runLargePlusManySmallBenchmark`) into develop's
+   `tests/integration/SdkTest_test.cpp` as `TEST_F(SdkTest, SdkTestBenchmark*)`,
+   dropping the `MEGA_BENCH_FRAMEWORK_ENABLED`-gated `recordBenchCell()` call
+   (develop has no `BenchReportWriter`). Each cell logs one greppable summary
+   line per iter with at least `aggregateKBps` and `totalMs`.
+2. **Per-cell RSS + CPU.** A `[ProcessStats] suite=… name=… rss_max_kb=…
+   user_cpu_ms=… sys_cpu_ms=…` line per test from `getrusage(RUSAGE_SELF)` in
+   `SdkTest::TearDown()` (one `getrusage` call) supplies the develop-side peak
+   RSS the aggregator's RSS gate compares against.
+
+Build the overlay binary as a normal develop integration build, then run the
+four cells as `SdkTest.SdkTestBenchmark*`.
+
+**Projecting the develop log into aggregator-shaped JSONL.** The aggregator
+consumes per-iter JSONL with `name`, `aggregate_kbps`, `duration_ms`,
+`rss_max_kb`, `user_cpu_ms`, `sys_cpu_ms`. The overlay emits these across two log
+lines (the per-iter summary + the per-cell `[ProcessStats]` line) in
+`test_integration.log`. Produce one JSONL object per iter by pairing, for each
+cell, the iter's summary line with that cell's `[ProcessStats]` line, e.g.:
+
+```jsonl
+{"name": "SdkTestBenchmarkSingleLargeUpload", "aggregate_kbps": 123456, "duration_ms": 87234, "rss_max_kb": 410000, "user_cpu_ms": 12300, "sys_cpu_ms": 4500}
+```
+
+`aggregate_bench.py`'s `CELL_ALIASES` canonicalises both the candidate names
+(`SingleLargeUpload`, `SdkTestBenchmark*`) and these develop names onto the same
+short cell key. A short branch-local grep-to-JSONL script is sufficient; it is
+the only develop-side glue and is independent of any candidate-side tooling.
+
+> The candidate side needs **no** such extraction — its JSONL already contains
+> `rss_max_kb` directly (emitted by `BenchReportWriter`). The overlay +
+> extraction is purely the develop-baseline step, kept small and throwaway.
+
+### 2. Run the four cells, candidate then develop, sequentially
+
+Run at **n=15** in a single process via `--gtest_repeat=15` — one process per
+binary. Never spawn multiple `test_integration` processes (they share the
+production upload throttle bucket, the test account, and the CPU, which
+invalidates the comparison), and run candidate then develop **back-to-back, not
+concurrently**. Always pass `--USERAGENT:JenkinsCanSpam-SDK` (the bench cells
+call `scopedToPro`, whose admin path is whitelisted only for that user-agent).
+
+Candidate (the tracked wrapper sources `environment2.txt`, logs UTC timestamps,
+and prints the produced JSONL path):
+
+```bash
+bash tests/integration/run_bench.sh \
+  'SdkBenchmarkTest.ManySmallUploads:SdkBenchmarkTest.1kSmallUploads:SdkBenchmarkTest.SingleLargeUpload:SdkBenchmarkTest.LargePlusManySmall' \
+  15
+# -> prints jsonl: ${HOME}/mega_tests/pid_<CAND_PID>/bench_reports/bench_report_<CAND_PID>.jsonl
+# (set BENCH_COLLECT_DIR=<dir> to also copy it to a stable timestamped path)
+```
+
+develop overlay (ordinary integration run of the overlaid cells):
+
+```bash
+cd ../build-sdk-dev-overlay/tests/integration   # your develop-overlay build dir
+source ./environment2.txt
+./test_integration --CI --COUT --USERAGENT:JenkinsCanSpam-SDK \
+  --gtest_filter='SdkTest.SdkTestBenchmark*' --gtest_repeat=15
+# then project test_integration.log -> develop_bench_report.jsonl as described above
+```
+
+### 3. Aggregate and read the verdict
+
+Write a manifest `baselines.json`:
+
+```json
+{
+  "candidate": { "label": "my-branch", "jsonl": "/abs/path/bench_report_<CAND_PID>.jsonl" },
+  "baselines": [ { "label": "develop", "is_develop": true, "jsonl": "/abs/path/develop_bench_report.jsonl" } ],
+  "rss_paired_allowed": ["manysmall", "1ksmall"]
+}
+```
+
+- `is_develop: true` marks the baseline so the RSS gate is enforced against it.
+- `rss_paired_allowed` (optional) — *short* cell keys (`manysmall`, `1ksmall`,
+  `slu`, `largeplusmanysmall`) whose peak-RSS axis may be paired-or-worse vs
+  develop instead of strictly lower. Use only for the small-file cells (fixed
+  connection-pool overhead the percentage exaggerates against their tiny
+  baseline); the large-workload cells (`slu`, `largeplusmanysmall`) are where
+  the streaming design must pay off and are NOT eligible. Each entry surfaces as
+  `PAIRED-OK-WITH-FOLLOWUP` (a documented caveat, not a win).
+
+```bash
+scripts/ci/aggregate_bench.py --manifest baselines.json --output-dir bench_proof_out/
+```
+
+Read `bench_proof_out/master_summary.md`:
+
+- **§1** — per-cell × baseline × primary-axis matrix. Primary axes:
+  `aggregate_kbps` (higher=better), `rss_max_kb` (iter-end peak RSS, lower=better
+  — the streaming-upload memory premise), `user_cpu_ms` (lower=better). Each row
+  shows Δ%, a Mann-Whitney p-value, an effect band, and a one-line prose verdict.
+- **§5** — the three-dimensional gate: **Throughput** (every cell ≥ develop;
+  large negative deltas with p ≥ 0.05 are not-significant, not regressions),
+  **Coverage** (every primary axis produced a comparison — a missing `rss_max_kb`
+  in either JSONL trips this), and **RSS vs develop** (peak `rss_max_kb` strictly
+  lower, Δ% < −2% and p < 0.05, unless the cell is on `rss_paired_allowed`).
+- The script prints, and the summary ends with, `BENCH_PROOF_PASS` or
+  `BENCH_PROOF_FAIL — …`, and exits non-zero on FAIL.
+
+### Throttle-variance caveat
+
+Production upload throttle varies during the day (the same binary can post a 3×
+different wall-time window across runs hours apart). Keep it honest: use
+**n ≥ 15** per cell, run candidate and develop the **same day, back-to-back**
+(never parallel), and rely on the aggregator's Mann-Whitney significance gating
+rather than raw medians. The sibling `throttle_summary_<PID>.jsonl` (emitted next
+to the bench JSONL) records each iter's `event=6` throttle exposure;
+`master_summary.md` §4 rolls it up per binary so you can confirm the two runs saw
+comparable throttle pressure.
+
 ## Pre-push strict-warning check
 
 Before pushing wsupload-touching changes, run the `dev-unix-strict` preset on

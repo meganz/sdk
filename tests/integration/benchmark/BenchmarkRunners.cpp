@@ -382,6 +382,10 @@ static void recordBenchCell(SdkTest& test,
     cell.rssCpuDelta.sysCpuMs =
         static_cast<std::int64_t>(procEnd.sysCpuMs) - static_cast<std::int64_t>(procStart.sysCpuMs);
     cell.rssCpuDelta.sampled = true;
+    // Absolute iter-end peak RSS (== the endMaxRssKB logged by
+    // logBenchProcessStatsDelta). Emitted to JSONL as `rss_max_kb`; this is the
+    // HR54-gated peak axis and removes the need for any log-scraping post-step.
+    cell.rssMaxKb = static_cast<std::int64_t>(procEnd.maxRssKB);
     cell.chunkMsDist.min = static_cast<double>(timing.perTransferPureTransferMs.min);
     cell.chunkMsDist.max = static_cast<double>(timing.perTransferPureTransferMs.max);
     cell.chunkMsDist.mean = static_cast<double>(timing.perTransferPureTransferMs.mean);

@@ -49,6 +49,12 @@ struct BenchReportCell
     std::int64_t firstByteMs = 0;
     std::int64_t lastByteMs = 0;
     BenchProcessStats rssCpuDelta;
+    // Iter-end peak RSS (getrusage ru_maxrss high-water at cell end), in KB.
+    // Distinct from rssCpuDelta.rssMaxKb, which despite its field name carries
+    // the (end - start) RSS *delta*. This absolute peak is the HR54 /
+    // aggregate_bench.py `rss_max_kb` axis (the v2 RSS-reduction premise) and
+    // removes the need for any log-scraping post-step. 0 if unsampled (Windows).
+    std::int64_t rssMaxKb = 0;
     BenchSummaryDistribution chunkMsDist;
     // Per-iter throttle snapshot drained from
     // `UploadEngine::getAndResetBenchThrottleStats()` before each
