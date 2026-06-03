@@ -4573,6 +4573,12 @@ void StandardClient::cleanupForTestReuse(int loginIndex)
     std::error_code ec;
     fs::remove(defaultignorepath.toPath(false), ec);
 
+    // fu7-21 NF-3: reset versions_disabled so a sibling test that set it true
+    // (e.g. DetectsAndReportsNameClashes) does not bleed into the next client
+    // reuse — otherwise modified-file putnodes use vb:0 (replace) instead of
+    // versioning and BasicSync_NewVersionsCreatedWhenFilesModified fails iter>=2.
+    client.versions_disabled = false;
+
     if (client.nodeByPath("/abort_jenkins_test_run"))
     {
         [[maybe_unused]] const auto [user, _] =
