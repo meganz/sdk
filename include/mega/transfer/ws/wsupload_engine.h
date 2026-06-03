@@ -190,12 +190,13 @@ public:
                                const std::string* requiredSessionUrl,
                                const WsPool* requestingPool);
 
-#ifndef NDEBUG
-    bool hasEligibleFileForPoolForTesting(const m_off_t min,
-                                          const m_off_t max,
-                                          const std::string* requiredSessionUrl,
-                                          const WsPool* requestingPool) const;
-#endif
+    // fu7-21 Lever F: promoted out of #ifndef NDEBUG so poolWorkerThread can use
+    // it in Release to gate lazy-connect of idle size-class pools. Side-effect-free
+    // read-only scan of fileList (unlike nextEligible, which advances the cursor).
+    bool hasEligibleFileForPool(const m_off_t min,
+                                const m_off_t max,
+                                const std::string* requiredSessionUrl,
+                                const WsPool* requestingPool) const;
 
     // Manager thread
     void run();

@@ -913,8 +913,7 @@ WsUploadFile* UploadEngine::Impl::nextEligible(const m_off_t min,
     return nullptr;
 }
 
-#ifndef NDEBUG
-bool UploadEngine::Impl::hasEligibleFileForPoolForTesting(const m_off_t min,
+bool UploadEngine::Impl::hasEligibleFileForPool(const m_off_t min,
                                                           const m_off_t max,
                                                           const std::string* requiredSessionUrl,
                                                           const WsPool* requestingPool) const
@@ -954,7 +953,6 @@ bool UploadEngine::Impl::hasEligibleFileForPoolForTesting(const m_off_t min,
 
     return false;
 }
-#endif
 
 // ========== Worker bookkeeping ==========
 

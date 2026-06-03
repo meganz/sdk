@@ -256,7 +256,7 @@ void WsPool::recordWsUploadStatsSampleLocked(const UploadEngine::Impl& impl)
         return;
     }
 
-    const bool hasEligibleFile = impl.hasEligibleFileForPoolForTesting(mMinFileSize,
+    const bool hasEligibleFile = impl.hasEligibleFileForPool(mMinFileSize,
                                                                        mMaxFileSize,
                                                                        mPinned ? &mUrl : nullptr,
                                                                        this);
@@ -903,7 +903,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     dstime firstConnectFailureDs{0};
     std::uint32_t lastQueueVersion = mImpl->queueVersion.load(std::memory_order_relaxed);
     std::uint64_t seenDisconnectEpoch = mImpl->disconnectEpoch.load(std::memory_order_acquire);
-    auto ws = std::make_unique<WsConn>(this);
+    std::unique_ptr<WsConn> ws;  // fu7-21 Lever F: lazy-allocated at loop top
 
     WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] BEGIN [lastQueueVersion=" << lastQueueVersion
               << "] [this = " << this << "]";
@@ -911,6 +911,40 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     std::unique_lock<std::mutex> lk(mImpl->uploadMutex);
     while (!th->terminate)
     {
+        // fu7-21 Lever F (FU-RSS): non-pinned size-class pools defer the WsConn
+        // allocation + connect until they have eligible work, so idle
+        // non-matching size-class pools hold zero WsBuf (~2 MiB/conn). The
+        // matching pool sees its file on the first iteration and connects exactly
+        // as before. Pinned pools keep eager-connect (their failover timing is
+        // exercised by InvalidPinned* and must not change).
+        if (!ws)
+        {
+            bool eligible = mPinned;
+            if (!eligible)
+            {
+                const bool poolHasWork = mNumPoolFiles || mUploadingFile ||
+                                         mNumChunksInFlight || !mToResend.empty();
+                eligible = poolHasWork ||
+                           mImpl->hasEligibleFileForPool(mMinFileSize, mMaxFileSize,
+                                                         nullptr, this);
+            }
+            if (!eligible)
+            {
+                const auto wakeEpochBeforeIdle = mImpl->workerWakeEpoch;
+                mImpl->workerWakeCv.wait_for(
+                    lk,
+                    std::chrono::milliseconds(200),
+                    [&]
+                    {
+                        return th->terminate || mImpl->stopping() ||
+                               mImpl->workerWakeEpoch != wakeEpochBeforeIdle;
+                    });
+                continue;
+            }
+            ScopedUnlock unlock(lk);
+            ws = std::make_unique<WsConn>(this);
+        }
+
         const std::uint64_t disconnectEpoch =
             mImpl->disconnectEpoch.load(std::memory_order_acquire);
         if (disconnectEpoch != seenDisconnectEpoch)
@@ -1176,7 +1210,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 #endif
     }
 
-    if (ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::CLOSED)
+    if (ws && ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::CLOSED)
     {
         ScopedUnlock unlock(lk);
         ws->closeWS();
