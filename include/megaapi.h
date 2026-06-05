@@ -9469,8 +9469,7 @@ class MegaTransferListener
          * the application deletes it.
          *
          * This callback is only made for folder transfers, and only to the listener for that
-         * transfer, not for any globally registered listeners.  The callback is only made
-         * during the scanning phase.
+         * transfer, not for any globally registered listeners.
          *
          * This function can be used to give feedback to the user as to how scanning is progressing,
          * since scanning may take a while and the application may be showing a modal dialog during
@@ -9481,12 +9480,22 @@ class MegaTransferListener
          *
          * @param api MegaApi object that started the transfer
          * @param transfer Information about the transfer
-         * @stage MegaTransfer::STAGE_SCAN or a later value in that enum
+         * @param stage MegaTransfer::STAGE_SCAN or a later value in that enum
          * @param foldercount The count of folders scanned so far
-         * @param foldercount The count of folders created so far (only relevant in MegaTransfer::STAGE_CREATE_TREE)
-         * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in scanning stage
-         * @param currentFolder The path of the folder currently being scanned (NULL except in the scan stage)
-         * @param currentFileLeafname The leaft name of the file currently being fingerprinted (can be NULL for the first call in a new folder, and when not scanning anymore)
+         * @param createdfoldercount The count of folders created so far (only relevant in
+         * MegaTransfer::STAGE_CREATE_TREE).  Not so for a folder download: the local folders are
+         * created during MegaTransfer::STAGE_SCAN, where this stays 0, and in
+         * MegaTransfer::STAGE_CREATE_TREE it counts the folders whose file transfers have been
+         * queued so far.
+         * @param filecount The count of files scanned (and fingerprinted) so far.  0 if not in
+         * scanning stage.  For a folder download, MegaTransfer::STAGE_SCAN first walks the remote
+         * tree with this at 0, then creates the local folders and collision-checks the files,
+         * growing this to the total.
+         * @param currentFolder The path of the folder currently being scanned (NULL except in the
+         * scan stage).  During the collision check it is published from several threads, so it
+         * does not advance in tree order.
+         * @param currentFileLeafname The leaf name of the file currently being fingerprinted (can
+         * be NULL for the first call in a new folder, and when not scanning anymore)
          */
         virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 

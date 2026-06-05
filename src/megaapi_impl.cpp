@@ -58,6 +58,7 @@
 #include <charconv>
 #include <cstdint>
 #include <functional>
+#include <future>
 #include <iomanip>
 #include <locale>
 #include <numeric>
@@ -18312,10 +18313,12 @@ void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
 void MegaApiImpl::fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname)
 {
     // this occurs on worker thread for scanning stage (for uploads) and create tree (for downloads), and on SDK thread for the rest of calls
-    assert((threadId != std::this_thread::get_id()
-                && ((stage == MegaTransfer::STAGE_SCAN && transfer->getType() == MegaTransfer::TYPE_UPLOAD)
-                        || (stage == MegaTransfer::STAGE_CREATE_TREE && transfer->getType() == MegaTransfer::TYPE_DOWNLOAD)))
-            || threadId == std::this_thread::get_id());
+    assert(
+        (threadId != std::this_thread::get_id() &&
+         ((stage == MegaTransfer::STAGE_SCAN && transfer->getType() == MegaTransfer::TYPE_UPLOAD) ||
+          ((stage == MegaTransfer::STAGE_SCAN || stage == MegaTransfer::STAGE_CREATE_TREE) &&
+           transfer->getType() == MegaTransfer::TYPE_DOWNLOAD))) ||
+        threadId == std::this_thread::get_id());
 
     transfer->setNotificationNumber(++notificationNumber);
 
@@ -34075,74 +34078,106 @@ void MegaFolderDownloadController::start(MegaNode *node)
     }
     else
     {
-        // it's mandatory to notify stage change from MegaApiImpl's thread to avoid deadlocks and other issues
-        notifyStage(MegaTransfer::STAGE_CREATE_TREE);
-
         // start worker thread to create local folder tree
-        mWorkerThread = std::thread([this, fsType, path, fileAddedCount](){
-
-            // local folder creation runs on the download worker thread (and checks the cancelled flag)
-            Error e;
-            std::shared_ptr<TransferQueue> transferQueue = createFolderGenDownloadTransfersForFiles(fsType, fileAddedCount, e);
-
-            // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
-            // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda starts executing
-            weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
-
-            // the thread always queues a function to execute on MegaApi thread for onFinish()
-            // we keep a pointer to it in case we need to cancel()
-            mCompletionForMegaApiThread.reset(new ExecuteOnce([this, e, transferQueue, path, weak_this]() {
-
-                // double check our object still exists when completion function starts executing
-                if (!weak_this.lock()) return;
-                assert(weak_this.lock().get() == this);
-
-                // these next parts must run on MegaApiImpl's thread again, as
-                // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ() functions
-                assert(mMainThreadId == std::this_thread::get_id());
-
-                // make sure the thread is joined.  This lets us add error-catching asserts elsewhere.
-                if (mWorkerThread.joinable())
+        mWorkerThread = std::thread(
+            [this, fsType, path, fileAddedCount]()
+            {
+                // local folder creation runs on the download worker thread (and checks the
+                // cancelled flag).
+                // Nothing may escape this thread: an uncaught exception would call std::terminate,
+                // and skipping the completion queued below would leave the transfer hanging.
+                // API_EINTERNAL matches Error's default: fail closed if no path below assigns it.
+                Error e = API_EINTERNAL;
+                std::shared_ptr<TransferQueue> transferQueue;
+                try
                 {
-                    mWorkerThread.join();
+                    transferQueue =
+                        createFolderGenDownloadTransfersForFiles(fsType, fileAddedCount, e);
+                }
+                catch (const std::exception& ex)
+                {
+                    LOG_err << "MegaFolderDownloadController: folder tree creation failed: "
+                            << ex.what();
+                    e = API_EINTERNAL;
+                }
+                catch (...)
+                {
+                    LOG_err << "MegaFolderDownloadController: folder tree creation failed";
+                    e = API_EINTERNAL;
                 }
 
-                if (e)
-                {
-                    if (transferQueue)
-                    {
-                        transferQueue->clear();
-                    }
-                    complete(e);
-                }
-                else
-                {
-                    // downloadFiles must run on the megaApi thread, as it may call fireOnTransferXYZ()
-                    if (!transferQueue)
-                    {
-                        complete(API_EINCOMPLETE, true);
-                    }
-                    else if (transferQueue->empty())
-                    {
-                        complete(API_OK);
-                    }
-                    else
-                    {
-                        // once we call sendPendingTransfers, we are guaranteed start/finish callbacks for each file transfer
-                        // the last callback of onFinish for one of these will also complete and destroy this MegaFolderUploadController
-                        transfersTotalCount = transferQueue->size();
+                // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+                // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda
+                // starts executing
+                weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
 
-                        megaApi->sendPendingTransfers(transferQueue.get(), this, megaapiThreadClient()->fsaccess->availableDiskSpace(path));
-                        // no further code can be added here, this object may now be deleted (eg, due to cancel token activation)
+                // the thread always queues a function to execute on MegaApi thread for onFinish()
+                // we keep a pointer to it in case we need to cancel()
+                mCompletionForMegaApiThread.reset(new ExecuteOnce(
+                    [this, e, transferQueue, path, weak_this]()
+                    {
+                        // double check our object still exists when completion function starts
+                        // executing
+                        if (!weak_this.lock())
+                            return;
+                        assert(weak_this.lock().get() == this);
 
-                        // complete() will finally be called when the last sub-transfer finishes
-                    }
-                }
-            }));
+                        // these next parts must run on MegaApiImpl's thread again, as
+                        // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ()
+                        // functions
+                        assert(mMainThreadId == std::this_thread::get_id());
 
-            // Queue that function.
-            megaApi->executeOnThread(mCompletionForMegaApiThread);
-        });
+                        // make sure the thread is joined.  This lets us add error-catching asserts
+                        // elsewhere.
+                        if (mWorkerThread.joinable())
+                        {
+                            mWorkerThread.join();
+                        }
+
+                        if (e)
+                        {
+                            if (transferQueue)
+                            {
+                                transferQueue->clear();
+                            }
+                            complete(e);
+                        }
+                        else
+                        {
+                            // downloadFiles must run on the megaApi thread, as it may call
+                            // fireOnTransferXYZ()
+                            if (!transferQueue)
+                            {
+                                complete(API_EINCOMPLETE, true);
+                            }
+                            else if (transferQueue->empty())
+                            {
+                                complete(API_OK);
+                            }
+                            else
+                            {
+                                // once we call sendPendingTransfers, we are guaranteed start/finish
+                                // callbacks for each file transfer.
+                                // the last callback of onFinish for one of these will also complete
+                                // and destroy this MegaFolderUploadController
+                                transfersTotalCount = transferQueue->size();
+
+                                megaApi->sendPendingTransfers(
+                                    transferQueue.get(),
+                                    this,
+                                    megaapiThreadClient()->fsaccess->availableDiskSpace(path));
+                                // no further code can be added here, this object may now be deleted
+                                // (eg, due to cancel token activation)
+
+                                // complete() will finally be called when the last sub-transfer
+                                // finishes
+                            }
+                        }
+                    }));
+
+                // Queue that function.
+                megaApi->executeOnThread(mCompletionForMegaApiThread);
+            });
     }
 }
 
@@ -34164,7 +34199,15 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
        index = mLocalTree.size() - 1;
     }
 
-    megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_SCAN, unsigned(mLocalTree.size()), 0, fileAddedCount, &localpath, nullptr);
+    // Total file count is reported during the collision checking, keep 0 here so the scan phase
+    // only advances the folder count.
+    megaApi->fireOnFolderTransferUpdate(transfer,
+                                        MegaTransfer::STAGE_SCAN,
+                                        unsigned(mLocalTree.size()),
+                                        0,
+                                        0,
+                                        &localpath,
+                                        nullptr);
 
     MegaNodeList *children = nullptr;
     unique_ptr<MegaNodeList> autoDelChildren;
@@ -34241,7 +34284,37 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
     unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
 
+    // Built once: isStoppedOrCancelled takes a const std::string&, and this name is past the SSO
+    // limit, so passing the literal would heap-allocate on every per-folder check.
+    const std::string opName{
+        "MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"};
+
     auto transferQueue = std::make_unique<TransferQueue>();
+
+    // Collision check in parallel and create folder and report STAGE_SCAN progress.
+    LOG_debug << "[MegaFolderDownloadController] collision check pre-pass starting, files: "
+              << fileCount;
+    auto collisionCheckStart = std::chrono::steady_clock::now();
+    if (!runCollisionCheckPrepass(fsType, e))
+    {
+        return transferQueue;
+    }
+    auto collisionCheckMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                std::chrono::steady_clock::now() - collisionCheckStart)
+                                .count();
+    LOG_debug << "[MegaFolderDownloadController] collision check pre-pass done, files: "
+              << fileCount << ", elapsed: " << collisionCheckMs << " ms";
+
+    // Collision check done, now entering transfer creation, notify need to be running on main
+    // thread.
+    notifyStageThreadSafe(MegaTransfer::STAGE_CREATE_TREE);
+
+    // notifyStageThreadSafe gives up when the worker is being stopped
+    if (isStoppedOrCancelled(opName))
+    {
+        e = API_EINCOMPLETE;
+        return transferQueue;
+    }
 
     // update stage to begin
     if (!mLocalTree.empty())
@@ -34249,32 +34322,17 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, fileCount, nullptr, nullptr);
     }
 
-    // creating folders and generate transfers for files
+    // Generate transfers for files
     auto it = mLocalTree.begin();
     while (it != mLocalTree.end())
     {
-        if (isStoppedOrCancelled("MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles"))
+        if (isStoppedOrCancelled(opName))
         {
             e = API_EINCOMPLETE;
             return transferQueue;
         }
 
-        LocalPath &localpath = it->localPath;
-
-        auto collistionResolution = transfer->getCollisionResolution();
-        // try to create the folder
-        e = MegaApiImpl::createLocalFolder_unlocked(localpath, *fsaccess, collistionResolution);
-
-        // errors besides the folder already exists is an error
-        if (e && e != API_EEXIST)
-        {
-            mLocalTree.clear();
-            return transferQueue;
-        }
-
-        auto folderAlreadyExist = (e && e == API_EEXIST);
-
-        if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType, folderAlreadyExist))
+        if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType))
         {
             e = API_EINCOMPLETE;
             return transferQueue;
@@ -34283,44 +34341,263 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
         ++it;
         ++created;
 
-        megaApi->fireOnFolderTransferUpdate(transfer, MegaTransfer::STAGE_CREATE_TREE, unsigned(mLocalTree.size()), created, fileCount, nullptr, nullptr);
+        megaApi->fireOnFolderTransferUpdate(transfer,
+                                            MegaTransfer::STAGE_CREATE_TREE,
+                                            unsigned(mLocalTree.size()),
+                                            created,
+                                            fileCount,
+                                            nullptr,
+                                            nullptr);
     }
 
     e = API_OK;
     return transferQueue;
 }
 
-bool MegaFolderDownloadController::genDownloadTransfersForFiles(
-    TransferQueue* transferQueue,
-    LocalTree& folder,
-    FileSystemType fsType,
-    bool folderExists)
+bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsType, Error& e)
+{
+    assert(mMainThreadId != std::this_thread::get_id());
+    e = API_OK;
+
+    const std::string opName{"MegaFolderDownloadController::runCollisionCheckPrepass"};
+
+    // Files processed so far: collision-checked (existing folders) or counted (freshly created
+    // folders). Reported as the STAGE_SCAN filecount, ending equal to the total scanFolder
+    // computed.
+    std::atomic<uint32_t> processedFiles{0};
+
+    // Progress throttling: only one notification reported at a time, rate limited.
+    std::mutex progressMutex;
+    constexpr auto throttle = std::chrono::milliseconds{100};
+    // Start already due, so the first report is not throttled away on a fast pre-pass.
+    auto lastFire = std::chrono::steady_clock::now() - throttle;
+    auto fireProgress = [&](bool force, const LocalPath* currentFolder = nullptr)
+    {
+        std::unique_lock<std::mutex> lock(progressMutex, std::try_to_lock);
+        if (!lock.owns_lock())
+            return; // another thread is already reporting
+        auto now = std::chrono::steady_clock::now();
+        if (force || now - lastFire >= throttle)
+        {
+            lastFire = now;
+            // Reuse STAGE_SCAN for the folder-creation + collision pass; filecount = files
+            // processed so far. Read the counter here, under the lock, so a preempted reporter
+            // cannot publish a stale lower count after a newer one already went out.
+            megaApi->fireOnFolderTransferUpdate(transfer,
+                                                MegaTransfer::STAGE_SCAN,
+                                                unsigned(mLocalTree.size()),
+                                                0,
+                                                processedFiles.load(),
+                                                currentFolder,
+                                                nullptr);
+        }
+    };
+
+    // create work task and send to work. create folder and handle folder collision.
+    // Only indices: the path is rebuilt in the worker, keeping this vector small for huge trees.
+    struct WorkItem
+    {
+        size_t folderIdx;
+        size_t fileIdx;
+    };
+
+    std::vector<WorkItem> work;
+
+    for (size_t fi = 0; fi < mLocalTree.size(); ++fi)
+    {
+        if (isStoppedOrCancelled(opName))
+        {
+            e = API_EINCOMPLETE;
+            return false;
+        }
+
+        auto& folder = mLocalTree[fi];
+        folder.childrenCollisionDecisions.assign(folder.childrenNodes.size(),
+                                                 CollisionChecker::Result::Download);
+
+        // Folder creation + folder collision process, note: the localPath of the folder may be
+        // changed by collision process.
+        auto collisionResolution = transfer->getCollisionResolution();
+        e = MegaApiImpl::createLocalFolder_unlocked(folder.localPath,
+                                                    *fsaccess,
+                                                    collisionResolution);
+        if (e && e != API_EEXIST)
+        {
+            mLocalTree.clear();
+            return false;
+        }
+        const bool folderAlreadyExists = (e == API_EEXIST);
+
+        if (folderAlreadyExists)
+        {
+            for (size_t ci = 0; ci < folder.childrenNodes.size(); ++ci)
+            {
+                work.push_back({fi, ci});
+            }
+        }
+        else
+        {
+            // Freshly created folder, count its files towards the total without checking
+            processedFiles.fetch_add(static_cast<uint32_t>(folder.childrenNodes.size()));
+        }
+
+        // Report every folder, not just freshly created ones: for a tree that already exists
+        // locally this loop is the slow part and would otherwise be entirely silent.
+        fireProgress(false, &folder.localPath);
+    }
+    e = API_OK;
+
+    // Parallel collision checks for files.
+    if (!work.empty())
+    {
+        const CollisionChecker::Option option = transfer->getCollisionCheck();
+
+        // Worker pool: I/O latency bound, so a small fixed cap (capped by hardware and by item
+        // count).
+        static constexpr unsigned kMaxCollisionCheckThreads = 8;
+        unsigned hw = std::thread::hardware_concurrency();
+        if (hw == 0)
+            hw = 2; // Fallback if hardware_concurrency() is not supported
+        const unsigned numThreads =
+            std::max(1u,
+                     std::min({kMaxCollisionCheckThreads, hw, static_cast<unsigned>(work.size())}));
+
+        std::atomic<size_t> nextIdx{0};
+        std::atomic<bool> cancelled{false};
+        // Distinct from cancelled, so an exception is not reported to the app as a user cancel.
+        std::atomic<bool> failed{false};
+
+        // Nothing may escape into std::thread: an uncaught exception would call std::terminate.
+        auto worker = [&]()
+        {
+            try
+            {
+                for (size_t i = nextIdx.fetch_add(1); i < work.size(); i = nextIdx.fetch_add(1))
+                {
+                    if (cancelled.load(std::memory_order_relaxed))
+                    {
+                        return;
+                    }
+                    if (isStoppedOrCancelled(opName))
+                    {
+                        cancelled.store(true, std::memory_order_relaxed);
+                        return;
+                    }
+
+                    const WorkItem& w = work[i];
+                    LocalTree& folder = mLocalTree[w.folderIdx];
+                    MegaNode* fileNode = folder.childrenNodes[w.fileIdx].get();
+
+                    // localPath was finalized by createLocalFolder_unlocked before any worker
+                    // started
+                    LocalPath filePath = folder.localPath;
+                    filePath.appendWithSeparator(
+                        LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType),
+                        true);
+
+                    CollisionChecker::Result result = CollisionChecker::Result::Download;
+                    auto fa = fsaccess->newfileaccess();
+                    if (fa && fa->fopen(filePath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
+                        fa->type == FILENODE)
+                    {
+                        FileAccess* fap = fa.get();
+                        result = CollisionChecker::check(
+                            [fap]()
+                            {
+                                return fap;
+                            },
+                            fileNode,
+                            option);
+                    }
+                    folder.childrenCollisionDecisions[w.fileIdx] = result;
+                    processedFiles.fetch_add(1);
+                    fireProgress(false, &folder.localPath);
+                }
+            }
+            catch (const std::exception& ex)
+            {
+                LOG_err << "[MegaFolderDownloadController] collision check worker failed: "
+                        << ex.what();
+                failed.store(true, std::memory_order_relaxed);
+                cancelled.store(true, std::memory_order_relaxed);
+            }
+            catch (...)
+            {
+                LOG_err << "[MegaFolderDownloadController] collision check worker failed";
+                failed.store(true, std::memory_order_relaxed);
+                cancelled.store(true, std::memory_order_relaxed);
+            }
+        };
+
+        std::vector<std::thread> pool;
+        pool.reserve(numThreads);
+        for (unsigned t = 0; t < numThreads; ++t)
+        {
+            try
+            {
+                pool.emplace_back(worker);
+            }
+            catch (const std::system_error&)
+            {
+                // The OS refused another thread.
+                break;
+            }
+        }
+
+        // If not a single worker thread could be created, run the work on this thread so the
+        // collision checks still complete.
+        if (pool.empty())
+        {
+            worker();
+        }
+
+        for (auto& th: pool)
+        {
+            th.join();
+        }
+
+        if (failed.load())
+        {
+            e = API_EINTERNAL;
+            return false;
+        }
+
+        if (cancelled.load() || isStoppedOrCancelled(opName))
+        {
+            e = API_EINCOMPLETE;
+            return false;
+        }
+    }
+
+    fireProgress(true); // final: filecount == scanFolder total
+    return true;
+}
+
+bool MegaFolderDownloadController::genDownloadTransfersForFiles(TransferQueue* transferQueue,
+                                                                LocalTree& folder,
+                                                                FileSystemType fsType)
 {
     assert(transferQueue);
+    assert(folder.childrenCollisionDecisions.size() == folder.childrenNodes.size());
 
-    for (auto& fileNode : folder.childrenNodes)
+    for (size_t ci = 0; ci < folder.childrenNodes.size(); ++ci)
     {
         if (isStoppedOrCancelled("MegaFolderDownloadController::genDownloadTransfersForFiles"))
         {
             return false;
         }
 
+        auto& fileNode = folder.childrenNodes[ci];
+
         // get file local path
         auto fileLocalPath = folder.localPath;
-        fileLocalPath.appendWithSeparator(LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType), true);
 
-        auto decision = CollisionChecker::Result::Download;
+        fileLocalPath.appendWithSeparator(
+            LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType),
+            true);
 
-        // collision might exist only if the folder already exists
-        if (folderExists)
-        {
-            auto fa = fsaccess->newfileaccess();
-            if (fa && fa->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
-                fa->type == FILENODE)
-            {
-                decision = CollisionChecker::check(fsaccess.get(), fileLocalPath, fileNode.get(), transfer->getCollisionCheck());
-            }
-        }
+        // decision computed in parallel during runCollisionCheckPrepass
+        const auto decision = folder.childrenCollisionDecisions[ci];
 
         MegaTransferPrivate* transferDownload =
             megaApi->createDownloadTransfer(false,
@@ -34344,6 +34621,47 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(
     return true;
 }
 
+void MegaFolderDownloadController::notifyStageThreadSafe(uint8_t stage)
+{
+    if (std::this_thread::get_id() == mMainThreadId)
+    {
+        notifyStage(stage);
+        return;
+    }
+
+    // The stage change must reach the app before any progress update for that stage, so wait for
+    // the queued notification to actually run instead of returning as soon as it is queued.
+    auto notified = std::make_shared<std::promise<void>>();
+    auto done = notified->get_future();
+
+    std::weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
+    auto once = std::make_shared<ExecuteOnce>(
+        [weak_this, stage, notified]()
+        {
+            const auto release = makeScopedDestructor(
+                [notified]()
+                {
+                    notified->set_value();
+                });
+
+            if (auto self = weak_this.lock())
+            {
+                self->notifyStage(stage);
+            }
+        });
+    megaApi->executeOnThread(once);
+
+    // Timed rather than indefinite: ensureThreadStopped() sets mWorkerThreadStopFlag and then
+    // joins this thread from MegaApiImpl's thread, which would then never dequeue the
+    // notification. Waiting forever there would deadlock both threads.
+    while (done.wait_for(std::chrono::milliseconds{50}) != std::future_status::ready)
+    {
+        if (mWorkerThreadStopFlag)
+        {
+            return;
+        }
+    }
+}
 
 #ifdef HAVE_LIBUV
 StreamingBuffer::StreamingBuffer(const std::string& logName):

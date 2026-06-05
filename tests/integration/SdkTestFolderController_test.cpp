@@ -64,6 +64,181 @@ public:
         return child;
     }
 
+    // Everything a folder download reports about itself. Progress is published from the download
+    // worker threads, so the members are guarded.
+    struct DownloadObserver
+    {
+        std::mutex mutex;
+        std::vector<uint32_t> scanFileCounts;
+        bool createTreeStageSeen{false};
+        bool createTreeProgressBeforeStage{false};
+        uint32_t skippedFiles{0};
+        uint32_t downloadedFiles{0};
+        uint32_t failedFiles{0};
+        int folderError{-1};
+
+        void reset()
+        {
+            std::lock_guard<std::mutex> g{mutex};
+            scanFileCounts.clear();
+            createTreeStageSeen = false;
+            createTreeProgressBeforeStage = false;
+            skippedFiles = 0;
+            downloadedFiles = 0;
+            failedFiles = 0;
+            folderError = -1;
+        }
+    };
+
+    // Per-file outcomes only reach listeners registered with addListener, never the transfer's own.
+    void observeSubTransfers(NiceMock<MockTransferListener>& listener, DownloadObserver& obs)
+    {
+        EXPECT_CALL(listener, onTransferFinish)
+            .WillRepeatedly(
+                [&obs](MegaApi*, MegaTransfer* t, MegaError* e)
+                {
+                    if (t->getType() != MegaTransfer::TYPE_DOWNLOAD || t->isFolderTransfer() ||
+                        t->getFolderTransferTag() <= 0)
+                    {
+                        return;
+                    }
+                    std::lock_guard<std::mutex> g{obs.mutex};
+                    if (e->getErrorCode() != MegaError::API_OK)
+                    {
+                        ++obs.failedFiles;
+                    }
+                    // A skipped download completes with 0 transferred bytes but a non-zero total.
+                    else if (t->getTransferredBytes() == 0 && t->getTotalBytes() > 0)
+                    {
+                        ++obs.skippedFiles;
+                    }
+                    else
+                    {
+                        ++obs.downloadedFiles;
+                    }
+                });
+        megaApi[0]->addListener(&listener);
+    }
+
+    // Conversely, onFolderTransferUpdate only reaches the transfer's own listener.
+    void observeFolderTransfer(NiceMock<MockMegaTransferListener>& listener, DownloadObserver& obs)
+    {
+        EXPECT_CALL(listener, onTransferStart).Times(AnyNumber());
+        EXPECT_CALL(listener, onTransferUpdate)
+            .WillRepeatedly(
+                [&obs](MegaApi*, MegaTransfer* t)
+                {
+                    // Only notifyStage() publishes a stage on this transfer, so seeing
+                    // STAGE_CREATE_TREE here means the stage change was delivered.
+                    std::lock_guard<std::mutex> g{obs.mutex};
+                    if (t->getStage() == MegaTransfer::STAGE_CREATE_TREE)
+                    {
+                        obs.createTreeStageSeen = true;
+                    }
+                });
+        EXPECT_CALL(listener, onFolderTransferUpdate)
+            .WillRepeatedly(
+                [&obs](MegaApi*,
+                       MegaTransfer*,
+                       int stage,
+                       uint32_t /*foldercount*/,
+                       uint32_t /*createdfoldercount*/,
+                       uint32_t filecount,
+                       const char*,
+                       const char*)
+                {
+                    std::lock_guard<std::mutex> g{obs.mutex};
+                    if (stage == MegaTransfer::STAGE_SCAN)
+                    {
+                        obs.scanFileCounts.push_back(filecount);
+                    }
+                    else if (stage == MegaTransfer::STAGE_CREATE_TREE && !obs.createTreeStageSeen)
+                    {
+                        obs.createTreeProgressBeforeStage = true;
+                    }
+                });
+        // Record the outcome and always release the wait, so a failing download is reported by the
+        // folderError assertion rather than by an opaque timeout.
+        EXPECT_CALL(listener, onTransferFinish)
+            .WillRepeatedly(
+                [&obs, &listener](MegaApi*, MegaTransfer*, MegaError* e)
+                {
+                    {
+                        std::lock_guard<std::mutex> g{obs.mutex};
+                        obs.folderError = e->getErrorCode();
+                    }
+                    listener.markAsFinished(true);
+                });
+    }
+
+    // Creates <localFolder>/sub<f>/file<i> and returns the base path.
+    fs::path createWideLocalTree(int folders, int filesPerFolder)
+    {
+        removeLocalTree();
+        const fs::path basePath = fs::current_path() / getLocalFolderName();
+        for (int f = 0; f < folders; ++f)
+        {
+            const fs::path sub = basePath / ("sub" + std::to_string(f));
+            fs::create_directories(sub);
+            for (int i = 0; i < filesPerFolder; ++i)
+            {
+                EXPECT_TRUE(createFile(path_u8string(sub / ("file" + std::to_string(i))), false));
+            }
+        }
+        return basePath;
+    }
+
+    // Downloads into the parent of the local tree. The trailing separator is what makes the path
+    // the destination parent instead of the full local path.
+    void startFolderDownload(MegaNode* node,
+                             ::mega::MegaTransferListener* listener,
+                             int collisionCheck = MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                             MegaCancelToken* cancelToken = nullptr)
+    {
+        const std::string downloadParent = path_u8string(fs::current_path() / "");
+        megaApi[0]->startDownload(node,
+                                  downloadParent.c_str(),
+                                  nullptr /*customName*/,
+                                  nullptr /*appData*/,
+                                  false /*startFirst*/,
+                                  cancelToken,
+                                  collisionCheck,
+                                  MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                  false /*undelete*/,
+                                  listener);
+    }
+
+    // Caller must hold obs.mutex.
+    void expectHealthyScanProgress(DownloadObserver& obs, uint32_t totalFiles)
+    {
+        EXPECT_FALSE(obs.createTreeProgressBeforeStage)
+            << "STAGE_CREATE_TREE progress was reported before the stage change was delivered";
+
+        ASSERT_FALSE(obs.scanFileCounts.empty()) << "No STAGE_SCAN progress was reported";
+        EXPECT_TRUE(std::is_sorted(obs.scanFileCounts.begin(), obs.scanFileCounts.end()))
+            << "STAGE_SCAN file count went backwards";
+        EXPECT_EQ(totalFiles, obs.scanFileCounts.back())
+            << "STAGE_SCAN did not end at the total number of files";
+    }
+
+    MegaHandle uploadLocalTree(const fs::path& basePath)
+    {
+        MegaHandle remoteFolderHandle = INVALID_HANDLE;
+        EXPECT_EQ(MegaError::API_OK,
+                  doStartUpload(0,
+                                &remoteFolderHandle,
+                                path_u8string(basePath).c_str(),
+                                getRootNode().get(),
+                                nullptr /*fileName*/,
+                                ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                nullptr /*appData*/,
+                                false /*isSourceTemporary*/,
+                                false /*startFirst*/,
+                                nullptr /*cancelToken*/))
+            << "Failed to upload the folder tree";
+        return remoteFolderHandle;
+    }
+
 private:
     const std::string localFolderName = getFilePrefix() + "baseDir";
     const std::string localFileName = "fileTest"; // One (any) file in the tree structure
@@ -740,4 +915,291 @@ TEST_F(SdkTestFolderController, FolderVanishingBetweenBatchesAbortsUpload)
     }
     removeLocalTree();
 #endif
+}
+
+/**
+ * Verify a folder download onto a local tree that already exists on disk.
+ *
+ * This is the only shape that reaches the parallel per-file collision checks in
+ * MegaFolderDownloadController::runCollisionCheckPrepass: when the destination folders do not
+ * exist yet there is nothing to collide with, so the worker pool never runs.
+ *
+ * Steps:
+ * 1. Create a local tree of several folders, each holding several files, and upload it.
+ * 2. Leave the local tree in place and download the remote folder back into the same parent, so
+ *    every destination folder already exists and every file needs a collision check.
+ * 3. Assert every file was skipped, which is what proves the checks ran at all, and that:
+ *    - the STAGE_SCAN file count never goes backwards (it is published from several threads),
+ *    - it ends at the total number of files scanned,
+ *    - no STAGE_CREATE_TREE progress arrives before the STAGE_CREATE_TREE stage change (the stage
+ *      change is marshalled to the SDK thread while progress is fired from the worker).
+ */
+TEST_F(SdkTestFolderController, DownloadOntoExistingLocalTree)
+{
+    static const std::string logPre{getLogPrefix()};
+    static constexpr int kFolders{4};
+    static constexpr int kFilesPerFolder{8};
+    static constexpr uint32_t kTotalFiles{kFolders * kFilesPerFolder};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = createWideLocalTree(kFolders, kFilesPerFolder);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    DownloadObserver obs;
+    NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+    observeSubTransfers(subTransferListener, obs);
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+
+    LOG_info << logPre << "downloading onto the existing local tree";
+    startFolderDownload(remoteFolderNode.get(), &listener);
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+        << "Folder download onto an existing local tree did not succeed";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        ASSERT_NO_FATAL_FAILURE(expectHealthyScanProgress(obs, kTotalFiles));
+
+        EXPECT_EQ(MegaError::API_OK, obs.folderError) << "Folder download should have succeeded";
+        EXPECT_EQ(kTotalFiles, obs.skippedFiles)
+            << "Every file should have been skipped by a collision check against the identical "
+               "local copy; the parallel pre-pass did not run for all of them";
+        EXPECT_EQ(0u, obs.downloadedFiles) << "No file should have been downloaded";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Verify a folder download onto a partially existing local tree, so the collision pre-pass takes
+ * both branches of its folder split in a single run: an already existing folder queues a per-file
+ * collision check for the worker pool, while a freshly created one only adds its file count.
+ *
+ * The two branches feed the same progress counter by different routes, so this also covers the
+ * accounting invariant that their sum still lands on the total scanned file count.
+ *
+ * Steps:
+ * 1. Create a local tree of several folders, each holding several files, and upload it.
+ * 2. Delete every other local subfolder, keeping the rest along with their files.
+ * 3. Download the remote folder back into the same parent.
+ * 4. Assert files under the kept folders were skipped, files under the deleted folders were
+ *    downloaded, and the STAGE_SCAN progress is still healthy and totals every file.
+ */
+TEST_F(SdkTestFolderController, DownloadOntoPartiallyExistingLocalTree)
+{
+    static const std::string logPre{getLogPrefix()};
+    static constexpr int kFolders{4};
+    static constexpr int kFilesPerFolder{8};
+    static constexpr uint32_t kTotalFiles{kFolders * kFilesPerFolder};
+    static constexpr uint32_t kKeptFiles{(kFolders / 2) * kFilesPerFolder};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = createWideLocalTree(kFolders, kFilesPerFolder);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    // Drop every other subfolder locally: the download has to recreate those, while the folders
+    // left behind still hold byte-identical copies of their files.
+    for (int f = 1; f < kFolders; f += 2)
+    {
+        const fs::path sub = basePath / ("sub" + std::to_string(f));
+        std::error_code ignoredEc;
+        fs::remove_all(sub, ignoredEc);
+        ASSERT_FALSE(fs::exists(sub));
+    }
+
+    DownloadObserver obs;
+    NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+    observeSubTransfers(subTransferListener, obs);
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+
+    LOG_info << logPre << "downloading onto the partially existing local tree";
+    startFolderDownload(remoteFolderNode.get(), &listener);
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+        << "Folder download onto a partially existing local tree did not succeed";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        ASSERT_NO_FATAL_FAILURE(expectHealthyScanProgress(obs, kTotalFiles));
+
+        EXPECT_EQ(MegaError::API_OK, obs.folderError) << "Folder download should have succeeded";
+        EXPECT_EQ(kKeptFiles, obs.skippedFiles)
+            << "Files under the subfolders that were kept should have been skipped";
+        EXPECT_EQ(kTotalFiles - kKeptFiles, obs.downloadedFiles)
+            << "Files under the subfolders that were deleted should have been downloaded";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Verify a folder download is cancelled cleanly while its worker thread is running.
+ *
+ * The cancel is triggered from the STAGE_CREATE_TREE stage change, which is delivered on the SDK
+ * thread while the download worker thread is inside createFolderGenDownloadTransfersForFiles, just
+ * past the collision pre-pass. That is the window where cancellation has to unwind the worker (and
+ * the pre-pass thread pool it joined) without deadlocking against the SDK thread, which marshals
+ * the stage change and later joins the worker.
+ *
+ * Steps:
+ * 1. Create a local tree of several folders, each holding several files, and upload it.
+ * 2. Download it back with a cancel token, cancelling as soon as STAGE_CREATE_TREE is reported.
+ * 3. Assert the transfer finishes with API_EINCOMPLETE, and finishes at all: a bounded wait is
+ *    what turns a deadlock into a failure instead of a hung test run.
+ */
+TEST_F(SdkTestFolderController, CancelDownloadOntoExistingLocalTree)
+{
+    static const std::string logPre{getLogPrefix()};
+    static constexpr int kFolders{4};
+    static constexpr int kFilesPerFolder{8};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = createWideLocalTree(kFolders, kFilesPerFolder);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    std::mutex mutex;
+    int finishError{-1};
+
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    EXPECT_CALL(listener, onTransferStart).Times(AnyNumber());
+    EXPECT_CALL(listener, onFolderTransferUpdate).Times(AnyNumber());
+    EXPECT_CALL(listener, onTransferUpdate)
+        .WillRepeatedly(
+            [&cancelToken](MegaApi*, MegaTransfer* t)
+            {
+                // Only notifyStage() publishes a stage on this transfer.
+                if (t->getStage() == MegaTransfer::STAGE_CREATE_TREE)
+                {
+                    cancelToken->cancel();
+                }
+            });
+    EXPECT_CALL(listener, onTransferFinish)
+        .WillRepeatedly(
+            [&](MegaApi*, MegaTransfer*, MegaError* e)
+            {
+                {
+                    std::lock_guard<std::mutex> g{mutex};
+                    finishError = e->getErrorCode();
+                }
+                listener.markAsFinished(true);
+            });
+
+    LOG_info << logPre << "downloading with a cancel at STAGE_CREATE_TREE";
+    startFolderDownload(remoteFolderNode.get(),
+                        &listener,
+                        MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                        cancelToken.get());
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::seconds{60}))
+        << "Cancelled folder download never finished";
+
+    {
+        std::lock_guard<std::mutex> g{mutex};
+        EXPECT_EQ(MegaError::API_EINCOMPLETE, finishError)
+            << "A cancelled folder download should finish with API_EINCOMPLETE";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Verify the collision decision computed by the parallel pre-pass is the one actually applied,
+ * by running the same download over the same unchanged local tree under two collision options
+ * whose outcomes are distinguishable from the fingerprint default.
+ *
+ * The decisions are computed in runCollisionCheckPrepass and carried to the sub-transfers through
+ * LocalTree::childrenCollisionDecisions, so an option being ignored, or a decision being recomputed
+ * later instead of reused, changes the per-file outcome.
+ *
+ * Steps:
+ * 1. Create a local tree of several folders, each holding several files, and upload it.
+ * 2. Download it back with COLLISION_CHECK_ASSUMEDIFFERENT: despite identical local copies, every
+ *    file must be downloaded rather than skipped.
+ * 3. Download it again with COLLISION_CHECK_ALWAYSERROR: every file must report an error instead.
+ */
+TEST_F(SdkTestFolderController, DownloadOntoExistingLocalTreeCollisionOptions)
+{
+    static const std::string logPre{getLogPrefix()};
+    static constexpr int kFolders{4};
+    static constexpr int kFilesPerFolder{8};
+    static constexpr uint32_t kTotalFiles{kFolders * kFilesPerFolder};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = createWideLocalTree(kFolders, kFilesPerFolder);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    DownloadObserver obs;
+    {
+        NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+        observeSubTransfers(subTransferListener, obs);
+        NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+        observeFolderTransfer(listener, obs);
+
+        LOG_info << logPre << "downloading with COLLISION_CHECK_ASSUMEDIFFERENT";
+        startFolderDownload(remoteFolderNode.get(),
+                            &listener,
+                            MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT);
+
+        EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+            << "Folder download never finished";
+
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(MegaError::API_OK, obs.folderError) << "Folder download should have succeeded";
+        EXPECT_EQ(kTotalFiles, obs.downloadedFiles)
+            << "ASSUMEDIFFERENT should download every file even though the local copies match";
+        EXPECT_EQ(0u, obs.skippedFiles) << "ASSUMEDIFFERENT should never skip a file";
+    }
+
+    obs.reset();
+    {
+        NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+        observeSubTransfers(subTransferListener, obs);
+        NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+        observeFolderTransfer(listener, obs);
+
+        LOG_info << logPre << "downloading with COLLISION_CHECK_ALWAYSERROR";
+        startFolderDownload(remoteFolderNode.get(),
+                            &listener,
+                            MegaTransfer::COLLISION_CHECK_ALWAYSERROR);
+
+        EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+            << "Folder download never finished";
+
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(kTotalFiles, obs.failedFiles)
+            << "ALWAYSERROR should report an error for every colliding file";
+        EXPECT_EQ(0u, obs.skippedFiles) << "ALWAYSERROR should never skip a file";
+        EXPECT_EQ(0u, obs.downloadedFiles) << "ALWAYSERROR should never download a file";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
 }
