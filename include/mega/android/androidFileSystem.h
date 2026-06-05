@@ -143,12 +143,7 @@ private:
             mObj(obj)
         {}
 
-        ~JavaObject()
-        {
-            JNIEnv* env{nullptr};
-            MEGAjvm->AttachCurrentThread(&env, NULL);
-            env->DeleteGlobalRef(mObj);
-        }
+        ~JavaObject();
 
         jobject mObj;
     };

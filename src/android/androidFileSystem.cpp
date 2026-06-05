@@ -64,7 +64,63 @@ bool checkAndClearJniException(JNIEnv* env, const char* callerFn, const char* ja
     LOG_err << callerFn << ": " << javaMethod << " threw a JNI exception";
     return true;
 }
+
+// Returns the JNIEnv of the calling thread, attaching it to the JVM the first time it is
+// needed. A thread attached here is detached when it exits, as Android requires; a thread
+// that was already attached (eg. an app thread calling into the SDK) is left as it was.
+JNIEnv* jniEnv()
+{
+    struct Attachment
+    {
+        ~Attachment()
+        {
+            if (!mOwned || !MEGAjvm)
+                return;
+
+            // Detach only if still attached. Nothing else detaches a thread this helper attached,
+            // but that invariant is spread across call sites, and this runs at thread exit.
+            JNIEnv* env{nullptr};
+            if (MEGAjvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) != JNI_EDETACHED)
+                MEGAjvm->DetachCurrentThread();
+        }
+
+        bool mOwned{false};
+    };
+
+    static thread_local Attachment attachment;
+
+    if (!MEGAjvm)
+    {
+        LOG_err << "jniEnv: no JVM available";
+        return nullptr;
+    }
+
+    JNIEnv* env{nullptr};
+    // GetEnv may return JNI_EDETACHED if the thread is not attached to the JVM,
+    // so we need to attach it if necessary.
+    if (MEGAjvm->GetEnv(reinterpret_cast<void**>(&env), JNI_VERSION_1_6) == JNI_EDETACHED)
+    {
+        if (MEGAjvm->AttachCurrentThread(&env, nullptr) != JNI_OK || !env)
+        {
+            LOG_err << "jniEnv: failed to attach the current thread to the JVM";
+            return nullptr;
+        }
+
+        attachment.mOwned = true;
+    }
+
+    return env;
+}
+
 } // anonymous namespace
+
+AndroidFileWrapper::JavaObject::~JavaObject()
+{
+    if (JNIEnv* env = jniEnv())
+    {
+        env->DeleteGlobalRef(mObj);
+    }
+}
 
 AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
     mURI(path)
@@ -75,8 +131,12 @@ AndroidFileWrapper::AndroidFileWrapper(const std::string& path):
         return;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return;
+    }
+
     jmethodID getAndroidFileMethod = env->GetStaticMethodID(
         fileWrapper,
         GET_ANDROID_FILE,
@@ -128,8 +188,11 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         return -1;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return -1;
+    }
 
     jmethodID methodID =
         env->GetMethodID(fileWrapper, "getFileDescriptor", "(Z)Ljava/lang/Integer;");
@@ -165,6 +228,12 @@ int AndroidFileWrapper::getFileDescriptor(bool write)
         return threw ? -1 : result;
     }
 
+    // integerClass was not initialized, so the Integer was never unwrapped
+    if (fileDescriptorObj)
+    {
+        env->DeleteLocalRef(fileDescriptorObj);
+    }
+
     return -1;
 }
 
@@ -185,8 +254,12 @@ bool AndroidFileWrapper::isFolder()
         return data->mIsFolder.value();
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper, IS_FOLDER, "()Z");
     if (methodID == nullptr)
     {
@@ -224,8 +297,12 @@ bool AndroidFileWrapper::isURI()
         return data->mIsURI.value();
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID methodID = env->GetStaticMethodID(fileWrapper, IS_PATH, "(Ljava/lang/String;)Z");
     if (methodID == nullptr)
     {
@@ -266,8 +343,12 @@ std::string AndroidFileWrapper::getName()
         return data->mName.value();
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return "";
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_NAME, "()Ljava/lang/String;");
     if (methodID == nullptr)
     {
@@ -305,8 +386,12 @@ std::optional<std::vector<std::shared_ptr<AndroidFileWrapper>>> AndroidFileWrapp
         return std::nullopt;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return std::nullopt;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_CHILDREN_URIS, "()Ljava/util/List;");
     if (methodID == nullptr)
     {
@@ -385,8 +470,12 @@ bool AndroidFileWrapper::updateURIFromFileWrapper()
         return false;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID getUriMethodID = env->GetMethodID(fileWrapper, GET_URI, "()Ljava/lang/String;");
     if (getUriMethodID == nullptr)
     {
@@ -431,8 +520,11 @@ std::optional<std::vector<AndroidFileWrapper::ChildMetadata>>
     if (!exists())
         return std::nullopt;
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return std::nullopt;
+    }
 
     // "()Ljava/util/List;" — returns a java.util.List<ChildMetadata>
     jmethodID methodID =
@@ -711,8 +803,12 @@ std::optional<std::string> AndroidFileWrapper::createOrReturnElement(const std::
         return std::nullopt;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return std::nullopt;
+    }
+
     jmethodID methodID =
         env->GetMethodID(fileWrapper, CREATE_NESTED_PATH, "(Ljava/util/List;ZZ)Ljava/lang/String;");
     if (methodID == nullptr)
@@ -763,8 +859,12 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::createChild(const std::s
         return nullptr;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return nullptr;
+    }
+
     jmethodID methodID = env->GetMethodID(
         fileWrapper,
         CREATE_CHILD,
@@ -806,8 +906,12 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getChildByName(const std
         return nullptr;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return nullptr;
+    }
+
     jmethodID methodID =
         env->GetMethodID(fileWrapper, GET_CHILD_BY_NAME, "(Ljava/lang/String;)Ljava/lang/String;");
     if (methodID == nullptr)
@@ -851,8 +955,12 @@ std::shared_ptr<AndroidFileWrapper> AndroidFileWrapper::getParent() const
         return nullptr;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return nullptr;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper,
                                           GET_PARENT,
                                           "()Lmega/privacy/android/data/filewrapper/FileWrapper;");
@@ -904,8 +1012,12 @@ std::optional<std::string> AndroidFileWrapper::getPath()
         return data->mPath.value();
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return std::nullopt;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper, GET_PATH, "()Ljava/lang/String;");
     if (methodID == nullptr)
     {
@@ -946,8 +1058,12 @@ bool AndroidFileWrapper::deleteFile()
 
     const std::optional<std::string> localPath = getPath();
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper, DELETE_FILE, "()Z");
     if (methodID == nullptr)
     {
@@ -983,8 +1099,12 @@ bool AndroidFileWrapper::deleteEmptyFolder()
 
     const std::optional<std::string> localPath = getPath();
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper, DELETE_EMPTY_FOLDER, "()Z");
     if (methodID == nullptr)
     {
@@ -1022,8 +1142,12 @@ bool AndroidFileWrapper::move(const std::string& sourceParentUri,
         return false;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper,
                                           MOVE,
                                           "(Ljava/lang/String;Ljava/lang/String;)Lmega/privacy/"
@@ -1102,8 +1226,12 @@ bool AndroidFileWrapper::rename(const std::string& parentPath,
         return false;
     }
 
-    JNIEnv* env{nullptr};
-    MEGAjvm->AttachCurrentThread(&env, NULL);
+    JNIEnv* env = jniEnv();
+    if (!env)
+    {
+        return false;
+    }
+
     jmethodID methodID = env->GetMethodID(fileWrapper,
                                           RENAME_OVERRIDE,
                                           "(Ljava/lang/String;Ljava/lang/String;Z)Lmega/privacy/"
