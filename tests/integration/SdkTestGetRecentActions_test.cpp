@@ -182,14 +182,20 @@ TEST_F(SdkTest, SdkRecentActionsTest)
     // verify that clearRecentActionHistory propagates across sessions.
     loginSameAccountsForTest(0);
 
+    // Track the newest server-assigned creation time across all uploads. Used as the
+    // clear timestamp so the happy path stays on the server clock, independent of any
+    // skew between the client and the server.
+    m_time_t newestNodeCtime = 0;
+
     const auto updloadFile =
-        [this, rootnode = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode())](
-            const std::string& fname,
-            const std::string_view contents)
+        [this,
+         rootnode = std::unique_ptr<MegaNode>(megaApi[0]->getRootNode()),
+         &newestNodeCtime](const std::string& fname, const std::string_view contents)
     {
         sdk_test::LocalTempFile f(fname, contents);
         auto node = sdk_test::uploadFile(megaApi[0].get(), fname, rootnode.get());
         ASSERT_TRUE(node) << "Cannot upload " << fname;
+        newestNodeCtime = std::max(newestNodeCtime, node->getCreationTime());
     };
 
     // --- Section 1: Build the file history used throughout the test ---
@@ -306,10 +312,6 @@ TEST_F(SdkTest, SdkRecentActionsTest)
     getRecentActionBuckets(0, 1, 1, true, API_OK, expectedExcludeMax1);
 
     // --- Section 7: clearRecentActionHistory happy path ---
-    // Sleep so the recorded 'now' timestamp is strictly greater than the
-    // most-recent action timestamp, guaranteeing all prior actions are hidden.
-    WaitMillisec(1000);
-
     const auto setClearRecentsUpTo =
         [this](MegaTimeStamp timestamp, ::mega::ErrorCodes expectedCode)
     {
@@ -330,7 +332,11 @@ TEST_F(SdkTest, SdkRecentActionsTest)
         EXPECT_EQ(trackerGetAttr.request->getNumber(), timestamp);
     };
 
-    m_time_t now = m_time();
+    // Clear up to the newest node's server ctime. The read path treats the clear
+    // timestamp as inclusive, so every uploaded node is cleared. Using the server
+    // ctime instead of m_time() keeps the check deterministic regardless of clock skew.
+    m_time_t now = newestNodeCtime;
+
     // Reset update counters so we can count exactly how many attribute-change
     // notifications each session receives after the clear.
     int& recentClearTimeUpdatedCount0 = mApi[0].recentClearTimeUpdatedCount = 0;
