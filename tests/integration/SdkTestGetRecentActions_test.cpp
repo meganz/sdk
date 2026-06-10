@@ -258,8 +258,8 @@ TEST_F(SdkTest, SdkRecentActionsTest)
         std::unique_ptr<MegaRecentActionBucketList> buckets{
             tracker.request->getRecentActions()->copy()};
 
-        ASSERT_TRUE(buckets != nullptr);
-        EXPECT_TRUE(bucketsToVector(*buckets) == expectedVec);
+        ASSERT_TRUE(buckets);
+        EXPECT_EQ(bucketsToVector(*buckets), expectedVec);
     };
 
     // --- Section 2: Input validation ---
@@ -805,7 +805,7 @@ TEST_F(SdkTest, SdkRecentActionByIdBucketVariantsTest)
         const std::string photoId = verifyTokenAndQuery(photoFile, 5, "1"); // token[5] = media
         ASSERT_FALSE(photoId.empty());
 
-        ASSERT_TRUE(mp4Id == photoId) << "Both files should share the same media bucket";
+        ASSERT_EQ(mp4Id, photoId) << "Both files should share the same media bucket";
 
         auto result = queryByIdAssertOk(megaApi[0].get(), mp4Id);
         ASSERT_TRUE(result);
