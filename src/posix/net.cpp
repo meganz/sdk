@@ -2476,9 +2476,13 @@ void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
         curl_easy_setopt(easy, CURLOPT_PROXY, "");
     }
 
-    // TLS verification (no pinning for gfs userstorage endpoints)
-    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, 1L);
-    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYHOST, 2L);
+    // gfs userstorage hosts are never pinned or CA-verified (data is
+    // E2E-encrypted; the upload URL is a capability from the pinned API
+    // channel). Match send_request's trust model for these hosts.
+    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(easy, CURLOPT_CAINFO, NULL);
+    curl_easy_setopt(easy, CURLOPT_CAPATH, NULL);
 
     LOG_debug << "[CurlHttpIO::configureWsEasy] END [easy=" << (void*)easy
               << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
@@ -2521,6 +2525,8 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
     {
         if (err)
             *err = std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
+        LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
+                << curl_easy_strerror(rc) << " (" << ebuf << ")";
         curl_easy_cleanup(easy);
         return nullptr;
     }
