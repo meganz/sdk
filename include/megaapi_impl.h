@@ -4767,24 +4767,27 @@ class MegaApiImpl : public MegaApp
             CancelToken cancelFlag,
             const size_t maxElements,
             const std::optional<MegaSearchLexicographicalOffset>& offset);
-        MegaNodeList* getChildren(const MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
-        MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
-        MegaNodeList* getVersions(MegaNode *node);
-        int getNumVersions(MegaNode *node);
-        bool hasVersions(MegaNode *node);
-        void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
+        MegaNodeList* getChildren(const MegaNode* parent,
+                                  int order,
+                                  CancelToken cancelToken = CancelToken());
+        MegaNodeList* getChildren(MegaNodeList* parentNodes, int order);
+        MegaNodeList* getVersions(MegaNode* node);
+        int getNumVersions(MegaNode* node);
+        bool hasVersions(MegaNode* node);
+        void getFolderInfo(MegaNode* node, MegaRequestListener* listener);
         bool isSensitiveInherited(MegaNode* node);
-        bool hasChildren(MegaNode *parent);
-        MegaNode *getChildNode(MegaNode *parent, const char* name);
-        MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
-        MegaNode *getParentNode(MegaNode *node);
-        char *getNodePath(MegaNode *node);
-        char *getNodePathByNodeHandle(MegaHandle handle);
-        MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
-        MegaNode *getNodeByPathOfType(const char* path, MegaNode* n, int type);
-        MegaNode *getNodeByHandle(handle handler);
+        bool hasChildren(MegaNode* parent);
+        MegaNode* getChildNode(MegaNode* parent, const char* name);
+        MegaNode* getChildNodeOfType(MegaNode* parent, const char* name, int type = TYPE_UNKNOWN);
+        MegaNode* getParentNode(MegaNode* node);
+        bool isNodeWithinSubtree(MegaNode* node, MegaHandle baseHandle);
+        char* getNodePath(MegaNode* node);
+        char* getNodePathByNodeHandle(MegaHandle handle);
+        MegaNode* getNodeByPath(const char* path, MegaNode* n = NULL);
+        MegaNode* getNodeByPathOfType(const char* path, MegaNode* n, int type);
+        MegaNode* getNodeByHandle(handle handler);
         MegaTotpTokenGenResult generateTotpTokenFromNode(const MegaHandle handle);
-        MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
+        MegaContactRequest* getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
         MegaUserAlertList* getUserAlerts();

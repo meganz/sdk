@@ -1910,6 +1910,171 @@ TEST_F(SdkHttpServerTest, DISABLED_ManualFolderListingInspection)
     std::this_thread::sleep_for(std::chrono::seconds(seconds));
 }
 
+/**
+ * Test that the HTTP server rejects path traversal outside the served folder.
+ */
+TEST_F(SdkHttpServerTest, HttpServerPathTraversalOutsideServedFolderBlocked)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    MegaApi* api = megaApi[0].get();
+    api->httpServerEnableFileServer(true);
+
+    const std::string outsideContent = "outside secret content";
+    std::unique_ptr<MegaNode> outsideNode = uploadFile(0, "outside_secret.txt", outsideContent);
+    ASSERT_NE(outsideNode, nullptr);
+
+    std::unique_ptr<MegaNode> servedFolder = createFolder(0, "served_6224");
+    ASSERT_NE(servedFolder, nullptr);
+
+    const std::string insideContent = "inside allowed content";
+    std::unique_ptr<MegaNode> insideNode =
+        uploadFile(0, "inside.txt", insideContent, servedFolder.get());
+    ASSERT_NE(insideNode, nullptr);
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    std::unique_ptr<char[]> link(api->httpServerGetLocalWebDavLink(servedFolder.get()));
+    ASSERT_NE(link, nullptr);
+    const std::string baseLink(link.get());
+
+    // Legitimate relative path within the served folder must succeed.
+    auto allowedResponse = HttpClient::get(baseLink + "/inside.txt");
+    EXPECT_EQ(200, allowedResponse.statusCode);
+    EXPECT_EQ(insideContent, allowedResponse.body);
+
+    // Literal double slash makes subpathrelative start with '/', resolving from Cloud Drive root.
+    auto absoluteSlashResponse = HttpClient::get(baseLink + "//outside_secret.txt");
+    EXPECT_EQ(403, absoluteSlashResponse.statusCode);
+    EXPECT_NE(outsideContent, absoluteSlashResponse.body);
+
+    // URL-encoded leading slash (%2F) is decoded to '/' and must be blocked the same way.
+    auto encodedSlashResponse = HttpClient::get(baseLink + "/%2Foutside_secret.txt");
+    EXPECT_EQ(403, encodedSlashResponse.statusCode);
+    EXPECT_NE(outsideContent, encodedSlashResponse.body);
+
+    // Parent traversal via '..' must not reach a sibling outside the served subtree.
+    // CURLOPT_PATH_AS_IS keeps dot-segments on the wire (libcurl would normalize them otherwise).
+    auto parentTraversalResponse =
+        HttpClient::get(baseLink + "/../outside_secret.txt", HttpClient::EmptyRange, {}, true);
+    EXPECT_EQ(403, parentTraversalResponse.statusCode);
+    EXPECT_NE(outsideContent, parentTraversalResponse.body);
+
+    // PROPFIND must not enumerate a node outside the served subtree.
+    const std::map<std::string, std::string> propfindHeaders{{"Depth", "0"}};
+    auto propfindOutside =
+        HttpClient::request(baseLink + "//outside_secret.txt", "PROPFIND", propfindHeaders);
+    EXPECT_EQ(403, propfindOutside.statusCode);
+    EXPECT_NE(outsideContent, propfindOutside.body);
+
+    // DELETE must not remove a node outside the served subtree.
+    auto deleteOutside =
+        HttpClient::request(baseLink + "/../outside_secret.txt", "DELETE", {}, "", true);
+    EXPECT_EQ(403, deleteOutside.statusCode);
+}
+
+/**
+ * Same boundary check as WebDAV, but via a plain streaming link (httpServerGetLocalLink).
+ */
+TEST_F(SdkHttpServerTest, HttpServerStreamingLinkPathTraversalOutsideServedFolderBlocked)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    MegaApi* api = megaApi[0].get();
+    api->httpServerEnableFileServer(true);
+
+    const std::string outsideContent = "outside secret content";
+    std::unique_ptr<MegaNode> outsideNode =
+        uploadFile(0, "outside_stream_6224.txt", outsideContent);
+    ASSERT_NE(outsideNode, nullptr);
+
+    std::unique_ptr<MegaNode> servedFolder = createFolder(0, "served_stream_6224");
+    ASSERT_NE(servedFolder, nullptr);
+
+    const std::string insideContent = "inside allowed content";
+    std::unique_ptr<MegaNode> insideNode =
+        uploadFile(0, "inside.txt", insideContent, servedFolder.get());
+    ASSERT_NE(insideNode, nullptr);
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    std::unique_ptr<char[]> link(api->httpServerGetLocalLink(insideNode.get()));
+    ASSERT_NE(link, nullptr);
+    const std::string baseLink(link.get());
+
+    auto allowedResponse = HttpClient::get(baseLink);
+    EXPECT_EQ(200, allowedResponse.statusCode);
+    EXPECT_EQ(insideContent, allowedResponse.body);
+
+    auto absoluteSlashResponse = HttpClient::get(baseLink + "//outside_stream_6224.txt");
+    EXPECT_EQ(403, absoluteSlashResponse.statusCode);
+    EXPECT_NE(outsideContent, absoluteSlashResponse.body);
+}
+
+/**
+ * Test that WebDAV write operations (MKCOL/PUT/COPY/MOVE) reject destinations that resolve
+ * outside the served folder, while a legitimate destination inside it is allowed.
+ */
+TEST_F(SdkHttpServerTest, HttpServerWebDavDestinationOutsideServedFolderBlocked)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    MegaApi* api = megaApi[0].get();
+    api->httpServerEnableFileServer(true);
+    api->httpServerEnableFolderServer(true);
+
+    // Sibling folder at the Cloud Drive root, outside the served subtree.
+    std::unique_ptr<MegaNode> outsideFolder = createFolder(0, "outside_dav_6224");
+    ASSERT_NE(outsideFolder, nullptr);
+
+    std::unique_ptr<MegaNode> servedFolder = createFolder(0, "served_dav_6224");
+    ASSERT_NE(servedFolder, nullptr);
+
+    std::unique_ptr<MegaNode> insideNode =
+        uploadFile(0, "inside.txt", "inside allowed content", servedFolder.get());
+    ASSERT_NE(insideNode, nullptr);
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    std::unique_ptr<char[]> link(api->httpServerGetLocalWebDavLink(servedFolder.get()));
+    ASSERT_NE(link, nullptr);
+    const std::string baseLink(link.get());
+
+    // Positive control: MKCOL inside the served folder must be allowed (proves WebDAV writes work,
+    // so the rejections below are due to the boundary check, not a misconfigured server).
+    auto mkcolInside = HttpClient::request(baseLink + "/inside_dir", "MKCOL");
+    EXPECT_EQ(201, mkcolInside.statusCode);
+
+    // MKCOL whose parent resolves outside the served folder (absolute path via '//') must be
+    // denied.
+    auto mkcolOutside = HttpClient::request(baseLink + "//outside_dav_6224/hacked_dir", "MKCOL");
+    EXPECT_EQ(403, mkcolOutside.statusCode);
+
+    // PUT whose parent resolves outside the served folder must be denied.
+    auto putOutside =
+        HttpClient::request(baseLink + "//outside_dav_6224/hacked.txt", "PUT", {}, "payload");
+    EXPECT_EQ(403, putOutside.statusCode);
+
+    // COPY with a Destination that escapes the served folder via '..' must be denied.
+    const std::map<std::string, std::string> copyHeaders{
+        {"Destination", baseLink + "/../outside_dav_6224/inside_copy.txt"},
+        {"Overwrite", "F"},
+    };
+    auto copyOutside = HttpClient::request(baseLink + "/inside.txt", "COPY", copyHeaders);
+    EXPECT_EQ(403, copyOutside.statusCode);
+
+    // MOVE with a Destination that escapes the served folder via '..' must be denied.
+    const std::map<std::string, std::string> moveHeaders{
+        {"Destination", baseLink + "/../outside_dav_6224/moved.txt"},
+        {"Overwrite", "F"},
+    };
+    auto moveOutside = HttpClient::request(baseLink + "/inside.txt", "MOVE", moveHeaders);
+    EXPECT_EQ(403, moveOutside.statusCode);
+}
+
 TEST_F(SdkHttpServerLinkTest, LoginClientPublicFileLink)
 {
     CASE_info << "started";

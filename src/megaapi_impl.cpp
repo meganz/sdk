@@ -88,16 +88,20 @@
 #include <zxcvbn-c/zxcvbn.h>
 
 // FUSE
-#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 
-namespace {
+namespace
+{
 
-using ::mega::IGfxProvider;
-using ::mega::MegaGfxProcessor;
 using ::mega::GfxProc;
 using ::mega::GfxProviderExternal;
+using ::mega::IGfxProvider;
+using ::mega::MegaApiImpl;
+using ::mega::MegaGfxProcessor;
+using ::mega::MegaHandle;
+using ::mega::MegaNode;
 
 #define HTTP_verbose_timed \
     LOG_verbose_timed(std::chrono::milliseconds{120'000}, std::chrono::milliseconds{100})
@@ -112,13 +116,35 @@ std::unique_ptr<GfxProc> createGfxProc(MegaGfxProcessor* processor)
     return provider ? std::make_unique<GfxProc>(std::move(provider)) : nullptr;
 }
 
+bool isNodeOutsideServedSubtree(MegaApiImpl* megaApi, MegaNode* node, MegaHandle servedHandle)
+{
+    return node && !megaApi->isNodeWithinSubtree(node, servedHandle);
 }
-namespace mega {
 
-MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
-: MegaNode()
+}
+
+namespace mega
+{
+
+MegaNodePrivate::MegaNodePrivate(const char* name,
+                                 int type,
+                                 int64_t size,
+                                 int64_t ctime,
+                                 int64_t mtime,
+                                 uint64_t nodehandle,
+                                 const string* nodekey,
+                                 const string* fileattrstring,
+                                 const char* fingerprint,
+                                 const char* originalFingerprint,
+                                 MegaHandle owner,
+                                 MegaHandle parentHandle,
+                                 const char* privateauth,
+                                 const char* publicauth,
+                                 bool ispublic,
+                                 bool isForeign,
+                                 const char* chatauth,
+                                 bool isNodeKeyDecrypted):
+    MegaNode()
 {
     this->name = MegaApi::strdup(name);
     this->fingerprint = MegaApi::strdup(fingerprint);
@@ -19706,9 +19732,22 @@ MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
     return MegaNodePrivate::fromNode(node->parent.get());
 }
 
-char* MegaApiImpl::getNodePath(MegaNode *node)
+bool MegaApiImpl::isNodeWithinSubtree(MegaNode* node, MegaHandle baseHandle)
 {
-    if(!node) return nullptr;
+    if (!node)
+    {
+        return false;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+    std::shared_ptr<Node> n = client->nodebyhandle(node->getHandle());
+    return n && n->hasNHOrHasAncestorWithNH(NodeHandle().set6byte(baseHandle));
+}
+
+char* MegaApiImpl::getNodePath(MegaNode* node)
+{
+    if (!node)
+        return nullptr;
 
     SdkMutexGuard guard(sdkMutex);
     std::shared_ptr<Node> n = client->nodebyhandle(node->getHandle());
@@ -37200,9 +37239,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     if (httpctx->path == "/")
     {
         node = httpctx->megaApi->getRootNode();
-        char *base64Handle = node->getBase64Handle();
+        if (!node)
+        {
+            // Root not available yet (e.g. fetchnodes incomplete).
+            returnHttpCode(httpctx, 404);
+            return 0;
+        }
+        char* base64Handle = node->getBase64Handle();
         httpctx->nodehandle = base64Handle;
-        delete [] base64Handle;
+        delete[] base64Handle;
         httpctx->nodename = node->getName();
     }
     else if (httpctx->nodehandle.size())
@@ -37384,7 +37429,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
     }
 
-    MegaNode *baseNode = NULL;
+    // node is non-null here: block above either materialized it or returned early.
+    // Capture the URL-root handle now; the subpath block below may set node to null for PUT/MKCOL.
+    const MegaHandle servedHandle = node->getHandle();
+    MegaNode* baseNode = NULL;
     if (httpctx->subpathrelative.size())
     {
         string subnodepath = httpctx->subpathrelative;
@@ -37400,6 +37448,13 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         if (parser->method != HTTP_PUT && parser->method != HTTP_MKCOL && !subnode)
         {
             returnHttpCode(httpctx, 404);
+            delete node;
+            return 0;
+        }
+        else if (subnode && isNodeOutsideServedSubtree(httpctx->megaApi, subnode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete subnode;
             delete node;
             return 0;
         }
@@ -37582,6 +37637,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
 
+        if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete newParentNode;
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
         httpctx->megaApi->createFolder(newname.c_str(), newParentNode, httpctx);
         delete newParentNode;
         delete node;
@@ -37624,7 +37688,16 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
 
         dest = dest.substr(baseURL.size());
-        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        MegaNode* destNode =
+            httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        if (destNode && isNodeOutsideServedSubtree(httpctx->megaApi, destNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete destNode;
+            delete node;
+            delete baseNode;
+            return 0;
+        }
         if (destNode)
         {
             if (node->getHandle() == destNode->getHandle())
@@ -37641,6 +37714,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 if (httpctx->overwrite)
                 {
                     newParentNode = httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                    if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+                    {
+                        returnHttpCode(httpctx, 403);
+                        delete newParentNode;
+                        delete node;
+                        delete baseNode;
+                        delete destNode;
+                        return 0;
+                    }
                 }
                 else
                 {
@@ -37681,6 +37763,14 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             returnHttpCode(httpctx, 409);
             delete node;
             delete baseNode;
+            return 0;
+        }
+        if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete node;
+            delete baseNode;
+            delete newParentNode;
             return 0;
         }
         if (newname.size())
@@ -37741,9 +37831,18 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 return 0;
             }
 
-            if (!httpctx->tmpFileAccess) //put with no body contents
+            if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
             {
-                httpctx->tmpFileName=httpctx->server->basePath;
+                returnHttpCode(httpctx, 403);
+                delete newParentNode;
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            if (!httpctx->tmpFileAccess) // put with no body contents
+            {
+                httpctx->tmpFileName = httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath(false));
                 string ext;
@@ -37817,7 +37916,16 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
         dest = dest.substr(baseURL.size());
-        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        MegaNode* destNode =
+            httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        if (destNode && isNodeOutsideServedSubtree(httpctx->megaApi, destNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete destNode;
+            delete node;
+            delete baseNode;
+            return 0;
+        }
         if (destNode)
         {
             if (node->getHandle() == destNode->getHandle())
@@ -37830,9 +37938,21 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
             else
             {
-                //overwrite?
+                // overwrite?
                 if (httpctx->overwrite)
                 {
+                    MegaNode* overwriteParent =
+                        httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                    if (isNodeOutsideServedSubtree(httpctx->megaApi, overwriteParent, servedHandle))
+                    {
+                        returnHttpCode(httpctx, 403);
+                        delete overwriteParent;
+                        delete node;
+                        delete baseNode;
+                        delete destNode;
+                        return 0;
+                    }
+                    delete overwriteParent;
                     httpctx->newParentNode = destNode->getParentHandle();
                     httpctx->newname = destNode->getName();
                     httpctx->nodeToMove = node->getHandle();
@@ -37873,6 +37993,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             if (!newParentNode)
             {
                 returnHttpCode(httpctx, 409);
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+            {
+                returnHttpCode(httpctx, 403);
+                delete newParentNode;
                 delete node;
                 delete baseNode;
                 return 0;
