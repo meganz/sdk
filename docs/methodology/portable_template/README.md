@@ -86,7 +86,7 @@ feature branch before merge.
 
 - Toyota Production System: "Stop the line" → HR23 / HR40 spirit.
 - "Beyond Software Architecture" (Hohmann): release engineering as
-  an explicit phase.
+  an explicit discipline.
 - The methodology directory in the SDK repo itself
   (`docs/methodology/`) is the live working version this template
   was derived from.

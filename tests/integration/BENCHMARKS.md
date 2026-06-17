@@ -98,7 +98,6 @@ grep -E 'mean speed|KB/s|upload time' "$log" | head -20
 ## Reference commands / prior-session artifacts
 
 - Single-test timing: `time ./test_integration --gtest_filter=<test>`.
-- Sequential multi-test driver (pattern): see `/tmp/phase5_validate.sh` retained from the 2026-04-22 session — it writes per-phase stdout + pid dirs + summary under `/tmp/phase5/`.
 
 ## Bench-report JSON
 
@@ -160,7 +159,7 @@ detection — they are small, version-locked, and diffable across runs.
 The framework module (`tests/integration/bench_framework/`) provides reusable helpers:
 - `mega::bench::BenchSession` — wall-clock lifecycle wrapper.
 - `mega::bench::BenchProcessStats` — `getrusage(RUSAGE_SELF)` sample + delta.
-- `mega::bench::BenchTransferTiming` — per-transfer phase milestones.
+- `mega::bench::BenchTransferTiming` — per-transfer timing milestones.
 - `mega::bench::BenchSummary` — min/max/median/p95 distribution + aggregate kBps.
 - `mega::bench::BenchReportWriter` — singleton JSON emitter.
 
@@ -480,7 +479,7 @@ the individual feature commits should NOT enable the strict flags by default.
 
 The `dev-unix-hooks-off` preset (Release build → defines `NDEBUG` →
 disables `MEGASDK_DEBUG_TEST_HOOKS_ENABLED`) verifies that the WS upload
-test fixtures still compile after the Phase 2.a hook-ABI redesign
+test fixtures still compile after the hook-ABI redesign
 (commits `b1cb43b4b2` + `be84f481dd`) when the hook surface is gone.
 
 ```bash
@@ -498,7 +497,6 @@ runtime no-op. `WSUPLOAD_REQUIRE_TEST_HOOKS()` from
 `GTEST_SKIP() << "..."` in NDEBUG; tests using it run-skip on the
 hooks-off binary.
 
-Run this gate any time the migration of remaining hook-gated TEST_F
-bodies (Phase 2.d 14-site migration in `SdkWsUploadTest.cpp`) touches
-new TEST_F bodies, to catch hooks-OFF compile breakage early.
-
+Run this gate any time changes to remaining hook-gated TEST_F
+bodies in `SdkWsUploadTest.cpp` touch new TEST_F bodies, to catch
+hooks-OFF compile breakage early.

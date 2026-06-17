@@ -43,8 +43,7 @@ InboundFrameValidationResult validateInboundFrame(const char* msg, int len);
 
 /**
  * UploadEngine: WebSocket upload executor for PUT transfers.
- * Phase 1: queue mirror + size-class pools + WS send.
- * Phase 2: report progress to Transfer/app (callbacks).
+ * Maintains a queue mirror, size-class pools, WS sends, and progress callbacks.
  */
 class UploadEngine
 {
@@ -70,9 +69,9 @@ public:
         std::chrono::milliseconds avgStartTransferTime{0};
         double failedRequestRatio = 0.0;
     };
-    // Callbacks are invoked by the engine thread. In Phase 3 they will run
-    // on CurlHttpIO/Waiter. MegaClient should bounce them to its own thread
-    // if required.
+
+    // Callbacks are invoked by the engine thread. MegaClient should bounce
+    // them to its own thread if required.
     struct Callbacks
     {
 

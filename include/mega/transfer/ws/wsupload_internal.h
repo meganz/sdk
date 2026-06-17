@@ -12,7 +12,7 @@
  *        ws_pool.cpp, ws_pool_mgr.cpp, ws_upload_file.cpp) include it as
  *        `#include "mega/transfer/ws/wsupload_internal.h"`.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

@@ -2,7 +2,7 @@
  * @file mega/commands_ws.h
  * @brief Command wrappers specific to the websocket-upload engine.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -30,7 +30,7 @@ namespace mega
 
 class MegaClient;
 
-// API command wrapper for "usc" (Upload Session Context) used by websocket uploads.
+// API command wrapper for "usc" (Upload Size Classes) used by websocket uploads.
 //
 // NOTE: WS uploads are pool-based (not per-file), so the response can contain multiple endpoints
 // across size classes. We keep parsing minimal and convert to "wss://<host>/<path>" URLs.

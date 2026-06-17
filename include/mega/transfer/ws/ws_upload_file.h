@@ -22,7 +22,7 @@
  *        coupled `setPool` / `unsetPool` / `getCurrentSessionUrl`) live in
  *        `src/transfer/ws/ws_upload_file.cpp`.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -347,7 +347,7 @@ public:
         return mUploadFailedTime != 0;
     }
 
-    // hooks (Phase 2/5 will notify Transfer/app + crypto)
+    // Local failure bookkeeping; callers handle Transfer/app and crypto notifications.
     void uploadFailed(const FailReason reason)
     {
         resetAttemptState();
@@ -388,7 +388,7 @@ public:
                  << ") Progress: " << mBytesConfirmed << " of " << mSize
                  << " bytes (attempt bytes: " << attemptConfirmed << ") @ ~" << kbps
                  << " KB/s [this = " << this << "]";
-        (void)response; // Phase 5: use payload (e.g. MAC/fingerprint)
+        (void)response; // response payload currently unused
     }
 
     // debug throughput (server-ACK basis)
@@ -556,12 +556,10 @@ private:
     MegaClient& mClient;
     Transfer* mTransfer{
         nullptr}; // identity only, used by callbacks; never dereferenced on worker threads
-    // Worker threads only ever need these snapshots, copied once on the client thread (Phase 1)
-    // or once on the worker thread under uploadMutex after preflightStart (Phase 2).
-    LocalPath mLocalPath; // Phase 1: set in constructor
-    std::array<byte, SymmCipher::KEYLENGTH>
-        mTransferKey{}; // Phase 2: set in snapshotCryptoMaterial()
-    int64_t mCtrIv{0}; // Phase 2
+    // Worker threads only ever need these snapshots, copied before reads start.
+    LocalPath mLocalPath; // set in constructor
+    std::array<byte, SymmCipher::KEYLENGTH> mTransferKey{}; // set in snapshotCryptoMaterial()
+    int64_t mCtrIv{0};
     std::unique_ptr<FileAccess> mFA{}; // blocking-opened on first read
     // Atomic so readers that do not hold engineMutex (e.g. the workGeneration() accessor
     // at wsupload.cpp ~700) observe a well-defined value. Writers still serialise via

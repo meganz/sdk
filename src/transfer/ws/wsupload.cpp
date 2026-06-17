@@ -30,7 +30,7 @@
  *          - src/transfer/ws/ws_pool.cpp        — every WsPool method body
  *            including sendChunk + poolWorkerThread.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

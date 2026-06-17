@@ -142,7 +142,6 @@ void MegaClient::installWsEngineCallbacks()
     wsRefreshCanStartAnotherFileSnapshot();
     ws::UploadEngine::Callbacks cb;
 
-    // Phase 2: minimal mutation + app notification
     cb.canStartAnotherFile = [this]() -> bool
     {
         return wsCanStartAnotherFile();
@@ -1026,7 +1025,7 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
         }
     }
 
-    // (Phase 5) chunkmacs/fingerprint are handled later in WS callbacks
+    // chunkmacs/fingerprint are handled later in WS callbacks
     // (engine will open FA and verify mtime/size on first read)
     LOG_debug << "[MegaClient::prepareUploadForWs] return true [t.localfilename = "
               << t.localfilename << "]";

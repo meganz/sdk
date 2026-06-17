@@ -664,7 +664,7 @@ public:
     bool prepareUploadForWs(Transfer& t);
     bool wsIsTransferAlive(direction_t type, const Transfer* tp) const;
 
-    // ---- Phase 3.0: bounce WS callbacks to client thread ----
+    // Bounce WS callbacks to the client thread.
     // Enqueue a client-thread action (same signature as sync’s queueClient functors).
     void wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f);
     // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.

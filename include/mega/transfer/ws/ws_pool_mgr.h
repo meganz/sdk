@@ -3,7 +3,7 @@
  * @brief Declaration of WsPoolMgr — USC refresh + cURL multi pool manager
  *        used by the websocket-upload engine.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
@@ -74,7 +74,7 @@ struct WsPoolMgr
     static constexpr dstime POOLFRESHNESS = secondsToDs(24 * 3600);
     const dstime SERVERTIMEOUT = secondsToDs(20);
 
-    CURLM* curlm = nullptr; // Phase 1: private multi (USC only)
+    CURLM* curlm = nullptr; // private multi for USC refresh
     UploadEngine::Impl* mImpl{nullptr}; // backpointer
 
     std::vector<std::unique_ptr<WsPool>> mPools;

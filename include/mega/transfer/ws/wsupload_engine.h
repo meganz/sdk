@@ -18,7 +18,7 @@
  *        `src/commands_ws.cpp` include it as
  *        `#include "mega/transfer/ws/wsupload_engine.h"`.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

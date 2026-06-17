@@ -27,7 +27,7 @@
  *        The TU-local `enum class WsApiServerEvent` (server-event opcodes)
  *        moves with `WsConn::onmessage` since that is its sole consumer.
  *
- * (c) 2026 by Mega Limited, Auckland, New Zealand
+ * (c) 2026 by MEGA Privacy Kft, Csomad, Hungary
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *

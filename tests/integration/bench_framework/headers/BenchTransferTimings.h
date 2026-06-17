@@ -3,7 +3,7 @@
  * @brief Per-transfer timing record used by benchmark cells.
  *
  * Part of the `bench_framework` reusable module gated by `MEGA_BENCH_FRAMEWORK_ENABLED`.
- * Records the four phase milestones (apiStart, firstByte, lastByte, apiEnd) plus byte
+ * Records the four timing milestones (apiStart, firstByte, lastByte, apiEnd) plus byte
  * count, in a uniform shape that future benchmark cells can share.
  *
  * Designed to be a value-type container — collect a `std::vector<BenchTransferTiming>`

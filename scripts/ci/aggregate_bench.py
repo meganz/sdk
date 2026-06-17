@@ -299,7 +299,7 @@ def cliffs_band(d: Optional[float]) -> str:
 def verdict_band(pct: Optional[float], p: Optional[float], higher_better: bool) -> str:
     """Per-axis verdict band — favours absolute % thresholds but consults p too.
 
-    fu7-20 Session 3 amendment (post-Phase 1): statistical significance gates
+    fu7-20 Session 3 amendment: statistical significance gates
     the negative bands. A large absolute delta with p ≥ 0.05 is treated as
     NOT-SIGNIFICANT — the data cannot distinguish the delta from noise. This
     prevents high-variance cells (e.g., throttle-storm-sensitive LPMS at
@@ -371,7 +371,7 @@ def apply_hr54_rss_policy(
     }
     if not (is_develop_baseline and axis_key in RSS_AXES_KEYS):
         return cmp
-    # HR54 (fu7-20 Session 3 amendment + user clarification post-Phase 1):
+    # HR54 (fu7-20 Session 3 amendment + user clarification):
     # `rss_paired_allowed` applies to BOTH RSS axes (rss_delta_kb median AND
     # rss_max_kb peak-median) for smaller-file cells where the v2 pool
     # overhead is fixed-cost-dominant — but EVERY override REQUIRES a
