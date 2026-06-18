@@ -612,11 +612,11 @@ void FileContext::execute(FileFetchRequest& request)
     lock.unlock();
 
     // Try and read all of the file's data.
-    read(FileReadRequest{std::bind(&FetchContext::operator(),
-                                   mFetchContext.get(),
-                                   mFetchContext,
-                                   std::placeholders::_1),
-                         FileRange(0, mInfo->size())});
+    executeOrQueue(FileReadRequest{std::bind(&FetchContext::operator(),
+                                             mFetchContext.get(),
+                                             mFetchContext,
+                                             std::placeholders::_1),
+                                   FileRange(0, mInfo->size())});
 }
 
 void FileContext::execute(FileFlushRequest request)
@@ -639,10 +639,10 @@ void FileContext::execute(FileFlushRequest request)
     lock.unlock();
 
     // Fetch all of this file's data.
-    fetch(FileFetchRequest{std::bind(&FlushContext::operator(),
-                                     mFlushContext.get(),
-                                     mFlushContext,
-                                     std::placeholders::_1)});
+    executeOrQueue(FileFetchRequest{std::bind(&FlushContext::operator(),
+                                              mFlushContext.get(),
+                                              mFlushContext,
+                                              std::placeholders::_1)});
 }
 
 void FileContext::execute(FileReadRequest& request)
@@ -1359,6 +1359,10 @@ template<typename Request>
 auto FileContext::reject([[maybe_unused]] const Request& request)
     -> std::enable_if_t<IsFileRequestV<Request>, FileResult>
 {
+    // File Service is being torn down.
+    if (mService.deinitializing())
+        return FILE_CANCELLED;
+
     if constexpr (!IsFileReclaimRequestV<Request> && IsFileWriteRequestV<Request>)
     {
         if constexpr (IsFileRemoveRequestV<Request>)
@@ -1646,7 +1650,7 @@ FileEventObserverID FileContext::addObserver(FileEventObserver observer)
     return mInfo->addObserver(std::move(observer));
 }
 
-void FileContext::append(FileAppendRequest request)
+void FileContext::append(FileContextPtr, FileAppendRequest request)
 {
     executeOrQueue(std::move(request));
 }
@@ -1677,12 +1681,12 @@ AutoFileHandle FileContext::dupFileDescriptor()
     return mFile->dupFileDescriptor();
 }
 
-void FileContext::fetch(FileFetchRequest request)
+void FileContext::fetch(FileContextPtr, FileFetchRequest request)
 {
     executeOrQueue(std::move(request));
 }
 
-void FileContext::fetchBarrier(FileFetchBarrierCallback callback)
+void FileContext::fetchBarrier(FileFetchBarrierCallback callback, FileContextPtr)
 {
     // Sanity.
     assert(callback);
@@ -1691,7 +1695,7 @@ void FileContext::fetchBarrier(FileFetchBarrierCallback callback)
     mDownloadMonitor.whenIdle(std::move(callback));
 }
 
-void FileContext::flush(FileFlushRequest request)
+void FileContext::flush(FileContextPtr, FileFlushRequest request)
 {
     executeOrQueue(std::move(request));
 }
@@ -1701,7 +1705,7 @@ FileInfo FileContext::info() const
     return FileInfo(FileContextBadge(), mInfo);
 }
 
-void FileContext::pinUntil(steady_clock::time_point when)
+void FileContext::pinUntil(FileContextPtr context, steady_clock::time_point when)
 {
     // What is the current time?
     auto now = steady_clock::now();
@@ -1714,7 +1718,7 @@ void FileContext::pinUntil(steady_clock::time_point when)
         return mPinTask.cancel(), void();
 
     // Called when we can release our reference on this context.
-    auto callback = [context = shared_from_this(), this](auto& task)
+    auto callback = [context = std::move(context), this](auto& task)
     {
         // Acquire task lock.
         std::lock_guard guard(mPinTaskLock);
@@ -1745,12 +1749,12 @@ FileRangeVector FileContext::ranges() const
     return FileRangeVector(mOnDisk.begin(), mOnDisk.end());
 }
 
-void FileContext::read(FileReadRequest request)
+void FileContext::read(FileContextPtr, FileReadRequest request)
 {
     executeOrQueue(std::move(request));
 }
 
-void FileContext::reclaim(FileReclaimCallback callback)
+void FileContext::reclaim(FileReclaimCallback callback, FileContextPtr)
 {
     // Make sure we have exclusive access to mReclaimContext.
     std::lock_guard lock(mReclaimContextLock);
@@ -1772,10 +1776,10 @@ void FileContext::reclaim(FileReclaimCallback callback)
                                           std::placeholders::_1);
 
     // Make sure this file's data has been flushed to the cloud.
-    flush(FileFlushRequest{std::move(flushed)});
+    executeOrQueue(FileFlushRequest{std::move(flushed)});
 }
 
-void FileContext::remove(FileRemoveRequest request)
+void FileContext::remove(FileContextPtr, FileRemoveRequest request)
 {
     executeOrQueue(std::move(request));
 }
@@ -1790,17 +1794,17 @@ bool FileContext::removed() const
     return mInfo->removed();
 }
 
-void FileContext::touch(FileTouchRequest request)
+void FileContext::touch(FileContextPtr, FileTouchRequest request)
 {
     executeOrQueue(std::move(request));
 }
 
-void FileContext::truncate(FileTruncateRequest request)
+void FileContext::truncate(FileContextPtr, FileTruncateRequest request)
 {
     executeOrQueue(std::move(request));
 }
 
-void FileContext::write(FileWriteRequest request)
+void FileContext::write(FileContextPtr, FileWriteRequest request)
 {
     executeOrQueue(std::move(request));
 }
@@ -2204,7 +2208,7 @@ void FileContext::FetchContext::operator()(FetchContextPtr& context,
     auto length = mContext.mInfo->size() - offset;
 
     // Try and read the rest of the file's data.
-    mContext.read(FileReadRequest{
+    mContext.executeOrQueue(FileReadRequest{
         std::bind(&FetchContext::operator(), this, std::move(context), std::placeholders::_1),
         FileRange(offset, offset + length)});
 }

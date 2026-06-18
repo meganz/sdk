@@ -5944,13 +5944,30 @@ struct FileStreamResultConsumption
 class MegaHTTPContext: public MegaTCPContext, public std::enable_shared_from_this<MegaHTTPContext>
 {
 private:
+    struct TaskContext
+    {
+        // The UV request representing this task.
+        //
+        // This member must be first.
+        uv_work_t mRequest;
+
+        // A weak reference to the HTTP context that spawned this task.
+        std::weak_ptr<MegaHTTPContext> mCookie;
+
+        // State necessary to continue streaming data from the service.
+        file_service::FileStreamResult mResult;
+    }; // TaskContext
+
     friend class MegaHTTPServer;
     static std::atomic_uint32_t nextId;
     const uint32_t contextId;
     std::string logname;
     FileStreamResultConsumption mFileStreamResultConsumption{};
 
-    std::unique_ptr<uv_work_t> processFileStreamResult();
+    auto processFileStreamResult() -> std::unique_ptr<TaskContext>;
+
+    static void afterContinueStream(uv_work_t* request, int status);
+    static void continueStream(uv_work_t* request);
 
 public:
     MegaHTTPContext();

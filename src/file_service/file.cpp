@@ -50,7 +50,7 @@ File::~File()
     auto options = mContext->serviceOptions();
 
     // Pin the context in memory for a time.
-    mContext->pinFor(options.mFileContextReleaseDelay);
+    mContext->pinFor(mContext, options.mFileContextReleaseDelay);
 }
 
 File& File::operator=(const File& rhs)
@@ -84,7 +84,7 @@ void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t
     assert(callback);
     assert(mContext);
 
-    return mContext->append(FileAppendRequest{buffer, std::move(callback), length});
+    return mContext->append(mContext, FileAppendRequest{buffer, std::move(callback), length});
 }
 
 FileRangeVector File::downloading() const
@@ -106,7 +106,7 @@ void File::fetch(FileFetchCallback callback)
     assert(callback);
     assert(mContext);
 
-    mContext->fetch(FileFetchRequest{std::move(callback)});
+    mContext->fetch(mContext, FileFetchRequest{std::move(callback)});
 }
 
 void File::fetchBarrier(FileFetchBarrierCallback callback)
@@ -114,7 +114,7 @@ void File::fetchBarrier(FileFetchBarrierCallback callback)
     assert(callback);
     assert(mContext);
 
-    mContext->fetchBarrier(std::move(callback));
+    mContext->fetchBarrier(std::move(callback), mContext);
 }
 
 void File::flush(FileFlushCallback callback)
@@ -122,7 +122,7 @@ void File::flush(FileFlushCallback callback)
     assert(callback);
     assert(mContext);
 
-    return mContext->flush(FileFlushRequest{std::move(callback)});
+    return mContext->flush(mContext, FileFlushRequest{std::move(callback)});
 }
 
 FileInfo File::info() const
@@ -137,7 +137,7 @@ void File::purge(FilePurgeCallback callback)
     assert(callback);
     assert(mContext);
 
-    return mContext->remove(FileRemoveRequest{std::move(callback), false, true});
+    return mContext->remove(mContext, FileRemoveRequest{std::move(callback), false, true});
 }
 
 FileRangeVector File::ranges() const
@@ -163,7 +163,7 @@ void File::read(FileReadCallback callback, const FileRange& range, bool isJumpCa
     assert(callback);
     assert(mContext);
 
-    mContext->read(FileReadRequest{std::move(callback), range, isJumpCandidate});
+    mContext->read(mContext, FileReadRequest{std::move(callback), range, isJumpCandidate});
 }
 
 void File::reclaim(FileReclaimCallback callback)
@@ -171,7 +171,7 @@ void File::reclaim(FileReclaimCallback callback)
     assert(callback);
     assert(mContext);
 
-    mContext->reclaim(std::move(callback));
+    mContext->reclaim(std::move(callback), mContext);
 }
 
 void File::remove(FileRemoveCallback callback, bool replaced)
@@ -179,7 +179,7 @@ void File::remove(FileRemoveCallback callback, bool replaced)
     assert(callback);
     assert(mContext);
 
-    mContext->remove(FileRemoveRequest{std::move(callback), replaced, false});
+    mContext->remove(mContext, FileRemoveRequest{std::move(callback), replaced, false});
 }
 
 void File::removeObserver(FileEventObserverID id)
@@ -194,7 +194,7 @@ void File::touch(FileTouchCallback callback, std::int64_t modified)
     assert(callback);
     assert(mContext);
 
-    mContext->touch(FileTouchRequest{std::move(callback), modified});
+    mContext->touch(mContext, FileTouchRequest{std::move(callback), modified});
 }
 
 void File::truncate(FileTruncateCallback callback, std::uint64_t newSize)
@@ -202,7 +202,7 @@ void File::truncate(FileTruncateCallback callback, std::uint64_t newSize)
     assert(callback);
     assert(mContext);
 
-    mContext->truncate(FileTruncateRequest{std::move(callback), newSize});
+    mContext->truncate(mContext, FileTruncateRequest{std::move(callback), newSize});
 }
 
 void File::write(const void* buffer,
@@ -219,7 +219,7 @@ void File::write(const void* buffer, FileWriteCallback callback, const FileRange
     assert(callback);
     assert(mContext);
 
-    mContext->write(FileWriteRequest{buffer, std::move(callback), range});
+    mContext->write(mContext, FileWriteRequest{buffer, std::move(callback), range});
 }
 
 } // file_service

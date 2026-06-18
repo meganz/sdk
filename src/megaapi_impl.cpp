@@ -35075,27 +35075,30 @@ using file_service::FileResultOr;
 using file_service::FileStreamDataCallback;
 using file_service::FileStreamResult;
 
-// A work continue stream for uv_work_queue, as it may take times
-// Only when all result data has been consumed
-static void continueStream(uv_work_t* req)
+// Callback for the work continue stream
+void MegaHTTPContext::afterContinueStream(uv_work_t* request, int)
 {
-    assert(req->data);
-
-    if (!req->data)
-        return;
-
-    auto result = (FileStreamResult*)req->data;
-    if (result->mContinue)
-        result->mContinue(result->mLength);
+    // Destroy our work context.
+    delete reinterpret_cast<TaskContext*>(request->data);
 }
 
-// Callback for the work continue stream
-static void afterContinueStream(uv_work_t* req, int)
+// A work continue stream for uv_work_queue, as it may take times
+// Only when all result data has been consumed
+void MegaHTTPContext::continueStream(uv_work_t* request)
 {
-    if (req->data)
-        delete (FileStreamResult*)req->data;
+    // Get our hands on our task context.
+    auto* task = reinterpret_cast<TaskContext*>(request->data);
 
-    delete req;
+    // Check if our HTTP context is still alive.
+    auto context = task->mCookie.lock();
+
+    // HTTP context isn't alive or has been finished.
+    if (!context || context->finished)
+        return;
+
+    // Continue streaming data.
+    if (task->mResult.mContinue)
+        task->mResult.mContinue(task->mResult.mLength);
 }
 
 void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
@@ -35140,14 +35143,17 @@ void MegaHTTPServer::processWriteFinished(MegaTCPContext* tcpctx, int status)
     }
 
     // Or Streaming via file service may have pending result, check if we can process
-    std::unique_ptr<uv_work_t> continueWork = httpctx->processFileStreamResult();
+    auto task = httpctx->processFileStreamResult();
 
     uv_mutex_unlock(&httpctx->mutex);
 
     // Continue stream is slow operation, do it as a work
-    if (continueWork)
+    if (task)
     {
-        uv_queue_work(&uv_loop, continueWork.release(), &continueStream, &afterContinueStream);
+        uv_queue_work(&uv_loop,
+                      &task.release()->mRequest,
+                      &MegaHTTPContext::continueStream,
+                      &MegaHTTPContext::afterContinueStream);
     }
 
     uv_async_send(&httpctx->asynchandle);
@@ -37299,7 +37305,7 @@ MegaHTTPContext::~MegaHTTPContext()
     uv_mutex_destroy(&mutex_responses);
 }
 
-std::unique_ptr<uv_work_t> MegaHTTPContext::processFileStreamResult()
+auto MegaHTTPContext::processFileStreamResult() -> std::unique_ptr<TaskContext>
 {
     // No result or no space to process
     if (!mFileStreamResultConsumption.mValue || streamingBuffer.availableSpace() <= 0)
@@ -37322,13 +37328,19 @@ std::unique_ptr<uv_work_t> MegaHTTPContext::processFileStreamResult()
     if (consumed < len)
         return nullptr;
 
-    // Prepare continue work
-    std::unique_ptr<uv_work_t> continueWork{new uv_work_t()};
-    continueWork->data = new FileStreamResult(std::move(consumption.mFileStreamResult));
+    // Instantiate task context.
+    auto task = std::make_unique<TaskContext>();
 
-    // Release current result
+    // Populate task context.
+    task->mCookie = weak_from_this();
+    task->mRequest.data = task.get();
+    task->mResult = std::move(consumption.mFileStreamResult);
+
+    // Release current result.
     mFileStreamResultConsumption.mValue.reset();
-    return continueWork;
+
+    // Return task context to our caller.
+    return task;
 }
 
 void MegaHTTPContext::onTransferStart(MegaApi*, [[maybe_unused]] MegaTransfer* transfer)
