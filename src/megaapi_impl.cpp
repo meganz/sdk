@@ -17797,17 +17797,24 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate* request,
 {
     assert(callbackIsFromOtherThread || threadId == std::this_thread::get_id());
 
-    // call from other threads like sync thread. Push to requestQueue with performFireOnRequestFinish assigned,
-    // all fireOneRequestFinish is therefore handled in sendPendingRequests processed by a single thread.
+    // Called from another thread (e.g. the sync or file-service worker thread).
+    // Marshal the completion onto the MegaApiImpl thread via executeOnThread so
+    // that all fireOnRequestFinish work happens on a single thread.
+    //
+    // We must NOT touch `request` here: abortPendingActions runs on the
+    // MegaApiImpl thread (e.g. during logout) and may finish and delete this
+    // request concurrently. We only capture the pointer by value; the marshalled
+    // task re-validates it against requestMap before using it (see
+    // finishRequestIfStillTracked), so a request already finished/deleted is
+    // safely skipped instead of dereferenced.
     if (threadId != std::this_thread::get_id())
     {
-        auto ePtr = e.release();
-        request->performFireOnRequestFinish = [this, request, ePtr]()
-        {
-            fireOnRequestFinish(request, std::unique_ptr<MegaErrorPrivate>(ePtr), false);
-        };
-        requestQueue.push(request);
-        waiter->notify();
+        auto* ePtr = e.release();
+        executeOnThread(std::make_shared<ExecuteOnce>(
+            [this, request, ePtr]()
+            {
+                finishRequestIfStillTracked(request, std::unique_ptr<MegaErrorPrivate>(ePtr));
+            }));
         return;
     }
 
@@ -17839,6 +17846,29 @@ void MegaApiImpl::fireOnRequestFinish(MegaRequestPrivate* request,
     requestMap.erase(request->getTag());
 
     delete request;
+}
+
+void MegaApiImpl::finishRequestIfStillTracked(MegaRequestPrivate* request,
+                                              unique_ptr<MegaErrorPrivate> e)
+{
+    // Runs on the MegaApiImpl thread (via executeOnThread), with sdkMutex held.
+    assert(threadId == std::this_thread::get_id());
+
+    // The request may already have been finished and deleted (e.g. by
+    // abortPendingActions during logout) before this deferred completion runs.
+    // Confirm it is still tracked before touching it - compare by pointer value
+    // only, never dereference `request`, as it may be freed.
+    for (const auto& entry: requestMap)
+    {
+        if (entry.second == request)
+        {
+            fireOnRequestFinish(request, std::move(e), false);
+            return;
+        }
+    }
+
+    // Not tracked anymore: the request was already finished/deleted. Drop this
+    // stale completion.
 }
 
 void MegaApiImpl::fireOnRequestUpdate(MegaRequestPrivate *request)
@@ -20621,13 +20651,6 @@ void MegaApiImpl::sendPendingRequests()
         if (!request)
         {
             break;
-        }
-
-        if (request->performFireOnRequestFinish)
-        {
-            request->performFireOnRequestFinish();
-            request = nullptr;
-            continue;
         }
 
         // also we avoid yielding for consecutive transaction cancel operations (we used to yeild every time, but we need to keep the sdkMutex lock while the database transaction is ongoing)

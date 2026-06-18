@@ -2115,10 +2115,6 @@ class MegaRequestPrivate : public MegaRequest
         std::function<error()> performRequest;
         std::function<error(TransferDbCommitter&)> performTransferRequest;
 
-        // perform fireOnRequestFinish in sendPendingReqeusts()
-        // See fireOnRequestFinish
-        std::function<void()> performFireOnRequestFinish;
-
         ~MegaRequestPrivate() override;
         MegaRequest *copy() override;
         void setNodeHandle(MegaHandle newNodeHandle);
@@ -4986,6 +4982,12 @@ public:
         void fireOnRequestFinish(MegaRequestPrivate* request,
                                  unique_ptr<MegaErrorPrivate> e,
                                  bool callbackIsFromOtherThread = false);
+        // Finish a request whose completion was deferred from another thread, but
+        // only if it is still tracked in requestMap (it may have been finished and
+        // deleted in the meantime, e.g. by abortPendingActions). Runs on the
+        // MegaApiImpl thread; see the cross-thread branch of fireOnRequestFinish.
+        void finishRequestIfStillTracked(MegaRequestPrivate* request,
+                                         unique_ptr<MegaErrorPrivate> e);
         void fireOnRequestUpdate(MegaRequestPrivate *request);
         void fireOnRequestTemporaryError(MegaRequestPrivate *request, unique_ptr<MegaErrorPrivate> e);
         bool fireOnTransferData(MegaTransferPrivate *transfer);
