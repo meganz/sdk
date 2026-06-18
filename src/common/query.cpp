@@ -195,15 +195,6 @@ Query::~Query()
     sqlite3_finalize(mStatement);
 }
 
-Query& Query::operator=(Query&& rhs)
-{
-    Query temp(std::move(rhs));
-
-    swap(temp);
-
-    return *this;
-}
-
 Query& Query::operator=(const std::string& rhs)
 {
     return operator=(rhs.c_str());
@@ -407,16 +398,6 @@ void Query::reset()
         // So we know when reset fails due to locks.
         LogWarningF(logger(), "%s: %s", prefix, reason);
     }
-}
-
-void Query::swap(Query& other)
-{
-    using std::swap;
-
-    swap(other.mDB, other.mDB);
-    swap(other.mFields, other.mFields);
-    swap(other.mParameters, other.mParameters);
-    swap(other.mStatement, other.mStatement);
 }
 
 sqlite3* Query::database() const

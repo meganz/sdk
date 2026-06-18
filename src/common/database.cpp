@@ -54,6 +54,8 @@ Database::Database(Logger& logger, const LocalPath& path)
         // Ensure the database has been closed.
         sqlite3_close(mDB);
 
+        mDB = nullptr;
+
         // Log the failure and return a suitable exception.
         return LogErrorF(*mLogger,
                          "Unable to open database: %s: %s",
@@ -106,6 +108,8 @@ Database::Database(Database&& other)
 Database::~Database()
 {
     sqlite3_close(mDB);
+
+    mDB = nullptr;
 
     if (mLogger)
         LogDebugF(*mLogger, "Database closed: %s", mPath.c_str());

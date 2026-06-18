@@ -2157,6 +2157,7 @@ MegaClient::~MegaClient()
     delete pendingcs;
     delete badhostcs;
     delete dbaccess;
+    dbaccess = nullptr;
     LOG_debug << clientname << "~MegaClient completing";
 }
 

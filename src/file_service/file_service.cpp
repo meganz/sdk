@@ -66,7 +66,8 @@ FileService::FileService(common::Client& publicClient):
     mServiceOptionsLock(),
     mPublicClient(publicClient),
     mInitialized(false),
-    mPublicStorageName(getNamer().name(publicClient.dbRootPath()))
+    mPublicDbRootPath(publicClient.dbRootPath()),
+    mPublicStorageName(getNamer().name(mPublicDbRootPath))
 {
     construct();
 }
@@ -109,7 +110,7 @@ try
     mContext = std::make_unique<FileServiceContext>(
         mPublicClient,
         *this,
-        UserStoragePath{mPublicClient.dbRootPath(), mPublicStorageName});
+        UserStoragePath{mPublicDbRootPath, mPublicStorageName});
 
     FSInfo1("File Service constructed");
 

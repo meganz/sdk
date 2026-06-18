@@ -128,8 +128,6 @@ struct Query
 
     ~Query();
 
-    Query& operator=(Query&& rhs);
-
     Query& operator=(const std::string& rhs);
 
     Query& operator=(const char* rhs);
@@ -159,8 +157,6 @@ struct Query
     auto param(const char* name) -> Parameter;
 
     void reset();
-
-    void swap(Query& other);
 
 private:
     friend class Field;
