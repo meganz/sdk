@@ -94,10 +94,12 @@
 #include <atomic>
 #include <cassert>
 #include <cstring>
+#include <functional>
 #include <iostream>
 #include <mutex>
 #include <sstream>
 #include <string>
+#include <thread>
 #include <vector>
 #if __cplusplus >= 202002L
 #include <filesystem>
@@ -391,6 +393,13 @@ class SimpleLogger
         logValue(se.code().category().name());
         logValue(": ");
         logValue(se.what());
+    }
+
+    void logValue(const std::thread::id& value)
+    {
+        NumBuf buf;
+        const auto size = snprintf(buf, sizeof(buf), "%zu", std::hash<std::thread::id>{}(value));
+        copyToBuffer(buf, std::min(size, static_cast<int>(sizeof(buf)) - 1));
     }
 #endif
 
