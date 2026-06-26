@@ -394,6 +394,11 @@ struct WsPool
     // shorter than) UPLOADTIMEOUT, which retains chunk-phase semantics elsewhere:
     // a pure-handshake-failure loop now surfaces onFail in <=60s instead of 180s.
     static constexpr dstime HANDSHAKEFAILTIMEOUT = secondsToDs(60);
+    // Max workers allowed to be handshaking at once, per pool (fix #2, de-convoy
+    // Design C's C1). 2 keeps a warm spare in flight (a single slow handshake cannot
+    // stall the pool) while bounding the client-thread handshake FIFO convoy to O(1)
+    // instead of O(mNumberOfConnections) (root_cause.md S3b).
+    static constexpr int COLDSTART_HANDSHAKE_CONNS = 2;
     static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
     static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
     static constexpr dstime BACKLOG_EMPTY_RETRY_DS = 2;
@@ -415,6 +420,12 @@ struct WsPool
 
     m_off_t mMinFileSize{0}, mMaxFileSize{0};
     int mNumChunksInFlight{0};
+    // Cold-start handshake gate (fix #2, root_cause.md S3b). Number of THIS pool's
+    // workers currently inside a first/reconnect connectWS(). Capped at
+    // COLDSTART_HANDSHAKE_CONNS so N workers do not stampede the single client-thread
+    // handshake FIFO at once. Written only on the worker thread under
+    // mImpl->uploadMutex (same discipline as mNumChunksInFlight).
+    int mConnectingCount{0};
 
     dstime mLastActive{0};
     dstime mLastServerResponse{0};
@@ -533,6 +544,21 @@ struct WsPool
     {
         mNumberOfConnections = n;
         checkThreads();
+    }
+
+    // Release-safe twin of countOpenConnectionsLocked() (which is #ifndef NDEBUG and
+    // so cannot be used in the shipped cold-start gate, fix #2). Early-exits on the
+    // first OPEN connection. Caller must hold mImpl->uploadMutex.
+    bool anyOpenConnLocked() const
+    {
+        for (const auto* c: mConns)
+        {
+            if (c && c->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
 #ifndef NDEBUG

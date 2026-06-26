@@ -984,6 +984,35 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
         if (ws->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::CLOSED)
         {
+            // Cold-start de-convoy gate (fix #2, root_cause.md S3b). uploadMutex (lk)
+            // is held here. A worker may handshake iff the pool already has >=1 OPEN
+            // connection (warm refill path) OR fewer than COLDSTART_HANDSHAKE_CONNS
+            // workers are currently handshaking (cold path). Otherwise park on the
+            // Lever-F workerWakeCv (releasing lk while parked) and re-loop. Pinned
+            // pools bypass entirely so InvalidPinned* failover timing is unchanged.
+            if (!mPinned && !anyOpenConnLocked() &&
+                mConnectingCount >= COLDSTART_HANDSHAKE_CONNS)
+            {
+                const auto wakeEpochBeforeGate = mImpl->workerWakeEpoch;
+                mImpl->workerWakeCv.wait_for(
+                    lk,
+                    std::chrono::milliseconds(200),
+                    [&]
+                    {
+                        return th->terminate || mImpl->stopping() ||
+                               mImpl->workerWakeEpoch != wakeEpochBeforeGate;
+                    });
+                continue; // re-evaluate: another worker may now be OPEN
+            }
+            // Reserve a cold-start slot. The write happens with lk held (this thread);
+            // the matching decrement happens after the ScopedUnlock dtor re-locks lk.
+            // Single-decrement invariant: incremented on exactly one branch (non-pinned,
+            // was CLOSED, admitted), decremented exactly once by the same worker below.
+            const bool reservedColdStart = !mPinned;
+            if (reservedColdStart)
+            {
+                ++mConnectingCount;
+            }
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(this,
                                                     static_cast<unsigned>(retryCount),
@@ -995,6 +1024,14 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                 ScopedUnlock unlock(lk);
                 ok = ws->connectWS();
             }
+            // lk is re-held here (ScopedUnlock dtor). Release the cold-start slot and
+            // wake parked workers so the gate is re-evaluated promptly instead of after
+            // the 200ms poll (a connection just opened or failed).
+            if (reservedColdStart && mConnectingCount > 0)
+            {
+                --mConnectingCount;
+            }
+            mImpl->notifyWorkersLocked(); // wsupload_engine.h, lk held
 
             if (!ok)
             {
