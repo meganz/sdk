@@ -215,6 +215,146 @@ namespace mega {
         int secondaryDropHits = 0;
     };
 
+    // Fault-injection actions for WsBuf::sendWS (fix #6 deterministic repro).
+    enum class WsSendFaultAction
+    {
+        None = 0,
+        // Truncate the next curl_ws_send to a partial length so the SDK is left
+        // mid-frame (mSendPos advanced but mSendPos < mDataLen, return false).
+        ForcePartial = 1,
+        // Tear the connection down (closeWS) while a frame is mid-flight, before
+        // its continuation is presented on the same handle.
+        ForceDrop = 2,
+    };
+
+    // Self-locked, always-compiled fault hook (modeled on WsUploadServerEventHook).
+    // Only the DEBUG_TEST_HOOK_WS_SEND_FAULT macro is gated on
+    // MEGASDK_DEBUG_TEST_HOOKS_ENABLED. Drives the only deterministic mid-frame
+    // trigger: ForcePartial leaves a half-sent frame, then ForceDrop closes the
+    // socket between the partial curl_ws_send and its continuation (the existing
+    // DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW fires only BETWEEN send passes, never
+    // inside a partial frame). See fix #6 §6.3.
+    struct WsSendFaultHook
+    {
+        WsSendFaultHook() = default;
+        WsSendFaultHook(const WsSendFaultHook&) = delete;
+        WsSendFaultHook& operator=(const WsSendFaultHook&) = delete;
+
+        WsSendFaultHook(WsSendFaultHook&& other) noexcept
+        {
+            std::lock_guard<std::mutex> g(other.mMutex);
+            mEnabled = other.mEnabled;
+            mPartialBytes = other.mPartialBytes;
+            mDropAfterPartial = other.mDropAfterPartial;
+            mPartialHits = other.mPartialHits;
+            mDropHits = other.mDropHits;
+            mSawPartial = other.mSawPartial;
+        }
+
+        WsSendFaultHook& operator=(WsSendFaultHook&& other) noexcept
+        {
+            if (this == &other)
+            {
+                return *this;
+            }
+            std::scoped_lock lk(mMutex, other.mMutex);
+            mEnabled = other.mEnabled;
+            mPartialBytes = other.mPartialBytes;
+            mDropAfterPartial = other.mDropAfterPartial;
+            mPartialHits = other.mPartialHits;
+            mDropHits = other.mDropHits;
+            mSawPartial = other.mSawPartial;
+            return *this;
+        }
+
+        // partialBytes: how many bytes curl_ws_send is allowed to take on the first
+        // pass (must be >=1; the rest stays unsent so the SDK is mid-frame).
+        // dropAfterPartial: if true, the pass immediately AFTER the forced partial
+        // tears the connection down (closeWS) instead of continuing the frame.
+        void configure(std::size_t partialBytes, bool dropAfterPartial)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mEnabled = true;
+            mPartialBytes = partialBytes ? partialBytes : 1;
+            mDropAfterPartial = dropAfterPartial;
+            mPartialHits = 0;
+            mDropHits = 0;
+            mSawPartial = false;
+        }
+
+        void reset()
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mEnabled = false;
+            mPartialBytes = 0;
+            mDropAfterPartial = false;
+            mPartialHits = 0;
+            mDropHits = 0;
+            mSawPartial = false;
+        }
+
+        int getPartialHits() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return mPartialHits;
+        }
+
+        int getDropHits() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return mDropHits;
+        }
+
+        // Called inside WsBuf::sendWS after `remaining` is computed and before
+        // curl_ws_send. `remaining` is the full unsent length of the current frame.
+        // Returns the action; for ForcePartial sets forcedSendLen in [1, remaining-1].
+        WsSendFaultAction evaluate(std::size_t remaining, std::size_t& forcedSendLen)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            if (!mEnabled || remaining <= 1)
+            {
+                return WsSendFaultAction::None;
+            }
+
+            // Order matters: once a partial has been forced, the NEXT pass drops
+            // (mid-frame), then the hook disarms itself (one partial + one drop).
+            if (mSawPartial)
+            {
+                if (mDropAfterPartial)
+                {
+                    mSawPartial = false;
+                    mEnabled = false;
+                    ++mDropHits;
+                    return WsSendFaultAction::ForceDrop;
+                }
+                return WsSendFaultAction::None;
+            }
+
+            std::size_t take = mPartialBytes;
+            if (take >= remaining)
+            {
+                take = remaining - 1; // keep at least 1 byte unsent
+            }
+            if (take == 0)
+            {
+                return WsSendFaultAction::None;
+            }
+            forcedSendLen = take;
+            mSawPartial = true;
+            ++mPartialHits;
+            return WsSendFaultAction::ForcePartial;
+        }
+
+    private:
+        mutable std::mutex mMutex;
+        bool mEnabled = false;
+        std::size_t mPartialBytes = 0;
+        bool mDropAfterPartial = false;
+        int mPartialHits = 0;
+        int mDropHits = 0;
+        bool mSawPartial = false;
+    };
+
     struct MegaTestHooks
     {
         // O-13: guards whole-struct assignment (e.g. `globalMegaTestHooks = MegaTestHooks();`
@@ -319,6 +459,9 @@ namespace mega {
         // ctor/op=; the outer mMutex keeps the enclosing struct move atomic, and the
         // sub-object's mutex keeps its fields safe for evaluate() from any thread.
         WsUploadServerEventHook wsUploadServerEventHook;
+        // Self-locked WS send-fault hook (fix #6 deterministic repro); own internal
+        // mutex + locked move, like wsUploadServerEventHook above.
+        WsSendFaultHook wsSendFaultHook;
         // Allows tests to override completion payload length observed by WS upload handling.
         std::function<void(int&)> onWsUploadCompletionPayloadLen;
 
@@ -376,6 +519,8 @@ namespace mega {
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
             // WsUploadServerEventHook already has its own locked move-assign.
             wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
+            // WsSendFaultHook likewise has its own locked move-assign.
+            wsSendFaultHook = std::move(other.wsSendFaultHook);
             onHookFileFingerprintUseLegacyBuggySparseCrc =
                 std::move(other.onHookFileFingerprintUseLegacyBuggySparseCrc);
             onHookDeviceId = std::move(other.onHookDeviceId);
@@ -619,6 +764,14 @@ namespace mega {
                                                                             (CHUNKPOS)); \
         }
 
+// WS_SEND_FAULT reads the self-locked WsSendFaultHook sub-object (own internal
+// mutex), so no outer lock is needed. REMAINING is the current frame's unsent
+// length; on ForcePartial, FORCEDLEN receives a value in [1, REMAINING-1].
+#define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, FORCEDLEN, RESULT) \
+        { \
+            (RESULT) = globalMegaTestHooks.wsSendFaultHook.evaluate((REMAINING), (FORCEDLEN)); \
+        }
+
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL) \
     do { \
         std::function<bool(ws::WsConn*, ws::WsPool*, const std::string&)> _fn; \
@@ -742,6 +895,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
+#define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, FORCEDLEN, RESULT)
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)

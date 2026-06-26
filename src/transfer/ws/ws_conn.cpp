@@ -835,7 +835,32 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
               << ", mDataLen(=" << mDataLen << ") - mSendPos(=" << mSendPos
               << ") = " << (mDataLen - mSendPos) << ", &sent, 0, CURLWS_BINARY) [this = " << this
               << "]";
-    const std::size_t remaining = static_cast<std::size_t>(mDataLen - mSendPos);
+    std::size_t remaining = static_cast<std::size_t>(mDataLen - mSendPos);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    // Fix #6 deterministic repro: ForcePartial truncates this curl_ws_send so the
+    // SDK is left mid-frame; ForceDrop tears the connection down mid-frame (before
+    // the continuation is presented on the same handle). See testhooks.h.
+    {
+        std::size_t forcedSendLen = 0;
+        WsSendFaultAction faultAction = WsSendFaultAction::None;
+        DEBUG_TEST_HOOK_WS_SEND_FAULT(remaining, forcedSendLen, faultAction);
+        if (faultAction == WsSendFaultAction::ForceDrop)
+        {
+            WSUPLOAD_TRACE << "[WsBuf::sendWS] WS_SEND_FAULT ForceDrop -> ws->closeWS() mid-frame "
+                              "[this = "
+                           << this << "]";
+            ws->closeWS();
+            return false;
+        }
+        if (faultAction == WsSendFaultAction::ForcePartial && forcedSendLen > 0 &&
+            forcedSendLen < remaining)
+        {
+            WSUPLOAD_TRACE << "[WsBuf::sendWS] WS_SEND_FAULT ForcePartial -> truncate remaining "
+                           << remaining << " to " << forcedSendLen << " [this = " << this << "]";
+            remaining = forcedSendLen;
+        }
+    }
+#endif
     const CURLcode res = curl_ws_send(ws->curl, buf + mSendPos, remaining, &sent, 0, CURLWS_BINARY);
     if (res == CURLE_OK)
     {

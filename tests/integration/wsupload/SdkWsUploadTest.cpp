@@ -4359,4 +4359,132 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
 }
 
+/**
+ * @brief Fix #6 deterministic repro — partial WS send torn down mid-frame recovers.
+ *
+ * Drives the only deterministic mid-frame teardown: WsSendFaultHook forces ONE
+ * partial curl_ws_send (SDK left mid-frame) and then ForceDrops (closeWS) on the
+ * next pass, before the frame's continuation is presented on the same handle.
+ *
+ * Pre-fix (no teardown hygiene + dead ~WsConn assert): the half-sent frame is torn
+ * down across reconnect / curl_easy_cleanup and the in-flight chunk bookkeeping is
+ * mishandled -> the upload fails to complete or its size mismatches (or crashes
+ * under ASan). Post-fix (mFrameInProgress + closeWS detect + C3 requeue): the whole
+ * chunk is requeued and re-sent on the fresh handle -> API_OK + cloud size match.
+ *
+ * The partialFrameTornDownCount stat assertion lands with the fix commit (the
+ * counter field only exists once the teardown-hygiene fix is in the tree).
+ */
+TEST_F(SdkWsUploadTest, PartialSendMidFrameCloseRecovers)
+{
+    LOG_info << "___TEST SdkWsUploadPartialSendMidFrameCloseRecovers___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Step 1: source file large enough to span several chunks/frames.
+    const std::string fileName =
+        "ws_partial_midframe_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "P")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    // Always disarm the fault hook on exit so it cannot leak into sibling tests.
+    auto cleanupHook = makeScopedDestructor(
+        []()
+        {
+            ::mega::globalMegaTestHooks.wsSendFaultHook.reset();
+        });
+
+    // Step 2: single connection + throttle keeps the send path slow and the single
+    // mid-frame teardown deterministic.
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
+
+    // Step 3: start upload.
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 4: wait for confirmed progress (chunk-sends are happening).
+    WsUploadTransferSnapshot beforeFault{};
+    const bool gotProgress = waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        beforeFault,
+        [](const WsUploadTransferSnapshot& s)
+        {
+            return s.progressCompleted > 0;
+        },
+        120,
+        200);
+    if (!gotProgress)
+    {
+        megaApi[0]->setMaxUploadSpeed(-1);
+        (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        GTEST_SKIP() << "Upload did not show WS progress; cannot test mid-frame partial-send";
+    }
+
+    // Step 5: arm the fault hook — force one partial frame, then drop mid-frame on
+    // the very next send pass. 1024 bytes leaves the rest of the ~1 MiB frame unsent.
+    ::mega::globalMegaTestHooks.wsSendFaultHook.configure(/*partialBytes*/ 1024,
+                                                          /*dropAfterPartial*/ true);
+
+    // Uncap so chunk-sends proceed quickly and the hook fires.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    // Step 6: wait until both the partial and the mid-frame drop have been observed.
+    bool faultObserved = false;
+    second_timer faultTimer;
+    while (faultTimer.elapsed() < 90)
+    {
+        if (::mega::globalMegaTestHooks.wsSendFaultHook.getPartialHits() >= 1 &&
+            ::mega::globalMegaTestHooks.wsSendFaultHook.getDropHits() >= 1)
+        {
+            faultObserved = true;
+            break;
+        }
+        if (ut.finished)
+        {
+            break;
+        }
+        WaitMillisec(200);
+    }
+    ASSERT_TRUE(faultObserved)
+        << "Fault hook never forced a partial+drop within 90s "
+        << "[partialHits=" << ::mega::globalMegaTestHooks.wsSendFaultHook.getPartialHits()
+        << "] [dropHits=" << ::mega::globalMegaTestHooks.wsSendFaultHook.getDropHits() << "]";
+    ASSERT_GE(::mega::globalMegaTestHooks.wsSendFaultHook.getPartialHits(), 1)
+        << "No partial frame was forced (false pass guard)";
+    ASSERT_GE(::mega::globalMegaTestHooks.wsSendFaultHook.getDropHits(), 1)
+        << "No mid-frame drop was forced (false pass guard)";
+
+    // Step 7: the upload must still recover and complete (no crash, chunk re-sent).
+    const auto finalResult = ut.waitForResult(240);
+    ASSERT_EQ(finalResult, API_OK)
+        << "Upload did not complete after a mid-frame partial-send teardown";
+
+    // Step 8: verify uploaded node exists and size matches the local source.
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+}
+
 } // namespace mega::test::wsupload
