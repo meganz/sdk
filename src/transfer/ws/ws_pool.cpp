@@ -227,6 +227,7 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
             continue;
         out.curlAgainSendCount += c->mCurlAgainSendCount;
         out.curlAgainRecvCount += c->mCurlAgainRecvCount;
+        out.partialFrameTornDownCount += c->mPartialFrameTornDownCount;
         if (static_cast<std::uint64_t>(c->mBufferedAmountHighWater) > out.bufferedAmountHighWater)
             out.bufferedAmountHighWater =
                 static_cast<std::uint64_t>(c->mBufferedAmountHighWater);

@@ -218,6 +218,8 @@ public:
         // Send-side counters (aggregated across pools/conns).
         std::uint64_t curlAgainSendCount = 0;
         std::uint64_t curlAgainRecvCount = 0;
+        // # closeWS() teardowns that ran with a live partial frame (fix #6).
+        std::uint64_t partialFrameTornDownCount = 0;
         std::uint64_t haveSpaceFalseIters = 0;
         std::uint64_t haveSpaceFalseWaitMs = 0;
         std::uint64_t readyForDataFalseIters = 0;

@@ -198,6 +198,11 @@ struct WsBuf
     char buf[20 + kMiB];
     int mSendPos{0};
     int mDataLen{0};
+    // True once curl_ws_send accepted PART of this frame (sent < remaining) but the
+    // frame is not yet complete. While set, the libcurl easy holds in-progress frame
+    // state (enc.payload_remain / sendbuf) that MUST NOT survive a reconnect: closeWS()
+    // drops it and the whole chunk is requeued (fix #6). Cleared by reset().
+    bool mFrameInProgress{false};
 
     void add(const char* data, const int len)
     {
@@ -211,6 +216,7 @@ struct WsBuf
     {
         mSendPos = 0;
         mDataLen = 0;
+        mFrameInProgress = false;
     }
 
     bool sendWS(struct WsConn* ws, int& bufferedAmount);
@@ -249,6 +255,8 @@ struct WsConn
     // by WsPool::addWsUploadStatsForTesting.
     std::uint64_t mCurlAgainSendCount{0};
     std::uint64_t mCurlAgainRecvCount{0};
+    // # closeWS() calls that ran while a buffer held a live partial frame (fix #6).
+    std::uint64_t mPartialFrameTornDownCount{0};
     int mBufferedAmountHighWater{0};
     unsigned mChunksInFlightHighWater{0};
     // Throttle-recovery telemetry (per-connection). Set on event=6 receipt,

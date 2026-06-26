@@ -4473,12 +4473,39 @@ TEST_F(SdkWsUploadTest, PartialSendMidFrameCloseRecovers)
     ASSERT_GE(::mega::globalMegaTestHooks.wsSendFaultHook.getDropHits(), 1)
         << "No mid-frame drop was forced (false pass guard)";
 
-    // Step 7: the upload must still recover and complete (no crash, chunk re-sent).
+    // Step 7: confirm the fix's teardown-hygiene path actually ran -- closeWS()
+    // detected the live partial frame at least once. Poll while the conn is still
+    // alive (the per-conn counter is surfaced via addWsUploadStatsForTesting). This
+    // is the verdict-mandatory window-hit check (a false pass would otherwise be
+    // indistinguishable from "the fault never reached the teardown path").
+    std::uint64_t tornDown = 0;
+    second_timer tornTimer;
+    while (tornTimer.elapsed() < 60)
+    {
+        ::mega::ws::UploadEngine::WsUploadStatsForTesting stats{};
+        if (fetchWsUploadStatsForTesting(*megaApi[0], stats, 1) && stats.found)
+        {
+            tornDown = stats.partialFrameTornDownCount;
+            if (tornDown >= 1)
+            {
+                break;
+            }
+        }
+        if (ut.finished)
+        {
+            break;
+        }
+        WaitMillisec(200);
+    }
+    EXPECT_GE(tornDown, 1u)
+        << "closeWS() never recorded a partial-frame teardown; fix path not exercised";
+
+    // Step 8: the upload must still recover and complete (no crash, chunk re-sent).
     const auto finalResult = ut.waitForResult(240);
     ASSERT_EQ(finalResult, API_OK)
         << "Upload did not complete after a mid-frame partial-send teardown";
 
-    // Step 8: verify uploaded node exists and size matches the local source.
+    // Step 9: verify uploaded node exists and size matches the local source.
     rootnode.reset(megaApi[0]->getRootNode());
     ASSERT_TRUE(rootnode);
     std::unique_ptr<MegaNode> cloudNode(

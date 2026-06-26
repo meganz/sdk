@@ -140,11 +140,23 @@ WsConn::~WsConn()
     if (mPool && mPool->mImpl)
     {
         std::lock_guard<std::mutex> lk(mPool->mImpl->uploadMutex);
-        // Any in-flight chunk must have been requeued or closed out by closeWS() before
-        // the owning pool-worker thread exits and destroys the WsConn; otherwise the
-        // chunk is silently lost.
+        // Any in-flight chunk should have been requeued or closed out by closeWS() before
+        // the owning pool-worker thread exits and destroys the WsConn. The assert fires
+        // loudly in Debug; C3 insurance (fix #6): in Release the dead assert is a no-op,
+        // so without this requeue the chunks would be silently dropped and
+        // mNumChunksInFlight left stale-high (pool wedge). Mirror
+        // retryChunksOnTheWireLocked under the same already-held uploadMutex.
         assert(mChunksInFlight.empty() &&
                "WsConn destroyed with in-flight chunks; closeWS() must run first");
+        if (!mChunksInFlight.empty())
+        {
+            for (auto& p: mChunksInFlight)
+            {
+                mPool->mToResend.push_back(p.first);
+            }
+            mPool->mNumChunksInFlight -= static_cast<int>(mChunksInFlight.size());
+            mChunksInFlight.clear();
+        }
         mPool->mConns.erase(mConns_it);
     }
     if (curl)
@@ -164,6 +176,11 @@ bool WsConn::connectWS()
     if (curl)
     {
         WSUPLOAD_TRACE << "[WsConn::connectWS] curl already exists, cleanup [this = " << this << "]";
+        // Fix #6: a handle that carried a half-sent frame must be fully cleaned up, never
+        // reused, so its mid-frame state cannot start a fresh frame out of sync. closeWS()
+        // must have run first (which clears mFrameInProgress via resetBufferedSendState).
+        assert((!mBufs[0].mFrameInProgress && !mBufs[1].mFrameInProgress) &&
+               "connectWS() reached with a partial frame staged; closeWS() must run first");
         curl_easy_cleanup(curl);
         curl = nullptr;
     }
@@ -273,6 +290,11 @@ bool WsConn::connectWS()
 
     curl = baton->easy.release(); // worker thread exclusively owns the handle now
     readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
+    // Fix #6: a fresh handle must never inherit a stale partial frame; closeWS() runs
+    // before any reconnect and resets the send cursor + mFrameInProgress.
+    assert(!mBufs[0].mFrameInProgress && !mBufs[1].mFrameInProgress &&
+           mBufs[0].mSendPos == 0 && mBufs[1].mSendPos == 0 &&
+           "WsConn reconnected with a stale partial frame; closeWS() must run first");
     onopen(); // your existing callback
     WSUPLOAD_TRACE << "[WsConn::connectWS] END -> success, return true [this = " << this << "]";
     return true;
@@ -291,6 +313,19 @@ void WsConn::closeWS()
     // a belt-and-suspenders write documenting intent.
     mPendingClose = false;
     readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
+    // Fix #6 teardown hygiene: if a buffer holds a partially-sent WS frame, the libcurl
+    // easy (about to be curl_easy_cleanup-ed on reconnect) owns half-frame state that
+    // cannot continue on a fresh handle. We discard the SDK cursor (resetBufferedSendState
+    // below clears mSendPos + mFrameInProgress) and rely on onclose()->
+    // retryChunksOnTheWire() to requeue the whole chunk for a fresh send.
+    const bool hadPartialFrame = mBufs[0].mFrameInProgress || mBufs[1].mFrameInProgress;
+    (void)hadPartialFrame;
+#ifndef NDEBUG
+    if (hadPartialFrame)
+    {
+        ++mPartialFrameTornDownCount;
+    }
+#endif
     resetBufferedSendState();
     onclose();
     WSUPLOAD_TRACE << "[WsConn::closeWS] END [this = " << this << "]";
@@ -879,6 +914,10 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
         }
         WSUPLOAD_TRACE << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") != mDataLen(=" << mDataLen
                   << ") -> return false [this = " << this << "]";
+        // Fix #6: curl_ws_send accepted only part of this frame. The libcurl easy now
+        // holds in-progress frame state that cannot continue on a fresh handle, so this
+        // frame must be torn down (not reconnected) by closeWS().
+        mFrameInProgress = true;
         return false;
     }
     if (res != CURLE_AGAIN)
