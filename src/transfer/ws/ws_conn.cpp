@@ -100,6 +100,14 @@ constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
 // the curl handshake makes progress on the client thread.
 constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
 
+// The worker baton must OUTLIVE the handshake's own CURLOPT_TIMEOUT so a slow
+// handshake is terminated by curl (fast, definitive, frees the easy) rather than
+// abandoned by the baton (which leaves the easy running on the client thread).
+// Slack covers FIFO queueing + the 200ms CV poll granularity.
+constexpr int WSUPLOAD_HANDSHAKE_BATON_SLACK_MS = 5000;
+constexpr int WSUPLOAD_HANDSHAKE_BATON_MS =
+    static_cast<int>(WSUPLOAD_HANDSHAKE_TIMEOUT_MS) + WSUPLOAD_HANDSHAKE_BATON_SLACK_MS; // 20000
+
 // TU-local enum: server-event opcodes for the WS upload response stream.
 // Only used by WsConn::onmessage; moved together with the body.
 enum class WsApiServerEvent: signed char
@@ -229,7 +237,8 @@ bool WsConn::connectWS()
     //  2) WS engine stop is requested (stopping());
     //  3) local 20s watchdog deadline is reached.
     std::unique_lock<std::mutex> lk(baton->m);
-    const auto waitDeadline = std::chrono::steady_clock::now() + std::chrono::seconds(20);
+    const auto waitDeadline =
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(WSUPLOAD_HANDSHAKE_BATON_MS);
     while (!baton->done)
     {
         if (mPool->mImpl->stopping())

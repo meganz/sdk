@@ -2518,7 +2518,16 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
     configureWsEasy(easy, /*isPostJson*/ false);
     curl_easy_setopt(easy, CURLOPT_URL, url.c_str());
     if (timeoutMs > 0)
+    {
+        // Bound the TCP-connect leg AND the overall handshake (TLS + WS upgrade).
+        // Without an overall TIMEOUT the upgrade leg is unbounded under loss and
+        // outruns the worker baton (ws_conn.cpp:232), which abandons a handshake
+        // that still completes on the client thread -> wasted client-thread seconds
+        // (root_cause.md S3a). 15s is generous: a clean handshake is <1s, so this
+        // never trips on a good link (clean-network no-op).
         curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
+        curl_easy_setopt(easy, CURLOPT_TIMEOUT_MS, timeoutMs);
+    }
 
     CURLcode rc = curl_easy_perform(easy);
     if (rc != CURLE_OK)
