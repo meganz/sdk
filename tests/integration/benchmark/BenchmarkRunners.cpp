@@ -26,9 +26,14 @@
 #include "sdk_test_utils.h"
 #include "test.h"
 #include "wsupload/headers/WsUploadDebugHelpers.h"
+#ifdef MEGA_USE_WSUPLOAD
+#include "wsupload/headers/ScopedUploadSpeedLimit.h"
+#endif
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
 #include "bench_framework/headers/BenchReportWriter.h"
 #endif
+
+#include <optional>
 
 #include <gtest/gtest.h>
 
@@ -542,6 +547,8 @@ void runSmallUploadsBenchmark(SdkTest& test,
 static constexpr std::uintmax_t kBenchMiB = 1024ull * 1024ull;
 static constexpr std::uintmax_t kBenchGiB = 1024ull * kBenchMiB;
 static constexpr std::uintmax_t kBenchLargeFileSize = 10ull * kBenchGiB;
+// QA reproduction: the exact file the QA tester uploaded over a poor network.
+static constexpr std::uintmax_t kQaExactFileSize = 4ull * kBenchMiB;
 static constexpr std::uintmax_t kBenchRequiredFreeBytes = 25ull * kBenchGiB;
 static constexpr size_t kBenchSmallFileCount = 500;
 static constexpr size_t kBenchSmallFileSize = 1 * 1024 * 1024;
@@ -767,6 +774,141 @@ void runSingleLargeUploadBenchmark(SdkTest& test)
     recordBenchCell(test,
                     "SingleLargeUpload",
                     /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
+                    /*connections=*/0,
+                    /*totalMs=*/static_cast<std::int64_t>(totalMs),
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/1);
+#endif
+    test.deleteFolder(folderName);
+}
+
+void runQaExactSingleFileBenchmark(SdkTest& test)
+{
+    constexpr int kTimeoutS = 4 * 60 * 60;
+    constexpr const char* kTestName = "SdkTestBenchmarkQaExactSingleFile";
+
+    LOG_info << "___TEST___ " << kTestName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+    // No requireBenchStagingSpace(): a 4 MiB file needs negligible disk, the
+    // 25 GiB gate is only meaningful for the 10 GiB large-file cells.
+
+    // Env-var override of upload connection count (mirrors SingleLargeUpload).
+    if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
+    {
+        const int n = std::atoi(envConns);
+        if (n > 0)
+        {
+            ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            LOG_info << "[QaExactSingleFile] connections override = " << n;
+        }
+    }
+
+    // BANDWIDTH knob: MEGA_NET_MAXUPLOAD_KBPS is kilobits/sec (as in the iOS
+    // Network Link Conditioner). Convert to bytes/sec for setMaxUploadSpeed and
+    // scope the cap to the duration of this upload.
+#ifdef MEGA_USE_WSUPLOAD
+    std::optional<::mega::test::wsupload::ScopedUploadSpeedLimit> uploadSpeedCap;
+#endif
+    if (const char* envKbps = std::getenv("MEGA_NET_MAXUPLOAD_KBPS"))
+    {
+        const long kbps = std::atol(envKbps);
+        if (kbps > 0)
+        {
+            const int bytesPerSec = static_cast<int>(kbps * 1000 / 8);
+#ifdef MEGA_USE_WSUPLOAD
+            uploadSpeedCap.emplace(*test.megaApi[0], bytesPerSec);
+#else
+            test.megaApi[0]->setMaxUploadSpeed(bytesPerSec);
+#endif
+            LOG_info << "[QaExactSingleFile] maxUploadKbps=" << kbps
+                     << " (bytesPerSec=" << bytesPerSec << ")";
+        }
+    }
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string suffix = benchUniqueSuffix(kTestName);
+    const std::string folderName = "bench_qa_exact_" + suffix;
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    const fs::path stagingDir = benchStagingRoot() / folderName;
+    std::error_code cleanupEc;
+    fs::remove_all(stagingDir, cleanupEc);
+    const auto cleanup = makeScopedDestructor(
+        [stagingDir]()
+        {
+            std::error_code ec;
+            fs::remove_all(stagingDir, ec);
+        });
+
+    const std::string qaName = "bench_qa_exact_4m.bin";
+    const fs::path qaPath = stagingDir / qaName;
+    ASSERT_NO_FATAL_FAILURE(
+        createDenseDeterministicFile(qaPath,
+                                     kQaExactFileSize,
+                                     benchUploadContentSeed(suffix, 0x5360f504ull)));
+
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    TransferTracker tracker(test.megaApi[0].get());
+    BenchPutnodesTimingRecorder putnodesRecorder;
+
+    const auto procStatsStart = captureBenchProcessStats();
+    const auto apiStart = std::chrono::steady_clock::now();
+    test.megaApi[0]->startUpload(qaPath.string(),
+                                 folder.get(),
+                                 nullptr,
+                                 &uploadOptions,
+                                 &tracker);
+
+    const ErrorCodes res = tracker.waitForResult(kTimeoutS);
+    const auto apiEnd = std::chrono::steady_clock::now();
+    const auto procStatsEnd = captureBenchProcessStats();
+    ASSERT_EQ(res, API_OK) << "QA-exact upload failed with code " << res;
+    ASSERT_NO_FATAL_FAILURE(
+        verifyUploadedFile(test, tracker.resultNodeHandle, qaName, kQaExactFileSize));
+
+    const auto startMs = tracker.mStartSteadyMs.load();
+    const auto finishMs = tracker.mFinishSteadyMs.load();
+    ASSERT_GT(startMs, 0);
+    ASSERT_GT(finishMs, startMs);
+    const auto timingSummary =
+        summarizeBenchTimings(std::vector<const TransferTracker*>{&tracker},
+                                  putnodesRecorder);
+
+    const auto totalMs = finishMs - startMs;
+    const auto apiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
+    const double aggregateKBps = aggregateKBpsForBytes(kQaExactFileSize, totalMs);
+
+    std::ostringstream summary;
+    summary << "[BenchQaExactSingleFile] files=1 fileSize=" << kQaExactFileSize
+            << " totalBytes=" << kQaExactFileSize
+            << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
+            << " apiTotalMs=" << apiTotalMs
+            << " avgKBps=" << aggregateKBps << " medianKBps=" << aggregateKBps
+            << " minKBps=" << aggregateKBps << " maxKBps=" << aggregateKBps
+            << " finishMs=" << tracker.mFinishSteadyMs.load()
+            << " contentSeed=" << benchUploadContentSeed(suffix, 0x5360f504ull);
+    appendBenchTimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+    logBenchProcessStatsDelta("QaExactSingleFile", procStatsStart, procStatsEnd);
+    logBenchWsStats(test, 1);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    recordBenchCell(test,
+                    "QaExactSingleFile",
+                    /*fileSizeMib=*/4,
                     /*connections=*/0,
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
                     aggregateKBps,

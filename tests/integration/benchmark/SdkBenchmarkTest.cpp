@@ -42,6 +42,18 @@ TEST_F(SdkBenchmarkTest, SingleLargeUpload)
     runSingleLargeUploadBenchmark(*this);
 }
 
+/**
+ * @brief Benchmark / QA reproduction: one 4 MiB file (the exact file the QA
+ * tester uploaded) is sent into a fresh remote folder. Honours the
+ * MEGA_NET_MAXUPLOAD_KBPS env var (kilobits/s) to cap upload bandwidth, so the
+ * poor-network upload can be reproduced under scripts/ci/netem_profile.sh. The
+ * test emits a greppable [BenchQaExactSingleFile] summary line.
+ */
+TEST_F(SdkBenchmarkTest, QaExactSingleFile)
+{
+    runQaExactSingleFileBenchmark(*this);
+}
+
 TEST_F(SdkBenchmarkTest, LargePlusManySmall)
 {
     runLargePlusManySmallBenchmark(*this);

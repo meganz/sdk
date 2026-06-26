@@ -30,6 +30,13 @@ void runSmallUploadsBenchmark(SdkTest& test,
 // Drives the single-large-upload bench cell (10 GiB).
 void runSingleLargeUploadBenchmark(SdkTest& test);
 
+// Drives the QA-tester reproduction cell: one 4 MiB file (the exact file the
+// QA tester uploaded). Honours the MEGA_NET_MAXUPLOAD_KBPS env var (kilobits/s,
+// matching the iOS Network Link Conditioner) to cap upload bandwidth for the
+// duration of the transfer, so poor-network behaviour can be reproduced under
+// scripts/ci/netem_profile.sh.
+void runQaExactSingleFileBenchmark(SdkTest& test);
+
 // Drives the large + many-small mixed bench cell (10 GiB + 500 * 1 MiB).
 void runLargePlusManySmallBenchmark(SdkTest& test);
 
