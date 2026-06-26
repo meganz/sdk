@@ -91,6 +91,7 @@
 #include <cstring>
 #include <memory>
 #include <mutex>
+#include <random>
 #include <utility>
 
 namespace mega
@@ -606,6 +607,29 @@ WsUploadFile* WsPool::handshakeFailureCandidateLocked(const dstime now) const
     return nullptr;
 }
 
+dstime WsPool::reconnectBackoffDsLocked(const int retryCount) const
+{
+    // Capped-exponential base: CONNRETRYINTERVAL doubled per consecutive failure,
+    // clamped at min(retryCount,3) doublings (8x) and at CONNRETRYMAXINTERVAL. On
+    // the clean link this is never reached (connectWS succeeds first), so it is a
+    // failure-only no-op (root_cause.md S3c).
+    const int shift = std::min(retryCount < 0 ? 0 : retryCount, 3);
+    dstime base = CONNRETRYINTERVAL << shift;
+    if (base > CONNRETRYMAXINTERVAL)
+    {
+        base = CONNRETRYMAXINTERVAL;
+    }
+
+    // +0..50% jitter (mirrors BackoffTimer::backoff()'s base + (base/2)*frac shape,
+    // src/backofftimer.cpp). Lock-free: a thread_local engine, seeded once per
+    // worker thread, so this never touches uploadMutex / the engine PrnGen.
+    thread_local std::minstd_rand rng{std::random_device{}()};
+    const double frac =
+        static_cast<double>(rng()) / static_cast<double>(std::minstd_rand::max());
+    const dstime jitter = static_cast<dstime>((static_cast<double>(base) / 2.0) * frac);
+    return base + jitter;
+}
+
 void WsPool::purgeFileLocked(const std::uint32_t fileno)
 {
     // Drop any queued resends for this file.
@@ -1065,8 +1089,17 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                           << "] [this = " << this << "]";
 
                 {
+                    // Capped-exponential backoff + jitter (fix #3). Replaces the flat
+                    // CONNRETRYINTERVAL so N workers do not retry in lockstep and feed
+                    // more handshakes into the convoy (root_cause.md S3c). retryCount is
+                    // the worker-local consecutive-failure counter (maintained above);
+                    // reconnectBackoffDsLocked reads only it (lock-free). On the clean
+                    // link this branch is never taken (connectWS succeeds first), so it
+                    // is a failure-only no-op. Composes with #4: this only changes the
+                    // sleep duration, not retryCount/firstConnectFailureDs accounting.
+                    const dstime backoffDs = reconnectBackoffDsLocked(retryCount);
                     ScopedUnlock unlock(lk);
-                    SteadyTime::sleep_ds(CONNRETRYINTERVAL);
+                    SteadyTime::sleep_ds(backoffDs);
                 }
                 continue;
             }

@@ -385,6 +385,10 @@ struct WsPoolThread
 struct WsPool
 {
     static constexpr dstime CONNRETRYINTERVAL = secondsToDs(5);
+    // Ceiling for the capped-exponential reconnect backoff (fix #3). The flat
+    // CONNRETRYINTERVAL is the base; it doubles per consecutive failure up to this
+    // cap, with jitter, so N workers do not retry in lockstep (root_cause.md S3c).
+    static constexpr dstime CONNRETRYMAXINTERVAL = secondsToDs(30);
     static constexpr dstime UPLOADTIMEOUT = secondsToDs(180);
     static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
     static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
@@ -639,6 +643,14 @@ struct WsPool
     void retryChunkLocked(const WsChunk& chunk);
     void retryChunk(const WsChunk& chunk);
     WsUploadFile* handshakeFailureCandidateLocked(dstime now) const;
+
+    // Capped-exponential reconnect backoff with jitter (fix #3). Reads only the
+    // worker-local consecutive-failure counter (no shared pool state), so it is
+    // lock-free; named *Locked only for call-site convention (it is invoked from
+    // the worker loop where lk may or may not be held). Returns a sleep duration in
+    // deciseconds in [CONNRETRYINTERVAL, ~1.5*CONNRETRYMAXINTERVAL]. Defined out-of-
+    // line in ws_pool.cpp.
+    dstime reconnectBackoffDsLocked(int retryCount) const;
 
     void retryChunksOnTheWire(WsConn* ws);
     void retryChunksOnTheWireLocked(WsConn* ws);
