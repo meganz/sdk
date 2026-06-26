@@ -390,6 +390,10 @@ struct WsPool
     // cap, with jitter, so N workers do not retry in lockstep (root_cause.md S3c).
     static constexpr dstime CONNRETRYMAXINTERVAL = secondsToDs(30);
     static constexpr dstime UPLOADTIMEOUT = secondsToDs(180);
+    // Sustained-handshake-failure escalation window (fix #4b). Separate from (and
+    // shorter than) UPLOADTIMEOUT, which retains chunk-phase semantics elsewhere:
+    // a pure-handshake-failure loop now surfaces onFail in <=60s instead of 180s.
+    static constexpr dstime HANDSHAKEFAILTIMEOUT = secondsToDs(60);
     static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
     static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
     static constexpr dstime BACKLOG_EMPTY_RETRY_DS = 2;

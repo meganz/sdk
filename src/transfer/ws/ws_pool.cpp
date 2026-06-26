@@ -1029,7 +1029,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 // Repeated handshake failures for an active upload must eventually transition
                 // through Transfer::failed/backoff instead of looping forever in reconnect.
-                dstime sustainedHandshakeFailureWindowDs = UPLOADTIMEOUT;
+                // Use a dedicated, shorter HANDSHAKEFAILTIMEOUT here (fix #4b) rather than
+                // reusing UPLOADTIMEOUT (which keeps its chunk-phase semantics elsewhere): a
+                // pure-handshake-failure loop now surfaces onFail in <=60s instead of 180s.
+                dstime sustainedHandshakeFailureWindowDs = HANDSHAKEFAILTIMEOUT;
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(
                     sustainedHandshakeFailureWindowDs);
@@ -1072,6 +1075,16 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                         retryCount = 0;
                         firstConnectFailureDs = 0;
                         continue;
+                    }
+                    else
+                    {
+                        // No failable candidate right now (e.g. file mid-refresh/migration,
+                        // or already unbound by a prior escalation). Do NOT let the window
+                        // re-satisfy forever: reset it so we re-accumulate from scratch and
+                        // re-evaluate on the next cycle once the candidate re-binds. This
+                        // closes the pure-handshake-failure forever-loop (root_cause.md sec.4).
+                        retryCount = 0;
+                        firstConnectFailureDs = 0;
                     }
                 }
 
