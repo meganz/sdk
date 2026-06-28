@@ -13,6 +13,7 @@ target_sources_conditional(test_integration
     PRIVATE
     wsupload/headers/SdkWsUploadTest.h
     wsupload/SdkWsUploadTest.cpp
+    wsupload/SdkWsUploadCrashTest.cpp
     wsupload/headers/ScopedUploadSpeedLimit.h
     wsupload/headers/SecondTimer.h
     wsupload/headers/TransferTempErrorTracker.h
