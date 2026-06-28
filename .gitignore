@@ -34,3 +34,4 @@ docs/methodology/*
 !docs/methodology/portable_template/**
 !docs/methodology/benchmark_discipline.md
 !docs/methodology/tsan_discipline.md
+!docs/methodology/poor_network_discipline.md

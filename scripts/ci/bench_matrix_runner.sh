@@ -55,7 +55,14 @@ while IFS='|' read -r LABEL BINDIR PROFILE FILTER N TIMEOUT_S EXTRA_ENV; do
   BIN="$BINDIR/tests/integration/test_integration"
   if [[ ! -x "$BIN" ]]; then say "[$idx/$total] FAIL $LABEL: binary missing $BIN"; printf '%s\t%s\t%s\t%s\t-\t-\tNO_BINARY\t-\t0\n' "$LABEL" "$PROFILE" "$FILTER" "$N" >>"$RESULTS"; touch "$COLLECT/$LABEL.DONE"; continue; fi
 
-  ( set -a; source "$BINDIR/tests/integration/environment2.txt" 2>/dev/null; set +a; : ) # validate creds source
+  # Fail-fast on missing creds: a missing environment2.txt would make every unit
+  # fail instantly (rc=255) and the loop would otherwise mark them all DONE, burning
+  # the queue. Abort the whole runner instead so the queue can be re-run after fixing.
+  if [[ ! -f "$BINDIR/tests/integration/environment2.txt" ]]; then
+    say "FATAL: environment2.txt missing in $BINDIR/tests/integration — aborting (queue NOT burned). Copy it from a working build dir and re-run."
+    exit 4
+  fi
+  ( set -a; source "$BINDIR/tests/integration/environment2.txt"; set +a; [[ -n "${MEGA_EMAIL:-}" ]] ) || { say "FATAL: MEGA_EMAIL not set after sourcing $BINDIR/.../environment2.txt — aborting."; exit 4; }
   say "[$idx/$total] RUN $LABEL  profile=$PROFILE filter=$FILTER n=$N timeout=${TIMEOUT_S}s"
   t0=$(date +%s)
   (
