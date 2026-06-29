@@ -2533,6 +2533,10 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
 
     // On success, DETACH from shared state before we hand the handle to worker threads.
     curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
+    // Drop the stack-local error buffer before the handle outlives this frame:
+    // the worker thread keeps using `easy`, and a later error would otherwise have
+    // libcurl write into the dangling `ebuf` address.
+    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, nullptr);
     LOG_debug << "[CurlHttpIO::wsHandshake] END -> return easy=" << (void*)easy << " [url=" << url
               << "] [timeoutMs=" << timeoutMs << "] [this = " << this << "]";
     return easy;
