@@ -485,6 +485,20 @@ if(ENABLE_SDKLIB_WERROR)
     )
 endif()
 
+## Enable ARC for Objective-C / Objective-C++ sources on Apple platforms ##
+# The SPM source build compiles .m/.mm with ARC by default; the cmake build did
+# not, so autoreleased objects (e.g. the NSData in GfxProcCG.mm) were not retained
+# and crashed with EXC_BAD_ACCESS once their autorelease pool drained. Keep .mm
+# compiled as CXX (preserving -std) and just add -fobjc-arc to the ObjC(++) TUs.
+if(APPLE)
+    get_target_property(_sdklib_sources SDKlib SOURCES)
+    foreach(_src IN LISTS _sdklib_sources)
+        if(_src MATCHES "\\.(mm|m)$")
+            set_source_files_properties(${_src} PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+        endif()
+    endforeach()
+endif()
+
 ## Create config files ##
 configure_file(
     cmake/config.h.in
