@@ -3193,8 +3193,8 @@ public:
         CodeCounter::ScopeStats syncItemCXF = { "syncItemCXF" };
         CodeCounter::ScopeStats syncItemCSX = { "syncItemCSX" };
         CodeCounter::ScopeStats syncItemCSF = { "syncItemCSF" };
-        CodeCounter::ScopeStats clientThreadActions = { "clientThreadActions" };
 #endif
+        CodeCounter::ScopeStats clientThreadActions = { "clientThreadActions" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;
