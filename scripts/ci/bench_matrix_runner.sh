@@ -63,7 +63,20 @@ while IFS='|' read -r LABEL BINDIR PROFILE FILTER N TIMEOUT_S EXTRA_ENV; do
     exit 4
   fi
   ( set -a; source "$BINDIR/tests/integration/environment2.txt"; set +a; [[ -n "${MEGA_EMAIL:-}" ]] ) || { say "FATAL: MEGA_EMAIL not set after sourcing $BINDIR/.../environment2.txt — aborting."; exit 4; }
-  say "[$idx/$total] RUN $LABEL  profile=$PROFILE filter=$FILTER n=$N timeout=${TIMEOUT_S}s"
+  # Provenance echo (SDK-5360 fu8 Session 5): make binary identity + applied knobs
+  # log-provable per run so config==used never rests on a manifest alone (must-remeasure
+  # #9/#10, ledger N3). Recorded into <LABEL>.provenance and the runner.log.
+  BIN_MD5="$(md5sum "$BIN" 2>/dev/null | cut -d' ' -f1)"
+  {
+    echo "label=$LABEL"
+    echo "binary=$BIN"
+    echo "binary_md5=$BIN_MD5"
+    echo "profile=$PROFILE"
+    echo "filter=$FILTER"
+    echo "n=$N"
+    echo "extra_env=${EXTRA_ENV:-}"
+  } > "$COLLECT/$LABEL.provenance"
+  say "[$idx/$total] RUN $LABEL  profile=$PROFILE filter=$FILTER n=$N timeout=${TIMEOUT_S}s md5=${BIN_MD5:0:8} env=[${EXTRA_ENV:-}]"
   t0=$(date +%s)
   (
     cd "$BINDIR/tests/integration" || exit 9
@@ -90,7 +103,15 @@ while IFS='|' read -r LABEL BINDIR PROFILE FILTER N TIMEOUT_S EXTRA_ENV; do
   tracelog=$(find "$HOME/mega_tests" -name 'test_integration.log' -newermt "@$t0" 2>/dev/null | xargs -r ls -t 2>/dev/null | head -1)
   [[ -n "$tracelog" ]] && echo "$tracelog" > "$COLLECT/$LABEL.tracelog"
   # keep a compact result-line tail (not the whole verbose log)
-  { grep -aE '\[  (PASSED|FAILED)|\[       OK|\[  FAILED|\(.*ms\)|Bench report|AddressSanitizer|SIGSEGV|Assertion|in-flight chunks' "$COLLECT/$LABEL.fullout.log" | tail -25; } > "$COLLECT/$LABEL.log" 2>/dev/null
+  # Preserve, in the compact per-unit log: gtest result lines, the netem banner
+  # (profile==used provenance, SDK-5360 fu8 N3), the [WsUploadStats] line (config==used:
+  # maxConnectionsWithInFlightSeen + refreshPoolsCount) and the aggregateKBps summary — so
+  # per-cell provenance is readable without opening the multi-MB pid log.
+  {
+    grep -aE 'netem_profile\.sh: profile=' "$COLLECT/$LABEL.fullout.log" | tail -1
+    grep -aE '\[WsUploadStats\]|aggregateKBps=' "$COLLECT/$LABEL.fullout.log" | tail -4
+    grep -aE '\[  (PASSED|FAILED)|\[       OK|\[  FAILED|\(.*ms\)|Bench report|AddressSanitizer|SIGSEGV|Assertion|in-flight chunks' "$COLLECT/$LABEL.fullout.log" | tail -25
+  } > "$COLLECT/$LABEL.log" 2>/dev/null
   rm -f "$COLLECT/$LABEL.fullout.log"
 
   printf '%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\t%s\n' "$LABEL" "$PROFILE" "$FILTER" "$N" "$rc" "$wall" "$status" "${jsonl:-none}" "$lines" >> "$RESULTS"

@@ -37,6 +37,7 @@ Both are agent-friendly artifacts. `CLAUDE.md` / `AGENTS.md` cover the
 | `portable_template/` | Starter scaffold for adopting the methodology in a new repo or new ticket. Self-contained; safe to copy out. |
 | `benchmark_discipline.md` | SDK-universal bench framework usage guide (build, JSON artifact schema, throttle-storm caveats, comparison recipes). |
 | `tsan_discipline.md` | SDK-universal TSAN usage guide (presets, TSAN_OPTIONS, WS-upload surface filter, race classification). |
+| `poor_network_discipline.md` | SDK-universal poor-network/packet-loss test discipline (netem netns harness, `net_profiles.env`, QaExact cell, serial matrix runner, HR57–60). Standardizes degraded-network coverage so a QA-caught stall/crash gap can never silently reopen. |
 
 **Gitignored (per-contributor / per-ticket):**
 
@@ -113,6 +114,8 @@ starter scaffold.
 - [benchmark_discipline.md](benchmark_discipline.md) — SDK bench
   framework usage (universal).
 - [tsan_discipline.md](tsan_discipline.md) — SDK TSAN usage (universal).
+- [poor_network_discipline.md](poor_network_discipline.md) — SDK
+  poor-network/packet-loss test discipline (universal; HR57–60).
 - [docs/ci/CI_TESTING_GUIDE.md](../ci/CI_TESTING_GUIDE.md) — Jenkins
   trigger phrases, preset glossary, artifact patterns.
 - [tests/integration/BENCHMARKS.md](../../tests/integration/BENCHMARKS.md)

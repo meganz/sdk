@@ -131,7 +131,30 @@ teardown() {
     sudo rm -rf "/etc/netns/$NS" 2>/dev/null || true
 }
 
-# --- Pre-clean any stale same-named state, then arm the trap -----------------
+# --- Global stale-state sweep (robustness) -----------------------------------
+# A prior run that was killed/crashed before teardown leaves a vqa* veth still
+# holding the FIXED host address 10.211.7.1; the next run's identical address
+# assignment then silently collides -> the netns default route blackholes ->
+# every cs/login POST times out (HTTP status 0) -> the whole bench fails at
+# login with no obvious cause. Benches are strictly serial (HR56), so no live
+# peer can exist: sweep EVERY leftover megaqa_*/vqa* so a dead predecessor can
+# never break the next bench.
+sweep_stale_global() {
+    local ns vif hdl
+    for ns in $(ip netns list 2>/dev/null | awk '/^megaqa_/{print $1}'); do
+        sudo ip netns del "$ns" 2>/dev/null || true
+    done
+    for vif in $(ip -br link show type veth 2>/dev/null | awk '/^vqa/{sub(/@.*/,"",$1); print $1}'); do
+        sudo ip link del "$vif" 2>/dev/null || true
+    done
+    # Drop now-inert FORWARD accept rules that reference any (now-deleted) vqa* veth.
+    for hdl in $(sudo nft -a list chain ip filter FORWARD 2>/dev/null | awk '/"vqa/{for(i=1;i<=NF;i++) if($i=="handle") print $(i+1)}'); do
+        sudo nft delete rule ip filter FORWARD handle "$hdl" 2>/dev/null || true
+    done
+}
+
+# --- Pre-clean any stale state (global predecessors + self), then arm trap ----
+sweep_stale_global
 teardown
 trap teardown EXIT INT TERM
 

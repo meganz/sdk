@@ -181,9 +181,21 @@ TEST_F(SdkWsUploadTest, DistressStormDuringFailureDoesNotCrash)
     megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
 
     ASSERT_TRUE(WaitFor(
-        [&evHook]()
+        // This predicate is capture-free ON PURPOSE and references the namespace-scope
+        // global globalMegaTestHooks directly (not the local reference-alias evHook).
+        // A namespace-scope global needs NO capture on any compiler, which is the only
+        // form that satisfies all three:
+        //   - clang: capturing evHook triggers -Werror,-Wunused-lambda-capture (evHook
+        //     is a reference to a subobject of the global, usable in constant
+        //     expressions and not odr-used, so the capture is "unused").
+        //   - MSVC: does the opposite — it REQUIRES the capture (C3493/C2326 "cannot be
+        //     implicitly captured"), so [&evHook] would be mandatory there and would
+        //     re-break clang.
+        // Referencing the global directly needs no capture anywhere; do not "simplify"
+        // this back to evHook inside the lambda.
+        []()
         {
-            return evHook.getHitCount() > 0;
+            return globalMegaTestHooks.wsUploadServerEventHook.getHitCount() > 0;
         },
         120000))
         << "Timed out waiting for first Distress (event==5) injection — no chunk acked, "

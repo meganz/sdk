@@ -727,7 +727,7 @@ void runSingleLargeUploadBenchmark(SdkTest& test)
 
     // Env-var override of upload connection count. Hoisted so the requested count is
     // recorded into the bench JSONL (the ACTUALLY-USED count is logged separately).
-    int connOverride = 0;
+    [[maybe_unused]] int connOverride = 0;
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
     {
         const int n = std::atoi(envConns);
@@ -847,7 +847,7 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     // ACTUALLY-USED flow count is logged separately via maxConnectionsWithInFlightSeen
     // (logBenchWsStats) because develop caps connections for small files (configured
     // != used) -- the analysis must verify config==used per row.
-    int connOverride = 0;
+    [[maybe_unused]] int connOverride = 0;
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
     {
         const int n = std::atoi(envConns);
@@ -863,7 +863,7 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     // single-file poor-network experiment can sweep {2,4,8} MiB on this one cell.
     // Default = kQaExactFileSize (4 MiB, the literal QA "Very Bad Network" vehicle).
     std::uintmax_t qaFileSize = kQaExactFileSize;
-    std::int64_t qaFileSizeMib = static_cast<std::int64_t>(kQaExactFileSize / kBenchMiB);
+    [[maybe_unused]] std::int64_t qaFileSizeMib = static_cast<std::int64_t>(kQaExactFileSize / kBenchMiB);
     if (const char* envSizeMib = std::getenv("MEGA_BENCH_QA_FILE_SIZE_MIB"))
     {
         const long mib = std::atol(envSizeMib);
@@ -1016,7 +1016,7 @@ void runSmallFileBurstBenchmark(SdkTest& test)
 
     // Env-var override of upload connection count (mirrors QaExact / SingleLarge).
     // Hoisted so the requested count is recorded into the bench JSONL.
-    int connOverride = 0;
+    [[maybe_unused]] int connOverride = 0;
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
     {
         const int n = std::atoi(envConns);

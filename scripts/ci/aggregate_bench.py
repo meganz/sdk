@@ -116,6 +116,8 @@ CELL_ALIASES: Dict[str, str] = {
     "SdkTestBenchmark1kSmallUploads": "1ksmall",
     "LargePlusManySmall": "largeplusmanysmall",
     "SdkTestBenchmarkLargePlusManySmall": "largeplusmanysmall",
+    "SmallFileBurst": "smallfileburst",
+    "SdkTestBenchmarkSmallFileBurst": "smallfileburst",
 }
 
 
