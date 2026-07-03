@@ -836,6 +836,494 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
 }
 
 /**
+ * @brief Verify a multi-file DATASET ramps a pool's connection target above the default limit.
+ *
+ * The SDK-5360 dataset connection-count bump (WsPool::lossBoostedConnLimitLocked,
+ * src/transfer/ws/ws_pool.cpp) UNCONDITIONALLY widens a pool's connection target to K
+ * (kLossBoostedDatasetConnLimit = 32, or MEGA_WS_DATASET_CONN_LIMIT) as soon as the pool
+ * carries a DATASET (mNumPoolFiles >= 2), gated by MEGA_WS_DATASET_CONN_BUMP (default ON).
+ * A single-file upload (mNumPoolFiles <= 1) never gets the dataset boost. With the default
+ * pool connection limit at 8 (connections[PUT]), a DATASET pool must therefore ramp its
+ * active worker threads / connections ABOVE 8 toward K, whereas a lone file stays <= 8.
+ *
+ * - TEST1: Upload N=5 equal-size (8 MiB, one size class, multi-chunk) DISTINCT-content files
+ *          so they bind to ONE size-class pool as a genuine dataset (numPoolFiles >= 2).
+ *          Distinct content is REQUIRED: identical-content files are fingerprint-deduplicated /
+ *          coalesced into a single transfer (see the startUpload mtime-update note in
+ *          megaapi.h), which would collapse the "dataset" back to one file and defeat the test.
+ * - TEST2: Throttle to 400 KB/s so the 40 MiB dataset stays actively uploading (~100 s) long
+ *          enough for checkPools to scale the pool toward K, and so all 5 files remain
+ *          in-flight together (numPoolFiles >= 2 holds throughout the ramp window).
+ * - TEST3: Require the active pool is observed on the SAME sample as a dataset
+ *          (numPoolFiles >= 2) AND with activeThreads > 8 -- impossible without the dataset
+ *          bump, since the default limit is 8. We assert > 8 rather than == 32 because a
+ *          throttled, loss-free ramp may not reach the full ceiling before the upload drains,
+ *          and the exact K is a tunable constant (kLossBoostedDatasetConnLimit /
+ *          MEGA_WS_DATASET_CONN_LIMIT).
+ */
+TEST_F(SdkWsUploadTest, DatasetConnBumpExceedsDefaultConnLimit)
+{
+    LOG_info << "___TEST SdkWsUploadDatasetConnBumpExceedsDefaultConnLimit___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
+    // N equal-size files => one size class => one dataset pool. 8 MiB is multi-chunk (WsPool
+    // packs 4.5 MiB + N*1 MiB chunks). The default pool connection limit is 8, so any observed
+    // activeThreads > 8 on this pool can only come from the dataset connection-count bump.
+    constexpr size_t kFileCount = 5;
+    constexpr size_t kFileSize = 8u * 1024u * 1024u; // 8 MiB
+    constexpr unsigned kDefaultPoolConnLimit = 8u;   // connections[PUT]
+
+    const std::string namePrefix =
+        "ws_dataset_conn_bump_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_";
+
+    std::vector<std::string> fileNames;
+    fileNames.reserve(kFileCount);
+
+    // Declared before the creation loop so a mid-loop failure still cleans up prior files.
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileNames]()
+        {
+            for (const auto& fileName: fileNames)
+            {
+                deleteFile(fileName);
+            }
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        const std::string fileName = namePrefix + std::to_string(i) + ".bin";
+        fileNames.emplace_back(fileName); // track for cleanup even if creation fails midway
+        // DISTINCT fill byte per file => distinct content/fingerprint => 5 real, independent
+        // uploads (no dedup / no same-fingerprint transfer coalescing). Size stays identical.
+        const std::string fillPattern(1, static_cast<char>('A' + i));
+        ASSERT_TRUE(createFileWithSize(fileName, kFileSize, fillPattern))
+            << "Couldn't create " << fileName;
+    }
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(8, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Throttle so the 40 MiB dataset stays active (~100 s) long enough for checkPools to ramp
+    // the pool toward K. RAII restores unlimited on every exit path so the shared throttle
+    // bucket is clean for the next test. (Do NOT use unlimited -- a fast clean upload can drain
+    // before the pool ever ramps.)
+    ScopedUploadSpeedLimit uploadThrottle{*megaApi[0], 400 * 1024}; // 400 KB/s
+
+    std::vector<std::unique_ptr<TransferTracker>> uploadTrackers;
+    uploadTrackers.reserve(kFileCount);
+    auto uploadOptions = makeDefaultUploadOptions();
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        uploadTrackers.emplace_back(std::make_unique<TransferTracker>(megaApi[0].get()));
+        megaApi[0]->startUpload(fileNames[i],
+                                rootnode.get(),
+                                nullptr /*cancelToken*/,
+                                &uploadOptions,
+                                uploadTrackers.back().get());
+    }
+
+    WsUploadTransferSnapshot activeUpload{};
+    ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        activeUpload,
+        [](const WsUploadTransferSnapshot& snapshot)
+        {
+            return snapshot.found && snapshot.wsFileno > 0 && !snapshot.wsSessionUrl.empty() &&
+                   snapshot.state == TRANSFERSTATE_ACTIVE && snapshot.progressCompleted > 0;
+        },
+        60,
+        200))
+        << "Failed to observe an active WS upload snapshot";
+
+    ws::UploadEngine::PoolStateForTesting state{};
+    ws::UploadEngine::PoolStateForTesting lastObservedState{};
+    std::string observedPoolUrl = activeUpload.wsSessionUrl;
+    unsigned maxActiveThreadsSeen = 0;
+    unsigned maxConnectionsWithInFlightSeen = 0;
+    int maxNumPoolFilesSeen = 0;
+    bool datasetBumpEngaged = false;
+
+    second_timer bumpTimer;
+    while (bumpTimer.elapsed() < 120)
+    {
+        // The dominant pool URL may shift as files migrate/complete; re-observe it each poll.
+        WsUploadTransferSnapshot latest{};
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], latest, 1) && latest.found &&
+            !latest.wsSessionUrl.empty())
+        {
+            observedPoolUrl = latest.wsSessionUrl;
+        }
+
+        if (!observedPoolUrl.empty() &&
+            fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, 1))
+        {
+            lastObservedState = state;
+            maxActiveThreadsSeen = std::max(maxActiveThreadsSeen, state.activeThreads);
+            maxConnectionsWithInFlightSeen =
+                std::max(maxConnectionsWithInFlightSeen, state.maxConnectionsWithInFlightSeen);
+            maxNumPoolFilesSeen = std::max(maxNumPoolFilesSeen, state.numPoolFiles);
+
+            // Bump engaged: a DATASET pool (>= 2 files) whose active connection count has ramped
+            // ABOVE the default limit of 8. Both must hold on the SAME pool sample.
+            if (state.found && state.numPoolFiles >= 2 &&
+                state.activeThreads > kDefaultPoolConnLimit)
+            {
+                LOG_info << "Observed dataset connection bump: activeThreads="
+                         << state.activeThreads << " > default " << kDefaultPoolConnLimit
+                         << " with numPoolFiles=" << state.numPoolFiles;
+                datasetBumpEngaged = true;
+                break;
+            }
+        }
+
+        // Stop early if every upload already finished (nothing left to ramp).
+        if (std::all_of(uploadTrackers.begin(),
+                        uploadTrackers.end(),
+                        [](const std::unique_ptr<TransferTracker>& t)
+                        {
+                            return t->finished.load();
+                        }))
+        {
+            break;
+        }
+
+        WaitMillisec(200);
+    }
+
+    // > 8 is impossible without the dataset bump (the default pool connection limit is 8). We
+    // assert > 8 rather than == 32 because a throttled/loss-free ramp may not reach the full
+    // ceiling before the dataset drains, and the exact K is a tunable constant.
+    ASSERT_TRUE(datasetBumpEngaged)
+        << "DATASET pool never ramped active connections above the default limit of "
+        << kDefaultPoolConnLimit << " while carrying >= 2 files (dataset bump did not engage)"
+        << " [url=" << observedPoolUrl << "] [maxActiveThreadsSeen=" << maxActiveThreadsSeen
+        << "] [maxNumPoolFilesSeen=" << maxNumPoolFilesSeen
+        << "] [maxConnectionsWithInFlightSeen=" << maxConnectionsWithInFlightSeen
+        << "] -- last observed pool state: [found=" << lastObservedState.found
+        << "] [hasUploadingFile=" << lastObservedState.hasUploadingFile
+        << "] [activeThreads=" << lastObservedState.activeThreads
+        << "] [openConnections=" << lastObservedState.openConnections
+        << "] [connectionsWithInFlight=" << lastObservedState.connectionsWithInFlight
+        << "] [maxConnectionsWithInFlightSeen=" << lastObservedState.maxConnectionsWithInFlightSeen
+        << "] [numPoolFiles=" << lastObservedState.numPoolFiles
+        << "] [numChunksInFlight=" << lastObservedState.numChunksInFlight
+        << "] [queuedResends=" << lastObservedState.queuedResends
+        << "] [pinned=" << lastObservedState.pinned
+        << "] [retiring=" << lastObservedState.retiring << "]";
+
+    // Best-effort teardown: cancel and drain any still-running uploads so the shared account /
+    // throttle state is clean for the next test. The dataset-bump assertion above is the test
+    // contract; do NOT fail the test on cleanup outcomes.
+    (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+    for (auto& tracker: uploadTrackers)
+    {
+        (void)tracker->waitForResult(120);
+    }
+}
+
+/**
+ * @brief Prove the SDK CLIENT THREAD stays responsive while WS upload handshakes are in flight.
+ *
+ * SDK-5360 "Design A" (MEGA_WS_PARALLEL_HANDSHAKE, default ON) runs every WS upload
+ * handshake on its OWN worker thread rather than on the SDK client thread. Under the
+ * legacy baton path (MEGA_WS_PARALLEL_HANDSHAKE=0) a slow handshake blocks the client
+ * thread for its whole duration (up to 15-45 s in the field), freezing the SDK main
+ * loop so unrelated megaApi requests can neither be dispatched nor completed until the
+ * handshake returns. Design A keeps the client thread free.
+ *
+ * Mechanism: onWsHandshake fires inside CurlHttpIO::wsHandshake (src/posix/net.cpp),
+ * which executes on a WORKER thread under Design A (default) or on the CLIENT thread
+ * under the baton path. The hook here SLEEPS D=3000 ms and then returns false (it does
+ * NOT fail the handshake — it only injects latency). A lightweight client-thread request
+ * (getUserAttribute(USER_ATTR_FIRSTNAME)) is used as the responsiveness PROBE: it is
+ * queued to and completed through the client thread's exec() loop, so if the client
+ * thread is frozen the probe cannot complete until the freeze ends. A warm-up call first
+ * primes the attribute cache so subsequent probes resolve locally on the client thread
+ * (MegaClient::getua short-circuits cached own-user attributes, src/megaclient.cpp),
+ * making the probe independent of network latency; NO netem / throttling is applied, so
+ * the ONLY injected delay in the whole system is the hooked handshake sleep. (Even in the
+ * unlikely event a probe fell back to a network round-trip, its completion is still gated
+ * on the client thread, so the discrimination below still holds.)
+ *
+ * PHASE A (baseline, no handshakes, hook inactive): issue M=8 probes, record latencies.
+ * PHASE B (during slow handshakes): install the D=3000 ms delay hook, start a 5-file
+ * upload with DISTINCT content per file (so they are not fingerprint-deduped into a single
+ * transfer and several handshakes run concurrently), wait until a WS upload handshake is
+ * actively in flight, then issue the SAME M=8 probes.
+ *
+ * PASS (Design A / default MEGA_WS_PARALLEL_HANDSHAKE=ON): the PHASE B probe median stays
+ * within a small factor of PHASE A (medianB <= max(800 ms, 2 * medianA)) AND every PHASE B
+ * probe returns in < 2500 ms — i.e. the client thread never froze despite concurrent slow
+ * handshakes.
+ *
+ * Counterfactual (baton path / MEGA_WS_PARALLEL_HANDSHAKE=0): re-running this exact test in
+ * a second process built with the baton path makes PHASE B probe latency spike to ~D ms
+ * (== the injected handshake sleep) because the client thread runs the handshake itself and
+ * is frozen for the whole 3000 ms window; the < 2500 ms bound then fails. The A/B is split
+ * across two process runs because MEGA_WS_PARALLEL_HANDSHAKE is read once per process and
+ * cannot be toggled in-test.
+ */
+TEST_F(SdkWsUploadTest, ClientThreadNotFrozenByHandshakes)
+{
+    LOG_info << "___TEST SdkWsUploadClientThreadNotFrozenByHandshakes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
+    // ---- Tunables -------------------------------------------------------------------
+    constexpr size_t kFileCount = 5;                     // several concurrent handshakes
+    constexpr size_t kFileSize = 6u * 1024u * 1024u;     // 6 MiB => multi-chunk, non-trivial
+    constexpr int kProbeCount = 8;                        // M probes per phase
+    constexpr long kHandshakeDelayMs = 3000;             // D: injected per-handshake sleep
+    constexpr double kBaselineFloorMs = 800.0;           // absorbs normal client-thread jitter
+    constexpr double kMedianFactor = 2.0;                // PHASE B median <= 2x PHASE A median
+    constexpr long long kMaxProbeMsBound = 2500;         // < injected 3000 ms => clean separation
+    constexpr int kProbeTimeoutS = 30;                   // >> any freeze; we measure, never cap
+    constexpr unsigned kHandshakeInFlightWaitMs = 60000; // budget to observe first handshake
+
+    const std::string namePrefix =
+        "ws_client_freeze_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_";
+
+    std::vector<std::string> fileNames;
+    fileNames.reserve(kFileCount);
+    std::vector<std::unique_ptr<TransferTracker>> uploadTrackers;
+    uploadTrackers.reserve(kFileCount);
+
+    // Handshake counters live on the HEAP behind shared_ptr so the delay hook can capture
+    // them BY VALUE: a pool worker may still hold an in-flight copy of the hook (mid 3000 ms
+    // sleep) after this test scope exits — because we CANCEL rather than await the uploads —
+    // and reference-captured stack counters would be a use-after-free. shared_ptr ownership
+    // keeps the counters alive until every hook copy (global + any in-flight worker copy) is
+    // gone. The test thread reads them via ->load().
+    auto handshakesStarted = std::make_shared<std::atomic<int>>(0);
+    auto handshakesInFlight = std::make_shared<std::atomic<int>>(0);
+
+    // RAII cleanup — mirrors RetryAfterHandshakeFailureRestartsTransferStart. Destruction is
+    // LIFO: clear the onWsHandshake hook FIRST, then cancel/drain uploads, then delete files.
+    // A leaked handshake-sleep hook would slow every later test, so the guard must fire on
+    // EVERY exit path (assertion failure included).
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileNames]()
+        {
+            for (const auto& fileName: fileNames)
+            {
+                deleteFile(fileName);
+            }
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this, &uploadTrackers]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            for (auto& tracker: uploadTrackers)
+            {
+                (void)tracker->waitForResult(120);
+            }
+        });
+    auto clearWsHook = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsHandshake = nullptr;
+        });
+
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        const std::string fileName = namePrefix + std::to_string(i) + ".bin";
+        fileNames.emplace_back(fileName); // track for cleanup even if creation fails midway
+        // Distinct fill byte per file => distinct fingerprint => kFileCount real, independent
+        // uploads (no same-fingerprint coalescing), so several handshakes run at once. See
+        // DatasetConnBumpExceedsDefaultConnLimit for the same distinct-content requirement.
+        const std::string fillPattern(1, static_cast<char>('A' + static_cast<int>(i)));
+        ASSERT_TRUE(createFileWithSize(fileName, kFileSize, fillPattern))
+            << "Couldn't create " << fileName;
+    }
+
+    // Deterministic concurrency regardless of a prior test's connection setting.
+    RequestTracker setConnReq(megaApi[0].get());
+    megaApi[0]->setMaxConnections(8, &setConnReq);
+    ASSERT_EQ(API_OK, setConnReq.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Client-thread responsiveness probe: measure issue -> completion-callback latency of a
+    // single lightweight request. The result code (API_OK when a first name is set,
+    // API_ENOENT otherwise) is irrelevant; only the latency matters.
+    const auto runProbe = [this]() -> long long
+    {
+        RequestTracker probe(megaApi[0].get());
+        const auto issued = std::chrono::steady_clock::now();
+        megaApi[0]->getUserAttribute(MegaApi::USER_ATTR_FIRSTNAME, &probe);
+        (void)probe.waitForResult(kProbeTimeoutS);
+        const auto completed = std::chrono::steady_clock::now();
+        return std::chrono::duration_cast<std::chrono::milliseconds>(completed - issued).count();
+    };
+
+    // Warm up so USER_ATTR_FIRSTNAME is cached; subsequent probes then resolve locally on the
+    // client thread and do not depend on network latency.
+    (void)runProbe();
+
+    // ---- PHASE A: baseline, no handshakes in flight, hook inactive ------------------
+    std::vector<long long> latenciesA;
+    latenciesA.reserve(kProbeCount);
+    for (int i = 0; i < kProbeCount; ++i)
+    {
+        const long long ms = runProbe();
+        latenciesA.push_back(ms);
+        LOG_info << "[ClientThreadNotFrozenByHandshakes] PHASE A probe " << i << " latency=" << ms
+                 << " ms";
+    }
+
+    // Install the delay hook: sleep D ms on each WS UPLOAD handshake, then return false (DO NOT
+    // fail — only inject latency). Under Design A the sleep runs on a worker thread (client
+    // stays free); under the baton path it runs on the client thread (frozen). Direct
+    // assignment + RAII clear exactly as the other onWsHandshake tests in this file
+    // (RetryAfterHandshakeFailureRestartsTransferStart, DistressStormDuringFailureDoesNotCrash).
+    globalMegaTestHooks.onWsHandshake =
+        [handshakesStarted, handshakesInFlight, kHandshakeDelayMs](const std::string& url,
+                                                                   long /*timeoutMs*/,
+                                                                   std::string& /*err*/) -> bool
+    {
+        // Only delay WS UPLOAD handshakes; leave any other handshake untouched.
+        if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
+        {
+            return false;
+        }
+        handshakesStarted->fetch_add(1, std::memory_order_acq_rel);
+        handshakesInFlight->fetch_add(1, std::memory_order_acq_rel);
+        std::this_thread::sleep_for(std::chrono::milliseconds(kHandshakeDelayMs));
+        handshakesInFlight->fetch_sub(1, std::memory_order_acq_rel);
+        return false; // do not fail the handshake — the injected latency is the whole point
+    };
+
+    // Start the multi-file upload so several handshakes run concurrently and stay slow.
+    auto uploadOptions = makeDefaultUploadOptions();
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        uploadTrackers.emplace_back(std::make_unique<TransferTracker>(megaApi[0].get()));
+        megaApi[0]->startUpload(fileNames[i],
+                                rootnode.get(),
+                                nullptr /*cancelToken*/,
+                                &uploadOptions,
+                                uploadTrackers.back().get());
+    }
+
+    // Wait until a WS upload handshake is actively in flight (sleeping) so the PHASE B probes
+    // provably overlap handshake execution. D=3000 ms keeps the window wide; WaitFor polls
+    // every 100 ms so the window is easily caught.
+    const bool handshakeInFlightObserved = WaitFor(
+        [&handshakesInFlight]()
+        {
+            return handshakesInFlight->load(std::memory_order_acquire) > 0;
+        },
+        kHandshakeInFlightWaitMs);
+    LOG_info << "[ClientThreadNotFrozenByHandshakes] handshakeInFlightObserved="
+             << handshakeInFlightObserved
+             << " handshakesStarted=" << handshakesStarted->load();
+
+    // ---- PHASE B: probe WHILE handshakes are in flight ------------------------------
+    std::vector<long long> latenciesB;
+    latenciesB.reserve(kProbeCount);
+    int probesOverlappingHandshake = 0;
+    for (int i = 0; i < kProbeCount; ++i)
+    {
+        const int inFlightAtIssue = handshakesInFlight->load(std::memory_order_acquire);
+        if (inFlightAtIssue > 0)
+        {
+            ++probesOverlappingHandshake;
+        }
+        const long long ms = runProbe();
+        latenciesB.push_back(ms);
+        LOG_info << "[ClientThreadNotFrozenByHandshakes] PHASE B probe " << i << " latency=" << ms
+                 << " ms inFlightAtIssue=" << inFlightAtIssue;
+    }
+
+    // ---- Statistics -----------------------------------------------------------------
+    const auto medianOf = [](std::vector<long long> v) -> double
+    {
+        std::sort(v.begin(), v.end());
+        const size_t n = v.size();
+        if (n == 0)
+        {
+            return 0.0;
+        }
+        return (n % 2 == 0) ? (static_cast<double>(v[n / 2 - 1] + v[n / 2]) / 2.0) :
+                              static_cast<double>(v[n / 2]);
+    };
+    const auto join = [](const std::vector<long long>& v) -> std::string
+    {
+        std::ostringstream os;
+        for (size_t i = 0; i < v.size(); ++i)
+        {
+            if (i)
+            {
+                os << ',';
+            }
+            os << v[i];
+        }
+        return os.str();
+    };
+
+    const double medianA = medianOf(latenciesA);
+    const double medianB = medianOf(latenciesB);
+    const long long maxA = *std::max_element(latenciesA.begin(), latenciesA.end());
+    const long long maxB = *std::max_element(latenciesB.begin(), latenciesB.end());
+    const double medianBound = std::max(kBaselineFloorMs, kMedianFactor * medianA);
+
+    std::ostringstream statsStream;
+    statsStream << " [phaseA_ms=" << join(latenciesA) << "]"
+                << " [phaseB_ms=" << join(latenciesB) << "]"
+                << " [medianA=" << medianA << "]"
+                << " [medianB=" << medianB << "]"
+                << " [maxA=" << maxA << "]"
+                << " [maxB=" << maxB << "]"
+                << " [medianBound=" << medianBound << "]"
+                << " [handshakesStarted=" << handshakesStarted->load() << "]"
+                << " [probesOverlappingHandshake=" << probesOverlappingHandshake << "]"
+                << " [handshakeInFlightObserved=" << (handshakeInFlightObserved ? 1 : 0) << "]";
+    const std::string stats = statsStream.str();
+    LOG_info << "[ClientThreadNotFrozenByHandshakes] results" << stats;
+
+    // Meaningfulness gate: WS upload handshakes must actually have run during PHASE B and been
+    // in flight when the probes were issued, otherwise the responsiveness bounds below would
+    // pass vacuously.
+    ASSERT_GE(handshakesStarted->load(), 1)
+        << "No WS upload handshake ran during PHASE B — the delay hook never fired, so the "
+           "client-thread responsiveness measurement is vacuous."
+        << stats;
+    ASSERT_TRUE(handshakeInFlightObserved)
+        << "No WS upload handshake was observed in flight before issuing PHASE B probes — cannot "
+           "prove the probes overlapped handshake execution."
+        << stats;
+
+    // Design-A contract: the client thread stays responsive during slow handshakes. A baton-
+    // frozen client would show PHASE B probe latency ~= the injected 3000 ms handshake sleep.
+    ASSERT_LE(medianB, medianBound)
+        << "Client thread appears frozen during WS handshakes: PHASE B probe median " << medianB
+        << " ms exceeds the bound " << medianBound << " ms (max(" << kBaselineFloorMs << ", "
+        << kMedianFactor << " * medianA=" << medianA << ")). Under the baton path this spikes to ~"
+        << kHandshakeDelayMs << " ms." << stats;
+    ASSERT_LT(maxB, kMaxProbeMsBound)
+        << "Client thread appears frozen during WS handshakes: slowest PHASE B probe " << maxB
+        << " ms reached the injected " << kHandshakeDelayMs << " ms handshake window (bound "
+        << kMaxProbeMsBound << " ms). Under Design A the client thread must never block on a "
+           "handshake."
+        << stats;
+}
+
+/**
  * @brief Verify sustained WS handshake failures trigger retry and restart transfer start path.
  *
  * - TEST1: Start upload and capture active WS session metadata.
@@ -4512,6 +5000,247 @@ TEST_F(SdkWsUploadTest, PartialSendMidFrameCloseRecovers)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+}
+
+/**
+ * @brief E-3 deterministic diagnostic: force ONE mid-chunk socket close and
+ * measure the whole-chunk re-send waste.
+ *
+ * The WS uploader has no byte-level resume: on a live reconnect,
+ * retryChunksOnTheWireLocked requeues the WHOLE in-flight WsChunk and sendChunk
+ * re-reads + re-emits the full payload. This test exercises that path
+ * deterministically (one forced close via onWsConnForceCloseNow, single
+ * connection so the in-flight set is a single chunk) and compares the
+ * server-accepted byte total (totalCurlWsSendAcceptedBytes, the E-3 Debug
+ * counter surfaced through WsUploadStatsForTesting) to the file size.
+ *
+ * Robust arming (per genetic-fight verdict): the hook captures the pool URL on
+ * its first call WITHOUT firing, the test thread then observes
+ * numChunksInFlight > 0 on that pool and sets `armed`, and the hook fires
+ * exactly once on its next call — so the close lands while a whole chunk is in
+ * flight (the S2 window), NOT at a hardcoded hook-call index.
+ *
+ * The waste assertion is a DIAGNOSTIC EXPECT documenting current whole-chunk
+ * behaviour (accepted > fileSize + ~half a chunk). It flips to EXPECT_LT once a
+ * byte-resume fix lands. The hard ASSERTs (upload completes; cloud size matches
+ * source) guard against a silent short-complete.
+ */
+TEST_F(SdkWsUploadTest, ForceCloseMidChunkResendWaste)
+{
+    LOG_info << "___TEST SdkWsUploadForceCloseMidChunkResendWaste___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
+    // 4 MiB = 8 frames on the escalating ChunkMap ramp (128 KiB .. 1 MiB).
+    const std::string fileName =
+        "ws_forceclose_resend_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = 4u * 1024 * 1024;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "Q")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsConnForceCloseNow = nullptr;
+        });
+
+    // Single connection -> a single deterministic in-flight chunk (no multi-conn
+    // out-of-order-ack confound for the waste measurement).
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    // Clean network; the robust polling-arm makes determinism independent of speed.
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    // Hook: capture the active pool URL on the first call (do NOT fire yet), then
+    // fire exactly once after the test thread observes a chunk in flight on it.
+    std::atomic<bool> armed{false};
+    std::atomic<int> forceCloseFired{0};
+    std::mutex poolUrlMu;
+    std::string observedPoolUrl;
+    globalMegaTestHooks.onWsConnForceCloseNow =
+        [&](::mega::ws::WsConn*, ::mega::ws::WsPool*, const std::string& url) -> bool
+    {
+        if (!url.empty())
+        {
+            std::lock_guard<std::mutex> lk(poolUrlMu);
+            if (observedPoolUrl.empty())
+                observedPoolUrl = url;
+        }
+        if (!armed.load(std::memory_order_acquire))
+            return false;
+        return forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
+    };
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Learn the active pool URL (set by the hook's first invocation, which fires
+    // between send passes once a connection is OPEN).
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> lk(poolUrlMu);
+            return !observedPoolUrl.empty();
+        },
+        120000))
+        << "Never observed a WS pool URL via onWsConnForceCloseNow";
+
+    std::string poolUrl;
+    {
+        std::lock_guard<std::mutex> lk(poolUrlMu);
+        poolUrl = observedPoolUrl;
+    }
+
+    // Arm only after a whole chunk is genuinely in flight on that pool, so the
+    // forced close requeues a real in-flight chunk (the S2 window).
+    const bool sawInFlight = WaitFor(
+        [&]()
+        {
+            ::mega::ws::UploadEngine::PoolStateForTesting state{};
+            return fetchWsUploadPoolStateForTesting(*megaApi[0], poolUrl, state, 1) &&
+                   state.found && state.numChunksInFlight > 0;
+        },
+        120000);
+    ASSERT_TRUE(sawInFlight) << "Never observed numChunksInFlight > 0 on the active pool"
+                             << " [url=" << poolUrl << "]";
+    armed.store(true, std::memory_order_release);
+
+    // Confirm the forced close actually fired (false-pass guard: a waste assertion
+    // is meaningless if no reconnect ever happened).
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return forceCloseFired.load(std::memory_order_acquire) >= 1;
+        },
+        120000))
+        << "Forced mid-chunk close never fired";
+
+    ASSERT_EQ(API_OK, ut.waitForResult(240))
+        << "Upload did not complete after a forced mid-chunk close";
+
+    // Guard against a silent short-complete: the cloud file size must match source.
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+
+    // Read the accepted-bytes counter AFTER completion but while the engine still
+    // holds the (now idle) pool/conns, so the per-conn counters are still summed.
+    ::mega::ws::UploadEngine::WsUploadStatsForTesting stats{};
+    ASSERT_TRUE(fetchWsUploadStatsForTesting(*megaApi[0], stats, 5) && stats.found)
+        << "Could not read WsUploadStatsForTesting after completion";
+    const std::uint64_t accepted = stats.totalCurlWsSendAcceptedBytes;
+    // Per-frame ChunkHeader is 20 bytes (wsupload_internal.h ChunkHeader, packed);
+    // a clean 4 MiB upload sends 8 frames, and the one re-sent chunk adds 1 header.
+    const std::uint64_t headersUpperBound = 20ull * 9;
+    LOG_info << "[ForceCloseMidChunkResendWaste] accepted=" << accepted
+             << " fileSize=" << fileSize << " forceCloseFired="
+             << forceCloseFired.load(std::memory_order_acquire);
+
+    // ── THE ASSERTION THAT DISTINGUISHES THE TWO DESIGNS ──
+    // Whole-chunk re-send (TODAY, loss-recovery OFF or before A lands): the closed
+    //   chunk is re-sent IN FULL. The forced close fires on an early ramp chunk, whose
+    //   size is the SMALLEST ChunkMap segment (SEGSIZE = 128 KiB), so the measured waste
+    //   is one whole chunk + headers (empirically accepted=4325520 vs fileSize=4194304,
+    //   i.e. +131216 B ≈ one 128 KiB chunk). The previous threshold assumed a ~1 MiB
+    //   force-closed chunk (fileSize + 0.5 MiB) and so wrongly failed on the real ~128 KiB
+    //   waste; lower it to assert ANY whole-chunk re-send (>= the smallest ramp segment).
+    // Whole-chunk-boundary rewind (FIXED, loss-recovery ON with A active): an in-flight
+    //   chunk already acked by the server is NOT re-queued, so this cell should show
+    //   LESS waste (and, once byte-resume lands generally, the diagnostic flips to
+    //   EXPECT_LT). It is gated as EXPECT_GT here because this cell runs on the default
+    //   (flag-default-ON) binary on a CLEAN link where the forced-closed chunk was NOT
+    //   yet acked, so it still re-sends whole — the waste is the in-flight chunk size at
+    //   close (>= smallest ramp segment).
+    //
+    // Epsilon = SEGSIZE/2 (64 KiB): comfortably above pure header/tiny-tail waste, and
+    // below one whole smallest chunk (128 KiB), so the assertion distinguishes
+    // "a whole chunk was re-sent" from "only a small tail/headers".
+    constexpr std::uint64_t kSmallestRampSegment = 131072; // SEGSIZE (wsupload.cpp ChunkMap)
+    EXPECT_GT(accepted, static_cast<std::uint64_t>(fileSize) + headersUpperBound +
+                            (kSmallestRampSegment / 2))
+        << "expected whole-chunk re-send waste (S2); if this FAILS, byte-resume is "
+           "already happening and this assertion should flip to EXPECT_LT";
+}
+
+/**
+ * @brief C-7 (followup8_QA) — escalation gate #4a null-candidate window reset.
+ *
+ * The sustained-handshake-failure escalation gate
+ * (WsPool::poolWorkerThread, ws_pool.cpp) fires onFail for the active upload once
+ * retryCount>=3 AND failedForDs>=HANDSHAKEFAILTIMEOUT. When the gate is satisfied
+ * but handshakeFailureCandidateLocked() returns NULL (the file is briefly
+ * unbound/mid-migration), the branch resets retryCount=0 and firstConnectFailureDs=0
+ * so the window is NOT re-satisfied forever (the pure-handshake-failure forever-loop
+ * guard, root_cause.md sec.4).
+ *
+ * RESIDUAL CONCERN (crash_investigation.md §4.2): a candidate that flaps
+ * eligible/ineligible across manager cycles could perpetually reset the window so the
+ * dedicated fast-fail escalation never fires. The genetic-fight referee verdict for
+ * this item is "SHIP (test only); REJECT fix until proven" — i.e. demonstrate real
+ * starvation with a REALISTIC eligibility flap before adding any "force escalation
+ * after N null cycles" fix (which otherwise risks firing onFail on a file that is
+ * legitimately mid-migration).
+ *
+ * TODO(SDK-5360 followup8): this scaffold is intentionally NOT a live assertion yet.
+ * A faithful, non-flaky, deterministic trigger of the NULL-candidate branch is not
+ * feasible with the current hooks:
+ *   - There is no hook to force handshakeFailureCandidateLocked() to alternate
+ *     null/non-null on a schedule (the eligibility predicate keys on the file's
+ *     mPool/paused()/continuingUpload() under uploadMutex; no test seam toggles it).
+ *   - PoolStateForTesting (include/mega/wsupload.h) does NOT expose retryCount /
+ *     firstConnectFailureDs, so the window-reset itself is not observable from a test.
+ * Closing this needs a small, behavior-neutral observability seam (e.g. surface the
+ * gate's consecutive-null-candidate cycle count + the live retryCount on
+ * PoolStateForTesting) AND a realistic way to flap the candidate's eligibility (e.g.
+ * pause/continuingUpload toggling driven each manager cycle while onWsHandshake forces
+ * failures, as DistressStormDuringFailureDoesNotCrash drives failures). Once that seam
+ * exists, this test should:
+ *   1. start an upload at setMaxConnections(1) and observe an active uploading pool
+ *      (mirror RetryAfterHandshakeFailureRestartsTransferStart steps 1-2);
+ *   2. shrink the window via onWsUploadSustainedHandshakeFailureWindowDs to a small
+ *      non-zero value and force all /ul/ handshakes to fail via onWsHandshake;
+ *   3. flap the candidate's eligibility each manager cycle so the gate is satisfied
+ *      while the candidate is null on roughly alternating cycles;
+ *   4. ASSERT the escalation onFail fires within a bounded number of cycles, i.e.
+ *      tracker.temporaryErrorCount eventually reaches >=1 (the window is NOT
+ *      perpetually reset). If it never fires within the bound, starvation is real and
+ *      the gate fix (bounded consecutive-null-candidate counter that forces escalation)
+ *      is justified; if it fires within the bound, the branch is self-correcting and
+ *      NO fix should ship — this test stays as a regression guard.
+ */
+TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
+{
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    GTEST_SKIP()
+        << "C-7 scaffold (SDK-5360 followup8): deterministic trigger/observation of the "
+           "escalation-gate null-candidate window reset needs a behavior-neutral "
+           "observability seam (gate retryCount + consecutive-null-candidate count on "
+           "PoolStateForTesting) and a candidate-eligibility flap hook that do not yet "
+           "exist. See the doc comment above for the exact steps + assertion. Per the "
+           "genetic-fight verdict the gate FIX must NOT ship until this test demonstrates "
+           "real starvation with a realistic eligibility flap.";
 }
 
 } // namespace mega::test::wsupload

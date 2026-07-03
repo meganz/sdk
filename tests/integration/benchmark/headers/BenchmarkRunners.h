@@ -40,4 +40,12 @@ void runQaExactSingleFileBenchmark(SdkTest& test);
 // Drives the large + many-small mixed bench cell (10 GiB + 500 * 1 MiB).
 void runLargePlusManySmallBenchmark(SdkTest& test);
 
+// Drives the small-file-burst cell: N (default 20, env MEGA_BENCH_BURST_COUNT)
+// 256 KiB files uploaded STRICTLY SEQUENTIALLY (file i+1 starts only after i
+// completes). Measures warm-connection reuse / handshake amortisation that the
+// PARALLEL ManySmall cell cannot. Honours MEGA_NET_MAXUPLOAD_KBPS (as QaExact)
+// and MEGA_BENCH_UPLOAD_CONNECTIONS. Emits a greppable [BenchSmallFileBurst]
+// summary line with coldFileMs (first file) vs warmMedianMs (files 2..N).
+void runSmallFileBurstBenchmark(SdkTest& test);
+
 } // namespace mega::test::benchmark

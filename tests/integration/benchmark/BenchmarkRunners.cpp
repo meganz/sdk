@@ -296,14 +296,22 @@ static void logBenchProcessStatsDelta(const char* tag,
              << " sysCpuMs=" << (end.sysCpuMs - start.sysCpuMs);
 }
 
-static void logBenchWsStats(SdkTest& test, const size_t fileCount)
+// Returns the ACTUALLY-USED peak concurrent in-flight connection count
+// (maxConnectionsWithInFlightSeen), or 0 if unavailable. Callers thread this into the bench
+// jsonl `connections` field so it carries the real used count even when the run set no
+// MEGA_BENCH_UPLOAD_CONNECTIONS override (e.g. the loss-gated dataset conn-bump chooses K at
+// runtime). N4 fix makes this survive a refreshPools()-driven pool replacement.
+static unsigned logBenchWsStats(SdkTest& test, const size_t fileCount)
 {
+    unsigned usedConns = 0;
 #if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
     ws::UploadEngine::WsUploadStatsForTesting stats;
     if (fetchWsUploadStatsForTesting(*test.megaApi[0], stats, 5) && stats.found)
     {
+        usedConns = stats.maxConnectionsWithInFlightSeen;
         LOG_info << "[WsUploadStats] files=" << fileCount
                  << " pools=" << stats.poolCount
+                 << " refreshPoolsCount=" << stats.refreshPoolsCount
                  << " uploadingFileOccupiedMs=" << stats.uploadingFileOccupiedMs
                  << " lastAckToNextFirstByteSamples="
                  << stats.lastAckToNextFirstByteSamples
@@ -346,12 +354,18 @@ static void logBenchWsStats(SdkTest& test, const size_t fileCount)
                  << " simulThrottledConnsMean=" << (stats.simultaneousThrottledConnsSamples ? static_cast<double>(stats.simultaneousThrottledConnsSum) / static_cast<double>(stats.simultaneousThrottledConnsSamples) : 0.0)
                  << " throttleRecoveryAckSamples=" << stats.throttleRecoveryAckSamples
                  << " throttleRecoveryAckMeanMs=" << (stats.throttleRecoveryAckSamples ? static_cast<double>(stats.throttleRecoveryAckTotalMs) / static_cast<double>(stats.throttleRecoveryAckSamples) : 0.0)
-                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs;
+                 << " throttleRecoveryAckMaxMs=" << stats.throttleRecoveryAckMaxMs
+                 // ACTUALLY-USED flow count (bench-hygiene: verify configured ==
+                 // used; develop caps connections for small files) + resend-waste.
+                 << " maxConnectionsWithInFlightSeen=" << stats.maxConnectionsWithInFlightSeen
+                 << " totalCurlWsSendAcceptedBytes=" << stats.totalCurlWsSendAcceptedBytes
+                 << " partialFrameTornDownCount=" << stats.partialFrameTornDownCount;
     }
 #else
     (void)test;
     (void)fileCount;
 #endif
+    return usedConns;
 }
 
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
@@ -419,18 +433,47 @@ static void recordBenchCell(SdkTest& test,
 #endif
 
 void runSmallUploadsBenchmark(SdkTest& test,
-                                     const size_t fileCount,
+                                     size_t fileCount,
                                      const char* testName,
                                      const char* summaryTag)
 {
-    constexpr size_t kFileSize = 1 * 1024 * 1024; // 1 MiB
+    size_t kFileSize = 1 * 1024 * 1024; // 1 MiB (env-overridable via MEGA_BENCH_SMALL_FILE_SIZE_KB)
     constexpr int kTimeoutS = 600; // per-file wait cap
+    // File-count + file-size env overrides for size-scaling variants (e.g. 200x500KB, 200x4MB).
+    // Default to the passed fileCount / 1 MiB so existing cells are unchanged; upload path untouched.
+    if (const char* e = std::getenv("MEGA_BENCH_SMALL_FILE_COUNT"))
+    {
+        const long v = std::atol(e);
+        if (v > 0) fileCount = static_cast<size_t>(v);
+    }
+    if (const char* e = std::getenv("MEGA_BENCH_SMALL_FILE_SIZE_KB"))
+    {
+        const long v = std::atol(e);
+        if (v > 0) kFileSize = static_cast<size_t>(v) * 1024;
+    }
+    LOG_info << "[BenchManySmall] fileCount=" << fileCount << " fileSizeBytes=" << kFileSize;
 
     LOG_info << "___TEST___ " << testName;
     ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
 
     auto accountRestorer = scopedToPro(*test.megaApi[0]);
     ASSERT_EQ(result(accountRestorer), API_OK);
+
+    // Env-var override of upload connection count (mirrors QaExactSingleFile /
+    // SingleLargeUpload). Enables the dataset flow-count sweep: a uniform-size
+    // dataset maps to ONE size-class pool, so this raises that single pool's
+    // connection count (WsPool poolConnectionLimit). CONFIGURED value; the
+    // ACTUALLY-USED flow count is logged via maxConnectionsWithInFlightSeen
+    // (logBenchWsStats) so the analysis can verify config==used per row.
+    if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
+    {
+        const int n = std::atoi(envConns);
+        if (n > 0)
+        {
+            ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            LOG_info << "[BenchManySmall] connections override = " << n;
+        }
+    }
 
     std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
     ASSERT_NE(rootnode, nullptr);
@@ -503,7 +546,7 @@ void runSmallUploadsBenchmark(SdkTest& test,
     const auto totalMs = lastTransferFinishMs - firstTransferStartMs;
     const auto apiTotalMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
-    const double totalKiB = static_cast<double>(fileCount) * kFileSize / 1024.0;
+    const double totalKiB = static_cast<double>(fileCount) * static_cast<double>(kFileSize) / 1024.0;
     const double aggregateKBps =
         (totalMs > 0) ? (totalKiB * 1000.0) / static_cast<double>(totalMs) : 0.0;
 
@@ -526,14 +569,14 @@ void runSmallUploadsBenchmark(SdkTest& test,
     appendBenchTimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
-    logBenchWsStats(test, fileCount);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, fileCount);
 
     logBenchProcessStatsDelta(testName, procStatsStart, procStatsEnd);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
     recordBenchCell(test,
                     testName,
                     /*fileSizeMib=*/static_cast<std::int64_t>(kFileSize / (1024 * 1024)),
-                    /*connections=*/0,
+                    /*connections=*/usedConns,
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
                     aggregateKBps,
                     timingSummary,
@@ -682,13 +725,16 @@ void runSingleLargeUploadBenchmark(SdkTest& test)
     ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
     ASSERT_NO_FATAL_FAILURE(requireBenchStagingSpace());
 
-    // Env-var override of upload connection count.
+    // Env-var override of upload connection count. Hoisted so the requested count is
+    // recorded into the bench JSONL (the ACTUALLY-USED count is logged separately).
+    int connOverride = 0;
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
     {
         const int n = std::atoi(envConns);
         if (n > 0)
         {
             ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            connOverride = n;
             LOG_info << "[BenchSingleLargeUpload] connections override = " << n;
         }
     }
@@ -769,12 +815,12 @@ void runSingleLargeUploadBenchmark(SdkTest& test)
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("SingleLargeUpload", procStatsStart, procStatsEnd);
-    logBenchWsStats(test, 1);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, 1);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
     recordBenchCell(test,
                     "SingleLargeUpload",
                     /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
-                    /*connections=*/0,
+                    /*connections=*/(usedConns ? usedConns : static_cast<unsigned>(connOverride)),
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
                     aggregateKBps,
                     timingSummary,
@@ -796,13 +842,36 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     // 25 GiB gate is only meaningful for the 10 GiB large-file cells.
 
     // Env-var override of upload connection count (mirrors SingleLargeUpload).
+    // Hoisted to function scope so the actual requested count is recorded into the
+    // bench JSONL (recordBenchCell). NOTE: this is the CONFIGURED value; the
+    // ACTUALLY-USED flow count is logged separately via maxConnectionsWithInFlightSeen
+    // (logBenchWsStats) because develop caps connections for small files (configured
+    // != used) -- the analysis must verify config==used per row.
+    int connOverride = 0;
     if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
     {
         const int n = std::atoi(envConns);
         if (n > 0)
         {
             ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            connOverride = n;
             LOG_info << "[QaExactSingleFile] connections override = " << n;
+        }
+    }
+
+    // FILE-SIZE knob: MEGA_BENCH_QA_FILE_SIZE_MIB overrides the 4 MiB QA file so the
+    // single-file poor-network experiment can sweep {2,4,8} MiB on this one cell.
+    // Default = kQaExactFileSize (4 MiB, the literal QA "Very Bad Network" vehicle).
+    std::uintmax_t qaFileSize = kQaExactFileSize;
+    std::int64_t qaFileSizeMib = static_cast<std::int64_t>(kQaExactFileSize / kBenchMiB);
+    if (const char* envSizeMib = std::getenv("MEGA_BENCH_QA_FILE_SIZE_MIB"))
+    {
+        const long mib = std::atol(envSizeMib);
+        if (mib > 0)
+        {
+            qaFileSize = static_cast<std::uintmax_t>(mib) * kBenchMiB;
+            qaFileSizeMib = static_cast<std::int64_t>(mib);
+            LOG_info << "[QaExactSingleFile] file size override = " << mib << " MiB";
         }
     }
 
@@ -855,7 +924,7 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     const fs::path qaPath = stagingDir / qaName;
     ASSERT_NO_FATAL_FAILURE(
         createDenseDeterministicFile(qaPath,
-                                     kQaExactFileSize,
+                                     qaFileSize,
                                      benchUploadContentSeed(suffix, 0x5360f504ull)));
 
     MegaUploadOptions uploadOptions;
@@ -876,7 +945,7 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     const auto procStatsEnd = captureBenchProcessStats();
     ASSERT_EQ(res, API_OK) << "QA-exact upload failed with code " << res;
     ASSERT_NO_FATAL_FAILURE(
-        verifyUploadedFile(test, tracker.resultNodeHandle, qaName, kQaExactFileSize));
+        verifyUploadedFile(test, tracker.resultNodeHandle, qaName, qaFileSize));
 
     const auto startMs = tracker.mStartSteadyMs.load();
     const auto finishMs = tracker.mFinishSteadyMs.load();
@@ -889,11 +958,11 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     const auto totalMs = finishMs - startMs;
     const auto apiTotalMs =
         std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
-    const double aggregateKBps = aggregateKBpsForBytes(kQaExactFileSize, totalMs);
+    const double aggregateKBps = aggregateKBpsForBytes(qaFileSize, totalMs);
 
     std::ostringstream summary;
-    summary << "[BenchQaExactSingleFile] files=1 fileSize=" << kQaExactFileSize
-            << " totalBytes=" << kQaExactFileSize
+    summary << "[BenchQaExactSingleFile] files=1 fileSize=" << qaFileSize
+            << " totalBytes=" << qaFileSize
             << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
             << " apiTotalMs=" << apiTotalMs
             << " avgKBps=" << aggregateKBps << " medianKBps=" << aggregateKBps
@@ -904,18 +973,199 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("QaExactSingleFile", procStatsStart, procStatsEnd);
-    logBenchWsStats(test, 1);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, 1);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
     recordBenchCell(test,
                     "QaExactSingleFile",
-                    /*fileSizeMib=*/4,
-                    /*connections=*/0,
+                    /*fileSizeMib=*/qaFileSizeMib,
+                    /*connections=*/(usedConns ? usedConns : static_cast<unsigned>(connOverride)),
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
                     aggregateKBps,
                     timingSummary,
                     procStatsStart,
                     procStatsEnd,
                     /*chunkSamples=*/1);
+#endif
+    test.deleteFolder(folderName);
+}
+
+void runSmallFileBurstBenchmark(SdkTest& test)
+{
+    constexpr int kTimeoutS = 4 * 60 * 60; // per-file wait cap (matches QaExact)
+    constexpr const char* kTestName = "SdkTestBenchmarkSmallFileBurst";
+    // 256 KiB: 2-3 frames each, ack-RTT / handshake bound (NOT bandwidth bound),
+    // so the per-file handshake / warm-reuse delta dominates the measurement.
+    constexpr std::uintmax_t kBurstFileSize = 256ull * 1024ull;
+
+    LOG_info << "___TEST___ " << kTestName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+    // No requireBenchStagingSpace(): N * 256 KiB needs negligible disk; the 25 GiB
+    // gate is only meaningful for the 10 GiB large-file cells.
+
+    // N (default 20) tunable via env, mirroring the kbps / connections knobs.
+    std::size_t burstFileCount = 20;
+    if (const char* envCount = std::getenv("MEGA_BENCH_BURST_COUNT"))
+    {
+        const long n = std::atol(envCount);
+        if (n > 0)
+        {
+            burstFileCount = static_cast<std::size_t>(n);
+            LOG_info << "[SmallFileBurst] burst count override = " << burstFileCount;
+        }
+    }
+
+    // Env-var override of upload connection count (mirrors QaExact / SingleLarge).
+    // Hoisted so the requested count is recorded into the bench JSONL.
+    int connOverride = 0;
+    if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
+    {
+        const int n = std::atoi(envConns);
+        if (n > 0)
+        {
+            ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            connOverride = n;
+            LOG_info << "[SmallFileBurst] connections override = " << n;
+        }
+    }
+
+    // BANDWIDTH knob: MEGA_NET_MAXUPLOAD_KBPS is kilobits/sec (as in the iOS
+    // Network Link Conditioner). Convert to bytes/sec and scope the cap to the
+    // whole burst (so it can run under scripts/ci/netem_profile.sh).
+#ifdef MEGA_USE_WSUPLOAD
+    std::optional<::mega::test::wsupload::ScopedUploadSpeedLimit> uploadSpeedCap;
+#endif
+    if (const char* envKbps = std::getenv("MEGA_NET_MAXUPLOAD_KBPS"))
+    {
+        const long kbps = std::atol(envKbps);
+        if (kbps > 0)
+        {
+            const int bytesPerSec = static_cast<int>(kbps * 1000 / 8);
+#ifdef MEGA_USE_WSUPLOAD
+            uploadSpeedCap.emplace(*test.megaApi[0], bytesPerSec);
+#else
+            test.megaApi[0]->setMaxUploadSpeed(bytesPerSec);
+#endif
+            LOG_info << "[SmallFileBurst] maxUploadKbps=" << kbps
+                     << " (bytesPerSec=" << bytesPerSec << ")";
+        }
+    }
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string suffix = benchUniqueSuffix(kTestName);
+    const std::string folderName = "bench_small_burst_" + suffix;
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    const fs::path stagingDir = benchStagingRoot() / folderName;
+    std::error_code cleanupEc;
+    fs::remove_all(stagingDir, cleanupEc);
+    const auto cleanup = makeScopedDestructor(
+        [stagingDir]()
+        {
+            std::error_code ec;
+            fs::remove_all(stagingDir, ec);
+        });
+
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    BenchPutnodesTimingRecorder putnodesRecorder;
+
+    // Keep every tracker alive so its timing window contributes to the cell.
+    std::vector<std::unique_ptr<TransferTracker>> trackers;
+    trackers.reserve(burstFileCount);
+    std::vector<double> perFileMs;
+    perFileMs.reserve(burstFileCount);
+
+    const auto procStatsStart = captureBenchProcessStats();
+    const auto apiStart = std::chrono::steady_clock::now();
+    for (std::size_t i = 0; i < burstFileCount; ++i)
+    {
+        const std::string burstName = "bench_small_burst_" + std::to_string(i) + ".bin";
+        const fs::path burstPath = stagingDir / burstName;
+        ASSERT_NO_FATAL_FAILURE(
+            createDenseDeterministicFile(burstPath,
+                                         kBurstFileSize,
+                                         benchUploadContentSeed(suffix, 0x5360f505ull + i)));
+
+        trackers.emplace_back(std::make_unique<TransferTracker>(test.megaApi[0].get()));
+        test.megaApi[0]->startUpload(burstPath.string(),
+                                     folder.get(),
+                                     nullptr /*cancelToken*/,
+                                     &uploadOptions,
+                                     trackers.back().get());
+        // SEQUENTIAL barrier: file i+1 starts only after i completes.
+        const ErrorCodes res = trackers.back()->waitForResult(kTimeoutS);
+        ASSERT_EQ(res, API_OK) << "burst upload " << i << " failed with code " << res;
+        ASSERT_NO_FATAL_FAILURE(
+            verifyUploadedFile(test, trackers.back()->resultNodeHandle, burstName, kBurstFileSize));
+
+        const auto startMs = trackers.back()->mStartSteadyMs.load();
+        const auto finishMs = trackers.back()->mFinishSteadyMs.load();
+        ASSERT_GT(startMs, 0);
+        ASSERT_GT(finishMs, startMs);
+        perFileMs.push_back(static_cast<double>(finishMs - startMs));
+    }
+    const auto apiEnd = std::chrono::steady_clock::now();
+    const auto procStatsEnd = captureBenchProcessStats();
+
+    // Whole-burst timing window (first start .. last finish) for the cell record.
+    std::vector<const TransferTracker*> timingTrackers;
+    timingTrackers.reserve(trackers.size());
+    for (const auto& tracker: trackers)
+    {
+        timingTrackers.push_back(tracker.get());
+    }
+    const auto timingSummary = summarizeBenchTimings(timingTrackers, putnodesRecorder);
+
+    const auto totalMs = timingSummary.lastFinishMs - timingSummary.firstStartMs;
+    const auto apiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
+    const std::uintmax_t totalBytes =
+        static_cast<std::uintmax_t>(burstFileCount) * kBurstFileSize;
+    const double aggregateKBps = aggregateKBpsForBytes(totalBytes, totalMs);
+
+    // coldFileMs (first file pays the cold handshake floor) vs warmMedianMs
+    // (median of files 2..N, the warm-reuse target). warmGain ~1.0 = no reuse.
+    const double coldFileMs = perFileMs.front();
+    double warmMedianMs = coldFileMs;
+    if (perFileMs.size() > 1)
+    {
+        std::vector<double> warm(perFileMs.begin() + 1, perFileMs.end());
+        std::sort(warm.begin(), warm.end());
+        warmMedianMs = warm[warm.size() / 2];
+    }
+    const double warmGain = (warmMedianMs > 0.0) ? (coldFileMs / warmMedianMs) : 0.0;
+
+    std::ostringstream summary;
+    summary << "[BenchSmallFileBurst] files=" << burstFileCount << " fileSize=" << kBurstFileSize
+            << " totalBytes=" << totalBytes
+            << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
+            << " apiTotalMs=" << apiTotalMs
+            << " coldFileMs=" << coldFileMs << " warmMedianMs=" << warmMedianMs
+            << " warmGain=" << warmGain;
+    appendBenchTimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+    logBenchProcessStatsDelta("SmallFileBurst", procStatsStart, procStatsEnd);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, burstFileCount);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    recordBenchCell(test,
+                    "SmallFileBurst",
+                    /*fileSizeMib=*/0, // 256 KiB < 1 MiB; sub-MiB cells report 0
+                    /*connections=*/(usedConns ? usedConns : static_cast<unsigned>(connOverride)),
+                    /*totalMs=*/static_cast<std::int64_t>(totalMs),
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/burstFileCount);
 #endif
     test.deleteFolder(folderName);
 }
@@ -1101,12 +1351,12 @@ void runLargePlusManySmallBenchmark(SdkTest& test)
     LOG_info << summary.str();
 
     logBenchProcessStatsDelta("LargePlusManySmall", procStatsStart, procStatsEnd);
-    logBenchWsStats(test, kBenchSmallFileCount + 1);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, kBenchSmallFileCount + 1);
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
     recordBenchCell(test,
                     "LargePlusManySmall",
                     /*fileSizeMib=*/static_cast<std::int64_t>(kBenchLargeFileSize / kBenchMiB),
-                    /*connections=*/0,
+                    /*connections=*/usedConns,
                     /*totalMs=*/static_cast<std::int64_t>(totalMs),
                     aggregateKBps,
                     timingSummary,

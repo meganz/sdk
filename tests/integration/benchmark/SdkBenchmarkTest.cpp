@@ -59,4 +59,18 @@ TEST_F(SdkBenchmarkTest, LargePlusManySmall)
     runLargePlusManySmallBenchmark(*this);
 }
 
+/**
+ * @brief Benchmark: N (default 20, env MEGA_BENCH_BURST_COUNT) 256 KiB files
+ * uploaded STRICTLY SEQUENTIALLY into a fresh remote folder (file i+1 starts
+ * only after i completes). Measures warm-connection reuse / handshake
+ * amortisation that the PARALLEL ManySmall cell cannot. Honours
+ * MEGA_NET_MAXUPLOAD_KBPS (kilobits/s) so the burst can run under
+ * scripts/ci/netem_profile.sh. Emits a greppable [BenchSmallFileBurst] summary
+ * line with coldFileMs vs warmMedianMs.
+ */
+TEST_F(SdkBenchmarkTest, SmallFileBurst)
+{
+    runSmallFileBurstBenchmark(*this);
+}
+
 } // namespace mega::test::benchmark
