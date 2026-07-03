@@ -142,6 +142,13 @@ void WsPoolMgr::cleanupRetiringPools()
         if (mPools[i] && mPools[i]->mRetiring && !mPools[i]->stillActive())
         {
             LOG_info << "WsUpload: closing idle pool " << i << " (" << mPools[i]->mUrl << ")";
+#ifndef NDEBUG
+            // N4 fix: fold this pool's cumulative test-stats into the persistent accumulator
+            // BEFORE erasing it, so getWsUploadStatsForTesting's aggregate (esp.
+            // maxConnectionsWithInFlightSeen, the config==used proof) survives the refresh
+            // that retired it. Same #ifndef NDEBUG gate as addWsUploadStatsForTesting.
+            mPools[i]->addWsUploadStatsForTesting(mRetiredPoolStats);
+#endif
             mPools.erase(mPools.begin() + static_cast<std::ptrdiff_t>(i));
         }
     }
@@ -242,7 +249,35 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                                  pool->mNumChunksInFlight || !pool->mToResend.empty();
         const bool pinnedHasReference = pool->mPinned && pinnedPoolHasReference(*pool, impl);
         const bool shouldScaleUp = !pool->mRetiring && (hasPoolWork || pinnedHasReference);
-        const unsigned char targetConnLimit = impl.poolConnectionLimit();
+        // Loss-gated connection-count bump: returns impl.poolConnectionLimit() on a clean
+        // network (mLossObserved false) -> byte-identical scale-up; widens a lone-small-
+        // file pool toward kLossBoostedConnLimit, or a DATASET pool toward the dataset limit
+        // (A24), only after that pool has observed loss.
+        unsigned char targetConnLimit = pool->lossBoostedConnLimitLocked(impl);
+
+        // Global concurrency ceiling (A24): bound the SUM of boosted connections across pools
+        // so several concurrent size-class pools cannot each reach K and blow the RSS budget.
+        // Reads LIVE per-pool counts, so it is cross-tick correct (a pool that scaled up on a
+        // prior tick is already counted in otherConns). Only ever clamps a boost ABOVE the
+        // default; the default/base path is untouched. Inert for the single active pool of the
+        // uniform proof cell (one pool << ceiling) and byte-identical when both bump knobs are
+        // off (targetConnLimit == poolConnectionLimit() then, so this block is skipped).
+        if (targetConnLimit > impl.poolConnectionLimit())
+        {
+            const unsigned ceiling = impl.lossBoostedGlobalConnCeiling();
+            unsigned otherConns = 0;
+            for (const auto& p: mPools)
+            {
+                if (p && p.get() != pool && !p->mPinned)
+                    otherConns += p->mNumberOfConnections;
+            }
+            const unsigned allowed = (ceiling > otherConns) ? (ceiling - otherConns) : 0u;
+            const unsigned floorLimit = std::max<unsigned>(pool->mNumberOfConnections,
+                                                           impl.poolConnectionLimit());
+            const unsigned clamped =
+                std::max<unsigned>(floorLimit, std::min<unsigned>(targetConnLimit, allowed));
+            targetConnLimit = static_cast<unsigned char>(std::min<unsigned>(clamped, 255u));
+        }
 
 #ifndef NDEBUG
         pool->recordWsUploadStatsSampleLocked(impl);
@@ -288,6 +323,25 @@ void WsPoolMgr::refreshPools()
         return;
 
     const dstime now = SteadyTime::ds();
+
+    // Distress/refresh-churn throttle (mDistressRefreshThrottle, MEGA_WS_REFRESH_THROTTLE).
+    // Every refresh trigger (SERVERTIMEOUT periodic in checkPools, server event=5 Distress
+    // in ws_conn.cpp, worker handshake-fail in ws_pool.cpp) funnels through here, so one
+    // success-side minimum-spacing gate coalesces a storm of triggers into at most one
+    // refresh per WS_REFRESH_MIN_INTERVAL. Correctness-neutral: a real URL change still
+    // applies on the next admitted tick (<= interval later), and applyRefreshedUrls
+    // preserves a still-valid URL by exact match, so a throttled-then-admitted refresh is
+    // non-destructive when nothing changed. Liveness is preserved because a genuinely-dead
+    // endpoint is independently backstopped by the handshake-failure escalation gate
+    // (HANDSHAKEFAILTIMEOUT=60s in ws_pool.cpp), and WS_REFRESH_MIN_INTERVAL (30s) sits
+    // strictly inside [SERVERTIMEOUT 20s, HANDSHAKEFAILTIMEOUT 60s] so the escalation path
+    // is unaffected. On a clean link no trigger fires, so this gate never engages.
+    if (mImpl->mDistressRefreshThrottle && mLastRefreshStartedDs &&
+        SteadyTime::difference(now, mLastRefreshStartedDs) < WS_REFRESH_MIN_INTERVAL)
+    {
+        return;
+    }
+
     if (now < mNextRefreshAttempt)
     {
         return;
@@ -297,6 +351,15 @@ void WsPoolMgr::refreshPools()
     {
         return;
     }
+    // Stamp at launch (not completion) so a slow USC round-trip cannot let a second
+    // refresh slip in behind it. The fail-path exponential backoff (mNextRefreshAttempt)
+    // still composes on top; whichever gate is longer wins.
+    mLastRefreshStartedDs = now;
+    // Count ADMITTED refreshes (past the throttle/backoff/latch gates), i.e. the ones that
+    // actually launch a USC round-trip and can replace pools. This is the "refresh volume"
+    // that W1/N4 correlated with peak RSS; surfaced per run so the bench can gate HR54 on
+    // churn-free reps and quantify the churn->RSS relationship (ledger N7).
+    ++mRefreshPoolsCount;
 
     const auto engineId = mImpl->instanceId();
 

@@ -92,8 +92,19 @@ namespace
 
 // WS upload session-URL handshake timeout passed to CurlHttpIO::wsHandshakeForUpload.
 // Mirrors the prior CurlHttpIO 15s POST timeout used for the legacy upload-start request.
-// Lives alongside its sole consumer (WsConn::connectWS).
+// Lives alongside its sole consumer (WsConn::connectWS). This is the BASELINE (loss-
+// recovery OFF) value; T1b raises it to WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS when the flag
+// is on.
 constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
+
+// T1b loss-adaptive handshake timeout (loss-recovery ON). The fixed 15s aborts the
+// TLS+WS upgrade under >=20% loss (the loss20cap trace showed 43 CURLcode-28 + 253
+// baton-timeouts -> handshake convoy churn). 45s gives a loss-throttled upgrade enough
+// wall-clock to complete, while staying UNDER the 60s HANDSHAKEFAILTIMEOUT escalation
+// gate (ws_pool.cpp) so a genuinely dead endpoint still surfaces onFail(Retryable)
+// within the failure budget. A clean handshake completes in <1s regardless of the cap,
+// so clean-network behavior is byte-identical.
+constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS = 45000;
 
 // Poll interval for the WsConn::connectWS handshake-completion condition variable.
 // Short enough to react to stopping() in <1s; large enough to avoid spinning while
@@ -103,10 +114,9 @@ constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
 // The worker baton must OUTLIVE the handshake's own CURLOPT_TIMEOUT so a slow
 // handshake is terminated by curl (fast, definitive, frees the easy) rather than
 // abandoned by the baton (which leaves the easy running on the client thread).
-// Slack covers FIFO queueing + the 200ms CV poll granularity.
+// Slack covers FIFO queueing + the 200ms CV poll granularity. Added to whichever
+// handshake timeout (baseline or loss) is in effect for this attempt.
 constexpr int WSUPLOAD_HANDSHAKE_BATON_SLACK_MS = 5000;
-constexpr int WSUPLOAD_HANDSHAKE_BATON_MS =
-    static_cast<int>(WSUPLOAD_HANDSHAKE_TIMEOUT_MS) + WSUPLOAD_HANDSHAKE_BATON_SLACK_MS; // 20000
 
 // TU-local enum: server-event opcodes for the WS upload response stream.
 // Only used by WsConn::onmessage; moved together with the body.
@@ -186,6 +196,64 @@ bool WsConn::connectWS()
     }
     readyState.store(ReadyState::CONNECTING, std::memory_order_relaxed);
 
+    // SDK-5360 Design A (mParallelHandshake, default ON; ANDed with mLossRecovery): run the
+    // TLS+WS-upgrade handshake DIRECTLY on this worker thread instead of bouncing it to the
+    // client thread via a Baton + wsPostToClientThread + watchdog. N pool workers then
+    // handshake concurrently, so connections 5-8 open in time to carry a small file's chunks
+    // (vs the serial ~46s under loss that develop avoids). uploadMutex is already released
+    // around connectWS() (ScopedUnlock at the caller), so this blocking call never holds the
+    // engine lock. Safe off the client thread because: (a) wsHandshakeForUpload is a thin
+    // wrapper over CurlHttpIO::wsHandshake; httpio is set-once/read-only; (b) curlsh now
+    // carries lock callbacks (net.cpp) for the concurrent DNS/SSL-session cache writes; and
+    // (c) the read-mostly client state wsHandshake reads (dnsservers/proxy*/useragent) is set
+    // at init and not mutated during uploads, so concurrent reads are benign. CURLOPT_TIMEOUT_MS
+    // inside wsHandshake bounds the blocking call, so no separate baton watchdog is needed.
+    if (mPool->mImpl->mParallelHandshake)
+    {
+        const std::string url = mPool->mUrl;
+
+        // T1b: loss-adaptive handshake timeout. mAdaptiveHandshake is read-once at engine
+        // construction and never mutated, so reading it here is benign.
+        const long handshakeTimeoutMs = (mPool->mImpl->mAdaptiveHandshake)
+                                            ? WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS
+                                            : WSUPLOAD_HANDSHAKE_TIMEOUT_MS;
+
+        if (auto* engine = mPool->mImpl->client.wsEngine(); !engine || engine->isStopping())
+        {
+            readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
+            return false;
+        }
+        if (mPool->mImpl->stopping())
+        {
+            readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
+            return false;
+        }
+
+        std::string err;
+        CURL* e = static_cast<CURL*>(
+            mPool->mImpl->client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err));
+        if (!e)
+        {
+            WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) wsHandshakeForUpload -> nullptr"
+                           << (err.empty() ? "" : (", err=" + err))
+                           << " -> readyState=CLOSED, return false [this = " << this << "]";
+            readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
+            return false;
+        }
+
+        curl = e; // this worker thread exclusively owns the handle now
+        readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
+        // Fix #6: a fresh handle must never inherit a stale partial frame; closeWS() runs
+        // before any reconnect and resets the send cursor + mFrameInProgress.
+        assert(!mBufs[0].mFrameInProgress && !mBufs[1].mFrameInProgress &&
+               mBufs[0].mSendPos == 0 && mBufs[1].mSendPos == 0 &&
+               "WsConn reconnected with a stale partial frame; closeWS() must run first");
+        onopen(); // your existing callback
+        WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) END -> success, return true [this = "
+                       << this << "]";
+        return true;
+    }
+
     struct Baton
     {
         std::mutex m;
@@ -199,8 +267,18 @@ bool WsConn::connectWS()
 
     const std::string url = mPool->mUrl;
 
+    // T1b: loss-adaptive handshake timeout. mAdaptiveHandshake is read-once at engine
+    // construction and never mutated, so reading it here (with uploadMutex released
+    // around the blocking handshake) is benign. When the flag is on we grant the
+    // TLS+WS upgrade WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS instead of the baseline 15s.
+    const long handshakeTimeoutMs = (mPool->mImpl->mAdaptiveHandshake)
+                                        ? WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS
+                                        : WSUPLOAD_HANDSHAKE_TIMEOUT_MS;
+    const int handshakeBatonMs =
+        static_cast<int>(handshakeTimeoutMs) + WSUPLOAD_HANDSHAKE_BATON_SLACK_MS;
+
     mPool->mImpl->client.wsPostToClientThread(
-        [baton, url, self](MegaClient& client, TransferDbCommitter&)
+        [baton, url, self, handshakeTimeoutMs](MegaClient& client, TransferDbCommitter&)
         {
             WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] BEGIN [this = " << self
                       << "]";
@@ -214,7 +292,7 @@ bool WsConn::connectWS()
             }
             std::string err;
             CURL* e = static_cast<CURL*>(
-                client.wsHandshakeForUpload(url, WSUPLOAD_HANDSHAKE_TIMEOUT_MS, &err));
+                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err));
 
             {
                 std::lock_guard<std::mutex> g(baton->m);
@@ -255,7 +333,7 @@ bool WsConn::connectWS()
     //  3) local 20s watchdog deadline is reached.
     std::unique_lock<std::mutex> lk(baton->m);
     const auto waitDeadline =
-        std::chrono::steady_clock::now() + std::chrono::milliseconds(WSUPLOAD_HANDSHAKE_BATON_MS);
+        std::chrono::steady_clock::now() + std::chrono::milliseconds(handshakeBatonMs);
     while (!baton->done)
     {
         if (mPool->mImpl->stopping())
@@ -644,6 +722,10 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                // Tier 2 A (loss-recovery): record this whole-chunk range as acked so a
+                // later reconnect re-queues only un-acked chunks (gated; clean no-op).
+                if (mPool->mImpl->mAckedChunkRewind)
+                    uf->markRangeAcked(chunk.pos, chunk.pos + chunk.len);
                 if (mPool->mImpl->mCb.onProgress && uf->progressReportDue(SteadyTime::ds()))
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
                 if (handleBytesConfirmedOverflow(uf))
@@ -659,6 +741,10 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                // Tier 2 A (loss-recovery): record this whole-chunk range as acked so a
+                // later reconnect re-queues only un-acked chunks (gated; clean no-op).
+                if (mPool->mImpl->mAckedChunkRewind)
+                    uf->markRangeAcked(chunk.pos, chunk.pos + chunk.len);
                 if (handleBytesConfirmedOverflow(uf))
                     break;
             }
@@ -672,6 +758,17 @@ struct ChunkResponse
                          "reconnect) [pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
+            // Tier 2 D-cancel-only (loss-recovery): the server already holds this chunk.
+            // Purge any still-QUEUED resend for the exact (fileno,pos,len) so it is not
+            // re-read + re-sent on the next drain (the loss amplifier). CANCEL ONLY -- no
+            // byte credit, because the len-blind, per-conn, non-idempotent ack-match
+            // (mBytesConfirmed += len) makes crediting on opcode-2 unsafe (it could
+            // double-count against a late opcode-1 on the original conn). On a clean link
+            // opcode-2 never fires, so this is a clean no-op.
+            if (mPool->mImpl->mResendDedupCancel)
+            {
+                mPool->purgeQueuedResendForRangeLocked(chunk.fileno, chunk.pos, chunk.len);
+            }
             break;
 
         case WsApiServerEvent::CrcFailed:
@@ -905,6 +1002,10 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
                   << ") -= static_cast<int>(sent(=" << sent << ")) [this = " << this << "]";
         mSendPos += static_cast<int>(sent);
         bufferedAmount -= static_cast<int>(sent);
+#ifndef NDEBUG
+        // E-3: accumulate the bytes curl_ws_send accepted on this conn.
+        ws->mTotalCurlWsSendAcceptedBytes += static_cast<std::uint64_t>(sent);
+#endif
         if (mSendPos == mDataLen)
         {
             WSUPLOAD_TRACE << "[WsBuf::sendWS] mSendPos(=" << mSendPos << ") == mDataLen(=" << mDataLen

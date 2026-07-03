@@ -255,6 +255,10 @@ struct WsConn
     // by WsPool::addWsUploadStatsForTesting.
     std::uint64_t mCurlAgainSendCount{0};
     std::uint64_t mCurlAgainRecvCount{0};
+    // E-3: Σ bytes curl_ws_send accepted on this connection (incremented in
+    // WsBuf::sendWS on the CURLE_OK branch). Surfaced via WsUploadStatsForTesting
+    // so a deterministic force-close test can measure whole-chunk re-send waste.
+    std::uint64_t mTotalCurlWsSendAcceptedBytes{0};
     // # closeWS() calls that ran while a buffer held a live partial frame (fix #6).
     std::uint64_t mPartialFrameTornDownCount{0};
     int mBufferedAmountHighWater{0};
@@ -407,6 +411,59 @@ struct WsPool
     // stall the pool) while bounding the client-thread handshake FIFO convoy to O(1)
     // instead of O(mNumberOfConnections) (root_cause.md S3b).
     static constexpr int COLDSTART_HANDSHAKE_CONNS = 2;
+    // Single-small-file cold-start: when the entire eligible workload of a cold pool is
+    // ONE file no larger than this ceiling, coldStartHandshakeCapLocked() narrows the
+    // cold-start cap to 1 (smallfile_investigation.md candidate 3c). A single small file's
+    // escalating frames drain on ONE connection (ack-RTT-bound, not bandwidth-bound), so a
+    // 2nd cold handshake costs client-thread time + ~3 MiB (one WsConn double-buffer +
+    // tlsBuf) with zero throughput gain. 4 MiB is the documented QaExact size (4*kMiB =
+    // 32*SEGSIZE) and the largest single file that is ack-RTT-bound on a fast link; files
+    // ABOVE it pipeline across connections and keep the warm spare (cap stays 2). The cap
+    // is RE-EVALUATED at the gate each loop pass, so the instant a 2nd file queues OR any
+    // in-flight/resend appears (incl. the first dropped frame under loss) it reverts to
+    // COLDSTART_HANDSHAKE_CONNS — fix #2's de-convoy and the >=20%-loss S3 convoy stay
+    // closed. kMiB is int; widen to m_off_t so the <= against WsUploadFile::size() (m_off_t)
+    // is signed-to-signed (no -Wsign-conversion).
+    static constexpr m_off_t kSingleConnFileSizeCeiling = 4 * static_cast<m_off_t>(kMiB);
+    // Loss-gated connection-count bump (lossBoostedConnLimitLocked). When a LONE small
+    // file (same single-isolated-small-file detection coldStartHandshakeCapLocked uses)
+    // has observed loss (WsPool::mLossObserved sticky), its connection target is widened
+    // toward this value so the straggler uploads on ~8 flows like develop does under loss
+    // (bench: c1=379s -> c4=198s). INVERSE of the cold-start cap (which NARROWS a clean
+    // lone small file to 1 conn). Scoped to the lone small file so datasets (many
+    // files/pools, eligibleCount>1) are NOT boosted: boosting every pool to 8 under loss
+    // would explode RSS with no benefit (datasets already win at the default conn count).
+    static constexpr unsigned char kLossBoostedConnLimit = 8;
+    // Loss-gated DATASET connection-count bump (A24, SDK-5360 fu8 Session 5). The COMPLEMENT
+    // of the lone-small-file boost above: when a pool carries a DATASET (eligibleCount >= 2,
+    // or a lone file above kSingleConnFileSizeCeiling) AND has observed loss, its connection
+    // target is widened toward this value so the dataset uploads on more independent TCP flows
+    // (root cause = FLOW count, GOAL3_ROOTCAUSE_VERDICT_v2). Gated on MEGA_WS_DATASET_CONN_BUMP
+    // (mDatasetConnBump), which is ANDed with the master MEGA_WS_LOSS_RECOVERY. On a clean
+    // network mLossObserved is false so the boost helper returns the default limit and the
+    // scale-up is byte-identical to the no-bump path. The runtime numeric override
+    // MEGA_WS_DATASET_CONN_LIMIT (mDatasetConnLimitOverride, default 0 = use this constant)
+    // lets the Queue-B proof bench sweep K on ONE binary. Ship default K=24 (CP1: final K
+    // chosen at CP2 from paired bench data).
+    // CP2 DECISION (2026-07-02, user): SHIP K=32 -- the Pareto knee from Queue-B paired n=5:
+    // 76% of develop throughput @loss5 (3.3x the 8-conn floor) at RSS PARITY (-0.6% vs develop,
+    // passes strict HR54). K=24 was RSS-safer but only 62%; K=36 reached 85% but +6.7% RSS
+    // (broke strict HR54). The effective in-flight peak is ~30 (a -2 ramp cap), which is exactly
+    // the measured K32 arm. Numeric override MEGA_WS_DATASET_CONN_LIMIT retained for testing.
+    // DEVICE-CLASS NOTE (ledger N9): widening to K worker threads is desktop-focused; on 32-bit
+    // armeabi-v7a (mobile base PUT=3) it risks address-space pressure. Mobile is documented
+    // out-of-scope for this session (host app can set MEGA_WS_DATASET_CONN_BUMP=0); follow-up
+    // ticket auto-gates it off / lowers K on mobile base==3.
+    static constexpr unsigned char kLossBoostedDatasetConnLimit = 32;
+    // Global concurrency ceiling FLOOR for dataset-boosted pools (cross-pool RSS bound), applied
+    // across pools in WsPoolMgr::checkPools using each pool's LIVE mNumberOfConnections
+    // (cross-tick correct). The EFFECTIVE ceiling is max(this, lossBoostedDatasetConnLimit()) --
+    // see UploadEngine::Impl::lossBoostedGlobalConnCeiling -- so at the ship default K=32 the
+    // effective ceiling is 32: a single dominant pool can reach K, while several concurrent
+    // size-class pools SHARE the K-conn budget rather than each reaching K (bounds total RSS to
+    // ~K conns). This 28 floor only binds when a smaller K is configured. Empirically (Queue-B)
+    // the ship K=32 arm settled at ~30 in-flight / ~101 MB = develop RSS parity.
+    static constexpr unsigned char kLossBoostedGlobalConnCeiling = 28;
     static constexpr dstime HAVE_SPACE_RETRY_DS = 1;
     static constexpr dstime READY_FOR_DATA_RETRY_DS = 1;
     static constexpr dstime BACKLOG_EMPTY_RETRY_DS = 2;
@@ -434,6 +491,19 @@ struct WsPool
     // handshake FIFO at once. Written only on the worker thread under
     // mImpl->uploadMutex (same discipline as mNumChunksInFlight).
     int mConnectingCount{0};
+
+    // Per-pool sticky loss flag (loss-gated connection-count bump). Set true at the two
+    // runtime loss/requeue sites (WsPool::retryChunksOnTheWireLocked + retryChunkLocked,
+    // ws_pool.cpp): chunks
+    // only land in mToResend on a connection drop or a server-rejected frame, so this
+    // is the authoritative runtime loss signal for this pool. Consumed by
+    // lossBoostedConnLimitLocked()'s LONE-SMALL-FILE path only (the DATASET conn-bump is
+    // unconditional and does NOT read this -- the WS engine cannot see sub-connection packet
+    // loss, so a loss-gated dataset bump would never engage; see ws_pool.cpp). NEVER reset for
+    // the pool's lifetime (shipped behavior). On a clean network it stays false, so the
+    // lone-small boost returns the default limit. Written only on the worker thread under
+    // mImpl->uploadMutex (same discipline as mNumChunksInFlight).
+    bool mLossObserved{false};
 
     dstime mLastActive{0};
     dstime mLastServerResponse{0};
@@ -569,6 +639,40 @@ struct WsPool
         return false;
     }
 
+    // Cold-start handshake cap, re-evaluated at the cold-start admission gate
+    // (ws_pool.cpp) on every worker loop pass. Returns COLDSTART_HANDSHAKE_CONNS (2)
+    // by default, NARROWING to 1 ONLY when the small-file cold-start optimisation is
+    // enabled (mImpl->mSmallFileColdStart, env MEGA_WS_SMALLFILE_COLDSTART, independent
+    // of MEGA_WS_LOSS_RECOVERY) AND this cold pool's entire eligible workload is a single
+    // small file: exactly one queued-eligible file in fileList (bounded scan, NOT the
+    // bind-too-late mNumPoolFiles), that file's actual size() <= kSingleConnFileSizeCeiling
+    // (NOT the size-class ceiling mMaxFileSize), AND no in-flight/resend state
+    // (mNumChunksInFlight == 0 && mToResend.empty()). The instant a 2nd file queues or any
+    // in-flight/resend appears (incl. the first dropped frame under loss) the predicate
+    // fails on the next pass and the cap reverts to 2, so fix #2's de-convoy and the
+    // >=20%-loss S3 convoy stay closed. Pinned pools never narrow (they bypass the gate;
+    // the short-circuit here is belt-and-suspenders). Caller must hold
+    // mImpl->uploadMutex (reads mToResend / mNumChunksInFlight and scans Impl::fileList).
+    // Body in src/transfer/ws/ws_pool.cpp.
+    int coldStartHandshakeCapLocked() const;
+
+    // Loss-gated connection-count bump (default ON via env MEGA_WS_LOSS_CONN_BUMP ->
+    // mImpl->mLossConnBump). The INVERSE of coldStartHandshakeCapLocked: returns the
+    // default impl.poolConnectionLimit() UNLESS this pool is a lone small file that has
+    // observed loss, in which case it widens the connection target to
+    // max(default, kLossBoostedConnLimit) so the straggler uploads on ~8 flows like
+    // develop does under loss. The boost is gated on mLossObserved (sticky runtime loss
+    // signal), the sub-knob mLossConnBump, !mPinned, AND the same single-isolated-small-
+    // file detection coldStartHandshakeCapLocked uses (eligibleCount<=1 + actual size()
+    // <= kSingleConnFileSizeCeiling) -- the eligibleCount<=1 + small-size gate is the
+    // RSS-safety crux that keeps datasets (eligibleCount>1 per pool, or large pools) at
+    // the default conn count. Unlike the cold-start cap this does NOT also require an
+    // empty in-flight/resend set: under loss there IS resend activity, and mLossObserved
+    // is the gate. On a clean network mLossObserved stays false so this returns the
+    // default limit and the scale-up is byte-identical to the no-bump path. Caller must
+    // hold mImpl->uploadMutex (scans Impl::fileList). Body in src/transfer/ws/ws_pool.cpp.
+    unsigned char lossBoostedConnLimitLocked(const UploadEngine::Impl& impl) const;
+
 #ifndef NDEBUG
     unsigned countOpenConnectionsLocked() const
     {
@@ -696,6 +800,16 @@ struct WsPool
     // Remove any queued/in-flight chunks for the specified file.
     // Must be called with UploadEngine::Impl::uploadMutex held.
     void purgeFileLocked(const std::uint32_t fileno);
+
+    // Tier 2 D-cancel-only (loss-recovery): drop any QUEUED resend (mToResend) whose
+    // (fileno,pos,len) matches exactly, so a chunk the server has already deduped
+    // (opcode-2 AlreadyOnServer) is not re-read + re-sent on the next drain (the loss
+    // amplifier). Touches ONLY mToResend -- never mChunksInFlight (the ack firewall) and
+    // never mBytesConfirmed (no byte credit; the len-blind ack-match makes crediting on
+    // opcode-2 unsafe). Caller must hold UploadEngine::Impl::uploadMutex.
+    void purgeQueuedResendForRangeLocked(const std::uint32_t fileno,
+                                         const m_off_t pos,
+                                         const int len);
 
     void applyInFlightLocked(const std::uint32_t fileno);
     void applyInFlight(const std::uint32_t fileno);

@@ -47,12 +47,15 @@
 #include "mega/types.h" // m_off_t, m_time_t, dstime, byte, chunkmac_map
 #include "mega/wsupload.h" // UploadEngine::{FailureDisposition, WsTransferStats}
 
+#include <algorithm> // std::max (markRangeAcked interval coalescing)
 #include <array>
 #include <atomic>
 #include <cstdint>
+#include <iterator> // std::next / std::prev (markRangeAcked interval coalescing)
 #include <memory>
 #include <mutex>
 #include <string>
+#include <utility> // std::pair (mAckedIntervals)
 #include <vector>
 
 namespace mega
@@ -211,6 +214,63 @@ public:
         if (!mFirstAckTime)
             mFirstAckTime = SteadyTime::ds();
         mClientActiveFilesTick = true;
+    }
+
+    // Tier 2 A whole-chunk-boundary rewind (loss-recovery). Record byte range
+    // [begin,end) as server-acked (coalesced into the contiguous-interval set), so a
+    // reconnect can re-queue ONLY the chunks NOT yet acked instead of every in-flight
+    // chunk (cuts the multi-conn out-of-order-ack re-send waste). Always whole-chunk
+    // granularity: callers pass (chunk.pos, chunk.pos+chunk.len) so (pos,len) stays
+    // invariant across requeue (the len-blind ack-match is then safe). Per-attempt:
+    // cleared by resetAttemptState. Caller must hold the engine uploadMutex (same
+    // discipline as mBytesConfirmed). O(n) over the small live-interval count.
+    void markRangeAcked(const m_off_t begin, const m_off_t end)
+    {
+        if (end <= begin)
+            return;
+        // Insert sorted by start, then coalesce touching/overlapping neighbours. The
+        // interval count is bounded by chunks-in-flight (conns * pipeline depth), so a
+        // linear insert is cheap and avoids pulling in a heavier interval container.
+        std::pair<m_off_t, m_off_t> ins{begin, end};
+        auto pos = mAckedIntervals.begin();
+        while (pos != mAckedIntervals.end() && pos->first < ins.first)
+            ++pos;
+        pos = mAckedIntervals.insert(pos, ins);
+        // Merge backward (previous interval may now touch/overlap the inserted one).
+        if (pos != mAckedIntervals.begin())
+        {
+            auto prev = std::prev(pos);
+            if (prev->second >= pos->first)
+            {
+                prev->second = std::max(prev->second, pos->second);
+                mAckedIntervals.erase(pos);
+                pos = prev;
+            }
+        }
+        // Merge forward across all subsequent intervals the merged one now subsumes.
+        auto next = std::next(pos);
+        while (next != mAckedIntervals.end() && next->first <= pos->second)
+        {
+            pos->second = std::max(pos->second, next->second);
+            next = mAckedIntervals.erase(next);
+        }
+    }
+
+    // True iff [begin,end) is FULLY covered by a single coalesced acked interval.
+    // Used by WsPool::retryChunksOnTheWireLocked to skip re-queueing an already-acked
+    // whole chunk. Caller must hold the engine uploadMutex.
+    bool rangeFullyAcked(const m_off_t begin, const m_off_t end) const
+    {
+        if (end <= begin)
+            return true; // empty/EOF chunk: nothing to re-send
+        for (const auto& iv: mAckedIntervals)
+        {
+            if (iv.first <= begin && iv.second >= end)
+                return true;
+            if (iv.first > begin)
+                break; // intervals are sorted by start; no later one can cover begin
+        }
+        return false;
     }
 
     // progress coalescing (server-confirmed): report if delta or time threshold hit
@@ -538,6 +598,10 @@ private:
         mUploadCompletionTime = 0;
         mClientActiveFilesTick = false;
         mConfirmedChunkMacs.clear();
+        // Tier 2 A: acked-interval set is per-attempt. A reset rewinds mHeadPos to 0, so
+        // every range must be re-sent; clearing here keeps it consistent with that rewind
+        // and with mConfirmedChunkMacs (which is also cleared on attempt reset).
+        mAckedIntervals.clear();
 #ifndef NDEBUG
         mFirstByteSentForStats = false;
 #endif
@@ -606,6 +670,13 @@ private:
 
     // Server-confirmed chunk MAC updates awaiting application on the client thread.
     std::vector<chunkmac_map> mConfirmedChunkMacs;
+    // Tier 2 A (loss-recovery): coalesced contiguous set of server-acked byte ranges
+    // for THIS attempt, advanced from opcode-1/7 acks at whole-chunk boundaries. Read by
+    // WsPool::retryChunksOnTheWireLocked to skip re-queueing already-acked chunks on a
+    // reconnect. Sorted by interval start, non-overlapping (coalesced in markRangeAcked).
+    // Per-attempt: cleared in resetAttemptState alongside mConfirmedChunkMacs. Written /
+    // read only under the engine uploadMutex.
+    std::vector<std::pair<m_off_t, m_off_t>> mAckedIntervals;
 #ifndef NDEBUG
     bool mFirstByteSentForStats{false};
 #endif

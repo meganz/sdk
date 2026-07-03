@@ -63,10 +63,12 @@
 #include "mega/transfer/ws/wsupload_engine.h"
 
 #include "mega/testhooks.h" // DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION
+#include "mega/utils.h" // Utils::getenv (cross-platform env read for wsLossRecoveryEnvDefault)
 
 #include <algorithm>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib> // std::strtol (wsDatasetConnLimitOverrideEnvDefault)
 #include <limits>
 #include <memory>
 #include <mutex>
@@ -78,6 +80,151 @@ namespace mega
 {
 namespace ws
 {
+
+// Loss-recovery MASTER kill-switch. Default ON. Set MEGA_WS_LOSS_RECOVERY=0 to reproduce
+// pre-fix behavior in the same binary (bench A/B): every sub-knob below is ANDed with this
+// value in the Impl ctor, so =0 forces them all OFF in one flip. Read exactly once per
+// process via a function-local static so repeated engine construction does not re-hit the
+// OS env.
+bool wsLossRecoveryEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_LOSS_RECOVERY");
+        // Default ON when unset. Only an explicit "0" disables; any other value keeps it on.
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Sub-knob readers. Each mirrors wsLossRecoveryEnvDefault() exactly: read its env var once
+// via a function-local static, default ON, only an explicit "0" disables. The effective
+// per-knob value (computed in the Impl ctor) is `wsXxxEnvDefault() && wsLossRecoveryEnvDefault()`
+// so the master kill above forces every sub-knob OFF regardless of its own env var.
+
+// Gates T1b loss-adaptive handshake timeout (WsConn::connectWS, ws_conn.cpp).
+bool wsAdaptiveHandshakeEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_ADAPTIVE_HANDSHAKE");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Gates D opcode-2 (AlreadyOnServer) queued-resend purge (WsConn::onmessage, ws_conn.cpp).
+bool wsResendDedupEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_RESEND_DEDUP");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Gates A whole-chunk-boundary acked-range rewind (WsConn::onmessage markRangeAcked +
+// WsPool::retryChunksOnTheWireLocked skip-already-acked). Harmless (never skips an un-acked
+// range); kept behind a flag so the upcoming multi-conn conn-count sweep can toggle it.
+bool wsAckedRewindEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_ACKED_REWIND");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Gates the distress/refresh-churn throttle (WsPoolMgr::refreshPools, ws_pool_mgr.cpp).
+bool wsRefreshThrottleEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_REFRESH_THROTTLE");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Gates Design A parallel handshakes (WsConn::connectWS runs the handshake on its own worker
+// thread instead of the serial client-thread Baton path). See ws_conn.cpp.
+bool wsParallelHandshakeEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_PARALLEL_HANDSHAKE");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Gates the loss-gated connection-count bump (WsPool::lossBoostedConnLimitLocked,
+// ws_pool.cpp; wired into WsPoolMgr::checkPools). Default ON; only an explicit "0"
+// disables. ANDed with mLossRecovery in the Impl ctor so MEGA_WS_LOSS_RECOVERY=0 forces
+// the legacy no-boost path.
+bool wsLossConnBumpEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_LOSS_CONN_BUMP");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Gates the loss-gated DATASET connection-count bump (A24, SDK-5360 fu8 Session 5;
+// WsPool::lossBoostedConnLimitLocked dataset branch, wired into WsPoolMgr::checkPools).
+// Default ON; only an explicit "0" disables. ANDed with mLossRecovery in the Impl ctor so
+// MEGA_WS_LOSS_RECOVERY=0 forces the legacy no-dataset-boost path. Decoupled from
+// MEGA_WS_LOSS_CONN_BUMP at the runtime gate so either bump can be A/B-toggled independently
+// in one binary (the lone-small-file bump and the dataset bump are separate levers).
+bool wsDatasetConnBumpEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_DATASET_CONN_BUMP");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Runtime NUMERIC override for the dataset boosted connection limit (default 0 = use the
+// compile-time kLossBoostedDatasetConnLimit=24). Lets the Queue-B proof bench sweep K (24/32/36)
+// on ONE binary without a rebuild. Read once per process. A value above the global ceiling
+// lifts the effective ceiling to fit (lossBoostedGlobalConnCeiling) so a high-K bench arm is
+// measurable. Clamped to [1, 255]; a non-numeric or <=0 value keeps the default constant.
+unsigned char wsDatasetConnLimitOverrideEnvDefault()
+{
+    static const unsigned char value = []() -> unsigned char
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_DATASET_CONN_LIMIT");
+        if (!hasValue)
+            return 0;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 0;
+        return static_cast<unsigned char>(std::min<long>(v, 255));
+    }();
+    return value;
+}
+
+// Gates candidate 3c (small-file cold-start cap=1) read in
+// WsPool::coldStartHandshakeCapLocked (ws_pool.cpp). Default ON; only an explicit "0"
+// disables. INDEPENDENT of MEGA_WS_LOSS_RECOVERY (see wsupload_engine.h): a clean-network
+// single-small-file overhead optimisation, not loss-recovery, so it is NOT ANDed with the
+// master kill in the Impl ctor. Read exactly once per process via a function-local static.
+bool wsSmallFileColdStartEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_SMALLFILE_COLDSTART");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
 
 // ========== Lifecycle ==========
 
@@ -556,7 +703,17 @@ bool UploadEngine::Impl::getWsUploadStatsForTesting(
     out = {};
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     std::lock_guard<std::mutex> g(uploadMutex);
+#ifndef NDEBUG
+    // N4 fix: seed the aggregate from retired pools' folded stats so the numbers SURVIVE a
+    // refreshPools()-driven pool replacement (a refresh shortly before this snapshot used to
+    // zero the whole block). Live pools are folded ON TOP below via the same += / max logic,
+    // so cumulative counters add correctly and high-waters take the overall max. poolCount is
+    // reset to count LIVE pools only (the summed counters remain cumulative incl. retired).
+    out = poolMgr.mRetiredPoolStats;
+#endif
+    out.poolCount = 0;
     out.found = true;
+    out.refreshPoolsCount = poolMgr.mRefreshPoolsCount;
     for (const auto& poolPtr: poolMgr.mPools)
     {
         if (poolPtr)
@@ -952,6 +1109,65 @@ bool UploadEngine::Impl::hasEligibleFileForPool(const m_off_t min,
     }
 
     return false;
+}
+
+unsigned UploadEngine::Impl::eligibleFileCountForPoolCappedLocked(
+    const m_off_t min,
+    const m_off_t max,
+    const std::string* requiredSessionUrl,
+    const WsPool* requestingPool,
+    const unsigned cap,
+    m_off_t* firstEligibleSize) const
+{
+    // Mirrors hasEligibleFileForPool's eligibility predicate exactly, but counts hits
+    // (early-exit at the cap-th) instead of returning on the first. Candidate 3c uses
+    // the count to distinguish "one queued small file" (cap=1 cold start) from a burst
+    // (>=2 eligible -> keep COLDSTART_HANDSHAKE_CONNS). The first eligible file's ACTUAL
+    // size() is captured so the caller can apply the small-file ceiling (the size-class
+    // ceiling mMaxFileSize is NOT the file size). cap==0 returns 0 immediately.
+    unsigned count = 0;
+    for (WsUploadFile* f: fileList)
+    {
+        if (count >= cap)
+        {
+            break;
+        }
+        if (!f)
+        {
+            continue;
+        }
+
+        const bool poolEligible = !f->hasPool() || f->mPool == requestingPool;
+        if (!poolEligible || f->paused() || !f->continuingUpload(currentTime) ||
+            !f->hasPendingBytesOrEofToSend())
+        {
+            continue;
+        }
+
+        const auto& hint = f->sessionUrlHint();
+        if (requiredSessionUrl)
+        {
+            if (hint.empty() || hint != *requiredSessionUrl)
+            {
+                continue;
+            }
+        }
+        else if (!hint.empty())
+        {
+            continue;
+        }
+
+        if (f->size() >= min && (!max || f->size() < max))
+        {
+            if (count == 0 && firstEligibleSize)
+            {
+                *firstEligibleSize = f->size();
+            }
+            ++count;
+        }
+    }
+
+    return count;
 }
 
 // ========== Worker bookkeeping ==========

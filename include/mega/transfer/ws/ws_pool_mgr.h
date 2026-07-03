@@ -73,6 +73,12 @@ struct WsPoolMgr
     static constexpr dstime POOLCONNKEEPALIVE = secondsToDs(60);
     static constexpr dstime POOLFRESHNESS = secondsToDs(24 * 3600);
     const dstime SERVERTIMEOUT = secondsToDs(20);
+    // Distress/refresh-churn throttle: minimum spacing between successful refreshPools()
+    // launches (mDistressRefreshThrottle, MEGA_WS_REFRESH_THROTTLE). 30s is chosen to sit
+    // strictly inside (SERVERTIMEOUT=20s, HANDSHAKEFAILTIMEOUT=60s): > SERVERTIMEOUT so the
+    // periodic checkPools trigger cannot re-fire every tick, < HANDSHAKEFAILTIMEOUT so the
+    // dead-endpoint escalation gate still acts as the liveness backstop.
+    static constexpr dstime WS_REFRESH_MIN_INTERVAL = secondsToDs(30);
 
     CURLM* curlm = nullptr; // private multi for USC refresh
     UploadEngine::Impl* mImpl{nullptr}; // backpointer
@@ -83,7 +89,27 @@ struct WsPoolMgr
     dstime mLastNetRead{0};
     std::atomic_bool mRefreshing{false};
     dstime mNextRefreshAttempt{0};
+    // When the last refresh round-trip was launched (success-side throttle, see
+    // WS_REFRESH_MIN_INTERVAL). 0 = never launched. Written only on the manager thread
+    // in refreshPools() (under uploadMutex via its callers); the throttle read there is
+    // on the same thread, so no extra synchronisation is needed.
+    dstime mLastRefreshStartedDs{0};
     unsigned mRefreshFailCount{0};
+
+    // Cumulative refreshPools() invocations this engine-lifetime. Surfaced via
+    // getWsUploadStatsForTesting so the bench can attribute peak RSS to refresh churn per run
+    // (W1/N4, SDK-5360 fu8: RSS peak tracks refresh VOLUME, not conn count). Always-compiled
+    // (a trivial counter); read on the client thread under uploadMutex, incremented on the
+    // manager thread under the same lock.
+    std::uint64_t mRefreshPoolsCount{0};
+#ifndef NDEBUG
+    // Persistent fold of retired pools' test-stats (SDK-5360 fu8 N4 fix). cleanupRetiringPools
+    // folds each pool here BEFORE erasing it from mPools, so getWsUploadStatsForTesting's
+    // aggregate SURVIVES a refreshPools()-driven pool replacement. Without this a refresh
+    // shortly before the end-of-run snapshot zeroed the whole [WsUploadStats] block (the
+    // counter=0 / stats-vanish artifact). Debug-only, same gate as the stats it accumulates.
+    UploadEngine::WsUploadStatsForTesting mRetiredPoolStats;
+#endif
 
     WsPoolMgr();
     ~WsPoolMgr();

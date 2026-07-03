@@ -51,6 +51,7 @@
 #include "mega/megaclient.h" // MegaClient, TransferDbCommitter, wsPostToClientThread
 #include "mega/transfer.h" // Transfer, SpeedController
 
+#include <algorithm> // std::max (lossBoostedDatasetConnLimit / lossBoostedGlobalConnCeiling)
 #include <atomic>
 #include <condition_variable>
 #include <cstdint>
@@ -67,6 +68,28 @@ namespace mega
 {
 namespace ws
 {
+
+// Reads the MEGA_WS_LOSS_RECOVERY environment MASTER kill-switch ONCE and returns the
+// initial value for UploadEngine::Impl::mLossRecovery (default ON; "0" disables). The four
+// sub-knob readers below each read their own env var the same way (default ON, only "0"
+// disables); their effective Impl-field values are ANDed with this master so
+// MEGA_WS_LOSS_RECOVERY=0 forces every sub-knob OFF in one flip. Defined in
+// src/transfer/ws/wsupload_engine.cpp so this header does not pull in mega/utils.h (the
+// cross-platform Utils::getenv lives there). Free functions rather than inline ctor bodies
+// so the heavy include stays out of every TU that includes this header.
+bool wsLossRecoveryEnvDefault();
+bool wsAdaptiveHandshakeEnvDefault(); // MEGA_WS_ADAPTIVE_HANDSHAKE -> mAdaptiveHandshake
+bool wsResendDedupEnvDefault(); // MEGA_WS_RESEND_DEDUP -> mResendDedupCancel
+bool wsAckedRewindEnvDefault(); // MEGA_WS_ACKED_REWIND -> mAckedChunkRewind
+bool wsRefreshThrottleEnvDefault(); // MEGA_WS_REFRESH_THROTTLE -> mDistressRefreshThrottle
+bool wsParallelHandshakeEnvDefault(); // MEGA_WS_PARALLEL_HANDSHAKE -> mParallelHandshake
+bool wsLossConnBumpEnvDefault(); // MEGA_WS_LOSS_CONN_BUMP -> mLossConnBump
+bool wsDatasetConnBumpEnvDefault(); // MEGA_WS_DATASET_CONN_BUMP -> mDatasetConnBump
+unsigned char wsDatasetConnLimitOverrideEnvDefault(); // MEGA_WS_DATASET_CONN_LIMIT -> mDatasetConnLimitOverride (0=use constant)
+// Small-file cold-start (candidate 3c). INDEPENDENT of the MEGA_WS_LOSS_RECOVERY master:
+// it is a small-file overhead concern, not loss-recovery, so it is NOT ANDed with
+// mLossRecovery in the ctor. Default ON; only an explicit "0" disables.
+bool wsSmallFileColdStartEnvDefault(); // MEGA_WS_SMALLFILE_COLDSTART -> mSmallFileColdStart
 
 // ========== UploadEngine::Impl (queue + mgr + thread) ==========
 //
@@ -86,6 +109,22 @@ public:
         client(c)
     {
         mInstanceId = ++sInstanceCounter;
+        // Loss-recovery feature flags. Read the env knobs once at construction so the
+        // loss20cap bench is A/B-able in one binary. mLossRecovery is the MASTER kill
+        // (MEGA_WS_LOSS_RECOVERY=0 reproduces pre-fix behavior); each sub-knob below is
+        // ANDed with it so the master forces all sub-knobs OFF in one flip. All default ON.
+        mLossRecovery = wsLossRecoveryEnvDefault();
+        mAdaptiveHandshake = wsAdaptiveHandshakeEnvDefault() && mLossRecovery;
+        mResendDedupCancel = wsResendDedupEnvDefault() && mLossRecovery;
+        mAckedChunkRewind = wsAckedRewindEnvDefault() && mLossRecovery;
+        mDistressRefreshThrottle = wsRefreshThrottleEnvDefault() && mLossRecovery;
+        mParallelHandshake = wsParallelHandshakeEnvDefault() && mLossRecovery;
+        mLossConnBump = wsLossConnBumpEnvDefault() && mLossRecovery;
+        mDatasetConnBump = wsDatasetConnBumpEnvDefault() && mLossRecovery;
+        mDatasetConnLimitOverride = wsDatasetConnLimitOverrideEnvDefault();
+        // Small-file cold-start (candidate 3c). INDEPENDENT of mLossRecovery (small-file
+        // concern, not loss-recovery), so it is NOT ANDed with the master kill-switch.
+        mSmallFileColdStart = wsSmallFileColdStartEnvDefault();
         WSUPLOAD_TRACE << "[UploadEngine::Impl] constructed";
     }
 
@@ -177,6 +216,26 @@ public:
         return mPoolConnectionLimit;
     }
 
+    // Effective loss-gated DATASET boosted connection limit: the runtime numeric override
+    // (MEGA_WS_DATASET_CONN_LIMIT) when set, else the compile-time constant. Consumed by
+    // WsPool::lossBoostedConnLimitLocked's dataset branch. Never below the default pool limit.
+    unsigned char lossBoostedDatasetConnLimit() const
+    {
+        const unsigned char k = mDatasetConnLimitOverride
+                                    ? mDatasetConnLimitOverride
+                                    : WsPool::kLossBoostedDatasetConnLimit;
+        return std::max<unsigned char>(k, mPoolConnectionLimit);
+    }
+
+    // Cross-pool concurrency ceiling for dataset-boosted pools. Normally the constant, but an
+    // override above it lifts the ceiling to fit (so a K=32/36 proof-bench arm is measurable
+    // on a single active pool). Applied in WsPoolMgr::checkPools over live per-pool conn counts.
+    unsigned char lossBoostedGlobalConnCeiling() const
+    {
+        return std::max<unsigned char>(WsPool::kLossBoostedGlobalConnCeiling,
+                                       lossBoostedDatasetConnLimit());
+    }
+
     void setMaxConnections(const unsigned char maxConnections);
 
     // Must be called with uploadMutex held.
@@ -197,6 +256,21 @@ public:
                                 const m_off_t max,
                                 const std::string* requiredSessionUrl,
                                 const WsPool* requestingPool) const;
+
+    // Candidate 3c (small-file cold-start). Counts eligible files for [min,max) on
+    // `requestingPool`, stopping the scan at the `cap`-th hit (so a huge queue cannot
+    // make this O(N) on the cold-start gate hot path). Same eligibility predicate as
+    // hasEligibleFileForPool. When the return value is exactly 1 and `firstEligibleSize`
+    // is non-null, *firstEligibleSize is set to that single file's size() (the ACTUAL
+    // file size, used by WsPool::coldStartHandshakeCapLocked to apply the small-file
+    // ceiling -- NOT the size-class ceiling mMaxFileSize). Side-effect-free, read-only;
+    // caller must hold uploadMutex. Returns min(eligibleCount, cap).
+    unsigned eligibleFileCountForPoolCappedLocked(const m_off_t min,
+                                                  const m_off_t max,
+                                                  const std::string* requiredSessionUrl,
+                                                  const WsPool* requestingPool,
+                                                  const unsigned cap,
+                                                  m_off_t* firstEligibleSize) const;
 
     // Manager thread
     void run();
@@ -236,6 +310,68 @@ public:
     m_off_t mUploadBudget{0};
     dstime mUploadBudgetLastDs{0};
     bool paused{false};
+    // Loss-recovery feature flags. Each is assigned EXACTLY ONCE in the ctor (before any
+    // worker/manager thread exists) and never mutated thereafter, so it is effectively
+    // const-after-init: reading it on any thread (including connectWS with uploadMutex
+    // released, or the manager-thread refreshPools()) is race-free. When the master is
+    // false (or a sub-knob is false) the corresponding path is byte-identical to pre-fix.
+    //
+    // mLossRecovery is the MASTER (env MEGA_WS_LOSS_RECOVERY, default ON). The four sub-
+    // knobs are ANDed with it in the ctor, so MEGA_WS_LOSS_RECOVERY=0 forces them all OFF.
+    bool mLossRecovery{true};
+    // mAdaptiveHandshake (env MEGA_WS_ADAPTIVE_HANDSHAKE, default ON): gates the loss-
+    // adaptive handshake timeout (WsConn::connectWS, ws_conn.cpp).
+    bool mAdaptiveHandshake{true};
+    // mResendDedupCancel (env MEGA_WS_RESEND_DEDUP, default ON): gates the opcode-2
+    // (AlreadyOnServer) queued-resend purge (WsConn::onmessage, ws_conn.cpp).
+    bool mResendDedupCancel{true};
+    // mAckedChunkRewind (env MEGA_WS_ACKED_REWIND, default ON): gates the whole-chunk-
+    // boundary acked-range rewind (WsConn::onmessage markRangeAcked +
+    // WsPool::retryChunksOnTheWireLocked skip-already-acked).
+    bool mAckedChunkRewind{true};
+    // mDistressRefreshThrottle (env MEGA_WS_REFRESH_THROTTLE, default ON): gates the
+    // refresh-rate throttle in WsPoolMgr::refreshPools() (ws_pool_mgr.cpp).
+    bool mDistressRefreshThrottle{true};
+    // mParallelHandshake (env MEGA_WS_PARALLEL_HANDSHAKE, default ON): gates Design A — running
+    // each WS connection's TLS+upgrade handshake directly on its OWN worker thread
+    // (WsConn::connectWS, ws_conn.cpp) instead of serially on the client thread via the Baton +
+    // wsPostToClientThread hop. ANDed with mLossRecovery so MEGA_WS_LOSS_RECOVERY=0 forces the
+    // legacy serial path. When false connectWS() is byte-identical to the pre-Design-A Baton
+    // path. Requires the curlsh lock callbacks (net.cpp) for the now-concurrent DNS/SSL-session
+    // cache writes.
+    bool mParallelHandshake{true};
+    // mLossConnBump (env MEGA_WS_LOSS_CONN_BUMP, default ON): gates the loss-gated
+    // connection-count bump in WsPool::lossBoostedConnLimitLocked() (ws_pool.cpp), wired
+    // into the WsPoolMgr::checkPools scale-up. When a lone small file has observed loss
+    // its connection target is widened toward kLossBoostedConnLimit (8) so it uploads on
+    // ~8 flows like develop does under loss. ANDed with mLossRecovery so
+    // MEGA_WS_LOSS_RECOVERY=0 forces the legacy (no-boost) path. When false
+    // lossBoostedConnLimitLocked() always returns the default poolConnectionLimit() and
+    // the scale-up is byte-identical to the pre-bump behaviour.
+    bool mLossConnBump{true};
+    // mDatasetConnBump (env MEGA_WS_DATASET_CONN_BUMP, default ON): gates the loss-gated
+    // DATASET connection-count bump — the complement of mLossConnBump — in
+    // WsPool::lossBoostedConnLimitLocked() (ws_pool.cpp). When a DATASET pool (eligibleCount>=2,
+    // or a lone file above the small-file ceiling) has observed loss, its connection target is
+    // widened toward lossBoostedDatasetConnLimit() so the dataset uploads on more independent
+    // TCP flows (root cause = FLOW count). ANDed with mLossRecovery. Decoupled from mLossConnBump
+    // at the runtime gate (either bump toggles independently). When false the dataset branch is
+    // unreachable and scale-up is byte-identical to the pre-bump behaviour.
+    bool mDatasetConnBump{true};
+    // mDatasetConnLimitOverride (env MEGA_WS_DATASET_CONN_LIMIT, default 0 = use the constant
+    // kLossBoostedDatasetConnLimit=24): runtime numeric override letting the Queue-B proof bench
+    // sweep K (24/32/36) on ONE binary. Const-after-init (assigned once in the ctor). Consumed
+    // via lossBoostedDatasetConnLimit(); a value above the ceiling lifts it via
+    // lossBoostedGlobalConnCeiling().
+    unsigned char mDatasetConnLimitOverride{0};
+    // mSmallFileColdStart (env MEGA_WS_SMALLFILE_COLDSTART, default ON): gates candidate
+    // 3c (small-file cold-start cap=1) read in WsPool::coldStartHandshakeCapLocked()
+    // (ws_pool.cpp). Same const-after-init / race-free discipline as the four flags above
+    // (assigned exactly once in the ctor before any thread exists). DELIBERATELY NOT ANDed
+    // with mLossRecovery: it is a clean-network single-small-file overhead optimisation,
+    // orthogonal to the loss-recovery master kill-switch. When false the cold-start cap is
+    // byte-identical to fix #2 (always COLDSTART_HANDSHAKE_CONNS).
+    bool mSmallFileColdStart{true};
     inline static std::atomic<std::uint64_t> sInstanceCounter{0};
     std::uint64_t mInstanceId{0};
 

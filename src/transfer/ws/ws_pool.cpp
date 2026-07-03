@@ -227,6 +227,7 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
             continue;
         out.curlAgainSendCount += c->mCurlAgainSendCount;
         out.curlAgainRecvCount += c->mCurlAgainRecvCount;
+        out.totalCurlWsSendAcceptedBytes += c->mTotalCurlWsSendAcceptedBytes;
         out.partialFrameTornDownCount += c->mPartialFrameTornDownCount;
         if (static_cast<std::uint64_t>(c->mBufferedAmountHighWater) > out.bufferedAmountHighWater)
             out.bufferedAmountHighWater =
@@ -240,6 +241,10 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
         if (c->mThrottleRecoveryAckMaxMs > out.throttleRecoveryAckMaxMs)
             out.throttleRecoveryAckMaxMs = c->mThrottleRecoveryAckMaxMs;
     }
+    // Peak concurrent in-flight connections, max across pools = the ACTUALLY-USED
+    // flow count (read of an existing locked counter; test-stats path only).
+    out.maxConnectionsWithInFlightSeen =
+        std::max(out.maxConnectionsWithInFlightSeen, mMaxConnectionsWithInFlightSeen);
 }
 
 void WsPool::recordWsUploadStatsSampleLocked(const UploadEngine::Impl& impl)
@@ -522,10 +527,39 @@ void WsPool::retryChunksOnTheWire(WsConn* ws)
 
 void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
 {
+    // Loss-gated connection-count bump: a connection was lost and its in-flight chunks
+    // are being requeued -- the authoritative runtime loss signal for this pool. Sticky
+    // (never reset); consumed by lossBoostedConnLimitLocked().
+    mLossObserved = true;
     WSUPLOAD_TRACE << "WsUpload: WS to " << mUrl << " lost; rescheduling " << ws->mChunksInFlight.size()
               << " in-flight chunks";
+    // Tier 2 A whole-chunk-boundary rewind (loss-recovery). When the flag is on, re-queue
+    // only the in-flight chunks NOT already fully acked by the server (mAckedIntervals),
+    // at whole-chunk granularity so (pos,len) is invariant across requeue (safe on the
+    // len-blind ack-match). A fully-acked chunk has already had its MAC applied (the same
+    // opcode-1/7 that marked it acked also ran ChunkFingerprintMacUpdate::apply), so
+    // skipping its re-send loses nothing and cannot under-credit. rangeFullyAcked only
+    // returns true for a range fully covered by a single coalesced acked interval, so an
+    // un-acked range is NEVER skipped (no silent corruption). mNumChunksInFlight is
+    // decremented for ALL cleared records (acked or not) since all leave the in-flight set.
+    //
+    // When the flag is OFF this is byte-identical to the prior behavior (re-queue every
+    // in-flight chunk).
+    const bool ackedRewind = mImpl->mAckedChunkRewind;
     for (auto& p: ws->mChunksInFlight)
     {
+        if (ackedRewind && p.first.len > 0)
+        {
+            const WsUploadFile* const uf = findFile(p.first.fileno, *mImpl);
+            if (uf && uf->rangeFullyAcked(p.first.pos, p.first.pos + p.first.len))
+            {
+                WSUPLOAD_TRACE << "[WsPool::retryChunksOnTheWireLocked] skip already-acked chunk "
+                                  "[pos="
+                               << p.first.pos << "] [len=" << p.first.len
+                               << "] [fileno=" << p.first.fileno << "] [this = " << this << "]";
+                continue; // server already holds it; do not re-read + re-send
+            }
+        }
         mToResend.push_back(p.first);
     }
     mNumChunksInFlight -= static_cast<int>(ws->mChunksInFlight.size());
@@ -534,6 +568,10 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
 
 void WsPool::retryChunkLocked(const WsChunk& chunk)
 {
+    // Loss-gated connection-count bump: a chunk is being requeued (server-rejected frame)
+    // -- a runtime loss signal for this pool. Sticky (never reset); consumed by
+    // lossBoostedConnLimitLocked().
+    mLossObserved = true;
     // Per-chunk retry cap for CrcFailed (opcode 3). Transfer-level retry is already
     // covered by Transfer::failed; this cap is specifically for the narrow case where
     // the server keeps rejecting the same chunk via opcode 3, which would otherwise
@@ -576,10 +614,13 @@ WsUploadFile* WsPool::handshakeFailureCandidateLocked(const dstime now) const
         return f && f->mPool == this && !f->paused() && f->continuingUpload(now);
     };
 
-    if (eligibleInPool(mUploadingFile))
-    {
-        return mUploadingFile;
-    }
+    // FIX B-2: the previous mUploadingFile shortcut dereferenced a non-owning raw alias
+    // (eligibleInPool(mUploadingFile) -> f->mPool/paused()/continuingUpload()) before
+    // confirming the object was live. The same hazards as findFile apply (stale alias
+    // across applyRefreshedUrls swap/retire, free-after-unlock in Impl::remove). The
+    // fileByNo scan below is identity-safe and returns the same in-pool eligible file
+    // (mUploadingFile is always present in fileByNo when bound to this pool), so drop the
+    // shortcut and resolve only through the owning index.
 
     // mUploadingFile can temporarily be null while the same pool still owns a resumable upload.
     for (const auto& kv: mImpl->fileByNo)
@@ -663,6 +704,29 @@ void WsPool::purgeFileLocked(const std::uint32_t fileno)
             {
                 ++it;
             }
+        }
+    }
+}
+
+void WsPool::purgeQueuedResendForRangeLocked(const std::uint32_t fileno,
+                                             const m_off_t pos,
+                                             const int len)
+{
+    // Range-scoped twin of purgeFileLocked's mToResend pass: erase only the QUEUED
+    // resend whose (fileno,pos,len) matches exactly (the chunk was queued whole by
+    // retryChunksOnTheWireLocked, so the range is identical). Deliberately does NOT
+    // touch mChunksInFlight (the per-conn ack firewall) or mBytesConfirmed. If no match
+    // is found (the chunk was already re-sent / never queued), this is a harmless no-op
+    // -- identical to today's behavior (the server dedup re-fires harmlessly).
+    for (auto it = mToResend.begin(); it != mToResend.end();)
+    {
+        if (it->fileno == fileno && it->pos == pos && it->len == len)
+        {
+            it = mToResend.erase(it);
+        }
+        else
+        {
+            ++it;
         }
     }
 }
@@ -922,6 +986,114 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
     return false;
 }
 
+int WsPool::coldStartHandshakeCapLocked() const
+{
+    // Default: keep fix #2's de-convoy cap (2 = one in-flight + one warm spare).
+    // Pinned pools never narrow (they also bypass the gate that calls this; this
+    // short-circuit is belt-and-suspenders so the helper is correct in isolation).
+    if (mPinned || !mImpl || !mImpl->mSmallFileColdStart)
+    {
+        return COLDSTART_HANDSHAKE_CONNS;
+    }
+
+    // fu8 S2: never narrow to 1 cold connection when conns<=2 (serializes under loss -> c2 stall)
+    if (mImpl->poolConnectionLimit() <= 2)
+    {
+        return static_cast<int>(mImpl->poolConnectionLimit());
+    }
+
+    // Narrow to 1 ONLY for a genuinely-isolated single small file. Each clause below is
+    // a revert-to-2 trigger that is re-checked on every worker loop pass (the gate calls
+    // this fresh each time), so a burst, a large file, or ANY in-flight/resend (including
+    // the first dropped frame under loss) immediately restores cap=2 and keeps the S3
+    // convoy closed:
+    //   - mNumChunksInFlight == 0 && mToResend.empty(): no send/resend activity yet, so
+    //     there is no convoy to throttle and no warm spare is needed for recovery.
+    //   - exactly ONE queued-eligible file for this size class. We count via a bounded
+    //     fileList scan (cap=2 early-exit), NOT mNumPoolFiles -- mNumPoolFiles is bound
+    //     too late (incremented in setPool()/sendChunk AFTER the handshake), so at the
+    //     cold gate it reads 0 even when N burst files are queued; gating on it would fire
+    //     cap=1 on the first file of a burst and re-open the convoy.
+    //   - that single file's ACTUAL size() <= kSingleConnFileSizeCeiling. mMaxFileSize is
+    //     the USC size-class CEILING (urlmaxsize.second), NOT the file size, so it is
+    //     unusable as the discriminator (every small file routes to the same small pool).
+    if (mNumChunksInFlight != 0 || !mToResend.empty())
+    {
+        return COLDSTART_HANDSHAKE_CONNS;
+    }
+
+    m_off_t firstEligibleSize = 0;
+    const unsigned eligibleCount = mImpl->eligibleFileCountForPoolCappedLocked(
+        mMinFileSize,
+        mMaxFileSize,
+        mPinned ? &mUrl : nullptr,
+        this,
+        /*cap*/ static_cast<unsigned>(COLDSTART_HANDSHAKE_CONNS),
+        &firstEligibleSize);
+
+    const bool singleSmallFile = (eligibleCount == 1) && (firstEligibleSize > 0) &&
+                                 (firstEligibleSize <= kSingleConnFileSizeCeiling);
+    return singleSmallFile ? 1 : COLDSTART_HANDSHAKE_CONNS;
+}
+
+unsigned char WsPool::lossBoostedConnLimitLocked(const UploadEngine::Impl& impl) const
+{
+    // Pinned pools (session-URL-affined failover pools, not size-class upload pools) never
+    // boost -- they keep the default limit.
+    if (mPinned)
+    {
+        return impl.poolConnectionLimit();
+    }
+
+    // DATASET connection-count bump (A24, SDK-5360 fu8 Session 5 -- REVISED to UNCONDITIONAL).
+    // A pool carrying >= 2 files widens its connection target to K (lossBoostedDatasetConnLimit,
+    // default 24; runtime-overridable via MEGA_WS_DATASET_CONN_LIMIT). The FLOW fix: datasets
+    // trail develop purely on independent-flow count (per-conn goodput is loss-capped; only N
+    // moves the aggregate -- GOAL3_ROOTCAUSE_VERDICT_v2).
+    //
+    // NOT loss-gated (and deliberately so): the WS engine CANNOT observe sub-connection packet
+    // loss -- TCP retransmits hide 5% loss below the socket, so no WS connection drop, no chunk
+    // requeue, and mLossObserved never trips (S5 smoke: 0 requeues, mLossObserved=0 in ~all
+    // samples under loss5 while throughput was still crippled). A loss-gated bump therefore
+    // never engages against the actual target scenario. develop's own HTTP path is
+    // unconditionally concurrent (connections[PUT] per slot x pooling), so matching that model
+    // is correct. mNumPoolFiles reliably counts files bound to THIS pool (the instantaneous
+    // eligibility scan under-counts: non-pinned pools skip session-URL-hinted files -> it read
+    // 0-1 for a genuine dataset). RSS stays bounded to ~K TOTAL conns by the global ceiling in
+    // WsPoolMgr::checkPools (lossBoostedGlobalConnCeiling), so several concurrent size-class
+    // pools cannot each reach K. Gated by MEGA_WS_DATASET_CONN_BUMP for A/B in one binary; when
+    // off, byte-identical to the shipped engine (falls through to the shipped lone-small path).
+    if (impl.mDatasetConnBump && mNumPoolFiles >= 2)
+    {
+        return std::max<unsigned char>(impl.poolConnectionLimit(),
+                                       impl.lossBoostedDatasetConnLimit());
+    }
+
+    // --- Shipped lone-small-file boost, UNCHANGED (loss-gated on a REAL drop/requeue). ---
+    // A single small file that hit an actual connection drop / server-rejected frame
+    // (mLossObserved set at the two requeue sites) widens toward kLossBoostedConnLimit (8) so
+    // the straggler uploads on ~8 flows like develop. This path is unchanged from the shipped
+    // engine: it fires on genuine drops (it just does not fire under mild TCP-absorbed loss --
+    // same as before). No boost unless mLossConnBump is on and this pool observed loss.
+    if (!impl.mLossConnBump || !mLossObserved)
+    {
+        return impl.poolConnectionLimit();
+    }
+    m_off_t firstEligibleSize = 0;
+    const unsigned eligibleCount = impl.eligibleFileCountForPoolCappedLocked(
+        mMinFileSize,
+        mMaxFileSize,
+        /*requiredSessionUrl*/ nullptr, // non-pinned here (mPinned returned above)
+        this,
+        /*cap*/ 2u,
+        &firstEligibleSize);
+    const bool loneSmallFile = (eligibleCount <= 1) && (firstEligibleSize > 0) &&
+                               (firstEligibleSize <= kSingleConnFileSizeCeiling);
+    return loneSmallFile ?
+               std::max<unsigned char>(impl.poolConnectionLimit(), kLossBoostedConnLimit) :
+               impl.poolConnectionLimit();
+}
+
 void WsPool::poolWorkerThread(WsPoolThread* th)
 {
     int retryCount{0};
@@ -987,12 +1159,17 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         {
             // Cold-start de-convoy gate (fix #2, root_cause.md S3b). uploadMutex (lk)
             // is held here. A worker may handshake iff the pool already has >=1 OPEN
-            // connection (warm refill path) OR fewer than COLDSTART_HANDSHAKE_CONNS
-            // workers are currently handshaking (cold path). Otherwise park on the
-            // Lever-F workerWakeCv (releasing lk while parked) and re-loop. Pinned
-            // pools bypass entirely so InvalidPinned* failover timing is unchanged.
+            // connection (warm refill path) OR fewer than the cold-start cap workers are
+            // currently handshaking (cold path). The cap is normally COLDSTART_HANDSHAKE_CONNS
+            // (2) but narrows to 1 for a genuinely-isolated single small file (candidate 3c,
+            // coldStartHandshakeCapLocked()): re-evaluated every loop pass, so a 2nd queued
+            // file / large file / any in-flight/resend (incl. the first dropped frame under
+            // loss) reverts it to 2 and keeps the de-convoy + >=20%-loss S3 convoy closed.
+            // Otherwise park on the Lever-F workerWakeCv (releasing lk while parked) and
+            // re-loop. Pinned pools bypass entirely so InvalidPinned* failover timing is
+            // unchanged (and coldStartHandshakeCapLocked() never narrows a pinned pool).
             if (!mPinned && !anyOpenConnLocked() &&
-                mConnectingCount >= COLDSTART_HANDSHAKE_CONNS)
+                mConnectingCount >= coldStartHandshakeCapLocked())
             {
                 const auto wakeEpochBeforeGate = mImpl->workerWakeEpoch;
                 mImpl->workerWakeCv.wait_for(

@@ -205,6 +205,11 @@ public:
     {
         bool found = false;
         unsigned poolCount = 0;
+        // Cumulative WsPoolMgr::refreshPools() invocations this run (engine-lifetime counter,
+        // survives pool retirement). W1/N4 (SDK-5360 fu8): RSS peak tracks refresh-churn
+        // VOLUME, not conn count (0/54/94/119 refreshes -> 105/170/169/208 MiB). Surfaced so
+        // the bench can attribute peak RSS to churn per run and gate HR54 on churn-free reps.
+        std::uint64_t refreshPoolsCount = 0;
         std::uint64_t uploadingFileOccupiedMs = 0;
         std::uint64_t lastAckToNextFirstByteSamples = 0;
         std::uint64_t lastAckToNextFirstByteTotalMs = 0;
@@ -218,8 +223,19 @@ public:
         // Send-side counters (aggregated across pools/conns).
         std::uint64_t curlAgainSendCount = 0;
         std::uint64_t curlAgainRecvCount = 0;
+        // E-3: Σ bytes curl_ws_send accepted across all conns. A deterministic
+        // mid-chunk force-close test compares this to the file size to measure
+        // whole-chunk re-send waste (accepted > fileSize today; ~= fileSize once
+        // byte-resume lands).
+        std::uint64_t totalCurlWsSendAcceptedBytes = 0;
         // # closeWS() teardowns that ran with a live partial frame (fix #6).
         std::uint64_t partialFrameTornDownCount = 0;
+        // Peak concurrent in-flight connections (max across pools) -- the
+        // ACTUALLY-USED flow count. Surfaced for the flow-count experiment + bench
+        // hygiene: the configured MEGA_BENCH_UPLOAD_CONNECTIONS may exceed the used
+        // count (develop caps connections for small files), so the analysis verifies
+        // configured == used per row.
+        unsigned maxConnectionsWithInFlightSeen = 0;
         std::uint64_t haveSpaceFalseIters = 0;
         std::uint64_t haveSpaceFalseWaitMs = 0;
         std::uint64_t readyForDataFalseIters = 0;
