@@ -172,6 +172,28 @@ SockInfo::~SockInfo()
 
 std::mutex CurlHttpIO::curlMutex;
 
+// SDK-5360 (Design A): lock callbacks for the process-wide `curlsh` share handle. One mutex
+// per curl_lock_data slot; libcurl passes the slot index, which we bound-check against
+// CURL_LOCK_DATA_LAST before indexing. Held only for the microsecond cache touch, never across
+// curl_easy_perform, so concurrent WS handshakes are not re-serialized. See meganet.h.
+std::mutex CurlHttpIO::sCurlShareMutexes[CURL_LOCK_DATA_LAST];
+
+void CurlHttpIO::curlsh_lock(CURL*, curl_lock_data data, curl_lock_access, void*)
+{
+    if (data < CURL_LOCK_DATA_LAST)
+    {
+        sCurlShareMutexes[data].lock();
+    }
+}
+
+void CurlHttpIO::curlsh_unlock(CURL*, curl_lock_data data, void*)
+{
+    if (data < CURL_LOCK_DATA_LAST)
+    {
+        sCurlShareMutexes[data].unlock();
+    }
+}
+
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
 std::recursive_mutex **CurlHttpIO::sslMutexes = NULL;
@@ -376,6 +398,10 @@ CurlHttpIO::CurlHttpIO()
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+    // SDK-5360 (Design A): make `curlsh` safe for concurrent users (WS handshakes now run on
+    // worker threads). USERDATA not needed: the mutex array is static. See meganet.h.
+    curl_share_setopt(curlsh, CURLSHOPT_LOCKFUNC, CurlHttpIO::curlsh_lock);
+    curl_share_setopt(curlsh, CURLSHOPT_UNLOCKFUNC, CurlHttpIO::curlsh_unlock);
 
     contenttypejson = curl_slist_append(NULL, "Content-Type: application/json");
     contenttypejson = curl_slist_append(contenttypejson, "Expect:");
@@ -2542,10 +2568,12 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
 
     // On success, DETACH from shared state before we hand the handle to worker threads.
     curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
+
     // Drop the stack-local error buffer before the handle outlives this frame:
     // the worker thread keeps using `easy`, and a later error would otherwise have
     // libcurl write into the dangling `ebuf` address.
     curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, nullptr);
+
     LOG_debug << "[CurlHttpIO::wsHandshake] END -> return easy=" << (void*)easy << " [url=" << url
               << "] [timeoutMs=" << timeoutMs << "] [this = " << this << "]";
     return easy;

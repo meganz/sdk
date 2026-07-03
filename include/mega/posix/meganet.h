@@ -156,6 +156,19 @@ protected:
     static int cert_verify_callback(X509_STORE_CTX*, void*);
 #endif
 
+    // SDK-5360 (Design A, parallel WS handshakes): the process-wide `curlsh` share handle
+    // (constructed in the CurlHttpIO ctor) shares only the DNS and SSL-session caches. With
+    // WS handshakes now performed concurrently on worker threads (WsConn::connectWS, gated by
+    // UploadEngine::Impl::mParallelHandshake) those caches are written from multiple threads,
+    // so the share handle MUST carry lock callbacks (libcurl requirement for a share used by
+    // >1 thread). One mutex per curl_lock_data slot; held only for the microsecond cache touch,
+    // NOT across curl_easy_perform, so it does not re-serialize the handshakes. Static so no
+    // USERDATA is needed and so the handle is safe for ALL concurrent users (strictly safer
+    // than the pre-fix no-callback state).
+    static std::mutex sCurlShareMutexes[CURL_LOCK_DATA_LAST];
+    static void curlsh_lock(CURL*, curl_lock_data, curl_lock_access, void*);
+    static void curlsh_unlock(CURL*, curl_lock_data, void*);
+
     static void send_request(CurlHttpContext*);
     void request_proxy_ip();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
