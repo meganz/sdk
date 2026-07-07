@@ -6555,6 +6555,10 @@ public:
 
     std::string tmpFileName;
 
+    // Absolute path of the folder MKD is creating, kept because the reply is built
+    // when the request completes, by which time arg1 may hold the next command.
+    std::string folderPathToCreate;
+
     MegaNode *nodeToDeleteAfterMove;
 
     uv_mutex_t mutex_responses;
@@ -6635,6 +6639,18 @@ protected:
 
     std::string getListingLineFromNode(MegaNode* child, std::string nameToShow = string());
 
+    // Backstop for the invariant every reply carrying a node name depends on: the
+    // reply must stay a single line, so that a name can never forge one of its own.
+    // Reaching the failure means a reply was built without sanitizing its text, and
+    // the reply is then replaced by a refusal. Sending nothing instead would leave
+    // the client waiting for an answer that never comes, and would make it read the
+    // next reply as the answer to this command.
+    static void enforceSingleLineResponse(std::string& response, const std::string& delimiter);
+
+    // Turns a path a command carried into the absolute form the server resolves,
+    // applying the same rules for a working directory at the root or at a handle.
+    std::string toAbsoluteFtpPath(MegaFTPContext* ftpctx, std::string path);
+
     MegaNode* getBaseFolderNode(std::string path);
     MegaNode* getNodeByFullFtpPath(std::string path);
     bool isHandleWithinAllowedSubtree(handle h);
@@ -6660,6 +6676,11 @@ public:
 
     static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
+
+    // Queues one already formatted reply line, without the delimiter, for a caller
+    // that has to shape the text itself. returnFtpCode() is the way to send a plain
+    // code with a message.
+    static void returnFtpResponse(MegaFTPContext* ftpctx, std::string line);
 
     static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());

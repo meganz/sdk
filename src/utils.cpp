@@ -2356,9 +2356,96 @@ string webdavnameescape(const string &value) {
     return escaped.str();
 }
 
+namespace
+{
+// The ASCII control bytes, and the one of them that a name is allowed to keep.
+// They live here rather than inside the function below because a lambda there
+// would otherwise have to capture them, which MSVC rejects.
+constexpr unsigned char maxAsciiControlByte = 0x1F;
+constexpr unsigned char deleteControlByte = 0x7F;
+constexpr unsigned char tabByte = 0x09;
+}
+
+string sanitizeFtpResponseText(const std::string_view value, const FtpTextEscaping policy)
+{
+    const auto needsEscaping = [policy](const unsigned char byte)
+    {
+        if (byte > maxAsciiControlByte && byte != deleteControlByte)
+        {
+            return false;
+        }
+
+        return policy == FtpTextEscaping::DisplayOnly || byte != tabByte;
+    };
+
+    string escaped;
+    escaped.reserve(value.size()); // Best-case scenario: no escapes needed.
+
+    for (char c: value)
+    {
+        auto byte = static_cast<unsigned char>(c);
+        if (!needsEscaping(byte))
+        {
+            escaped.push_back(c);
+        }
+        else
+        {
+            char buf[4];
+            snprintf(buf, sizeof(buf), "%%%02X", byte);
+            escaped.append(buf);
+        }
+    }
+
+    return escaped;
+}
+
+string quoteFtpResponsePathname(const std::string_view path)
+{
+    constexpr char quote = '"';
+
+    string quoted;
+    quoted.reserve(path.size() + 2); // Best-case scenario: nothing to double.
+    quoted.push_back(quote);
+
+    for (char c: path)
+    {
+        quoted.push_back(c);
+        if (c == quote)
+        {
+            quoted.push_back(quote);
+        }
+    }
+
+    quoted.push_back(quote);
+
+    return quoted;
+}
+
+bool isSingleLineFtpResponse(const std::string_view response, const std::string_view delimiter)
+{
+    if (delimiter.empty() || response.size() < delimiter.size())
+    {
+        return false;
+    }
+
+    const size_t delimiterStart = response.size() - delimiter.size();
+    if (response.compare(delimiterStart, delimiter.size(), delimiter) != 0)
+    {
+        return false;
+    }
+
+    return response.find_first_of("\r\n") == delimiterStart;
+}
+
 void tolower_string(std::string& str)
 {
-    std::transform(str.begin(), str.end(), str.begin(), [](char c) {return static_cast<char>(::tolower(c)); });
+    std::transform(str.begin(),
+                   str.end(),
+                   str.begin(),
+                   [](char c)
+                   {
+                       return static_cast<char>(::tolower(c));
+                   });
 }
 
 #ifdef __APPLE__

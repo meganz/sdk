@@ -39176,28 +39176,37 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     getPermissionsString(child->isFolder() ? 777 : 664, perms);
 
     char timebuff[80];
-    time_t rawtime = (child->isFolder()?child->getCreationTime():child->getModificationTime());
+    time_t rawtime = (child->isFolder() ? child->getCreationTime() : child->getModificationTime());
     struct tm time;
     m_localtime(rawtime, &time);
-    strftime(timebuff,80,"%b %d %H:%M",&time);
+    strftime(timebuff, 80, "%b %d %H:%M", &time);
+
+    const char* rawName = nameToShow.size() ? nameToShow.c_str() : child->getName();
+    if (!rawName)
+    {
+        LOG_err << "Skipping a node without a name in an FTP listing";
+        return {};
+    }
+
+    // A graphical client takes the name out of this line and sends it back in a
+    // later command, exactly as a scripted one does with an NLST entry.
+    const string safeName = sanitizeFtpResponseText(rawName, FtpTextEscaping::ReusableAsArgument);
 
     char toprint[3000];
-    snprintf(toprint, sizeof(toprint),
-            "%c%s %5d %4d %4d %8"
-            PRId64
-            " %s %s",
-            (child->isFolder())?'d':'-',
-            perms,
-            1,//number of contents for folders
-            1000, //uid
-            1000, //gid
-             (child->isFolder())?4:child->getSize(),
-            timebuff,
-            nameToShow.size()?nameToShow.c_str():child->getName());
+    snprintf(toprint,
+             sizeof(toprint),
+             "%c%s %5d %4d %4d %8" PRId64 " %s %s",
+             (child->isFolder()) ? 'd' : '-',
+             perms,
+             1, // number of contents for folders
+             1000, // uid
+             1000, // gid
+             (child->isFolder()) ? 4 : child->getSize(),
+             timebuff,
+             safeName.c_str());
 
     return toprint;
 }
-
 
 string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
 {
@@ -39324,17 +39333,46 @@ void MegaFTPServer::returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, Meg
     return returnFtpCode(ftpctx, ftpreturncode, errorMessage);
 }
 
+void MegaFTPServer::enforceSingleLineResponse(string& response, const string& delimiter)
+{
+    if (isSingleLineFtpResponse(response, delimiter))
+    {
+        return;
+    }
+
+    // Log the escaped form, so that the very bytes being reported cannot split
+    // the log line as well.
+    LOG_err << "FTP reply is not a single terminated line: "
+            << sanitizeFtpResponseText(response, FtpTextEscaping::DisplayOnly);
+    assert(false && "FTP reply must be a single line ending with the delimiter");
+
+    // The client is waiting for exactly one reply, so hand it a refusal it can act
+    // on instead of a reply that would arrive as two and leave the channel out of
+    // step for everything that follows.
+    response = "550 Requested action not taken";
+    response.append(delimiter);
+}
+
 void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
 {
-    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer *>(ftpctx->server);
+    const string responseMessage =
+        sanitizeFtpResponseText(errorMessage.size() ? errorMessage : getFTPErrorString(errorCode),
+                                FtpTextEscaping::DisplayOnly);
 
     std::ostringstream response;
-    response << errorCode << " " << (errorMessage.size() ? errorMessage : getFTPErrorString(errorCode))
-             << ftpserver->crlfout;
+    response << errorCode << " " << responseMessage;
 
-    string resstr = response.str();
+    returnFtpResponse(ftpctx, response.str());
+}
+
+void MegaFTPServer::returnFtpResponse(MegaFTPContext* ftpctx, string line)
+{
+    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer*>(ftpctx->server);
+    line.append(ftpserver->crlfout);
+    enforceSingleLineResponse(line, ftpserver->crlfout);
+
     uv_mutex_lock(&ftpctx->mutex_responses);
-    ftpctx->responses.push_back(resstr);
+    ftpctx->responses.push_back(line);
     uv_mutex_unlock(&ftpctx->mutex_responses);
     uv_async_send(&ftpctx->asynchandle);
 }
@@ -39424,7 +39462,7 @@ MegaNode *MegaFTPServer::getNodeByFullFtpPath(string path)
     return NULL;
 }
 
-MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
+string MegaFTPServer::toAbsoluteFtpPath(MegaFTPContext* ftpctx, string path)
 {
     if (ftpctx->atroot && path.size() && path.at(0) != '/')
     {
@@ -39443,6 +39481,13 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         path = ftpctx->cwdpath + "/" + path;
         path = shortenpath(path);
     }
+
+    return path;
+}
+
+MegaNode* MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
+{
+    path = toAbsoluteFtpPath(ftpctx, path);
 
     if (path.find("..") == 0)
     {
@@ -40158,7 +40203,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             else
             {
-                response = "501 Unrecognized OPTS " + ftpctx->arg1 + " " + ftpctx->arg2;
+                // A command argument is echoed back here, and the parser lets a lone CR
+                // or LF through, so it has to be escaped like any other reply text.
+                response = "501 Unrecognized OPTS " +
+                           sanitizeFtpResponseText(ftpctx->arg1, FtpTextEscaping::DisplayOnly) +
+                           " " +
+                           sanitizeFtpResponseText(ftpctx->arg2, FtpTextEscaping::DisplayOnly);
             }
             break;
         }
@@ -40167,10 +40217,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
             if (n)
             {
+                // The client is expected to send this path back, for instance as a CWD
+                // argument, so it must stay usable as one.
                 response = "257 ";
-                response.append("\"");
-                response.append(ftpctx->cwdpath);
-                response.append("\"");
+                response.append(quoteFtpResponsePathname(
+                    sanitizeFtpResponseText(ftpctx->cwdpath, FtpTextEscaping::ReusableAsArgument)));
                 delete n;
             }
             else
@@ -40243,9 +40294,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     if (n)
                     {
                         string toret = getListingLineFromNode(n);
-                        toret.append(crlfout);
                         assert(!ftpctx->ftpDataServer->resultmsj.size());
-                        ftpctx->ftpDataServer->resultmsj.append(toret);
+
+                        // An empty entry would reach the client as a nameless file.
+                        if (toret.size())
+                        {
+                            toret.append(crlfout);
+                            ftpctx->ftpDataServer->resultmsj.append(toret);
+                        }
+
                         delete n;
                     }
                     ftpctx->ftpDataServer->resultmsj.append(crlfout);
@@ -40278,10 +40335,27 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         {
                             toret = getListingLineFromNode(child);
                         }
-                        else //NLST
+                        else // NLST
                         {
-                            toret = child->getName();
+                            if (auto* name = child->getName())
+                            {
+                                // NLST names are meant to be reused as command arguments.
+                                toret =
+                                    sanitizeFtpResponseText(name,
+                                                            FtpTextEscaping::ReusableAsArgument);
+                            }
+                            else
+                            {
+                                LOG_err << "Skipping a node without a name in an FTP listing";
+                            }
                         }
+
+                        // An empty entry would reach the client as a nameless file.
+                        if (toret.empty())
+                        {
+                            continue;
+                        }
+
                         toret.append(crlfout);
                         ftpctx->ftpDataServer->resultmsj.append(toret);
                     }
@@ -40298,13 +40372,28 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     {
                         toret = getListingLineFromNode(node);
                     }
-                    else //NLST
+                    else // NLST
                     {
-                        toret = node->getName();
+                        if (auto* name = node->getName())
+                        {
+                            // NLST names are meant to be reused as command arguments.
+                            toret =
+                                sanitizeFtpResponseText(name, FtpTextEscaping::ReusableAsArgument);
+                        }
+                        else
+                        {
+                            LOG_err << "Skipping a node without a name in an FTP listing";
+                        }
                     }
-                    toret.append(crlfout);
+
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
-                    ftpctx->ftpDataServer->resultmsj.append(toret);
+
+                    // An empty entry would reach the client as a nameless file.
+                    if (toret.size())
+                    {
+                        toret.append(crlfout);
+                        ftpctx->ftpDataServer->resultmsj.append(toret);
+                    }
                     response = "150 Here comes the file listing";
                 }
                 delete node;
@@ -40337,7 +40426,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     uv_mutex_unlock(&ftpctx->mutex_nodeToDownload);
 
                     response = "150 Here comes the file: ";
-                    response.append(node->getName());
+                    if (auto* name = node->getName())
+                    {
+                        response.append(
+                            sanitizeFtpResponseText(name, FtpTextEscaping::DisplayOnly));
+                    }
+                    else
+                    {
+                        LOG_err << "Announcing a download of a node without a name";
+                    }
                 }
                 else
                 {
@@ -40405,7 +40502,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 ftpctx->ftpDataServer->remotePathToUpload = ftpctx->arg1;
                 response = "150 Opening data connection for storing ";
-                response.append(ftpctx->arg1);
+                response.append(
+                    sanitizeFtpResponseText(ftpctx->arg1, FtpTextEscaping::DisplayOnly));
             }
             else
             {
@@ -40570,6 +40668,10 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     if (parentForCreate &&
                         isHandleWithinAllowedSubtree(parentForCreate->getHandle()))
                     {
+                        // The reply has to name the path the client can refer to the
+                        // new folder by, and it is built once the request completes.
+                        ftpctx->folderPathToCreate = toAbsoluteFtpPath(ftpctx, ftpctx->arg1);
+
                         ftpctx->megaApi->createFolder(newNameFolder.c_str(),
                                                       parentForCreate,
                                                       ftpctx);
@@ -40598,7 +40700,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     ftpctx->ftpDataServer->rangeStartREST = static_cast<m_off_t>(number);
                     response = "350 Restarting at: ";
-                    response.append(ftpctx->arg1);
+                    response.append(
+                        sanitizeFtpResponseText(ftpctx->arg1, FtpTextEscaping::DisplayOnly));
                 }
                 else
                 {
@@ -40678,6 +40781,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
     {
         if (!delayresponse)
         {
+            // FEAT is the one reply that spans several lines by design.
+            if (ftpctx->command != FTP_CMD_FEAT)
+            {
+                enforceSingleLineResponse(response, crlfout);
+            }
+
             LOG_verbose << " Processed: " << petition << ". command="<< ftpctx->command << ".\n   Responding: " << response << " tpctx=" << ftpctx;
             answer(ftpctx,response.c_str(),response.size());
         }
@@ -40883,7 +40992,13 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
-            MegaFTPServer::returnFtpCodeAsync(this, 257, request->getName());
+            // RFC 959 Appendix II: the reply tells the client which string to use
+            // when it refers to the directory that was just created, quoted and
+            // with any quote inside it doubled.
+            const string quotedPath = quoteFtpResponsePathname(
+                sanitizeFtpResponseText(folderPathToCreate, FtpTextEscaping::ReusableAsArgument));
+
+            MegaFTPServer::returnFtpResponse(this, "257 " + quotedPath + " directory created");
         }
         else
         {
