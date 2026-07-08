@@ -21,6 +21,556 @@
 #include <mega.h>
 #include <string>
 
+using namespace mega;
+
+//
+// JSON::getname acceptance tests: well-formed input must be parsed correctly.
+//
+
+TEST(JSONGetName, ParsesWellFormedKeysInObject)
+{
+    constexpr char buffer[] = R"({"a":1,"b":2})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getname(), "a");
+    EXPECT_EQ(json.getint(), 1);
+    EXPECT_EQ(json.getname(), "b");
+    EXPECT_EQ(json.getint(), 2);
+}
+
+TEST(JSONGetName, AdvancesPastSeparatorWhenPresent)
+{
+    constexpr char buffer[] = R"("key":"value")";
+    const char* const valueOpeningQuotePos = buffer + 6;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, valueOpeningQuotePos);
+}
+
+TEST(JSONGetName, ParsesEmptyKey)
+{
+    constexpr char buffer[] = R"({"":42})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.getint(), 42);
+}
+
+TEST(JSONGetName, ParsesBase64HandleAsKey)
+{
+    constexpr char buffer[] = R"({"nForeA7RZQ":1})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getname(), "nForeA7RZQ");
+    EXPECT_EQ(json.getint(), 1);
+}
+
+TEST(JSONGetName, SkipsLeadingComma)
+{
+    constexpr char buffer[] = R"(,"key":1)";
+    const char* const afterColonPos = buffer + 7;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, afterColonPos);
+}
+
+TEST(JSONGetName, LeavesPosAtClosingBraceWhenKeyHasNoValue)
+{
+    constexpr char buffer[] = R"({"a"})";
+    const char* const closingBracePos = buffer + 4;
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getname(), "a");
+    EXPECT_EQ(json.pos, closingBracePos);
+    EXPECT_TRUE(json.leaveobject());
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetName, AdvancesPastColonWhenBufferEndsAfterSeparator)
+{
+    constexpr char buffer[] = R"("key":)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetName, AdvancesPastCommaAfterKey)
+{
+    constexpr char buffer[] = R"("key",)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetName, AdvancesPastCommaToNextKey)
+{
+    constexpr char buffer[] = R"("key","next")";
+    const char* const nextKeyOpeningQuotePos = buffer + 6;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, nextKeyOpeningQuotePos);
+}
+
+//
+// JSON::getname negative tests: malformed / truncated input must not read out
+// of bounds and must leave the parser in a safe state.
+//
+
+TEST(JSONGetName, ReturnsEmptyWhenNotAtQuotedKey)
+{
+    constexpr char buffer[] = R"({"a":1})";
+    const char* const closingBracePos = buffer + 6;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getname(), "a");
+    EXPECT_EQ(json.getint(), 1);
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, closingBracePos);
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, closingBracePos);
+}
+
+TEST(JSONGetName, ReturnsEmptyWhenPosIsNotAQuote)
+{
+    constexpr char buffer[] = "]";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetName, ReturnsEmptyWhenOnlyOpeningQuotePresent)
+{
+    constexpr char buffer[] = "\"";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetName, LeavesPosAtNullWhenClosingQuoteIsLastByte)
+{
+    constexpr char buffer[] = R"("key")";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetName, DoesNotReadPastBufferWhenKeyIsTruncatedInObject)
+{
+    constexpr char buffer[] = R"({"key)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetName, ReturnsEmptyOnSecondCallAfterUnterminatedString)
+{
+    constexpr char buffer[] = R"("key)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+    EXPECT_EQ(json.getname(), "");
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+//
+// JSON::getnameWithoutAdvance acceptance tests: well-formed input must be
+// parsed without advancing the parser position.
+//
+
+TEST(JSONGetNameWithoutAdvance, ParsesWellFormedKeyInObject)
+{
+    constexpr char buffer[] = R"({"a":1,"b":2})";
+    const char* const firstKeyQuotePos = buffer + 1;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameWithoutAdvance(), "a");
+    EXPECT_EQ(json.pos, firstKeyQuotePos);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReadsKeyWithoutSkippingSeparator)
+{
+    constexpr char buffer[] = R"("key":"value")";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ParsesEmptyKey)
+{
+    constexpr char buffer[] = R"({"":42})";
+    const char* const firstKeyQuotePos = buffer + 1;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameWithoutAdvance(), "");
+    EXPECT_EQ(json.pos, firstKeyQuotePos);
+}
+
+TEST(JSONGetNameWithoutAdvance, ParsesBase64HandleAsKey)
+{
+    constexpr char buffer[] = R"({"nForeA7RZQ":1})";
+    const char* const firstKeyQuotePos = buffer + 1;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameWithoutAdvance(), "nForeA7RZQ");
+    EXPECT_EQ(json.pos, firstKeyQuotePos);
+}
+
+TEST(JSONGetNameWithoutAdvance, SkipsLeadingCommaWhenPeeking)
+{
+    constexpr char buffer[] = R"(,"key":1)";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReadsKeyWhenClosingBraceFollows)
+{
+    constexpr char buffer[] = R"({"a"})";
+    const char* const firstKeyQuotePos = buffer + 1;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameWithoutAdvance(), "a");
+    EXPECT_EQ(json.pos, firstKeyQuotePos);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReadsKeyWhenBufferEndsAfterSeparator)
+{
+    constexpr char buffer[] = R"("key":)";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReadsKeyWhenCommaFollows)
+{
+    constexpr char buffer[] = R"("key",)";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReadsKeyWhenClosingQuoteIsLastByte)
+{
+    constexpr char buffer[] = R"("key")";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReturnsSameKeyOnRepeatedPeekAfterWellFormedInput)
+{
+    constexpr char buffer[] = R"("key":"value")";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, DoesNotAdvancePosBeforeSubsequentGetname)
+{
+    constexpr char buffer[] = R"("key":"value")";
+    const char* const valueOpeningQuotePos = buffer + 6;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "key");
+    EXPECT_EQ(json.pos, buffer);
+    EXPECT_EQ(json.getname(), "key");
+    EXPECT_EQ(json.pos, valueOpeningQuotePos);
+}
+
+//
+// JSON::getnameWithoutAdvance negative tests: malformed / truncated input must
+// not read out of bounds or advance the parser position.
+//
+
+TEST(JSONGetNameWithoutAdvance, ReturnsEmptyWhenPosIsNotAQuote)
+{
+    constexpr char buffer[] = "]";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReturnsEmptyWhenOnlyOpeningQuotePresent)
+{
+    constexpr char buffer[] = "\"";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReturnsEmptyWhenKeyIsTruncatedInObject)
+{
+    constexpr char buffer[] = R"({"key)";
+    const char* const firstKeyQuotePos = buffer + 1;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameWithoutAdvance(), "");
+    EXPECT_EQ(json.pos, firstKeyQuotePos);
+}
+
+TEST(JSONGetNameWithoutAdvance, ReturnsEmptyOnRepeatedPeekAfterUnterminatedString)
+{
+    constexpr char buffer[] = R"("key)";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameWithoutAdvance(), "");
+    EXPECT_EQ(json.pos, buffer);
+    EXPECT_EQ(json.getnameWithoutAdvance(), "");
+    EXPECT_EQ(json.pos, buffer);
+}
+
+//
+// JSON::getnameid acceptance tests: well-formed input must be parsed correctly.
+//
+
+TEST(JSONGetNameid, ParsesWellFormedKeysInObject)
+{
+    constexpr char buffer[] = R"({"a":1,"b":2})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), makeNameid("a"));
+    EXPECT_EQ(json.getint(), 1);
+    EXPECT_EQ(json.getnameid(), makeNameid("b"));
+    EXPECT_EQ(json.getint(), 2);
+}
+
+TEST(JSONGetNameid, AdvancesPastSeparatorWhenPresent)
+{
+    constexpr char buffer[] = R"("key":"value")";
+    const char* const valueOpeningQuotePos = buffer + 6;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), makeNameid("key"));
+    EXPECT_EQ(json.pos, valueOpeningQuotePos);
+}
+
+TEST(JSONGetNameid, SkipsEmptyValueAndReadsNextKey)
+{
+    constexpr char buffer[] = R"({"a":,"b":1})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), makeNameid("b"));
+    EXPECT_EQ(json.getint(), 1);
+}
+
+TEST(JSONGetNameid, ParsesEmptyKey)
+{
+    constexpr char buffer[] = R"({"":42})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.getint(), 42);
+}
+
+TEST(JSONGetNameid, ParsesBase64HandleAsKey)
+{
+    constexpr char buffer[] = R"({"nForeA7R":1})";
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), makeNameid("nForeA7R"));
+    EXPECT_EQ(json.getint(), 1);
+}
+
+TEST(JSONGetNameid, SkipsLeadingComma)
+{
+    constexpr char buffer[] = R"(,"key":1)";
+    const char* const afterColonPos = buffer + 7;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), makeNameid("key"));
+    EXPECT_EQ(json.pos, afterColonPos);
+}
+
+TEST(JSONGetNameid, LeavesPosAtClosingBraceWhenKeyHasNoValue)
+{
+    constexpr char buffer[] = R"({"a"})";
+    const char* const closingBracePos = buffer + 4;
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, closingBracePos);
+    EXPECT_TRUE(json.leaveobject());
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetNameid, AdvancesPastColonWhenBufferEndsAfterSeparator)
+{
+    constexpr char buffer[] = R"("key":)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), makeNameid("key"));
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetNameid, AdvancesPastCommaAfterKey)
+{
+    constexpr char buffer[] = R"("key",)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), makeNameid("key"));
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetNameid, AdvancesPastCommaToNextKey)
+{
+    constexpr char buffer[] = R"("key","next")";
+    const char* const nextKeyOpeningQuotePos = buffer + 6;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), makeNameid("key"));
+    EXPECT_EQ(json.pos, nextKeyOpeningQuotePos);
+}
+
+//
+// JSON::getnameid negative tests: malformed / truncated input must not read out
+// of bounds and must leave the parser in a safe state.
+//
+
+TEST(JSONGetNameid, ReturnsEooWhenNotAtQuotedKey)
+{
+    constexpr char buffer[] = R"({"a":1})";
+    const char* const closingBracePos = buffer + 6;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), makeNameid("a"));
+    EXPECT_EQ(json.getint(), 1);
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, closingBracePos);
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, closingBracePos);
+}
+
+TEST(JSONGetNameid, ReturnsEooWhenPosIsNotAQuote)
+{
+    constexpr char buffer[] = "]";
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, buffer);
+}
+
+TEST(JSONGetNameid, ReturnsEooWhenOnlyOpeningQuotePresent)
+{
+    constexpr char buffer[] = "\"";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetNameid, DoesNotReadPastBufferWhenKeyIsTruncatedInObject)
+{
+    constexpr char buffer[] = R"({"key)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+TEST(JSONGetNameid, ReturnsEooOnSecondCallAfterUnterminatedString)
+{
+    constexpr char buffer[] = R"("key)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+    EXPECT_EQ(json.getnameid(), EOO);
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
+//
+// JSON::getnameidvalue acceptance tests: well-formed input must be parsed
+// without skipping empty values.
+//
+
+TEST(JSONGetNameidValue, ParsesKeyAndAdvancesPastSeparator)
+{
+    constexpr char buffer[] = R"("key":"value")";
+    const char* const valueOpeningQuotePos = buffer + 6;
+    JSON json(buffer);
+
+    EXPECT_EQ(json.getnameidvalue(), makeNameid("key"));
+    EXPECT_EQ(json.pos, valueOpeningQuotePos);
+}
+
+TEST(JSONGetNameidValue, DoesNotSkipEmptyValue)
+{
+    constexpr char buffer[] = R"({"a":,"b":1})";
+    const char* const emptyValuePos = buffer + 5;
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameidvalue(), makeNameid("a"));
+    EXPECT_EQ(json.pos, emptyValuePos);
+}
+
+//
+// JSON::getnameidvalue negative tests: malformed / truncated input must not
+// read out of bounds and must leave the parser in a safe state.
+//
+
+TEST(JSONGetNameidValue, DoesNotReadPastBufferWhenKeyIsTruncatedInObject)
+{
+    constexpr char buffer[] = R"({"key)";
+    const char* const bufferEnd = buffer + sizeof(buffer);
+    JSON json(buffer);
+
+    ASSERT_TRUE(json.enterobject());
+    EXPECT_EQ(json.getnameidvalue(), EOO);
+    EXPECT_EQ(json.pos, bufferEnd - 1);
+}
+
 namespace
 {
 
@@ -34,7 +584,7 @@ std::string unescaped(std::string s)
 } // namespace
 
 //
-// Acceptance tests: well-formed input must be decoded correctly.
+// JSON::unescape acceptance tests: well-formed input must be decoded correctly.
 //
 
 TEST(JSONUnescape, EmptyStringStaysEmpty)
@@ -145,13 +695,13 @@ TEST(JSONUnescape, DecodesConsecutiveAndMixedEscapes)
 }
 
 //
-// Negative tests: malformed / adversarial input must never read out of bounds
-// and must degrade gracefully (the security fix for SDK-6267).
+// JSON::unescape negative tests: malformed / adversarial input must never read
+// out of bounds and must degrade gracefully
 //
 
 TEST(JSONUnescape, TrailingUnicodeEscapeDoesNotOverread)
 {
-    // Reproduces the reported PoC: a string whose last two bytes are backslash-u.
+    // A string whose last two bytes are backslash-u.
     // The '\u' handler used to read up to index size+3. The sequence must now
     // degrade to a literal 'u' with no out-of-bounds read.
     for (size_t n: {6u, 7u, 8u, 18u, 20u, 24u, 30u})
