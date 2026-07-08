@@ -33,6 +33,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <cstdlib>
 #include <fstream>
 #include <future>
 #include <memory>
@@ -5241,6 +5242,180 @@ TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
            "exist. See the doc comment above for the exact steps + assertion. Per the "
            "genetic-fight verdict the gate FIX must NOT ship until this test demonstrates "
            "real starvation with a realistic eligibility flap.";
+}
+
+/**
+ * @brief Ack-stall watchdog force-reconnects a silently-hung OPEN connection; without it the
+ *        hung conn is never force-reconnected and the upload stalls (SDK-5360 fu8 Session 6).
+ *        MECHANISM-based runtime A/B.
+ *
+ * Repro: arm wsRecvSwallowHook(startAfterFrames=1) so the SDK sees exactly ONE inbound server
+ * frame — enough to confirm the pool connected and >=1 chunk was acked — after which EVERY
+ * subsequent inbound frame is DISCARDED while the socket stays OPEN and chunks stay in-flight.
+ * That freezes WsConn::mLastInboundFrameDs (the true-server-liveness stamp the watchdog keys
+ * on): an alive-but-hung "silent-but-OPEN" server. A Drop-action hook cannot reproduce it
+ * because Drop fires AFTER the liveness stamp is refreshed.
+ *
+ * We assert the watchdog MECHANISM (it force-reconnects), NOT upload completion. Completion is
+ * unreliable BY CONSTRUCTION: this hook discards acks the server DID send, so on a same-session
+ * resend the server sees duplicates it already acked and will not re-ack them, so the SDK can
+ * never confirm those bytes. (A real silent-server hang differs — the server never acked, so a
+ * post-reconnect resend is acked first-time.) A new dedicated hook, onWsAckStallForceReconnect,
+ * counts watchdog firings UNAMBIGUOUSLY (onWsPoolReconnectAttempt also fires on cold-start).
+ *
+ * The knobs are read once per process, so the runner launches this cell TWICE; the SAME body
+ * asserts the correct branch for each:
+ *   - watchdog ON  (default; MEGA_WS_ACKSTALL_WATCHDOG!=0 AND MEGA_WS_LOSS_RECOVERY!=0):
+ *     WsPoolMgr::checkPools force-reconnects the hung conn (forceReconnects >= 1).
+ *   - watchdog OFF (MEGA_WS_ACKSTALL_WATCHDOG=0 OR MEGA_WS_LOSS_RECOVERY=0): the hung conn is
+ *     NEVER force-reconnected (forceReconnects == 0) — the pre-fix gap.
+ * In both arms the transfer does NOT complete (permanent swallow), confirming the stall.
+ *
+ * setMaxConnections(1) keeps the repro on one deterministic pool. The runner should set a small
+ * MEGA_WS_ACKSTALL_TIMEOUT_MS (e.g. 5000) so the watchdog fires quickly within the observe
+ * window. Teardown disarms the swallow hook BEFORE cancelling: a still-armed hook swallows the
+ * acks the cancel needs to finalize and would hang the process.
+ */
+TEST_F(SdkWsUploadTest, AckStallForceReconnectsHungConnection)
+{
+    LOG_info << "___TEST SdkWsUploadAckStallForceReconnectsHungConnection___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Step 1: watchdog state from env (unset = ON; ANDed with MEGA_WS_LOSS_RECOVERY, matching
+    // the Impl-ctor gate in wsupload_engine.cpp).
+    const char* wd = getenv("MEGA_WS_ACKSTALL_WATCHDOG");
+    const char* lr = getenv("MEGA_WS_LOSS_RECOVERY");
+    const bool watchdogOn = (!wd || std::string(wd) != "0") && (!lr || std::string(lr) != "0");
+
+    // Step 2: ack-stall timeout (ms) drives the swallow window and the completion waits.
+    const char* tmo = getenv("MEGA_WS_ACKSTALL_TIMEOUT_MS");
+    long ackStallMs = (tmo ? atol(tmo) : 45000);
+    if (ackStallMs <= 0)
+        ackStallMs = 45000;
+    // Observation window: long enough for the watchdog to fire at least once (it fires ~ackStallMs
+    // after the server acks are first swallowed).
+    const long observeMs = std::min<long>(std::max<long>(ackStallMs * 4, 25000), 90000);
+
+    // Multi-chunk source: big enough for several chunks/acks so >=1 ack lands before the stall.
+    const std::string fileName =
+        "ws_ackstall_watchdog_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = 8 * 1024 * 1024; // ~8 MiB -> several WS chunks/acks
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "A")) << "Couldn't create " << fileName;
+
+    // Teardown guards (run even on assertion failure, mirrors B9). The inline teardown at the
+    // end is the deterministic path; these are belt-and-suspenders for early-return.
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsPoolReconnectAttempt = nullptr;
+            globalMegaTestHooks.onWsAckStallForceReconnect = nullptr;
+            globalMegaTestHooks.wsRecvSwallowHook.reset();
+        });
+
+    // Single connection -> single deterministic pool for the repro.
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    // Step 3a: reconnect-attempt counter — LOG ONLY (fires on cold-start too, so ambiguous).
+    std::atomic<int> reconnectAttempts{0};
+    globalMegaTestHooks.onWsPoolReconnectAttempt =
+        [&](::mega::ws::WsPool* /*pool*/, unsigned /*retryCount*/, dstime /*firstFailureDs*/)
+    {
+        reconnectAttempts.fetch_add(1, std::memory_order_relaxed);
+    };
+    // Step 3b: ack-stall FORCE-RECONNECT counter — the UNAMBIGUOUS watchdog-firing signal (fires
+    // only from WsPoolMgr::checkPools' ack-stall branch, never on cold-start). This is what the
+    // A/B asserts on.
+    std::atomic<int> forceReconnects{0};
+    globalMegaTestHooks.onWsAckStallForceReconnect =
+        [&](::mega::ws::WsConn* /*conn*/, ::mega::ws::WsPool* /*pool*/)
+    {
+        forceReconnects.fetch_add(1, std::memory_order_relaxed);
+    };
+
+    // Step 4: let exactly ONE inbound ack through (proves connect + progress) then swallow ALL
+    // subsequent inbound frames (permanent) -> the conn stays alive-but-hung so the watchdog has
+    // a persistent reason to fire. We assert the watchdog ENGAGES (force-reconnect), not that the
+    // upload completes: this test hook discards acks the server DID send, so on a same-session
+    // resend the server won't re-ack the duplicates -> completion is unreliable by construction
+    // (a real silent-server hang differs: the server never acked, so a resend is acked first-time).
+    globalMegaTestHooks.wsRecvSwallowHook.configure(/*startAfterFrames*/ 1, /*swallowDurationMs*/ 0);
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Step 5: start the upload; detect completion by polling ut.finished (as
+    // DisconnectReconnectDuringTransfer does), not by blocking on waitForResult.
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // Step 6: observe. ON returns as soon as the watchdog force-reconnects at least once; OFF
+    // waits the full window to confirm the hung conn is NEVER force-reconnected and the transfer
+    // never completes (the gap).
+    const bool fired = WaitFor(
+        [&]()
+        {
+            return watchdogOn && forceReconnects.load(std::memory_order_relaxed) >= 1;
+        },
+        static_cast<unsigned>(observeMs));
+    (void)fired;
+
+    // Step 7: capture + log the counts so either arm's run shows them in the runner log.
+    const int swallowed = globalMegaTestHooks.wsRecvSwallowHook.getSwallowCount();
+    const int attempts = reconnectAttempts.load(std::memory_order_relaxed);
+    const int forced = forceReconnects.load(std::memory_order_relaxed);
+    const bool completed = ut.finished.load();
+    LOG_info << "[AckStallWatchdog] watchdogOn=" << watchdogOn << " ackStallMs=" << ackStallMs
+             << " observeMs=" << observeMs << " swallowed=" << swallowed
+             << " reconnectAttempts=" << attempts << " forceReconnects=" << forced
+             << " completed=" << completed;
+
+    // Step 8: assertions. Assert the watchdog MECHANISM (force-reconnect), not completion:
+    // completion is unreliable by construction here (see Step 4). The repro must engage in both
+    // arms, the transfer must NOT complete in either (permanent swallow), and only the ON arm
+    // may force-reconnect.
+    EXPECT_GT(swallowed, 0)
+        << "expected server-ack frames to be swallowed (alive-but-hung conn); if 0, the repro "
+           "did not engage";
+    EXPECT_FALSE(completed)
+        << "with acks permanently swallowed the upload cannot complete; if it did, the repro "
+           "escaped (swallow window / hook misconfigured)";
+    if (watchdogOn)
+    {
+        EXPECT_GE(forced, 1)
+            << "ack-stall watchdog should force-reconnect the silently-hung OPEN conn at least "
+               "once; forceReconnects=" << forced;
+    }
+    else
+    {
+        EXPECT_EQ(forced, 0)
+            << "with the watchdog OFF the hung conn must NEVER be force-reconnected (the gap); "
+               "forceReconnects=" << forced;
+    }
+
+    // Step 9: deterministic teardown (BOTH arms): disarm the swallow hook FIRST so frames flow
+    // and the WS engine can finalize — a still-armed hook swallows the acks the cancel needs
+    // and would hang. Only then cancel a still-running (stalled/failed) transfer.
+    globalMegaTestHooks.wsRecvSwallowHook.reset();
+    if (!ut.finished.load())
+    {
+        (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        (void)ut.waitForResult(30);
+    }
 }
 
 } // namespace mega::test::wsupload

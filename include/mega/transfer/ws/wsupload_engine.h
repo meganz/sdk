@@ -86,6 +86,12 @@ bool wsParallelHandshakeEnvDefault(); // MEGA_WS_PARALLEL_HANDSHAKE -> mParallel
 bool wsLossConnBumpEnvDefault(); // MEGA_WS_LOSS_CONN_BUMP -> mLossConnBump
 bool wsDatasetConnBumpEnvDefault(); // MEGA_WS_DATASET_CONN_BUMP -> mDatasetConnBump
 unsigned char wsDatasetConnLimitOverrideEnvDefault(); // MEGA_WS_DATASET_CONN_LIMIT -> mDatasetConnLimitOverride (0=use constant)
+bool wsDatasetConnGateEnvDefault(); // MEGA_WS_DATASET_CONN_GATE -> mDatasetConnGate (ANDed with mLossRecovery)
+unsigned wsGateWindowMsEnvDefault(); // MEGA_WS_GATE_WINDOW_MS -> mGateWindowMs (default 1000)
+unsigned wsGateGainPctEnvDefault(); // MEGA_WS_GATE_GAIN_PCT -> mGateGainPct (default 5)
+unsigned char wsGateStepEnvDefault(); // MEGA_WS_GATE_STEP -> mGateStep (default 1)
+dstime wsAckStallTimeoutDsEnvDefault(); // MEGA_WS_ACKSTALL_TIMEOUT_MS (ms->ds) -> mAckStallTimeoutDsOverride (0=use ACKSTALLTIMEOUT)
+bool wsAckStallWatchdogEnvDefault(); // MEGA_WS_ACKSTALL_WATCHDOG -> mAckStallWatchdog (ANDed with mLossRecovery)
 // Small-file cold-start (candidate 3c). INDEPENDENT of the MEGA_WS_LOSS_RECOVERY master:
 // it is a small-file overhead concern, not loss-recovery, so it is NOT ANDed with
 // mLossRecovery in the ctor. Default ON; only an explicit "0" disables.
@@ -122,6 +128,19 @@ public:
         mLossConnBump = wsLossConnBumpEnvDefault() && mLossRecovery;
         mDatasetConnBump = wsDatasetConnBumpEnvDefault() && mLossRecovery;
         mDatasetConnLimitOverride = wsDatasetConnLimitOverrideEnvDefault();
+        // Goodput-saturation gate (SDK-5360). ANDed with mLossRecovery, mirroring
+        // mDatasetConnBump, so MEGA_WS_LOSS_RECOVERY=0 forces the legacy path. When OFF, the
+        // dataset bump reverts to today's unconditional jump-to-K. The numeric tunables are
+        // const-after-init (not ANDed): inert when the gate is off (controller never runs).
+        mDatasetConnGate = wsDatasetConnGateEnvDefault() && mLossRecovery;
+        mGateWindowMs = wsGateWindowMsEnvDefault();
+        mGateGainPct = wsGateGainPctEnvDefault();
+        mGateStep = wsGateStepEnvDefault();
+        // Ack-stall watchdog (fu8 S6). ANDed with mLossRecovery so the master kill reproduces
+        // full pre-fix behavior; independently toggleable via MEGA_WS_ACKSTALL_WATCHDOG for the
+        // Goal-2d watchdog-off vs -on A/B. Timeout override is const-after-init.
+        mAckStallWatchdog = wsAckStallWatchdogEnvDefault() && mLossRecovery;
+        mAckStallTimeoutDsOverride = wsAckStallTimeoutDsEnvDefault();
         // Small-file cold-start (candidate 3c). INDEPENDENT of mLossRecovery (small-file
         // concern, not loss-recovery), so it is NOT ANDed with the master kill-switch.
         mSmallFileColdStart = wsSmallFileColdStartEnvDefault();
@@ -234,6 +253,24 @@ public:
     {
         return std::max<unsigned char>(WsPool::kLossBoostedGlobalConnCeiling,
                                        lossBoostedDatasetConnLimit());
+    }
+
+    // Goodput-saturation gate sampling window in deciseconds (MEGA_WS_GATE_WINDOW_MS / 100,
+    // floored at 1ds so a tiny positive value still arms). Consumed by the WsPoolMgr::checkPools
+    // ramp controller (WsPool::runGoodputGateLocked).
+    dstime gateWindowDs() const
+    {
+        const dstime ds = msToDs(static_cast<std::int64_t>(mGateWindowMs));
+        return ds > 0 ? ds : 1;
+    }
+
+    // Effective ack-stall watchdog window (fu8 S6): the runtime override
+    // (MEGA_WS_ACKSTALL_TIMEOUT_MS, already converted to ds) when set, else the compile-time
+    // WsPool::ACKSTALLTIMEOUT. Consumed by WsPoolMgr::checkPools.
+    dstime ackStallTimeoutDs() const
+    {
+        return mAckStallTimeoutDsOverride ? mAckStallTimeoutDsOverride
+                                          : WsPool::ACKSTALLTIMEOUT;
     }
 
     void setMaxConnections(const unsigned char maxConnections);
@@ -359,11 +396,41 @@ public:
     // unreachable and scale-up is byte-identical to the pre-bump behaviour.
     bool mDatasetConnBump{true};
     // mDatasetConnLimitOverride (env MEGA_WS_DATASET_CONN_LIMIT, default 0 = use the constant
-    // kLossBoostedDatasetConnLimit=24): runtime numeric override letting the Queue-B proof bench
+    // kLossBoostedDatasetConnLimit=32): runtime numeric override letting the Queue-B proof bench
     // sweep K (24/32/36) on ONE binary. Const-after-init (assigned once in the ctor). Consumed
     // via lossBoostedDatasetConnLimit(); a value above the ceiling lifts it via
     // lossBoostedGlobalConnCeiling().
     unsigned char mDatasetConnLimitOverride{0};
+    // mDatasetConnGate (env MEGA_WS_DATASET_CONN_GATE, default ON): gates the goodput-
+    // saturation GATE in WsPoolMgr::checkPools / WsPool::runGoodputGateLocked (ws_pool.cpp).
+    // When ON, a dataset-boosted pool RAMPS toward the dataset limit K only while aggregate
+    // server-confirmed goodput keeps rising under full send-buffer backpressure, and actively
+    // steps back down when an added flow does not help -- so clean links (high- AND low-BW)
+    // stay at the low default and only loss-limited datasets widen. ANDed with mLossRecovery.
+    // When false, checkPools reverts to the pre-gate UNCONDITIONAL jump straight to K (today's
+    // behaviour), so gate-vs-unconditional is A/B-toggleable in one binary. Const-after-init.
+    bool mDatasetConnGate{true};
+    // mGateWindowMs (env MEGA_WS_GATE_WINDOW_MS, default 1000): goodput-gate sampling window in
+    // milliseconds. The controller samples/decides at most once per window (NOT every checkPools
+    // tick). Const-after-init; consumed as deciseconds via gateWindowDs().
+    unsigned mGateWindowMs{1000};
+    // mGateGainPct (env MEGA_WS_GATE_GAIN_PCT, default 5): the minimum percentage rise in
+    // aggregate goodput a +step probe must produce to be kept (else it is retreated). This is
+    // the clean-vs-loss discriminator. Const-after-init.
+    unsigned mGateGainPct{5};
+    // mGateStep (env MEGA_WS_GATE_STEP, default 1): connections added/removed per ramp probe
+    // (a pure +1/-1 hill-climb by default). Const-after-init.
+    unsigned char mGateStep{1};
+    // mAckStallWatchdog (env MEGA_WS_ACKSTALL_WATCHDOG, default ON): gates the ack-stall
+    // watchdog in WsPoolMgr::checkPools that force-reconnects a silently-hung OPEN conn
+    // (SDK-5360 fu8 Session 6 — server acks stale past ACKSTALLTIMEOUT while chunks in-flight).
+    // ANDed with mLossRecovery; independently toggleable for the Goal-2d watchdog A/B.
+    // Const-after-init (assigned once in the ctor before any worker thread exists).
+    bool mAckStallWatchdog{true};
+    // mAckStallTimeoutDsOverride (env MEGA_WS_ACKSTALL_TIMEOUT_MS, default 0 = use the constant
+    // WsPool::ACKSTALLTIMEOUT=45s): runtime numeric override (deciseconds) letting the Goal-2d
+    // bench sweep the window on ONE binary. Const-after-init; consumed via ackStallTimeoutDs().
+    dstime mAckStallTimeoutDsOverride{0};
     // mSmallFileColdStart (env MEGA_WS_SMALLFILE_COLDSTART, default ON): gates candidate
     // 3c (small-file cold-start cap=1) read in WsPool::coldStartHandshakeCapLocked()
     // (ws_pool.cpp). Same const-after-init / race-free discipline as the four flags above

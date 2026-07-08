@@ -1045,11 +1045,18 @@ unsigned char WsPool::lossBoostedConnLimitLocked(const UploadEngine::Impl& impl)
         return impl.poolConnectionLimit();
     }
 
-    // DATASET connection-count bump (A24, SDK-5360 fu8 Session 5 -- REVISED to UNCONDITIONAL).
-    // A pool carrying >= 2 files widens its connection target to K (lossBoostedDatasetConnLimit,
-    // default 24; runtime-overridable via MEGA_WS_DATASET_CONN_LIMIT). The FLOW fix: datasets
-    // trail develop purely on independent-flow count (per-conn goodput is loss-capped; only N
-    // moves the aggregate -- GOAL3_ROOTCAUSE_VERDICT_v2).
+    // DATASET connection-count bump (A24, SDK-5360 fu8 Session 5). A pool carrying >= 2 files
+    // sets its connection-count CEILING to K (lossBoostedDatasetConnLimit, default 32;
+    // runtime-overridable via MEGA_WS_DATASET_CONN_LIMIT). The FLOW fix: datasets trail develop
+    // purely on independent-flow count (per-conn goodput is loss-capped; only N moves the
+    // aggregate -- GOAL3_ROOTCAUSE_VERDICT_v2).
+    //
+    // This helper returns only the CEILING. How the pool APPROACHES it is decided in
+    // WsPoolMgr::checkPools: with the goodput-saturation GATE on (MEGA_WS_DATASET_CONN_GATE,
+    // default) the pool RAMPS toward K only while aggregate goodput keeps rising under full
+    // backpressure (so clean links stay at the low default and only loss-limited datasets
+    // widen -- WsPool::runGoodputGateLocked); with the gate OFF checkPools JUMPS straight to K
+    // (the historical unconditional bump). Either way this CEILING is unchanged.
     //
     // NOT loss-gated (and deliberately so): the WS engine CANNOT observe sub-connection packet
     // loss -- TCP retransmits hide 5% loss below the socket, so no WS connection drop, no chunk
@@ -1092,6 +1099,124 @@ unsigned char WsPool::lossBoostedConnLimitLocked(const UploadEngine::Impl& impl)
     return loneSmallFile ?
                std::max<unsigned char>(impl.poolConnectionLimit(), kLossBoostedConnLimit) :
                impl.poolConnectionLimit();
+}
+
+// Goodput-saturation gate ramp controller (SDK-5360, amendment B). See the header declaration
+// for the contract. `ceiling` is targetConnLimit (already global-ceiling-clamped in checkPools).
+// Runs UNDER uploadMutex (checkPools holds it). All controller state + mConfirmedBytesTotal are
+// plain (uploadMutex-guarded, HR23); the ONE cross-thread input is per-conn backpressure, read
+// via the atomic WsConn::mBackpressured inside allOpenConnsBackpressuredLocked.
+void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned char ceiling)
+{
+    const dstime now = impl.currentTime;
+    const dstime windowDs = impl.gateWindowDs();
+
+    // Ramp hysteresis constants, in units of sampling windows:
+    //  - kGateRetreatCooldownWindows: after a RETREAT, hold the settled level this many windows
+    //    before re-probing, so a clean bandwidth-limited link (which stays backpressured even at
+    //    the base) does not flutter +step/-step every window; it still re-probes eventually so
+    //    the controller re-adapts if the link later becomes loss-limited. This is the design's
+    //    "first probe at the current count" gate expressed as time-based hysteresis.
+    //  - kGateStaleWindows: an elapsed window longer than this means the pool sat idle / paused
+    //    (a genuine gap, NOT a deliberate cooldown -- so kGateStaleWindows > the cooldown):
+    //    re-seed the baseline rather than compute a goodput rate over a stale denominator. Idle
+    //    gaps are >= POOLCONNKEEPALIVE (60 windows at the default), far above this bound.
+    constexpr dstime kGateRetreatCooldownWindows = 5;
+    constexpr dstime kGateStaleWindows = 12;
+
+    // First observation (or after a reset): seed the measurement anchors; decide nothing yet.
+    if (!mGateLastSampleDs)
+    {
+        mGateLastSampleDs = now;
+        mGateLastSampleBytes = mConfirmedBytesTotal;
+        mGateNextAdjustDs = now + windowDs;
+        return;
+    }
+
+    // Hysteresis: act at most once per window, NOT on every checkPools tick (~2 Hz).
+    if (SteadyTime::difference(now, mGateNextAdjustDs) < 0)
+        return;
+
+    const dstime elapsedDs = SteadyTime::difference(now, mGateLastSampleDs);
+
+    // Stale window (idle gap / long pause / clock skew): re-seed and decide nothing. Guards the
+    // goodput rate against a spuriously large elapsed denominator after the pool sat idle (e.g.
+    // between the idle down-trim and work returning) and drops any in-flight probe cleanly.
+    if (elapsedDs <= 0 || elapsedDs > windowDs * kGateStaleWindows)
+    {
+        mGateProbing = false;
+        mGateLastSampleDs = now;
+        mGateLastSampleBytes = mConfirmedBytesTotal;
+        mGateNextAdjustDs = now + windowDs;
+        return;
+    }
+
+    // Aggregate goodput over the window, bytes/second (double: once-per-window, cold path).
+    const std::uint64_t deltaBytes = mConfirmedBytesTotal - mGateLastSampleBytes;
+    const double elapsedSec = static_cast<double>(elapsedDs) / static_cast<double>(kDsPerSecond);
+    const double currentGoodput = static_cast<double>(deltaBytes) / elapsedSec;
+
+    const double gainMultiplier = 1.0 + static_cast<double>(impl.mGateGainPct) / 100.0;
+    const unsigned step = impl.mGateStep ? impl.mGateStep : 1u;
+
+    // Default pacing: re-evaluate next window. A RETREAT overrides this with the longer
+    // kGateRetreatCooldownWindows cooldown (below) to stop clean-link flutter.
+    dstime nextAdjustDs = now + windowDs;
+
+    // WIDEN requires headroom below the ceiling AND EVERY open conn saturated (full send-buffer
+    // backpressure). Clean high-BW is chunk-prep-bound -> haveSpace() stays true -> not
+    // backpressured -> never widens (stays at the base default, no regression).
+    const bool canWiden =
+        (static_cast<unsigned>(mNumberOfConnections) < static_cast<unsigned>(ceiling)) &&
+        allOpenConnsBackpressuredLocked();
+    if (canWiden)
+    {
+        // WIDEN on the first probe at this count, or if the previous +step lifted aggregate
+        // goodput by >= the gain threshold; otherwise RETREAT. The gain test is the clean-vs-
+        // loss discriminator: a clean bandwidth-limited link does NOT gain when a flow is added
+        // (the flow just splits the same uplink) -> retreat; a loss-limited link DOES gain (each
+        // flow is an independent cwnd) -> keep climbing.
+        const bool roseEnough =
+            !mGateProbing || (currentGoodput >= mGateGoodputBeforeIncrease * gainMultiplier);
+        if (roseEnough)
+        {
+            // Record the goodput measured BEFORE this increase (the next window judges the probe
+            // against it), then widen (clamped to the ceiling) and start probing.
+            mGateGoodputBeforeIncrease = currentGoodput;
+            const unsigned widened =
+                std::min<unsigned>(static_cast<unsigned>(mNumberOfConnections) + step,
+                                   static_cast<unsigned>(ceiling));
+            setPoolNumConn(static_cast<unsigned char>(widened));
+            mGateProbing = true;
+        }
+        else
+        {
+            // RETREAT (active step-down, amendment B): undo the unhelpful +step and stop probing
+            // so we settle at the goodput knee (or the base default for a clean low-BW link).
+            // Floor at the base pool limit so the ramp never drops the pool's base connections.
+            const unsigned floorLimit = impl.poolConnectionLimit();
+            unsigned downTo = (static_cast<unsigned>(mNumberOfConnections) > step)
+                                  ? (static_cast<unsigned>(mNumberOfConnections) - step)
+                                  : floorLimit;
+            if (downTo < floorLimit)
+                downTo = floorLimit;
+            if (downTo < static_cast<unsigned>(mNumberOfConnections))
+                setPoolNumConn(static_cast<unsigned char>(downTo));
+            mGateProbing = false;
+            nextAdjustDs = now + windowDs * kGateRetreatCooldownWindows;
+        }
+    }
+    else
+    {
+        // Not backpressured (clean high-BW holds at the base default), or already at the
+        // ceiling: resolve any in-flight probe without thrashing and hold.
+        mGateProbing = false;
+    }
+
+    // Advance the measurement window (nextAdjustDs = the retreat cooldown, else one window).
+    mGateLastSampleDs = now;
+    mGateLastSampleBytes = mConfirmedBytesTotal;
+    mGateNextAdjustDs = nextAdjustDs;
 }
 
 void WsPool::poolWorkerThread(WsPoolThread* th)
@@ -1153,6 +1278,21 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                 ScopedUnlock unlock(lk);
                 ws->closeWS();
             }
+        }
+
+        // Ack-stall watchdog force-reconnect (fu8 S6): WsPoolMgr::checkPools set mForceReconnect
+        // on this conn after its server acks went silent past ACKSTALLTIMEOUT while it held
+        // in-flight chunks. Honour it here, right beside the disconnectEpoch close, reusing the
+        // normal close path so un-acked chunks are re-queued safely (acked bytes preserved via
+        // mAckedIntervals). exchange() clears the flag so one request maps to exactly one close;
+        // the reconnect then re-handshakes on the next loop pass like any other closed conn.
+        if (ws->mForceReconnect.exchange(false, std::memory_order_relaxed) &&
+            ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::CLOSED)
+        {
+            WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] ack-stall force-reconnect -> closeWS() "
+                              "[this = " << this << "] [ws = " << ws.get() << "]";
+            ScopedUnlock unlock(lk);
+            ws->closeWS();
         }
 
         if (ws->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::CLOSED)
@@ -1365,6 +1505,13 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         {
             WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] throttledByServer=true -> continue [this = "
                       << this << "]";
+            // Goodput-saturation gate (SDK-5360, amendment A): a server-directed throttle pause
+            // is NOT send-buffer backpressure. This continue happens BEFORE the haveSpace store
+            // below, so clear the signal here or it would latch stale-true through the whole
+            // pause and falsely feed the checkPools WIDEN predicate once the pause ends. Guarded
+            // so gate=0 is byte-behaviour-identical.
+            if (mImpl->mDatasetConnGate)
+                ws->mBackpressured.store(false, std::memory_order_relaxed);
 #ifndef NDEBUG
             // Sample simultaneous throttled conns at throttle wait point.
             {
@@ -1392,7 +1539,15 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             ws->curlSend();
         }
 
-        if (!ws->haveSpace())
+        // Goodput-saturation gate (SDK-5360, amendment A): publish send-buffer backpressure via
+        // the per-conn atomic so WsPoolMgr::checkPools reads it cross-thread WITHOUT a racy raw
+        // haveSpace() read (bufferedAmount/mDataLen are mutated in sendWS under ScopedUnlock).
+        // Guarded so gate=0 leaves the flag false (byte-behaviour-identical). haveSpace() is
+        // sampled once and reused by the existing branch below.
+        const bool spaceAvail = ws->haveSpace();
+        if (mImpl->mDatasetConnGate)
+            ws->mBackpressured.store(!spaceAvail, std::memory_order_relaxed);
+        if (!spaceAvail)
         {
             WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] haveSpace=false -> continue [this = " << this
                       << "]";

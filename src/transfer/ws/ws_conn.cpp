@@ -411,6 +411,13 @@ void WsConn::closeWS()
 
 void WsConn::onopen()
 {
+    // Ack-stall watchdog baseline (fu8 S6): seed the per-conn server-liveness stamp at
+    // open so a freshly-connected conn is not instantly flagged as stalled before its
+    // first ack. Runs with uploadMutex released (ScopedUnlock around connectWS), hence
+    // the atomic store; a fresh SteadyTime::ds() read keeps it on the same monotonic
+    // clock as WsPoolMgr::checkPools' impl.currentTime comparison.
+    mLastInboundFrameDs.store(SteadyTime::ds(), std::memory_order_relaxed);
+    mLastSendProgressDs.store(SteadyTime::ds(), std::memory_order_relaxed);
     WSUPLOAD_TRACE << "[WsConn::onopen] Connected to " << mPool->mUrl;
 }
 
@@ -433,6 +440,13 @@ void WsConn::resetBufferedSendState() noexcept
     mCurBuf = 0;
     mInPos = 0;
     bufferedAmount = 0;
+    // Goodput-saturation gate (SDK-5360): a closed conn holds no send-buffer state, so it is
+    // not backpressured. resetBufferedSendState() is the sole close path (called from
+    // closeWS() right after readyState := CLOSED), so clearing here keeps the checkPools WIDEN
+    // predicate from reading a stale-true on a conn that has torn down / is about to
+    // re-handshake. Unconditional (not gate-guarded): inert when the gate is off because the
+    // worker never SETs the flag true then, so this is a harmless false->false store.
+    mBackpressured.store(false, std::memory_order_relaxed);
 }
 
 void WsConn::curlSend()
@@ -479,6 +493,23 @@ void WsConn::curlRecv()
                       << recv
                       << ") > 0 -> onmessage(mInBuf, static_cast<int>(recv)) [this = " << this
                       << "]";
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            // fu8 S6 ack-stall repro: discard this inbound frame WITHOUT running
+            // onmessage(), so the per-conn liveness stamp (mLastInboundFrameDs) is never
+            // refreshed while the socket stays OPEN and sends continue (silent-but-OPEN
+            // server). Loop back to drain+discard any further frames; CURLE_AGAIN breaks
+            // below. Non-test builds: the macro is empty, swallowFrame stays false.
+            {
+                bool swallowFrame = false;
+                DEBUG_TEST_HOOK_WS_RECV_SWALLOW(swallowFrame);
+                if (swallowFrame)
+                {
+                    WSUPLOAD_TRACE << "[WsConn::curlRecv] WS_RECV_SWALLOW discard inbound frame (recv="
+                              << recv << ") [this = " << this << "]";
+                    continue;
+                }
+            }
+#endif
             onmessage(mInBuf, static_cast<int>(recv));
             // If the prior onmessage requested a deferred close, keep draining
             // libcurl's recv pipeline. The curl handle remains valid because
@@ -587,6 +618,10 @@ void WsConn::onmessage(const char* msg, const int len)
 
     mPool->mLastActive = mPool->mImpl->currentTime;
     mPool->mLastServerResponse = mPool->mImpl->currentTime;
+    // Ack-stall watchdog (fu8 S6): per-conn server-liveness stamp. Refreshed on every
+    // validated inbound server frame so checkPools only force-reconnects a conn whose
+    // server acks have genuinely gone silent past ACKSTALLTIMEOUT.
+    mLastInboundFrameDs.store(mPool->mImpl->currentTime, std::memory_order_relaxed);
     mPool->mImpl->poolMgr.bumpLastNetRead(mPool->mImpl->currentTime);
 
 #pragma pack(push, 1)
@@ -722,6 +757,12 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                // Goodput-saturation gate (SDK-5360): aggregate this pool's server-confirmed
+                // bytes so the checkPools ramp controller can measure goodput gain. Under
+                // uploadMutex (held from :609) so a plain add is race-free (HR23). Guarded on
+                // the gate so MEGA_WS_DATASET_CONN_GATE=0 is byte-behaviour-identical.
+                if (mPool->mImpl->mDatasetConnGate)
+                    mPool->mConfirmedBytesTotal += static_cast<std::uint64_t>(chunk.len);
                 // Tier 2 A (loss-recovery): record this whole-chunk range as acked so a
                 // later reconnect re-queues only un-acked chunks (gated; clean no-op).
                 if (mPool->mImpl->mAckedChunkRewind)
@@ -741,6 +782,11 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                // Goodput-saturation gate (SDK-5360): aggregate this pool's server-confirmed
+                // bytes (same accumulator + discipline as the ChunkIngested arm above). Under
+                // uploadMutex; guarded so gate=0 is byte-behaviour-identical.
+                if (mPool->mImpl->mDatasetConnGate)
+                    mPool->mConfirmedBytesTotal += static_cast<std::uint64_t>(chunk.len);
                 // Tier 2 A (loss-recovery): record this whole-chunk range as acked so a
                 // later reconnect re-queues only un-acked chunks (gated; clean no-op).
                 if (mPool->mImpl->mAckedChunkRewind)
@@ -1002,6 +1048,11 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
                   << ") -= static_cast<int>(sent(=" << sent << ")) [this = " << this << "]";
         mSendPos += static_cast<int>(sent);
         bufferedAmount -= static_cast<int>(sent);
+        // Ack-stall watchdog progress-guard (fu8 S6): bytes were ACCEPTED by curl_ws_send, i.e.
+        // data is still flowing OUT of this conn. Refresh the send-progress stamp so the watchdog
+        // does NOT force-reconnect a legitimately-slow-but-alive conn (rate-limited / low-bw).
+        if (sent > 0)
+            ws->mLastSendProgressDs.store(SteadyTime::ds(), std::memory_order_relaxed);
 #ifndef NDEBUG
         // E-3: accumulate the bytes curl_ws_send accepted on this conn.
         ws->mTotalCurlWsSendAcceptedBytes += static_cast<std::uint64_t>(sent);

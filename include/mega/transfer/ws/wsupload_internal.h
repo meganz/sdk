@@ -294,6 +294,45 @@ struct WsConn
     // in the recv queue from being silently dropped on reconnect.
     bool mPendingClose{false};
 
+    // Ack-stall watchdog (SDK-5360 fu8 Session 6), two atomic fields:
+    //  - mLastInboundFrameDs: TRUE server-liveness stamp for THIS connection, set on
+    //    onopen() (baseline so a just-opened conn is not instantly flagged) and on every
+    //    validated inbound server frame in onmessage(). Distinct from the pool-level
+    //    mLastActive (which our OWN chunk-prep sends bump, so it cannot detect a conn we
+    //    keep writing to that never acks) and from the pool-level mLastServerResponse
+    //    (which bumpAllPools resets on every refresh and is per-pool, not per-conn).
+    //    Read by WsPoolMgr::checkPools; atomic because onopen() runs with uploadMutex
+    //    RELEASED (ScopedUnlock around the blocking handshake). Relaxed = value, not a
+    //    sync signal (same discipline as readyState).
+    //  - mForceReconnect: cross-thread force-close request. Set by checkPools when the
+    //    ack-stall window elapses; honoured by the owning pool-worker in its loop next to
+    //    the disconnectEpoch check (ScopedUnlock -> closeWS -> onclose ->
+    //    retryChunksOnTheWireLocked requeues un-acked chunks). Mirrors disconnectEpoch.
+    std::atomic<dstime> mLastInboundFrameDs{0};
+    // Ack-stall watchdog progress-guard (fu8 S6): per-conn "last SEND progress" stamp — set on
+    // onopen() (baseline) and whenever WsBuf::sendWS gets curl_ws_send to ACCEPT bytes (data is
+    // still flowing OUT). The watchdog fires only when BOTH mLastInboundFrameDs (no server acks)
+    // AND this (no bytes going out) are stale past the window — so a legitimately SLOW conn
+    // (rate-limited via setmaxuploadspeed, or low-bandwidth) that is still sending is NOT
+    // force-reconnected (it keeps stamping this), while a genuinely HUNG conn (server silent AND
+    // send buffer wedged) trips both. Prevents the over-fire that regressed
+    // RepeatedPauseResumeMixedPools + the 240x loss20 over-fire. Atomic (onopen runs with
+    // uploadMutex released), relaxed = value not a sync signal.
+    std::atomic<dstime> mLastSendProgressDs{0};
+    std::atomic<bool> mForceReconnect{false};
+
+    // Goodput-saturation gate (SDK-5360, amendment A): per-conn send-buffer backpressure
+    // signal. The pool WORKER stores it (relaxed): true at the !haveSpace() check point
+    // (ws_pool.cpp), false when haveSpace()==true, on the server-throttle continue branch,
+    // and on close (WsConn::resetBufferedSendState). WsPoolMgr::checkPools READS it
+    // cross-thread (WsPool::allOpenConnsBackpressuredLocked) to evaluate the ramp's WIDEN
+    // predicate. ATOMIC (HR23) BECAUSE the bufferedAmount / mBufs[].mDataLen that haveSpace()
+    // reflects are mutated inside WsBuf::sendWS() under ScopedUnlock (uploadMutex RELEASED) --
+    // a raw haveSpace() read from checkPools would be a NEW v2-surface race on those fields.
+    // Same relaxed-atomic value-not-sync-signal discipline as mForceReconnect /
+    // mLastInboundFrameDs / mLastSendProgressDs (all made atomic for the same reason).
+    std::atomic<bool> mBackpressured{false};
+
     // server response (small frames)
     char mInBuf[64];
     int mInPos{0};
@@ -406,6 +445,16 @@ struct WsPool
     // shorter than) UPLOADTIMEOUT, which retains chunk-phase semantics elsewhere:
     // a pure-handshake-failure loop now surfaces onFail in <=60s instead of 180s.
     static constexpr dstime HANDSHAKEFAILTIMEOUT = secondsToDs(60);
+    // Ack-stall watchdog window (SDK-5360 fu8 Session 6). An OPEN connection that still
+    // holds in-flight chunks but has received NO inbound server frame for longer than this
+    // is treated as silently hung (slow/lossy link, server silent, no TCP drop) and is
+    // force-reconnected by WsPoolMgr::checkPools (see WsConn::mLastInboundFrameDs +
+    // mForceReconnect). Chosen at 45s: > SERVERTIMEOUT (20s, so the existing pool-refresh
+    // trigger fires first on the normal path) and < HANDSHAKEFAILTIMEOUT (60s), so a
+    // genuinely-hung chunk recovers well before the 180s that UPLOADTIMEOUT nominally
+    // implied but never enforced. Runtime-overridable (ms) via MEGA_WS_ACKSTALL_TIMEOUT_MS
+    // through UploadEngine::Impl::ackStallTimeoutDs(); gated by MEGA_WS_ACKSTALL_WATCHDOG.
+    static constexpr dstime ACKSTALLTIMEOUT = secondsToDs(45);
     // Max workers allowed to be handshaking at once, per pool (fix #2, de-convoy
     // Design C's C1). 2 keeps a warm spare in flight (a single slow handshake cannot
     // stall the pool) while bounding the client-thread handshake FIFO convoy to O(1)
@@ -512,6 +561,26 @@ struct WsPool
     unsigned char mNumberOfConnections{3};
     bool mRetiring{false};
     bool mPinned{false};
+
+    // ===== Goodput-saturation gate (SDK-5360) =====
+    // ALL fields below are touched ONLY under mImpl->uploadMutex: mConfirmedBytesTotal is
+    // incremented in WsConn::onmessage (which holds uploadMutex at the ack sites), and the
+    // controller state is read+written in WsPoolMgr::checkPools (also under uploadMutex). So
+    // they are PLAIN (non-atomic) -- HR23. (Contrast WsConn::mBackpressured, which IS atomic
+    // BECAUSE the worker writes it with uploadMutex RELEASED.)
+    //
+    // Aggregate server-confirmed bytes for THIS pool (monotonic goodput source). Incremented
+    // by the newly-acked byte count at each server chunk-ack in WsConn::onmessage. The
+    // controller samples its delta over a ~1s window to measure aggregate goodput -- the
+    // clean-vs-loss discriminator (a clean bandwidth-limited link does not gain goodput when a
+    // flow is added; a loss-limited one does, because each flow is an independent cwnd).
+    std::uint64_t mConfirmedBytesTotal{0};
+    // Controller (hill-climb) state:
+    dstime mGateLastSampleDs{0};            // anchor time of the current goodput window
+    std::uint64_t mGateLastSampleBytes{0};  // mConfirmedBytesTotal at mGateLastSampleDs
+    double mGateGoodputBeforeIncrease{0.0}; // goodput (bytes/s) measured just before the last +step
+    bool mGateProbing{false};               // true while evaluating the most recent +step probe
+    dstime mGateNextAdjustDs{0};            // hysteresis: earliest ds the controller may act again
 
     // Release-safe throttle counters consumed by the bench framework
     // (`tests/integration/bench_framework/BenchReportWriter.cpp`). Incremented
@@ -639,6 +708,27 @@ struct WsPool
         return false;
     }
 
+    // Goodput-saturation gate (SDK-5360): true iff the pool has >=1 OPEN connection AND EVERY
+    // open connection is currently backpressured (send buffer full). Reads the per-conn atomic
+    // mBackpressured (worker-written with uploadMutex RELEASED) + the atomic readyState, so it
+    // is race-safe (HR23) even though checkPools calls it cross-thread. VACUOUSLY FALSE when
+    // there are no open conns (never widen a dark pool). Caller must hold mImpl->uploadMutex
+    // (mConns is stable then -- same discipline as anyOpenConnLocked / the ack-stall watchdog).
+    bool allOpenConnsBackpressuredLocked() const
+    {
+        unsigned openCount = 0;
+        for (const auto* c: mConns)
+        {
+            if (c && c->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN)
+            {
+                ++openCount;
+                if (!c->mBackpressured.load(std::memory_order_relaxed))
+                    return false;
+            }
+        }
+        return openCount > 0;
+    }
+
     // Cold-start handshake cap, re-evaluated at the cold-start admission gate
     // (ws_pool.cpp) on every worker loop pass. Returns COLDSTART_HANDSHAKE_CONNS (2)
     // by default, NARROWING to 1 ONLY when the small-file cold-start optimisation is
@@ -672,6 +762,16 @@ struct WsPool
     // default limit and the scale-up is byte-identical to the no-bump path. Caller must
     // hold mImpl->uploadMutex (scans Impl::fileList). Body in src/transfer/ws/ws_pool.cpp.
     unsigned char lossBoostedConnLimitLocked(const UploadEngine::Impl& impl) const;
+
+    // Goodput-saturation gate ramp controller (SDK-5360, amendment B). Called from
+    // WsPoolMgr::checkPools (under uploadMutex) ONLY when a connection boost is active AND
+    // MEGA_WS_DATASET_CONN_GATE is on. `ceiling` is the (already global-ceiling-clamped)
+    // targetConnLimit -- the MAX the ramp may reach. Hill-climbs mNumberOfConnections from the
+    // base pool limit toward `ceiling` while aggregate goodput keeps rising under full
+    // backpressure (WIDEN), and actively steps back down when a +step probe does not lift
+    // goodput (RETREAT -- the clean bandwidth-limited case). Mutates pool controller state +
+    // mNumberOfConnections (via setPoolNumConn), so non-const. Body in src/transfer/ws/ws_pool.cpp.
+    void runGoodputGateLocked(const UploadEngine::Impl& impl, unsigned char ceiling);
 
 #ifndef NDEBUG
     unsigned countOpenConnectionsLocked() const

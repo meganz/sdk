@@ -191,7 +191,7 @@ bool wsDatasetConnBumpEnvDefault()
 }
 
 // Runtime NUMERIC override for the dataset boosted connection limit (default 0 = use the
-// compile-time kLossBoostedDatasetConnLimit=24). Lets the Queue-B proof bench sweep K (24/32/36)
+// compile-time kLossBoostedDatasetConnLimit=32). Lets the Queue-B proof bench sweep K (24/32/36)
 // on ONE binary without a rebuild. Read once per process. A value above the global ceiling
 // lifts the effective ceiling to fit (lossBoostedGlobalConnCeiling) so a high-K bench arm is
 // measurable. Clamped to [1, 255]; a non-numeric or <=0 value keeps the default constant.
@@ -207,6 +207,118 @@ unsigned char wsDatasetConnLimitOverrideEnvDefault()
         if (end == raw.c_str() || v <= 0)
             return 0;
         return static_cast<unsigned char>(std::min<long>(v, 255));
+    }();
+    return value;
+}
+
+// Gates the goodput-saturation GATE (SDK-5360; WsPoolMgr::checkPools ramp controller). Default
+// ON; only an explicit "0" disables. ANDed with mLossRecovery in the Impl ctor, mirroring
+// MEGA_WS_DATASET_CONN_BUMP. When ON, the dataset bump's target is approached via a goodput-
+// gain-gated RAMP (clean links stay at the low default; only loss-limited datasets widen).
+// When OFF (=0), checkPools falls back to TODAY's behaviour: an unconditional jump straight to
+// the dataset limit K -- so the gate-vs-unconditional A/B is one binary flip.
+bool wsDatasetConnGateEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_DATASET_CONN_GATE");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Numeric tuning override (MILLISECONDS) for the goodput-gate sampling window. Default 1000ms
+// (the controller acts at most once per window, NOT every checkPools tick). Read once per
+// process (function-local static). A non-numeric / <=0 value keeps the default; clamped to a
+// sane [1ms, 600000ms] range. Consumed via UploadEngine::Impl::gateWindowDs().
+unsigned wsGateWindowMsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_WINDOW_MS");
+        if (!hasValue)
+            return 1000u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 1000u;
+        return static_cast<unsigned>(std::min<long>(v, 600000));
+    }();
+    return value;
+}
+
+// Numeric tuning override (PERCENT) for the goodput GAIN threshold that justifies keeping /
+// adding a connection. Default 5 (%). A +step probe must lift aggregate goodput by at least
+// this fraction or it is retreated. Read once per process; a non-numeric / negative value
+// keeps the default; clamped to [0, 1000] %.
+unsigned wsGateGainPctEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_GAIN_PCT");
+        if (!hasValue)
+            return 5u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v < 0)
+            return 5u;
+        return static_cast<unsigned>(std::min<long>(v, 1000));
+    }();
+    return value;
+}
+
+// Numeric tuning override for the ramp STEP (connections added/removed per probe). Default 1
+// (a pure +1/-1 hill-climb). Read once per process; a non-numeric / <=0 value keeps the
+// default; clamped to [1, 255].
+unsigned char wsGateStepEnvDefault()
+{
+    static const unsigned char value = []() -> unsigned char
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_STEP");
+        if (!hasValue)
+            return 1;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 1;
+        return static_cast<unsigned char>(std::min<long>(v, 255));
+    }();
+    return value;
+}
+
+// Runtime numeric override (MILLISECONDS) for the ack-stall watchdog window (SDK-5360 fu8
+// Session 6), converted to deciseconds. Default 0 = use the compile-time WsPool::ACKSTALLTIMEOUT
+// (45s). Lets the Goal-2d pre/post bench sweep the threshold on ONE binary via
+// MEGA_WS_ACKSTALL_TIMEOUT_MS. Read exactly once per process (function-local static).
+dstime wsAckStallTimeoutDsEnvDefault()
+{
+    static const dstime value = []() -> dstime
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_ACKSTALL_TIMEOUT_MS");
+        if (!hasValue)
+            return 0;
+        char* end = nullptr;
+        const long ms = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || ms <= 0)
+            return 0;
+        // dstime is deciseconds (1/10 s); floor at 1ds so a tiny positive value still arms.
+        const long ds = ms / 100;
+        return static_cast<dstime>(ds > 0 ? ds : 1);
+    }();
+    return value;
+}
+
+// Gates the ack-stall watchdog (WsPoolMgr::checkPools force-reconnect of a silently-hung OPEN
+// conn; SDK-5360 fu8 Session 6). Default ON; only an explicit "0" disables. ANDed with
+// mLossRecovery in the Impl ctor (so MEGA_WS_LOSS_RECOVERY=0 reproduces full pre-fix behavior)
+// AND independently toggleable via MEGA_WS_ACKSTALL_WATCHDOG=0 for the Goal-2d watchdog-off vs
+// watchdog-on A/B in one binary. Read exactly once per process (function-local static).
+bool wsAckStallWatchdogEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_ACKSTALL_WATCHDOG");
+        return !(hasValue && raw == "0");
     }();
     return value;
 }

@@ -54,6 +54,9 @@
 // indirectly via poolHasNoWork → pool.mUploadingFile).
 #include "mega/transfer/ws/ws_upload_file.h"
 
+// DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT (ack-stall watchdog firing counter for tests).
+#include "mega/testhooks.h"
+
 // Full UploadEngine::Impl definition. Needed by bodies that dereference
 // mImpl-> / impl. members (refreshPools posts captures using
 // mImpl->{client.wsPostToClientThread, instanceId, stopping};
@@ -283,9 +286,34 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
         pool->recordWsUploadStatsSampleLocked(impl);
 #endif
 
+        // Scale-up: goodput-saturation GATE (SDK-5360) or the pre-gate unconditional jump.
+        // targetConnLimit is the CEILING (base pool limit max'd with any active boost, already
+        // global-ceiling-clamped above). Two regimes:
+        //   * No boost active (targetConnLimit == poolConnectionLimit()) OR the gate is OFF
+        //     (MEGA_WS_DATASET_CONN_GATE=0): JUMP straight to targetConnLimit -- byte-identical
+        //     to the pre-gate scale-up (the normal cold-start rise to the base default, and
+        //     today's unconditional dataset bump when the gate is off).
+        //   * Boost active AND gate ON: run the goodput-gated RAMP. It hill-climbs from the base
+        //     limit toward the ceiling only while aggregate confirmed-byte goodput keeps rising
+        //     under full backpressure, and actively steps back down when an added flow does not
+        //     help -- so clean links stay at the low default and only loss-limited datasets
+        //     widen. The pool is first brought to the base default un-ramped (the ramp governs
+        //     ONLY the boost region above poolConnectionLimit(); the base rise stays immediate).
         if (shouldScaleUp && pool->mNumberOfConnections < targetConnLimit)
         {
-            pool->setPoolNumConn(targetConnLimit);
+            const bool boostActive = (targetConnLimit > impl.poolConnectionLimit());
+            if (impl.mDatasetConnGate && boostActive)
+            {
+                if (pool->mNumberOfConnections < impl.poolConnectionLimit())
+                {
+                    pool->setPoolNumConn(impl.poolConnectionLimit());
+                }
+                pool->runGoodputGateLocked(impl, targetConnLimit);
+            }
+            else
+            {
+                pool->setPoolNumConn(targetConnLimit);
+            }
         }
 
         if (pool->mNumberOfConnections > 1 && !shouldScaleUp &&
@@ -300,6 +328,64 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
         if ((pool->mUploadingFile || pool->mNumChunksInFlight || !pool->mToResend.empty()) &&
             SteadyTime::difference(impl.currentTime, pool->mLastActive) > SERVERTIMEOUT)
             refreshPools();
+
+        // Ack-stall watchdog (SDK-5360 fu8 Session 6): force-reconnect a silently-hung OPEN
+        // connection whose server acks have gone stale past ACKSTALLTIMEOUT while it still
+        // holds in-flight chunks. Keys on the per-conn last-inbound-frame stamp (TRUE server
+        // liveness), NOT pool->mLastActive — which our own chunk-prep sends bump, so a conn we
+        // keep writing to but that never acks would otherwise stay undetected (the boss's
+        // "stuck transfer" case: slow/lossy link, server silent, no TCP drop). Skips pinned and
+        // retiring pools, and active server-throttle windows (the server is responsive then).
+        // WsConn is worker-owned, so we SIGNAL via mForceReconnect (honoured beside the worker's
+        // disconnectEpoch check) rather than closing here; the worker reuses closeWS -> onclose
+        // -> retryChunksOnTheWireLocked so un-acked chunks are re-queued (acked bytes preserved
+        // via mAckedIntervals). checkPools runs under uploadMutex, so pool->mConns is stable and
+        // each conn's atomic stamp reads cleanly.
+        if (impl.mAckStallWatchdog && !pool->mPinned && !pool->mRetiring &&
+            !pool->throttledByServer())
+        {
+            const dstime ackStallTimeout = impl.ackStallTimeoutDs();
+            for (WsConn* const conn: pool->mConns)
+            {
+                if (!conn ||
+                    conn->readyState.load(std::memory_order_relaxed) !=
+                        WsConn::ReadyState::OPEN ||
+                    conn->mChunksInFlight.empty())
+                {
+                    continue;
+                }
+                const dstime lastInbound =
+                    conn->mLastInboundFrameDs.load(std::memory_order_relaxed);
+                const dstime lastSend =
+                    conn->mLastSendProgressDs.load(std::memory_order_relaxed);
+                // A conn is HUNG only if BOTH server acks AND our own send progress have gone
+                // silent past the window: no acks (server not responding) AND no bytes accepted
+                // by curl_ws_send (send buffer wedged). A legitimately SLOW conn (rate-limited
+                // via setmaxuploadspeed, low-bandwidth, or draining a pause) keeps stamping
+                // lastSend and/or lastInbound, so it is NOT force-reconnected. This progress-guard
+                // fixes the RepeatedPauseResumeMixedPools regression + the loss20 over-fire.
+                if (lastInbound && lastSend &&
+                    SteadyTime::difference(impl.currentTime, lastInbound) > ackStallTimeout &&
+                    SteadyTime::difference(impl.currentTime, lastSend) > ackStallTimeout &&
+                    !conn->mForceReconnect.load(std::memory_order_relaxed))
+                {
+                    LOG_warn << "[WsPoolMgr::checkPools] ack-stall: OPEN conn with "
+                             << conn->mChunksInFlight.size()
+                             << " in-flight chunk(s) but no server frame AND no send progress for "
+                                "> ackStallTimeout ("
+                             << ackStallTimeout << "ds); force-reconnecting [pool = " << pool
+                             << "] [conn = " << conn << "]";
+                    conn->mForceReconnect.store(true, std::memory_order_relaxed);
+                    // notifyWorkersLocked() (NOT notifyWorkers()): checkPools already holds
+                    // uploadMutex, and notifyWorkers() re-acquires it -> self-deadlock on the
+                    // engine thread (froze the whole WS engine at the first watchdog fire).
+                    impl.notifyWorkersLocked();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(conn, pool);
+#endif
+                }
+            }
+        }
     }
 
     // throughput display tick (server-acked)

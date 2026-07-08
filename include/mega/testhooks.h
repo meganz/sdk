@@ -24,6 +24,7 @@
 
 #include "types.h"
 
+#include <chrono>
 #include <cstdint>
 #include <functional>
 #include <mutex>
@@ -355,6 +356,134 @@ namespace mega {
         bool mSawPartial = false;
     };
 
+    // Self-locked, always-compiled recv-swallow hook (SDK-5360 fu8 Session 6 ack-stall
+    // repro). When armed, WsConn::curlRecv DISCARDS inbound server frames without running
+    // onmessage(), so the per-conn liveness stamp (WsConn::mLastInboundFrameDs) and the
+    // pool-level mLastServerResponse are never refreshed: a silent-but-OPEN server (acks
+    // stop while the socket stays OPEN and the SDK keeps sending). This is the only way to
+    // exercise the ack-stall watchdog deterministically — WsUploadServerEventAction::Drop
+    // fires AFTER the liveness stamp, so it cannot freeze liveness. Optionally let
+    // `startAfterFrames` frames through first (so >=1 chunk is acked before the stall,
+    // matching "uploaded partway then hung"). Only the DEBUG_TEST_HOOK_WS_RECV_SWALLOW macro
+    // is gated on MEGASDK_DEBUG_TEST_HOOKS_ENABLED. Own internal mutex + locked move, like
+    // WsSendFaultHook above.
+    struct WsRecvSwallowHook
+    {
+        WsRecvSwallowHook() = default;
+        WsRecvSwallowHook(const WsRecvSwallowHook&) = delete;
+        WsRecvSwallowHook& operator=(const WsRecvSwallowHook&) = delete;
+
+        WsRecvSwallowHook(WsRecvSwallowHook&& other) noexcept
+        {
+            std::lock_guard<std::mutex> g(other.mMutex);
+            mEnabled = other.mEnabled;
+            mStartAfterFrames = other.mStartAfterFrames;
+            mSwallowDurationMs = other.mSwallowDurationMs;
+            mFramesSeen = other.mFramesSeen;
+            mSwallowed = other.mSwallowed;
+            mSwallowStarted = other.mSwallowStarted;
+            mSwallowStartTp = other.mSwallowStartTp;
+        }
+
+        WsRecvSwallowHook& operator=(WsRecvSwallowHook&& other) noexcept
+        {
+            if (this == &other)
+            {
+                return *this;
+            }
+            std::scoped_lock lk(mMutex, other.mMutex);
+            mEnabled = other.mEnabled;
+            mStartAfterFrames = other.mStartAfterFrames;
+            mSwallowDurationMs = other.mSwallowDurationMs;
+            mFramesSeen = other.mFramesSeen;
+            mSwallowed = other.mSwallowed;
+            mSwallowStarted = other.mSwallowStarted;
+            mSwallowStartTp = other.mSwallowStartTp;
+            return *this;
+        }
+
+        // startAfterFrames: inbound frames to let through before swallowing begins
+        // (0 = swallow from the first frame).
+        // swallowDurationMs: bounded swallow WINDOW (wall-clock ms, measured from the first
+        // swallowed frame) after which swallowing STOPS and frames flow again — models a
+        // TRANSIENT hang that then clears, so a watchdog-driven reconnect can recover the
+        // upload (the transfer COMPLETES post-fix). 0 = swallow forever (permanent hang;
+        // never recovers — use only for reconnect-attempt-counting tests, not completion).
+        void configure(int startAfterFrames, int swallowDurationMs = 0)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mEnabled = true;
+            mStartAfterFrames = startAfterFrames < 0 ? 0 : startAfterFrames;
+            mSwallowDurationMs = swallowDurationMs < 0 ? 0 : swallowDurationMs;
+            mFramesSeen = 0;
+            mSwallowed = 0;
+            mSwallowStarted = false;
+        }
+
+        void reset()
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mEnabled = false;
+            mStartAfterFrames = 0;
+            mSwallowDurationMs = 0;
+            mFramesSeen = 0;
+            mSwallowed = 0;
+            mSwallowStarted = false;
+        }
+
+        int getSwallowCount() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return mSwallowed;
+        }
+
+        // Called in WsConn::curlRecv just before onmessage(). Returns true to DISCARD the
+        // frame (onmessage skipped). Swallowing begins after startAfterFrames frames and, if a
+        // swallowDurationMs window was set, STOPS once that window elapses (frames flow again
+        // so a reconnect can recover the upload); otherwise it continues until reset().
+        bool shouldSwallow()
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            if (!mEnabled)
+            {
+                return false;
+            }
+            if (mFramesSeen < mStartAfterFrames)
+            {
+                ++mFramesSeen;
+                return false;
+            }
+            if (mSwallowDurationMs > 0)
+            {
+                const auto now = std::chrono::steady_clock::now();
+                if (!mSwallowStarted)
+                {
+                    mSwallowStarted = true;
+                    mSwallowStartTp = now;
+                }
+                const auto elapsedMs =
+                    std::chrono::duration_cast<std::chrono::milliseconds>(now - mSwallowStartTp)
+                        .count();
+                if (elapsedMs >= mSwallowDurationMs)
+                {
+                    return false; // transient-hang window elapsed: let frames through again
+                }
+            }
+            ++mSwallowed;
+            return true;
+        }
+
+    private:
+        mutable std::mutex mMutex;
+        bool mEnabled = false;
+        int mStartAfterFrames = 0;
+        int mSwallowDurationMs = 0;
+        int mFramesSeen = 0;
+        int mSwallowed = 0;
+        bool mSwallowStarted = false;
+        std::chrono::steady_clock::time_point mSwallowStartTp;
+    };
+
     struct MegaTestHooks
     {
         // O-13: guards whole-struct assignment (e.g. `globalMegaTestHooks = MegaTestHooks();`
@@ -437,6 +566,12 @@ namespace mega {
                            unsigned /*retryCount*/,
                            dstime /*firstFailureDs*/)>
             onWsPoolReconnectAttempt;
+        // Fires when the ack-stall watchdog (WsPoolMgr::checkPools) force-reconnects a
+        // silently-hung OPEN connection (SDK-5360 fu8 S6). Lets a test count watchdog firings
+        // UNAMBIGUOUSLY (distinct from onWsPoolReconnectAttempt, which also fires on
+        // cold-start handshakes). Read-only from the WS engine thread under uploadMutex.
+        std::function<void(ws::WsConn* /*conn*/, ws::WsPool* /*pool*/)>
+            onWsAckStallForceReconnect;
         // Fires when Transfer::ws_session_url is rewritten by client-thread bookkeeping
         // (onStart re-population or invalidatePinnedSessionUrl clearing). Used by the
         // InvalidPinned test to deterministically observe WS pool transitions instead
@@ -462,6 +597,9 @@ namespace mega {
         // Self-locked WS send-fault hook (fix #6 deterministic repro); own internal
         // mutex + locked move, like wsUploadServerEventHook above.
         WsSendFaultHook wsSendFaultHook;
+        // Self-locked WS recv-swallow hook (fu8 S6 ack-stall repro); own internal mutex +
+        // locked move, like wsSendFaultHook above.
+        WsRecvSwallowHook wsRecvSwallowHook;
         // Allows tests to override completion payload length observed by WS upload handling.
         std::function<void(int&)> onWsUploadCompletionPayloadLen;
 
@@ -515,12 +653,15 @@ namespace mega {
             onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
             onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
             onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);
+            onWsAckStallForceReconnect = std::move(other.onWsAckStallForceReconnect);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
             // WsUploadServerEventHook already has its own locked move-assign.
             wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
             // WsSendFaultHook likewise has its own locked move-assign.
             wsSendFaultHook = std::move(other.wsSendFaultHook);
+            // WsRecvSwallowHook likewise has its own locked move-assign.
+            wsRecvSwallowHook = std::move(other.wsRecvSwallowHook);
             onHookFileFingerprintUseLegacyBuggySparseCrc =
                 std::move(other.onHookFileFingerprintUseLegacyBuggySparseCrc);
             onHookDeviceId = std::move(other.onHookDeviceId);
@@ -772,6 +913,11 @@ namespace mega {
             (RESULT) = globalMegaTestHooks.wsSendFaultHook.evaluate((REMAINING), (FORCEDLEN)); \
         }
 
+#define DEBUG_TEST_HOOK_WS_RECV_SWALLOW(OUTBOOL) \
+        { \
+            (OUTBOOL) = globalMegaTestHooks.wsRecvSwallowHook.shouldSwallow(); \
+        }
+
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL) \
     do { \
         std::function<bool(ws::WsConn*, ws::WsPool*, const std::string&)> _fn; \
@@ -790,6 +936,16 @@ namespace mega {
             _fn = globalMegaTestHooks.onWsPoolReconnectAttempt; \
         } \
         if (_fn) _fn((POOLPTR), (RETRYCOUNT), (FIRSTFAILUREDS)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR) \
+    do { \
+        std::function<void(ws::WsConn*, ws::WsPool*)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsAckStallForceReconnect; \
+        } \
+        if (_fn) _fn((CONNPTR), (POOLPTR)); \
     } while (0)
 
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON) \
@@ -896,8 +1052,10 @@ namespace mega {
 #define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
 #define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, FORCEDLEN, RESULT)
+#define DEBUG_TEST_HOOK_WS_RECV_SWALLOW(OUTBOOL)
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
+#define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
