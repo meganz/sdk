@@ -48,4 +48,9 @@ void runLargePlusManySmallBenchmark(SdkTest& test);
 // summary line with coldFileMs (first file) vs warmMedianMs (files 2..N).
 void runSmallFileBurstBenchmark(SdkTest& test);
 
+// Drives the QA real-media reproduction: uploads a fixed on-disk dataset of real
+// media files (dir from MEGA_BENCH_UPLOAD_SOURCE_DIR) so thumbnail/preview fa
+// generation is reproduced. Honours MEGA_NET_MAXUPLOAD_KBPS + MEGA_BENCH_UPLOAD_CONNECTIONS.
+void runQaMixedUploadBenchmark(SdkTest& test);
+
 } // namespace mega::test::benchmark

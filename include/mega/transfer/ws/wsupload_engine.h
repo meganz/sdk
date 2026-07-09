@@ -85,6 +85,7 @@ bool wsRefreshThrottleEnvDefault(); // MEGA_WS_REFRESH_THROTTLE -> mDistressRefr
 bool wsParallelHandshakeEnvDefault(); // MEGA_WS_PARALLEL_HANDSHAKE -> mParallelHandshake
 bool wsLossConnBumpEnvDefault(); // MEGA_WS_LOSS_CONN_BUMP -> mLossConnBump
 bool wsDatasetConnBumpEnvDefault(); // MEGA_WS_DATASET_CONN_BUMP -> mDatasetConnBump
+bool wsSingleFileConnBumpEnvDefault(); // MEGA_WS_SINGLEFILE_CONN_BUMP -> mSingleFileConnBump (DEFAULT OFF)
 unsigned char wsDatasetConnLimitOverrideEnvDefault(); // MEGA_WS_DATASET_CONN_LIMIT -> mDatasetConnLimitOverride (0=use constant)
 bool wsDatasetConnGateEnvDefault(); // MEGA_WS_DATASET_CONN_GATE -> mDatasetConnGate (ANDed with mLossRecovery)
 unsigned wsGateWindowMsEnvDefault(); // MEGA_WS_GATE_WINDOW_MS -> mGateWindowMs (default 1000)
@@ -92,6 +93,8 @@ unsigned wsGateGainPctEnvDefault(); // MEGA_WS_GATE_GAIN_PCT -> mGateGainPct (de
 unsigned char wsGateStepEnvDefault(); // MEGA_WS_GATE_STEP -> mGateStep (default 1)
 dstime wsAckStallTimeoutDsEnvDefault(); // MEGA_WS_ACKSTALL_TIMEOUT_MS (ms->ds) -> mAckStallTimeoutDsOverride (0=use ACKSTALLTIMEOUT)
 bool wsAckStallWatchdogEnvDefault(); // MEGA_WS_ACKSTALL_WATCHDOG -> mAckStallWatchdog (ANDed with mLossRecovery)
+long wsHandshakeTimeoutMsEnvDefault(); // MEGA_WS_HANDSHAKE_TIMEOUT_MS -> mHandshakeTimeoutMsOverride (0=use constants)
+dstime wsHandshakeFailWindowDsEnvDefault(); // MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS (ms->ds) -> mHandshakeFailWindowDsOverride (0=use HANDSHAKEFAILTIMEOUT)
 // Small-file cold-start (candidate 3c). INDEPENDENT of the MEGA_WS_LOSS_RECOVERY master:
 // it is a small-file overhead concern, not loss-recovery, so it is NOT ANDed with
 // mLossRecovery in the ctor. Default ON; only an explicit "0" disables.
@@ -127,6 +130,9 @@ public:
         mParallelHandshake = wsParallelHandshakeEnvDefault() && mLossRecovery;
         mLossConnBump = wsLossConnBumpEnvDefault() && mLossRecovery;
         mDatasetConnBump = wsDatasetConnBumpEnvDefault() && mLossRecovery;
+        // Single-file connection ramp (S7 Lever C, env MEGA_WS_SINGLEFILE_CONN_BUMP, DEFAULT
+        // OFF). ANDed with mLossRecovery like mDatasetConnBump so the master kill forces it off.
+        mSingleFileConnBump = wsSingleFileConnBumpEnvDefault() && mLossRecovery;
         mDatasetConnLimitOverride = wsDatasetConnLimitOverrideEnvDefault();
         // Goodput-saturation gate (SDK-5360). ANDed with mLossRecovery, mirroring
         // mDatasetConnBump, so MEGA_WS_LOSS_RECOVERY=0 forces the legacy path. When OFF, the
@@ -141,6 +147,13 @@ public:
         // Goal-2d watchdog-off vs -on A/B. Timeout override is const-after-init.
         mAckStallWatchdog = wsAckStallWatchdogEnvDefault() && mLossRecovery;
         mAckStallTimeoutDsOverride = wsAckStallTimeoutDsEnvDefault();
+        // Handshake timeout + coupled fail-window (S7 Lever A). Pure numeric overrides (default
+        // 0 = use the compile-time kHandshakeTimeout* constants / HANDSHAKEFAILTIMEOUT), so NOT
+        // ANDed with mLossRecovery. Const-after-init; consumed via handshakeTimeoutMs() /
+        // handshakeFailWindowDs(). Kept coupled: MEGA_WS_HANDSHAKE_TIMEOUT_MS must stay under
+        // MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS or one attempt blows the whole failure budget.
+        mHandshakeTimeoutMsOverride = wsHandshakeTimeoutMsEnvDefault();
+        mHandshakeFailWindowDsOverride = wsHandshakeFailWindowDsEnvDefault();
         // Small-file cold-start (candidate 3c). INDEPENDENT of mLossRecovery (small-file
         // concern, not loss-recovery), so it is NOT ANDed with the master kill-switch.
         mSmallFileColdStart = wsSmallFileColdStartEnvDefault();
@@ -273,6 +286,40 @@ public:
                                           : WsPool::ACKSTALLTIMEOUT;
     }
 
+    // ---- SDK-5360 fu8 Session 7, Lever A: env-tunable handshake timeout + coupled fail-window.
+    // Per-attempt WS TLS+upgrade handshake timeout (ms), selected in WsConn::connectWS. Moved
+    // here from ws_conn.cpp's anonymous namespace so the MEGA_WS_HANDSHAKE_TIMEOUT_MS override
+    // can select through one accessor (leaving them file-local + unused would risk
+    // -Wunused-const-variable on clang). kHandshakeTimeoutLossMs (loss-adaptive path,
+    // mAdaptiveHandshake ON): 45s gives a loss-throttled upgrade enough wall-clock to complete
+    // while staying UNDER the coupled HANDSHAKEFAILTIMEOUT (60s) escalation gate so a dead
+    // endpoint still surfaces onFail within the failure budget. kHandshakeTimeoutMs (baseline,
+    // adaptive OFF): the legacy 15s. A clean handshake completes in <1s either way, so clean-
+    // network behaviour is byte-identical. The per-attempt timeout MUST stay < the fail-window
+    // (handshakeFailWindowDs) or one attempt blows the whole failure budget.
+    static constexpr long kHandshakeTimeoutMs{15000};
+    static constexpr long kHandshakeTimeoutLossMs{45000};
+
+    // Effective per-attempt handshake timeout (ms): the runtime override
+    // (MEGA_WS_HANDSHAKE_TIMEOUT_MS) when set, else the loss/baseline constant chosen by the
+    // adaptive flag. Consumed by WsConn::connectWS (both the parallel + baton paths).
+    long handshakeTimeoutMs(bool adaptive) const
+    {
+        if (mHandshakeTimeoutMsOverride > 0)
+            return mHandshakeTimeoutMsOverride;
+        return adaptive ? kHandshakeTimeoutLossMs : kHandshakeTimeoutMs;
+    }
+
+    // Effective sustained-handshake-failure escalation window (ds): the runtime override
+    // (MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS, already converted to ds) when set, else the compile-
+    // time WsPool::HANDSHAKEFAILTIMEOUT (60s). Consumed by WsPool::poolWorkerThread. Coupled to
+    // handshakeTimeoutMs(): the per-attempt timeout must stay under this window.
+    dstime handshakeFailWindowDs() const
+    {
+        return mHandshakeFailWindowDsOverride > 0 ? mHandshakeFailWindowDsOverride
+                                                  : WsPool::HANDSHAKEFAILTIMEOUT;
+    }
+
     void setMaxConnections(const unsigned char maxConnections);
 
     // Must be called with uploadMutex held.
@@ -395,6 +442,14 @@ public:
     // at the runtime gate (either bump toggles independently). When false the dataset branch is
     // unreachable and scale-up is byte-identical to the pre-bump behaviour.
     bool mDatasetConnBump{true};
+    // mSingleFileConnBump (env MEGA_WS_SINGLEFILE_CONN_BUMP, DEFAULT OFF): S7 Lever C. When on,
+    // WsPool::lossBoostedConnLimitLocked lets a single-file pool (mNumPoolFiles==1) reach the
+    // dataset-boosted ceiling instead of requiring >=2 files, then the goodput gate ramps it
+    // (withholding the extra conns on a clean link -- one file's chunks split across pool conns
+    // via the shared mUploadingFile head cursor in nextChunk, so the extra flows are usable).
+    // ANDed with mLossRecovery like mDatasetConnBump so MEGA_WS_LOSS_RECOVERY=0 also forces it
+    // off. When off, byte-identical to today (the dataset branch still needs mNumPoolFiles>=2).
+    bool mSingleFileConnBump{false};
     // mDatasetConnLimitOverride (env MEGA_WS_DATASET_CONN_LIMIT, default 0 = use the constant
     // kLossBoostedDatasetConnLimit=32): runtime numeric override letting the Queue-B proof bench
     // sweep K (24/32/36) on ONE binary. Const-after-init (assigned once in the ctor). Consumed
@@ -431,6 +486,17 @@ public:
     // WsPool::ACKSTALLTIMEOUT=45s): runtime numeric override (deciseconds) letting the Goal-2d
     // bench sweep the window on ONE binary. Const-after-init; consumed via ackStallTimeoutDs().
     dstime mAckStallTimeoutDsOverride{0};
+    // mHandshakeTimeoutMsOverride (env MEGA_WS_HANDSHAKE_TIMEOUT_MS, default 0 = use the compile-
+    // time kHandshakeTimeoutMs/kHandshakeTimeoutLossMs): S7 Lever A runtime override
+    // (milliseconds) for the per-attempt WS handshake timeout selected in WsConn::connectWS.
+    // Const-after-init; consumed via handshakeTimeoutMs(). NOT ANDed with mLossRecovery.
+    long mHandshakeTimeoutMsOverride{0};
+    // mHandshakeFailWindowDsOverride (env MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS, default 0 = use
+    // WsPool::HANDSHAKEFAILTIMEOUT=60s): S7 Lever A runtime override (deciseconds; the env is ms)
+    // for the sustained-handshake-failure escalation window in WsPool::poolWorkerThread. Coupled
+    // to mHandshakeTimeoutMsOverride (the per-attempt timeout must stay under the window). Const-
+    // after-init; consumed via handshakeFailWindowDs(). NOT ANDed with mLossRecovery.
+    dstime mHandshakeFailWindowDsOverride{0};
     // mSmallFileColdStart (env MEGA_WS_SMALLFILE_COLDSTART, default ON): gates candidate
     // 3c (small-file cold-start cap=1) read in WsPool::coldStartHandshakeCapLocked()
     // (ws_pool.cpp). Same const-after-init / race-free discipline as the four flags above

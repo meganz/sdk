@@ -1070,7 +1070,15 @@ unsigned char WsPool::lossBoostedConnLimitLocked(const UploadEngine::Impl& impl)
     // WsPoolMgr::checkPools (lossBoostedGlobalConnCeiling), so several concurrent size-class
     // pools cannot each reach K. Gated by MEGA_WS_DATASET_CONN_BUMP for A/B in one binary; when
     // off, byte-identical to the shipped engine (falls through to the shipped lone-small path).
-    if (impl.mDatasetConnBump && mNumPoolFiles >= 2)
+    // SDK-5360 fu8 Session 7, Lever C: the single-file ramp is env-gated OFF by default. When
+    // MEGA_WS_SINGLEFILE_CONN_BUMP=1 (impl.mSingleFileConnBump), a single-file pool
+    // (mNumPoolFiles==1) also gets the boosted ceiling and rides the goodput gate
+    // (WsPool::runGoodputGateLocked / WsPoolMgr::checkPools), which withholds the extra conns on
+    // a clean link and only widens a genuinely loss-limited single upload. One file's chunks are
+    // split across pool connections (shared mUploadingFile head cursor in nextChunk), so the
+    // extra flows are usable. Default (bump off) keeps the historical mNumPoolFiles>=2 gate, so
+    // this branch is byte-identical to today unless the env opts in.
+    if (impl.mDatasetConnBump && mNumPoolFiles >= (impl.mSingleFileConnBump ? 1 : 2))
     {
         return std::max<unsigned char>(impl.poolConnectionLimit(),
                                        impl.lossBoostedDatasetConnLimit());
@@ -1130,6 +1138,17 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
         mGateLastSampleDs = now;
         mGateLastSampleBytes = mConfirmedBytesTotal;
         mGateNextAdjustDs = now + windowDs;
+        // SDK-5360 fu8 S7: gate observability. Session-6's smoke emitted ZERO gate decision
+        // lines, leaving every ramp-shape claim unfalsifiable (Goal-1 audit A1/A3/A5). Emit a
+        // greppable [GoodputGate] line at LOG_debug (guaranteed captured in the bench trace,
+        // unlike WSUPLOAD_TRACE which may be compiled out) so the QA validation can VERIFY the
+        // ramp instead of inferring it from the terminal peak counter.
+        LOG_debug << "[GoodputGate] pool=" << static_cast<const void*>(this)
+                  << " files=" << mNumPoolFiles << " SEED conns="
+                  << static_cast<unsigned>(mNumberOfConnections)
+                  << " base=" << static_cast<unsigned>(impl.poolConnectionLimit())
+                  << " ceiling=" << static_cast<unsigned>(ceiling)
+                  << " windowDs=" << windowDs;
         return;
     }
 
@@ -1166,9 +1185,15 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
     // WIDEN requires headroom below the ceiling AND EVERY open conn saturated (full send-buffer
     // backpressure). Clean high-BW is chunk-prep-bound -> haveSpace() stays true -> not
     // backpressured -> never widens (stays at the base default, no regression).
+    // (S7 observability: capture the pre-decision conn count + the backpressure signal once so
+    // the [GoodputGate] line below reports the exact transition + discriminator inputs.)
+    const unsigned connBefore = static_cast<unsigned>(mNumberOfConnections);
+    const bool wasProbing = mGateProbing;
+    const bool allBackpressured = allOpenConnsBackpressuredLocked();
     const bool canWiden =
-        (static_cast<unsigned>(mNumberOfConnections) < static_cast<unsigned>(ceiling)) &&
-        allOpenConnsBackpressuredLocked();
+        (connBefore < static_cast<unsigned>(ceiling)) && allBackpressured;
+    const char* action = "hold-nobp";
+    bool roseEnough = false;
     if (canWiden)
     {
         // WIDEN on the first probe at this count, or if the previous +step lifted aggregate
@@ -1176,7 +1201,7 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
         // loss discriminator: a clean bandwidth-limited link does NOT gain when a flow is added
         // (the flow just splits the same uplink) -> retreat; a loss-limited link DOES gain (each
         // flow is an independent cwnd) -> keep climbing.
-        const bool roseEnough =
+        roseEnough =
             !mGateProbing || (currentGoodput >= mGateGoodputBeforeIncrease * gainMultiplier);
         if (roseEnough)
         {
@@ -1184,10 +1209,10 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
             // against it), then widen (clamped to the ceiling) and start probing.
             mGateGoodputBeforeIncrease = currentGoodput;
             const unsigned widened =
-                std::min<unsigned>(static_cast<unsigned>(mNumberOfConnections) + step,
-                                   static_cast<unsigned>(ceiling));
+                std::min<unsigned>(connBefore + step, static_cast<unsigned>(ceiling));
             setPoolNumConn(static_cast<unsigned char>(widened));
             mGateProbing = true;
+            action = "widen";
         }
         else
         {
@@ -1195,15 +1220,14 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
             // so we settle at the goodput knee (or the base default for a clean low-BW link).
             // Floor at the base pool limit so the ramp never drops the pool's base connections.
             const unsigned floorLimit = impl.poolConnectionLimit();
-            unsigned downTo = (static_cast<unsigned>(mNumberOfConnections) > step)
-                                  ? (static_cast<unsigned>(mNumberOfConnections) - step)
-                                  : floorLimit;
+            unsigned downTo = (connBefore > step) ? (connBefore - step) : floorLimit;
             if (downTo < floorLimit)
                 downTo = floorLimit;
-            if (downTo < static_cast<unsigned>(mNumberOfConnections))
+            if (downTo < connBefore)
                 setPoolNumConn(static_cast<unsigned char>(downTo));
             mGateProbing = false;
             nextAdjustDs = now + windowDs * kGateRetreatCooldownWindows;
+            action = (downTo < connBefore) ? "retreat" : "retreat-atfloor";
         }
     }
     else
@@ -1211,7 +1235,22 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
         // Not backpressured (clean high-BW holds at the base default), or already at the
         // ceiling: resolve any in-flight probe without thrashing and hold.
         mGateProbing = false;
+        action = (connBefore >= static_cast<unsigned>(ceiling)) ? "hold-ceiling" : "hold-nobp";
     }
+
+    // S7 observability (Goal-1 audit A1/A3/A5): one greppable line per gate decision so the QA
+    // validation can VERIFY the ramp/hold instead of inferring it. LOG_debug (not WSUPLOAD_TRACE,
+    // which may be compiled out) guarantees capture in the bench PID trace.
+    LOG_debug << "[GoodputGate] pool=" << static_cast<const void*>(this)
+              << " files=" << mNumPoolFiles << " action=" << action
+              << " conns=" << connBefore << "->" << static_cast<unsigned>(mNumberOfConnections)
+              << " base=" << static_cast<unsigned>(impl.poolConnectionLimit())
+              << " ceiling=" << static_cast<unsigned>(ceiling)
+              << " allBackpressured=" << allBackpressured
+              << " wasProbing=" << wasProbing << " roseEnough=" << roseEnough
+              << " goodputBps=" << currentGoodput
+              << " prevGoodputBps=" << mGateGoodputBeforeIncrease
+              << " gainX=" << gainMultiplier << " elapsedDs=" << elapsedDs;
 
     // Advance the measurement window (nextAdjustDs = the retreat cooldown, else one window).
     mGateLastSampleDs = now;
@@ -1384,10 +1423,13 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 // Repeated handshake failures for an active upload must eventually transition
                 // through Transfer::failed/backoff instead of looping forever in reconnect.
-                // Use a dedicated, shorter HANDSHAKEFAILTIMEOUT here (fix #4b) rather than
-                // reusing UPLOADTIMEOUT (which keeps its chunk-phase semantics elsewhere): a
-                // pure-handshake-failure loop now surfaces onFail in <=60s instead of 180s.
-                dstime sustainedHandshakeFailureWindowDs = HANDSHAKEFAILTIMEOUT;
+                // Use a dedicated, shorter window here (fix #4b) rather than reusing UPLOADTIMEOUT
+                // (which keeps its chunk-phase semantics elsewhere): a pure-handshake-failure loop
+                // now surfaces onFail in <=60s instead of 180s. HANDSHAKEFAILTIMEOUT (60s) is the
+                // default; runtime-overridable (ms) via MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS through
+                // Impl::handshakeFailWindowDs() -- kept coupled to the per-attempt handshake
+                // timeout (MEGA_WS_HANDSHAKE_TIMEOUT_MS) so one attempt cannot exceed the window.
+                dstime sustainedHandshakeFailureWindowDs = mImpl->handshakeFailWindowDs();
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                 DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(
                     sustainedHandshakeFailureWindowDs);

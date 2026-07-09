@@ -190,6 +190,22 @@ bool wsDatasetConnBumpEnvDefault()
     return value;
 }
 
+// Gates the env-gated SINGLE-FILE connection ramp (SDK-5360 fu8 Session 7, Lever C;
+// WsPool::lossBoostedConnLimitLocked dataset branch). DEFAULT OFF -- unlike the loss-recovery
+// sub-knobs above (default ON, "0" disables) this one defaults OFF and only an explicit "1"
+// enables, because it changes single-file behaviour. ANDed with mLossRecovery in the Impl ctor
+// (like mDatasetConnBump) so MEGA_WS_LOSS_RECOVERY=0 also forces it off. When ON, a lone-file
+// pool (mNumPoolFiles==1) may reach the dataset-boosted ceiling and ride the goodput gate.
+bool wsSingleFileConnBumpEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_SINGLEFILE_CONN_BUMP");
+        return hasValue && raw == "1";
+    }();
+    return value;
+}
+
 // Runtime NUMERIC override for the dataset boosted connection limit (default 0 = use the
 // compile-time kLossBoostedDatasetConnLimit=32). Lets the Queue-B proof bench sweep K (24/32/36)
 // on ONE binary without a rebuild. Read once per process. A value above the global ceiling
@@ -319,6 +335,54 @@ bool wsAckStallWatchdogEnvDefault()
     {
         const auto [raw, hasValue] = Utils::getenv("MEGA_WS_ACKSTALL_WATCHDOG");
         return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// Runtime NUMERIC override (MILLISECONDS) for the per-attempt WS handshake timeout (SDK-5360
+// fu8 Session 7, Lever A). Default 0 = use the compile-time UploadEngine::Impl constants
+// kHandshakeTimeoutLossMs (45s, loss-adaptive) / kHandshakeTimeoutMs (15s, baseline) selected
+// in WsConn::connectWS. Lets the bad-network bench sweep the per-attempt timeout on ONE binary.
+// Read exactly once per process (function-local static). A non-numeric / <=0 value keeps the
+// default constants. Consumed via UploadEngine::Impl::handshakeTimeoutMs(). MUST stay < the
+// coupled fail-window (MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS) or one attempt blows the failure budget.
+long wsHandshakeTimeoutMsEnvDefault()
+{
+    static const long value = []() -> long
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_HANDSHAKE_TIMEOUT_MS");
+        if (!hasValue)
+            return 0;
+        char* end = nullptr;
+        const long ms = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || ms <= 0)
+            return 0;
+        return ms;
+    }();
+    return value;
+}
+
+// Runtime NUMERIC override (MILLISECONDS) for the sustained-handshake-failure escalation window
+// (SDK-5360 fu8 Session 7, Lever A), converted to deciseconds. Default 0 = use the compile-time
+// WsPool::HANDSHAKEFAILTIMEOUT (60s). Coupled to MEGA_WS_HANDSHAKE_TIMEOUT_MS: the per-attempt
+// handshake timeout MUST stay UNDER this window or a single attempt blows the whole failure
+// budget, so the two are tuned together. Read exactly once per process (function-local static).
+// A non-numeric / <=0 value keeps the default. Consumed via
+// UploadEngine::Impl::handshakeFailWindowDs().
+dstime wsHandshakeFailWindowDsEnvDefault()
+{
+    static const dstime value = []() -> dstime
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS");
+        if (!hasValue)
+            return 0;
+        char* end = nullptr;
+        const long ms = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || ms <= 0)
+            return 0;
+        // dstime is deciseconds (1/10 s); floor at 1ds so a tiny positive value still arms.
+        const long ds = ms / 100;
+        return static_cast<dstime>(ds > 0 ? ds : 1);
     }();
     return value;
 }

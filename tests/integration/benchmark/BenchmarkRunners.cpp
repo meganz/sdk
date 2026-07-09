@@ -989,6 +989,273 @@ void runQaExactSingleFileBenchmark(SdkTest& test)
     test.deleteFolder(folderName);
 }
 
+void runQaMixedUploadBenchmark(SdkTest& test)
+{
+    // Per-file wait cap: 4 h, because the poor-network cells (netem loss/RTT) can
+    // stretch a 210 MB parallel upload well past the ManySmall 10-minute cap.
+    constexpr int kTimeoutS = 4 * 60 * 60;
+    constexpr const char* kTestName = "SdkTestBenchmarkQaMixedUpload";
+
+    // The real-media dataset is a persistent, read-only-to-us directory harvested
+    // once by SdkTest.HarvestQaMixedDataset. Without it there is nothing to
+    // reproduce (and fabricating synthetic files would defeat the fa-generation
+    // premise of this cell), so skip.
+    const char* srcDirEnv = std::getenv("MEGA_BENCH_UPLOAD_SOURCE_DIR");
+    if (!srcDirEnv || !*srcDirEnv)
+    {
+        GTEST_SKIP() << "QaMixedUpload requires MEGA_BENCH_UPLOAD_SOURCE_DIR (run "
+                        "HarvestQaMixedDataset once)";
+    }
+
+    // Enumerate the dataset dir; collect regular files and sort by name for a
+    // deterministic upload order. NOT wrapped in LocalTempFile: its destructor
+    // deletes the file, and this shared dataset must survive across --gtest_repeat
+    // iterations.
+    const fs::path sourceDir{srcDirEnv};
+    std::vector<fs::path> sourceFiles;
+    {
+        std::error_code ec;
+        for (const auto& entry: fs::directory_iterator(sourceDir, ec))
+        {
+            if (entry.is_regular_file())
+            {
+                sourceFiles.push_back(entry.path());
+            }
+        }
+    }
+    std::sort(sourceFiles.begin(), sourceFiles.end());
+    ASSERT_FALSE(sourceFiles.empty())
+        << "MEGA_BENCH_UPLOAD_SOURCE_DIR has no regular files: " << sourceDir;
+
+    const std::size_t fileCount = sourceFiles.size();
+    std::uintmax_t totalBytes = 0;
+    for (const auto& srcPath: sourceFiles)
+    {
+        std::error_code ec;
+        totalBytes += fs::file_size(srcPath, ec);
+    }
+    LOG_info << "[BenchQaMixedUpload] sourceDir=" << sourceDir << " fileCount=" << fileCount
+             << " totalBytes=" << totalBytes;
+
+    LOG_info << "___TEST___ " << kTestName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+
+    // Env-var override of upload connection count (mirrors ManySmall / QaExact).
+    if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
+    {
+        const int n = std::atoi(envConns);
+        if (n > 0)
+        {
+            ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            LOG_info << "[BenchQaMixedUpload] connections override = " << n;
+        }
+    }
+
+    // BANDWIDTH knob: MEGA_NET_MAXUPLOAD_KBPS is kilobits/sec (as in the iOS
+    // Network Link Conditioner). Convert to bytes/sec for setMaxUploadSpeed and
+    // scope the cap to the duration of this upload.
+#ifdef MEGA_USE_WSUPLOAD
+    std::optional<::mega::test::wsupload::ScopedUploadSpeedLimit> uploadSpeedCap;
+#endif
+    if (const char* envKbps = std::getenv("MEGA_NET_MAXUPLOAD_KBPS"))
+    {
+        const long kbps = std::atol(envKbps);
+        if (kbps > 0)
+        {
+            const int bytesPerSec = static_cast<int>(kbps * 1000 / 8);
+#ifdef MEGA_USE_WSUPLOAD
+            uploadSpeedCap.emplace(*test.megaApi[0], bytesPerSec);
+#else
+            test.megaApi[0]->setMaxUploadSpeed(bytesPerSec);
+#endif
+            LOG_info << "[QaMixedUpload] maxUploadKbps=" << kbps
+                     << " (bytesPerSec=" << bytesPerSec << ")";
+        }
+    }
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string suffix = benchUniqueSuffix("QaMixedUpload");
+    const std::string folderName = "bench_qa_mixed_" + suffix;
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> folder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(folder, nullptr);
+
+    std::vector<std::unique_ptr<TransferTracker>> trackers;
+    trackers.reserve(fileCount);
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+    BenchPutnodesTimingRecorder putnodesRecorder;
+
+    const auto procStatsStart = captureBenchProcessStats();
+    const auto apiStart = std::chrono::steady_clock::now();
+    for (size_t i = 0; i < fileCount; ++i)
+    {
+        trackers.emplace_back(std::make_unique<TransferTracker>(test.megaApi[0].get()));
+        test.megaApi[0]->startUpload(sourceFiles[i].string(),
+                                     folder.get(),
+                                     nullptr /*cancelToken*/,
+                                     &uploadOptions,
+                                     trackers.back().get());
+    }
+
+    // Poll all trackers, logging cumulative progress every 15s. Two masters:
+    // (1) clean/capped cells run to completion and fall through to the metrics below;
+    // (2) the poor-network qaexact cell is KILLED by the bench_matrix_runner 30-min
+    // guardrail before finishing -- the LAST "[BenchQaMixedUpload] progress" line in
+    // the trace is then the metric of record (N/M files + MB uploaded at 30 min =
+    // QA's "WS moved ~8x more data" comparison). Non-blocking via the tracker atomics.
+    const auto pollStart = std::chrono::steady_clock::now();
+    for (;;)
+    {
+        size_t done = 0;
+        std::uintmax_t bytesDone = 0;
+        std::int64_t bytesTransferred = 0; // finished + IN-FLIGHT (fair "data moved" metric)
+        for (size_t i = 0; i < fileCount; ++i)
+        {
+            bytesTransferred += trackers[i]->mTransferredBytes.load();
+            if (trackers[i]->finished.load())
+            {
+                ++done;
+                std::error_code ec;
+                bytesDone += fs::file_size(sourceFiles[i], ec);
+            }
+        }
+        LOG_info << "[BenchQaMixedUpload] progress done=" << done << "/" << fileCount
+                 << " bytesDone=" << bytesDone << " bytesTransferred=" << bytesTransferred
+                 << " totalBytes=" << totalBytes;
+        if (done == fileCount)
+            break;
+        const auto elapsedS = std::chrono::duration_cast<std::chrono::seconds>(
+                                  std::chrono::steady_clock::now() - pollStart)
+                                  .count();
+        ASSERT_LT(elapsedS, kTimeoutS)
+            << "QaMixedUpload did not finish within " << kTimeoutS << "s";
+        std::this_thread::sleep_for(std::chrono::seconds{15});
+    }
+    std::vector<double> perFileKBps;
+    perFileKBps.reserve(fileCount);
+    for (size_t i = 0; i < fileCount; ++i)
+    {
+        ASSERT_EQ(trackers[i]->result.load(), API_OK)
+            << "Upload " << i << " (" << sourceFiles[i].filename().string()
+            << ") failed with code " << trackers[i]->result.load();
+        perFileKBps.push_back(static_cast<double>(trackers[i]->mTransferMeanSpeed) / 1024.0);
+    }
+    const auto apiEnd = std::chrono::steady_clock::now();
+    const auto procStatsEnd = captureBenchProcessStats();
+
+    std::int64_t firstTransferStartMs = 0;
+    std::int64_t lastTransferFinishMs = 0;
+    std::vector<const TransferTracker*> timingTrackers;
+    timingTrackers.reserve(trackers.size());
+    for (const auto& tracker: trackers)
+    {
+        includeTransferWindow(*tracker, firstTransferStartMs, lastTransferFinishMs);
+        timingTrackers.push_back(tracker.get());
+    }
+    ASSERT_GT(firstTransferStartMs, 0);
+    ASSERT_GT(lastTransferFinishMs, firstTransferStartMs);
+    const auto timingSummary = summarizeBenchTimings(timingTrackers, putnodesRecorder);
+
+    const auto totalMs = lastTransferFinishMs - firstTransferStartMs;
+    const auto apiTotalMs =
+        std::chrono::duration_cast<std::chrono::milliseconds>(apiEnd - apiStart).count();
+    const double totalKiB = static_cast<double>(totalBytes) / 1024.0;
+    const double aggregateKBps =
+        (totalMs > 0) ? (totalKiB * 1000.0) / static_cast<double>(totalMs) : 0.0;
+
+    // MEDIA-FIDELITY GUARD: real JPGs must trigger thumbnail + preview file-attribute
+    // (fa) generation via gfxworker; synthetic .bin fixtures never do. If NO uploaded
+    // node reports a thumbnail/preview, gfxworker is not running and the "real media"
+    // premise of this reproduction is void -- fail loudly rather than silently
+    // measuring a plain N-file upload. Overridable via MEGA_BENCH_REQUIRE_THUMBNAILS=0.
+    bool requireThumbnails = true;
+    if (const char* envReq = std::getenv("MEGA_BENCH_REQUIRE_THUMBNAILS"))
+    {
+        requireThumbnails = (std::string{envReq} == "1");
+    }
+    // Poll for fa attachment: thumbnail/preview fa are produced by gfxworker and land
+    // on the local node cache via action packets, which can lag the putnodes response
+    // by a beat. Re-count for up to ~20s so the guard reads the SETTLED state, not a
+    // mid-flight snapshot (avoids a false "premise VOID" on a fast uncapped run).
+    unsigned nodesWithThumbnail = 0;
+    unsigned nodesWithPreview = 0;
+    const auto countMedia = [&]()
+    {
+        nodesWithThumbnail = 0;
+        nodesWithPreview = 0;
+        for (const auto& tracker: trackers)
+        {
+            if (tracker->resultNodeHandle == UNDEF)
+                continue;
+            std::unique_ptr<MegaNode> node{
+                test.megaApi[0]->getNodeByHandle(tracker->resultNodeHandle)};
+            if (!node)
+                continue;
+            if (node->hasThumbnail())
+                ++nodesWithThumbnail;
+            if (node->hasPreview())
+                ++nodesWithPreview;
+        }
+        return nodesWithThumbnail > 0 && nodesWithPreview > 0;
+    };
+    for (int pollIter = 0; pollIter < 40 && !countMedia(); ++pollIter)
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds{500});
+    }
+    LOG_info << "[BenchQaMixedUpload] mediaCheck nodesWithThumbnail=" << nodesWithThumbnail << "/"
+             << fileCount << " nodesWithPreview=" << nodesWithPreview << "/" << fileCount;
+    if (requireThumbnails)
+    {
+        ASSERT_GT(nodesWithThumbnail, 0u)
+            << "media-fidelity guard: NO thumbnails generated -- gfxworker not running? "
+               "real-media premise VOID";
+        ASSERT_GT(nodesWithPreview, 0u)
+            << "media-fidelity guard: NO previews generated -- gfxworker not running? "
+               "real-media premise VOID";
+    }
+
+    std::vector<double> sorted = perFileKBps;
+    std::sort(sorted.begin(), sorted.end());
+    const double minKBps = sorted.front();
+    const double maxKBps = sorted.back();
+    const double medianKBps = sorted[sorted.size() / 2];
+    double sumKBps = 0.0;
+    for (const double v: sorted)
+        sumKBps += v;
+    const double avgKBps = sumKBps / static_cast<double>(sorted.size());
+
+    std::ostringstream summary;
+    summary << "[BenchQaMixedUpload] files=" << fileCount << " totalBytes=" << totalBytes
+            << " totalMs=" << totalMs << " aggregateKBps=" << aggregateKBps
+            << " apiTotalMs=" << apiTotalMs << " avgKBps=" << avgKBps
+            << " medianKBps=" << medianKBps << " minKBps=" << minKBps << " maxKBps=" << maxKBps;
+    appendBenchTimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+    logBenchProcessStatsDelta("QaMixedUpload", procStatsStart, procStatsEnd);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, fileCount);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    recordBenchCell(test,
+                    "QaMixedUpload",
+                    /*fileSizeMib=*/static_cast<std::int64_t>(totalBytes / (1024 * 1024)),
+                    /*connections=*/usedConns,
+                    /*totalMs=*/static_cast<std::int64_t>(totalMs),
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/fileCount);
+#endif
+    test.deleteFolder(folderName);
+}
+
 void runSmallFileBurstBenchmark(SdkTest& test)
 {
     constexpr int kTimeoutS = 4 * 60 * 60; // per-file wait cap (matches QaExact)

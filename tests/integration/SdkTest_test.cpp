@@ -11113,6 +11113,261 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
 }
 
+/**
+ * @brief TEST_F HarvestQaMixedDataset
+ *
+ * One-shot dataset harvester for the SDK-5360 fu8 QaMixedUpload benchmark. Logs
+ * into a PUBLIC folder link as a guest (no bench account needed), curates ~40
+ * real media files (JPG/PNG) matching the QA size distribution (~210 MB total),
+ * downloads them ONCE into MEGA_BENCH_UPLOAD_SOURCE_DIR (default
+ * $HOME/mega_bench_dataset/qa_mixed), and writes a manifest TSV. The
+ * QaMixedUpload bench cells (candidate SdkBenchmarkTest + develop inline) then
+ * reuse this on-disk dataset across --gtest_repeat runs so the SDK reproduces the
+ * thumbnail/preview fa generation that synthetic .bin files never trigger.
+ *
+ * Run manually ONCE (e.g. --gtest_filter=SdkTest.HarvestQaMixedDataset); it is
+ * idempotent (skips files already present at the right size) and may take minutes
+ * on a slow link. It does NOT depend on the bench account.
+ */
+TEST_F(SdkTest, HarvestQaMixedDataset)
+{
+    constexpr int kNetTimeoutS = 600; // generous: guest login / fetch / per-file download / logout
+    const char* FOLDER_LINK = "https://mega.nz/folder/eZx2TI7Z#g2qzUrS9ausRp0Ua7XD01w";
+
+    // Guest folder-link session (cache idx 90, away from the fixture accounts).
+    // A public folder link needs no bench-account credentials.
+    MegaApiTestPointer api = newMegaApi(APP_KEY.c_str(),
+                                        megaApiCacheFolder(90).c_str(),
+                                        USER_AGENT.c_str(),
+                                        unsigned(THREADS_PER_MEGACLIENT));
+    ASSERT_NE(api.get(), nullptr) << "Cannot create guest folder-link MegaApi";
+
+    RequestTracker loginTracker{api.get()};
+    api->loginToFolder(FOLDER_LINK, &loginTracker);
+    ASSERT_EQ(API_OK, loginTracker.waitForResult(kNetTimeoutS))
+        << "guest loginToFolder failed for: " << FOLDER_LINK;
+
+    RequestTracker fetchTracker{api.get()};
+    api->fetchNodes(&fetchTracker);
+    ASSERT_EQ(API_OK, fetchTracker.waitForResult(kNetTimeoutS)) << "guest fetchNodes failed";
+
+    std::unique_ptr<MegaNode> root{api->getRootNode()};
+    ASSERT_NE(root, nullptr) << "guest folder-link root node not found";
+
+    // Recursively collect every FILE node under the folder-link root. Nodes are
+    // copied out (child->copy()) because the enclosing MegaNodeList owns the
+    // borrowed pointers only for the lifetime of each recursion frame.
+    struct HarvestNode
+    {
+        std::string name;
+        std::int64_t size;
+        std::unique_ptr<MegaNode> node;
+    };
+    std::vector<HarvestNode> discovered;
+    std::function<void(MegaNode*)> collect = [&](MegaNode* parent)
+    {
+        std::unique_ptr<MegaNodeList> children{api->getChildren(parent)};
+        if (!children)
+        {
+            return;
+        }
+        for (int i = 0; i < children->size(); ++i)
+        {
+            MegaNode* child = children->get(i);
+            if (!child)
+            {
+                continue;
+            }
+            if (child->isFolder())
+            {
+                collect(child);
+            }
+            else if (child->isFile())
+            {
+                discovered.push_back(HarvestNode{child->getName() ? child->getName() : "",
+                                                 child->getSize(),
+                                                 std::unique_ptr<MegaNode>{child->copy()}});
+            }
+        }
+    };
+    collect(root.get());
+    LOG_info << "[HarvestQaMixedDataset] discovered " << discovered.size()
+             << " file nodes under folder link";
+
+    // Filter to image media (case-insensitive .jpg/.jpeg/.png) within the QA size
+    // envelope [260 KiB, 21 MiB].
+    const auto hasImageExt = [](const std::string& name)
+    {
+        std::string lower;
+        lower.reserve(name.size());
+        for (const char c: name)
+        {
+            lower.push_back((c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c);
+        }
+        const auto endsWith = [&lower](const std::string& suffix)
+        {
+            return lower.size() >= suffix.size() &&
+                   lower.compare(lower.size() - suffix.size(), suffix.size(), suffix) == 0;
+        };
+        return endsWith(".jpg") || endsWith(".jpeg") || endsWith(".png");
+    };
+    constexpr std::int64_t kMinSize = 260 * 1024;
+    constexpr std::int64_t kMaxSize = 21 * 1024 * 1024;
+    std::vector<HarvestNode*> mediaFiles;
+    for (auto& hn: discovered)
+    {
+        if (hn.size >= kMinSize && hn.size <= kMaxSize && hasImageExt(hn.name))
+        {
+            mediaFiles.push_back(&hn);
+        }
+    }
+    LOG_info << "[HarvestQaMixedDataset] " << mediaFiles.size()
+             << " image files in size envelope [" << kMinSize << ", " << kMaxSize << "]";
+
+    // Curate to QA's SHAPE (a few large, several medium, MANY tiny) at ~40 files /
+    // ~200 MiB. Non-overlapping bands. Large/medium take the BIGGEST available (this
+    // folder tops out ~17.5 MiB, short of QA's 21 MiB) to carry the byte bulk + the
+    // tail; the small band takes the SMALLEST (the tiny 260 KiB-1.5 MiB files QA
+    // emphasised, which a largest-first pick would miss). biggestFirst selects the
+    // per-band sort direction.
+    struct Bucket
+    {
+        const char* label;
+        std::int64_t lo;
+        std::int64_t hi;
+        std::size_t cap;
+        bool biggestFirst;
+    };
+    const Bucket buckets[] = {
+        {"large", 8 * 1024 * 1024, 21 * 1024 * 1024, 7, true},
+        {"medium", 3 * 1024 * 1024, 8 * 1024 * 1024 - 1, 14, true},
+        {"small", 260 * 1024, 3 * 1024 * 1024 - 1, 21, false},
+    };
+    std::vector<HarvestNode*> chosen;
+    for (const auto& bucket: buckets)
+    {
+        std::vector<HarvestNode*> candidates;
+        for (HarvestNode* hn: mediaFiles)
+        {
+            if (hn->size >= bucket.lo && hn->size <= bucket.hi)
+            {
+                candidates.push_back(hn);
+            }
+        }
+        const bool biggestFirst = bucket.biggestFirst;
+        std::sort(candidates.begin(),
+                  candidates.end(),
+                  [biggestFirst](const HarvestNode* a, const HarvestNode* b)
+                  {
+                      return biggestFirst ? (a->size > b->size) : (a->size < b->size);
+                  });
+        if (candidates.size() < bucket.cap)
+        {
+            LOG_warn << "[HarvestQaMixedDataset] bucket '" << bucket.label
+                     << "' under-supplied: " << candidates.size() << " < " << bucket.cap
+                     << " (taking what exists)";
+        }
+        const std::size_t take = std::min(bucket.cap, candidates.size());
+        for (std::size_t i = 0; i < take; ++i)
+        {
+            chosen.push_back(candidates[i]);
+        }
+    }
+    std::int64_t curatedBytes = 0;
+    for (const HarvestNode* hn: chosen)
+    {
+        curatedBytes += hn->size;
+    }
+    LOG_info << "[HarvestQaMixedDataset] curated " << chosen.size() << " files, "
+             << (curatedBytes / 1024) << " KiB (" << (curatedBytes / (1024 * 1024))
+             << " MiB) total";
+    ASSERT_FALSE(chosen.empty()) << "no image media matched the QA size buckets in the folder link";
+
+    // Destination: MEGA_BENCH_UPLOAD_SOURCE_DIR, else $HOME/mega_bench_dataset/qa_mixed.
+    fs::path destDir;
+    if (const char* envDest = std::getenv("MEGA_BENCH_UPLOAD_SOURCE_DIR"); envDest && *envDest)
+    {
+        destDir = fs::path{envDest};
+    }
+    else if (const char* home = std::getenv("HOME"); home && *home)
+    {
+        destDir = fs::path{home} / "mega_bench_dataset" / "qa_mixed";
+    }
+    else
+    {
+        FAIL() << "neither MEGA_BENCH_UPLOAD_SOURCE_DIR nor HOME is set";
+    }
+    std::error_code destEc;
+    fs::create_directories(destDir, destEc);
+    ASSERT_FALSE(destEc) << "cannot create dataset dir " << destDir << ": " << destEc.message();
+    LOG_info << "[HarvestQaMixedDataset] destDir=" << destDir;
+
+    const fs::path manifestPath = destDir / "qa_mixed_manifest.tsv";
+    std::ofstream manifest(manifestPath, std::ios::trunc);
+    ASSERT_TRUE(manifest.is_open()) << "cannot open manifest " << manifestPath;
+
+    std::int64_t downloadedBytes = 0;
+    std::size_t downloadedCount = 0;
+    for (const HarvestNode* hn: chosen)
+    {
+        // Sanitize the leaf name (folder-link names can contain path separators).
+        std::string safeName = hn->name;
+        for (char& c: safeName)
+        {
+            if (c == '/' || c == '\\')
+            {
+                c = '_';
+            }
+        }
+        if (safeName.empty())
+        {
+            safeName = "node_" +
+                       std::string{std::unique_ptr<char[]>{
+                                       MegaApi::handleToBase64(hn->node->getHandle())}
+                                       .get()};
+        }
+        const fs::path target = destDir / safeName;
+
+        std::error_code sizeEc;
+        if (fs::exists(target, sizeEc) &&
+            static_cast<std::int64_t>(fs::file_size(target, sizeEc)) == hn->size)
+        {
+            LOG_info << "[HarvestQaMixedDataset] skip (already present): " << safeName;
+        }
+        else
+        {
+            TransferTracker tt(api.get());
+            api->startDownload(hn->node.get(),
+                               target.string().c_str(),
+                               nullptr /*customName*/,
+                               nullptr /*appData*/,
+                               false /*startFirst*/,
+                               nullptr /*cancelToken*/,
+                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                               MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /*collisionResolution*/,
+                               false /*undelete*/,
+                               &tt);
+            ASSERT_EQ(API_OK, tt.waitForResult(kNetTimeoutS)) << "download failed for: " << safeName;
+            LOG_info << "[HarvestQaMixedDataset] downloaded " << safeName << " (" << hn->size
+                     << " bytes)";
+        }
+
+        const std::unique_ptr<char[]> handleB64{MegaApi::handleToBase64(hn->node->getHandle())};
+        manifest << safeName << '\t' << hn->size << '\t' << handleB64.get() << '\n';
+        downloadedBytes += hn->size;
+        ++downloadedCount;
+    }
+    manifest << "# total_bytes=" << downloadedBytes << " file_count=" << downloadedCount << '\n';
+    manifest.close();
+    LOG_info << "[HarvestQaMixedDataset] wrote manifest " << manifestPath << " (" << downloadedCount
+             << " files, " << downloadedBytes << " bytes)";
+
+    RequestTracker logoutTracker{api.get()};
+    api->logout(false /*keepSyncConfigsFile*/, &logoutTracker);
+    EXPECT_EQ(API_OK, logoutTracker.waitForResult(kNetTimeoutS))
+        << "guest folder-link logout failed";
+}
+
 TEST_F(SdkTest, DuplicatedDownloadTransferInFlight)
 {
     const std::string prefix = {"SdkTest, DuplicatedDownloadTransferInFlight"};

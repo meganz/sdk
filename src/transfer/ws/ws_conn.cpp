@@ -90,21 +90,10 @@ namespace ws
 namespace
 {
 
-// WS upload session-URL handshake timeout passed to CurlHttpIO::wsHandshakeForUpload.
-// Mirrors the prior CurlHttpIO 15s POST timeout used for the legacy upload-start request.
-// Lives alongside its sole consumer (WsConn::connectWS). This is the BASELINE (loss-
-// recovery OFF) value; T1b raises it to WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS when the flag
-// is on.
-constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_MS = 15000;
-
-// T1b loss-adaptive handshake timeout (loss-recovery ON). The fixed 15s aborts the
-// TLS+WS upgrade under >=20% loss (the loss20cap trace showed 43 CURLcode-28 + 253
-// baton-timeouts -> handshake convoy churn). 45s gives a loss-throttled upgrade enough
-// wall-clock to complete, while staying UNDER the 60s HANDSHAKEFAILTIMEOUT escalation
-// gate (ws_pool.cpp) so a genuinely dead endpoint still surfaces onFail(Retryable)
-// within the failure budget. A clean handshake completes in <1s regardless of the cap,
-// so clean-network behavior is byte-identical.
-constexpr long WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS = 45000;
+// The per-attempt WS TLS+upgrade handshake timeouts (baseline 15s / loss-adaptive 45s, with the
+// rationale for each) moved to UploadEngine::Impl (wsupload_engine.h) as kHandshakeTimeoutMs /
+// kHandshakeTimeoutLossMs so the MEGA_WS_HANDSHAKE_TIMEOUT_MS runtime override can select
+// through one accessor (Impl::handshakeTimeoutMs). Consumed below in WsConn::connectWS.
 
 // Poll interval for the WsConn::connectWS handshake-completion condition variable.
 // Short enough to react to stopping() in <1s; large enough to avoid spinning while
@@ -213,10 +202,10 @@ bool WsConn::connectWS()
         const std::string url = mPool->mUrl;
 
         // T1b: loss-adaptive handshake timeout. mAdaptiveHandshake is read-once at engine
-        // construction and never mutated, so reading it here is benign.
-        const long handshakeTimeoutMs = (mPool->mImpl->mAdaptiveHandshake)
-                                            ? WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS
-                                            : WSUPLOAD_HANDSHAKE_TIMEOUT_MS;
+        // construction and never mutated, so reading it here is benign. handshakeTimeoutMs()
+        // also applies the MEGA_WS_HANDSHAKE_TIMEOUT_MS override (S7 Lever A) when set.
+        const long handshakeTimeoutMs =
+            mPool->mImpl->handshakeTimeoutMs(mPool->mImpl->mAdaptiveHandshake);
 
         if (auto* engine = mPool->mImpl->client.wsEngine(); !engine || engine->isStopping())
         {
@@ -269,11 +258,11 @@ bool WsConn::connectWS()
 
     // T1b: loss-adaptive handshake timeout. mAdaptiveHandshake is read-once at engine
     // construction and never mutated, so reading it here (with uploadMutex released
-    // around the blocking handshake) is benign. When the flag is on we grant the
-    // TLS+WS upgrade WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS instead of the baseline 15s.
-    const long handshakeTimeoutMs = (mPool->mImpl->mAdaptiveHandshake)
-                                        ? WSUPLOAD_HANDSHAKE_TIMEOUT_LOSS_MS
-                                        : WSUPLOAD_HANDSHAKE_TIMEOUT_MS;
+    // around the blocking handshake) is benign. When the flag is on we grant the loss-adaptive
+    // timeout instead of the baseline 15s; handshakeTimeoutMs() also applies the
+    // MEGA_WS_HANDSHAKE_TIMEOUT_MS override (S7 Lever A) when set.
+    const long handshakeTimeoutMs =
+        mPool->mImpl->handshakeTimeoutMs(mPool->mImpl->mAdaptiveHandshake);
     const int handshakeBatonMs =
         static_cast<int>(handshakeTimeoutMs) + WSUPLOAD_HANDSHAKE_BATON_SLACK_MS;
 

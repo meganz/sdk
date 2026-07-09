@@ -108,11 +108,17 @@ source "$PROFILES_ENV"
 PROFILE_VALUE="${!PROFILE-}"
 [[ -n "$PROFILE_VALUE" ]] || die "unknown profile '$PROFILE' (not defined in $PROFILES_ENV)"
 
-read -r DELAY_MS LOSS_PCT KBPS <<<"$PROFILE_VALUE"
-: "${DELAY_MS:=0}" "${LOSS_PCT:=0}" "${KBPS:=0}"
+# Fields: delay_ms loss_pct app_kbps [net_kbps]. The optional 4th field NET_KBPS
+# (SDK-5360 fu8 S7 Lever D) is a NETWORK-layer bandwidth cap applied via `tc netem rate`
+# (fills the kernel send buffer -> asserts send-buffer backpressure, unlike the app-layer
+# MEGA_NET_MAXUPLOAD_KBPS self-throttle which drains the buffer and hides backpressure).
+# Use net_kbps to faithfully exercise the WS gate's bad-net ramp. Default 0 (unchanged).
+read -r DELAY_MS LOSS_PCT KBPS NET_KBPS <<<"$PROFILE_VALUE"
+: "${DELAY_MS:=0}" "${LOSS_PCT:=0}" "${KBPS:=0}" "${NET_KBPS:=0}"
 [[ "$DELAY_MS" =~ ^[0-9]+$ ]] || die "profile '$PROFILE' delay_ms not numeric: '$DELAY_MS'"
 [[ "$LOSS_PCT" =~ ^[0-9]+$ ]] || die "profile '$PROFILE' loss_pct not numeric: '$LOSS_PCT'"
 [[ "$KBPS"     =~ ^[0-9]+$ ]] || die "profile '$PROFILE' kbps not numeric: '$KBPS'"
+[[ "$NET_KBPS" =~ ^[0-9]+$ ]] || die "profile '$PROFILE' net_kbps not numeric: '$NET_KBPS'"
 
 # --- Discover host default interface ----------------------------------------
 DEFAULT_IFACE="$(ip route show default 2>/dev/null | awk '{print $5; exit}')"
@@ -190,10 +196,12 @@ echo "nameserver $DNS_SERVER" | sudo tee "/etc/netns/$NS/resolv.conf" >/dev/null
 
 # --- Bidirectional netem (delay/loss EACH WAY) -------------------------------
 # Skip entirely for the 'clean' case (no delay, no loss).
-if [[ "$DELAY_MS" -ne 0 || "$LOSS_PCT" -ne 0 ]]; then
+if [[ "$DELAY_MS" -ne 0 || "$LOSS_PCT" -ne 0 || "$NET_KBPS" -ne 0 ]]; then
     NETEM_ARGS=()
     [[ "$DELAY_MS" -ne 0 ]] && NETEM_ARGS+=(delay "${DELAY_MS}ms")
     [[ "$LOSS_PCT" -ne 0 ]] && NETEM_ARGS+=(loss "${LOSS_PCT}%")
+    # Lever D: network-layer bandwidth cap (kbit) — fills the send buffer so WS backpressure asserts.
+    [[ "$NET_KBPS" -ne 0 ]] && NETEM_ARGS+=(rate "${NET_KBPS}kbit")
     # ns-end egress (inside the netns)
     sudo ip netns exec "$NS" tc qdisc add dev "$NSVETH" root netem "${NETEM_ARGS[@]}" \
         || die "tc netem on ns veth failed"
@@ -203,7 +211,7 @@ if [[ "$DELAY_MS" -ne 0 || "$LOSS_PCT" -ne 0 ]]; then
 fi
 
 # --- Banner ------------------------------------------------------------------
-echo "netem_profile.sh: profile=${PROFILE} delay=${DELAY_MS}ms loss=${LOSS_PCT}% kbps=${KBPS} iface=${DEFAULT_IFACE} ns=${NS} user=${RUN_USER}"
+echo "netem_profile.sh: profile=${PROFILE} delay=${DELAY_MS}ms loss=${LOSS_PCT}% appkbps=${KBPS} netkbps=${NET_KBPS} iface=${DEFAULT_IFACE} ns=${NS} user=${RUN_USER}"
 
 # --- Run the child inside the namespace, as the invoking user ----------------
 # The first `sudo ip netns exec` runs as ROOT and strips the caller's env, so we

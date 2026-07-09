@@ -73,4 +73,18 @@ TEST_F(SdkBenchmarkTest, SmallFileBurst)
     runSmallFileBurstBenchmark(*this);
 }
 
+/**
+ * @brief Benchmark / QA reproduction: a fixed on-disk dataset of REAL media files
+ * (JPGs, from MEGA_BENCH_UPLOAD_SOURCE_DIR) is uploaded in parallel into a fresh
+ * remote folder so the SDK reproduces the thumbnail/preview file-attribute (fa)
+ * generation that synthetic .bin fixtures never trigger. Skips when the dataset
+ * dir is unset (run SdkTest.HarvestQaMixedDataset once). Honours
+ * MEGA_NET_MAXUPLOAD_KBPS (kilobits/s) and MEGA_BENCH_UPLOAD_CONNECTIONS. Emits a
+ * greppable [BenchQaMixedUpload] summary line and a media-fidelity guard.
+ */
+TEST_F(SdkBenchmarkTest, QaMixedUpload)
+{
+    runQaMixedUploadBenchmark(*this);
+}
+
 } // namespace mega::test::benchmark
