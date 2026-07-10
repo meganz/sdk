@@ -24,6 +24,7 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     FileFingerprint_CRC_test.cpp
     File_test.cpp
+    FileSubType_test.cpp
     FsNode.cpp
     getDefaultLogName.cpp
     hashcash_test.cpp

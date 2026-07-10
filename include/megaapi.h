@@ -11037,6 +11037,20 @@ public:
         LOCATION_CLOUD_DRIVE_VAULT_AND_RUBBISH = 2, ///< All three rootnodes.
     };
 
+    /**
+     * @brief File sub-category selector for bySubCategory().
+     *
+     * Narrows a byCategory() query to a sub-category such as GIF or RAW within
+     * FILE_TYPE_PHOTO. A sub-category is an extra filter, not a new category, so
+     * a plain byCategory() query still returns its members.
+     */
+    enum
+    {
+        FILE_SUBTYPE_NONE = 0, ///< No sub-filtering (default).
+        FILE_SUBTYPE_GIF = 1, ///< Only GIF files.
+        FILE_SUBTYPE_RAW = 2, ///< Only RAW files.
+    };
+
     /// Maximum number of handles accepted by byLocationHandles() and
     /// byExcludeLocationHandles(). Lists exceeding this size cause the query
     /// to reject the request.
@@ -11118,6 +11132,18 @@ public:
      */
     virtual void bySensitivity(int filterOption);
     virtual int bySensitivity() const;
+
+    /**
+     * @brief Optional. Narrow a query to a file sub-category (e.g. GIF or RAW
+     *        within FILE_TYPE_PHOTO).
+     *
+     * One of FILE_SUBTYPE_NONE (default), FILE_SUBTYPE_GIF, FILE_SUBTYPE_RAW; other
+     * values are ignored. Applied on top of byCategory(), so it only narrows; pairing it
+     * with a category that can't contain it (e.g. FILE_TYPE_VIDEO + GIF) yields an empty result.
+     */
+    // Declared last so adding it doesn't renumber the other virtuals' vtable slots.
+    virtual void bySubCategory(int subtype);
+    virtual int bySubCategory() const;
 };
 
 /**
@@ -11125,7 +11151,7 @@ public:
  *        anchor (byTimestampAnchor).
  *
  * Cursor validity: a cursor built from a previous page is only reusable when
- * the filter's scope tuple (byCategory, byLocation, byLocationHandles,
+ * the filter's scope tuple (byCategory, bySubCategory, byLocation, byLocationHandles,
  * byExcludeLocationHandles, bySensitivity) and the sort order all match the
  * original call. Mixing configurations may skip or duplicate entries — restart
  * pagination when any of these change.

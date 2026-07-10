@@ -13548,7 +13548,23 @@ bool MegaApiImpl::parseListAllFilterIntoBase(const MegaNodeScopeFilter* filter,
                                logPrefix))
         return false;
 
+    static_assert(static_cast<int>(MegaNodeScopeFilter::FILE_SUBTYPE_NONE) == FILE_SUBTYPE_NONE &&
+                      static_cast<int>(MegaNodeScopeFilter::FILE_SUBTYPE_GIF) == FILE_SUBTYPE_GIF &&
+                      static_cast<int>(MegaNodeScopeFilter::FILE_SUBTYPE_RAW) == FILE_SUBTYPE_RAW,
+                  "public FILE_SUBTYPE_* must match FileSubType_t");
+
+    // bySubCategory() is an overridable public getter and its value becomes a bounded
+    // cache-key digit, so an out-of-range value must be rejected here: an overflowing digit
+    // would alias one filter's prepared statement onto another's slot.
+    const int subCategory = filter->bySubCategory();
+    if (subCategory < FILE_SUBTYPE_NONE || subCategory > FILE_SUBTYPE_MAX)
+    {
+        LOG_warn << logPrefix << ": invalid bySubCategory value " << subCategory;
+        return false;
+    }
+
     out.mimeType = static_cast<MimeType_t>(mimeType);
+    out.fileSubType = static_cast<FileSubType_t>(subCategory);
     out.excludeSensitive =
         (filter->bySensitivity() == MegaNodeScopeFilter::SENSITIVITY_HIDE_SENSITIVE);
     out.explicitAncestors = std::move(explicitAncestors);

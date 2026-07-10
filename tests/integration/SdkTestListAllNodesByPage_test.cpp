@@ -1,10 +1,12 @@
 #include "megaapi.h"
+#include "megaapi_impl.h" // SubCategoryOverrideFilter subclasses MegaListAllNodesFilterPrivate
 #include "SdkTestNodesSetUp.h"
 
 #include <gmock/gmock.h>
 
 #include <algorithm>
 #include <chrono>
+#include <limits>
 #include <memory>
 #include <string>
 #include <vector>
@@ -115,6 +117,25 @@ std::unique_ptr<MegaListAllNodesFilter> makeRootnodeFilter(int mimeType)
     f->byCategory(mimeType);
     return f;
 }
+
+// Reports an arbitrary sub-category value, bypassing the validating bySubCategory() setter as
+// a misbehaving app/binding subclass could. The setter clamps invalid input, so overriding the
+// getter is the only way to drive an out-of-range value through parseListAllFilterIntoBase.
+class SubCategoryOverrideFilter: public MegaListAllNodesFilterPrivate
+{
+public:
+    explicit SubCategoryOverrideFilter(int subCategory):
+        mSubCategory(subCategory)
+    {}
+
+    int bySubCategory() const override
+    {
+        return mSubCategory;
+    }
+
+private:
+    int mSubCategory;
+};
 
 // Build a MegaHandleList from a brace-init list of handles. Caller owns.
 std::unique_ptr<MegaHandleList> handleList(std::initializer_list<MegaHandle> handles)
@@ -326,6 +347,41 @@ TEST_F(SdkTestListAllNodesByPage, InvalidInputs_ReturnEmpty)
     {
         SCOPED_TRACE(tc.name);
         expectEmpty(tc.mimeType, MegaApi::ORDER_DEFAULT_ASC, nullptr);
+    }
+
+    // ── Out-of-range sub-category ─────────────────────────────────────────────
+    // The bySubCategory setter clamps invalid input, but a misbehaving app/binding subclass
+    // could override the getter. parseListAllFilterIntoBase must reject any value outside
+    // [FILE_SUBTYPE_NONE, FILE_SUBTYPE_RAW] → empty. Boundaries around the valid range.
+
+    struct InvalidSubCategoryCase
+    {
+        const char* name;
+        int subCategory;
+    };
+
+    // clang-format off
+    const std::vector<InvalidSubCategoryCase> subCategoryCases{
+        {"just below NONE (-1)", MegaNodeScopeFilter::FILE_SUBTYPE_NONE - 1},
+        {"just above RAW",       MegaNodeScopeFilter::FILE_SUBTYPE_RAW + 1},
+        {"large positive",       999},
+        {"INT_MIN",              std::numeric_limits<int>::min()},
+        {"INT_MAX",              std::numeric_limits<int>::max()},
+    };
+    // clang-format on
+
+    for (const auto& tc: subCategoryCases)
+    {
+        SCOPED_TRACE(tc.name);
+        SubCategoryOverrideFilter filter(tc.subCategory);
+        filter.byCategory(MegaApi::FILE_TYPE_PHOTO);
+        std::unique_ptr<MegaNodeList> r(megaApi[0]->listAllNodesByPage(&filter,
+                                                                       MegaApi::ORDER_DEFAULT_ASC,
+                                                                       nullptr,
+                                                                       0,
+                                                                       nullptr));
+        ASSERT_NE(r, nullptr);
+        EXPECT_EQ(r->size(), 0);
     }
 
     // ── Unsupported order ─────────────────────────────────────────────────────
@@ -810,4 +866,68 @@ TEST_F(SdkTestListAllNodesByPage, Offset_FastScrollerFlow)
     ASSERT_NE(window, nullptr);
     EXPECT_EQ(toHandles(window.get()), handleSlice(expected, offset, limit))
         << "anchored offset window must equal the unbounded set sliced at [offset, offset+limit)";
+}
+
+// ─── Group 5: sub-category (GIF / RAW) filtering ──────────────────────────────
+//
+// A dedicated fixture whose photo set spans all three sub-categories. gif and raw
+// remain MIME_TYPE_PHOTO, so a plain FILE_TYPE_PHOTO query returns all three; the
+// bySubCategory knob narrows it to just the gif or just the raw member.
+//
+//  Name        Ext    SubType  Mtime
+//  clip.gif    .gif   GIF        3h
+//  raw.cr2     .cr2   RAW        2h
+//  pic.jpg     .jpg   NONE       1h
+class SdkTestListAllNodesBySubCategory: public SdkTestNodesSetUp
+{
+    const std::vector<NodeInfo>& getElements() const override
+    {
+        static const std::vector<NodeInfo> ELEMENTS{
+            FileNodeInfo("clip.gif", MegaNode::NODE_LBL_RED, false, 100, 3h),
+            FileNodeInfo("raw.cr2", MegaNode::NODE_LBL_ORANGE, false, 200, 2h),
+            FileNodeInfo("pic.jpg", MegaNode::NODE_LBL_YELLOW, false, 300, 1h),
+        };
+        return ELEMENTS;
+    }
+
+    const std::string& getRootTestDir() const override
+    {
+        static const std::string dirName{"SDK_TEST_LISTALLNODESBYSUBCATEGORY"};
+        return dirName;
+    }
+
+    bool keepDifferentCreationTimes() override
+    {
+        return false;
+    }
+};
+
+TEST_F(SdkTestListAllNodesBySubCategory, SubCategoryGifFilter)
+{
+    const int order = MegaApi::ORDER_MODIFICATION_DESC;
+    auto names = [this](int category, int subCategory)
+    {
+        auto f = makeRootnodeFilter(category);
+        f->bySubCategory(subCategory);
+        std::unique_ptr<MegaNodeList> page(
+            megaApi[0]->listAllNodesByPageAtOffset(f.get(), order, nullptr, 50, 0));
+        return page ? toNames(page.get()) : std::vector<std::string>{};
+    };
+
+    // gif and raw stay part of FILE_TYPE_PHOTO: the unfiltered query returns all three.
+    EXPECT_THAT(names(MegaApi::FILE_TYPE_PHOTO, MegaNodeScopeFilter::FILE_SUBTYPE_NONE),
+                UnorderedElementsAre("clip.gif", "raw.cr2", "pic.jpg"));
+    // The sub-category narrows to exactly the matching member.
+    EXPECT_THAT(names(MegaApi::FILE_TYPE_PHOTO, MegaNodeScopeFilter::FILE_SUBTYPE_GIF),
+                ElementsAre("clip.gif"));
+    EXPECT_THAT(names(MegaApi::FILE_TYPE_PHOTO, MegaNodeScopeFilter::FILE_SUBTYPE_RAW),
+                ElementsAre("raw.cr2"));
+    // Compatible group category (photos ⊂ visual media) is accepted, not over-rejected.
+    EXPECT_THAT(names(MegaApi::FILE_TYPE_ALL_VISUAL_MEDIA, MegaNodeScopeFilter::FILE_SUBTYPE_GIF),
+                ElementsAre("clip.gif"));
+    // Incompatible category is rejected → empty: a non-group category (VIDEO) and a group that
+    // doesn't contain photos (ALL_DOCS) both reject a photo sub-category.
+    EXPECT_THAT(names(MegaApi::FILE_TYPE_VIDEO, MegaNodeScopeFilter::FILE_SUBTYPE_GIF), IsEmpty());
+    EXPECT_THAT(names(MegaApi::FILE_TYPE_ALL_DOCS, MegaNodeScopeFilter::FILE_SUBTYPE_GIF),
+                IsEmpty());
 }

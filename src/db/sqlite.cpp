@@ -173,6 +173,21 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
     }
 
     if (sqlite3_create_function(db,
+                                u8"getfilesubtype",
+                                1,
+                                SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                0,
+                                &SqliteAccountState::userGetFileSubType,
+                                0,
+                                0) != SQLITE_OK)
+    {
+        LOG_err << "Data base error(sqlite3_create_function userGetFileSubType): "
+                << sqlite3_errmsg(db);
+        sqlite3_close(db);
+        return nullptr;
+    }
+
+    if (sqlite3_create_function(db,
                                 u8"getFingerprintExcludingMtime",
                                 1,
                                 SQLITE_UTF8 | SQLITE_DETERMINISTIC,
@@ -2625,21 +2640,23 @@ constexpr size_t kListAllMaxExcludes = kListAllMaxLocationHandles;
 
 constexpr size_t kListAllOrderStride = static_cast<size_t>(OrderByClause::LAST) + 1;
 constexpr size_t kMimeTypeCount = static_cast<size_t>(MIME_TYPE_MAX) + 1;
+constexpr size_t kFileSubTypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
 constexpr size_t kAnchorDirectionStride = static_cast<size_t>(AnchorDirectionDigit::Max) + 1;
 constexpr size_t kDateSectionGranularityStride =
     static_cast<size_t>(DateSectionGranularity::Max) + 1;
 
 // Cache-key space upper bound; assert it stays within 32 bits (size_t is 32-bit on
 // armv7) if a base grows.
-constexpr size_t kListAllMaxCacheKey = kMimeTypeCount * kListAllOrderStride * 2 /* hasCursor */ *
-                                       kAnchorDirectionStride * 2 /* excludeSensitive */ *
-                                       kListAllMaxRoots * (kListAllMaxExcludes + 1);
+constexpr size_t kListAllMaxCacheKey = kMimeTypeCount * kFileSubTypeStride * kListAllOrderStride *
+                                       2 /* hasCursor */ * kAnchorDirectionStride *
+                                       2 /* excludeSensitive */ * kListAllMaxRoots *
+                                       (kListAllMaxExcludes + 1);
 static_assert(kListAllMaxCacheKey < (uint64_t{1} << 32),
               "cache-key product no longer fits in 32 bits; revisit bounds");
 
 // Same bound for the date-section key (granularity digit replaces hasCursor + anchorDir).
 constexpr size_t kDateSectionMaxCacheKey =
-    kMimeTypeCount * kListAllOrderStride * kDateSectionGranularityStride *
+    kMimeTypeCount * kFileSubTypeStride * kListAllOrderStride * kDateSectionGranularityStride *
     2 /* excludeSensitive */ * kListAllMaxRoots * (kListAllMaxExcludes + 1);
 static_assert(kDateSectionMaxCacheKey < (uint64_t{1} << 32),
               "date-section cache-key product no longer fits in 32 bits; revisit bounds");
@@ -3051,6 +3068,22 @@ const std::vector<MimeType_t>& groupedMimeTypesForListAll(const MimeType_t mimeT
     }
 }
 
+// A sub-category matches only a category that contains its parent mime, so an incompatible
+// pairing (e.g. VIDEO + gif) can never match. Extensible: parent from Node::fileSubTypeParent,
+// group membership from groupedMimeTypesForListAll (the single source of truth).
+bool fileSubTypeCompatibleWithCategory(FileSubType_t fileSubType, MimeType_t category)
+{
+    if (fileSubType == FILE_SUBTYPE_NONE)
+        return true;
+    const MimeType_t parent = Node::fileSubTypeParent(fileSubType);
+    if (category == parent)
+        return true;
+    if (!isGroupMimeTypeForListAll(category))
+        return false;
+    const std::vector<MimeType_t>& members = groupedMimeTypesForListAll(category);
+    return std::find(members.begin(), members.end(), parent) != members.end();
+}
+
 std::string buildWhereClauseForListAll(const std::vector<std::string>& conditions)
 {
     if (conditions.empty())
@@ -3283,7 +3316,17 @@ std::string buildListAllRouteSelect(const std::string& mimeFilterClause,
            buildOrderByForListAll(order) + " \n" + tail;
 }
 
+// Empty (no-op) for FILE_SUBTYPE_NONE. The subtype is baked as a validated literal (no bound
+// slot); the cache key carries it (computeListAllCacheId) so gif/raw/none statements don't alias.
+std::string fileSubTypeResidualClause(FileSubType_t subtype)
+{
+    if (subtype == FILE_SUBTYPE_NONE)
+        return {};
+    return " AND getfilesubtype(name) = " + std::to_string(static_cast<int>(subtype));
+}
+
 std::string buildGroupedListAllQuery(MimeType_t mimeType,
+                                     const std::string& fileSubTypeClause,
                                      int order,
                                      const SubtreeScopeSql& scope,
                                      const CursorSql& cursor,
@@ -3305,13 +3348,14 @@ std::string buildGroupedListAllQuery(MimeType_t mimeType,
         }
 
         ctes += routeName + " AS (\n" +
-                buildListAllRouteSelect("mimetypeVirtual = " +
-                                            std::to_string(static_cast<int>(routeMimeTypes[i])),
-                                        order,
-                                        scope,
-                                        cursor,
-                                        anchor,
-                                        /*asGroupedCte=*/true) +
+                buildListAllRouteSelect(
+                    "mimetypeVirtual = " + std::to_string(static_cast<int>(routeMimeTypes[i])) +
+                        fileSubTypeClause,
+                    order,
+                    scope,
+                    cursor,
+                    anchor,
+                    /*asGroupedCte=*/true) +
                 "\n)";
         merged += "SELECT " + listAllNodesResultCols() + " \nFROM " + routeName + "\n";
     }
@@ -3539,9 +3583,10 @@ std::string buildGroupedMimeInListClause(MimeType_t mimeType)
 // locationScope is omitted: it only picks rootnodes; SQL depends only on
 // numRoots.
 //
-// Digit order: mimeType, order, hasCursor, anchorDir, excludeSensitive,
-// numRoots-1, numExcludes (see the append() chain below for each base).
+// Digit order: mimeType, fileSubType, order, hasCursor, anchorDir,
+// excludeSensitive, numRoots-1, numExcludes (see the append() chain below for each base).
 size_t computeListAllCacheId(MimeType_t mimeType,
+                             FileSubType_t fileSubType,
                              int order,
                              bool hasCursor,
                              AnchorDirectionDigit anchorDir,
@@ -3557,6 +3602,7 @@ size_t computeListAllCacheId(MimeType_t mimeType,
     // at timestampColumnForOrder).
     return CacheKeyBuilder{}
         .append(static_cast<size_t>(mimeType), kMimeTypeCount)
+        .append(static_cast<size_t>(fileSubType), kFileSubTypeStride)
         .append(static_cast<size_t>(order), kListAllOrderStride)
         .append(hasCursor ? 1u : 0u, 2)
         .append(static_cast<size_t>(anchorDir), kAnchorDirectionStride)
@@ -3572,6 +3618,7 @@ size_t computeListAllCacheId(MimeType_t mimeType,
 // a bound value, not part of the SQL text, so it needs no key digit. Declared in
 // include/mega/db/sqlite.h for the same test-reach reason as above.
 size_t computeDateSectionsCacheId(MimeType_t mimeType,
+                                  FileSubType_t fileSubType,
                                   int order,
                                   DateSectionGranularity granularity,
                                   bool excludeSensitive,
@@ -3582,6 +3629,7 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
 
     return CacheKeyBuilder{}
         .append(static_cast<size_t>(mimeType), kMimeTypeCount)
+        .append(static_cast<size_t>(fileSubType), kFileSubTypeStride)
         .append(static_cast<size_t>(order), kListAllOrderStride)
         .append(static_cast<size_t>(granularity), kDateSectionGranularityStride)
         .append(excludeSensitive ? 1u : 0u, 2)
@@ -3591,6 +3639,7 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
 }
 
 bool SqliteAccountState::validateListAllEntry(MimeType_t mimeType,
+                                              FileSubType_t fileSubType,
                                               const std::vector<NodeHandle>& filesRoots,
                                               const std::vector<NodeHandle>& excludeHandles,
                                               const char* logPrefix)
@@ -3601,6 +3650,15 @@ bool SqliteAccountState::validateListAllEntry(MimeType_t mimeType,
     if (mimeType <= MIME_TYPE_UNKNOWN || mimeType > MIME_TYPE_ALL_VISUAL_MEDIA)
     {
         LOG_warn << logPrefix << ": invalid mimeType value " << mimeType;
+        return false;
+    }
+
+    // Incompatible category + sub-category (e.g. VIDEO + gif) can never match. Reject it so it
+    // surfaces as a logged empty result rather than one indistinguishable from a real no-match.
+    if (!fileSubTypeCompatibleWithCategory(fileSubType, mimeType))
+    {
+        LOG_warn << logPrefix << ": fileSubType " << fileSubType << " is not contained by mimeType "
+                 << mimeType << "; returning empty";
         return false;
     }
 
@@ -3704,6 +3762,7 @@ bool SqliteAccountState::listAllNodesByPage(
     CancelToken cancelFlag)
 {
     if (!validateListAllEntry(params.mimeType,
+                              params.fileSubType,
                               filesRoots,
                               params.excludeHandles,
                               "listAllNodesByPage"))
@@ -3750,6 +3809,7 @@ bool SqliteAccountState::listAllNodesByPage(
                                                                  AnchorDirectionDigit::Asc :
                                                                  AnchorDirectionDigit::Desc;
     const size_t cacheId = computeListAllCacheId(params.mimeType,
+                                                 params.fileSubType,
                                                  params.order,
                                                  hasCursor,
                                                  anchorDir,
@@ -3783,14 +3843,21 @@ bool SqliteAccountState::listAllNodesByPage(
     int sqlResult = SQLITE_OK;
     if (!stmt)
     {
+        const std::string fileSubTypeClause = fileSubTypeResidualClause(params.fileSubType);
         std::string query;
         if (isGroupMimeType)
         {
-            query = buildGroupedListAllQuery(params.mimeType, params.order, scope, cursor, anchor);
+            query = buildGroupedListAllQuery(params.mimeType,
+                                             fileSubTypeClause,
+                                             params.order,
+                                             scope,
+                                             cursor,
+                                             anchor);
         }
         else
         {
-            query = buildListAllRouteSelect("mimetypeVirtual = ?" + std::to_string(mimeFilterParam),
+            query = buildListAllRouteSelect("mimetypeVirtual = ?" +
+                                                std::to_string(mimeFilterParam) + fileSubTypeClause,
                                             params.order,
                                             scope,
                                             cursor,
@@ -3929,6 +3996,7 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
                                              CancelToken cancelFlag)
 {
     if (!validateListAllEntry(params.mimeType,
+                              params.fileSubType,
                               filesRoots,
                               params.excludeHandles,
                               "groupAllNodesByDate"))
@@ -3961,6 +4029,7 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
     const bool mimeFilterNeedsParam = !isGroupMimeType;
 
     const size_t cacheId = computeDateSectionsCacheId(params.mimeType,
+                                                      params.fileSubType,
                                                       params.order,
                                                       params.granularity,
                                                       params.excludeSensitive,
@@ -3982,8 +4051,9 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
     {
         // Grouped: literal `IN (X, Y, ...)`; simple: bound `= ?`.
         const std::string mimeFilterClause =
-            isGroupMimeType ? buildGroupedMimeInListClause(params.mimeType) :
-                              ("mimetypeVirtual = ?" + std::to_string(mimeFilterParam));
+            (isGroupMimeType ? buildGroupedMimeInListClause(params.mimeType) :
+                               ("mimetypeVirtual = ?" + std::to_string(mimeFilterParam))) +
+            fileSubTypeResidualClause(params.fileSubType);
 
         const SubtreeScopeSql scope{filesRootParam,
                                     numRoots,
@@ -4507,6 +4577,14 @@ void SqliteAccountState::getSizeFromNodeCounter(sqlite3_context* context,
     sqlite3_result_int64(context, nc.storage);
 }
 
+// Returns false (ext left empty) when the name is null/empty or has no extension. Shared by the
+// getmimetype / getfilesubtype UDFs so their null/empty/extension contract can't drift.
+static bool extractUdfExtension(sqlite3_value* arg, string& ext)
+{
+    const char* fileName = reinterpret_cast<const char*>(sqlite3_value_text(arg));
+    return fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty();
+}
+
 void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv)
 {
     if (argc != 1)
@@ -4517,11 +4595,28 @@ void SqliteAccountState::userGetMimetype(sqlite3_context* context, int argc, sql
         return;
     }
 
-    const char* fileName = reinterpret_cast<const char*>(sqlite3_value_text(argv[0]));
     string ext;
-    int result = (fileName && *fileName && Node::getExtension(ext, fileName) && !ext.empty()) ?
-                 Node::getMimetype(ext) : MimeType_t::MIME_TYPE_OTHERS;
-    sqlite3_result_int(context, result);
+    sqlite3_result_int(context,
+                       extractUdfExtension(argv[0], ext) ? Node::getMimetype(ext) :
+                                                           MimeType_t::MIME_TYPE_OTHERS);
+}
+
+void SqliteAccountState::userGetFileSubType(sqlite3_context* context,
+                                            int argc,
+                                            sqlite3_value** argv)
+{
+    if (argc != 1)
+    {
+        LOG_err << "Invalid parameters for userGetFileSubType";
+        assert(argc == 1);
+        sqlite3_result_int(context, FileSubType_t::FILE_SUBTYPE_NONE);
+        return;
+    }
+
+    string ext;
+    sqlite3_result_int(context,
+                       extractUdfExtension(argv[0], ext) ? Node::getFileSubType(ext) :
+                                                           FileSubType_t::FILE_SUBTYPE_NONE);
 }
 
 void SqliteAccountState::getFingerprintExcludingMtime(sqlite3_context* context,
