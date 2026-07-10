@@ -32046,6 +32046,7 @@ void MegaFolderUploadController::start(MegaNode*)
         megaapiThreadClient()->putnodes_prepareOneFolder(&newTreeNode->newnode, leaf, false);
         newTreeNode->newnode.nodehandle = nextUploadId();
         newTreeNode->newnode.parenthandle = UNDEF;
+        mUploadIdToTree[newTreeNode->newnode.nodehandle] = newTreeNode.get();
     }
     // else => if there's another node (TYPE_FOLDER) with the same name, in the destination path, the content of both folders will be merged
 
@@ -32106,9 +32107,8 @@ void MegaFolderUploadController::start(MegaNode*)
 #endif
             createNextFolderBatch(mUploadTree, newnodes, filecount, true);
 
-            assert(r == batchResult_cancelled ||
-                   r == batchResult_requestSent ||
-                   r == batchResult_batchesComplete);
+            assert(r == batchResult_cancelled || r == batchResult_requestSent ||
+                   r == batchResult_batchesComplete || r == batchResult_failed);
         }));
 
         // Queue that function.
@@ -32266,6 +32266,7 @@ MegaFolderUploadController::scanFolder_result MegaFolderUploadController::scanFo
             // set nodeHandle
             newTreeNode->newnode.nodehandle = nextUploadId();
             newTreeNode->newnode.parenthandle = tree.newnode.nodehandle;
+            mUploadIdToTree[newTreeNode->newnode.nodehandle] = newTreeNode.get();
 
             scanFolder_result sr = scanFolder(*newTreeNode, childPath, foldercount, filecount);
             if (sr != scanFolder_succeeded)
@@ -32336,6 +32337,21 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                                                           MegaNode::TYPE_FOLDER));
         }
 
+        // test-only: let a test simulate this already-sent folder vanishing
+        DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(t->folderName, t->megaNode, t->newnodeSent);
+
+        if (!t->megaNode && t->newnodeSent)
+        {
+            // We already created this folder in a previous batch, but it can no longer be
+            // resolved (not by name, nor in the not-yet-committed set). It was most likely
+            // removed by another session. Its newnode has already been moved out, so we must
+            // not send it again (dereference a nullptr), fail the whole upload instead.
+            LOG_err << "Folder upload: folder '" << t->folderName
+                    << "' was created earlier but is missing now";
+            complete(API_ENOENT);
+            return batchResult_failed;
+        }
+
         // if node doesn't exist yet and we haven't exceeded the limit per batch
         if (!t->megaNode && newnodes.size() < MAXNODESUPLOAD)
         {
@@ -32346,6 +32362,7 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
                 assert(tree.megaNode);
                 t->newnode.parenthandle = UNDEF;
             }
+            t->newnodeSent = true;
             newnodes.push_back(std::move(t->newnode));
         }
 
@@ -32396,36 +32413,55 @@ MegaFolderUploadController::batchResult MegaFolderUploadController::createNextFo
             {}, // customerIpPort
             [this, weak_this, filecount](const Error& e,
                                          targettype_t,
-                                         vector<NewNode>&,
+                                         vector<NewNode>& nn,
                                          bool,
                                          int /*tag*/,
                                          const map<string, string>& /*fileHandles*/)
             {
-                // double check our object still exists on request completion
-                if (!weak_this.lock())
+                // Hold a strong reference for the whole callback so the controller (and thus
+                // mUploadTree / mUploadIdToTree accessed below) cannot be destroyed mid-callback.
+                auto self = weak_this.lock();
+                if (!self)
                     return;
-                assert(weak_this.lock().get() == this);
+                assert(self.get() == this);
                 assert(mMainThreadId == std::this_thread::get_id());
 
-                // lambda function that will be executed as completion function in putnodes procresult
+                // command-level failure (also covers the all-nodes-failed case)
                 if (e)
                 {
                     complete(e);
+                    return;
                 }
-                else
+
+                // test-only: let a test inject per-node putnodes errors (see testhooks.h)
+                DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(nn);
+
+                // The overall result can be API_OK even when individual nodes failed, so
+                // inspect the per-node errors. Any failure aborts the whole upload (a failed
+                // folder invalidates its subtree), report the specific error and folder.
+                for (const auto& newNode: nn)
                 {
-                    // start the next batch, if there are any left (or start transfers, if we are ready)
-                    vector<NewNode> newnodes;
+                    if (newNode.mError != API_OK)
+                    {
+                        auto it = mUploadIdToTree.find(newNode.nodehandle);
+                        LOG_err << "Folder upload failed [" << newNode.mError << "] for folder '"
+                                << (it != mUploadIdToTree.end() ? it->second->folderName :
+                                                                  std::string("<unknown>"))
+                                << "'";
+                        complete(newNode.mError);
+                        return;
+                    }
+                }
+
+                // start the next batch, if there are any left (or start transfers, if we are ready)
+                vector<NewNode> newnodes;
 #ifndef NDEBUG
-                    batchResult r =
+                batchResult r =
 #endif
                     createNextFolderBatch(mUploadTree, newnodes, filecount, true);
 
-                    assert(r == batchResult_cancelled ||
-                           r == batchResult_requestSent ||
-                           r == batchResult_batchesComplete);
-
-                }
+                assert(r == batchResult_cancelled || r == batchResult_requestSent ||
+                       r == batchResult_batchesComplete || r == batchResult_failed);
             },
             localPitag);
 

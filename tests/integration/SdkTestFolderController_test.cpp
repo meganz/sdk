@@ -615,3 +615,129 @@ TEST_F(SdkTestFolderController, MergeUploadToExistingDestination_MultipleBatches
     ASSERT_EQ(MegaError::API_OK, uploadErr)
         << "Folder merge upload should succeed across multiple folder batches";
 }
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+namespace
+{
+// Saves and restores the folder-upload test hooks, so a test cannot leak them into
+// other tests that share the process-global globalMegaTestHooks.
+struct FolderUploadHookGuard
+{
+    decltype(globalMegaTestHooks.onFolderUploadPutnodesResult) prevPutnodesResult{
+        globalMegaTestHooks.onFolderUploadPutnodesResult};
+    decltype(globalMegaTestHooks.onFolderUploadSimulateMissing) prevSimulateMissing{
+        globalMegaTestHooks.onFolderUploadSimulateMissing};
+
+    ~FolderUploadHookGuard()
+    {
+        globalMegaTestHooks.onFolderUploadPutnodesResult = prevPutnodesResult;
+        globalMegaTestHooks.onFolderUploadSimulateMissing = prevSimulateMissing;
+    }
+};
+} // namespace
+#endif
+
+/**
+ * When a putnodes for a folder batch reports a per-node error (overall command still
+ * API_OK), the folder upload must abort with that specific error and must not crash.
+ */
+TEST_F(SdkTestFolderController, PutnodesNodeErrorAbortsUpload)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED (debug test hooks)";
+#else
+    static const std::string logPre{getLogPrefix()};
+    LOG_info << logPre << "starting";
+
+    FolderUploadHookGuard hookGuard;
+    // Inject a per-node failure on the folder-creation putnodes result.
+    globalMegaTestHooks.onFolderUploadPutnodesResult = [](std::vector<NewNode>& nn)
+    {
+        if (!nn.empty())
+        {
+            nn.front().mError = API_EACCESS;
+        }
+    };
+
+    createLocalTree();
+
+    MegaHandle uploadedHandle = INVALID_HANDLE;
+    const int uploadErr = doStartUpload(0,
+                                        &uploadedHandle,
+                                        getLocalFolderName().c_str(),
+                                        getRootNode().get(),
+                                        nullptr /*fileName*/,
+                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                        nullptr /*appData*/,
+                                        false /*isSourceTemporary*/,
+                                        false /*startFirst*/,
+                                        nullptr /*cancelToken*/);
+
+    EXPECT_EQ(MegaError::API_EACCESS, uploadErr)
+        << "Folder upload should abort with the injected per-node error";
+
+    // The folder was really created remotely before the error was injected, clean it up.
+    std::unique_ptr<MegaNode> remoteFolder(
+        megaApi[0]->getChildNode(getRootNode().get(), getLocalFolderName().c_str()));
+    if (remoteFolder)
+    {
+        EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolder.get()));
+    }
+    removeLocalTree();
+#endif
+}
+
+/**
+ * If a folder created in an earlier batch can no longer be resolved in a later batch
+ * (e.g. deleted by another session), the upload must abort with API_ENOENT and must not
+ * re-send the already-moved newnode (which would crash).
+ */
+TEST_F(SdkTestFolderController, FolderVanishingBetweenBatchesAbortsUpload)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED (debug test hooks)";
+#else
+    static const std::string logPre{getLogPrefix()};
+    LOG_info << logPre << "starting";
+
+    FolderUploadHookGuard hookGuard;
+    // On the first re-lookup of an already-created folder (in a later batch), pretend it
+    // is missing, simulating a concurrent delete between batches.
+    globalMegaTestHooks.onFolderUploadSimulateMissing =
+        [triggered = false](const std::string&) mutable -> bool
+    {
+        if (!triggered)
+        {
+            triggered = true;
+            return true;
+        }
+        return false;
+    };
+
+    createLocalTree();
+
+    MegaHandle uploadedHandle = INVALID_HANDLE;
+    const int uploadErr = doStartUpload(0,
+                                        &uploadedHandle,
+                                        getLocalFolderName().c_str(),
+                                        getRootNode().get(),
+                                        nullptr /*fileName*/,
+                                        ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                        nullptr /*appData*/,
+                                        false /*isSourceTemporary*/,
+                                        false /*startFirst*/,
+                                        nullptr /*cancelToken*/);
+
+    EXPECT_EQ(MegaError::API_ENOENT, uploadErr)
+        << "Folder upload should abort with API_ENOENT when a created folder vanishes";
+
+    // The folder was really created remotely in the first batch; clean it up.
+    std::unique_ptr<MegaNode> remoteFolder(
+        megaApi[0]->getChildNode(getRootNode().get(), getLocalFolderName().c_str()));
+    if (remoteFolder)
+    {
+        EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolder.get()));
+    }
+    removeLocalTree();
+#endif
+}

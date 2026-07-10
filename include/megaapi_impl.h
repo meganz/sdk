@@ -348,6 +348,11 @@ protected:
         // Otherwise this is the record we will send to create this folder
         NewNode newnode;
 
+        // true once this folder's newnode has been moved into a putnodes batch.
+        // Guards against moving it a second time which would dereference a null
+        // attrstring and crash.
+        bool newnodeSent = false;
+
         // files to upload to this folder
         struct FileRecord {
             LocalPath lp;
@@ -368,6 +373,13 @@ protected:
     };
     Tree mUploadTree;
 
+    // Maps each folder's temporary upload id (newnode.nodehandle) to its Tree node, so the
+    // putnodes completion callback can map a failed result entry back to its folder for error
+    // logging. Only the folder name (leaf) is logged: these are rare failure cases where the
+    // name is enough to help analysis, whereas keeping each folder's full path would cost more
+    // memory for little benefit.
+    std::map<handle, Tree*> mUploadIdToTree;
+
     /* Scan entire tree recursively, and retrieve folder structure and files to be uploaded.
      * A putnodes command can only add subtrees under same target, so in case we need to add
      * subtrees under different targets, this method will generate a subtree for each one.
@@ -379,7 +391,14 @@ protected:
     // Gathers up enough (but not too many) newnode records that are all descendants of a single folder
     // and can be created in a single operation.
     // Called from the main thread just before we send the next set of folder creation commands.
-    enum batchResult { batchResult_cancelled, batchResult_requestSent, batchResult_batchesComplete, batchResult_stillRecursing };
+    enum batchResult
+    {
+        batchResult_cancelled,
+        batchResult_requestSent,
+        batchResult_batchesComplete,
+        batchResult_stillRecursing,
+        batchResult_failed
+    };
     batchResult createNextFolderBatch(Tree& tree, vector<NewNode>& newnodes, uint32_t filecount, bool isBatchRootLevel);
 
     // Iterate through all pending files of each uploaded folder, and start all upload transfers
