@@ -180,6 +180,10 @@ public:
     // Gets the mimetype corresponding to the file extension
     static void userGetMimetype(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Method called when query uses 'getfilesubtype'
+    // Gets the FileSubType_t (gif/raw/none) corresponding to the file extension
+    static void userGetFileSubType(sqlite3_context* context, int argc, sqlite3_value** argv);
+
     // Method called when query uses 'getFingerprintExcludingMtime'
     // Gets the node's fingerprint excluding mtime
     static void getFingerprintExcludingMtime(sqlite3_context* context,
@@ -204,8 +208,9 @@ private:
     bool processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<std::pair<mega::NodeHandle, mega::NodeSerialized>>& nodes);
 
     // Shared input validation for both entry points; false + LOG_warn(logPrefix)
-    // on any invalid field.
+    // on any invalid field (including a sub-category incompatible with the category).
     bool validateListAllEntry(MimeType_t mimeType,
+                              FileSubType_t fileSubType,
                               const std::vector<NodeHandle>& filesRoots,
                               const std::vector<NodeHandle>& excludeHandles,
                               const char* logPrefix);
@@ -414,6 +419,7 @@ enum class AnchorDirectionDigit : uint8_t
 /// Distinct SQL shapes produce distinct keys, so prepared statements never
 /// alias. Internal-only (see note above).
 size_t computeListAllCacheId(MimeType_t mimeType,
+                             FileSubType_t fileSubType,
                              int order,
                              bool hasCursor,
                              AnchorDirectionDigit anchorDir,
@@ -425,6 +431,7 @@ size_t computeListAllCacheId(MimeType_t mimeType,
 /// with a granularity digit instead of cursor + anchor (the section query
 /// has neither). Internal-only (see note above).
 size_t computeDateSectionsCacheId(MimeType_t mimeType,
+                                  FileSubType_t fileSubType,
                                   int order,
                                   DateSectionGranularity granularity,
                                   bool excludeSensitive,

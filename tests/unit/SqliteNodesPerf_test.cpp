@@ -1374,6 +1374,96 @@ INSTANTIATE_TEST_SUITE_P(All,
                                     (info.param.firstPage ? "_FirstPage" : "_MidCursor");
                          });
 
+// ─── GIF / RAW residual-filter perf ─────────────────────────────────────────
+// Times listAllNodesByPage over a large photo-heavy tree with sparse gif/raw (the album
+// use case) for PHOTO vs PHOTO+gif vs PHOTO+raw. The residual filters per row, so cost scales
+// with the photo-partition size. No assertions (DISABLED); read the logged us.
+class SqliteGifRawPerfTest: public SqliteNodesPerfTest
+{
+protected:
+    static constexpr int EXTRA_PHOTOS = 50000;
+    static constexpr int GIF_EVERY = 200; // ~0.5% gif
+    static constexpr int RAW_EVERY = 200; // ~0.5% raw
+
+    // Seeds `photos` files under a fresh folder: one .gif every gifEvery, one .cr2 (raw)
+    // every rawEvery (offset by 1 so they don't overlap), the rest .jpg. Returns the
+    // exact gif/raw counts so callers can assert membership.
+    NodeHandle
+        seedPhotoTree(int photos, int gifEvery, int rawEvery, size_t& gifCount, size_t& rawCount)
+    {
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        EXPECT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, "GifRawFolder");
+        gifCount = rawCount = 0;
+        for (int k = 0; k < photos; ++k)
+        {
+            // Increment the count in the same branch that assigns the extension, so the
+            // expectations stay correct if an extension string is ever changed (e.g. .cr2 -> .dng).
+            const char* ext;
+            if (k % gifEvery == 0)
+            {
+                ext = ".gif";
+                ++gifCount;
+            }
+            else if (k % rawEvery == 1)
+            {
+                ext = ".cr2";
+                ++rawCount;
+            }
+            else
+            {
+                ext = ".jpg";
+            }
+            addNode(FILENODE, folder, "p_" + std::to_string(k) + ext);
+        }
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+        return folder->nodeHandle();
+    }
+
+    long long timePage(FileSubType_t sub, int64_t offset, size_t& resultCount)
+    {
+        ListAllNodesParams p;
+        p.mimeType = MIME_TYPE_PHOTO;
+        p.fileSubType = sub;
+        p.order = OrderByClause::MTIME_DESC;
+        p.maxElements = 100;
+        p.offset = offset;
+        const std::vector<NodeHandle> filesRoots{mRootHandle};
+        resultCount = 0;
+        const long long us = measureUs(COMPLEX_ITERS,
+                                       [&]
+                                       {
+                                           std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+                                           CancelToken ct;
+                                           table()->listAllNodesByPage(p, filesRoots, nodes, ct);
+                                           resultCount = nodes.size();
+                                       });
+        return us / COMPLEX_ITERS;
+    }
+
+    SqliteAccountState* table()
+    {
+        return dynamic_cast<SqliteAccountState*>(mClient->sctable.get());
+    }
+};
+
+TEST_F(SqliteGifRawPerfTest, DISABLED_ResidualFilterPerf)
+{
+    size_t gifCount = 0, rawCount = 0;
+    seedPhotoTree(EXTRA_PHOTOS, GIF_EVERY, RAW_EVERY, gifCount, rawCount);
+    for (int64_t offset: {int64_t{0}, int64_t{2000}})
+    {
+        size_t nNone = 0, nGif = 0, nRaw = 0;
+        const long long none = timePage(FILE_SUBTYPE_NONE, offset, nNone);
+        const long long gif = timePage(FILE_SUBTYPE_GIF, offset, nGif);
+        const long long raw = timePage(FILE_SUBTYPE_RAW, offset, nRaw);
+        GTEST_LOG_(INFO) << "offset=" << offset << " | PHOTO(all)=" << none << "us (" << nNone
+                         << ") | PHOTO+gif=" << gif << "us (" << nGif << ") | PHOTO+raw=" << raw
+                         << "us (" << nRaw << ")";
+    }
+}
+
 } // anonymous namespace
 
 #endif // USE_SQLITE

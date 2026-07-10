@@ -511,6 +511,11 @@ struct MEGA_API Node : public NodeCore, FileFingerprint
     static bool isMiscellaneous(const std::string& ext);
     static bool isOfMimetype(MimeType_t mimetype, const std::string& ext);
     static MimeType_t getMimetype(const std::string& ext);
+    static FileSubType_t getFileSubType(const std::string& ext);
+    // The MimeType_t a sub-category belongs to (gif/raw are photos); MIME_TYPE_UNKNOWN for
+    // FILE_SUBTYPE_NONE. Used to reject sub-category filters paired with a category that
+    // cannot contain them. Extend alongside getFileSubType when adding a sub-category.
+    static MimeType_t fileSubTypeParent(FileSubType_t subType);
 
     bool isPhotoWithFileAttributes(bool checkPreview) const;
 

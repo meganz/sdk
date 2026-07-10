@@ -887,6 +887,187 @@ TEST_F(DateSectionTest, ListAllByPage_Anchor_PagesCrossSectionBoundary)
     EXPECT_GT(rowMtimes[1], rowMtimes[2]);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  GifRawFilterTest – the gif/raw sub-category filter on listAllNodesByPage +
+//  groupAllNodesByDate. Real SQLite via SearchByPageTest.
+// ═══════════════════════════════════════════════════════════════════════════
+class GifRawFilterTest: public SearchByPageTest
+{
+protected:
+    // Seeds `photos` files under a fresh folder: one .gif every gifEvery, one .cr2 (raw)
+    // every rawEvery (offset by 1 so they don't overlap), the rest .jpg. Returns the
+    // exact gif/raw counts so callers can assert membership.
+    NodeHandle
+        seedPhotoTree(int photos, int gifEvery, int rawEvery, size_t& gifCount, size_t& rawCount)
+    {
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        EXPECT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, NodeMeta{"GifRawFolder", FOLDERNODE});
+        gifCount = rawCount = 0;
+        for (int k = 0; k < photos; ++k)
+        {
+            // Increment the count in the same branch that assigns the extension, so the
+            // expectations stay correct if an extension string is ever changed (e.g. .cr2 -> .dng).
+            const char* ext;
+            if (k % gifEvery == 0)
+            {
+                ext = ".gif";
+                ++gifCount;
+            }
+            else if (k % rawEvery == 1)
+            {
+                ext = ".cr2";
+                ++rawCount;
+            }
+            else
+            {
+                ext = ".jpg";
+            }
+            // mtime > 0 so the nodes are not dropped by the date-section epoch/negative guard.
+            NodeMeta meta{"p_" + std::to_string(k) + ext, FILENODE, 100, 1'700'000'000LL + k + 1};
+            addNode(FILENODE, folder, meta);
+        }
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+        return folder->nodeHandle();
+    }
+
+    // Counts nodes of `mime` (optionally narrowed by subtype) within `ancestor`.
+    size_t countPhotos(FileSubType_t sub, NodeHandle ancestor, MimeType_t mime = MIME_TYPE_PHOTO)
+    {
+        ListAllNodesParams p;
+        p.mimeType = mime;
+        p.fileSubType = sub;
+        p.order = OrderByClause::MTIME_DESC;
+        p.maxElements = 0; // no limit
+        p.explicitAncestors = {ancestor};
+        const std::vector<NodeHandle> filesRoots{ancestor};
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+        CancelToken ct;
+        table()->listAllNodesByPage(p, filesRoots, nodes, ct);
+        return nodes.size();
+    }
+
+    size_t sumSectionCounts(FileSubType_t sub, NodeHandle ancestor)
+    {
+        DateSectionParams params;
+        params.mimeType = MIME_TYPE_PHOTO;
+        params.fileSubType = sub;
+        params.order = OrderByClause::MTIME_DESC;
+        params.granularity = DateSectionGranularity::Month;
+        params.explicitAncestors = {ancestor};
+        const std::vector<NodeHandle> filesRoots{ancestor};
+        std::vector<DateSection> out;
+        CancelToken ct;
+        table()->groupAllNodesByDate(params, filesRoots, out, ct);
+        size_t total = 0;
+        for (const auto& s: out)
+            total += static_cast<size_t>(s.mCount);
+        return total;
+    }
+
+    SqliteAccountState* table()
+    {
+        return dynamic_cast<SqliteAccountState*>(mClient->sctable.get());
+    }
+};
+
+// The subtype filter must return exactly the gif/raw nodes, while a plain
+// FILE_TYPE_PHOTO query still returns the whole photo set (gif+raw+jpg).
+TEST_F(GifRawFilterTest, SubCategoryFiltersCorrectly)
+{
+    size_t gifCount = 0, rawCount = 0;
+    const NodeHandle folder = seedPhotoTree(/*photos=*/40,
+                                            /*gifEvery=*/5,
+                                            /*rawEvery=*/5,
+                                            gifCount,
+                                            rawCount);
+    ASSERT_GT(gifCount, 0u);
+    ASSERT_GT(rawCount, 0u);
+
+    const size_t all = countPhotos(FILE_SUBTYPE_NONE, folder);
+    EXPECT_EQ(countPhotos(FILE_SUBTYPE_GIF, folder), gifCount);
+    EXPECT_EQ(countPhotos(FILE_SUBTYPE_RAW, folder), rawCount);
+    // FILE_TYPE_PHOTO semantics unchanged: still a superset that includes gif+raw.
+    EXPECT_EQ(all, 40u);
+    EXPECT_GT(all, gifCount + rawCount);
+    // Cross-category: a non-photo category + GIF matches nothing (never widens).
+    EXPECT_EQ(countPhotos(FILE_SUBTYPE_GIF, folder, MIME_TYPE_VIDEO), 0u);
+}
+
+// The residual sub-category predicate must also drive the date-section counts:
+// GIF/RAW sections sum to the gif/raw totals, while an unfiltered query still
+// counts the whole photo set (gif+raw+jpg) into its sections.
+TEST_F(GifRawFilterTest, DateSectionSubCategoryCounts)
+{
+    size_t gifCount = 0, rawCount = 0;
+    const NodeHandle folder = seedPhotoTree(/*photos=*/40,
+                                            /*gifEvery=*/5,
+                                            /*rawEvery=*/5,
+                                            gifCount,
+                                            rawCount);
+    EXPECT_EQ(sumSectionCounts(FILE_SUBTYPE_GIF, folder), gifCount);
+    EXPECT_EQ(sumSectionCounts(FILE_SUBTYPE_RAW, folder), rawCount);
+    EXPECT_EQ(sumSectionCounts(FILE_SUBTYPE_NONE, folder), 40u);
+}
+
+// Grouped-mime path: ALL_VISUAL_MEDIA builds one CTE per route (photo, video) in
+// buildGroupedListAllQuery — the residual must ride each route. gif/raw are photos ⊂ visual
+// media, so the counts match the simple-PHOTO path.
+TEST_F(GifRawFilterTest, SubCategoryFiltersGroupedMime)
+{
+    size_t gifCount = 0, rawCount = 0;
+    const NodeHandle folder = seedPhotoTree(/*photos=*/40,
+                                            /*gifEvery=*/5,
+                                            /*rawEvery=*/5,
+                                            gifCount,
+                                            rawCount);
+    EXPECT_EQ(countPhotos(FILE_SUBTYPE_GIF, folder, MIME_TYPE_ALL_VISUAL_MEDIA), gifCount);
+    EXPECT_EQ(countPhotos(FILE_SUBTYPE_RAW, folder, MIME_TYPE_ALL_VISUAL_MEDIA), rawCount);
+    EXPECT_EQ(countPhotos(FILE_SUBTYPE_NONE, folder, MIME_TYPE_ALL_VISUAL_MEDIA), 40u);
+}
+
+// Cursor path: paging PHOTO+GIF with a name cursor must return only the gif set across all
+// pages, not the whole photo set — i.e. the residual rides the cursor query, not just page 1.
+TEST_F(GifRawFilterTest, SubCategoryFilterHonouredWithCursor)
+{
+    size_t gifCount = 0, rawCount = 0;
+    const NodeHandle folder = seedPhotoTree(/*photos=*/40,
+                                            /*gifEvery=*/5,
+                                            /*rawEvery=*/5,
+                                            gifCount,
+                                            rawCount);
+    ASSERT_GT(gifCount, 2u); // need several pages at size 2
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::DEFAULT_ASC; // name-only cursor
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+    const std::vector<NodeHandle> filesRoots{folder};
+
+    size_t paged = 0;
+    std::optional<NodeSearchCursorOffset> cursor;
+    for (int guard = 0; guard < 100; ++guard)
+    {
+        p.cursor = cursor;
+        std::vector<std::pair<NodeHandle, NodeSerialized>> page;
+        CancelToken ct;
+        table()->listAllNodesByPage(p, filesRoots, page, ct);
+        if (page.empty())
+            break;
+        paged += page.size();
+        const auto last = mClient->mNodeManager.getNodeByHandle(page.back().first);
+        ASSERT_NE(last, nullptr);
+        NodeSearchCursorOffset c;
+        c.mLastName = last->displayname();
+        c.mLastHandle = page.back().first.as8byte();
+        cursor = c;
+    }
+    EXPECT_EQ(paged, gifCount);
+}
+
 } // anonymous namespace
 
 #endif // USE_SQLITE
