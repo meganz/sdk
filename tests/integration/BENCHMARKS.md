@@ -500,3 +500,37 @@ hooks-off binary.
 Run this gate any time changes to remaining hook-gated TEST_F
 bodies in `SdkWsUploadTest.cpp` touch new TEST_F bodies, to catch
 hooks-OFF compile breakage early.
+
+## Gate-v2 QCT-K knobs (SDK-5360 fu8 S8)
+
+The goodput-saturation gate controller (`WsPool::runGoodputGateLocked`) was redesigned in fu8 S8
+("QCT-K": sticky-quorum fast-engage, gain-judged climb with knee memory, exponential failed-probe
+backoff, halving trim). All knobs are read-once process statics (set them BEFORE process start;
+setenv inside a test is a silent no-op).
+
+| Knob | Default | Range | Meaning |
+|---|---|---|---|
+| `MEGA_WS_GATE_BP_QUORUM_PCT` | 50 | [1,100] | % of open conns backpressured at a ~2 Hz tick for the tick to count quorum-true. 100 ~= the S7 all-conns predicate. |
+| `MEGA_WS_GATE_ENGAGE_WINDOWS` | 2 | [1,60] | Consecutive quorum-true windows to engage from base (anti-stampede debounce). |
+| `MEGA_WS_GATE_PROBE_WINDOWS` | 2 | [1,10] | Probe measurement horizon (goodput averaged over it; 1 = S7 single-window judging). |
+| `MEGA_WS_GATE_RETREAT_MAX_WINDOWS` | 300 | [5,3000] | Exponential failed-probe backoff cap (base 5 windows = the S7 retreat cooldown). |
+| `MEGA_WS_GATE_TRIM_WINDOWS` | 10 | [0,255] | Consecutive quorum-false windows per halving trim toward base; 0 = trim off (S7 never-shrink). |
+| `MEGA_WS_GATE_CEILING_MULT` | 4 | [0,32] | Effective ceiling = min(ceiling, base x mult) IN-GATE (desktop 8x4=32 unchanged; mobile 3x4=12). 0 = off. GATE=0 jump path unaffected. |
+| `MEGA_WS_CONN_TELEMETRY_MS` | 10000 | 0=off | `[WsConnTelemetry]` per-pool conn-trajectory period, emitted on BOTH gate states (K32 arms + guardrail-killed runs stay scorable). |
+
+Pre-S8 knobs (`MEGA_WS_DATASET_CONN_GATE`, `MEGA_WS_GATE_WINDOW_MS`, `MEGA_WS_GATE_GAIN_PCT`,
+`MEGA_WS_GATE_STEP`) keep their exact semantics; `GATE=0` remains the byte-identical jump-to-K
+A/B arm on every platform.
+
+**"~= gate-v1" bisection recipe** (approximate: per-tick sticky sampling remains):
+`MEGA_WS_GATE_BP_QUORUM_PCT=100 MEGA_WS_GATE_ENGAGE_WINDOWS=1 MEGA_WS_GATE_PROBE_WINDOWS=1
+MEGA_WS_GATE_RETREAT_MAX_WINDOWS=5 MEGA_WS_GATE_TRIM_WINDOWS=0 MEGA_WS_GATE_CEILING_MULT=0`
+
+### S8 amendments (post-smoke, evidence-driven)
+- **A1 evidence floor** — `MEGA_WS_GATE_MIN_EVENTS` (default 8, clamp [1,64]): minimum server-confirm
+  events per probe judgment; horizons auto-extend (hard cap 10 windows → FAIL). Kills the lumpy-ack
+  zero-baseline vacuous confirms that drove cleanNet8m to the ceiling in the first smoke.
+- **A2 judged geometric chain** — each CONFIRMED probe doubles the next chained step (1,2,4,8; cap 8,
+  clamped to headroom; reset on fail/trim/disengage). Keeps the lossy-link climb a few judged probes
+  instead of many evidence-paced +1s. Caps never grow it (first probe fails there).
+- Bisection recipe addendum: add `MEGA_WS_GATE_MIN_EVENTS=1` for the "~= gate-v1" arm.
