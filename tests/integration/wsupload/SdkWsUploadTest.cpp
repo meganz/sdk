@@ -837,53 +837,65 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
 }
 
 /**
- * @brief Verify a multi-file DATASET ramps a pool's connection target above the default limit.
+ * @brief Drive the QCT-K goodput gate end-to-end: fast-engage above base, gain-judged stop at
+ *        the knee BELOW the ceiling, and halving trim back to base when pressure clears.
  *
- * The SDK-5360 dataset connection-count bump (WsPool::lossBoostedConnLimitLocked,
- * src/transfer/ws/ws_pool.cpp) UNCONDITIONALLY widens a pool's connection target to K
- * (kLossBoostedDatasetConnLimit = 32, or MEGA_WS_DATASET_CONN_LIMIT) as soon as the pool
- * carries a DATASET (mNumPoolFiles >= 2), gated by MEGA_WS_DATASET_CONN_BUMP (default ON).
- * A single-file upload (mNumPoolFiles <= 1) never gets the dataset boost. With the default
- * pool connection limit at 8 (connections[PUT]), a DATASET pool must therefore ramp its
- * active worker threads / connections ABOVE 8 toward K, whereas a lone file stays <= 8.
+ * Replaces DatasetConnBumpExceedsDefaultConnLimit (SDK-5360 fu8 S8): that test asserted the
+ * PRE-gate contract -- a clean-link dataset pool unconditionally jumping above the default
+ * limit -- which the goodput gate (MEGA_WS_DATASET_CONN_GATE, default ON since fu8 S6) makes
+ * permanently unreachable BY DESIGN (a clean link never backpressures, so the gate correctly
+ * holds the base; S8 audit gap #4, 0/3 deterministic). This test exercises the gate the way it
+ * is designed to work, via the two controller-input seams (include/mega/testhooks.h):
+ *  - onWsGateBackpressureSample forges a full backpressure quorum (bp = open), so the engage/
+ *    climb path is deterministic regardless of real send-buffer timing;
+ *  - onWsGateGoodputSample supplies a concave conns->goodput curve with a knee at 12
+ *    (+10%/conn below the knee -- above the 5% gain threshold; flat above it), so the gate must
+ *    stop at the knee, NOT the ceiling (kLossBoostedDatasetConnLimit / global ceiling ~28-32).
+ * The hooks override only the controller's VIEW; the real (throttled) transfer keeps flowing.
  *
- * - TEST1: Upload N=5 equal-size (8 MiB, one size class, multi-chunk) DISTINCT-content files
- *          so they bind to ONE size-class pool as a genuine dataset (numPoolFiles >= 2).
- *          Distinct content is REQUIRED: identical-content files are fingerprint-deduplicated /
- *          coalesced into a single transfer (see the startUpload mtime-update note in
- *          megaapi.h), which would collapse the "dataset" back to one file and defeat the test.
- * - TEST2: Throttle to 400 KB/s so the 40 MiB dataset stays actively uploading (~100 s) long
- *          enough for checkPools to scale the pool toward K, and so all 5 files remain
- *          in-flight together (numPoolFiles >= 2 holds throughout the ramp window).
- * - TEST3: Require the active pool is observed on the SAME sample as a dataset
- *          (numPoolFiles >= 2) AND with activeThreads > 8 -- impossible without the dataset
- *          bump, since the default limit is 8. We assert > 8 rather than == 32 because a
- *          throttled, loss-free ramp may not reach the full ceiling before the upload drains,
- *          and the exact K is a tunable constant (kLossBoostedDatasetConnLimit /
- *          MEGA_WS_DATASET_CONN_LIMIT).
+ * - PHASE A (engage+ramp): activeThreads must exceed the base limit of 8 within 30 s
+ *   (expected ~4-5 s: ENGAGE_WINDOWS=2 debounce + first PROBE_WINDOWS=2 probe).
+ * - PHASE B (knee): over the next 25 s the pool must settle at the knee 12 (+1 in-flight probe
+ *   tolerance, so <= 13) -- proving the gain-judged stop below the ceiling (the clean-capped
+ *   over-provision fix, audit L2/L3).
+ * - PHASE C (trim): with both hooks cleared, the app-throttled link presents NO backpressure
+ *   (quorum false), so after TRIM_WINDOWS=10 calm windows per halving (12 -> 10 -> 9 -> 8) the
+ *   pool must return to base within 60 s and STAY there (v1 parked at peak forever).
+ * - PHASE D: all uploads complete OK (the synthetic signals must not corrupt real transfers).
+ *
+ * NO setenv: every gate knob is a read-once process static (a setenv here would be a silent
+ * no-op in a batch run -- the adversarial trap); the test runs on the defaults and sizes its
+ * timeouts from them. Distinct-content files are REQUIRED (identical content is fingerprint-
+ * deduplicated, collapsing the dataset). Timing tolerances are whole gate windows (1 s each).
  */
-TEST_F(SdkWsUploadTest, DatasetConnBumpExceedsDefaultConnLimit)
+TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
 {
-    LOG_info << "___TEST SdkWsUploadDatasetConnBumpExceedsDefaultConnLimit___";
+    LOG_info << "___TEST SdkWsUploadGoodputGateEngagesRampsToKneeAndTrims___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     WSUPLOAD_REQUIRE_TEST_HOOKS();
 
-    // N equal-size files => one size class => one dataset pool. 8 MiB is multi-chunk (WsPool
-    // packs 4.5 MiB + N*1 MiB chunks). The default pool connection limit is 8, so any observed
-    // activeThreads > 8 on this pool can only come from the dataset connection-count bump.
-    constexpr size_t kFileCount = 5;
+    // 8 equal-size (8 MiB) files => one size-class DATASET pool => the dataset boost arms the
+    // gate with a ceiling far above the knee. Two sizing constraints BOTH matter:
+    //  - per-file size MUST stay below the client dispatch queue-depth target (~30 s x speed =
+    //    ~12 MB at the 400 KB/s throttle, megaclient.cpp dispatchTransfers): larger files
+    //    dispatch ONE at a time, the pool never sees numPoolFiles >= 2, the boost never arms
+    //    and the gate never seeds (16 MiB files failed exactly this way, 0/3);
+    //  - the 64 MiB total at 400 KB/s keeps the dataset alive ~160 s -- longer than PHASES
+    //    A+B+C combined (the FLAW-1 call-site fix keeps the gate trimming even as the dataset
+    //    drains below 2 files near the tail).
+    constexpr size_t kFileCount = 8;
     constexpr size_t kFileSize = 8u * 1024u * 1024u; // 8 MiB
-    constexpr unsigned kDefaultPoolConnLimit = 8u;   // connections[PUT]
+    constexpr unsigned kDefaultPoolConnLimit = 8u;    // connections[PUT]
+    constexpr unsigned kSyntheticKnee = 12u;          // where the synthetic curve goes flat
 
     const std::string namePrefix =
-        "ws_dataset_conn_bump_" +
+        "ws_gate_knee_" +
         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_";
 
     std::vector<std::string> fileNames;
     fileNames.reserve(kFileCount);
 
-    // Declared before the creation loop so a mid-loop failure still cleans up prior files.
     auto cleanupFiles = makeScopedDestructor(
         [this, &fileNames]()
         {
@@ -897,13 +909,20 @@ TEST_F(SdkWsUploadTest, DatasetConnBumpExceedsDefaultConnLimit)
         {
             (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
         });
+    // RAII hook reset on EVERY exit path (assert failure included) so no synthetic signal can
+    // leak into the next test.
+    auto cleanupHooks = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
+            globalMegaTestHooks.onWsGateGoodputSample = nullptr;
+        });
 
     for (size_t i = 0; i < kFileCount; ++i)
     {
         const std::string fileName = namePrefix + std::to_string(i) + ".bin";
-        fileNames.emplace_back(fileName); // track for cleanup even if creation fails midway
-        // DISTINCT fill byte per file => distinct content/fingerprint => 5 real, independent
-        // uploads (no dedup / no same-fingerprint transfer coalescing). Size stays identical.
+        fileNames.emplace_back(fileName);
+        // DISTINCT fill byte per file => distinct fingerprints => real, independent uploads.
         const std::string fillPattern(1, static_cast<char>('A' + i));
         ASSERT_TRUE(createFileWithSize(fileName, kFileSize, fillPattern))
             << "Couldn't create " << fileName;
@@ -916,10 +935,8 @@ TEST_F(SdkWsUploadTest, DatasetConnBumpExceedsDefaultConnLimit)
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
-    // Throttle so the 40 MiB dataset stays active (~100 s) long enough for checkPools to ramp
-    // the pool toward K. RAII restores unlimited on every exit path so the shared throttle
-    // bucket is clean for the next test. (Do NOT use unlimited -- a fast clean upload can drain
-    // before the pool ever ramps.)
+    // Throttle so the dataset outlives the three phases. RAII restores unlimited on every exit
+    // path so the shared throttle bucket is clean for the next test.
     ScopedUploadSpeedLimit uploadThrottle{*megaApi[0], 400 * 1024}; // 400 KB/s
 
     std::vector<std::unique_ptr<TransferTracker>> uploadTrackers;
@@ -948,89 +965,120 @@ TEST_F(SdkWsUploadTest, DatasetConnBumpExceedsDefaultConnLimit)
         200))
         << "Failed to observe an active WS upload snapshot";
 
+    // Install the controller-input seams AFTER the first active snapshot so the pool exists and
+    // the gate has SEEDed on real traffic. Backpressure: full quorum every tick. Goodput:
+    // +10%/conn up to the knee, flat above -- 10% clears the 5% gain judge below the knee and
+    // fails it above, forcing retreat-to-knee.
+    globalMegaTestHooks.onWsGateBackpressureSample =
+        [](const void* /*pool*/, unsigned open, unsigned& bp)
+    {
+        bp = open;
+    };
+    globalMegaTestHooks.onWsGateGoodputSample =
+        [](const void* /*pool*/, unsigned conns, double& bps)
+    {
+        const unsigned effective = std::min(conns, 12u); // knee
+        bps = 1.0e6 * (1.0 + 0.10 * (static_cast<double>(effective) - 8.0));
+    };
+
     ws::UploadEngine::PoolStateForTesting state{};
     ws::UploadEngine::PoolStateForTesting lastObservedState{};
     std::string observedPoolUrl = activeUpload.wsSessionUrl;
     unsigned maxActiveThreadsSeen = 0;
-    unsigned maxConnectionsWithInFlightSeen = 0;
-    int maxNumPoolFilesSeen = 0;
-    bool datasetBumpEngaged = false;
 
-    second_timer bumpTimer;
-    while (bumpTimer.elapsed() < 120)
+    const auto pollPoolState = [&]() -> bool
     {
-        // The dominant pool URL may shift as files migrate/complete; re-observe it each poll.
         WsUploadTransferSnapshot latest{};
         if (fetchBestWsUploadTransferSnapshot(*megaApi[0], latest, 1) && latest.found &&
             !latest.wsSessionUrl.empty())
         {
             observedPoolUrl = latest.wsSessionUrl;
         }
-
         if (!observedPoolUrl.empty() &&
             fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, 1))
         {
             lastObservedState = state;
             maxActiveThreadsSeen = std::max(maxActiveThreadsSeen, state.activeThreads);
-            maxConnectionsWithInFlightSeen =
-                std::max(maxConnectionsWithInFlightSeen, state.maxConnectionsWithInFlightSeen);
-            maxNumPoolFilesSeen = std::max(maxNumPoolFilesSeen, state.numPoolFiles);
-
-            // Bump engaged: a DATASET pool (>= 2 files) whose active connection count has ramped
-            // ABOVE the default limit of 8. Both must hold on the SAME pool sample.
-            if (state.found && state.numPoolFiles >= 2 &&
-                state.activeThreads > kDefaultPoolConnLimit)
-            {
-                LOG_info << "Observed dataset connection bump: activeThreads="
-                         << state.activeThreads << " > default " << kDefaultPoolConnLimit
-                         << " with numPoolFiles=" << state.numPoolFiles;
-                datasetBumpEngaged = true;
-                break;
-            }
+            return state.found;
         }
+        return false;
+    };
 
-        // Stop early if every upload already finished (nothing left to ramp).
-        if (std::all_of(uploadTrackers.begin(),
-                        uploadTrackers.end(),
-                        [](const std::unique_ptr<TransferTracker>& t)
-                        {
-                            return t->finished.load();
-                        }))
+    // PHASE A -- engage+ramp: the forged quorum must take the pool ABOVE the base within 30 s
+    // (2 debounce windows + one 2-window probe, plus scheduling slack).
+    bool engaged = false;
+    second_timer phaseTimer;
+    while (phaseTimer.elapsed() < 30)
+    {
+        // activeThreads > base alone is the engage proof: >8 is impossible without the dataset
+        // ceiling + a gate widen. Deliberately NOT requiring numPoolFiles >= 2 on the same
+        // sample (the old test's clause): with the sticky mDatasetSeen latch the dispatcher
+        // trickle-feed keeps the RAMPING pool at 1 bound file most instants -- requiring 2
+        // would fail exactly when the latch works as designed.
+        if (pollPoolState() && state.activeThreads > kDefaultPoolConnLimit)
         {
+            engaged = true;
             break;
         }
-
         WaitMillisec(200);
     }
+    ASSERT_TRUE(engaged) << "Gate never engaged above base=" << kDefaultPoolConnLimit
+                         << " under a forged full-backpressure quorum within 30 s"
+                         << " [maxActiveThreadsSeen=" << maxActiveThreadsSeen
+                         << "] [activeThreads=" << lastObservedState.activeThreads
+                         << "] [numPoolFiles=" << lastObservedState.numPoolFiles << "]";
 
-    // > 8 is impossible without the dataset bump (the default pool connection limit is 8). We
-    // assert > 8 rather than == 32 because a throttled/loss-free ramp may not reach the full
-    // ceiling before the dataset drains, and the exact K is a tunable constant.
-    ASSERT_TRUE(datasetBumpEngaged)
-        << "DATASET pool never ramped active connections above the default limit of "
-        << kDefaultPoolConnLimit << " while carrying >= 2 files (dataset bump did not engage)"
-        << " [url=" << observedPoolUrl << "] [maxActiveThreadsSeen=" << maxActiveThreadsSeen
-        << "] [maxNumPoolFilesSeen=" << maxNumPoolFilesSeen
-        << "] [maxConnectionsWithInFlightSeen=" << maxConnectionsWithInFlightSeen
-        << "] -- last observed pool state: [found=" << lastObservedState.found
-        << "] [hasUploadingFile=" << lastObservedState.hasUploadingFile
-        << "] [activeThreads=" << lastObservedState.activeThreads
-        << "] [openConnections=" << lastObservedState.openConnections
-        << "] [connectionsWithInFlight=" << lastObservedState.connectionsWithInFlight
-        << "] [maxConnectionsWithInFlightSeen=" << lastObservedState.maxConnectionsWithInFlightSeen
-        << "] [numPoolFiles=" << lastObservedState.numPoolFiles
-        << "] [numChunksInFlight=" << lastObservedState.numChunksInFlight
-        << "] [queuedResends=" << lastObservedState.queuedResends
-        << "] [pinned=" << lastObservedState.pinned
-        << "] [retiring=" << lastObservedState.retiring << "]";
+    // PHASE B -- knee: keep observing; the climb must stop at the synthetic knee (12), never
+    // materially above it (one in-flight +1 probe is legal), proving the gain-judged stop far
+    // below the ceiling (~28-32).
+    unsigned settleSample = 0;
+    phaseTimer.reset();
+    while (phaseTimer.elapsed() < 25)
+    {
+        pollPoolState();
+        settleSample = lastObservedState.activeThreads;
+        WaitMillisec(200);
+    }
+    // +4 tolerance: a confirmed probe doubles the next chained step (amendment A2), so one
+    // judged geometric overshoot past the knee is legal before the failed probe retreats to
+    // the remembered best. The SETTLE assertions below are the true knee proof.
+    EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + 4)
+        << "Gate climbed far past the synthetic knee (gain-judge failed to stop the ramp)";
+    EXPECT_GE(settleSample, kSyntheticKnee - 1)
+        << "Gate did not reach/hold the synthetic knee [settle=" << settleSample << "]";
+    EXPECT_LE(settleSample, kSyntheticKnee + 1)
+        << "Gate did not settle at the synthetic knee [settle=" << settleSample << "]";
 
-    // Best-effort teardown: cancel and drain any still-running uploads so the shared account /
-    // throttle state is clean for the next test. The dataset-bump assertion above is the test
-    // contract; do NOT fail the test on cleanup outcomes.
-    (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+    // PHASE C -- trim: clear the seams. The app-throttled link presents no real backpressure
+    // (quorum false), so halving trim must return the pool to base within 60 s (3 halvings x
+    // 10 calm windows, plus slack) and STAY there.
+    globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
+    globalMegaTestHooks.onWsGateGoodputSample = nullptr;
+
+    bool trimmed = false;
+    phaseTimer.reset();
+    while (phaseTimer.elapsed() < 60)
+    {
+        if (pollPoolState() && state.activeThreads <= kDefaultPoolConnLimit)
+        {
+            trimmed = true;
+            break;
+        }
+        WaitMillisec(500);
+    }
+    ASSERT_TRUE(trimmed) << "Gate never trimmed back to base=" << kDefaultPoolConnLimit
+                         << " within 60 s of backpressure clearing [activeThreads="
+                         << lastObservedState.activeThreads << "]";
+    WaitMillisec(5000);
+    pollPoolState();
+    EXPECT_LE(lastObservedState.activeThreads, kDefaultPoolConnLimit)
+        << "Trim was transient -- pool climbed back above base with no backpressure";
+
+    // PHASE D -- the synthetic controller signals must not have corrupted the real transfers.
     for (auto& tracker: uploadTrackers)
     {
-        (void)tracker->waitForResult(120);
+        ASSERT_EQ(API_OK, tracker->waitForResult(240))
+            << "Upload did not complete after the gate ramp/trim cycle";
     }
 }
 
@@ -1145,7 +1193,7 @@ TEST_F(SdkWsUploadTest, ClientThreadNotFrozenByHandshakes)
         fileNames.emplace_back(fileName); // track for cleanup even if creation fails midway
         // Distinct fill byte per file => distinct fingerprint => kFileCount real, independent
         // uploads (no same-fingerprint coalescing), so several handshakes run at once. See
-        // DatasetConnBumpExceedsDefaultConnLimit for the same distinct-content requirement.
+        // GoodputGateEngagesRampsToKneeAndTrims for the same distinct-content requirement.
         const std::string fillPattern(1, static_cast<char>('A' + static_cast<int>(i)));
         ASSERT_TRUE(createFileWithSize(fileName, kFileSize, fillPattern))
             << "Couldn't create " << fileName;
@@ -5173,14 +5221,24 @@ TEST_F(SdkWsUploadTest, ForceCloseMidChunkResendWaste)
     //   yet acked, so it still re-sends whole — the waste is the in-flight chunk size at
     //   close (>= smallest ramp segment).
     //
-    // Epsilon = SEGSIZE/2 (64 KiB): comfortably above pure header/tiny-tail waste, and
-    // below one whole smallest chunk (128 KiB), so the assertion distinguishes
-    // "a whole chunk was re-sent" from "only a small tail/headers".
-    constexpr std::uint64_t kSmallestRampSegment = 131072; // SEGSIZE (wsupload.cpp ChunkMap)
-    EXPECT_GT(accepted, static_cast<std::uint64_t>(fileSize) + headersUpperBound +
-                            (kSmallestRampSegment / 2))
-        << "expected whole-chunk re-send waste (S2); if this FAILS, byte-resume is "
-           "already happening and this assertion should flip to EXPECT_LT";
+    // fu8 S8 (#14 disposition): the waste OUTCOME races acks against the forced close --
+    // when the server ack lands first, the acked-chunk-rewind (Tier-2A) legitimately skips
+    // the re-send and NO waste occurs; when the close wins, one whole chunk re-sends. The
+    // old EXPECT_GT (whole-chunk waste required) was therefore non-deterministic BY DESIGN
+    // of the recovery path (S7's "N10 waste-magnitude flake": 3/5-side observed both ways).
+    // The deterministic contract is the UPPER bound: recovery must never re-send more than
+    // ~one in-flight chunk's worth (unbounded waste = the S2 regression this cell guards).
+    // Which side occurred is logged for the trace record.
+    constexpr std::uint64_t kMaxInFlightChunk = 4718592; // 4.5 MiB max packed chunk
+    const std::uint64_t waste =
+        accepted > static_cast<std::uint64_t>(fileSize) + headersUpperBound ?
+            accepted - static_cast<std::uint64_t>(fileSize) - headersUpperBound :
+            0;
+    LOG_info << "[ForceCloseMidChunkResendWaste] waste=" << waste
+             << (waste > 65536 ? " (whole-chunk re-send side)" : " (acked-rewind side)");
+    EXPECT_LT(accepted,
+              static_cast<std::uint64_t>(fileSize) + headersUpperBound + kMaxInFlightChunk)
+        << "re-send waste exceeded one in-flight chunk -- unbounded re-send regression (S2)";
 }
 
 /**
