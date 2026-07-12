@@ -440,10 +440,11 @@ struct WsPool
     // CONNRETRYINTERVAL is the base; it doubles per consecutive failure up to this
     // cap, with jitter, so N workers do not retry in lockstep (root_cause.md S3c).
     static constexpr dstime CONNRETRYMAXINTERVAL = secondsToDs(30);
-    static constexpr dstime UPLOADTIMEOUT = secondsToDs(180);
-    // Sustained-handshake-failure escalation window (fix #4b). Separate from (and
-    // shorter than) UPLOADTIMEOUT, which retains chunk-phase semantics elsewhere:
-    // a pure-handshake-failure loop now surfaces onFail in <=60s instead of 180s.
+    // (fu8 S8, ticket #18: the never-enforced UPLOADTIMEOUT=180s constant was retired --
+    // S7 Goal 1 proved it defined-but-dead; ACKSTALLTIMEOUT (45s, enforced) is its
+    // functional successor for the hung-transfer intent.)
+    // Sustained-handshake-failure escalation window (fix #4b): a pure-handshake-failure
+    // loop surfaces onFail in <=60s.
     static constexpr dstime HANDSHAKEFAILTIMEOUT = secondsToDs(60);
     // Ack-stall watchdog window (SDK-5360 fu8 Session 6). An OPEN connection that still
     // holds in-flight chunks but has received NO inbound server frame for longer than this
@@ -451,8 +452,8 @@ struct WsPool
     // force-reconnected by WsPoolMgr::checkPools (see WsConn::mLastInboundFrameDs +
     // mForceReconnect). Chosen at 45s: > SERVERTIMEOUT (20s, so the existing pool-refresh
     // trigger fires first on the normal path) and < HANDSHAKEFAILTIMEOUT (60s), so a
-    // genuinely-hung chunk recovers well before the 180s that UPLOADTIMEOUT nominally
-    // implied but never enforced. Runtime-overridable (ms) via MEGA_WS_ACKSTALL_TIMEOUT_MS
+    // genuinely-hung chunk recovers well before the 180s the retired UPLOADTIMEOUT
+    // nominally implied but never enforced. Runtime-overridable (ms) via MEGA_WS_ACKSTALL_TIMEOUT_MS
     // through UploadEngine::Impl::ackStallTimeoutDs(); gated by MEGA_WS_ACKSTALL_WATCHDOG.
     static constexpr dstime ACKSTALLTIMEOUT = secondsToDs(45);
     // Max workers allowed to be handshaking at once, per pool (fix #2, de-convoy
@@ -554,6 +555,14 @@ struct WsPool
     // mImpl->uploadMutex (same discipline as mNumChunksInFlight).
     bool mLossObserved{false};
 
+    // Sticky dataset latch (SDK-5360 fu8 S8): true once this pool has EVER carried >= 2 bound
+    // files, cleared only when the pool fully drains (see increase/decreaseNumPoolFiles). Read
+    // by lossBoostedConnLimitLocked so the dataset conn-ceiling stays armed while the client
+    // dispatcher trickle-feeds the dataset (mNumPoolFiles flaps 1<->2 on slow links, and the
+    // goodput-gate controller needs a STABLE ceiling to run its windows against). uploadMutex-
+    // guarded like mNumPoolFiles (HR23: plain field, engine/worker threads under the lock).
+    bool mDatasetSeen{false};
+
     dstime mLastActive{0};
     dstime mLastServerResponse{0};
     dstime mPausedByServerUntil{0};
@@ -575,12 +584,64 @@ struct WsPool
     // clean-vs-loss discriminator (a clean bandwidth-limited link does not gain goodput when a
     // flow is added; a loss-limited one does, because each flow is an independent cwnd).
     std::uint64_t mConfirmedBytesTotal{0};
-    // Controller (hill-climb) state:
+    // Controller state (QCT-K, SDK-5360 fu8 S8). The sampling window is now STRICTLY uniform
+    // (mGateNextAdjustDs is always now+W), so probe backoff no longer stretches the window and
+    // never collides with the 12-window stale reseed — the sampler, trim debounce and staleness
+    // all stay well-defined during a long backoff (the FLAW-2 decoupling). See
+    // WsPool::runGoodputGateLocked for the per-window decision procedure.
     dstime mGateLastSampleDs{0};            // anchor time of the current goodput window
     std::uint64_t mGateLastSampleBytes{0};  // mConfirmedBytesTotal at mGateLastSampleDs
-    double mGateGoodputBeforeIncrease{0.0}; // goodput (bytes/s) measured just before the last +step
-    bool mGateProbing{false};               // true while evaluating the most recent +step probe
-    dstime mGateNextAdjustDs{0};            // hysteresis: earliest ds the controller may act again
+    double mGateGoodputBeforeIncrease{0.0}; // baseline goodput (bytes/s) at the probe's start level
+    bool mGateProbing{false};               // true while a +step probe is being measured
+    dstime mGateNextAdjustDs{0};            // once-per-window pacing: earliest ds to act (always +W)
+    // QCT-K additions. Per-tick sticky quorum sampling fixes both halves of the L1/L3 root cause
+    // (100 %-of-conns + single-instant sampling); knee memory + exponential backoff fix the L2
+    // clean-link up-ratchet; halving trim (independent of backoff) returns capacity after a loss
+    // episode (S7 parked at peak forever). uint8_t counters are ample: engage/probe/trim windows
+    // are small single-digit-to-tens debounces (see the knob ranges in wsupload_engine.h).
+    std::uint8_t mGateBpTicks{0};            // checkPools ticks sampled this window (saturating)
+    std::uint8_t mGateBpQuorumTicks{0};      // ticks this window with >= quorumPct of open conns bp
+    std::uint8_t mGateEngageStreak{0};       // consecutive quorum-true windows at base (engage debounce)
+    std::uint8_t mGateFailedProbes{0};       // consecutive failed probes -> backoff exponent (saturating)
+    std::uint8_t mGateNoBpWindows{0};        // consecutive quorum-false windows above base (trim debounce)
+    dstime mGateProbeBackoffUntilDs{0};      // WIDEN probes inhibited until this time (exponential)
+    dstime mGateProbeStartDs{0};             // probe measurement anchor (time)
+    std::uint64_t mGateProbeStartBytes{0};   // probe measurement anchor (confirmed bytes)
+    // Evidence counters (amendment A1): server acks land in WHOLE-CHUNK lumps, so at low
+    // bandwidth a 1-2 s window sees 0-2 confirm EVENTS and the goodput rate is mostly sampling
+    // noise (the S8 cleanNet8m smoke measured eleven 0-B/s windows at a constant-throughput cap
+    // and probes chain-confirming against zero baselines). The judge therefore requires a
+    // minimum EVENT count (mGateMinEvents), auto-extending the probe horizon on slow links.
+    std::uint32_t mGateAckEvents{0};         // ++ at both server-confirm arms (ws_conn.cpp)
+    std::uint32_t mGateLastSampleEvents{0};  // window anchor (events)
+    std::uint32_t mGateProbeStartEvents{0};  // probe anchor (events)
+    // Level-session baseline anchors (amendment A1c): the gain judge's BASELINE must obey the
+    // same evidence discipline as the probe. A single-window baseline on a slow link is lump-
+    // noisy in BOTH directions -- a window catching one 1-MiB chunk reads ~3.5x the true rate,
+    // and an honest probe average can then never clear baseline x1.05 (smoke 3: loss5Net4m
+    // probes failed forever against inflated baselines; smoke 1: zero baselines confirmed
+    // vacuously). Anchors reset whenever the controller changes the conn level (and at
+    // SEED/stale); the baseline is the average since the level was entered.
+    dstime mGateLevelStartDs{0};
+    std::uint64_t mGateLevelStartBytes{0};
+    std::uint32_t mGateLevelStartEvents{0};
+    // Geometric chain step (amendment A2): the evidence floor paces each probe at
+    // time-to-minEvents, which on a slow lossy link is minutes -- a +1-per-probe climb would
+    // give back the fast-engage win. Each CONFIRMED probe doubles the next chained step
+    // (1,2,4,8; clamped to headroom and kGateChainStepCap); any failure/trim/disengage resets
+    // to the base step. Caps never grow it (the first probe fails its evidence-judged gain
+    // there), so the L2 safety is untouched while lossy links climb in a few judged probes.
+    std::uint8_t mGateChainStep{0};          // 0 = base step (impl.mGateStep)
+    // Probe context for the scaled gain bar (amendment A3): adding `step` conns to N can
+    // ideally gain step/N of aggregate goodput, so a FLAT +5% bar is unreachable past N~20
+    // and coin-flip at N~14 under loss variance -- the uncapped-loss round parked at ~14 conns
+    // in a retreat/backoff sawtooth (2613 backoff windows) at ~52-59% of the K32/v1 throughput.
+    // The bar becomes min(GAIN_PCT, half-of-ideal), floored at 1% (see runGoodputGateLocked).
+    std::uint8_t mGateProbeFromConns{0};     // conn level the probe stepped FROM
+    std::uint8_t mGateProbeStep{0};          // conns the probe added
+    double mGateBestGoodput{0.0};            // knee memory: best confirmed probe-avg goodput since engage
+    std::uint8_t mGateBestConns{0};          // conns at mGateBestGoodput (failed-probe retreat target; 0=unset)
+    dstime mGateTelemetryNextDs{0};          // [WsConnTelemetry] pacing (emitted on BOTH gate states)
 
     // Release-safe throttle counters consumed by the bench framework
     // (`tests/integration/bench_framework/BenchReportWriter.cpp`). Incremented
@@ -665,11 +726,25 @@ struct WsPool
     void increaseNumPoolFiles()
     {
         mNumPoolFiles++;
+        // Sticky dataset latch (SDK-5360 fu8 S8): the client dispatcher trickle-feeds a dataset
+        // (it keeps only ~30 s x speed of transfers outstanding, megaclient.cpp
+        // dispatchTransfers), so on a slow link mNumPoolFiles FLAPS 1<->2 while the dataset is
+        // being fed file-by-file. An instantaneous >= 2 read therefore de-arms the dataset
+        // ceiling between refills, which starves the goodput-gate controller (its windows stall
+        // past the stale-reseed and the engage debounce never completes -- observed 0/3 in the
+        // S8 gate integration test, and a plausible contributor to the S7 qaexact 4.6-min
+        // engage delay at 1 Mbit). Once a pool has EVER held >= 2 files it IS a dataset pool
+        // for its working lifetime; the latch clears when the pool fully drains (idle pools
+        // retire/trim independently).
+        if (mNumPoolFiles >= 2)
+            mDatasetSeen = true;
     }
 
     void decreaseNumPoolFiles()
     {
         mNumPoolFiles--;
+        if (mNumPoolFiles <= 0 && !mUploadingFile && !mNumChunksInFlight && mToResend.empty())
+            mDatasetSeen = false;
     }
 
     // Clear mUploadingFile under uploadMutex. In Debug, also rolls up the
@@ -729,6 +804,56 @@ struct WsPool
         return openCount > 0;
     }
 
+    // Goodput-saturation gate v2 (SDK-5360 QCT-K): count OPEN conns and, of those, how many are
+    // currently backpressured (send buffer full), in one pass. The per-tick sticky-quorum sampler
+    // in runGoodputGateLocked compares the ratio against the quorum-percent knob. Reads the SAME
+    // two relaxed atomics (readyState + mBackpressured) as allOpenConnsBackpressuredLocked, so it
+    // is HR23-identical and race-safe when checkPools calls it cross-thread. Caller must hold
+    // mImpl->uploadMutex (mConns stable then).
+    void countOpenAndBackpressuredLocked(unsigned& open, unsigned& bp) const
+    {
+        open = 0;
+        bp = 0;
+        for (const auto* c: mConns)
+        {
+            if (c && c->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN)
+            {
+                ++open;
+                if (c->mBackpressured.load(std::memory_order_relaxed))
+                    ++bp;
+            }
+        }
+    }
+
+    // Zero the transient QCT-K controller state (tick counters, debounce streaks, backoff, knee
+    // memory) so a resumed pool re-measures from a clean slate. Shared by the SEED (first
+    // observation) and STALE (idle-gap reseed) paths in runGoodputGateLocked. Does NOT touch the
+    // sampling-window anchors (mGateLastSampleDs/Bytes/NextAdjustDs — the caller sets those) nor
+    // mGateTelemetryNextDs (owned by checkPools). Plain fields, uploadMutex-guarded (HR23).
+    void resetGateControllerStateLocked() noexcept
+    {
+        mGateProbing = false;
+        mGateGoodputBeforeIncrease = 0.0;
+        mGateBpTicks = 0;
+        mGateBpQuorumTicks = 0;
+        mGateEngageStreak = 0;
+        mGateFailedProbes = 0;
+        mGateNoBpWindows = 0;
+        mGateProbeBackoffUntilDs = 0;
+        mGateProbeStartDs = 0;
+        mGateProbeStartBytes = 0;
+        mGateLastSampleEvents = mGateAckEvents;
+        mGateProbeStartEvents = mGateAckEvents;
+        mGateLevelStartDs = 0;
+        mGateLevelStartBytes = mConfirmedBytesTotal;
+        mGateLevelStartEvents = mGateAckEvents;
+        mGateChainStep = 0;
+        mGateProbeFromConns = 0;
+        mGateProbeStep = 0;
+        mGateBestGoodput = 0.0;
+        mGateBestConns = 0;
+    }
+
     // Cold-start handshake cap, re-evaluated at the cold-start admission gate
     // (ws_pool.cpp) on every worker loop pass. Returns COLDSTART_HANDSHAKE_CONNS (2)
     // by default, NARROWING to 1 ONLY when the small-file cold-start optimisation is
@@ -763,15 +888,19 @@ struct WsPool
     // hold mImpl->uploadMutex (scans Impl::fileList). Body in src/transfer/ws/ws_pool.cpp.
     unsigned char lossBoostedConnLimitLocked(const UploadEngine::Impl& impl) const;
 
-    // Goodput-saturation gate ramp controller (SDK-5360, amendment B). Called from
-    // WsPoolMgr::checkPools (under uploadMutex) ONLY when a connection boost is active AND
-    // MEGA_WS_DATASET_CONN_GATE is on. `ceiling` is the (already global-ceiling-clamped)
-    // targetConnLimit -- the MAX the ramp may reach. Hill-climbs mNumberOfConnections from the
-    // base pool limit toward `ceiling` while aggregate goodput keeps rising under full
-    // backpressure (WIDEN), and actively steps back down when a +step probe does not lift
-    // goodput (RETREAT -- the clean bandwidth-limited case). Mutates pool controller state +
-    // mNumberOfConnections (via setPoolNumConn), so non-const. Body in src/transfer/ws/ws_pool.cpp.
-    void runGoodputGateLocked(const UploadEngine::Impl& impl, unsigned char ceiling);
+    // Goodput-saturation gate v2 ramp controller (SDK-5360 QCT-K, fu8 S8). Called from
+    // WsPoolMgr::checkPools (under uploadMutex) when MEGA_WS_DATASET_CONN_GATE is on AND the pool
+    // either has an active boost OR is already parked above the base limit (so it can trim back
+    // down — the FLAW-1 fix). `ceilingIn` is the (already global-ceiling-clamped) target, then
+    // scaled in-gate by MEGA_WS_GATE_CEILING_MULT so the GATE=0 jump path stays byte-identical.
+    // Engage keys ONLY on per-conn send-buffer backpressure QUORUM (sticky per-tick, ~2 Hz):
+    // fast-engage from base after a short debounce, climb +STEP while a probe-horizon average
+    // confirms >= GAIN_PCT goodput gain (chaining while pressure persists), retreat to the
+    // remembered knee (bestConns) with exponential backoff when a probe fails, and halve back
+    // toward base after TRIM_WINDOWS calm windows (independent of the backoff). Mutates pool
+    // controller state + mNumberOfConnections (via setPoolNumConn), so non-const. Body in
+    // src/transfer/ws/ws_pool.cpp.
+    void runGoodputGateLocked(const UploadEngine::Impl& impl, unsigned char ceilingIn);
 
 #ifndef NDEBUG
     unsigned countOpenConnectionsLocked() const

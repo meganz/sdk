@@ -751,7 +751,13 @@ struct ChunkResponse
                 // uploadMutex (held from :609) so a plain add is race-free (HR23). Guarded on
                 // the gate so MEGA_WS_DATASET_CONN_GATE=0 is byte-behaviour-identical.
                 if (mPool->mImpl->mDatasetConnGate)
+                {
                     mPool->mConfirmedBytesTotal += static_cast<std::uint64_t>(chunk.len);
+                    // Amendment A1: count the confirm EVENT too -- the gate's gain judge
+                    // requires a minimum event count so lumpy per-chunk acks cannot fake
+                    // (or zero out) a goodput baseline at low bandwidth.
+                    ++mPool->mGateAckEvents;
+                }
                 // Tier 2 A (loss-recovery): record this whole-chunk range as acked so a
                 // later reconnect re-queues only un-acked chunks (gated; clean no-op).
                 if (mPool->mImpl->mAckedChunkRewind)
@@ -775,7 +781,13 @@ struct ChunkResponse
                 // bytes (same accumulator + discipline as the ChunkIngested arm above). Under
                 // uploadMutex; guarded so gate=0 is byte-behaviour-identical.
                 if (mPool->mImpl->mDatasetConnGate)
+                {
                     mPool->mConfirmedBytesTotal += static_cast<std::uint64_t>(chunk.len);
+                    // Amendment A1: count the confirm EVENT too -- the gate's gain judge
+                    // requires a minimum event count so lumpy per-chunk acks cannot fake
+                    // (or zero out) a goodput baseline at low bandwidth.
+                    ++mPool->mGateAckEvents;
+                }
                 // Tier 2 A (loss-recovery): record this whole-chunk range as acked so a
                 // later reconnect re-queues only un-acked chunks (gated; clean no-op).
                 if (mPool->mImpl->mAckedChunkRewind)

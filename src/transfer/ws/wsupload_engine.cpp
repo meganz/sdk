@@ -302,6 +302,156 @@ unsigned char wsGateStepEnvDefault()
     return value;
 }
 
+// ---- QCT-K gate v2 tunables (SDK-5360 fu8 S8). Each mirrors wsGateGainPctEnvDefault(): read the
+// env var once via a function-local static, apply the documented default and clamp. Consumed by
+// WsPool::runGoodputGateLocked. Knobs whose valid range includes 0 (TRIM/CEILING/TELEMETRY, where
+// 0 = off) accept 0; the others floor to their range minimum.
+
+// MEGA_WS_GATE_BP_QUORUM_PCT (default 50, clamp [1,100]): % of open conns backpressured at a tick
+// for that tick to count as quorum-true. Floor 1 (0 refused — it would make MassNotify engage).
+unsigned wsGateBpQuorumPctEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_BP_QUORUM_PCT");
+        if (!hasValue)
+            return 50u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 50u;
+        return static_cast<unsigned>(std::clamp<long>(v, 1, 100));
+    }();
+    return value;
+}
+
+// MEGA_WS_GATE_ENGAGE_WINDOWS (default 2, clamp [1,60]): consecutive quorum-true windows to engage
+// from base (anti-stampede debounce).
+unsigned wsGateEngageWindowsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_ENGAGE_WINDOWS");
+        if (!hasValue)
+            return 2u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 2u;
+        return static_cast<unsigned>(std::clamp<long>(v, 1, 60));
+    }();
+    return value;
+}
+
+// MEGA_WS_GATE_PROBE_WINDOWS (default 2, clamp [1,10]): probe measurement horizon in windows
+// (goodput averaged over it; 1 restores S7 single-window judging).
+unsigned wsGateProbeWindowsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_PROBE_WINDOWS");
+        if (!hasValue)
+            return 2u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 2u;
+        return static_cast<unsigned>(std::clamp<long>(v, 1, 10));
+    }();
+    return value;
+}
+
+// MEGA_WS_GATE_RETREAT_MAX_WINDOWS (default 300, clamp [5,3000]): cap for the exponential
+// failed-probe backoff (base 5 windows == S7's retreat cooldown).
+unsigned wsGateRetreatMaxWindowsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_RETREAT_MAX_WINDOWS");
+        if (!hasValue)
+            return 300u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 300u;
+        return static_cast<unsigned>(std::clamp<long>(v, 5, 3000));
+    }();
+    return value;
+}
+
+// MEGA_WS_GATE_TRIM_WINDOWS (default 10, clamp [0,255]): consecutive quorum-false windows before
+// each halving trim; 0 = trim off (S7 never-shrink). Capped at 255 (not the table's 600) because
+// the debounce counter WsPool::mGateNoBpWindows is a uint8_t (see wsupload_internal.h).
+unsigned wsGateTrimWindowsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_TRIM_WINDOWS");
+        if (!hasValue)
+            return 10u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v < 0) // 0 is valid (= off)
+            return 10u;
+        return static_cast<unsigned>(std::clamp<long>(v, 0, 255));
+    }();
+    return value;
+}
+
+// MEGA_WS_GATE_MIN_EVENTS (default 8, clamp [1,64], amendment A1): minimum server-confirm events
+// per probe judgment (see wsupload_engine.h field doc).
+unsigned wsGateMinEventsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_MIN_EVENTS");
+        if (!hasValue)
+            return 8u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 8u;
+        return static_cast<unsigned>(std::clamp<long>(v, 1, 64));
+    }();
+    return value;
+}
+
+// MEGA_WS_GATE_CEILING_MULT (default 4, clamp [0,32]): effective ceiling = min(ceilingIn,
+// base*mult), in-gate. 0 disables (use ceilingIn as-is).
+unsigned char wsGateCeilingMultEnvDefault()
+{
+    static const unsigned char value = []() -> unsigned char
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_GATE_CEILING_MULT");
+        if (!hasValue)
+            return 4;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v < 0) // 0 is valid (= disable the mult)
+            return 4;
+        return static_cast<unsigned char>(std::clamp<long>(v, 0, 32));
+    }();
+    return value;
+}
+
+// MEGA_WS_CONN_TELEMETRY_MS (default 10000, clamp [0,600000], 0=off): period of the
+// [WsConnTelemetry] per-pool line in WsPoolMgr::checkPools (both gate states).
+unsigned wsConnTelemetryMsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_CONN_TELEMETRY_MS");
+        if (!hasValue)
+            return 10000u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v < 0) // 0 is valid (= off)
+            return 10000u;
+        return static_cast<unsigned>(std::clamp<long>(v, 0, 600000));
+    }();
+    return value;
+}
+
 // Runtime numeric override (MILLISECONDS) for the ack-stall watchdog window (SDK-5360 fu8
 // Session 6), converted to deciseconds. Default 0 = use the compile-time WsPool::ACKSTALLTIMEOUT
 // (45s). Lets the Goal-2d pre/post bench sweep the threshold on ONE binary via

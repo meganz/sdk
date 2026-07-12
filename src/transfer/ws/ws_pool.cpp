@@ -86,6 +86,7 @@
 #include <array>
 #include <cassert>
 #include <chrono>
+#include <limits>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -1078,7 +1079,15 @@ unsigned char WsPool::lossBoostedConnLimitLocked(const UploadEngine::Impl& impl)
     // split across pool connections (shared mUploadingFile head cursor in nextChunk), so the
     // extra flows are usable. Default (bump off) keeps the historical mNumPoolFiles>=2 gate, so
     // this branch is byte-identical to today unless the env opts in.
-    if (impl.mDatasetConnBump && mNumPoolFiles >= (impl.mSingleFileConnBump ? 1 : 2))
+    // The instantaneous count is OR'd with the sticky mDatasetSeen latch (fu8 S8): the client
+    // dispatcher keeps only ~30 s x speed of transfers outstanding, so on a slow link a genuine
+    // dataset is trickle-fed and mNumPoolFiles flaps 1<->2 between refills. Without the latch
+    // the ceiling de-arms on every flap and the goodput-gate controller starves (its windows
+    // stall past the stale reseed; the S7 qaexact 4.6-min engage plausibly includes this).
+    // GATE=0 behavior is unchanged by the latch: the jump branch only ever RAISES conns, and it
+    // already kept the peak across flaps (conns > base fails the < targetConnLimit test).
+    if (impl.mDatasetConnBump &&
+        (mNumPoolFiles >= (impl.mSingleFileConnBump ? 1 : 2) || mDatasetSeen))
     {
         return std::max<unsigned char>(impl.poolConnectionLimit(),
                                        impl.lossBoostedDatasetConnLimit());
@@ -1109,153 +1118,407 @@ unsigned char WsPool::lossBoostedConnLimitLocked(const UploadEngine::Impl& impl)
                impl.poolConnectionLimit();
 }
 
-// Goodput-saturation gate ramp controller (SDK-5360, amendment B). See the header declaration
-// for the contract. `ceiling` is targetConnLimit (already global-ceiling-clamped in checkPools).
+// Goodput-saturation gate v2 ramp controller (SDK-5360 QCT-K, fu8 S8). See the header
+// declaration for the contract and analysis/GOAL1_gate_v2_design.md (followup8_QA_7) for the
+// design rationale. Replaces the S7 hill-climb whose two audit-proven weaknesses were:
+//  - L1/L3: WIDEN required EVERY open conn backpressured at ONE once-per-window sampling
+//    instant -- two stacked coincidences that cost a trace-proven ~4.6-min engage delay on
+//    qaexact and froze the ramp at 16-of-30 mid-climb (hold-nobp after one misaligned window).
+//  - L2: the first probe at any level was unconditional and a retreat only paused 5 windows,
+//    so a clean network-capped link re-probed forever (43 widens -> 22-conn plateau).
 // Runs UNDER uploadMutex (checkPools holds it). All controller state + mConfirmedBytesTotal are
 // plain (uploadMutex-guarded, HR23); the ONE cross-thread input is per-conn backpressure, read
-// via the atomic WsConn::mBackpressured inside allOpenConnsBackpressuredLocked.
-void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned char ceiling)
+// via the relaxed atomics inside countOpenAndBackpressuredLocked (same two atomics the old
+// all-conns helper read). Engage keys ONLY on the send-buffer backpressure quorum -- a signal
+// measured absent during MassNotify (337 hold-nobp windows, 0 widens) -- NEVER on loss/requeue
+// counters (a watchdog force-reconnect increments those: coupling them here would let a
+// watchdog fire drive a widen), queue depth or file count (audit: queue depth does not
+// discriminate the MassNotify pass/hang; conn count / enqueue rate does).
+void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned char ceilingIn)
 {
     const dstime now = impl.currentTime;
     const dstime windowDs = impl.gateWindowDs();
 
-    // Ramp hysteresis constants, in units of sampling windows:
-    //  - kGateRetreatCooldownWindows: after a RETREAT, hold the settled level this many windows
-    //    before re-probing, so a clean bandwidth-limited link (which stays backpressured even at
-    //    the base) does not flutter +step/-step every window; it still re-probes eventually so
-    //    the controller re-adapts if the link later becomes loss-limited. This is the design's
-    //    "first probe at the current count" gate expressed as time-based hysteresis.
-    //  - kGateStaleWindows: an elapsed window longer than this means the pool sat idle / paused
-    //    (a genuine gap, NOT a deliberate cooldown -- so kGateStaleWindows > the cooldown):
-    //    re-seed the baseline rather than compute a goodput rate over a stale denominator. Idle
-    //    gaps are >= POOLCONNKEEPALIVE (60 windows at the default), far above this bound.
-    constexpr dstime kGateRetreatCooldownWindows = 5;
+    // Window-unit constants:
+    //  - kGateBackoffBaseWindows: first failed-probe backoff == S7's retreat cooldown (the
+    //    back-compat anchor); doubles per consecutive failure up to mGateRetreatMaxWindows.
+    //  - kGateStaleWindows: an elapsed window longer than this means the pool sat idle/paused.
+    //    Safe against long backoffs BECAUSE the sampling window is strictly uniform (always +W;
+    //    a backoff inhibits probes, it no longer stretches the window) -- the FLAW-2 decoupling.
+    //  - kGateBestImproveMinPct: knee memory updates only on a STRICT improvement, so noise
+    //    cannot creep the remembered best upward.
+    constexpr dstime kGateBackoffBaseWindows = 5;
     constexpr dstime kGateStaleWindows = 12;
+    constexpr double kGateBestImproveMinPct = 2.0;
 
-    // First observation (or after a reset): seed the measurement anchors; decide nothing yet.
+    const auto satInc = [](std::uint8_t& v)
+    {
+        if (v != std::numeric_limits<std::uint8_t>::max())
+            ++v;
+    };
+
+    // Device-scaled effective ceiling, IN-GATE so the GATE=0 jump-to-K path stays byte-identical
+    // on every platform (mobile base 3 -> 12 at the default x4, mirroring desktop 32 = 4x8 and
+    // the MAX_RAIDTRANSFERS_FOR_MOBILE precedent; 0 disables the mult).
+    const unsigned base = impl.poolConnectionLimit();
+    unsigned ceiling = ceilingIn;
+    if (impl.mGateCeilingMult)
+    {
+        ceiling = std::clamp<unsigned>(std::min<unsigned>(ceilingIn, base * impl.mGateCeilingMult),
+                                       base,
+                                       ceilingIn);
+    }
+
+    // A. EVERY-TICK sticky quorum sampling (~2 Hz), BEFORE the once-per-window return. This is
+    // the fix for the "sampled at one instant" half of L1/L3: a conn backpressured at ANY tick
+    // this window counts, and the quorum needs only mGateBpQuorumPct% of open conns (default 50)
+    // instead of 100%. The test hook overrides only the controller's VIEW of backpressure; the
+    // real send path is untouched.
+    unsigned open = 0;
+    unsigned bp = 0;
+    countOpenAndBackpressuredLocked(open, bp);
+    DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(static_cast<const void*>(this), open, bp);
+    satInc(mGateBpTicks);
+    if (open > 0 && bp * 100u >= open * impl.mGateBpQuorumPct)
+        satInc(mGateBpQuorumTicks);
+
+    // B. First observation (or after a reset): seed the measurement anchors; decide nothing yet.
     if (!mGateLastSampleDs)
     {
+        resetGateControllerStateLocked();
         mGateLastSampleDs = now;
         mGateLastSampleBytes = mConfirmedBytesTotal;
         mGateNextAdjustDs = now + windowDs;
-        // SDK-5360 fu8 S7: gate observability. Session-6's smoke emitted ZERO gate decision
-        // lines, leaving every ramp-shape claim unfalsifiable (Goal-1 audit A1/A3/A5). Emit a
-        // greppable [GoodputGate] line at LOG_debug (guaranteed captured in the bench trace,
-        // unlike WSUPLOAD_TRACE which may be compiled out) so the QA validation can VERIFY the
-        // ramp instead of inferring it from the terminal peak counter.
         LOG_debug << "[GoodputGate] pool=" << static_cast<const void*>(this)
                   << " files=" << mNumPoolFiles << " SEED conns="
-                  << static_cast<unsigned>(mNumberOfConnections)
-                  << " base=" << static_cast<unsigned>(impl.poolConnectionLimit())
-                  << " ceiling=" << static_cast<unsigned>(ceiling)
+                  << static_cast<unsigned>(mNumberOfConnections) << " base=" << base
+                  << " ceiling=" << ceiling << "/" << static_cast<unsigned>(ceilingIn)
                   << " windowDs=" << windowDs;
         return;
     }
 
-    // Hysteresis: act at most once per window, NOT on every checkPools tick (~2 Hz).
+    // C. Uniform once-per-window pacing: act at most once per window, NOT on every checkPools
+    // tick. ALWAYS one window (probe backoff is a separate timer checked at the widen decision,
+    // NOT a stretched window) so the sampler, trim debounce and staleness stay well-defined
+    // during a long backoff.
     if (SteadyTime::difference(now, mGateNextAdjustDs) < 0)
         return;
 
     const dstime elapsedDs = SteadyTime::difference(now, mGateLastSampleDs);
 
-    // Stale window (idle gap / long pause / clock skew): re-seed and decide nothing. Guards the
-    // goodput rate against a spuriously large elapsed denominator after the pool sat idle (e.g.
-    // between the idle down-trim and work returning) and drops any in-flight probe cleanly.
+    // D. Stale window -- a TRUE idle gap now that backoffs no longer stretch the window (idle
+    // gaps are >= POOLCONNKEEPALIVE, far above this bound): re-seed everything including knee
+    // memory and backoff so a resumed pool re-measures from a clean slate; decide nothing.
     if (elapsedDs <= 0 || elapsedDs > windowDs * kGateStaleWindows)
     {
-        mGateProbing = false;
+        resetGateControllerStateLocked();
         mGateLastSampleDs = now;
         mGateLastSampleBytes = mConfirmedBytesTotal;
         mGateNextAdjustDs = now + windowDs;
         return;
     }
 
-    // Aggregate goodput over the window, bytes/second (double: once-per-window, cold path).
+    // E. Window measurement: aggregate confirmed goodput over the window, bytes/second (double:
+    // once-per-window, cold path). windowBp is the sticky-OR of the per-tick quorum samples.
     const std::uint64_t deltaBytes = mConfirmedBytesTotal - mGateLastSampleBytes;
     const double elapsedSec = static_cast<double>(elapsedDs) / static_cast<double>(kDsPerSecond);
-    const double currentGoodput = static_cast<double>(deltaBytes) / elapsedSec;
-
-    const double gainMultiplier = 1.0 + static_cast<double>(impl.mGateGainPct) / 100.0;
+    double currentGoodput = static_cast<double>(deltaBytes) / elapsedSec;
+    const std::uint32_t windowEvents = mGateAckEvents - mGateLastSampleEvents;
+    const std::uint32_t probeEvents = mGateAckEvents - mGateProbeStartEvents;
+    // Level-session baseline (A1c): average since the conn level was entered -- same evidence
+    // discipline as the probe side, immune to single-window lump noise in either direction.
+    if (!mGateLevelStartDs)
+    {
+        mGateLevelStartDs = mGateLastSampleDs;
+        mGateLevelStartBytes = mGateLastSampleBytes;
+        mGateLevelStartEvents = mGateLastSampleEvents;
+    }
+    const std::int32_t levelElapsedDs = SteadyTime::difference(now, mGateLevelStartDs);
+    const std::uint32_t levelEvents = mGateAckEvents - mGateLevelStartEvents;
+    const double levelGoodput =
+        (levelElapsedDs > 0) ?
+            static_cast<double>(mConfirmedBytesTotal - mGateLevelStartBytes) /
+                (static_cast<double>(levelElapsedDs) / static_cast<double>(kDsPerSecond)) :
+            0.0;
+    bool goodputOverridden = false;
+    DEBUG_TEST_HOOK_WS_GATE_GOODPUT(static_cast<const void*>(this),
+                                    static_cast<unsigned>(mNumberOfConnections),
+                                    currentGoodput,
+                                    goodputOverridden);
+    const bool windowBp = (mGateBpQuorumTicks > 0);
+    // Scaled gain bar (amendment A3): adding `step` conns to N ideally gains step/N of the
+    // aggregate, so the required gain is half-of-ideal, capped by GAIN_PCT (back-compat at the
+    // base: min(5%, 6.25%) = 5% at 8 conns) and floored at 1%. A flat bar past N~20 is
+    // mathematically unreachable and parked the uncapped-loss climb at ~14 conns in a
+    // retreat/backoff sawtooth; a capped link's true gain is ~0, below ANY bar, so the
+    // clean-capped discrimination is unaffected.
+    const double halfIdealPct =
+        (mGateProbing && mGateProbeFromConns) ?
+            100.0 * static_cast<double>(mGateProbeStep) /
+                (2.0 * static_cast<double>(mGateProbeFromConns)) :
+            static_cast<double>(impl.mGateGainPct);
+    const double requiredGainPct = std::clamp(
+        halfIdealPct, 1.0, static_cast<double>(std::max<unsigned>(1u, impl.mGateGainPct)));
+    const double gainMultiplier = 1.0 + requiredGainPct / 100.0;
     const unsigned step = impl.mGateStep ? impl.mGateStep : 1u;
-
-    // Default pacing: re-evaluate next window. A RETREAT overrides this with the longer
-    // kGateRetreatCooldownWindows cooldown (below) to stop clean-link flutter.
-    dstime nextAdjustDs = now + windowDs;
-
-    // WIDEN requires headroom below the ceiling AND EVERY open conn saturated (full send-buffer
-    // backpressure). Clean high-BW is chunk-prep-bound -> haveSpace() stays true -> not
-    // backpressured -> never widens (stays at the base default, no regression).
-    // (S7 observability: capture the pre-decision conn count + the backpressure signal once so
-    // the [GoodputGate] line below reports the exact transition + discriminator inputs.)
     const unsigned connBefore = static_cast<unsigned>(mNumberOfConnections);
     const bool wasProbing = mGateProbing;
-    const bool allBackpressured = allOpenConnsBackpressuredLocked();
-    const bool canWiden =
-        (connBefore < static_cast<unsigned>(ceiling)) && allBackpressured;
-    const char* action = "hold-nobp";
-    bool roseEnough = false;
-    if (canWiden)
+
+    // Baseline-capture + widen in one place so the probe anchors are always consistent: the
+    // baseline is the last full window's goodput at the CURRENT level, and the probe horizon is
+    // judged on the average since the widen (noise must sustain the gain across the horizon).
+    const auto resetLevelAnchors = [&]()
     {
-        // WIDEN on the first probe at this count, or if the previous +step lifted aggregate
-        // goodput by >= the gain threshold; otherwise RETREAT. The gain test is the clean-vs-
-        // loss discriminator: a clean bandwidth-limited link does NOT gain when a flow is added
-        // (the flow just splits the same uplink) -> retreat; a loss-limited link DOES gain (each
-        // flow is an independent cwnd) -> keep climbing.
-        roseEnough =
-            !mGateProbing || (currentGoodput >= mGateGoodputBeforeIncrease * gainMultiplier);
-        if (roseEnough)
+        mGateLevelStartDs = now;
+        mGateLevelStartBytes = mConfirmedBytesTotal;
+        mGateLevelStartEvents = mGateAckEvents;
+    };
+    const auto startProbe = [&](const unsigned s, const double baseline)
+    {
+        mGateGoodputBeforeIncrease = baseline;
+        const unsigned to = std::min<unsigned>(connBefore + s, ceiling);
+        setPoolNumConn(static_cast<unsigned char>(to));
+        mGateProbing = true;
+        mGateProbeStartDs = now;
+        mGateProbeStartBytes = mConfirmedBytesTotal;
+        mGateProbeStartEvents = mGateAckEvents;
+        mGateProbeFromConns = static_cast<std::uint8_t>(connBefore);
+        mGateProbeStep = static_cast<std::uint8_t>(to - connBefore);
+        resetLevelAnchors(); // the probe's level IS the new level
+    };
+
+    const char* action = "hold-nobp";
+    double probeGoodput = 0.0;
+
+    // Probe horizon completion (amendment A1): time horizon AND an evidence floor. Server acks
+    // land in whole-chunk lumps, so a wall-clock horizon alone judges on 0-2 samples at low
+    // bandwidth (the cleanNet8m smoke chain-confirmed probes against ZERO baselines all the way
+    // to the ceiling). The horizon auto-extends until >= mGateMinEvents confirm events arrive,
+    // capped at kGateProbeEvidenceCapWindows. The cap is GENEROUS (45 windows) and at the cap
+    // the judge accepts PROPORTIONAL evidence (>= minEvents/4, floor 2): a slow-but-alive lossy
+    // link accumulates its events in ~30-40 s and gets a fair ruling (a 10-window cap failed
+    // EVERY probe below ~0.8 MB/s -- smoke 2 froze loss5Net4m at base and lost ~19%
+    // throughput), while a genuinely parked probe (< 2 events in 45 s) still FAILS -- it never
+    // confirms on noise. A hook-driven synthetic goodput bypasses the floor (the synthetic
+    // value IS the evidence).
+    constexpr dstime kGateProbeEvidenceCapWindows = 45;
+    const std::int32_t probeElapsedTotalDs =
+        mGateProbing ? SteadyTime::difference(now, mGateProbeStartDs) : 0;
+    const bool probeAtEvidenceCap =
+        mGateProbing &&
+        probeElapsedTotalDs >= static_cast<std::int32_t>(windowDs * kGateProbeEvidenceCapWindows);
+    const bool probeHorizonDone =
+        mGateProbing &&
+        probeElapsedTotalDs >= static_cast<std::int32_t>(windowDs * impl.mGateProbeWindows) &&
+        (goodputOverridden || probeEvents >= impl.mGateMinEvents || probeAtEvidenceCap);
+
+    // F. Decision.
+    if (probeHorizonDone)
+    {
+        // Judge the +step on its horizon AVERAGE against the baseline. The gain test is the
+        // clean-vs-loss discriminator: a clean bandwidth-limited link does NOT gain when a flow
+        // is added (the flow just splits the same uplink) -> retreat; a loss-limited link DOES
+        // gain (each flow is an independent cwnd) -> keep climbing.
+        const dstime probeElapsedDs = SteadyTime::difference(now, mGateProbeStartDs);
+        const double probeElapsedSec =
+            static_cast<double>(probeElapsedDs) / static_cast<double>(kDsPerSecond);
+        probeGoodput =
+            static_cast<double>(mConfirmedBytesTotal - mGateProbeStartBytes) / probeElapsedSec;
+        DEBUG_TEST_HOOK_WS_GATE_GOODPUT(static_cast<const void*>(this),
+                                        connBefore,
+                                        probeGoodput,
+                                        goodputOverridden);
+        // CONFIRM needs (a) the gain, (b) a MEANINGFUL baseline (a zero baseline confirms
+        // nothing -- that was the vacuous-confirm hole), and (c) sufficient probe evidence:
+        // the full minEvents floor normally, or the proportional floor when the generous
+        // evidence cap expired first (slow-but-alive links get a fair ruling on what arrived).
+        const std::uint32_t evidenceFloor =
+            probeAtEvidenceCap ? std::max<std::uint32_t>(2u, impl.mGateMinEvents / 4u) :
+                                 impl.mGateMinEvents;
+        if (probeGoodput >= mGateGoodputBeforeIncrease * gainMultiplier &&
+            (goodputOverridden ||
+             (mGateGoodputBeforeIncrease > 0.0 && probeEvents >= evidenceFloor)))
         {
-            // Record the goodput measured BEFORE this increase (the next window judges the probe
-            // against it), then widen (clamped to the ceiling) and start probing.
-            mGateGoodputBeforeIncrease = currentGoodput;
-            const unsigned widened =
-                std::min<unsigned>(connBefore + step, static_cast<unsigned>(ceiling));
-            setPoolNumConn(static_cast<unsigned char>(widened));
-            mGateProbing = true;
-            action = "widen";
+            // CONFIRMED gain. Update the knee memory on a STRICT improvement only, then CHAIN
+            // the next widen while pressure persists (no mid-ramp freeze: a quorum-false window
+            // after a confirmed probe KEEPS the level -- hold-gained -- and the climb resumes
+            // without debounce the moment quorum returns).
+            mGateFailedProbes = 0;
+            if (probeGoodput > mGateBestGoodput * (1.0 + kGateBestImproveMinPct / 100.0))
+            {
+                mGateBestGoodput = probeGoodput;
+                mGateBestConns = static_cast<std::uint8_t>(connBefore);
+            }
+            if (windowBp && connBefore < ceiling && (goodputOverridden || windowEvents > 0))
+            {
+                // Chained baseline = the horizon AVERAGE just confirmed (>= minEvents of
+                // evidence), not the single-window rate -- the most reliable number we have.
+                // A2: each confirm doubles the next chained step (evidence-paced probes are
+                // slow on lossy links; a few judged geometric steps replace many +1s), clamped
+                // to a hard cap and the remaining headroom.
+                constexpr unsigned kGateChainStepCap = 8;
+                const unsigned chained = std::min<unsigned>(
+                    {step << std::min<unsigned>(mGateChainStep, 3u),
+                     kGateChainStepCap,
+                     ceiling - connBefore});
+                if (mGateChainStep < 3)
+                    ++mGateChainStep;
+                startProbe(std::max(1u, chained), probeGoodput);
+                action = "widen";
+            }
+            else
+            {
+                // Keep the level; carry the probe's evidence-rich measurement over as the
+                // settled level session (A1c) so a later chain resume judges against it.
+                mGateProbing = false;
+                mGateChainStep = 0;
+                mGateLevelStartDs = mGateProbeStartDs;
+                mGateLevelStartBytes = mGateProbeStartBytes;
+                mGateLevelStartEvents = mGateProbeStartEvents;
+                action = "hold-gained";
+            }
         }
         else
         {
-            // RETREAT (active step-down, amendment B): undo the unhelpful +step and stop probing
-            // so we settle at the goodput knee (or the base default for a clean low-BW link).
-            // Floor at the base pool limit so the ramp never drops the pool's base connections.
-            const unsigned floorLimit = impl.poolConnectionLimit();
-            unsigned downTo = (connBefore > step) ? (connBefore - step) : floorLimit;
-            if (downTo < floorLimit)
-                downTo = floorLimit;
-            if (downTo < connBefore)
-                setPoolNumConn(static_cast<unsigned char>(downTo));
+            // FAILED probe: revert to the remembered knee (the best conn count that ever
+            // strictly improved goodput), not merely -step -- this kills the clean-capped
+            // up-ratchet -- and inhibit further probes with a REAL exponential backoff
+            // (5,10,20,40,80,160,300 windows; a separate timer, so trim keeps running).
+            // A5: a failed probe undoes ONLY its own step (back to the level it stepped from).
+            // Retreat-to-knee pulled the pool from ~23 to ~14 whenever a stale lucky-burst
+            // bestGoodput made the knee unbeatable (113 retreats/run on uncapped loss5 -- the
+            // churn, not the conn policy, was the throughput tax). The knee stays a FLOOR
+            // (never retreat below it), and on capped links the probe-from level IS ~base, so
+            // the L2 behavior is unchanged.
+            const unsigned probeFrom = mGateProbeFromConns ? mGateProbeFromConns : base;
+            const unsigned kneeFloor = std::max<unsigned>(base, mGateBestConns);
+            const unsigned target = std::max(kneeFloor, std::min(probeFrom, connBefore));
+            if (target < connBefore)
+                setPoolNumConn(static_cast<unsigned char>(target));
             mGateProbing = false;
-            nextAdjustDs = now + windowDs * kGateRetreatCooldownWindows;
-            action = (downTo < connBefore) ? "retreat" : "retreat-atfloor";
+            mGateChainStep = 0;
+            resetLevelAnchors();
+            satInc(mGateFailedProbes);
+            const dstime backoffWindows = std::min<dstime>(
+                kGateBackoffBaseWindows
+                    << std::min<unsigned>(static_cast<unsigned>(mGateFailedProbes) - 1u, 6u),
+                impl.mGateRetreatMaxWindows);
+            mGateProbeBackoffUntilDs = now + windowDs * backoffWindows;
+            action = (target < connBefore) ? "retreat" : "retreat-atfloor";
+        }
+    }
+    else if (mGateProbing)
+    {
+        // Mid-horizon window: the probe keeps measuring; no decision this window.
+        action = "probe-wait";
+    }
+    else if (windowBp && connBefore < ceiling &&
+             SteadyTime::difference(now, mGateProbeBackoffUntilDs) >= 0)
+    {
+        // FAST-ENGAGE from base after a short debounce (anti-stampede), or RESUME the climb
+        // without debounce when already above base (the L3 fix's second half).
+        if (connBefore == base)
+            satInc(mGateEngageStreak);
+        if (connBefore == base && mGateEngageStreak < impl.mGateEngageWindows)
+        {
+            action = "hold-debounce";
+        }
+        else if (!goodputOverridden &&
+                 levelEvents < std::max<std::uint32_t>(2u, impl.mGateMinEvents / 4u))
+        {
+            // Not enough LEVEL-session evidence for a meaningful baseline yet (A1c): a probe
+            // started now could only be judged against lump noise. Hold without burning a
+            // probe/backoff; evidence accumulates and the probe starts within a few windows.
+            action = "hold-lowsig";
+        }
+        else
+        {
+            startProbe(step, goodputOverridden ? currentGoodput : levelGoodput);
+            action = "widen";
         }
     }
     else
     {
-        // Not backpressured (clean high-BW holds at the base default), or already at the
-        // ceiling: resolve any in-flight probe without thrashing and hold.
-        mGateProbing = false;
-        action = (connBefore >= static_cast<unsigned>(ceiling)) ? "hold-ceiling" : "hold-nobp";
+        action = (connBefore >= ceiling) ? "hold-ceiling" : (windowBp ? "hold-backoff" : "hold-nobp");
     }
 
-    // S7 observability (Goal-1 audit A1/A3/A5): one greppable line per gate decision so the QA
-    // validation can VERIFY the ramp/hold instead of inferring it. LOG_debug (not WSUPLOAD_TRACE,
-    // which may be compiled out) guarantees capture in the bench PID trace.
+    // G. TRIM -- independent of the probe backoff (runs whenever the pool is above base and the
+    // window was calm), so capacity returns after a loss episode instead of parking at the peak
+    // (S7 held the peak until pool retirement). Halve toward base; calm is a regime change, so
+    // clear the failed-probe backoff; reaching base disengages and forgets the knee.
+    // (Live count, not the pre-decision snapshot: a retreat in F this same window must not
+    // leave the trim math on a stale level.)
+    const unsigned connNow = static_cast<unsigned>(mNumberOfConnections);
+    if (!windowBp)
+    {
+        mGateEngageStreak = 0;
+        // The resend-backlog guard keeps trim OUT of steady loss: under active loss the resend
+        // queue is rarely empty (chunks bounce constantly), so quorum-false lulls do not shed
+        // the flows the loss still needs; after a genuine bad->clean transition the resends
+        // drain and trim proceeds (the transition cells' proven behavior).
+        if (impl.mGateTrimWindows && connNow > base && !mGateProbing && mToResend.empty())
+        {
+            satInc(mGateNoBpWindows);
+            if (mGateNoBpWindows >= impl.mGateTrimWindows)
+            {
+                const unsigned down = base + (connNow - base) / 2;
+                setPoolNumConn(static_cast<unsigned char>(down));
+                resetLevelAnchors();
+                mGateNoBpWindows = 0;
+                mGateFailedProbes = 0;
+                mGateChainStep = 0;
+                mGateProbeBackoffUntilDs = 0;
+                if (down == base)
+                {
+                    mGateBestGoodput = 0.0;
+                    mGateBestConns = 0;
+                }
+                action = "trim";
+            }
+        }
+    }
+    else
+    {
+        mGateNoBpWindows = 0;
+    }
+
+    // H. One greppable line per window (superset of the S7 line -- extractors keyed on
+    // "[GoodputGate]"/action/conns keep working) so the ramp/hold/trim shape is VERIFIABLE from
+    // the bench PID trace. LOG_debug, not WSUPLOAD_TRACE (which may be compiled out).
+    const dstime backoffLeftDs =
+        (mGateProbeBackoffUntilDs && SteadyTime::difference(mGateProbeBackoffUntilDs, now) > 0) ?
+            SteadyTime::difference(mGateProbeBackoffUntilDs, now) :
+            0;
     LOG_debug << "[GoodputGate] pool=" << static_cast<const void*>(this)
               << " files=" << mNumPoolFiles << " action=" << action
               << " conns=" << connBefore << "->" << static_cast<unsigned>(mNumberOfConnections)
-              << " base=" << static_cast<unsigned>(impl.poolConnectionLimit())
-              << " ceiling=" << static_cast<unsigned>(ceiling)
-              << " allBackpressured=" << allBackpressured
-              << " wasProbing=" << wasProbing << " roseEnough=" << roseEnough
+              << " base=" << base
+              << " ceiling=" << ceiling << "/" << static_cast<unsigned>(ceilingIn)
+              << " quorumTicks=" << static_cast<unsigned>(mGateBpQuorumTicks) << "/"
+              << static_cast<unsigned>(mGateBpTicks) << " open=" << open << " bp=" << bp
+              << " windowBp=" << windowBp
+              << " engageStreak=" << static_cast<unsigned>(mGateEngageStreak)
+              << " noBpW=" << static_cast<unsigned>(mGateNoBpWindows)
+              << " failedProbes=" << static_cast<unsigned>(mGateFailedProbes)
+              << " backoffLeftDs=" << backoffLeftDs << " best=("
+              << static_cast<unsigned>(mGateBestConns) << "," << mGateBestGoodput << ")"
               << " goodputBps=" << currentGoodput
-              << " prevGoodputBps=" << mGateGoodputBeforeIncrease
-              << " gainX=" << gainMultiplier << " elapsedDs=" << elapsedDs;
+              << " baselineBps=" << mGateGoodputBeforeIncrease << " probeBps=" << probeGoodput
+              << " events=" << windowEvents << "/" << probeEvents << "/" << levelEvents
+              << " levelBps=" << levelGoodput
+              << " chainStep=" << static_cast<unsigned>(mGateChainStep)
+              << " overridden=" << goodputOverridden
+              << " wasProbing=" << wasProbing << " gainX=" << gainMultiplier
+              << " reqPct=" << requiredGainPct
+              << " elapsedDs=" << elapsedDs;
 
-    // Advance the measurement window (nextAdjustDs = the retreat cooldown, else one window).
+    // Advance the measurement window (STRICTLY uniform: always +W) and reset the tick samples.
     mGateLastSampleDs = now;
     mGateLastSampleBytes = mConfirmedBytesTotal;
-    mGateNextAdjustDs = nextAdjustDs;
+    mGateLastSampleEvents = mGateAckEvents;
+    mGateNextAdjustDs = now + windowDs;
+    mGateBpTicks = 0;
+    mGateBpQuorumTicks = 0;
 }
 
 void WsPool::poolWorkerThread(WsPoolThread* th)
@@ -1423,8 +1686,8 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 // Repeated handshake failures for an active upload must eventually transition
                 // through Transfer::failed/backoff instead of looping forever in reconnect.
-                // Use a dedicated, shorter window here (fix #4b) rather than reusing UPLOADTIMEOUT
-                // (which keeps its chunk-phase semantics elsewhere): a pure-handshake-failure loop
+                // Use a dedicated, shorter window here (fix #4b; the never-enforced UPLOADTIMEOUT
+                // constant was retired in fu8 S8): a pure-handshake-failure loop
                 // now surfaces onFail in <=60s instead of 180s. HANDSHAKEFAILTIMEOUT (60s) is the
                 // default; runtime-overridable (ms) via MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS through
                 // Impl::handshakeFailWindowDs() -- kept coupled to the per-attempt handshake

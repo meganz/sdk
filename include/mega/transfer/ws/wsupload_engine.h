@@ -91,6 +91,16 @@ bool wsDatasetConnGateEnvDefault(); // MEGA_WS_DATASET_CONN_GATE -> mDatasetConn
 unsigned wsGateWindowMsEnvDefault(); // MEGA_WS_GATE_WINDOW_MS -> mGateWindowMs (default 1000)
 unsigned wsGateGainPctEnvDefault(); // MEGA_WS_GATE_GAIN_PCT -> mGateGainPct (default 5)
 unsigned char wsGateStepEnvDefault(); // MEGA_WS_GATE_STEP -> mGateStep (default 1)
+// QCT-K gate v2 tunables (SDK-5360 fu8 S8). Same read-once function-local-static pattern; all
+// clamp to sane ranges in the parser. Inert when the gate is off (controller never runs).
+unsigned wsGateBpQuorumPctEnvDefault(); // MEGA_WS_GATE_BP_QUORUM_PCT -> mGateBpQuorumPct (default 50)
+unsigned wsGateEngageWindowsEnvDefault(); // MEGA_WS_GATE_ENGAGE_WINDOWS -> mGateEngageWindows (default 2)
+unsigned wsGateProbeWindowsEnvDefault(); // MEGA_WS_GATE_PROBE_WINDOWS -> mGateProbeWindows (default 2)
+unsigned wsGateRetreatMaxWindowsEnvDefault(); // MEGA_WS_GATE_RETREAT_MAX_WINDOWS -> mGateRetreatMaxWindows (default 300)
+unsigned wsGateTrimWindowsEnvDefault(); // MEGA_WS_GATE_TRIM_WINDOWS -> mGateTrimWindows (default 10; 0=off)
+unsigned wsGateMinEventsEnvDefault(); // MEGA_WS_GATE_MIN_EVENTS -> mGateMinEvents (default 8, clamp [1,64])
+unsigned char wsGateCeilingMultEnvDefault(); // MEGA_WS_GATE_CEILING_MULT -> mGateCeilingMult (default 4; 0=off)
+unsigned wsConnTelemetryMsEnvDefault(); // MEGA_WS_CONN_TELEMETRY_MS -> mConnTelemetryMs (default 10000; 0=off)
 dstime wsAckStallTimeoutDsEnvDefault(); // MEGA_WS_ACKSTALL_TIMEOUT_MS (ms->ds) -> mAckStallTimeoutDsOverride (0=use ACKSTALLTIMEOUT)
 bool wsAckStallWatchdogEnvDefault(); // MEGA_WS_ACKSTALL_WATCHDOG -> mAckStallWatchdog (ANDed with mLossRecovery)
 long wsHandshakeTimeoutMsEnvDefault(); // MEGA_WS_HANDSHAKE_TIMEOUT_MS -> mHandshakeTimeoutMsOverride (0=use constants)
@@ -142,6 +152,15 @@ public:
         mGateWindowMs = wsGateWindowMsEnvDefault();
         mGateGainPct = wsGateGainPctEnvDefault();
         mGateStep = wsGateStepEnvDefault();
+        // QCT-K gate v2 tunables (const-after-init; inert when the gate is off).
+        mGateBpQuorumPct = wsGateBpQuorumPctEnvDefault();
+        mGateEngageWindows = wsGateEngageWindowsEnvDefault();
+        mGateProbeWindows = wsGateProbeWindowsEnvDefault();
+        mGateRetreatMaxWindows = wsGateRetreatMaxWindowsEnvDefault();
+        mGateTrimWindows = wsGateTrimWindowsEnvDefault();
+        mGateMinEvents = wsGateMinEventsEnvDefault();
+        mGateCeilingMult = wsGateCeilingMultEnvDefault();
+        mConnTelemetryMs = wsConnTelemetryMsEnvDefault();
         // Ack-stall watchdog (fu8 S6). ANDed with mLossRecovery so the master kill reproduces
         // full pre-fix behavior; independently toggleable via MEGA_WS_ACKSTALL_WATCHDOG for the
         // Goal-2d watchdog-off vs -on A/B. Timeout override is const-after-init.
@@ -274,6 +293,15 @@ public:
     dstime gateWindowDs() const
     {
         const dstime ds = msToDs(static_cast<std::int64_t>(mGateWindowMs));
+        return ds > 0 ? ds : 1;
+    }
+
+    // [WsConnTelemetry] pacing period in deciseconds (MEGA_WS_CONN_TELEMETRY_MS / 100, floored at
+    // 1ds). Caller checks mConnTelemetryMs != 0 to honour 0=off before using this. Consumed by
+    // WsPoolMgr::checkPools to emit the per-pool conn-trajectory line on BOTH gate states.
+    dstime connTelemetryDs() const
+    {
+        const dstime ds = msToDs(static_cast<std::int64_t>(mConnTelemetryMs));
         return ds > 0 ? ds : 1;
     }
 
@@ -476,6 +504,44 @@ public:
     // mGateStep (env MEGA_WS_GATE_STEP, default 1): connections added/removed per ramp probe
     // (a pure +1/-1 hill-climb by default). Const-after-init.
     unsigned char mGateStep{1};
+    // ---- QCT-K gate v2 tunables (SDK-5360 fu8 S8). All const-after-init, NOT ANDed with
+    // mLossRecovery (they are numeric tunables inert when the gate is off). Consumed by
+    // WsPool::runGoodputGateLocked. See docs/../BENCHMARKS.md for the knob table + the "≈gate-v1"
+    // bisection recipe.
+    // mGateBpQuorumPct (env MEGA_WS_GATE_BP_QUORUM_PCT, default 50, clamp [1,100]): the % of OPEN
+    // conns that must be backpressured at a ~2 Hz tick for that tick to count as quorum-true.
+    // 100 approximates the S7 all-conns predicate; floor 1 (0 refused — it would let MassNotify
+    // engage).
+    unsigned mGateBpQuorumPct{50};
+    // mGateEngageWindows (env MEGA_WS_GATE_ENGAGE_WINDOWS, default 2, clamp [1,60]): consecutive
+    // quorum-true windows required to engage the first widen from base (anti-stampede debounce).
+    unsigned mGateEngageWindows{2};
+    // mGateProbeWindows (env MEGA_WS_GATE_PROBE_WINDOWS, default 2, clamp [1,10]): the probe
+    // measurement horizon (goodput averaged over it; 1 restores S7 single-window judging).
+    unsigned mGateProbeWindows{2};
+    // mGateRetreatMaxWindows (env MEGA_WS_GATE_RETREAT_MAX_WINDOWS, default 300, clamp [5,3000]):
+    // cap for the exponential failed-probe backoff (base 5 windows == S7's retreat cooldown).
+    unsigned mGateRetreatMaxWindows{300};
+    // mGateTrimWindows (env MEGA_WS_GATE_TRIM_WINDOWS, default 10, clamp [0,255]): consecutive
+    // quorum-false windows before each halving trim toward base; 0 = trim off (S7 never-shrink).
+    // Capped at 255 (not the table's 600) because the debounce counter mGateNoBpWindows is a
+    // uint8_t — 255 windows is far beyond the 10-window default. See BENCHMARKS.md.
+    unsigned mGateTrimWindows{10};
+    // mGateMinEvents (env MEGA_WS_GATE_MIN_EVENTS, default 8, clamp [1,64], amendment A1):
+    // minimum server-confirm EVENTS a probe horizon must contain before the gain judge rules
+    // (auto-extends the horizon on slow links, hard-capped at 10 windows -> insufficient
+    // evidence FAILS the probe). Kills the lumpy-ack noise that chain-confirmed probes against
+    // zero baselines on capped links (S8 cleanNet8m smoke: climb to 28 on 0-loss).
+    unsigned mGateMinEvents{8};
+    // mGateCeilingMult (env MEGA_WS_GATE_CEILING_MULT, default 4, clamp [0,32]): effective ceiling
+    // = min(ceilingIn, base*mult), applied IN-GATE so the GATE=0 jump-to-K path stays byte-
+    // identical on every platform. Desktop 8*4=32 (no change); mobile 3*4=12. 0 = disable (use
+    // ceilingIn as-is). An explicit MEGA_WS_DATASET_CONN_LIMIT does NOT bypass this (orthogonal).
+    unsigned char mGateCeilingMult{4};
+    // mConnTelemetryMs (env MEGA_WS_CONN_TELEMETRY_MS, default 10000, 0=off): period of the
+    // [WsConnTelemetry] per-pool conn-trajectory line emitted in WsPoolMgr::checkPools on BOTH
+    // gate states (so the GATE=0/K32 A/B arm and guardrail-killed runs are finally scorable).
+    unsigned mConnTelemetryMs{10000};
     // mAckStallWatchdog (env MEGA_WS_ACKSTALL_WATCHDOG, default ON): gates the ack-stall
     // watchdog in WsPoolMgr::checkPools that force-reconnects a silently-hung OPEN conn
     // (SDK-5360 fu8 Session 6 — server acks stale past ACKSTALLTIMEOUT while chunks in-flight).

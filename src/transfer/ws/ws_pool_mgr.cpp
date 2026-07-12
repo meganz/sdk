@@ -252,10 +252,12 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                                  pool->mNumChunksInFlight || !pool->mToResend.empty();
         const bool pinnedHasReference = pool->mPinned && pinnedPoolHasReference(*pool, impl);
         const bool shouldScaleUp = !pool->mRetiring && (hasPoolWork || pinnedHasReference);
-        // Loss-gated connection-count bump: returns impl.poolConnectionLimit() on a clean
-        // network (mLossObserved false) -> byte-identical scale-up; widens a lone-small-
-        // file pool toward kLossBoostedConnLimit, or a DATASET pool toward the dataset limit
-        // (A24), only after that pool has observed loss.
+        // Connection-count ceiling: a DATASET pool (>= 2 bound files, sticky across dispatcher
+        // trickle-feed flaps via mDatasetSeen) gets the dataset limit unconditionally (the WS
+        // engine cannot see TCP-absorbed loss, so that bump is NOT loss-gated); a lone-small-
+        // file pool widens toward kLossBoostedConnLimit only after observing a REAL drop
+        // (mLossObserved). Clean single-file pools return poolConnectionLimit() -> byte-
+        // identical scale-up.
         unsigned char targetConnLimit = pool->lossBoostedConnLimitLocked(impl);
 
         // Global concurrency ceiling (A24): bound the SUM of boosted connections across pools
@@ -286,31 +288,59 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
         pool->recordWsUploadStatsSampleLocked(impl);
 #endif
 
-        // Scale-up: goodput-saturation GATE (SDK-5360) or the pre-gate unconditional jump.
-        // targetConnLimit is the CEILING (base pool limit max'd with any active boost, already
-        // global-ceiling-clamped above). Two regimes:
-        //   * No boost active (targetConnLimit == poolConnectionLimit()) OR the gate is OFF
-        //     (MEGA_WS_DATASET_CONN_GATE=0): JUMP straight to targetConnLimit -- byte-identical
-        //     to the pre-gate scale-up (the normal cold-start rise to the base default, and
-        //     today's unconditional dataset bump when the gate is off).
-        //   * Boost active AND gate ON: run the goodput-gated RAMP. It hill-climbs from the base
-        //     limit toward the ceiling only while aggregate confirmed-byte goodput keeps rising
-        //     under full backpressure, and actively steps back down when an added flow does not
-        //     help -- so clean links stay at the low default and only loss-limited datasets
-        //     widen. The pool is first brought to the base default un-ramped (the ramp governs
-        //     ONLY the boost region above poolConnectionLimit(); the base rise stays immediate).
-        if (shouldScaleUp && pool->mNumberOfConnections < targetConnLimit)
+        // [WsConnTelemetry] (SDK-5360 fu8 S8, Goal-0 gap #3): periodic per-pool conn-trajectory
+        // line, OUTSIDE the gate branch so it emits on BOTH gate states -- the S7 GATE=0/K32
+        // bench arm was unobservable (no [GoodputGate] lines and the 30-min guardrail kill
+        // skipped the teardown stats), so its conn count was pure inference. Guarded to pools
+        // with work so idle pools do not spam the trace; 0 = off.
+        if (impl.mConnTelemetryMs &&
+            (pool->mNumPoolFiles || pool->mNumChunksInFlight || pool->mUploadingFile) &&
+            SteadyTime::difference(impl.currentTime, pool->mGateTelemetryNextDs) >= 0)
+        {
+            unsigned tOpen = 0;
+            unsigned tBp = 0;
+            pool->countOpenAndBackpressuredLocked(tOpen, tBp);
+            LOG_debug << "[WsConnTelemetry] pool=" << static_cast<const void*>(pool)
+                      << " files=" << pool->mNumPoolFiles
+                      << " gate=" << (impl.mDatasetConnGate ? 1 : 0)
+                      << " conns=" << static_cast<unsigned>(pool->mNumberOfConnections)
+                      << " open=" << tOpen << " bp=" << tBp
+                      << " inflight=" << pool->mNumChunksInFlight
+                      << " resend=" << pool->mToResend.size()
+                      << " confirmedBytes=" << pool->mConfirmedBytesTotal;
+            pool->mGateTelemetryNextDs = impl.currentTime + impl.connTelemetryDs();
+        }
+
+        // Scale-up: goodput-saturation GATE v2 (SDK-5360 QCT-K) or the pre-gate unconditional
+        // jump. targetConnLimit is the CEILING (base pool limit max'd with any active boost,
+        // already global-ceiling-clamped above). Two regimes:
+        //   * Gate OFF (MEGA_WS_DATASET_CONN_GATE=0) OR no boost and not above base: JUMP
+        //     straight to targetConnLimit -- byte-identical to the pre-gate scale-up (the normal
+        //     cold-start rise to the base default, and the unconditional dataset bump when the
+        //     gate is off).
+        //   * Gate ON AND (boost active OR the pool is parked ABOVE base): run the QCT-K
+        //     controller. The above-base arm is the S8 FLAW-1 fix -- without it a pool at the
+        //     ceiling (the bad-net steady state) or one whose boost lapsed was never revisited,
+        //     so "then trim" was unreachable and extra conns stranded until pool retirement. The
+        //     ceiling passed in is floored at the live count so a lapsed boost cannot present a
+        //     degenerate ceiling below the current level. The pool is first brought to the base
+        //     default un-ramped (the controller governs ONLY the region above the base; the base
+        //     rise stays immediate).
+        if (shouldScaleUp)
         {
             const bool boostActive = (targetConnLimit > impl.poolConnectionLimit());
-            if (impl.mDatasetConnGate && boostActive)
+            const bool aboveBase = (pool->mNumberOfConnections > impl.poolConnectionLimit());
+            if (impl.mDatasetConnGate && (boostActive || aboveBase))
             {
                 if (pool->mNumberOfConnections < impl.poolConnectionLimit())
                 {
                     pool->setPoolNumConn(impl.poolConnectionLimit());
                 }
-                pool->runGoodputGateLocked(impl, targetConnLimit);
+                pool->runGoodputGateLocked(
+                    impl,
+                    std::max<unsigned char>(targetConnLimit, pool->mNumberOfConnections));
             }
-            else
+            else if (pool->mNumberOfConnections < targetConnLimit)
             {
                 pool->setPoolNumConn(targetConnLimit);
             }

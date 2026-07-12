@@ -590,6 +590,22 @@ namespace mega {
         // Used by SdkWsUploadTest.OverquotaDuringTransfer to deterministically exercise
         // the WS-channel OVERQUOTA path without depending on staging quota state.
         std::function<bool(int /*transferTag*/)> onWsChunkSendOverquota;
+        // Goodput-saturation gate v2 (SDK-5360 QCT-K) controller-input seams. Both fire on the
+        // WS engine thread under uploadMutex, inside WsPool::runGoodputGateLocked, so a test can
+        // drive the ramp controller with a deterministic synthetic signal while the REAL send
+        // path keeps flowing (the hooks override only the controller's VIEW, not the wire):
+        //  - onWsGateBackpressureSample: per-tick backpressure sampler (step A). `open` is the
+        //    live OPEN-conn count; the test writes `bp` (the backpressured count) to forge a
+        //    quorum (e.g. bp=open => 100 %) independent of worker send-buffer timing.
+        //  - onWsGateGoodputSample: goodput judge (window baseline + probe horizon). The test
+        //    writes `bps` from a synthetic conns->goodput curve to prove the gain-judged stop
+        //    below the ceiling and the knee retreat without depending on real link behaviour.
+        // `pool` is an opaque WsPool identity token (const void*), matching the controller's
+        // HR23 discipline — the hooks never dereference pool state, so no full type is needed.
+        std::function<void(const void* /*pool*/, unsigned /*open*/, unsigned& /*bp*/)>
+            onWsGateBackpressureSample;
+        std::function<void(const void* /*pool*/, unsigned /*conns*/, double& /*bps*/)>
+            onWsGateGoodputSample;
         // WsUploadServerEventHook has its own internal mutex and its own locked move
         // ctor/op=; the outer mMutex keeps the enclosing struct move atomic, and the
         // sub-object's mutex keeps its fields safe for evaluate() from any thread.
@@ -656,6 +672,8 @@ namespace mega {
             onWsAckStallForceReconnect = std::move(other.onWsAckStallForceReconnect);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
+            onWsGateBackpressureSample = std::move(other.onWsGateBackpressureSample);
+            onWsGateGoodputSample = std::move(other.onWsGateGoodputSample);
             // WsUploadServerEventHook already has its own locked move-assign.
             wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
             // WsSendFaultHook likewise has its own locked move-assign.
@@ -968,6 +986,36 @@ namespace mega {
         if (_fn) (OUT_INJECT_OVERQUOTA) = _fn((TAG)); \
     } while (0)
 
+// Goodput-gate v2 controller-input seams (SDK-5360 QCT-K). Copy-under-lock / invoke-outside-
+// lock like every other hook; the callbacks only write their out-params, so they cannot
+// re-enter uploadMutex. POOLPTR is passed as a const void* identity token.
+#define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP) \
+    do { \
+        std::function<void(const void*, unsigned, unsigned&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsGateBackpressureSample; \
+        } \
+        if (_fn) _fn((POOLPTR), (OPEN), (BP)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_WS_GATE_GOODPUT(POOLPTR, CONNS, BPS, OUT_OVERRIDDEN) \
+    do { \
+        std::function<void(const void*, unsigned, double&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsGateGoodputSample; \
+        } \
+        if (_fn) \
+        { \
+            _fn((POOLPTR), (CONNS), (BPS)); \
+            /* A synthetic goodput signal IS the evidence: the controller's min-event \
+               sufficiency checks are bypassed so hook-driven tests stay deterministic \
+               and time-bounded (real acks at a test throttle are minutes apart). */ \
+            (OUT_OVERRIDDEN) = true; \
+        } \
+    } while (0)
+
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     do { \
         std::function<void(bool&)> _fn; \
@@ -1058,6 +1106,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
+#define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP)
+#define DEBUG_TEST_HOOK_WS_GATE_GOODPUT(POOLPTR, CONNS, BPS, OUT_OVERRIDDEN)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED
