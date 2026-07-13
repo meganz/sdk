@@ -29,13 +29,16 @@
 
 #include <curl/curl.h>
 
+#include <chrono>
 #include <cstring>
 #include <future>
+#include <iostream>
 #include <map>
 #include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 
 using namespace ::mega;
 using namespace ::std;
@@ -1425,6 +1428,184 @@ TEST_F(SdkHttpServerTest, FolderWithFiles)
     // HEAD request
     auto headResponse = HttpClient::head(url);
     EXPECT_EQ(200, headResponse.statusCode);
+}
+
+/**
+ * Test that node names containing HTML special characters are escaped in the
+ * directory listing, so the generated HTML stays well-formed.
+ */
+TEST_F(SdkHttpServerTest, FolderListingEscapesNodeNames)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    MegaApi* api = megaApi[0].get();
+
+    // Parent folder that will be served and listed
+    auto folderNode = createFolder(0, "test_http_folder_escaping");
+    ASSERT_NE(folderNode, nullptr);
+
+    // Child folder whose name contains HTML special characters. Node names accept
+    // arbitrary UTF-8 (including < > " &), so the name reaches the listing unchanged.
+    const std::string markupFolderName = "<folder-name>";
+    auto childFolder = createFolder(0, markupFolderName, folderNode.get());
+    ASSERT_NE(childFolder, nullptr);
+    ASSERT_STREQ(markupFolderName.c_str(), childFolder->getName());
+
+#ifndef _WIN32
+    // On native Unix filesystems < and > are usually valid in file names, so a file
+    // (not only a folder) can carry these characters in its cloud name and appear in
+    // the listing. They are not valid in file names on Windows, hence the guard.
+    const std::string markupFileName = "<file-name>.txt";
+    auto childFile = uploadFile(0, markupFileName, "content", folderNode.get());
+    ASSERT_NE(childFile, nullptr);
+    ASSERT_STREQ(markupFileName.c_str(), childFile->getName());
+#endif
+
+    api->httpServerEnableFolderServer(true);
+    ASSERT_TRUE(api->httpServerIsFolderServerEnabled());
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    std::unique_ptr<char[]> link(api->httpServerGetLocalLink(folderNode.get()));
+    ASSERT_NE(link, nullptr);
+    std::string url = link.get();
+
+    auto response = HttpClient::get(url);
+    EXPECT_EQ(200, response.statusCode);
+
+    // The raw characters must not appear verbatim: they must be escaped instead.
+    EXPECT_EQ(response.body.find("<folder-name"), std::string::npos)
+        << "Folder name was not escaped in directory listing. Body: " << response.body;
+    EXPECT_NE(response.body.find("&lt;folder-name"), std::string::npos)
+        << "Escaped folder name not found in directory listing. Body: " << response.body;
+
+#ifndef _WIN32
+    // Same expectation for the file name.
+    EXPECT_EQ(response.body.find("<file-name"), std::string::npos)
+        << "File name was not escaped in directory listing. Body: " << response.body;
+    EXPECT_NE(response.body.find("&lt;file-name"), std::string::npos)
+        << "Escaped file name not found in directory listing. Body: " << response.body;
+#endif
+
+    // In relative-link mode (the default) the served folder name becomes the first
+    // segment of each child's href. That value must resolve as a relative path and
+    // must never be interpreted as a URI scheme, so it is emitted with a leading "./".
+    auto schemeFolder = createFolder(0, "javascript:void(0)");
+    ASSERT_NE(schemeFolder, nullptr);
+    ASSERT_NE(createFolder(0, "child", schemeFolder.get()), nullptr);
+
+    std::unique_ptr<char[]> schemeLink(api->httpServerGetLocalLink(schemeFolder.get()));
+    ASSERT_NE(schemeLink, nullptr);
+    auto schemeResponse = HttpClient::get(schemeLink.get());
+    EXPECT_EQ(200, schemeResponse.statusCode);
+    EXPECT_EQ(schemeResponse.body.find("href=\"javascript:"), std::string::npos)
+        << "Child href must be a relative path, not a URI scheme. Body: " << schemeResponse.body;
+}
+
+/**
+ * Manual inspection helper for the HTTP directory listing.
+ *
+ * DISABLED by default. Run explicitly with:
+ *   --gtest_also_run_disabled_tests
+ *   --gtest_filter='*ManualFolderListingInspection'
+ *
+ * Keeps the local HTTP server running so listing HTML and file downloads can be
+ * checked from a browser or curl.
+ */
+TEST_F(SdkHttpServerTest, DISABLED_ManualFolderListingInspection)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    MegaApi* api = megaApi[0].get();
+
+    auto root = createFolder(0, "manual_listing_check");
+    ASSERT_NE(root, nullptr);
+
+    const std::string markupFolderName = "<folder-name>";
+    auto markupFolder = createFolder(0, markupFolderName, root.get());
+    ASSERT_NE(markupFolder, nullptr);
+
+    auto schemeFolder = createFolder(0, "javascript:void(0)", root.get());
+    ASSERT_NE(schemeFolder, nullptr);
+    ASSERT_NE(createFolder(0, "child", schemeFolder.get()), nullptr);
+
+    const std::string downloadContent = "manual-download-ok\n";
+    auto downloadFile = uploadFile(0, "download-me.txt", downloadContent, root.get());
+    ASSERT_NE(downloadFile, nullptr);
+
+#ifndef _WIN32
+    const std::string markupFileName = "<file-name>.txt";
+    auto markupFile = uploadFile(0, markupFileName, "markup-file-content\n", root.get());
+    ASSERT_NE(markupFile, nullptr);
+#endif
+
+    api->httpServerEnableFolderServer(true);
+    api->httpServerEnableFileServer(true);
+    // Absolute /handle/name links in the listing, easier to click in a browser.
+    api->httpServerSetRestrictedMode(MegaApi::HTTP_SERVER_ALLOW_ALL);
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    const int port = api->httpServerIsRunning();
+    ASSERT_GT(port, 0);
+
+    auto localLink = [](MegaApi* megaApi, MegaNode* node) -> std::string
+    {
+        std::unique_ptr<char[]> link(megaApi->httpServerGetLocalLink(node));
+        return link ? std::string(link.get()) : std::string();
+    };
+
+    const std::string rootUrl = localLink(api, root.get());
+    const std::string markupFolderUrl = localLink(api, markupFolder.get());
+    const std::string schemeFolderUrl = localLink(api, schemeFolder.get());
+    const std::string downloadUrl = localLink(api, downloadFile.get());
+#ifndef _WIN32
+    const std::string markupFileUrl = localLink(api, markupFile.get());
+#endif
+    ASSERT_FALSE(rootUrl.empty());
+    ASSERT_FALSE(downloadUrl.empty());
+
+    constexpr int seconds = 900;
+
+    std::cout << "\n"
+              << "========== Manual HTTP listing inspection ==========\n"
+              << "Server port: " << port << "\n"
+              << "Restricted mode: HTTP_SERVER_ALLOW_ALL\n"
+              << "Open the listing URL in a browser, or use the curl commands below.\n"
+              << "Expect escaped names in HTML (&lt;...&gt;), working downloads,\n"
+              << "and child hrefs that do not start with a URI scheme.\n"
+              << "\n"
+              << "Listing (parent folder):\n"
+              << "  " << rootUrl << "\n"
+              << "  curl -sS '" << rootUrl << "'\n"
+              << "\n"
+              << "Markup folder listing:\n"
+              << "  " << markupFolderUrl << "\n"
+              << "\n"
+              << "Scheme-looking folder listing:\n"
+              << "  " << schemeFolderUrl << "\n"
+              << "\n"
+              << "Plain file download (expect body: manual-download-ok):\n"
+              << "  " << downloadUrl << "\n"
+              << "  curl -sS '" << downloadUrl << "'\n"
+#ifndef _WIN32
+              << "\n"
+              << "Markup-named file download (expect body: markup-file-content):\n"
+              << "  " << markupFileUrl << "\n"
+              << "  curl -sS '" << markupFileUrl << "'\n"
+#endif
+              << "\n"
+              << "Quick checks on the listing HTML:\n"
+              << "  curl -sS '" << rootUrl << "' | grep -F '&lt;folder-name'\n"
+              << "  curl -sS '" << rootUrl
+              << "' | grep -F 'href=\"javascript:'   # should find nothing\n"
+              << "\n"
+              << "Server stays up for " << seconds << " seconds. Ctrl+C to stop earlier.\n"
+              << "======================================================\n"
+              << std::flush;
+
+    std::this_thread::sleep_for(std::chrono::seconds(seconds));
 }
 
 TEST_F(SdkHttpServerLinkTest, LoginClientPublicFileLink)
