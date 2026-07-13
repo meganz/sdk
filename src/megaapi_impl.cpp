@@ -36100,15 +36100,15 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
 
     // Folder path
     web << "<span class=\"headerimage\"><span class=\"headertext\">";
-    char *path = httpctx->megaApi->getNodePath(node);
+    char* path = httpctx->megaApi->getNodePath(node);
     if (path)
     {
-        web << path;
-        delete [] path;
+        web << webdavnameescape(path);
+        delete[] path;
     }
     else
     {
-        web << node->getName();
+        web << webdavnameescape(node->getName());
     }
     web << "</span></span><br /><br />";
 
@@ -36117,14 +36117,14 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
     if (parent)
     {
         web << "<tr><td>";
-        char *base64Handle = parent->getBase64Handle();
+        char* base64Handle = parent->getBase64Handle();
         if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::TCP_SERVER_ALLOW_ALL)
         {
-            web << "<a href=\"/" << base64Handle << "/" << parent->getName();
+            web << "<a href=\"/" << base64Handle << "/" << webdavurlescape(parent->getName());
         }
         else
         {
-            web << "<a href=\"" << "../" << parent->getName();
+            web << "<a href=\"" << "../" << webdavurlescape(parent->getName());
         }
 
         web << "\"><span class=\"folder\"></span><span class=\"text\">..</span></a>";
@@ -36136,19 +36136,21 @@ string MegaHTTPServer::getResponseForNode(MegaNode *node, MegaHTTPContext* httpc
     for (int i = 0; i < children->size(); i++)
     {
         web << "<tr><td>";
-        MegaNode *child = children->get(i);
-        char *base64Handle = child->getBase64Handle();
+        MegaNode* child = children->get(i);
+        char* base64Handle = child->getBase64Handle();
         if (httpctx->megaApi->httpServerGetRestrictedMode() == MegaApi::TCP_SERVER_ALLOW_ALL)
         {
-            web << "<a href=\"/" << base64Handle << "/" << child->getName();
+            web << "<a href=\"/" << base64Handle << "/" << webdavurlescape(child->getName());
         }
         else
         {
-            web << "<a href=\"" << node->getName() << "/" << child->getName();
+            web << "<a href=\"./" << webdavurlescape(node->getName()) << "/"
+                << webdavurlescape(child->getName());
         }
-        web << "\"><span class=\"" << (child->isFile() ? "file" : "folder") << "\"></span><span class=\"text\">"
-            << child->getName() << "</span></a>";
-        delete [] base64Handle;
+        web << "\"><span class=\"" << (child->isFile() ? "file" : "folder")
+            << "\"></span><span class=\"text\">" << webdavnameescape(child->getName())
+            << "</span></a>";
+        delete[] base64Handle;
 
         if (!child->isFile())
         {
