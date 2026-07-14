@@ -662,64 +662,104 @@ bool JSON::leaveobject()
     return false;
 }
 
-// unescape JSON string (non-strict)
 void JSON::unescape(string* s)
 {
-    char c;
-    int l;
+    auto ishex = [](char c) -> bool
+    {
+        return (c >= '0' && c <= '9') || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
+    };
+
+    // Encode a BMP code point (0..0xFFFF) as UTF-8. Returns the number of bytes written.
+    auto utf8encode = [](unsigned cp, char* out) -> unsigned
+    {
+        if (cp < 0x80)
+        {
+            out[0] = static_cast<char>(cp);
+            return 1;
+        }
+
+        if (cp < 0x800)
+        {
+            out[0] = static_cast<char>(0xC0 | (cp >> 6));
+            out[1] = static_cast<char>(0x80 | (cp & 0x3F));
+            return 2;
+        }
+
+        out[0] = static_cast<char>(0xE0 | (cp >> 12));
+        out[1] = static_cast<char>(0x80 | ((cp >> 6) & 0x3F));
+        out[2] = static_cast<char>(0x80 | (cp & 0x3F));
+        return 3;
+    };
 
     for (unsigned i = 0; i + 1 < s->size(); i++)
     {
-        if ((*s)[i] == '\\')
+        if ((*s)[i] != '\\')
         {
-            switch ((*s)[i + 1])
-            {
-                case 'n':
-                    c = '\n';
-                    l = 2;
-                    break;
-
-                case 'r':
-                    c = '\r';
-                    l = 2;
-                    break;
-
-                case 'b':
-                    c = '\b';
-                    l = 2;
-                    break;
-
-                case 'f':
-                    c = '\f';
-                    l = 2;
-                    break;
-
-                case 't':
-                    c = '\t';
-                    l = 2;
-                    break;
-
-                case '\\':
-                    c = '\\';
-                    l = 2;
-                    break;
-
-                case 'u':
-                    c = static_cast<char>((hexval((*s)[i + 4]) << 4) | hexval((*s)[i + 5]));
-                    l = 6;
-                    break;
-
-                default:
-                    c = (*s)[i + 1];
-                    l = 2;
-            }
-
-            s->replace(i, static_cast<size_t>(l), &c, 1);
+            continue;
         }
+
+        char repl[3];
+        unsigned rlen = 1; // number of decoded bytes to write from repl
+        int l = 2; // length of the source escape sequence being replaced
+
+        switch ((*s)[i + 1])
+        {
+            case 'n':
+                repl[0] = '\n';
+                break;
+
+            case 'r':
+                repl[0] = '\r';
+                break;
+
+            case 'b':
+                repl[0] = '\b';
+                break;
+
+            case 'f':
+                repl[0] = '\f';
+                break;
+
+            case 't':
+                repl[0] = '\t';
+                break;
+
+            case '\\':
+                repl[0] = '\\';
+                break;
+
+            case 'u':
+                // A "\uXXXX" sequence requires four hex digits at i+2..i+5. Only
+                // decode when they are all present and valid, otherwise the reads
+                // would run past the end of the string (out-of-bounds). Malformed
+                // input degrades to the literal 'u', consistent with default below.
+                if (i + 5 < s->size() && ishex((*s)[i + 2]) && ishex((*s)[i + 3]) &&
+                    ishex((*s)[i + 4]) && ishex((*s)[i + 5]))
+                {
+                    auto cp = static_cast<unsigned>(
+                        (hexval((*s)[i + 2]) << 12) | (hexval((*s)[i + 3]) << 8) |
+                        (hexval((*s)[i + 4]) << 4) | hexval((*s)[i + 5]));
+                    rlen = utf8encode(cp, repl);
+                    l = 6;
+                }
+                else
+                {
+                    repl[0] = 'u';
+                }
+                break;
+
+            default:
+                repl[0] = (*s)[i + 1];
+        }
+
+        s->replace(i, static_cast<size_t>(l), repl, rlen);
+
+        // Skip past the bytes just written so decoded output is not re-scanned.
+        i += rlen - 1;
     }
 }
 
-bool JSON::extractstringvalue(const string &json, const string &name, string *value)
+bool JSON::extractstringvalue(const string& json, const string& name, string* value)
 {
     string pattern = name + "\":\"";
     size_t pos = json.find(pattern);

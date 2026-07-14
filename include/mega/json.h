@@ -90,6 +90,17 @@ public:
     bool storeobject(string* = NULL);
     bool skipnullvalue();
 
+    /**
+     * @brief Unescape a JSON string in place (non-strict).
+     *
+     * Recognised escapes: \n \r \b \f \t \\ and \uXXXX; any other \X keeps X.
+     * \uXXXX is decoded from all four hex digits into a Unicode BMP code point and
+     * re-encoded as UTF-8 (1 to 3 bytes). This differs from emitting a single raw
+     * byte. A malformed \u (fewer than four hex digits, or a non-hex digit) degrades
+     * to a literal 'u'. UTF-16 surrogate code units are encoded individually and are
+     * not combined, so a surrogate pair does not yield a single 4-byte code point
+     * (e.g. \uD83D\uDE00 is two 3-byte sequences, not UTF-8 F0 9F 98 80 for 😀).
+     */
     static void unescape(string*);
 
     /**
