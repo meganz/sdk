@@ -31,6 +31,7 @@ target_sources(test_unit
     MediaProperties_test.cpp
     MegaApi_test.cpp
     NodesMatchedByFsid_test.cpp
+    JSON_test.cpp
     JSONNumericParsers_test.cpp
     name_collision_test.cpp
     PayCrypter_test.cpp
