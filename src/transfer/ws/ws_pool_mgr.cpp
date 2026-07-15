@@ -416,6 +416,75 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                 }
             }
         }
+
+        // Tail-completion watchdog (SDK-5360 fu8 Session 9). Companion to the ack-stall guard
+        // for the state it structurally cannot see: a file whose bytes are ALL server-confirmed
+        // but whose one-shot completion frame (upload token) was lost — the pool then idles at
+        // files>=1 / inflight=0 / resend=0 forever (S9 P6 evidence: 55-min wedge after a
+        // transient endpoint handshake outage; no conn holds in-flight chunks, so the ack-stall
+        // loop above never fires). Detect persistence past tailCompletionTimeoutDs() and fail
+        // the file for retry through the SAME recovery the sustained-handshake escalation uses
+        // (purge + markFailedForRetry + onFail(API_EAGAIN, Retryable)); the retry re-uploads
+        // and re-fetches a completion. Gated by mAckStallWatchdog so watchdog-off A/B arms
+        // (MEGA_WS_ACKSTALL_WATCHDOG=0, e.g. the K32 comparability arm) stay byte-identical.
+        // Runs under uploadMutex (checkPools contract), matching every touched field's lock
+        // discipline. Skips retiring pools (file migrates with the refresh) and active
+        // server-throttle windows (completion may legitimately be deferred there).
+        if (impl.mAckStallWatchdog && !pool->mRetiring && !pool->throttledByServer() &&
+            pool->mNumChunksInFlight == 0 && pool->mToResend.empty())
+        {
+            WsUploadFile* wedged = nullptr;
+            for (const auto& kv: impl.fileByNo)
+            {
+                WsUploadFile* const f = kv.second;
+                if (f && f->mPool == pool && !f->paused() && f->completionWedgeCandidateLocked())
+                {
+                    wedged = f;
+                    break;
+                }
+            }
+            if (!wedged)
+            {
+                pool->mTailWedgeFileno = 0;
+                pool->mTailWedgeSinceDs = 0;
+            }
+            else if (pool->mTailWedgeFileno != wedged->fileno())
+            {
+                pool->mTailWedgeFileno = wedged->fileno();
+                pool->mTailWedgeSinceDs = impl.currentTime;
+            }
+            else if (SteadyTime::difference(impl.currentTime, pool->mTailWedgeSinceDs) >
+                     impl.tailCompletionTimeoutDs())
+            {
+                LOG_warn << "[WsPoolMgr::checkPools] tail-completion wedge: file "
+                         << wedged->fileno() << " has all " << wedged->size()
+                         << " bytes server-confirmed but no completion for > "
+                         << impl.tailCompletionTimeoutDs()
+                         << "ds with an idle pool; failing for retry [pool = " << pool << "]";
+                const std::uint32_t fileno = wedged->fileno();
+                pool->purgeFileLocked(fileno);
+                wedged->markFailedForRetry(0);
+                wedged->unsetPool();
+                if (pool->mUploadingFile == wedged)
+                {
+                    pool->clearUploadingFileLocked();
+                }
+                pool->mUFTQversion = impl.queueVersion.load(std::memory_order_relaxed);
+                pool->mTailWedgeFileno = 0;
+                pool->mTailWedgeSinceDs = 0;
+                if (impl.mCb.onFail)
+                {
+                    impl.mCb.onFail(wedged->transfer(),
+                                    API_EAGAIN,
+                                    0,
+                                    UploadEngine::FailureDisposition::Retryable);
+                }
+                impl.notifyWorkersLocked();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(fileno, pool);
+#endif
+            }
+        }
     }
 
     // throughput display tick (server-acked)

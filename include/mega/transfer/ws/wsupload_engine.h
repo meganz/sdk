@@ -105,6 +105,7 @@ dstime wsAckStallTimeoutDsEnvDefault(); // MEGA_WS_ACKSTALL_TIMEOUT_MS (ms->ds) 
 bool wsAckStallWatchdogEnvDefault(); // MEGA_WS_ACKSTALL_WATCHDOG -> mAckStallWatchdog (ANDed with mLossRecovery)
 long wsHandshakeTimeoutMsEnvDefault(); // MEGA_WS_HANDSHAKE_TIMEOUT_MS -> mHandshakeTimeoutMsOverride (0=use constants)
 dstime wsHandshakeFailWindowDsEnvDefault(); // MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS (ms->ds) -> mHandshakeFailWindowDsOverride (0=use HANDSHAKEFAILTIMEOUT)
+dstime wsTailCompletionTimeoutDsEnvDefault(); // MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS (ms->ds) -> mTailCompletionTimeoutDsOverride (0=use TAILCOMPLETIONTIMEOUT)
 // Small-file cold-start (candidate 3c). INDEPENDENT of the MEGA_WS_LOSS_RECOVERY master:
 // it is a small-file overhead concern, not loss-recovery, so it is NOT ANDed with
 // mLossRecovery in the ctor. Default ON; only an explicit "0" disables.
@@ -173,6 +174,7 @@ public:
         // MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS or one attempt blows the whole failure budget.
         mHandshakeTimeoutMsOverride = wsHandshakeTimeoutMsEnvDefault();
         mHandshakeFailWindowDsOverride = wsHandshakeFailWindowDsEnvDefault();
+        mTailCompletionTimeoutDsOverride = wsTailCompletionTimeoutDsEnvDefault();
         // Small-file cold-start (candidate 3c). INDEPENDENT of mLossRecovery (small-file
         // concern, not loss-recovery), so it is NOT ANDed with the master kill-switch.
         mSmallFileColdStart = wsSmallFileColdStartEnvDefault();
@@ -346,6 +348,15 @@ public:
     {
         return mHandshakeFailWindowDsOverride > 0 ? mHandshakeFailWindowDsOverride
                                                   : WsPool::HANDSHAKEFAILTIMEOUT;
+    }
+
+    // Effective tail-completion watchdog window (fu8 S9): the runtime override
+    // (MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS, already converted to ds) when set, else the
+    // compile-time WsPool::TAILCOMPLETIONTIMEOUT (60s). Consumed by WsPoolMgr::checkPools.
+    dstime tailCompletionTimeoutDs() const
+    {
+        return mTailCompletionTimeoutDsOverride > 0 ? mTailCompletionTimeoutDsOverride
+                                                    : WsPool::TAILCOMPLETIONTIMEOUT;
     }
 
     void setMaxConnections(const unsigned char maxConnections);
@@ -563,6 +574,12 @@ public:
     // to mHandshakeTimeoutMsOverride (the per-attempt timeout must stay under the window). Const-
     // after-init; consumed via handshakeFailWindowDs(). NOT ANDed with mLossRecovery.
     dstime mHandshakeFailWindowDsOverride{0};
+    // mTailCompletionTimeoutDsOverride (env MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS, default 0 = use
+    // WsPool::TAILCOMPLETIONTIMEOUT=60s): fu8 S9 runtime override (deciseconds; the env is ms)
+    // for the tail-completion watchdog window in WsPoolMgr::checkPools. Const-after-init;
+    // consumed via tailCompletionTimeoutDs(). NOT ANDed with mLossRecovery (a lost completion
+    // frame is a correctness wedge, not a loss-recovery optimisation).
+    dstime mTailCompletionTimeoutDsOverride{0};
     // mSmallFileColdStart (env MEGA_WS_SMALLFILE_COLDSTART, default ON): gates candidate
     // 3c (small-file cold-start cap=1) read in WsPool::coldStartHandshakeCapLocked()
     // (ws_pool.cpp). Same const-after-init / race-free discipline as the four flags above

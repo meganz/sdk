@@ -517,6 +517,7 @@ setenv inside a test is a silent no-op).
 | `MEGA_WS_GATE_TRIM_WINDOWS` | 10 | [0,255] | Consecutive quorum-false windows per halving trim toward base; 0 = trim off (S7 never-shrink). |
 | `MEGA_WS_GATE_CEILING_MULT` | 4 | [0,32] | Effective ceiling = min(ceiling, base x mult) IN-GATE (desktop 8x4=32 unchanged; mobile 3x4=12). 0 = off. GATE=0 jump path unaffected. |
 | `MEGA_WS_CONN_TELEMETRY_MS` | 10000 | 0=off | `[WsConnTelemetry]` per-pool conn-trajectory period, emitted on BOTH gate states (K32 arms + guardrail-killed runs stay scorable). |
+| `MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS` | 60000 | >0 (ms) | fu8 S9 tail-completion watchdog window: a file with ALL bytes server-confirmed but no completion frame for longer than this (idle pool: inflight=0, resend empty) is failed for retry (same recovery as the handshake escalation). Gated by `MEGA_WS_ACKSTALL_WATCHDOG` (watchdog-off A/B arms stay byte-identical). Isolated test cell `TailCompletionWatchdogRecoversDroppedCompletion` runs with 5000. |
 
 Pre-S8 knobs (`MEGA_WS_DATASET_CONN_GATE`, `MEGA_WS_GATE_WINDOW_MS`, `MEGA_WS_GATE_GAIN_PCT`,
 `MEGA_WS_GATE_STEP`) keep their exact semantics; `GATE=0` remains the byte-identical jump-to-K

@@ -874,6 +874,21 @@ struct ChunkResponse
                 break;
             }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            {
+                // Test seam (fu8 S9): simulate a lost one-shot completion frame — skip ALL
+                // completion processing so the file stays bytes-confirmed but completionless,
+                // the exact wedge the tail-completion watchdog recovers.
+                bool dropped = false;
+                DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(uf->fileno(), dropped);
+                if (dropped)
+                {
+                    LOG_warn << "WsUpload: TEST HOOK dropped completion frame for fileno "
+                             << uf->fileno();
+                    break;
+                }
+            }
+#endif
 #ifndef NDEBUG
             mPool->recordUploadCompletedLocked(response->fileno);
 #endif

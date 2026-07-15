@@ -5476,4 +5476,99 @@ TEST_F(SdkWsUploadTest, AckStallForceReconnectsHungConnection)
     }
 }
 
+/**
+ * @brief Tail-completion watchdog recovers a lost one-shot completion frame (SDK-5360 fu8 S9).
+ *
+ * The wedge (observed in S9 P6 after a transient endpoint handshake outage): a file's bytes are
+ * ALL server-confirmed but the completion frame (upload token) never arrives; the pool idles at
+ * files=1 / inflight=0 / resend=0 forever. The ack-stall watchdog cannot see it (no in-flight
+ * chunks) and completion frames are one-shot, so nothing recovers in-place.
+ *
+ * Repro: arm onWsUploadDropCompletion to swallow EXACTLY the first completion frame — the file
+ * is left bytes-confirmed but completionless (the exact wedge). The tail-completion watchdog in
+ * WsPoolMgr::checkPools must then fail the file for retry (observed via the dedicated
+ * onWsTailCompletionRecovery hook), the retry re-uploads, the second completion frame passes,
+ * and the upload finishes API_OK end-to-end.
+ *
+ * The runner should launch this cell isolated with a short window
+ * (MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS=5000), same discipline as the AckStall 5s-override cell;
+ * with the compile-time default (60s) the test still passes, just slowly.
+ */
+TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
+{
+    LOG_info << "___TEST SdkWsUploadTailCompletionWatchdogRecoversDroppedCompletion___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Effective watchdog window (read-once knob; the isolated cell sets 5000ms).
+    const char* tmo = getenv("MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS");
+    long tailMs = (tmo ? atol(tmo) : 60000);
+    if (tailMs <= 0)
+        tailMs = 60000;
+    // Budget: wedge persistence (tailMs) + retry backoff + full re-upload + completion, padded.
+    const int deadlineS = static_cast<int>(std::max<long>(4 * tailMs / 1000, 60) + 120);
+
+    const std::string fileName =
+        "ws_tailcompletion_watchdog_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = 8 * 1024 * 1024; // several WS chunks; single completion frame
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "T")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            globalMegaTestHooks.onWsUploadDropCompletion = nullptr;
+            globalMegaTestHooks.onWsTailCompletionRecovery = nullptr;
+        });
+
+    // Drop EXACTLY the first completion frame (compare-exchange keeps it one-shot even if
+    // completions for retries race), leaving the bytes-confirmed-but-completionless wedge.
+    std::atomic<int> dropped{0};
+    globalMegaTestHooks.onWsUploadDropCompletion = [&](std::uint32_t /*fileno*/)
+    {
+        int expected = 0;
+        return dropped.compare_exchange_strong(expected, 1);
+    };
+    // Unambiguous watchdog-recovery signal (fires only from checkPools' tail-completion branch).
+    std::atomic<int> recoveries{0};
+    globalMegaTestHooks.onWsTailCompletionRecovery =
+        [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
+    {
+        recoveries.fetch_add(1, std::memory_order_relaxed);
+    };
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    // End-to-end assertion: the upload must COMPLETE despite the dropped completion — the
+    // watchdog recovery (fail-for-retry -> re-upload -> second completion) is the only path.
+    const ErrorCodes res = ut.waitForResult(deadlineS);
+    const int droppedCount = dropped.load(std::memory_order_relaxed);
+    const int recoveryCount = recoveries.load(std::memory_order_relaxed);
+    LOG_info << "[TailCompletionWatchdog] tailMs=" << tailMs << " deadlineS=" << deadlineS
+             << " dropped=" << droppedCount << " recoveries=" << recoveryCount
+             << " result=" << res;
+
+    ASSERT_EQ(res, API_OK) << "upload did not complete after the dropped completion frame — "
+                              "tail-completion watchdog did not recover the wedge";
+    EXPECT_EQ(droppedCount, 1) << "the drop hook should have consumed exactly the first "
+                                  "completion frame; if 0 the repro did not engage";
+    EXPECT_GE(recoveryCount, 1)
+        << "expected the tail-completion watchdog to fire at least once (onWsTailCompletionRecovery)";
+}
+
 } // namespace mega::test::wsupload

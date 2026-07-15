@@ -456,6 +456,18 @@ struct WsPool
     // nominally implied but never enforced. Runtime-overridable (ms) via MEGA_WS_ACKSTALL_TIMEOUT_MS
     // through UploadEngine::Impl::ackStallTimeoutDs(); gated by MEGA_WS_ACKSTALL_WATCHDOG.
     static constexpr dstime ACKSTALLTIMEOUT = secondsToDs(45);
+    // Tail-completion watchdog window (SDK-5360 fu8 Session 9). A file whose bytes are fully
+    // server-confirmed but whose completion frame (upload token) never arrived sits bound to
+    // its pool with zero in-flight chunks forever: the ack-stall guard cannot see it
+    // (mChunksInFlight empty) and nothing re-sends (S9 evidence: pool files=1 inflight=0
+    // resend=0, confirmedBytes frozen 55 min after a transient endpoint handshake outage;
+    // completion frames are one-shot, so a lost frame is unrecoverable in-place). After this
+    // window of persistence WsPoolMgr::checkPools fails the file for retry through the same
+    // recovery the sustained-handshake escalation uses. 60s: well above any legitimate
+    // completion-delivery latency (same order as HANDSHAKEFAILTIMEOUT), well below the
+    // 600s-class harness/user visibility horizon. Runtime-overridable (ms) via
+    // MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS through UploadEngine::Impl::tailCompletionTimeoutDs().
+    static constexpr dstime TAILCOMPLETIONTIMEOUT = secondsToDs(60);
     // Max workers allowed to be handshaking at once, per pool (fix #2, de-convoy
     // Design C's C1). 2 keeps a warm spare in flight (a single slow handshake cannot
     // stall the pool) while bounding the client-thread handshake FIFO convoy to O(1)
@@ -528,6 +540,13 @@ struct WsPool
     int mNumPoolFiles{0};
     WsUploadFile* mUploadingFile{nullptr};
     std::uint32_t mUFTQversion{0};
+    // Tail-completion watchdog persistence tracking (fu8 S9). Written/read ONLY under
+    // mImpl->uploadMutex (same discipline as mNumChunksInFlight): checkPools stamps the first
+    // tick a bytes-complete-but-completionless file is observed on this pool and fires the
+    // recovery once the state persists past tailCompletionTimeoutDs(). Reset on state clear,
+    // on wedged-file change, and on fire.
+    std::uint32_t mTailWedgeFileno{0};
+    dstime mTailWedgeSinceDs{0};
     bool mPreflightPending{false};
 
     dstime mPoolCreationTime{SteadyTime::ds()};

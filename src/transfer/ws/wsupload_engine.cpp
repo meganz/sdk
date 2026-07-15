@@ -537,6 +537,29 @@ dstime wsHandshakeFailWindowDsEnvDefault()
     return value;
 }
 
+// Runtime NUMERIC override (MILLISECONDS) for the tail-completion watchdog window (SDK-5360
+// fu8 Session 9), converted to deciseconds. Default 0 = use the compile-time
+// WsPool::TAILCOMPLETIONTIMEOUT (60s). Read exactly once per process (function-local static).
+// A non-numeric / <=0 value keeps the default. Consumed via
+// UploadEngine::Impl::tailCompletionTimeoutDs().
+dstime wsTailCompletionTimeoutDsEnvDefault()
+{
+    static const dstime value = []() -> dstime
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS");
+        if (!hasValue)
+            return 0;
+        char* end = nullptr;
+        const long ms = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || ms <= 0)
+            return 0;
+        // dstime is deciseconds (1/10 s); floor at 1ds so a tiny positive value still arms.
+        const long ds = ms / 100;
+        return static_cast<dstime>(ds > 0 ? ds : 1);
+    }();
+    return value;
+}
+
 // Gates candidate 3c (small-file cold-start cap=1) read in
 // WsPool::coldStartHandshakeCapLocked (ws_pool.cpp). Default ON; only an explicit "0"
 // disables. INDEPENDENT of MEGA_WS_LOSS_RECOVERY (see wsupload_engine.h): a clean-network

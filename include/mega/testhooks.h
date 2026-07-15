@@ -572,6 +572,16 @@ namespace mega {
         // cold-start handshakes). Read-only from the WS engine thread under uploadMutex.
         std::function<void(ws::WsConn* /*conn*/, ws::WsPool* /*pool*/)>
             onWsAckStallForceReconnect;
+        // Fires when the tail-completion watchdog (SDK-5360 fu8 S9) fails a bytes-complete-
+        // but-completionless file for retry (WsPoolMgr::checkPools). Lets a test observe the
+        // recovery deterministically. Fires on the WS engine thread under uploadMutex.
+        std::function<void(std::uint32_t /*fileno*/, ws::WsPool* /*pool*/)>
+            onWsTailCompletionRecovery;
+        // Returns true to DROP an upload-completion frame for this fileno (one-shot frame-loss
+        // simulation for the fu8 S9 tail-completion watchdog test): recordUploadCompleted/
+        // uploadCompleted/onComplete are all skipped, leaving the file bytes-confirmed but
+        // completionless — the exact wedge the watchdog recovers. WS engine thread.
+        std::function<bool(std::uint32_t /*fileno*/)> onWsUploadDropCompletion;
         // Fires when Transfer::ws_session_url is rewritten by client-thread bookkeeping
         // (onStart re-population or invalidatePinnedSessionUrl clearing). Used by the
         // InvalidPinned test to deterministically observe WS pool transitions instead
@@ -670,6 +680,8 @@ namespace mega {
             onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
             onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);
             onWsAckStallForceReconnect = std::move(other.onWsAckStallForceReconnect);
+            onWsTailCompletionRecovery = std::move(other.onWsTailCompletionRecovery);
+            onWsUploadDropCompletion = std::move(other.onWsUploadDropCompletion);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
             onWsGateBackpressureSample = std::move(other.onWsGateBackpressureSample);
@@ -966,6 +978,26 @@ namespace mega {
         if (_fn) _fn((CONNPTR), (POOLPTR)); \
     } while (0)
 
+#define DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(FILENO, POOLPTR) \
+    do { \
+        std::function<void(std::uint32_t, ws::WsPool*)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsTailCompletionRecovery; \
+        } \
+        if (_fn) _fn((FILENO), (POOLPTR)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(FILENO, DROPPED) \
+    do { \
+        std::function<bool(std::uint32_t)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadDropCompletion; \
+        } \
+        if (_fn) (DROPPED) = _fn((FILENO)); \
+    } while (0)
+
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON) \
     do { \
         std::function<void(int, const std::string&, const std::string&, const char*)> _fn; \
@@ -1104,6 +1136,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR)
+#define DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(FILENO, POOLPTR)
+#define DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(FILENO, DROPPED)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
 #define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP)

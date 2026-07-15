@@ -316,6 +316,16 @@ public:
         return headPos() < size() || !eofSet();
     }
 
+    // Tail-completion watchdog candidate check (fu8 S9). True when every byte of the file is
+    // server-confirmed but neither the completion frame (uploadCompleted) nor a failure ever
+    // arrived — the lost-completion wedge state. Caller must hold uploadMutex (same discipline
+    // as the surrounding pool bookkeeping; the fields are worker-written under that lock).
+    bool completionWedgeCandidateLocked() const noexcept
+    {
+        return mSize > 0 && mBytesConfirmed >= mSize && !mUploadCompletionTime &&
+               !mUploadFailedTime;
+    }
+
     void markEOF() noexcept
     {
         mEofSet = true;
