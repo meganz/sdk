@@ -697,6 +697,8 @@ namespace mega {
             onHookDeviceId = std::move(other.onHookDeviceId);
             onHashcashCalculationStarted = std::move(other.onHashcashCalculationStarted);
             onMacGenerationChunkRead = std::move(other.onMacGenerationChunkRead);
+            onFolderUploadPutnodesResult = std::move(other.onFolderUploadPutnodesResult);
+            onFolderUploadSimulateMissing = std::move(other.onFolderUploadSimulateMissing);
         }
     };
 
@@ -1085,29 +1087,31 @@ namespace mega {
             std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
             _fn = globalMegaTestHooks.onMacGenerationChunkRead; \
         } \
-<<<<<<< HEAD
-    }
-
-#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN) \
-        { \
-            if (globalMegaTestHooks.onFolderUploadPutnodesResult) \
-            { \
-                globalMegaTestHooks.onFolderUploadPutnodesResult((NN)); \
-            } \
-        }
-
-#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT) \
-        { \
-            if ((SENT) && (MEGANODE) && globalMegaTestHooks.onFolderUploadSimulateMissing && \
-                globalMegaTestHooks.onFolderUploadSimulateMissing((FOLDERNAME))) \
-            { \
-                (MEGANODE).reset(); \
-            } \
-        }
-=======
         if (_fn) _fn((OFFSET)); \
     } while (0)
->>>>>>> ef671003d2 (test: SDK-5360 O-13 mutex-guard MegaTestHooks whole-struct assignment)
+
+#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN) \
+    do { \
+        std::function<void(std::vector<NewNode>&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onFolderUploadPutnodesResult; \
+        } \
+        if (_fn) _fn((NN)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT) \
+    do { \
+        std::function<bool(const std::string&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onFolderUploadSimulateMissing; \
+        } \
+        if ((SENT) && (MEGANODE) && _fn && _fn((FOLDERNAME))) \
+        { \
+            (MEGANODE).reset(); \
+        } \
+    } while (0)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
