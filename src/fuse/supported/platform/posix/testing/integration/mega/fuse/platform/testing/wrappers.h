@@ -33,14 +33,14 @@ bool operator!=(const Stat& lhs, const Stat& rhs);
 
 template<typename T>
 auto operator==(const Stat& lhs, const T& rhs) ->
-    typename mega::fuse::testing::EnableIfInfoLike<T, bool>::type
+    typename ::mega::fuse::testing::EnableIfInfoLike<T, bool>::type
 {
     return rhs == lhs;
 }
 
 template<typename T>
 auto operator!=(const Stat& lhs, const T& rhs) ->
-    typename mega::fuse::testing::EnableIfInfoLike<T, bool>::type
+    typename ::mega::fuse::testing::EnableIfInfoLike<T, bool>::type
 {
     return rhs != lhs;
 }

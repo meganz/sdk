@@ -13411,7 +13411,7 @@ void exec_searchbyname(autocomplete::ACState &s)
         NodeHandle nodeHandle;
         if (s.words.size() == 3)
         {
-            handle h;
+            handle h{0};
             Base64::atob(s.words[2].s.c_str(), (byte*)&h, MegaClient::NODEHANDLE);
             nodeHandle.set6byte(h);
         }
@@ -13938,7 +13938,7 @@ void exec_passwordmanager(autocomplete::ACState& s)
     };
     const auto getNodeHandleFromParam = [&s](size_t paramPos) -> NodeHandle
     {
-        handle nh;
+        handle nh{0};
         Base64::atob(s.words[paramPos].s.c_str(), (byte*)&nh, MegaClient::NODEHANDLE);
         return NodeHandle{}.set6byte(nh);
     };
