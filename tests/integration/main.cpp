@@ -357,6 +357,10 @@ public:
         {
             result = "PASSED";
         }
+        else if (info.result()->Skipped())
+        {
+            result = "SKIPPED";
+        }
 
         out() << "GTEST: "
               << result
@@ -387,11 +391,13 @@ public:
             line = std::to_string(result.line_number()) + ":";
         }
 
+        // A kSkip part is not a failure — labeling it "Failure" makes GTEST_SKIP-ended
+        // tests read as failed in the CI log scrapers.
         out() << "GTEST: "
               << file
               << ":"
               << line
-              << " Failure";
+              << (result.type() == TestPartResult::kSkip ? " Skipped" : " Failure");
 
         std::istringstream istream(result.message());
 

@@ -253,6 +253,14 @@ void GTestProc::onOutLine(std::string&& line)
             mStatus = TestStatus::TEST_PASSED;
             mOutputIsRelevant = false;
         }
+        else if (Utils::startswith(line, "[  SKIPPED ]"))
+        {
+            // A GTEST_SKIP-ended test reports SKIPPED (not OK/FAILED); without this the
+            // status stays RUNNING and onExit() fabricates "<name> CRASHED" for a worker
+            // that exited cleanly with code 0.
+            mStatus = TestStatus::TEST_SKIPPED;
+            mOutputIsRelevant = false;
+        }
         else if (Utils::startswith(line, "[  FAILED  ]"))
         {
             mStatus = TestStatus::TEST_FAILED;
@@ -863,7 +871,11 @@ void GTestParallelRunner::processFinishedTest(GTestProc& test)
 {
     int err = test.getExitCode(); // waits if not finished yet
 
-    if (!err || test.passed())
+    if (test.skipped())
+    {
+        mSkippedTests.push_back(test.getTestName());
+    }
+    else if (!err || test.passed())
     {
         // Unfortunately the underlying process can return 1 even if it actually ran fine.
         // That will happen when running under debugger and reporting memory leaks (LeakSanitizer
@@ -916,9 +928,19 @@ void GTestParallelRunner::summary()
 
     using namespace std::chrono;
     auto timeSpent = duration_cast<milliseconds>(system_clock::now() - mStartTime).count();
-    std::cout << "[==========] " << (mPassedTestCount + mFailedTests.size()) << " tests from "
+    std::cout << "[==========] " << (mPassedTestCount + mSkippedTests.size() + mFailedTests.size())
+              << " tests from "
               << mTestSuiteCount << " test suites ran. (" << timeSpent << " ms total)\n"
               << "[  PASSED  ] " << mPassedTestCount << " tests.\n";
+
+    if (!mSkippedTests.empty())
+    {
+        std::cout << "[  SKIPPED ] " << mSkippedTests.size() << " tests, listed below:\n";
+        for (const auto& t : mSkippedTests)
+        {
+            std::cout << "[  SKIPPED ] " << t << '\n';
+        }
+    }
 
     if (!mFailedTests.empty())
     {
