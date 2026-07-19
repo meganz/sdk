@@ -103,6 +103,7 @@ unsigned char wsGateCeilingMultEnvDefault(); // MEGA_WS_GATE_CEILING_MULT -> mGa
 unsigned wsConnTelemetryMsEnvDefault(); // MEGA_WS_CONN_TELEMETRY_MS -> mConnTelemetryMs (default 10000; 0=off)
 dstime wsAckStallTimeoutDsEnvDefault(); // MEGA_WS_ACKSTALL_TIMEOUT_MS (ms->ds) -> mAckStallTimeoutDsOverride (0=use ACKSTALLTIMEOUT)
 bool wsAckStallWatchdogEnvDefault(); // MEGA_WS_ACKSTALL_WATCHDOG -> mAckStallWatchdog (ANDed with mLossRecovery)
+bool wsTailCompletionWatchdogEnvDefault(); // MEGA_WS_TAILCOMPLETION_WATCHDOG -> mTailCompletionWatchdog (narrows only)
 long wsHandshakeTimeoutMsEnvDefault(); // MEGA_WS_HANDSHAKE_TIMEOUT_MS -> mHandshakeTimeoutMsOverride (0=use constants)
 dstime wsHandshakeFailWindowDsEnvDefault(); // MEGA_WS_HANDSHAKE_FAIL_WINDOW_MS (ms->ds) -> mHandshakeFailWindowDsOverride (0=use HANDSHAKEFAILTIMEOUT)
 dstime wsTailCompletionTimeoutDsEnvDefault(); // MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS (ms->ds) -> mTailCompletionTimeoutDsOverride (0=use TAILCOMPLETIONTIMEOUT)
@@ -166,6 +167,7 @@ public:
         // full pre-fix behavior; independently toggleable via MEGA_WS_ACKSTALL_WATCHDOG for the
         // Goal-2d watchdog-off vs -on A/B. Timeout override is const-after-init.
         mAckStallWatchdog = wsAckStallWatchdogEnvDefault() && mLossRecovery;
+        mTailCompletionWatchdog = wsTailCompletionWatchdogEnvDefault();
         mAckStallTimeoutDsOverride = wsAckStallTimeoutDsEnvDefault();
         // Handshake timeout + coupled fail-window (S7 Lever A). Pure numeric overrides (default
         // 0 = use the compile-time kHandshakeTimeout* constants / HANDSHAKEFAILTIMEOUT), so NOT
@@ -559,6 +561,12 @@ public:
     // ANDed with mLossRecovery; independently toggleable for the Goal-2d watchdog A/B.
     // Const-after-init (assigned once in the ctor before any worker thread exists).
     bool mAckStallWatchdog{true};
+    // mTailCompletionWatchdog (env MEGA_WS_TAILCOMPLETION_WATCHDOG, default ON): independent
+    // enable for the tail-completion watchdog (fu8 S11; previously only the shared
+    // mAckStallWatchdog gate existed, so the tail net could not be A/B'd or killed alone).
+    // ANDed with mAckStallWatchdog at the checkPools gate — it only ever narrows, so the
+    // watchdog-off A/B arms stay byte-identical. Const-after-init.
+    bool mTailCompletionWatchdog{true};
     // mAckStallTimeoutDsOverride (env MEGA_WS_ACKSTALL_TIMEOUT_MS, default 0 = use the constant
     // WsPool::ACKSTALLTIMEOUT=45s): runtime numeric override (deciseconds) letting the Goal-2d
     // bench sweep the window on ONE binary. Const-after-init; consumed via ackStallTimeoutDs().

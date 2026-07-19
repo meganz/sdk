@@ -489,6 +489,23 @@ bool wsAckStallWatchdogEnvDefault()
     return value;
 }
 
+// Independent enable for the tail-completion watchdog (SDK-5360 fu8 S11; the S10 ledger
+// flagged that the tail watchdog had no dedicated kill-switch — MEGA_WS_LOSS_RECOVERY=0
+// silently disabled a correctness net). Default ON; only an explicit "0" disables. ANDed at
+// the checkPools gate with mAckStallWatchdog (which itself carries the mLossRecovery AND), so
+// the pre-existing OFF arms (MEGA_WS_ACKSTALL_WATCHDOG=0 / MEGA_WS_LOSS_RECOVERY=0) keep
+// disabling BOTH watchdogs byte-identically; this knob only ever narrows. Read exactly once
+// per process (function-local static).
+bool wsTailCompletionWatchdogEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_TAILCOMPLETION_WATCHDOG");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
 // Runtime NUMERIC override (MILLISECONDS) for the per-attempt WS handshake timeout (SDK-5360
 // fu8 Session 7, Lever A). Default 0 = use the compile-time UploadEngine::Impl constants
 // kHandshakeTimeoutLossMs (45s, loss-adaptive) / kHandshakeTimeoutMs (15s, baseline) selected
