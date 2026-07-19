@@ -106,8 +106,16 @@ bool getFileFromURL(const std::string& url, const fs::path& dstPath)
 
 bool getFileFromArtifactory(const std::string& relativeUrl, const fs::path& dstPath)
 {
-    static const std::string baseUrl{
-        "https://artifactory.developers.mega.co.nz:443/artifactory/sdk"};
+    // MEGA_TEST_DATA_URL overrides the base URL (fu8 S11): hosts that cannot reach the
+    // internal Artifactory (e.g. firewalled bench VMs, where TCP/443 to it hangs and the
+    // image tests fail on BOTH arms) can point at a local mirror instead.
+    static const std::string baseUrl = []
+    {
+        const char* v = std::getenv("MEGA_TEST_DATA_URL");
+        return (v && *v) ? std::string{v} :
+                           std::string{"https://artifactory.developers.mega.co.nz:443/"
+                                       "artifactory/sdk"};
+    }();
 
     // Join base URL and relatvie URL
     bool startedWithBackSlash = !relativeUrl.empty() && relativeUrl[0] == '/';
