@@ -628,6 +628,12 @@ namespace mega {
         WsRecvSwallowHook wsRecvSwallowHook;
         // Allows tests to override completion payload length observed by WS upload handling.
         std::function<void(int&)> onWsUploadCompletionPayloadLen;
+        // Allow tests to override the ack-stall / tail-completion watchdog windows at their
+        // checkPools read sites (HR58: tests must pass with NO env; the env knobs are
+        // read-once statics seeded at engine construction, which happens at login — before a
+        // test body can install hooks — so a runtime seam is required for self-configuration).
+        std::function<void(dstime&)> onWsUploadAckStallTimeoutDs;
+        std::function<void(dstime&)> onWsUploadTailCompletionTimeoutDs;
 
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
@@ -682,6 +688,10 @@ namespace mega {
             onWsAckStallForceReconnect = std::move(other.onWsAckStallForceReconnect);
             onWsTailCompletionRecovery = std::move(other.onWsTailCompletionRecovery);
             onWsUploadDropCompletion = std::move(other.onWsUploadDropCompletion);
+            onWsUploadCompletionPayloadLen = std::move(other.onWsUploadCompletionPayloadLen);
+            onWsUploadAckStallTimeoutDs = std::move(other.onWsUploadAckStallTimeoutDs);
+            onWsUploadTailCompletionTimeoutDs =
+                std::move(other.onWsUploadTailCompletionTimeoutDs);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
             onWsGateBackpressureSample = std::move(other.onWsGateBackpressureSample);
@@ -894,6 +904,36 @@ namespace mega {
             _fn = globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs; \
         } \
         if (_fn) _fn((WINDOWDS)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_WSUPLOAD_ACKSTALL_TIMEOUT_DS(WINDOWDS) \
+    do { \
+        std::function<void(dstime&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadAckStallTimeoutDs; \
+        } \
+        if (_fn) _fn((WINDOWDS)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_WSUPLOAD_TAILCOMPLETION_TIMEOUT_DS(WINDOWDS) \
+    do { \
+        std::function<void(dstime&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs; \
+        } \
+        if (_fn) _fn((WINDOWDS)); \
+    } while (0)
+
+#define DEBUG_TEST_HOOK_WSUPLOAD_COMPLETION_PAYLOAD_LEN(PAYLEN) \
+    do { \
+        std::function<void(int&)> _fn; \
+        { \
+            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+            _fn = globalMegaTestHooks.onWsUploadCompletionPayloadLen; \
+        } \
+        if (_fn) _fn((PAYLEN)); \
     } while (0)
 
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED) \
@@ -1131,6 +1171,9 @@ namespace mega {
 #define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID)
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE(URL, TIMEOUTMS, ERRSTRING, SHOULDFAIL)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS(WINDOWDS)
+#define DEBUG_TEST_HOOK_WSUPLOAD_ACKSTALL_TIMEOUT_DS(WINDOWDS)
+#define DEBUG_TEST_HOOK_WSUPLOAD_TAILCOMPLETION_TIMEOUT_DS(WINDOWDS)
+#define DEBUG_TEST_HOOK_WSUPLOAD_COMPLETION_PAYLOAD_LEN(PAYLEN)
 #define DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED(REASON, STILL_TRACKED)
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG)

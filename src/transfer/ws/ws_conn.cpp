@@ -855,10 +855,9 @@ struct ChunkResponse
 
             int payLen = static_cast<unsigned char>(msg[kWsChunkResponseHeaderSize]);
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
-            if (globalMegaTestHooks.onWsUploadCompletionPayloadLen)
-            {
-                globalMegaTestHooks.onWsUploadCompletionPayloadLen(payLen);
-            }
+            // O-13 guarded snapshot: this runs on a worker thread while tests may
+            // install/clear the hook concurrently; the raw field read raced that.
+            DEBUG_TEST_HOOK_WSUPLOAD_COMPLETION_PAYLOAD_LEN(payLen);
 #endif
             const int maxPayloadLen = len - kCompletionPrefixLen - kTrailerCrcLen;
             if (payLen > maxPayloadLen)
