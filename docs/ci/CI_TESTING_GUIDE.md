@@ -64,6 +64,11 @@ coexist; you can have all of them present at once.
 
 ## Running locally — common recipes
 
+> **HR58 (CI parity):** before pushing WS-upload changes, run the committed CI-faithful gate —
+> `scripts/ci/ci_tier1_gate.sh <build_dir>` — which reproduces the Jenkins invocation forms
+> (DEFAULT env, `--CI`, direct + `--INSTANCES`) locally. After any rebase, HR57 makes it the
+> minimum pre-push bar. Rules: `docs/methodology/benchmark_discipline.md`.
+
 | Task                              | Command                                                                                                                                                                                                                                                                                                                       |
 |-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Bench (one or more cells)         | `bash tests/integration/run_bench.sh 'SdkBenchmarkTest.SingleLargeUpload' 3`                                                                                                                                                                                                                                                  |

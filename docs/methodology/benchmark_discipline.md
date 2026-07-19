@@ -208,6 +208,37 @@ trigger compilation --bench --gtest_filter=SdkBenchmarkTest.SingleLargeUpload
 See [docs/ci/CI_TESTING_GUIDE.md](../ci/CI_TESTING_GUIDE.md) for the
 full trigger-phrase catalogue.
 
+## HR57 — post-rebase full gate
+
+After ANY rebase or history rewrite of the feature branch, the MINIMUM pre-push gate is:
+
+1. conflict-marker sweep over the whole tree (`grep -rn '^<<<<<<< \|^>>>>>>> ' --include=*`),
+2. `dev-unix-strict` preset build (HR42),
+3. the full CI-faithful Tier-1 gate under DEFAULT env — `scripts/ci/ci_tier1_gate.sh <build_dir>`,
+4. the bench-smoke set,
+
+all on the REBASED tree. Rationale: the 93360b994d push ran only compile + strict + one smoke
+after a whole-branch rebase; two product bugs and a harness bug (already visible in default-env
+runs) reached CI on all platforms. A rebase also invalidates every binary-identity citation —
+nothing bench/sanitizer may be "cited" across it.
+
+## HR58 — CI-faithful default env
+
+Jenkins MR CI sets NO bench/test env knobs and runs the whole suite (empty `--gtest_filter`,
+`--INSTANCES:10`, Debug). Therefore:
+
+- Every `SdkWsUploadTest.*`/`SdkTest.*`/`SdkBenchmarkTest.*` cell must PASS or cleanly SKIP
+  under DEFAULT env. Knobs (`MEGA_WS_*`, `MEGA_BENCH_*`) are for BENCH cells only.
+- A default-env failure is NEVER an "invocation-form artifact". The default IS the canonical
+  CI form; the knobbed invocation is the artifact. (S10 misclassified exactly this three times;
+  the failures were two real product bugs — see followup8_QA_10/audit/SWEEP_ESCAPE_POSTMORTEM.md.)
+- Tests that need shrunken watchdog windows must self-configure via the debug test-hook seams
+  (`onWsUploadAckStallTimeoutDs` / `onWsUploadTailCompletionTimeoutDs`) — never via CI-side env
+  injection or filter exclusions. `MEGA_WSTEST_DEFAULT_WINDOWS=1` provides the nightly
+  true-default-window arm.
+- Local sweeps must include `scripts/ci/ci_tier1_gate.sh` (direct AND `--INSTANCES` forms; the
+  parallel-runner form catches skip-verdict regressions in `GTestParallelRunner`).
+
 ## What NOT to do
 
 - Don't compare bench numbers from different builds with different
