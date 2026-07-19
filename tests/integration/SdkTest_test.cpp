@@ -11283,7 +11283,9 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
              << " MiB) total";
     ASSERT_FALSE(chosen.empty()) << "no image media matched the QA size buckets in the folder link";
 
-    // Destination: MEGA_BENCH_UPLOAD_SOURCE_DIR, else $HOME/mega_bench_dataset/qa_mixed.
+    // Destination: MEGA_BENCH_UPLOAD_SOURCE_DIR, else $HOME (POSIX) / %USERPROFILE% (Windows)
+    // + /mega_bench_dataset/qa_mixed. Windows CI has no HOME, which used to hard-FAIL here —
+    // but this is a one-shot manual harvester; an unconfigured host is a SKIP, not a defect.
     fs::path destDir;
     if (const char* envDest = std::getenv("MEGA_BENCH_UPLOAD_SOURCE_DIR"); envDest && *envDest)
     {
@@ -11293,9 +11295,14 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
     {
         destDir = fs::path{home} / "mega_bench_dataset" / "qa_mixed";
     }
+    else if (const char* profile = std::getenv("USERPROFILE"); profile && *profile)
+    {
+        destDir = fs::path{profile} / "mega_bench_dataset" / "qa_mixed";
+    }
     else
     {
-        FAIL() << "neither MEGA_BENCH_UPLOAD_SOURCE_DIR nor HOME is set";
+        GTEST_SKIP() << "no dataset destination available (MEGA_BENCH_UPLOAD_SOURCE_DIR, HOME "
+                        "and USERPROFILE all unset) — set one to harvest the QA dataset";
     }
     std::error_code destEc;
     fs::create_directories(destDir, destEc);
