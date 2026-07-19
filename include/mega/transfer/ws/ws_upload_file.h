@@ -556,6 +556,13 @@ public: // accessed by engine
 
     bool mClientActiveFilesTick{false};
     WsPool* mPool{nullptr};
+    // Tail-completion watchdog persistence clock (fu8 S11 F8: PER-FILE, was per-pool).
+    // Written/read ONLY under uploadMutex by WsPoolMgr::checkPools: stamped the first tick
+    // the file is observed bytes-complete-but-completionless with a quiescent (or no) pool,
+    // cleared whenever that state does not hold, and cleared on fire. Lives on the file so
+    // the clock survives pool retirement/rebinding — a wedged file has nothing to send, so
+    // it never migrates with a refresh and a per-pool clock never accumulates the window.
+    dstime mCompletionWedgeSinceDs{0};
 
 private:
     void invalidateOutstandingWork() noexcept

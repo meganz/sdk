@@ -540,13 +540,6 @@ struct WsPool
     int mNumPoolFiles{0};
     WsUploadFile* mUploadingFile{nullptr};
     std::uint32_t mUFTQversion{0};
-    // Tail-completion watchdog persistence tracking (fu8 S9). Written/read ONLY under
-    // mImpl->uploadMutex (same discipline as mNumChunksInFlight): checkPools stamps the first
-    // tick a bytes-complete-but-completionless file is observed on this pool and fires the
-    // recovery once the state persists past tailCompletionTimeoutDs(). Reset on state clear,
-    // on wedged-file change, and on fire.
-    std::uint32_t mTailWedgeFileno{0};
-    dstime mTailWedgeSinceDs{0};
     bool mPreflightPending{false};
 
     dstime mPoolCreationTime{SteadyTime::ds()};
