@@ -5347,13 +5347,24 @@ TEST_F(SdkWsUploadTest, AckStallForceReconnectsHungConnection)
     const bool watchdogOn = (!wd || std::string(wd) != "0") && (!lr || std::string(lr) != "0");
 
     // Step 2: ack-stall timeout (ms) drives the swallow window and the completion waits.
+    // HR58 self-configuration (fu8 S11): CI runs with NO env knobs, so the test shrinks the
+    // product window itself through the debug window-override hook (consumed at the checkPools
+    // read site — the env knob is a read-once static seeded at engine construction, i.e. at
+    // login, before this body runs). An explicit env knob still wins for bench sweeps, and
+    // MEGA_WSTEST_DEFAULT_WINDOWS=1 (nightly arm) leaves the product default in force to keep
+    // real coverage of the 45s window.
     const char* tmo = getenv("MEGA_WS_ACKSTALL_TIMEOUT_MS");
-    long ackStallMs = (tmo ? atol(tmo) : 45000);
+    const char* dwEnv = getenv("MEGA_WSTEST_DEFAULT_WINDOWS");
+    const bool defaultWindows = (dwEnv && std::string(dwEnv) == "1");
+    long ackStallMs = (tmo ? atol(tmo) : (defaultWindows ? 45000 : 5000));
     if (ackStallMs <= 0)
-        ackStallMs = 45000;
+        ackStallMs = defaultWindows ? 45000 : 5000;
     // Observation window: long enough for the watchdog to fire at least once (it fires ~ackStallMs
-    // after the server acks are first swallowed).
-    const long observeMs = std::min<long>(std::max<long>(ackStallMs * 4, 25000), 90000);
+    // after the server acks are first swallowed). The default-windows arm needs headroom past the
+    // 45s window plus connect/first-ack overhead.
+    const long observeMs = defaultWindows ?
+                               120000 :
+                               std::min<long>(std::max<long>(ackStallMs * 4, 25000), 90000);
 
     // Multi-chunk source: big enough for several chunks/acks so >=1 ack lands before the stall.
     const std::string fileName =
@@ -5379,8 +5390,20 @@ TEST_F(SdkWsUploadTest, AckStallForceReconnectsHungConnection)
         {
             globalMegaTestHooks.onWsPoolReconnectAttempt = nullptr;
             globalMegaTestHooks.onWsAckStallForceReconnect = nullptr;
+            globalMegaTestHooks.onWsUploadAckStallTimeoutDs = nullptr;
             globalMegaTestHooks.wsRecvSwallowHook.reset();
         });
+
+    // Shrink the product window through the debug hook (installed only now that clearWsHooks
+    // guarantees removal on every exit path — a leaked 50ds window would poison later tests).
+    if (!defaultWindows)
+    {
+        const dstime ackStallDs = static_cast<dstime>(std::max<long>(ackStallMs / 100, 1));
+        globalMegaTestHooks.onWsUploadAckStallTimeoutDs = [ackStallDs](dstime& v)
+        {
+            v = ackStallDs;
+        };
+    }
 
     // Single connection -> single deterministic pool for the repro.
     RequestTracker ct(megaApi[0].get());
@@ -5500,11 +5523,18 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
     WSUPLOAD_REQUIRE_TEST_HOOKS();
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    // Effective watchdog window (read-once knob; the isolated cell sets 5000ms).
+    // Effective watchdog window. HR58 self-configuration (fu8 S11): CI runs with NO env
+    // knobs, so the test shrinks the product window itself via the debug window-override hook
+    // (consumed at the checkPools read site; the env knob is a read-once static seeded at
+    // engine construction — at login, before this body runs). An explicit env knob still wins
+    // for bench sweeps; MEGA_WSTEST_DEFAULT_WINDOWS=1 (nightly arm) keeps the 60s product
+    // default in force for real default-window coverage.
     const char* tmo = getenv("MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS");
-    long tailMs = (tmo ? atol(tmo) : 60000);
+    const char* dwEnv = getenv("MEGA_WSTEST_DEFAULT_WINDOWS");
+    const bool defaultWindows = (dwEnv && std::string(dwEnv) == "1");
+    long tailMs = (tmo ? atol(tmo) : (defaultWindows ? 60000 : 5000));
     if (tailMs <= 0)
-        tailMs = 60000;
+        tailMs = defaultWindows ? 60000 : 5000;
     // Budget: wedge persistence (tailMs) + retry backoff + full re-upload + completion, padded.
     const int deadlineS = static_cast<int>(std::max<long>(4 * tailMs / 1000, 60) + 120);
 
@@ -5529,7 +5559,19 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
         {
             globalMegaTestHooks.onWsUploadDropCompletion = nullptr;
             globalMegaTestHooks.onWsTailCompletionRecovery = nullptr;
+            globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = nullptr;
         });
+
+    // Shrink the product window through the debug hook (installed only now that clearWsHooks
+    // guarantees removal on every exit path — a leaked 50ds window would poison later tests).
+    if (!defaultWindows)
+    {
+        const dstime tailDs = static_cast<dstime>(std::max<long>(tailMs / 100, 1));
+        globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = [tailDs](dstime& v)
+        {
+            v = tailDs;
+        };
+    }
 
     // Drop EXACTLY the first completion frame (compare-exchange keeps it one-shot even if
     // completions for retries race), leaving the bytes-confirmed-but-completionless wedge.
