@@ -5388,17 +5388,29 @@ TEST_F(SdkWsUploadTest, AckStallForceReconnectsHungConnection)
     auto clearWsHooks = makeScopedDestructor(
         []()
         {
-            globalMegaTestHooks.onWsPoolReconnectAttempt = nullptr;
-            globalMegaTestHooks.onWsAckStallForceReconnect = nullptr;
-            globalMegaTestHooks.onWsUploadAckStallTimeoutDs = nullptr;
+            // ALL hook writes under the hooks mutex: every read site is macro-guarded, but
+            // the engine keeps ticking through teardown — with working watchdogs (S11 F8)
+            // the fire-branch reads race an unlocked clear (S11 TSAN pass-1/pass-2 families:
+            // window hook, then onWsAckStallForceReconnect). wsRecvSwallowHook is self-locked
+            // (leaf mutex; no ordering edge).
+            {
+                std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+                globalMegaTestHooks.onWsPoolReconnectAttempt = nullptr;
+                globalMegaTestHooks.onWsAckStallForceReconnect = nullptr;
+                globalMegaTestHooks.onWsUploadAckStallTimeoutDs = nullptr;
+            }
             globalMegaTestHooks.wsRecvSwallowHook.reset();
         });
 
     // Shrink the product window through the debug hook (installed only now that clearWsHooks
     // guarantees removal on every exit path — a leaked 50ds window would poison later tests).
+    // Write under the hooks mutex: checkPools reads this field via the guarded macro on EVERY
+    // pass (client lifetime, not just this test's upload), so an unlocked install/clear races
+    // the engine thread (S11 TSAN found exactly this family).
     if (!defaultWindows)
     {
         const dstime ackStallDs = static_cast<dstime>(std::max<long>(ackStallMs / 100, 1));
+        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
         globalMegaTestHooks.onWsUploadAckStallTimeoutDs = [ackStallDs](dstime& v)
         {
             v = ackStallDs;
@@ -5411,21 +5423,25 @@ TEST_F(SdkWsUploadTest, AckStallForceReconnectsHungConnection)
     ASSERT_EQ(API_OK, ct.waitForResult(60));
 
     // Step 3a: reconnect-attempt counter — LOG ONLY (fires on cold-start too, so ambiguous).
-    std::atomic<int> reconnectAttempts{0};
-    globalMegaTestHooks.onWsPoolReconnectAttempt =
-        [&](::mega::ws::WsPool* /*pool*/, unsigned /*retryCount*/, dstime /*firstFailureDs*/)
-    {
-        reconnectAttempts.fetch_add(1, std::memory_order_relaxed);
-    };
     // Step 3b: ack-stall FORCE-RECONNECT counter — the UNAMBIGUOUS watchdog-firing signal (fires
     // only from WsPoolMgr::checkPools' ack-stall branch, never on cold-start). This is what the
-    // A/B asserts on.
+    // A/B asserts on. Installs under the hooks mutex: the engine (created at login) is already
+    // ticking, and every read site is macro-guarded — unlocked writes race them (S11 TSAN).
+    std::atomic<int> reconnectAttempts{0};
     std::atomic<int> forceReconnects{0};
-    globalMegaTestHooks.onWsAckStallForceReconnect =
-        [&](::mega::ws::WsConn* /*conn*/, ::mega::ws::WsPool* /*pool*/)
     {
-        forceReconnects.fetch_add(1, std::memory_order_relaxed);
-    };
+        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsPoolReconnectAttempt =
+            [&](::mega::ws::WsPool* /*pool*/, unsigned /*retryCount*/, dstime /*firstFailureDs*/)
+        {
+            reconnectAttempts.fetch_add(1, std::memory_order_relaxed);
+        };
+        globalMegaTestHooks.onWsAckStallForceReconnect =
+            [&](::mega::ws::WsConn* /*conn*/, ::mega::ws::WsPool* /*pool*/)
+        {
+            forceReconnects.fetch_add(1, std::memory_order_relaxed);
+        };
+    }
 
     // Step 4: let exactly ONE inbound ack through (proves connect + progress) then swallow ALL
     // subsequent inbound frames (permanent) -> the conn stays alive-but-hung so the watchdog has
@@ -5557,6 +5573,9 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
     auto clearWsHooks = makeScopedDestructor(
         []()
         {
+            // ALL hook writes under the hooks mutex — see the AckStall cell's clearWsHooks
+            // comment (S11 TSAN pass-1/pass-2 families).
+            std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsUploadDropCompletion = nullptr;
             globalMegaTestHooks.onWsTailCompletionRecovery = nullptr;
             globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = nullptr;
@@ -5564,9 +5583,11 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
 
     // Shrink the product window through the debug hook (installed only now that clearWsHooks
     // guarantees removal on every exit path — a leaked 50ds window would poison later tests).
+    // Write under the hooks mutex — see the AckStall cell's comment (S11 TSAN family).
     if (!defaultWindows)
     {
         const dstime tailDs = static_cast<dstime>(std::max<long>(tailMs / 100, 1));
+        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
         globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = [tailDs](dstime& v)
         {
             v = tailDs;
@@ -5575,19 +5596,23 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
 
     // Drop EXACTLY the first completion frame (compare-exchange keeps it one-shot even if
     // completions for retries race), leaving the bytes-confirmed-but-completionless wedge.
-    std::atomic<int> dropped{0};
-    globalMegaTestHooks.onWsUploadDropCompletion = [&](std::uint32_t /*fileno*/)
-    {
-        int expected = 0;
-        return dropped.compare_exchange_strong(expected, 1);
-    };
     // Unambiguous watchdog-recovery signal (fires only from checkPools' tail-completion branch).
+    // Installs under the hooks mutex — see the AckStall cell's comment (S11 TSAN).
+    std::atomic<int> dropped{0};
     std::atomic<int> recoveries{0};
-    globalMegaTestHooks.onWsTailCompletionRecovery =
-        [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
     {
-        recoveries.fetch_add(1, std::memory_order_relaxed);
-    };
+        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsUploadDropCompletion = [&](std::uint32_t /*fileno*/)
+        {
+            int expected = 0;
+            return dropped.compare_exchange_strong(expected, 1);
+        };
+        globalMegaTestHooks.onWsTailCompletionRecovery =
+            [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
+        {
+            recoveries.fetch_add(1, std::memory_order_relaxed);
+        };
+    }
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
