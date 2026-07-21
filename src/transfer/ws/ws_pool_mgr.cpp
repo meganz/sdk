@@ -239,6 +239,32 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 
     cleanupRetiringPools();
 
+    // ENGINE-wide newest inbound stamp (fu8 S11 F11): the ack-stall gate below keys on this.
+    // Pool-level staleness is the wrong granularity — capped links starve WHOLE small pools
+    // (QaMixed: 42 files across 12-20 concurrent pools at 1 Mbit), so a per-pool gate still
+    // fired 100+ times/30min under ge-model bursty loss and halved the bytes (S11 A/B). If
+    // ANY pool is receiving server frames, the link and server are alive and a starved conn
+    // should wait its turn rather than burn a 500ms-RTT reconnect; only engine-wide inbound
+    // silence (swallowed acks, link collapse, the S9 P6 zombie wedge, real outages) marks a
+    // true hang. Deliberately NOT pool->mLastActive (refresh's bumpAllPools freshens that
+    // every 20-30s — the self-disarm class F8 removed).
+    dstime engineNewestInboundDs = 0;
+    for (const auto& pptr: mPools)
+    {
+        if (!pptr)
+            continue;
+        for (WsConn* const conn: pptr->mConns)
+        {
+            if (conn &&
+                conn->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN)
+            {
+                const dstime li = conn->mLastInboundFrameDs.load(std::memory_order_relaxed);
+                if (li > engineNewestInboundDs)
+                    engineNewestInboundDs = li;
+            }
+        }
+    }
+
     // trim connections / refresh stale or stalled pools
     for (std::size_t i = mPools.size(); i-- > 0;)
     {
@@ -386,8 +412,22 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             DEBUG_TEST_HOOK_WSUPLOAD_ACKSTALL_TIMEOUT_DS(ackStallTimeout);
 #endif
+            // ENGINE-level inbound staleness gate (fu8 S11 F11; see the computation above the
+            // pools loop). Zero engineNewestInboundDs (no OPEN conn anywhere ever received a
+            // frame) counts as STALLED: replacement conns opened mid-stall keep 0 stamps and
+            // must not disarm the gate (the per-conn fire conditions below still require the
+            // conn's own stamps nonzero+stale, so a cold-start engine cannot fire off this
+            // path).
+            const bool engineInboundStalled =
+                !engineNewestInboundDs ||
+                SteadyTime::difference(impl.currentTime, engineNewestInboundDs) >
+                    ackStallTimeout;
             for (WsConn* const conn: pool->mConns)
             {
+                if (!engineInboundStalled)
+                {
+                    break;
+                }
                 if (!conn ||
                     conn->readyState.load(std::memory_order_relaxed) !=
                         WsConn::ReadyState::OPEN ||
