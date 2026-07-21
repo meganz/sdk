@@ -2266,6 +2266,37 @@ void MegaClient::exec()
             disconnect();
         }
     }
+    else if (pendingcs && pendingcs->status == REQ_INFLIGHT && EVER(pendingcs->lastdata) &&
+             !pendingcs->mResponseStarted &&
+             Waiter::ds >= pendingcs->lastdata + HttpIO::HEARTBEATTIMEOUT)
+    {
+        // No HTTP 103 heartbeat and no response within HEARTBEATTIMEOUT while the server
+        // should be sending heartbeats: the connection is assumed dead. Disconnect and retry
+        // the (idempotent) request. Unlike the request-lock timeout below, this fires even
+        // during fetchingnodes - the initial "f" fetch previously had no timeout at all and
+        // could stall the client forever on a silently dropped connection.
+        // Only in-flight requests are handled here; a REQ_FAILURE is left to the failure path
+        // below so it keeps its SSL/httpstatus diagnostics. Retry with capped exponential
+        // backoff (not an immediate resend) so an endpoint that never heartbeats - e.g. one
+        // reachable only through an intermediary that strips HTTP 1xx responses - does not turn
+        // into a tight reconnect loop.
+        LOG_warn << clientname << "cs heartbeat timeout - disconnecting and retrying request";
+        app->notify_network_activity(NetworkActivityChannel::CS,
+                                     NetworkActivityType::REQUEST_ERROR,
+                                     LOCAL_ETIMEOUT);
+        abortlockrequest();
+        // reset the fetchnodes request progress (no-op unless this cs carries the "f" command),
+        // matching the normal REQ_FAILURE retry path; must precede disconnect() which zeroes bufpos
+        app->request_response_progress(pendingcs->bufpos, -1);
+        pendingcs->disconnect();
+        delete pendingcs;
+        pendingcs = nullptr;
+        btcs.backoff();
+        app->notify_retry(btcs.retryin(), RETRY_CONNECTIVITY);
+        csretrying = true;
+        // the in-progress request will be resent, unchanged (for idempotence), when ready again
+        reqs.inflightFailure(RETRY_CONNECTIVITY);
+    }
     else if (pendingcs && EVER(pendingcs->lastdata) && !requestLock && !fetchingnodes
             &&  Waiter::ds >= pendingcs->lastdata + HttpIO::REQUESTTIMEOUT)
     {
@@ -2974,6 +3005,7 @@ void MegaClient::exec()
                     pendingcs->posturl.append(idempotenceId);
                     pendingcs->posturl.append(getAuthURI());
                     pendingcs->posturl.append("&v=3");
+                    pendingcs->posturl.append("&h=1"); // request server heartbeats (HTTP 103)
 
                     if (lang.size())
                     {
@@ -3034,14 +3066,35 @@ void MegaClient::exec()
                     case REQ_READY:
                         break;
                     case REQ_INFLIGHT:
-                        if (Waiter::ds >= mPendingLocklessCS->lastdata + HttpIO::REQUESTTIMEOUT)
+                    {
+                        // Before the response starts, rely on the 15s heartbeat timeout to
+                        // detect a dead connection quickly; once it has started, the network
+                        // request timeout governs.
+                        const bool responseStarted = mPendingLocklessCS->mResponseStarted;
+                        const dstime timeout =
+                            responseStarted ? HttpIO::REQUESTTIMEOUT : HttpIO::HEARTBEATTIMEOUT;
+                        if (Waiter::ds >= mPendingLocklessCS->lastdata + timeout)
                         {
-                            LOG_warn << clientname << "Lockless CS request timeout. Retry.";
+                            LOG_warn << clientname << "Lockless CS "
+                                     << (responseStarted ? "request" : "heartbeat") << " timeout ("
+                                     << timeout << " ds). Retry.";
                             mPendingLocklessCS.reset();
-                            mBackoffTimerLocklessCS.reset(); // Already waited for REQUESTTIMEOUT
+                            if (responseStarted)
+                            {
+                                mBackoffTimerLocklessCS
+                                    .reset(); // Already waited for REQUESTTIMEOUT
+                            }
+                            else
+                            {
+                                // heartbeat timeout: capped exponential backoff, so an endpoint
+                                // that never heartbeats (e.g. HTTP 1xx stripped by an intermediary)
+                                // does not spin on a tight 15s reconnect loop
+                                mBackoffTimerLocklessCS.backoff();
+                            }
                             mReqsLockless.inflightFailure(RETRY_CONNECTIVITY);
                         }
                         break;
+                    }
                     case REQ_SUCCESS:
                         if (mPendingLocklessCS->in != "-3" && mPendingLocklessCS->in != "-4")
                         {
@@ -3170,6 +3223,7 @@ void MegaClient::exec()
                     mPendingLocklessCS->posturl.append(idempotenceId);
                     mPendingLocklessCS->posturl.append(getAuthURI());
                     mPendingLocklessCS->posturl.append("&v=3");
+                    mPendingLocklessCS->posturl.append("&h=1"); // heartbeats (HTTP 103)
 
                     if (lang.size())
                     {
@@ -3309,7 +3363,9 @@ void MegaClient::exec()
                 pendingsc->posturl.append("?sn=");
                 pendingsc->posturl.append(scsn.text());
                 pendingsc->posturl.append("&isn=1");
-                // folder links should not send "sid" to avoid receiving packets unrelated to the folder link
+                pendingsc->posturl.append("&h=1"); // request server heartbeats (HTTP 103)
+                // folder links should not send "sid" to avoid receiving packets unrelated to the
+                // folder link
                 bool suppressSID = loggedIntoFolder() ? true : false;
                 pendingsc->posturl.append(getAuthURI(suppressSID, true));
 
@@ -3815,6 +3871,20 @@ int MegaClient::preparewait()
                     nds = 0;
                 }
             }
+            else if (!pendingcs->mResponseStarted)
+            {
+                // pre-response: wake at the heartbeat-timeout boundary. Applies even during
+                // fetchingnodes so a stalled "f" fetch is detected instead of stalling forever.
+                dstime timeout = pendingcs->lastdata + HttpIO::HEARTBEATTIMEOUT;
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
             else if (!requestLock && !fetchingnodes)
             {
                 dstime timeout = pendingcs->lastdata + HttpIO::REQUESTTIMEOUT;
@@ -3845,7 +3915,9 @@ int MegaClient::preparewait()
         if (mPendingLocklessCS && EVER(mPendingLocklessCS->lastdata) &&
             mPendingLocklessCS->status == REQ_INFLIGHT)
         {
-            dstime timeout = mPendingLocklessCS->lastdata + HttpIO::REQUESTTIMEOUT;
+            dstime timeout = mPendingLocklessCS->lastdata + (mPendingLocklessCS->mResponseStarted ?
+                                                                 HttpIO::REQUESTTIMEOUT :
+                                                                 HttpIO::HEARTBEATTIMEOUT);
             if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
@@ -3873,7 +3945,9 @@ int MegaClient::preparewait()
         if (!pendingscTimedOut && (isStreamingEnabled() || !jsonsc.pos) && pendingsc &&
             pendingsc->status == REQ_INFLIGHT)
         {
-            dstime timeout = pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT;
+            dstime timeout =
+                pendingsc->lastdata +
+                (pendingsc->mResponseStarted ? HttpIO::SCREQUESTTIMEOUT : HttpIO::HEARTBEATTIMEOUT);
             if (timeout > Waiter::ds && timeout < nds)
             {
                 nds = timeout;
@@ -25528,11 +25602,6 @@ void MegaClient::handleScNonStreaming()
             case REQ_SUCCESS:
                 pendingscTimedOut = false;
 
-                if (handleScKeepAliveInSuccessState())
-                {
-                    break;
-                }
-
                 if (*pendingsc->in.c_str() == '{')
                 {
                     insca = false;
@@ -25582,17 +25651,6 @@ void MegaClient::processScMessageNonStreaming()
         }
     }
     return;
-}
-
-bool MegaClient::handleScKeepAliveInSuccessState()
-{
-    if (pendingsc->contentlength == 1 && pendingsc->in.size() && pendingsc->in[0] == '0')
-    {
-        LOG_debug << "SC keep-alive received";
-        resetScRequest();
-        return true;
-    }
-    return false;
 }
 
 void MegaClient::handleScErrorInSuccessState()
@@ -25730,13 +25788,22 @@ void MegaClient::clearForScError()
 
 bool MegaClient::handleScTimeoutInFlightState()
 {
-    if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + HttpIO::SCREQUESTTIMEOUT))
+    // Before the actual response starts, the server emits periodic HTTP 103 heartbeats; a
+    // missing heartbeat within HEARTBEATTIMEOUT means the connection is dead, so reconnect
+    // quickly. Once the response has started, the (longer) SC request timeout governs. This
+    // replaces the old "0" keep-alive timeout for the wsc channel.
+    const bool responseStarted = pendingsc->mResponseStarted;
+    const dstime timeout = responseStarted ? HttpIO::SCREQUESTTIMEOUT : HttpIO::HEARTBEATTIMEOUT;
+    if (!pendingscTimedOut && Waiter::ds >= (pendingsc->lastdata + timeout))
     {
         LOG_debug << clientname << "sc timeout expired at ds: " << Waiter::ds
-                  << " and lastdata ds: " << pendingsc->lastdata;
-        // In almost all cases the server won't take more than SCREQUESTTIMEOUT seconds.
-        // But if it does, break the cycle of endless requests for the same thing
-        pendingscTimedOut = true;
+                  << " and lastdata ds: " << pendingsc->lastdata
+                  << " (responseStarted: " << responseStarted << ")";
+        // In almost all cases the server won't take more than the timeout to respond.
+        // But if it does after the response has started, break the cycle of endless requests for
+        // the same thing. Pre-response heartbeat timeouts must stay retryable so a /wsc channel
+        // without 103s reconnects every heartbeat interval.
+        pendingscTimedOut = responseStarted;
         resetScRequest();
         return true;
     }
@@ -25756,13 +25823,6 @@ void MegaClient::handleScInStreaming()
     {
         case REQ_SUCCESS:
             pendingscTimedOut = false;
-
-            if (handleScKeepAliveInSuccessState())
-            {
-                assert(!scStreamingParser.hasStarted() &&
-                       "Keep-alive packet between actionpacket chunks");
-                break;
-            }
 
             if (scStreamingParser.hasStarted() || *pendingsc->in.c_str() == '{')
             {

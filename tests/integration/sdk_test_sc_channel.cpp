@@ -126,6 +126,7 @@ public:
     void TearDown() override
     {
         globalMegaTestHooks.interceptSCRequest = nullptr;
+        globalMegaTestHooks.onHeartbeatReceived = nullptr;
         megaApi[0]->removeListener(&mNetworkListener);
         SdkTest::TearDown();
     }
@@ -492,6 +493,516 @@ TEST_P(SdkTestScChannel, ProcessDnsFailure)
         << "Not expected events received";
 
     CASE_info << "finished";
+}
+
+/**
+ * @brief Test: the wsc URL carries the &h=1 heartbeat flag so the server enables
+ *        the HTTP 103 heartbeats.
+ */
+TEST_P(SdkTestScChannel, HeartbeatFlagPresentOnScUrl)
+{
+    CASE_info << "started";
+
+    std::mutex urlMutex;
+    std::string capturedUrl;
+    globalMegaTestHooks.interceptSCRequest =
+        [&urlMutex, &capturedUrl](std::unique_ptr<HttpReq>& pendingsc)
+    {
+        std::lock_guard<std::mutex> g{urlMutex};
+        if (capturedUrl.empty())
+        {
+            capturedUrl = pendingsc->posturl;
+            globalMegaTestHooks.interceptSCRequest = nullptr;
+        }
+    };
+
+    // Force an sc/wsc request so the hook fires
+    megaApi[0]->catchup();
+
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g{urlMutex};
+            return !capturedUrl.empty();
+        },
+        defaultTimeoutMs))
+        << "SC request hook did not fire";
+
+    std::string url;
+    {
+        std::lock_guard<std::mutex> g{urlMutex};
+        url = capturedUrl;
+    }
+    CASE_info << "captured sc url: " << url;
+
+    EXPECT_NE(url.find("wsc"), std::string::npos) << "expected a wsc URL, got: " << url;
+    EXPECT_NE(url.find("&h=1"), std::string::npos)
+        << "expected the &h=1 heartbeat flag on the sc URL, got: " << url;
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: support for the legacy wsc "0" keep-alive response has been removed.
+ *        A "0" response is now treated as an unexpected SC response (REQUEST_ERROR),
+ *        instead of being silently swallowed as a keep-alive.
+ */
+TEST_P(SdkTestScChannel, ZeroResponseNoLongerKeepAlive)
+{
+    CASE_info << "started";
+
+    // Inject a legacy "0" keep-alive response, exactly as the old server used to send it
+    // (Content-Length: 1, body "0"). Before SDK-6336 this was swallowed silently; now it must
+    // surface as an unexpected SC error.
+    globalMegaTestHooks.interceptSCRequest = [this](std::unique_ptr<HttpReq>& pendingsc)
+    {
+        LOG_info << "SC channel hook: injecting legacy '0' keep-alive response";
+        mNetworkListener.clear();
+        pendingsc->status = REQ_SUCCESS;
+        pendingsc->httpstatus = 200;
+        pendingsc->contentlength = 1;
+        pendingsc->in = "0";
+        globalMegaTestHooks.interceptSCRequest = nullptr;
+    };
+
+    // Force SC channel catchup to trigger the hook
+    megaApi[0]->catchup();
+
+    // A "0" parses to error code 0 and hits the "Unexpected sc response" path.
+    EXPECT_TRUE(waitForNetworkEvents({{MegaEvent::SC, MegaEvent::REQUEST_ERROR, API_OK}},
+                                     defaultTimeoutMs,
+                                     false))
+        << "Expected the '0' response to be treated as an unexpected SC error";
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: a stalled pre-response sc request is reset by the new 15s heartbeat timeout.
+ *        The request is forced to look in-flight with no data, and its lastdata is aged
+ *        (via the hook) to a point that is past HEARTBEATTIMEOUT (15s) but short of the legacy
+ *        SCREQUESTTIMEOUT (40s). So the reset proves the 15s heartbeat path is in effect - it
+ *        would NOT fire if the pre-response phase still used the 40s timeout. Ageing lastdata
+ *        makes the timeout fire on the next exec() with no real-time wait, keeping the test
+ *        deterministic. The reset is observed as a different sc request (new id) taking over.
+ */
+TEST_P(SdkTestScChannel, HeartbeatTimeoutResetsStalledScRequest)
+{
+    CASE_info << "started";
+
+    // Midpoint of the two timeouts: safely > HEARTBEATTIMEOUT (15s) and < SCREQUESTTIMEOUT (40s).
+    const dstime age = (HttpIO::HEARTBEATTIMEOUT + HttpIO::SCREQUESTTIMEOUT) / 2;
+
+    std::mutex mtx;
+    bool haveTarget = false;
+    uint32_t stalledId = 0;
+    bool resetObserved = false;
+
+    // Runs on the client thread inside exec() (chooseScParsingMode), so there is no cross-thread
+    // access to pendingsc; only the small shared state below is guarded by the mutex.
+    globalMegaTestHooks.interceptSCRequest = [&](std::unique_ptr<HttpReq>& pendingsc)
+    {
+        std::lock_guard<std::mutex> g{mtx};
+        if (resetObserved)
+        {
+            return;
+        }
+        if (!haveTarget)
+        {
+            haveTarget = true;
+            stalledId = pendingsc->getId();
+        }
+
+        if (pendingsc->getId() == stalledId)
+        {
+            // Force the pre-response, no-heartbeat condition and age lastdata past the heartbeat
+            // timeout. Re-applied every time the hook sees this request until it is reset.
+            pendingsc->status = REQ_INFLIGHT;
+            pendingsc->mResponseStarted = false;
+            pendingsc->in.clear();
+            pendingsc->lastdata = Waiter::ds - age;
+        }
+        else
+        {
+            // A different sc request is now in flight -> the stalled one was reset and retried.
+            resetObserved = true;
+        }
+    };
+
+    // Ensure there is an sc request in flight to target.
+    megaApi[0]->catchup();
+
+    const bool ok = WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g{mtx};
+            return resetObserved;
+        },
+        defaultTimeoutMs);
+
+    globalMegaTestHooks.interceptSCRequest = nullptr; // stop before the captured locals go away
+
+    ASSERT_TRUE(ok)
+        << "The stalled pre-response sc request was not reset by the 15s heartbeat timeout";
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: lower-bound counterpart of HeartbeatTimeoutResetsStalledScRequest. The pre-response
+ *        sc request is held in flight but its lastdata is aged only to HEARTBEATTIMEOUT/2 (7.5s) -
+ *        short of the 15s heartbeat timeout - so it must NOT be reset. Guards against the timeout
+ *        firing too eagerly (a mis-set HEARTBEATTIMEOUT or wrong comparison) which would churn a
+ *        still-fresh sc request. The hook keeps re-pinning lastdata below the threshold every
+ *        exec(), so elapsed real time never crosses it: waiting a short window and seeing no reset
+ *        (no new request id) is enough - no need to wait 15s.
+ */
+TEST_P(SdkTestScChannel, HeartbeatTimeoutDoesNotResetFreshScRequest)
+{
+    CASE_info << "started";
+
+    // Half the heartbeat timeout: safely < HEARTBEATTIMEOUT (15s), so the timeout must not fire.
+    const dstime age = HttpIO::HEARTBEATTIMEOUT / 2;
+
+    std::mutex mtx;
+    bool haveTarget = false;
+    uint32_t stalledId = 0;
+    bool resetObserved = false;
+
+    // Same freezing mechanism as the positive test, but with a sub-threshold age. Runs on the
+    // client thread inside exec() (chooseScParsingMode); only the small shared state below is
+    // guarded.
+    globalMegaTestHooks.interceptSCRequest = [&](std::unique_ptr<HttpReq>& pendingsc)
+    {
+        std::lock_guard<std::mutex> g{mtx};
+        if (resetObserved)
+        {
+            return;
+        }
+        if (!haveTarget)
+        {
+            haveTarget = true;
+            stalledId = pendingsc->getId();
+        }
+
+        if (pendingsc->getId() == stalledId)
+        {
+            // Keep the request pre-response and in flight, but only mildly stale (< 15s). This also
+            // prevents it from completing naturally, so a new id could only mean a premature reset.
+            pendingsc->status = REQ_INFLIGHT;
+            pendingsc->mResponseStarted = false;
+            pendingsc->in.clear();
+            pendingsc->lastdata = Waiter::ds - age;
+        }
+        else
+        {
+            // A different sc request took over -> the fresh request was reset prematurely.
+            resetObserved = true;
+        }
+    };
+
+    // Ensure there is an sc request in flight to target.
+    megaApi[0]->catchup();
+
+    // Observe a window spanning many exec() cycles. A too-eager timeout fires on the first exec, so
+    // a few seconds with no reset is strong evidence. resetHappened must stay false (WaitFor times
+    // out); if it returns true the fresh request was wrongly reset.
+    const bool resetHappened = WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g{mtx};
+            return resetObserved;
+        },
+        6000);
+
+    globalMegaTestHooks.interceptSCRequest = nullptr; // stop before the captured locals go away
+
+    std::lock_guard<std::mutex> g{mtx};
+    ASSERT_TRUE(haveTarget) << "no sc request was observed - the test would be vacuous";
+    ASSERT_FALSE(resetHappened)
+        << "a fresh (< 15s stale) sc request was reset before the 15s heartbeat timeout";
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: lockless-CS counterpart of HeartbeatTimeoutResetsStalledScRequest. A file download
+ *        issues the idempotent "g" command on the lockless CS channel (mPendingLocklessCS). While
+ *        that request is in flight and before its response starts, ageing its lastdata past
+ *        HEARTBEATTIMEOUT (15s) - but short of the post-response REQUESTTIMEOUT (120s), so the
+ *        reset can only be the 15s heartbeat path - must reset and retry it.
+ *        Unlike the megaclient_test unit tests, this runs the real client so mReqsLockless
+ *        genuinely has an in-flight request (inflightFailure's invariants hold).
+ *        The reset is observed as a different lockless request (new id) taking over.
+ *        Ageing lastdata makes the timeout fire on the next exec() with no real-time wait,
+ *        keeping the test deterministic.
+ */
+TEST_P(SdkTestScChannel, HeartbeatTimeoutResetsStalledLocklessCsRequest)
+{
+    CASE_info << "started";
+
+    // Upload a small file so we can download it; the download issues the lockless "g".
+    ASSERT_TRUE(createFile(UPFILE, false)) << "could not create local file " << UPFILE;
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode) << "no root node";
+    MegaHandle uploadedHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &uploadedHandle,
+                            UPFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "upload of " << UPFILE << " failed";
+    std::unique_ptr<MegaNode> node{megaApi[0]->getNodeByHandle(uploadedHandle)};
+    ASSERT_TRUE(node) << "uploaded node not found";
+
+    // Midpoint of the two timeouts: safely > HEARTBEATTIMEOUT (15s) and < REQUESTTIMEOUT (120s).
+    const dstime age = (HttpIO::HEARTBEATTIMEOUT + HttpIO::REQUESTTIMEOUT) / 2;
+
+    std::mutex mtx;
+    bool haveTarget = false;
+    uint32_t stalledId = 0;
+    bool resetObserved = false;
+
+    // Runs on the client thread inside exec(), so there is no cross-thread access to
+    // mPendingLocklessCS; only the small shared state below is guarded by the mutex.
+    globalMegaTestHooks.interceptLocklessCSRequest =
+        [&](std::unique_ptr<HttpReq>& pendingLocklessCS)
+    {
+        std::lock_guard<std::mutex> g{mtx};
+        if (resetObserved || !pendingLocklessCS)
+        {
+            return;
+        }
+        if (!haveTarget)
+        {
+            haveTarget = true;
+            stalledId = pendingLocklessCS->getId();
+        }
+
+        if (pendingLocklessCS->getId() == stalledId)
+        {
+            // Force the pre-response, no-heartbeat condition and age lastdata past the heartbeat
+            // timeout. Re-applied every time the hook sees this request until it is reset.
+            pendingLocklessCS->status = REQ_INFLIGHT;
+            pendingLocklessCS->mResponseStarted = false;
+            pendingLocklessCS->in.clear();
+            pendingLocklessCS->lastdata = Waiter::ds - age;
+        }
+        else
+        {
+            // A different lockless request is now in flight -> the stalled one was reset and
+            // retried.
+            resetObserved = true;
+        }
+    };
+
+    // Start the download asynchronously (do not wait: the hook keeps the "g" stalled). No listener,
+    // so nothing on this stack outlives the transfer - it is cancelled below regardless.
+    megaApi[0]->startDownload(node.get(),
+                              DOWNFILE.c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
+                              MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                              false /*undelete*/,
+                              nullptr /*listener*/);
+
+    const bool ok = WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g{mtx};
+            return resetObserved;
+        },
+        defaultTimeoutMs);
+
+    globalMegaTestHooks.interceptLocklessCSRequest =
+        nullptr; // stop before the captured locals go away
+
+    megaApi[0]->cancelTransfers(MegaTransfer::TYPE_DOWNLOAD);
+    deleteFile(UPFILE);
+    deleteFile(DOWNFILE);
+
+    ASSERT_TRUE(ok) << "The stalled pre-response lockless CS request was not reset by the 15s "
+                       "heartbeat timeout";
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: lower-bound counterpart of HeartbeatTimeoutResetsStalledLocklessCsRequest. Holds the
+ *        download's lockless "g" request in the pre-response state but ages its lastdata only to
+ *        HEARTBEATTIMEOUT/2 (7.5s) - short of the 15s heartbeat timeout - so the request must NOT
+ *        be reset. Guards against the timeout firing too eagerly (e.g. a mis-set HEARTBEATTIMEOUT
+ *        or a wrong comparison) which would churn a still-fresh request. The hook keeps re-pinning
+ *        lastdata below the threshold every exec(), so elapsed real time never crosses it: waiting
+ *        a short window and seeing no reset (no new request id) is enough - no need to wait 15s.
+ */
+TEST_P(SdkTestScChannel, HeartbeatTimeoutDoesNotResetFreshLocklessCsRequest)
+{
+    CASE_info << "started";
+
+    // Upload a small file so we can download it; the download issues the lockless "g".
+    ASSERT_TRUE(createFile(UPFILE, false)) << "could not create local file " << UPFILE;
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode) << "no root node";
+    MegaHandle uploadedHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &uploadedHandle,
+                            UPFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "upload of " << UPFILE << " failed";
+    std::unique_ptr<MegaNode> node{megaApi[0]->getNodeByHandle(uploadedHandle)};
+    ASSERT_TRUE(node) << "uploaded node not found";
+
+    // Half the heartbeat timeout: safely < HEARTBEATTIMEOUT (15s), so the timeout must not fire.
+    const dstime age = HttpIO::HEARTBEATTIMEOUT / 2;
+
+    std::mutex mtx;
+    bool haveTarget = false;
+    uint32_t stalledId = 0;
+    bool resetObserved = false;
+
+    // Same freezing mechanism as the positive test, but with a sub-threshold age. Runs on the
+    // client thread inside exec(); only the small shared state below is guarded by the mutex.
+    globalMegaTestHooks.interceptLocklessCSRequest =
+        [&](std::unique_ptr<HttpReq>& pendingLocklessCS)
+    {
+        std::lock_guard<std::mutex> g{mtx};
+        if (resetObserved || !pendingLocklessCS)
+        {
+            return;
+        }
+        if (!haveTarget)
+        {
+            haveTarget = true;
+            stalledId = pendingLocklessCS->getId();
+        }
+
+        if (pendingLocklessCS->getId() == stalledId)
+        {
+            // Keep the request pre-response and in flight, but only mildly stale (< 15s). This also
+            // prevents it from completing naturally, so a new id could only mean a premature reset.
+            pendingLocklessCS->status = REQ_INFLIGHT;
+            pendingLocklessCS->mResponseStarted = false;
+            pendingLocklessCS->in.clear();
+            pendingLocklessCS->lastdata = Waiter::ds - age;
+        }
+        else
+        {
+            // A different lockless request took over -> the fresh request was reset prematurely.
+            resetObserved = true;
+        }
+    };
+
+    // Start the download asynchronously (the hook keeps the "g" frozen). No listener, so nothing on
+    // this stack outlives the transfer - it is cancelled below regardless.
+    megaApi[0]->startDownload(node.get(),
+                              DOWNFILE.c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT,
+                              MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                              false /*undelete*/,
+                              nullptr /*listener*/);
+
+    // Observe a window spanning many exec() cycles. A too-eager timeout fires on the first exec, so
+    // a few seconds with no reset is strong evidence. resetHappened must stay false (WaitFor times
+    // out); if it returns true the fresh request was wrongly reset.
+    const bool resetHappened = WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g{mtx};
+            return resetObserved;
+        },
+        6000);
+
+    globalMegaTestHooks.interceptLocklessCSRequest =
+        nullptr; // stop before the captured locals go away
+
+    megaApi[0]->cancelTransfers(MegaTransfer::TYPE_DOWNLOAD);
+    deleteFile(UPFILE);
+    deleteFile(DOWNFILE);
+
+    std::lock_guard<std::mutex> g{mtx};
+    ASSERT_TRUE(haveTarget)
+        << "the lockless g request was never observed - the test would be vacuous";
+    ASSERT_FALSE(resetHappened)
+        << "a fresh (< 15s stale) lockless CS request was reset before the 15s heartbeat timeout";
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: live end-to-end check that real HTTP 103 heartbeats are received on the wsc
+ *        long-poll. The wsc request idles while the server holds it, so a 103-capable server
+ *        emits a heartbeat every interval - waiting a window well beyond the interval yields a
+ *        heartbeat reliably (no timing coin-flip).
+ */
+TEST_P(SdkTestScChannel, ReceivesServerHeartbeatLive)
+{
+    CASE_info << "started";
+
+    std::mutex mtx;
+    int total = 0;
+    uint32_t currentId = 0;
+    dstime firstDsForCurrent = 0;
+    dstime maxSpan = 0; // longest heartbeat span (ds) seen on a single request id
+
+    globalMegaTestHooks.onHeartbeatReceived = [&](int /*statusCode*/, uint32_t reqId)
+    {
+        std::lock_guard<std::mutex> g{mtx};
+        ++total;
+        const dstime now = Waiter::ds;
+        if (reqId != currentId) // first heartbeat we see for this request
+        {
+            currentId = reqId;
+            firstDsForCurrent = now;
+        }
+        if (now - firstDsForCurrent > maxSpan)
+        {
+            maxSpan = now - firstDsForCurrent;
+        }
+    };
+
+    // Login/fetchnodes are done; the sc channel is now long-polling wsc. Wait until a single wsc
+    // request (same id) has received heartbeats spanning more than HEARTBEATTIMEOUT. That proves
+    // the heartbeats actually kept that request alive past the 15s heartbeat timeout: had the
+    // timeout fired, the request would have been reset and got a new id, restarting the span.
+    // (Requires a server that holds the wsc long-poll past the window.)
+    const bool survived = WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g{mtx};
+            return maxSpan >= static_cast<dstime>(HttpIO::HEARTBEATTIMEOUT);
+        },
+        90000);
+
+    globalMegaTestHooks.onHeartbeatReceived = nullptr; // stop before the captured locals go away
+
+    std::lock_guard<std::mutex> g{mtx};
+    ASSERT_GT(total, 0) << "No HTTP 103 heartbeat received on the wsc channel";
+    ASSERT_TRUE(survived) << "A single wsc request did not stay alive across the 15s heartbeat "
+                             "window - the heartbeats did not defer the timeout (received "
+                          << total << " heartbeat(s), max single-request span " << maxSpan
+                          << " ds, need >= " << HttpIO::HEARTBEATTIMEOUT << ")";
+    CASE_info << "finished (" << total << " heartbeat(s), max span " << maxSpan << " ds)";
 }
 
 INSTANTIATE_TEST_SUITE_P(ScChannel,

@@ -27,6 +27,7 @@ target_sources(test_unit
     FsNode.cpp
     getDefaultLogName.cpp
     hashcash_test.cpp
+    Heartbeat_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
