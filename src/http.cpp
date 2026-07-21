@@ -20,11 +20,14 @@
  */
 
 #include "mega/http.h"
-#include "mega/megaclient.h"
-#include "mega/logging.h"
-#include "mega/proxy.h"
+
 #include "mega/base64.h"
+#include "mega/logging.h"
+#include "mega/megaclient.h"
+#include "mega/proxy.h"
 #include "mega/testhooks.h"
+
+#include <charconv>
 
 #if defined(WIN32)
 #include <winhttp.h>
@@ -44,6 +47,9 @@ const int HttpIO::REQUESTTIMEOUT = 1200;
 
 // wait request timeout (ds)
 const int HttpIO::SCREQUESTTIMEOUT = 400;
+
+// heartbeat timeout (ds) - 15s, see declaration in http.h
+const int HttpIO::HEARTBEATTIMEOUT = 150;
 
 // connect timeout (ds)
 const int HttpIO::CONNECTTIMEOUT = 120;
@@ -292,6 +298,7 @@ void HttpReq::prepareMethod(HttpIO* clientHttpIo, const httpmethod_t reqMethod)
     inpurge = 0;
     method = reqMethod;
     contentlength = -1;
+    mResponseStarted = false;
     lastdata = Waiter::ds;
 }
 
@@ -370,6 +377,7 @@ void HttpReq::init()
     contentlength = 0;
     timeleft = -1;
     lastdata = NEVER;
+    mResponseStarted = false;
     outpos = 0;
     in.clear();
     contenttype.clear();
@@ -404,6 +412,8 @@ void HttpReq::setreq(const char* u, contenttype_t t)
 // add data to fixed or variable buffer
 void HttpReq::put(void* data, size_t len, bool purge)
 {
+    mResponseStarted = true;
+
     if (buf)
     {
         if (bufpos + static_cast<m_off_t>(len) > buflen)
@@ -511,6 +521,66 @@ void HttpReq::setcontentlength(m_off_t len)
     }
 
     contentlength = len;
+}
+
+int HttpReq::statusCodeFromHeaderLine(const char* line, size_t len)
+{
+    // Status line form: "HTTP/<version> <code>[ reason]", e.g. "HTTP/1.1 103 HB".
+    static const char prefix[] = "HTTP/";
+    constexpr size_t prefixLen = sizeof(prefix) - 1;
+    if (!line || len < prefixLen || memcmp(line, prefix, prefixLen))
+    {
+        return 0;
+    }
+
+    const char* const end = line + len;
+    const char* p = line + prefixLen;
+    while (p < end && *p != ' ') // skip the version token
+    {
+        ++p;
+    }
+    while (p < end && *p == ' ') // skip the separating space(s)
+    {
+        ++p;
+    }
+
+    // Parse the status-code digits. from_chars is bounded (no null terminator needed) and leaves
+    // code untouched if there are no digits, so 0 (never a valid HTTP status) is the sentinel.
+    int code = 0;
+    std::from_chars(p, end, code);
+    return code;
+}
+
+bool HttpReq::processStatusLine(const char* line, size_t len)
+{
+    const int statusCode = statusCodeFromHeaderLine(line, len);
+    if (!statusCode)
+    {
+        return false;
+    }
+
+    if (statusCode >= 100 && statusCode < 200)
+    {
+        LOG_verbose << getLogName() << "Heartbeat (HTTP " << statusCode << ") received";
+        DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(statusCode, getId());
+        lastdata = Waiter::ds;
+        if (httpio)
+        {
+            httpio->lastdata = Waiter::ds;
+        }
+        return true;
+    }
+
+    mResponseStarted = true;
+
+    if (contentlength >= 0)
+    {
+        // For authentication with some proxies, the request can receive more than one response.
+        LOG_warn << getLogName() << "Receiving a second response. Resetting Content-Length";
+        contentlength = -1;
+    }
+
+    return true;
 }
 
 // number of bytes transferred in this request

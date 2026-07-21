@@ -291,6 +291,13 @@ struct MEGA_API HttpIO : public EventTrigger
     // sc request timeout (ds)
     static const int SCREQUESTTIMEOUT;
 
+    // heartbeat timeout (ds): while a /cs or /wsc request is waiting for the actual
+    // response, the server sends periodic "HTTP/1.1 103 HB" early-hint headers. If neither
+    // a heartbeat nor the start of the response arrives within this timeout (ds), the
+    // connection is assumed dead: disconnect and retry the request. Supplements the network
+    // timeout that governs once the first byte of the actual response has been received.
+    static const int HEARTBEATTIMEOUT;
+
     // connection timeout (ds)
     static const int CONNECTTIMEOUT;
 
@@ -349,6 +356,10 @@ struct MEGA_API HttpReq
     bool minspeed;
     bool mExpectRedirect = false;
     bool mChunked = false;
+
+    // true once the final (non-1xx) response status line has been received. Before that, an
+    // "HTTP/1.1 103 HB" early-hint header acts as a heartbeat that keeps the request alive.
+    bool mResponseStarted = false;
 
     bool sslcheckfailed;
     string sslfakeissuer;
@@ -443,6 +454,14 @@ struct MEGA_API HttpReq
 
     // set response content length
     void setcontentlength(m_off_t);
+
+    // Parse the numeric status code from an HTTP status line such as "HTTP/1.1 103 HB".
+    // Returns 0 if the line is not a valid "HTTP/<version> <code>" status line.
+    static int statusCodeFromHeaderLine(const char* line, size_t len);
+
+    // Apply the heartbeat/response-start side effects for an HTTP status line.
+    // Returns false if the line is not a valid status line.
+    bool processStatusLine(const char* line, size_t len);
 
     // disconnect open HTTP connection
     void disconnect();
