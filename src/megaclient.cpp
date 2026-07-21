@@ -1695,6 +1695,22 @@ void MegaClient::acknowledgeuseralerts()
     useralerts.acknowledgeAll();
 }
 
+void MegaClient::notifyStreamOverquota(dstime timeleft)
+{
+    // Minimum delay between two consecutive streaming overquota events. A blocked media player
+    // reconnects every few seconds, and every attempt reaches this point.
+    static constexpr dstime MIN_NOTIFY_INTERVAL_DS = 20; // 2 seconds
+
+    if (mLastStreamOverquotaNotifyDs &&
+        Waiter::ds - mLastStreamOverquotaNotifyDs < MIN_NOTIFY_INTERVAL_DS)
+    {
+        return;
+    }
+
+    mLastStreamOverquotaNotifyDs = Waiter::ds;
+    app->notify_stream_overquota(timeleft);
+}
+
 void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
 {
     if (timeleft)
@@ -2242,6 +2258,7 @@ void MegaClient::exec()
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
         overquotauntil = 0;
+        mLastStreamOverquotaNotifyDs = 0;
     }
 
     if (httpio->inetisback())
@@ -3967,6 +3984,7 @@ bool MegaClient::abortbackoff(bool includexfers)
     if (includexfers)
     {
         overquotauntil = 0;
+        mLastStreamOverquotaNotifyDs = 0;
         if (ststatus != STORAGE_PAYWALL)    // in ODQ Paywall, ULs/DLs are not allowed
         {
             // in ODQ Red, only ULs are disallowed
@@ -5120,6 +5138,7 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     fetchnodestag = 0;
     ststatus = STORAGE_UNKNOWN;
     overquotauntil = 0;
+    mLastStreamOverquotaNotifyDs = 0;
     mOverquotaDeadlineTs = 0;
     mOverquotaWarningTs.clear();
     mBizGracePeriodTs = 0;
@@ -17641,6 +17660,40 @@ void MegaClient::queueread(handle handle,
               chatAuth);
 }
 
+// Fail a direct read that cannot be dispatched because the account is over its bandwidth quota.
+// Both dr and drn may be deleted here, so neither they nor drn's hdrns iterator can be used
+// by the caller afterwards.
+static void failOverquotaRead(DirectReadNode* drn, DirectRead* dr, dstime timeleft)
+{
+    // Both come straight from a new expression, so neither can be null.
+    MEGA_ASSERT(drn && dr, "failOverquotaRead called with a null DirectReadNode or DirectRead");
+
+    // Take the read out of the dispatch queue before reporting the failure. DirectRead's
+    // constructor queues it straight away when the node already has temp URLs, and
+    // execdirectreads() does not look at the overquota deadline, so it would hand the read a slot
+    // and hit the storage server regardless.
+    dr->abort();
+
+    if (EVER(dr->onFailure(API_EOVERQUOTA, 0, timeleft)))
+    {
+        // the reader wants to be retried: don't do so before the end of the overquota state
+        drn->schedule(timeleft);
+        return;
+    }
+
+    // The reader gave up, so drop its read rather than parking it until the overquota state ends
+    // (which may be hours away). A later read will queue a new one and be told about the overquota
+    // again, so nothing is lost by letting this one go.
+    delete dr;
+
+    if (drn->reads.empty())
+    {
+        LOG_debug << "Removing DirectReadNode. No reads left after bandwidth overquota"
+                  << " [this = " << drn << "]";
+        delete drn;
+    }
+}
+
 void MegaClient::queueread(handle handle,
                            bool isPublicHandle,
                            SymmCipher* cipher,
@@ -17692,8 +17745,10 @@ void MegaClient::queueread(handle handle,
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
             dstime timeleft = dstime(overquotauntil - Waiter::ds);
-            directRead->onFailure(API_EOVERQUOTA, 0, timeleft);
-            it->second->schedule(timeleft);
+            // The overquota state was already known, so this read never reaches the storage server
+            // and DirectReadNode::retry() will not run: notify the app from here instead.
+            notifyStreamOverquota(timeleft);
+            failOverquotaRead(it->second, directRead, timeleft);
         }
         else
         {
@@ -17706,8 +17761,8 @@ void MegaClient::queueread(handle handle,
         if (overquotauntil && overquotauntil > Waiter::ds)
         {
             dstime timeleft = dstime(overquotauntil - Waiter::ds);
-            directRead->onFailure(API_EOVERQUOTA, 0, timeleft);
-            it->second->schedule(timeleft);
+            notifyStreamOverquota(timeleft);
+            failOverquotaRead(it->second, directRead, timeleft);
         }
     }
 }

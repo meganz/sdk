@@ -1675,6 +1675,11 @@ public:
     // timestamp until the bandwidth is overquota in deciseconds, related to Waiter::ds
     m_time_t overquotauntil;
 
+    // timestamp (in deciseconds, related to Waiter::ds) when the app was last told about a
+    // bandwidth overquota hit affecting a streaming read. Zero while it hasn't been told yet.
+    // Used to throttle the notifications, as media players retry aggressively while blocked.
+    dstime mLastStreamOverquotaNotifyDs = 0;
+
     // storage status
     storagestatus_t ststatus;
 
@@ -2987,6 +2992,12 @@ public:
 
     // manage overquota errors
     void activateoverquota(dstime timeleft, bool isPaywall);
+
+    // notify the app that a streaming read has hit bandwidth overquota. Streaming reads are
+    // detached from the transfer/listener subsystem, so they cannot use transfer_failed().
+    // Throttled: media players keep reconnecting while blocked, and each attempt would
+    // otherwise raise a new event. timeleft is the remaining overquota time in deciseconds.
+    void notifyStreamOverquota(dstime timeleft);
 
     // achievements enabled for the account
     bool achievements_enabled;

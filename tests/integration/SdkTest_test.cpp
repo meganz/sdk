@@ -7707,6 +7707,215 @@ TEST_F(SdkTest, SdkTestOverquotaNonCloudraid)
 }
 #endif
 
+#ifdef DEBUG
+// A streaming listener that keeps consuming data, so the stream is not aborted
+// by the default onTransferData handling before/after an injected overquota.
+struct StreamTracker: public TransferTracker
+{
+    using TransferTracker::TransferTracker;
+
+    std::atomic<int> tag{0};
+
+    void onTransferStart(MegaApi* api, MegaTransfer* transfer) override
+    {
+        if (transfer)
+        {
+            tag = transfer->getTag();
+        }
+        TransferTracker::onTransferStart(api, transfer);
+    }
+
+    bool onTransferData(MegaApi*, MegaTransfer*, char*, size_t) override
+    {
+        return true;
+    }
+};
+
+// Cancel a streaming transfer and wait for it to reach its terminal state, so no live transfer is
+// left behind when the test returns. Cancelling goes through MegaClient::preadabort(), which fails
+// the pending direct read with API_EINCOMPLETE and destroys its DirectReadNode.
+static void cancelStreamAndWait(MegaApi* api, StreamTracker& tracker)
+{
+    ASSERT_GT(tracker.tag.load(), 0) << "The streaming transfer never started";
+    api->cancelTransferByTag(tracker.tag);
+    ASSERT_EQ(API_EINCOMPLETE, tracker.waitForResult(60))
+        << "The streaming transfer did not reach its terminal state";
+}
+#endif
+
+/**
+ * @brief TEST_F SdkTestStreamingOverquotaEvent
+ *
+ * Induces a simulated bandwidth overquota (HTTP 509) during a streaming read and confirms the SDK
+ * delivers the dedicated global event MegaEvent::EVENT_STREAM_OVERQUOTA to the app.
+ */
+#ifdef DEBUG
+TEST_F(SdkTest, SdkTestStreamingOverquotaEvent)
+{
+    LOG_info << "___TEST SdkTestStreamingOverquotaEvent";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    // Upload a file we can stream back.
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    deleteFile(UPFILE);
+    ASSERT_TRUE(createFile(UPFILE, true)) << "Couldn't create " << UPFILE;
+    MegaHandle uploadedNodeHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadedNodeHandle,
+                            UPFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Upload transfer failed";
+    std::unique_ptr<MegaNode> n1{megaApi[0]->getNodeByHandle(uploadedNodeHandle)};
+    ASSERT_NE(n1.get(), ((::mega::MegaNode*)NULL));
+
+    // Make the first streaming chunk request come back as bandwidth overquota (509, 30s left).
+    DebugTestHook::isRaid = false;
+    DebugTestHook::isRaidKnown = false;
+    DebugTestHook::countdownToOverquota = 0;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost509;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid;
+#endif
+
+    mApi[0].resetlastEvent();
+    megaApi[0]->setStreamingMinimumRate(0);
+    StreamTracker tracker(megaApi[0].get());
+    megaApi[0]->startStreaming(n1.get(), 0 /*startPos*/, n1->getSize() /*size*/, &tracker);
+
+    // The overquota must reach the app through the dedicated global event.
+    second_timer t;
+    while (t.elapsed() < 60 && !mApi[0].lastEventsContain(MegaEvent::EVENT_STREAM_OVERQUOTA))
+    {
+        WaitMillisec(500);
+    }
+    ASSERT_TRUE(mApi[0].lastEventsContain(MegaEvent::EVENT_STREAM_OVERQUOTA))
+        << "EVENT_STREAM_OVERQUOTA was not delivered to the app during a streaming overquota";
+
+    // Stop injecting, and cancel the stream instead of waiting out the injected overquota state:
+    // the read is parked until it expires, and leaving it running past the end of the test would
+    // leave a live transfer behind.
+    ASSERT_TRUE(DebugTestHook::resetForTests());
+    ASSERT_NO_FATAL_FAILURE(cancelStreamAndWait(megaApi[0].get(), tracker));
+}
+#endif
+
+/**
+ * @brief TEST_F SdkTestStreamingOverquotaEventAlreadyOverquota
+ *
+ * A streaming read started while the account is *already* known to be over its transfer quota is
+ * rejected by MegaClient::queueread() before any request reaches a storage server, so it never
+ * observes an HTTP 509 of its own and DirectReadNode::retry() never runs. The SDK must still
+ * deliver MegaEvent::EVENT_STREAM_OVERQUOTA to the app.
+ *
+ * This is the sequence the app hits in practice: a regular download exhausts the transfer quota
+ * first, and only afterwards the user starts playing a video.
+ */
+#ifdef DEBUG
+TEST_F(SdkTest, SdkTestStreamingOverquotaEventAlreadyOverquota)
+{
+    LOG_info << "___TEST SdkTestStreamingOverquotaEventAlreadyOverquota";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    // Upload a file we can download and then stream back.
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    deleteFile(UPFILE);
+    ASSERT_TRUE(createFile(UPFILE, true)) << "Couldn't create " << UPFILE;
+    MegaHandle uploadedNodeHandle = UNDEF;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &uploadedNodeHandle,
+                            UPFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Upload transfer failed";
+    std::unique_ptr<MegaNode> n1{megaApi[0]->getNodeByHandle(uploadedNodeHandle)};
+    ASSERT_NE(n1.get(), ((::mega::MegaNode*)NULL));
+
+    // Enter the overquota state through a regular download: its first chunk request comes back as
+    // bandwidth overquota (509, 30s left). This is reported to the app as a transfer temporary
+    // error, and leaves the client-wide overquota deadline set.
+    DebugTestHook::isRaid = false;
+    DebugTestHook::isRaidKnown = false;
+    DebugTestHook::countdownToOverquota = 0;
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onHttpReqPost = DebugTestHook::onHttpReqPost509;
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid;
+#endif
+
+    const string downloadPath = DOTSLASH + DOWNFILE;
+    deleteFile(downloadPath);
+    TransferTracker seedTracker(megaApi[0].get());
+    megaApi[0]->startDownload(n1.get(),
+                              downloadPath.c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /*collisionResolution*/,
+                              false /*undelete*/,
+                              &seedTracker);
+
+    second_timer overquotaTimer;
+    while (overquotaTimer.elapsed() < 60 && megaApi[0]->getBandwidthOverquotaDelay() == 0)
+    {
+        WaitMillisec(500);
+    }
+    ASSERT_GT(megaApi[0]->getBandwidthOverquotaDelay(), 0)
+        << "The regular download did not put the account into the overquota state";
+
+    // Stop injecting errors. From here on a streaming request would be served normally, so the
+    // event can only come from the overquota state the SDK already knows about, which is what this
+    // test is about. Leaving the hook in place would just retest the path already covered by
+    // SdkTestStreamingOverquotaEvent, where the streaming read hits a 509 of its own.
+    ASSERT_TRUE(DebugTestHook::resetForTests());
+
+    mApi[0].resetlastEvent();
+    megaApi[0]->setStreamingMinimumRate(0);
+    StreamTracker tracker(megaApi[0].get());
+
+    // The simulated overquota only lasts 30 seconds. If getting here took longer, the stream would
+    // be dispatched normally and no event is due, so say that rather than reporting a missing
+    // event.
+    ASSERT_GT(megaApi[0]->getBandwidthOverquotaDelay(), 0)
+        << "The overquota state expired before the streaming read could be started";
+
+    megaApi[0]->startStreaming(n1.get(), 0 /*startPos*/, n1->getSize() /*size*/, &tracker);
+
+    second_timer t;
+    while (t.elapsed() < 60 && !mApi[0].lastEventsContain(MegaEvent::EVENT_STREAM_OVERQUOTA))
+    {
+        WaitMillisec(500);
+    }
+    ASSERT_TRUE(mApi[0].lastEventsContain(MegaEvent::EVENT_STREAM_OVERQUOTA))
+        << "EVENT_STREAM_OVERQUOTA was not delivered for a stream started while already overquota";
+
+    // Both transfers are parked until the injected overquota state expires. Cancel them instead of
+    // waiting it out: the seeded download is persisted to the transfer cache, so leaving it behind
+    // could see it resumed by a later test when sessions are reused (--RESUMESESSIONS).
+    ASSERT_NO_FATAL_FAILURE(cancelStreamAndWait(megaApi[0].get(), tracker));
+
+    ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_DOWNLOAD));
+    ASSERT_EQ(API_EINCOMPLETE, seedTracker.waitForResult(60))
+        << "The seeded download did not reach its terminal state";
+
+    deleteFile(downloadPath);
+}
+#endif
 
 /**
 * @brief TEST_F SdkTestOverquotaNonCloudraid

@@ -1972,6 +1972,14 @@ auto FileContext::DownloadContext::failed(Error result, int) -> std::variant<Abo
     if (!retryable(result))
         return Abort();
 
+    // The account is over its bandwidth quota. Retrying is pointless: the quota window lasts for
+    // hours, far beyond our backoff, and every attempt would be rejected before reaching the
+    // storage server. Give up so pending reads fail promptly and this download stops blocking the
+    // ones that come after it. Whoever is streaming decides when to try again, and has been told
+    // about the overquota through MegaEvent::EVENT_STREAM_OVERQUOTA.
+    if (result == API_EOVERQUOTA)
+        return Abort();
+
     // Convenience.
     auto options = mContext.mService.serviceOptions();
 

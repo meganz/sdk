@@ -48,6 +48,7 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventNetworkActivity = 22,
     EventTransfersResumed = 23,
     EventLastPurge = 24,
+    EventStreamOverquota = 25,
 };
 
 typedef NS_ENUM(NSInteger, ReasonError) {
@@ -86,6 +87,9 @@ NS_SWIFT_SENDABLE
 /// Number relative to this event
 ///
 /// For `EventStorageSumChanged`, this number is the new storage sum.
+///
+/// For `EventStreamOverquota`, this number is the number of seconds left until the
+/// bandwidth overquota state ends.
 ///
 /// For `EventReqStatProgress`, this number is the per mil progress of a long-running
 /// API operation, or -1 if there isn't any operation in progress.
