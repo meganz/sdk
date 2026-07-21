@@ -1406,6 +1406,28 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
         client->usealtdownport = !client->usealtdownport;
     }
 
+    if (e == API_EOVERQUOTA)
+    {
+        if (!timeleft)
+        {
+            // The server didn't say how long the overquota state lasts, which means "unknown", not
+            // "no wait needed". Without a deadline we would neither hold back the reads that come
+            // after this one nor tell the app, and would retry straight away. Fall back to the same
+            // default the storage server path uses in MegaClient::overTransferQuotaBackoff().
+            LOG_debug << "[DirectReadNode::retry] Bandwidth overquota without timeleft, defaulting "
+                         "to "
+                      << MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS << "s" << " [this = " << this
+                      << "]";
+            timeleft = MegaClient::DEFAULT_BW_OVERQUOTA_BACKOFF_SECS * 10;
+        }
+
+        // Record the overquota state and tell the app before signalling the individual reads: a
+        // read may give up while being notified, and this function returns early once the last
+        // one is gone. Being over quota is an account-wide fact that outlives any single read.
+        client->overquotauntil = Waiter::ds + timeleft;
+        client->notifyStreamOverquota(timeleft);
+    }
+
     // signal failure to app, obtain minimum desired retry time
     for (dr_list::iterator it = reads.begin(); it != reads.end(); )
     {
@@ -1449,8 +1471,7 @@ void DirectReadNode::retry(const Error& e, dstime timeleft)
 
     if (e == API_EOVERQUOTA && timeleft)
     {
-        // don't retry at least until the end of the overquota state
-        client->overquotauntil = Waiter::ds + timeleft;
+        // don't retry at least until the end of the overquota state (already recorded above)
         if (minretryds < timeleft)
         {
             minretryds = timeleft;

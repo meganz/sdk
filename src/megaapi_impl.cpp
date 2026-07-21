@@ -15990,6 +15990,13 @@ void MegaApiImpl::notify_storage(int storageEvent)
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_stream_overquota(dstime timeleft)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_STREAM_OVERQUOTA);
+    event->setNumber(timeleft / 10);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::notify_confirmation(const char *email)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
@@ -41264,6 +41271,8 @@ const char *MegaEventPrivate::getEventString(int type)
             return "TRANSFERS_RESUMED";
         case MegaEvent::EVENT_LAST_PURGE:
             return "LAST_PURGE";
+        case MegaEvent::EVENT_STREAM_OVERQUOTA:
+            return "STREAM_OVERQUOTA";
     }
 
     return "UNKNOWN";

@@ -404,6 +404,10 @@ struct MEGA_API MegaApp
 
     virtual void notify_storage(int) { }
 
+    // notify about bandwidth overquota hit while streaming.
+    // The parameter is the time left (in deciseconds) until the overquota state ends.
+    virtual void notify_stream_overquota(dstime) {}
+
     virtual void notify_business_status(BizStatus) { }
 
     // account confirmation via signup link
