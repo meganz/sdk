@@ -128,6 +128,20 @@ MountResult MountDB::check(const MountInfo& info)
         return MOUNT_REMOTE_FILE;
     }
 
+    // The Vault tree cannot be mounted.
+    auto inVault = client().inVault(handle);
+
+    // Couldn't determine whether the node's in the Vault.
+    if (!inVault)
+        return MOUNT_REMOTE_UNKNOWN;
+
+    if (*inVault)
+    {
+        FUSEErrorF("Cloud node is in the Vault: %s", toNodeHandle(handle).c_str());
+
+        return MOUNT_REMOTE_VAULT;
+    }
+
     // Make sure the target path isn't claimed by a sync.
     if (!client().mountable(info.mPath))
     {

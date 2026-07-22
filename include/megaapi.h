@@ -28771,6 +28771,8 @@ public:
         UNEXPECTED,
         // No mount is associated with the specified handle or path.
         UNKNOWN,
+        // Mount source is a remote Vault node and cannot be mounted.
+        REMOTE_VAULT,
         // FUSE isn't supported on this platform.
         UNSUPPORTED
     }; // Result

@@ -10419,6 +10419,16 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     return API_OK;
 }
 
+bool MegaClient::isNodeInVaultTree(const std::shared_ptr<Node>& node) const
+{
+    if (!node)
+    {
+        return false;
+    }
+
+    return node->firstancestor()->type == VAULTNODE;
+}
+
 error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, int rTag)
 {
     assert(parent);
@@ -10426,6 +10436,12 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
 
     std::vector<NewNode> nn(1);
     bool canChangeVault = parent->isPasswordManagerNodeFolder();
+
+    if (!canChangeVault && isNodeInVaultTree(parent))
+    {
+        LOG_err << "createFolder: Not allowed to create folders in the vault tree";
+        return API_EACCESS;
+    }
     NewNode& newPasswordNode = nn.front();
     putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     const char* cauth = nullptr;
@@ -10486,6 +10502,13 @@ error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr:
 
     const bool canChangeVault =
         node->isPasswordManagerNodeFolder() || node->isPasswordManagerNode();
+
+    if (!canChangeVault && isNodeInVaultTree(node))
+    {
+        LOG_err << "renameNode: Not allowed to rename vault nodes";
+        return API_EACCESS;
+    }
+
     string sname = newName;
     LocalPath::utf8_normalize(&sname);
     return setattr(node, attr_map('n', sname), std::move(cbRequest), canChangeVault);
@@ -10512,6 +10535,12 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
     }
     else if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)  // rootnodes cannot be deleted
     {
+        return API_EACCESS;
+    }
+
+    if (!canChangeVault && isNodeInVaultTree(node))
+    {
+        LOG_err << "remove: Not allowed to remove vault nodes";
         return API_EACCESS;
     }
 
@@ -10590,7 +10619,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         return;
     }
 
-    if (n->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
+    if (!isNodeInVaultTree(n))
     {
         // backup nodes are supposed to be in the vault - if not, something is wrong
         completion(API_EARGS);
@@ -10616,7 +10645,6 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
     else
     {
         // moving to target node
-
         std::shared_ptr<Node> p = nodeByHandle(destination);
         if (!p || p->firstancestor()->nodeHandle() != mNodeManager.getRootNodeFiles())
         {
@@ -18425,9 +18453,12 @@ SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
         return {API_EARGS, INVALID_SCAN_INTERVAL, NO_SYNC_WARNING};
     }
 
-    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() &&
-        remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
+    if (syncs.mBackupRestrictionsEnabled &&
+        (syncConfig.isBackup() != isNodeInVaultTree(remotenode)))
     {
+        LOG_warn << (syncConfig.isBackup() ? "Backups must sync to the Vault tree" :
+                                             "Only backups may sync to the Vault tree");
+
         return {API_EARGS, INVALID_REMOTE_TYPE, NO_SYNC_WARNING};
     }
 
@@ -19956,7 +19987,7 @@ void MegaClient::applymaxconnections(const direction_t d, const uint8_t num)
 #ifdef MEGA_USE_WSUPLOAD
     wsApplyMaxConnections(d, num);
 #endif
- 
+
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end();)
     {
         TransferSlot* slot = *it++;

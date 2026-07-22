@@ -1085,6 +1085,21 @@ ErrorOr<accesslevel_t> ClientAdapter::permissions(NodeHandle handle) const
     return RDONLY;
 }
 
+ErrorOr<bool> ClientAdapter::inVault(NodeHandle handle) const
+{
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(LOCAL_LOGGED_OUT);
+
+    // Acquire RNT lock.
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
+
+    return mClient.isNodeInVaultTree(mClient.nodeByHandle(handle));
+}
+
 void ClientAdapter::remove(RemoveCallback callback, NodeHandle handle)
 {
     // Actually removes the node.

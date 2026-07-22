@@ -112,6 +112,9 @@ public:
     // Check whether a node is a file.
     virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
 
+    // True if a node is within the Vault tree.
+    virtual ErrorOr<bool> inVault(NodeHandle handle) const = 0;
+
     // Retrieve the specified node's key data.
     virtual ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const = 0;
 
@@ -226,4 +229,3 @@ public:
 
 } // common
 } // mega
-

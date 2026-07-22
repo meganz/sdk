@@ -27,6 +27,7 @@ namespace fuse
     expander(MOUNT_SUCCESS, "Mount was successful") \
     expander(MOUNT_UNEXPECTED, "Encountered an unexpected error while mounting") \
     expander(MOUNT_UNKNOWN, "No mount is associated with the specified handle or path") \
+    expander(MOUNT_REMOTE_VAULT, "Mount source is in the Vault and cannot be mounted") \
     expander(MOUNT_UNSUPPORTED, "FUSE isn't supported on this platform")
 
 enum MountResult : unsigned int
@@ -41,4 +42,3 @@ const char* toString(MountResult result);
 
 } // fuse
 } // mega
-
