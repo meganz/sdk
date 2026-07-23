@@ -34801,7 +34801,7 @@ int MegaTCPServer::uv_tls_writer(evt_tls_t *evt_tls, void *bfr, int sz)
     int rv = 0;
     uv_buf_t b;
     b.base = (char*)bfr;
-    b.len = sz;
+    b.len = static_cast<size_t>(sz);
 
     MegaTCPContext *tcpctx = (MegaTCPContext*)evt_tls->data;
     assert(tcpctx != NULL);
@@ -35181,7 +35181,7 @@ void MegaTCPServer::evt_on_rd(evt_tls_t *evt_tls, char *bfr, int sz)
 
     uv_buf_t data;
     data.base = bfr;
-    data.len = sz;
+    data.len = static_cast<size_t>(sz);
 
     if (!tcpctx->invalid)
     {
