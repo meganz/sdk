@@ -75,6 +75,7 @@ target_sources(test_unit
     sc_streaming_parser_test.cpp
     TestHooks_test.cpp
     WsUpload_test.cpp
+    WsQuota_test.cpp
 )
 
 target_sources_conditional(test_unit
