@@ -15,6 +15,7 @@ target_sources_conditional(test_integration
     wsupload/SdkWsUploadTest.cpp
     wsupload/SdkWsUploadCrashTest.cpp
     wsupload/SdkWsQuotaTest.cpp
+    wsupload/SdkWsQuotaRealTest.cpp
     wsupload/headers/ScopedUploadSpeedLimit.h
     wsupload/headers/SecondTimer.h
     wsupload/headers/TransferTempErrorTracker.h
@@ -31,6 +32,8 @@ target_sources_conditional(test_integration
     wsupload/headers/WsUploadTransitionCapture.h
     wsupload/headers/WsUscCommand.h
     wsupload/WsUscCommand.cpp
+    wsupload/headers/WsTfsCommand.h
+    wsupload/WsTfsCommand.cpp
 )
 
 target_include_directories(test_integration PRIVATE
