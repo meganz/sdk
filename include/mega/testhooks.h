@@ -67,6 +67,7 @@ namespace mega {
         std::function<void(bool&)> onHookDownloadRequestSingleUrl;
         std::function<void(m_time_t&)> onHookResetTransferLastAccessTime;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptLocklessCSRequest;
+        std::function<void(HttpReq*)> interceptCSRequest;
         std::function<
             void(const int /*httpStatus*/, const unsigned /*curlCode*/, const bool /*failed*/)>
             onHttpReqFinish;
@@ -166,6 +167,12 @@ namespace mega {
             globalMegaTestHooks.interceptLocklessCSRequest(pendingLocklessCS); \
     }
 
+#define DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingCS) \
+        { \
+            if (globalMegaTestHooks.interceptCSRequest) \
+                globalMegaTestHooks.interceptCSRequest(pendingCS); \
+        }
+
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED) \
     { \
         if (globalMegaTestHooks.onHttpReqFinish) \
@@ -239,6 +246,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag)
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
 #define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS)
+#define DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingCS)
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
 #define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
