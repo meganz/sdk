@@ -14,11 +14,15 @@ target_sources_conditional(test_integration
     wsupload/headers/SdkWsUploadTest.h
     wsupload/SdkWsUploadTest.cpp
     wsupload/SdkWsUploadCrashTest.cpp
+    wsupload/SdkWsQuotaTest.cpp
     wsupload/headers/ScopedUploadSpeedLimit.h
     wsupload/headers/SecondTimer.h
     wsupload/headers/TransferTempErrorTracker.h
     wsupload/headers/WsChunkSendOverquotaCapture.h
     wsupload/headers/WsOneShotHelper.h
+    wsupload/headers/WsQuotaClientThread.h
+    wsupload/headers/WsQuotaHoldTracker.h
+    wsupload/headers/WsQuotaHookCaptures.h
     wsupload/headers/WsUploadDebugHelpers.h
     wsupload/headers/WsUploadHelpers.h
     wsupload/headers/WsUploadHookGate.h
