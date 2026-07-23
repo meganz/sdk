@@ -847,9 +847,22 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
             return false;
         }
+        if (uf->hasFailed())
+        {
+            // markFailed() (e.g. activateoverquota walking PUT transfers when the
+            // account goes RED) can fail the attempt from the client thread between
+            // readData's generation check and this point. Unlike uploadFailed() it
+            // keeps the file pooled, so the inPool/aborted/paused checks above do
+            // not catch it: drop the chunk; the attempt reset already cleared the
+            // acked intervals, so a future retry re-sends from scratch.
+            WSUPLOAD_TRACE << "[WsPool::sendChunk] drop chunk after read (failed underneath) [pos="
+                           << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
+                           << "] [this = " << this << "]";
+            return false;
+        }
         assert(uf->isUploading() && "invariant: upload must be active after successful read "
-                                    "with inPool, !aborted, !paused checks passing; the "
-                                    "mWorkGeneration match inside readData guarantees the "
+                                    "with inPool, !aborted, !paused, !hasFailed checks passing; "
+                                    "the mWorkGeneration match inside readData guarantees the "
                                     "attempt did not reset underneath us");
 
         ChunkFingerprintMacUpdate update(chunk.pos);
