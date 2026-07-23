@@ -7,9 +7,12 @@
  *  - T18 ProbeTfsCommandOwnRoot  — cheap deployment probe of the committed
  *    production `tfs` command + parser (PASSES today; the command/parser are
  *    committed and validated by unit cells + a live raw probe).
- *  - T19 RealFillOwnAccountHoldAndRelease — fills the OWN account to < 16 MiB free
- *    then asserts a predictive own-pool hold (temp EOVERQUOTA, non-foreign, BEFORE
- *    all bytes are sent) and release-on-free.
+ *  - T19 RealFillOwnAccountHoldAndRelease — fills the OWN account to a controlled
+ *    GREEN/ORANGE-but-insufficient state (kFreeToLeave free, deliberately OFF the
+ *    near-full usl=RED band so the legacy account-RED machinery cannot satisfy
+ *    the discriminator), then asserts a predictive own-pool hold on an
+ *    oversized upload (temp EOVERQUOTA, non-foreign, BEFORE all bytes are sent)
+ *    and release-on-free.
  *  - T20 RealFillInshareForeignHold — account B fills its own storage and shares a
  *    folder FULL to A; A's upload into the inshare is predictively held with the
  *    foreign flag; A's own-root control upload is untouched.
@@ -89,9 +92,18 @@ std::string seedLinkUrl()
            "/file/gzlQ3DIY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg";
 }
 
-constexpr ::m_off_t kUploadSize = 16LL * 1024 * 1024; // 16 MiB predictive-hold probe upload
-constexpr int kDiscriminatorWaitS = 180; // upper bound: 16 MiB upload + putnodes (pre-P3 legacy)
-constexpr int kReleaseWaitS = 300; // T19 release: wait for the freed upload to complete
+constexpr ::m_off_t kUploadSize = 16LL * 1024 * 1024; // 16 MiB control/probe upload
+// Discriminator sizing: the fill leaves kFreeToLeave free — enough that the server
+// keeps usl OFF RED (RED sits near-full: ~99.9% observed; account-RED machinery
+// pre-blocks/kills uploads via activateoverquota and would satisfy the
+// discriminator WITHOUT any tfs logic) — and the discriminator upload is larger
+// than the free space, so pre-P3 it must stream ALL bytes and fail only at
+// putnodes, while the predictive tfs hold stops it at 0 bytes.
+constexpr ::m_off_t kFreeToLeave = 1536LL * 1024 * 1024; // 1.5 GiB free after fill
+constexpr ::m_off_t kDiscriminatorSize = 2304LL * 1024 * 1024; // 2.25 GiB > kFreeToLeave
+constexpr int kDiscriminatorWaitS = 240; // upper bound: 2.25 GiB stream + putnodes (pre-P3 legacy)
+constexpr int kReleaseWaitS =
+    420; // T19 release: wait for the freed upload to (re-)stream + complete
 constexpr int kForeignReleaseWaitS = 120; // T20 SOFT release window (no foreign re-poll by ruling)
 
 // Records, per transfer tag, the transfer's byte progress and foreign flag at the
@@ -209,31 +221,34 @@ protected:
         return "";
     }
 
-    // Fills apiIndex's storage to leave < kUploadSize (16 MiB) free, cloning the
+    // Fills apiIndex's storage to leave exactly kFreeToLeave free (GREEN/ORANGE —
+    // deliberately NOT near-full: usl must stay off RED so the legacy account-RED
+    // machinery cannot pre-block the discriminator upload), cloning the
     // SdkTestUploadsOverquota mechanics (import gzlQ3DIY 1 GB link + doCopyNode +
     // filler upload). Records the created fill-folder handle (set BEFORE the first
     // fallible assert) and any local filler file into the caller's cleanup state.
-    // Sets alreadyOverquota=true and returns WITHOUT importing if the account is
-    // already at/over quota. Uses ASSERT_* — invoke via ASSERT_NO_FATAL_FAILURE.
-    void fillStorageLeavingUnder16MB(unsigned apiIndex,
-                                     const std::string& fillFolderName,
-                                     ::MegaHandle& fillFolderHandleOut,
-                                     std::vector<std::string>& localFilesOut,
-                                     bool& alreadyOverquota)
+    // Sets alreadyOverquota=true and returns WITHOUT importing if the account
+    // cannot reach the controlled state. Uses ASSERT_* — invoke via
+    // ASSERT_NO_FATAL_FAILURE.
+    void fillStorageLeavingInsufficient(unsigned apiIndex,
+                                        const std::string& fillFolderName,
+                                        ::MegaHandle& fillFolderHandleOut,
+                                        std::vector<std::string>& localFilesOut,
+                                        bool& alreadyOverquota)
     {
         alreadyOverquota = false;
 
         std::unique_ptr<MegaNode> root{megaApi[apiIndex]->getRootNode()};
         ASSERT_TRUE(root) << "cannot resolve own root node";
 
-        // Check OQ BEFORE importing — an import into an already-OQ account would
-        // itself fail with EOVERQUOTA and confuse the fill.
+        // Check headroom BEFORE importing — an import into an already-(near-)OQ
+        // account would itself fail with EOVERQUOTA and confuse the fill.
         ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(apiIndex, true, false, false));
         ASSERT_NE(mApi[apiIndex].accountDetails, nullptr);
         const long long storageMax = mApi[apiIndex].accountDetails->getStorageMax();
         const long long storageUsed = mApi[apiIndex].accountDetails->getStorageUsed();
         ASSERT_GT(storageMax, 0);
-        if (storageUsed >= storageMax)
+        if (storageUsed + kFreeToLeave >= storageMax)
         {
             alreadyOverquota = true;
             return;
@@ -254,9 +269,10 @@ protected:
         ASSERT_GT(copySize, 0);
         const std::string seedName = seedNode->getName() ? seedNode->getName() : "seed";
 
-        // Copy the seed until < kUploadSize remains free.
+        // Copy the seed until just over kFreeToLeave remains free (the filler
+        // below tops the state up to exactly kFreeToLeave).
         const long long remaining = storageMax - storageUsed;
-        const long long copies = remaining / copySize;
+        const long long copies = (remaining - kFreeToLeave) / copySize;
         for (long long i = 1; i <= copies; ++i)
         {
             const std::string copyName = seedName + std::to_string(i);
@@ -266,11 +282,11 @@ protected:
                 << "copying fill node failed (i=" << i << ")";
         }
 
-        // Top up with a filler upload so exactly kUploadSize-1 bytes remain free.
+        // Top up with a filler upload so exactly kFreeToLeave bytes remain free.
         const long long remainingAfterCopies = remaining - (copies * copySize);
-        if (remainingAfterCopies >= kUploadSize)
+        if (remainingAfterCopies > kFreeToLeave)
         {
-            const long long fillerSize = remainingAfterCopies - (kUploadSize - 1);
+            const long long fillerSize = remainingAfterCopies - kFreeToLeave;
             const std::string fillerName = fillFolderName + "_filler.bin";
             localFilesOut.push_back(fillerName);
             ASSERT_TRUE(createFileWithSize(fillerName, static_cast<size_t>(fillerSize), "F"))
@@ -457,19 +473,19 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
     // Guard 2 + fill: SKIP if the account is already OQ (cannot set the controlled
     // < 16 MiB-free state), else fill to leave < 16 MiB.
     bool alreadyOverquota = false;
-    ASSERT_NO_FATAL_FAILURE(fillStorageLeavingUnder16MB(0,
-                                                        makeBinName("ws_quota_t19_fill_"),
-                                                        fillFolderHandle,
-                                                        localFiles,
-                                                        alreadyOverquota));
+    ASSERT_NO_FATAL_FAILURE(fillStorageLeavingInsufficient(0,
+                                                           makeBinName("ws_quota_t19_fill_"),
+                                                           fillFolderHandle,
+                                                           localFiles,
+                                                           alreadyOverquota));
     if (alreadyOverquota)
         GTEST_SKIP() << "account already overquota/full — cannot set up the controlled fill";
 
-    // ---- 16 MiB predictive-hold probe upload to own root ----
+    // ---- discriminator upload to own root: larger than the free space ----
     uploadName = makeBinName("ws_quota_t19_upload_");
     localFiles.push_back(uploadName);
-    ASSERT_TRUE(createFileWithSize(uploadName, static_cast<size_t>(kUploadSize), "U"))
-        << "creating the 16 MiB upload file failed";
+    ASSERT_TRUE(createFileWithSize(uploadName, static_cast<size_t>(kDiscriminatorSize), "U"))
+        << "creating the discriminator upload file failed";
 
     WsQuotaHoldTracker holdTracker(megaApi[0].get());
     OverquotaProgressLatch latch(megaApi[0].get());
@@ -581,11 +597,11 @@ TEST_F(SdkWsQuotaRealTest, RealFillInshareForeignHold)
 
     // ---- Guard 2 + B fill: SKIP if B already OQ, else fill B to < 16 MiB free ----
     bool alreadyOverquota = false;
-    ASSERT_NO_FATAL_FAILURE(fillStorageLeavingUnder16MB(1,
-                                                        makeBinName("ws_quota_t20_fill_"),
-                                                        bFillFolderHandle,
-                                                        localFiles,
-                                                        alreadyOverquota));
+    ASSERT_NO_FATAL_FAILURE(fillStorageLeavingInsufficient(1,
+                                                           makeBinName("ws_quota_t20_fill_"),
+                                                           bFillFolderHandle,
+                                                           localFiles,
+                                                           alreadyOverquota));
     if (alreadyOverquota)
         GTEST_SKIP() << "account B already overquota/full — cannot set up the controlled fill";
 
@@ -630,11 +646,12 @@ TEST_F(SdkWsQuotaRealTest, RealFillInshareForeignHold)
     std::unique_ptr<MegaNode> aRoot{megaApi[0]->getRootNode()};
     ASSERT_TRUE(aRoot);
 
-    // ---- A uploads 16 MiB into the inshare (A's own storage untouched) ----
+    // ---- A uploads the discriminator file into the inshare (larger than B's
+    // remaining space; A's own storage untouched) ----
     const std::string foreignName = makeBinName("ws_quota_t20_foreign_");
     localFiles.push_back(foreignName);
-    ASSERT_TRUE(createFileWithSize(foreignName, static_cast<size_t>(kUploadSize), "G"))
-        << "creating the 16 MiB foreign upload file failed";
+    ASSERT_TRUE(createFileWithSize(foreignName, static_cast<size_t>(kDiscriminatorSize), "G"))
+        << "creating the discriminator foreign upload file failed";
 
     WsQuotaHoldTracker holdTracker(megaApi[0].get());
     OverquotaProgressLatch latch(megaApi[0].get());
