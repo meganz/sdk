@@ -30,6 +30,7 @@
 #include "mega/megaclient.h"
 #include "mega/testhooks.h"
 #include "mega/transfer.h"
+#include "mega/transfer/ws/ws_quota.h"
 
 #include <cstring>
 #include <functional>
@@ -141,6 +142,38 @@ void MegaClient::wsReenqueueTransferAfterFailure(Transfer& t,
         retryAt = waiter->ds;
     }
     wsEngine()->setRetryUntil(t, retryAt);
+}
+
+// WS upload-quota ledger wrappers (SDK-6298). These are null-safe plumbing for
+// P1: nothing constructs mWsQuota yet, so every call below is currently inert.
+// P3 constructs mWsQuota in maybeStartWsUploadEngine() and fills in the flush /
+// deduction / hold-reassert bodies; the two forwarders below are already wired so
+// the trigger sites can call them unchanged once mWsQuota exists.
+void MegaClient::wsQuotaMarkDirty()
+{
+    if (mWsQuota)
+        mWsQuota->markDirty();
+}
+
+void MegaClient::wsQuotaInvalidateAndMarkDirty()
+{
+    if (mWsQuota)
+        mWsQuota->invalidate();
+}
+
+void MegaClient::wsQuotaFlush()
+{
+    // P3 wires the exec-cycle issue/apply/evaluate step here.
+}
+
+void MegaClient::wsQuotaOnUploadCompleted(Transfer& /*t*/)
+{
+    // P3 wires the per-File balance deduction here.
+}
+
+void MegaClient::wsQuotaReassertHold(Transfer& /*t*/)
+{
+    // P3 wires re-application of the engine quota-hold bit here.
 }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED

@@ -49,6 +49,10 @@
 #include "user.h"
 #include "useralerts.h"
 #include "wsupload.h"
+// ws_quota.h self-guards on MEGA_USE_WSUPLOAD; included here (rather than
+// forward-declared) so the complete ws::UploadQuotaManager type is visible where
+// ~MegaClient() destroys the mWsQuota unique_ptr, mirroring wsupload.h/m_wsEngine.
+#include "mega/transfer/ws/ws_quota.h"
 
 // FUSE support.
 #include <mega/common/client_adapter.h>
@@ -575,6 +579,9 @@ class MEGA_API MegaClient
     std::unique_ptr<ws::UploadEngine> m_wsEngine;
     bool mWsEngineStarted{false};
 
+    // Client-thread-only quota ledger (SDK-6298). Created lazily in P3; null here.
+    std::unique_ptr<ws::UploadQuotaManager> mWsQuota;
+
     WsVerifyResult wsVerifyUploadUnchanged(Transfer& t, TransferDbCommitter& committer);
     void wsFinalizeUploadCompletion(Transfer& t);
     void wsScheduleVerifyUpload(Transfer& t);
@@ -664,6 +671,14 @@ public:
     ws::UploadEngine::PreflightStartResult wsPrepareUploadForWsSync(Transfer& t);
     bool prepareUploadForWs(Transfer& t);
     bool wsIsTransferAlive(direction_t type, const Transfer* tp) const;
+
+    // WS upload-quota ledger wrappers (SDK-6298). Null-safe: inert until P3
+    // constructs mWsQuota and wires the issue/apply/evaluate flow.
+    void wsQuotaMarkDirty();
+    void wsQuotaInvalidateAndMarkDirty();
+    void wsQuotaFlush();
+    void wsQuotaOnUploadCompleted(Transfer& t);
+    void wsQuotaReassertHold(Transfer& t);
 
     // Bounce WS callbacks to the client thread.
     // Enqueue a client-thread action (same signature as sync’s queueClient functors).

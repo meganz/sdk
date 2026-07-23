@@ -354,6 +354,8 @@ target_sources_conditional(SDKlib
     include/mega/wsupload.h
     include/mega/transfer/ws/ws_encryption.h
     include/mega/transfer/ws/ws_pool_mgr.h
+    include/mega/transfer/ws/ws_quota.h
+    include/mega/transfer/ws/ws_quota_types.h
     include/mega/transfer/ws/ws_upload_file.h
     include/mega/transfer/ws/wsupload_engine.h
     include/mega/transfer/ws/wsupload_internal.h
@@ -365,6 +367,7 @@ target_sources_conditional(SDKlib
     src/transfer/ws/ws_curl.cpp
     src/transfer/ws/ws_pool.cpp
     src/transfer/ws/ws_pool_mgr.cpp
+    src/transfer/ws/ws_quota.cpp
     src/transfer/ws/ws_upload_file.cpp
     src/megaclient_wsupload.cpp
 )

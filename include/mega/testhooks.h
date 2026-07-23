@@ -22,6 +22,7 @@
 #ifndef MEGA_TESTHOOKS_H
 #define MEGA_TESTHOOKS_H 1
 
+#include "mega/transfer/ws/ws_quota_types.h"
 #include "types.h"
 
 #include <chrono>
@@ -636,6 +637,17 @@ namespace mega {
         std::chrono::steady_clock::time_point mSwallowStartTp;
     };
 
+    // Action a test may impose on a "tfs" reply from onWsTfsResult (SDK-6298 quota
+    // ledger). Apply = process normally; Drop = discard as if the reply were lost;
+    // Requeue = re-post the application to a later exec cycle (stale-race determinism).
+    // Always-compiled, like the WS enums above.
+    enum class WsTfsReplyAction
+    {
+        Apply,
+        Drop,
+        Requeue,
+    };
+
     struct MegaTestHooks
     {
         // O-13: guards whole-struct assignment (e.g. `globalMegaTestHooks = MegaTestHooks();`
@@ -834,6 +846,25 @@ namespace mega {
         std::function<void(dstime&)> onWsUploadAckStallTimeoutDs;
         std::function<void(dstime&)> onWsUploadTailCompletionTimeoutDs;
 
+        // SDK-6298 WS upload-quota ledger seams. All fire on the client thread with no
+        // engine lock held.
+        // Fired when a "tfs" quota query is issued (folders queried + generation).
+        std::function<void(const std::vector<NodeHandle>&, std::uint64_t /*gen*/)> onWsTfsIssued;
+        // Fired after the generation check and before apply, with every ref mutable so a
+        // test can forge API_OK + synthetic balances and steer the reply (Apply/Drop/Requeue).
+        std::function<void(std::uint64_t /*gen*/, Error&, WsTfsGroupBalances&, WsTfsReplyAction&)>
+            onWsTfsResult;
+        // Fired at each quota hold-state transition for a transfer.
+        std::function<
+            void(int /*transferTag*/, bool /*held*/, bool /*foreign*/, m_off_t /*availableBytes*/)>
+            onWsQuotaHoldChanged;
+        // Fired when a stale "tfs" reply is discarded by the generation check.
+        std::function<void(std::uint64_t /*staleGen*/, std::uint64_t /*currentGen*/)>
+            onWsTfsStaleDiscarded;
+        // Fired per-File when an upload completion debits its quota pool.
+        std::function<void(NodeHandle /*folder*/, m_off_t /*size*/, m_off_t /*remainingAfter*/)>
+            onWsQuotaDeducted;
+
         // Allow tests to force legacy (buggy) sparse CRC offset computation in FileFingerprint.
         // When enabled, FileFingerprint uses `legacySparseOffset32Bug()` instead of the fixed
         // 64-bit math when sampling large files (sparse CRC).
@@ -899,6 +930,11 @@ namespace mega {
                 std::move(other.onWsUploadTailCompletionTimeoutDs);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
+            onWsTfsIssued = std::move(other.onWsTfsIssued);
+            onWsTfsResult = std::move(other.onWsTfsResult);
+            onWsQuotaHoldChanged = std::move(other.onWsQuotaHoldChanged);
+            onWsTfsStaleDiscarded = std::move(other.onWsTfsStaleDiscarded);
+            onWsQuotaDeducted = std::move(other.onWsQuotaDeducted);
             onWsGateBackpressureSample = std::move(other.onWsGateBackpressureSample);
             onWsGateGoodputSample = std::move(other.onWsGateGoodputSample);
             // WsUploadServerEventHook already has its own locked move-assign.
@@ -1374,6 +1410,74 @@ namespace mega {
         } \
         while (0)
 
+    // SDK-6298 WS upload-quota ledger hooks. Copy-under-lock / invoke-outside-lock
+    // like every other hook; all fire on the client thread with no engine lock held.
+#define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN) \
+        do \
+        { \
+            std::function<void(const std::vector<NodeHandle>&, std::uint64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsTfsIssued; \
+            } \
+            if (_fn) \
+                _fn((FOLDERS), (GEN)); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_WS_TFS_RESULT(GEN, ERR, GROUPS, ACTION) \
+        do \
+        { \
+            std::function<void(std::uint64_t, Error&, WsTfsGroupBalances&, WsTfsReplyAction&)> \
+                _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsTfsResult; \
+            } \
+            if (_fn) \
+                _fn((GEN), (ERR), (GROUPS), (ACTION)); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(TAG, HELD, FOREIGN, AVAIL) \
+        do \
+        { \
+            std::function<void(int, bool, bool, m_off_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsQuotaHoldChanged; \
+            } \
+            if (_fn) \
+                _fn((TAG), (HELD), (FOREIGN), (AVAIL)); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_WS_TFS_STALE_DISCARDED(STALE, CURRENT) \
+        do \
+        { \
+            std::function<void(std::uint64_t, std::uint64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsTfsStaleDiscarded; \
+            } \
+            if (_fn) \
+                _fn((STALE), (CURRENT)); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_WS_QUOTA_DEDUCTED(H, SIZE, REMAINING) \
+        do \
+        { \
+            std::function<void(NodeHandle, m_off_t, m_off_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsQuotaDeducted; \
+            } \
+            if (_fn) \
+                _fn((H), (SIZE), (REMAINING)); \
+        } \
+        while (0)
+
     // Goodput-gate v2 controller-input seams (SDK-5360 QCT-K). Copy-under-lock / invoke-outside-
     // lock like every other hook; the callbacks only write their out-params, so they cannot
     // re-enter uploadMutex. POOLPTR is passed as a const void* identity token.
@@ -1530,6 +1634,11 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
 #define DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(COUNT)
+#define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN)
+#define DEBUG_TEST_HOOK_WS_TFS_RESULT(GEN, ERR, GROUPS, ACTION)
+#define DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(TAG, HELD, FOREIGN, AVAIL)
+#define DEBUG_TEST_HOOK_WS_TFS_STALE_DISCARDED(STALE, CURRENT)
+#define DEBUG_TEST_HOOK_WS_QUOTA_DEDUCTED(H, SIZE, REMAINING)
 #define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP)
 #define DEBUG_TEST_HOOK_WS_GATE_GOODPUT(POOLPTR, CONNS, BPS, OUT_OVERRIDDEN)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
