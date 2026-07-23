@@ -171,31 +171,29 @@ bool CommandTfsForWsUpload::procresult(Result r, JSON& json)
 
     WsTfsGroupBalances groups;
 
-    // Parse using a copy to avoid cursor desync on the main JSON instance.
+    // Parse using a copy to avoid cursor desync on the main JSON instance. The
+    // dispatch has ALREADY entered the result array (Command::CmdArray contract,
+    // like CommandUSCForWsUpload), so groups are parsed from this level directly.
     JSON jc = json;
-    if (jc.enterarray())
+    while (jc.enterarray()) // one quota group: [writableBytes, handle, handle, ...]
     {
-        while (jc.enterarray()) // one quota group: [writableBytes, handle, handle, ...]
-        {
-            m_off_t bytes = -1;
-            if (jc.isnumeric())
-                bytes = jc.getint();
+        m_off_t bytes = -1;
+        if (jc.isnumeric())
+            bytes = jc.getint();
 
-            std::vector<NodeHandle> handles;
-            while (jc.ishandle(MegaClient::NODEHANDLE))
-                handles.push_back(NodeHandle().set6byte(jc.gethandle(MegaClient::NODEHANDLE)));
+        std::vector<NodeHandle> handles;
+        while (jc.ishandle(MegaClient::NODEHANDLE))
+            handles.push_back(NodeHandle().set6byte(jc.gethandle(MegaClient::NODEHANDLE)));
 
-            // Tolerate forward-compatible extras appended to a group.
-            while (jc.storeobject())
-                ;
-            jc.leavearray();
-
-            // Fail-open: skip a malformed group (missing/negative balance or no
-            // handles) but keep the rest.
-            if (bytes >= 0 && !handles.empty())
-                groups.emplace_back(bytes, std::move(handles));
-        }
+        // Tolerate forward-compatible extras appended to a group.
+        while (jc.storeobject())
+            ;
         jc.leavearray();
+
+        // Fail-open: skip a malformed group (missing/negative balance or no
+        // handles) but keep the rest.
+        if (bytes >= 0 && !handles.empty())
+            groups.emplace_back(bytes, std::move(handles));
     }
 
     // Consume the full response element in the original JSON.
