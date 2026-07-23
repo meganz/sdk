@@ -48,8 +48,8 @@ const int HttpIO::REQUESTTIMEOUT = 1200;
 // wait request timeout (ds)
 const int HttpIO::SCREQUESTTIMEOUT = 400;
 
-// heartbeat timeout (ds) - 15s, see declaration in http.h
-const int HttpIO::HEARTBEATTIMEOUT = 150;
+// heartbeat timeout (ds) - 20s, see declaration in http.h
+const int HttpIO::HEARTBEATTIMEOUT = 200;
 
 // connect timeout (ds)
 const int HttpIO::CONNECTTIMEOUT = 120;
