@@ -25,6 +25,8 @@
 #include "types.h"
 
 #include <functional>
+#include <string>
+#include <vector>
 
 namespace mega {
 
@@ -75,6 +77,16 @@ namespace mega {
         // Called during generateMetaMac after reading each chunk. Allows tests to modify/lock
         // the file mid-computation to trigger read errors.
         std::function<void(const m_off_t currentOffset)> onMacGenerationChunkRead;
+
+        // Folder-upload testing: force per-node putnodes errors in the folder-creation
+        // completion callback, to exercise partial-failure handling (some nodes fail while
+        // the overall command returns API_OK).
+        std::function<void(std::vector<NewNode>&)> onFolderUploadPutnodesResult;
+
+        // Folder-upload testing: make an already-sent folder look missing on re-lookup, to
+        // exercise the "created earlier but gone now" guard (e.g. deleted by another session).
+        // Returns true to force the folder to be treated as not found.
+        std::function<bool(const std::string& folderName)> onFolderUploadSimulateMissing;
     };
 
     extern MegaTestHooks globalMegaTestHooks;
@@ -186,6 +198,23 @@ namespace mega {
             globalMegaTestHooks.onMacGenerationChunkRead((OFFSET)); \
         } \
     }
+
+#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN) \
+        { \
+            if (globalMegaTestHooks.onFolderUploadPutnodesResult) \
+            { \
+                globalMegaTestHooks.onFolderUploadPutnodesResult((NN)); \
+            } \
+        }
+
+#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT) \
+        { \
+            if ((SENT) && (MEGANODE) && globalMegaTestHooks.onFolderUploadSimulateMissing && \
+                globalMegaTestHooks.onFolderUploadSimulateMissing((FOLDERNAME))) \
+            { \
+                (MEGANODE).reset(); \
+            } \
+        }
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -205,6 +234,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED
 #define DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(OFFSET)
+#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN)
+#define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT)
 #endif
 
 } // namespace

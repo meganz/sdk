@@ -1194,6 +1194,17 @@ std::shared_ptr<Node> NodeManager::childNodeByNameType_internal(const Node* pare
     std::pair<NodeHandle, NodeSerialized> nodeSerialized;
     if (!mTable->childNodeByNameType(parent->nodeHandle(), name, nodeType, nodeSerialized))
     {
+        // The DB only holds committed nodes. When the RAM scan was skipped, a
+        // freshly added node that is still pending to be dumped to the DB (in mNodeNotify,
+        // not yet purged) is invisible to the query above.
+        // Check that pending set so we don't wrongly report the child as missing.
+        if (skipRamScan)
+        {
+            if (shared_ptr<Node> pending = childNodeByNameTypeInNotifyQueue(parent, name, nodeType))
+            {
+                return pending;
+            }
+        }
         return nullptr;  // Not found at DB either
     }
 
@@ -1209,6 +1220,30 @@ std::shared_ptr<Node> NodeManager::childNodeByNameType_internal(const Node* pare
         assert(!getNodeInRAM(nodeSerialized.first)); // not loaded yet
     }
     return getNodeFromNodeSerialized(nodeSerialized.second);
+}
+
+std::shared_ptr<Node> NodeManager::childNodeByNameTypeInNotifyQueue(const Node* parent,
+                                                                    const std::string& name,
+                                                                    nodetype_t nodeType) const
+{
+    assert(mMutex.owns_lock());
+
+    // Look for a matching child among the nodes pending to be dumped to the DB (mNodeNotify).
+    // Note: unlike the other match paths, we intentionally do NOT refresh the node's LRU
+    // position here. These nodes were just added to RAM (and to the LRU), and while they sit in
+    // mNodeNotify they are strongly referenced, so they cannot be evicted from the LRU anyway.
+    // Refreshing their position on this rare lookup adds little value, and skipping it keeps this
+    // method read-only.
+    for (const auto& n: mNodeNotify)
+    {
+        if (n && !n->changed.removed && n->type == nodeType &&
+            n->parentHandle() == parent->nodeHandle() && name == n->displayname())
+        {
+            return n;
+        }
+    }
+
+    return nullptr;
 }
 
 sharedNode_vector NodeManager::getRootNodes()

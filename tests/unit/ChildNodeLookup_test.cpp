@@ -201,6 +201,31 @@ protected:
         }
         return children;
     }
+
+    // Adds a child reproducing a node received via action packet whose DB dump
+    // is still pending (i.e. before notifypurge): it is kept in RAM and linked
+    // into the parent's mChildren, and pushed into the notify queue via
+    // notifyNode() (populating mNodeNotify), but saveNodeInDb() is intentionally
+    // NOT called, so it is invisible to a DB query. This is exactly the window
+    // in which the putnodes completion callback re-enters and looks the node up.
+    std::shared_ptr<Node> addPendingNotifyChild(const std::shared_ptr<Node>& parent,
+                                                nodetype_t nodeType,
+                                                const std::string& name)
+    {
+        NodeHandle handle = NodeHandle().set6byte(mNextHandle++);
+        auto& nodeRef = mt::makeNode(*mClient, nodeType, handle, parent.get());
+        std::shared_ptr<Node> node(&nodeRef);
+        node->attrs.map['n'] = name;
+
+        // notify=true / isFetching=false → kept in RAM and added to mChildren.
+        mClient->mNodeManager.addNode(node,
+                                      /*notify=*/true,
+                                      /*isFetching=*/false,
+                                      mMissingParentNodes);
+        // Queue for notify (populates mNodeNotify) WITHOUT persisting to the DB.
+        mClient->mNodeManager.notifyNode(node);
+        return node;
+    }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -519,6 +544,63 @@ TEST_F(ChildNodeLookupTest, EmptyFolder_ReturnsNull)
 
     auto found = nodeMgr().childNodeByNameType(emptyFolder.get(), "anything", FILENODE);
     EXPECT_EQ(found, nullptr);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  TC11 – Large directory (skipRamScan): a child still pending in the notify
+//         queue (in RAM, not yet dumped to the DB) is found via the fallback.
+//
+//  Reproduces the folder-upload crash scenario: a folder was just created by a
+//  putnodes action packet, and the putnodes completion callback re-enters
+//  (still inside sc processing, before notifypurge) to look the node up.
+//  Because the parent has more children than the threshold, the RAM scan is
+//  skipped (skipRamScan=true) and the query goes straight to the DB, where the
+//  just-created node is not present yet. Without the mNodeNotify fallback,
+//  childNodeByNameType would wrongly return nullptr (this would cause a
+//  duplicate std::move of the NewNode).
+// ═══════════════════════════════════════════════════════════════════════════
+TEST_F(ChildNodeLookupTest, LargeDir_SkipRamScan_PendingNotifyNodeFound)
+{
+    constexpr size_t kThreshold = 2;
+    configureLookup(/*lruMaxSize=*/50, kThreshold);
+
+    auto parent = addFolder(filesRoot(), "collection");
+
+    // Committed folder siblings: kept in RAM and persisted to the DB (but NOT
+    // in the notify queue). Enough of them to push the child count over the
+    // threshold so the RAM scan is skipped.
+    std::vector<std::shared_ptr<Node>> committed;
+    for (int i = 0; i < 3; ++i)
+    {
+        committed.push_back(addNode(FOLDERNODE,
+                                    parent,
+                                    /*notify=*/true,
+                                    /*isFetching=*/false,
+                                    "album_" + std::to_string(i)));
+    }
+
+    // The just-created folder: in RAM + mNodeNotify, but NOT in the DB.
+    const std::string pendingName = "just_created_album";
+    auto pending = addPendingNotifyChild(parent, FOLDERNODE, pendingName);
+
+    // Guard: the parent must have more children than the threshold, otherwise
+    // skipRamScan would be false and the RAM scan (not the fallback) would find
+    // the pending node, making this a false-positive test.
+    ASSERT_GT(nodeMgr().getNumberOfChildrenFromNode(parent->nodeHandle()), kThreshold);
+
+    // skipRamScan=true → DB is queried → misses the pending node → fallback
+    // scans mNodeNotify and finds it.
+    auto found = nodeMgr().childNodeByNameType(parent.get(), pendingName, FOLDERNODE);
+
+    ASSERT_NE(found, nullptr)
+        << "Pending (not-yet-committed) child must be found via the mNodeNotify fallback";
+    EXPECT_EQ(found.get(), pending.get()) << "Must return the live in-RAM node";
+    EXPECT_EQ(found->type, FOLDERNODE);
+    EXPECT_EQ(std::string(found->displayname()), pendingName);
+
+    // A name present in neither the DB nor the notify queue must still miss:
+    // the fallback is scoped to real pending children (no false positive).
+    EXPECT_EQ(nodeMgr().childNodeByNameType(parent.get(), "no_such_album", FOLDERNODE), nullptr);
 }
 
 } // anonymous namespace
