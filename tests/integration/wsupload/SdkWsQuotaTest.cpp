@@ -1908,4 +1908,164 @@ TEST_F(SdkWsUploadTest, QuotaManyUploadsGenerousBalanceSoak)
         << "coalescing bound exceeded (issuances=" << tfsIssued.issuanceCount() << ")";
 }
 
+// ============================================================================
+// T22 QuotaQueueFitsQueryReflectsLedger
+//
+// The boss-mandated, APP-FACING, OBSERVATIONAL-ONLY queue-fit query
+// (MegaApi::getWsUploadQueueQuotaFit, SDK-6298 P5): "can the current WS upload
+// queue complete under the current tfs balances?" — for apps to build interactive
+// warnings. It is a pure read with ZERO side effects on holds/ledger/transfers and
+// is NEVER consulted by SDK-internal upload decisions. The public API is release
+// code; only this cell is hook-gated because it scripts synthetic balances.
+//
+// The cell walks the query through the ledger's four observable states against one
+// throttled running upload to the own root:
+//   Phase A — before any balance has arrived: STATE_UNKNOWN ("no data yet").
+//   Phase B — generous balance applied: STATE_FITS (12MiB << 4TiB), shortfall 0.
+//   Phase C — a shortfall balance (< file size) re-scripted + an M1 usl bump holds
+//     the running upload; once the hold lands the query reports STATE_SHORTFALL
+//     with shortfallBytes == (outstanding sum − balance) == mainSize − mainSize/2
+//     for the single own pool, and foreign == false. Querying 5× in a loop here
+//     (the quiescent held point) asserts OBSERVATIONAL PURITY: zero new H1 (tfs
+//     issued) and zero new H3 (hold-changed) events beyond those already explained.
+//   Phase D — a generous balance re-scripted + M1 releases the hold: STATE_FITS
+//     again, shortfall 0.
+// ============================================================================
+TEST_F(SdkWsUploadTest, QuotaQueueFitsQueryReflectsLedger)
+{
+    LOG_info << "___TEST QuotaQueueFitsQueryReflectsLedger___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string mainName = makeBinName("ws_quota_t22_main_");
+    constexpr size_t mainSize = kWsUploadDefaultFileSize; // 12 MiB (even => /2 is exact)
+    ASSERT_TRUE(createFileWithSize(mainName, mainSize, "M"));
+
+    // Outstanding sum for the pool is the FULL file size (not remaining bytes), so
+    // the shortfall math is independent of the throttled upload's progress.
+    const ::m_off_t balance = static_cast<::m_off_t>(mainSize) / 2;
+    const ::m_off_t expectedShortfall = static_cast<::m_off_t>(mainSize) - balance;
+
+    std::vector<std::string> localFiles{mainName};
+    std::vector<std::string> rootUploadNames{mainName};
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            if (std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()})
+                for (const auto& nm: rootUploadNames)
+                    if (std::unique_ptr<MegaNode> n{
+                            megaApi[0]->getNodeByPathOfType(nm.c_str(),
+                                                            root.get(),
+                                                            MegaNode::TYPE_FILE)})
+                        (void)synchronousRemove(0, n.get());
+            for (const auto& nm: localFiles)
+                deleteFile(nm);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
+
+    // Phase A — before any balance has arrived the ledger has no data: UNKNOWN.
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_UNKNOWN)
+            << "queue-fit must be UNKNOWN until the first tfs balance arrives";
+        ASSERT_EQ(fit->getShortfallBytes(), 0LL);
+        ASSERT_FALSE(fit->isForeignShortfall());
+    }
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    WsQuotaHoldTracker holdTracker(megaApi[0].get());
+
+    // Phase B — generous balance for the own root; one throttled running upload fits.
+    script.setDefaultPlan(WsTfsResultScript::generous({rootH}));
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+
+    TransferTracker mainTracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(mainName, rootnode.get(), nullptr, &uploadOptions, &mainTracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return mainTracker.mTag.load() >= 0;
+        },
+        30000));
+    const int mainTag = mainTracker.mTag.load();
+
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
+        << "tfs never issued after enqueue (issuances=0)";
+
+    // The query goes FITS once the generous reply applies (poll — no perturbation).
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+            return fit && fit->getState() == MegaWsUploadQuotaFit::STATE_FITS;
+        },
+        60000))
+        << "queue-fit never reached FITS under a generous balance";
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_FITS);
+        ASSERT_EQ(fit->getShortfallBytes(), 0LL);
+        ASSERT_FALSE(fit->isForeignShortfall());
+    }
+
+    // Phase C — re-script a shortfall (balance < file size) + M1: the running upload
+    // is held, and the query then reports SHORTFALL for the single own pool.
+    script.setDefaultPlan(WsTfsResultScript::withGroups(oneGroup(balance, {rootH})));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(holdChanged.waitForHold(mainTag, kHoldTimeout))
+        << "hold never observed on the running upload (holdEvents=0)";
+    ASSERT_TRUE(holdTracker.waitForTemporaryError(mainTag, kHoldTimeout))
+        << "no temporary EOVERQUOTA surfaced for the held upload";
+
+    // Observational purity: from this quiescent held point, 5 queries must add ZERO
+    // new H1 (tfs issued) and ZERO new H3 (hold-changed) events, and each reports
+    // the same SHORTFALL snapshot. Baselines captured AFTER the hold landed, so they
+    // already account for Phase C's own issuance + hold transition.
+    const std::size_t issBefore = tfsIssued.issuanceCount();
+    const std::size_t holdBefore = holdChanged.totalEvents();
+    for (int i = 0; i < 5; ++i)
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_SHORTFALL)
+            << "queue-fit must be SHORTFALL while the pool is under-balanced (iter " << i << ")";
+        ASSERT_EQ(fit->getShortfallBytes(), static_cast<long long>(expectedShortfall))
+            << "shortfall must equal outstanding sum minus balance";
+        ASSERT_FALSE(fit->isForeignShortfall()) << "own-account pool is never foreign";
+    }
+    ASSERT_EQ(tfsIssued.issuanceCount(), issBefore)
+        << "the observational query must issue no tfs (H1 fired: "
+        << (tfsIssued.issuanceCount() - issBefore) << ")";
+    ASSERT_EQ(holdChanged.totalEvents(), holdBefore)
+        << "the observational query must fire no hold transition (H3 fired: "
+        << (holdChanged.totalEvents() - holdBefore) << ")";
+
+    // Phase D — generous again + M1 releases the hold: the query returns FITS again.
+    script.setDefaultPlan(WsTfsResultScript::generous({rootH}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(holdChanged.waitForRelease(mainTag, kHoldTimeout))
+        << "hold never released after the generous re-script";
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_FITS)
+            << "queue-fit must return to FITS after the hold is released";
+        ASSERT_EQ(fit->getShortfallBytes(), 0LL);
+        ASSERT_FALSE(fit->isForeignShortfall());
+    }
+}
+
 } // namespace mega::test::wsupload

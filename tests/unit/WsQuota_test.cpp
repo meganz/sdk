@@ -38,7 +38,10 @@ using ::mega::MegaApp;
 using ::mega::MegaClient;
 using ::mega::NodeHandle;
 using ::mega::WsTfsGroupBalances;
+using ::mega::ws::computeWsQuotaQueueFit;
 using ::mega::ws::UploadQuotaManager;
+using ::mega::ws::WsQuotaPoolFit;
+using ::mega::ws::WsQuotaQueueFit;
 
 namespace
 {
@@ -593,6 +596,83 @@ TEST(WsQuota, ParserConsumesPreEnteredResultArray)
     ASSERT_TRUE(unentered.called);
     EXPECT_EQ(unentered.err, ::mega::API_OK);
     EXPECT_EQ(unentered.groups.size(), 0u);
+}
+
+// =========================================================================
+// U12 — pure per-pool queue-fit arithmetic (computeWsQuotaQueueFit)
+//
+// The observational, app-facing "does the WS upload queue fit?" answer
+// (SDK-6298 P5) that backs MegaApi::getWsUploadQueueQuotaFit. The client-side
+// scan builds the per-pool (sum, remaining, foreign) vector; this pure reducer
+// is the arithmetic core, unit-tested here without any MegaClient / harness.
+// =========================================================================
+TEST(WsQuota, QueueFitComputation)
+{
+    const m_off_t GB = m_off_t(1) << 30;
+
+    // haveBalances=false => Unknown, regardless of any pools present.
+    {
+        const WsQuotaQueueFit r =
+            computeWsQuotaQueueFit(false, {WsQuotaPoolFit{10 * GB, 1 * GB, false}});
+        EXPECT_EQ(r.state, WsQuotaQueueFit::State::Unknown);
+        EXPECT_EQ(r.shortfallBytes, 0LL);
+        EXPECT_FALSE(r.foreignShortfall);
+    }
+
+    // haveBalances=true + no pools (empty/inbox-only queue) => trivially Fits.
+    {
+        const WsQuotaQueueFit r = computeWsQuotaQueueFit(true, {});
+        EXPECT_EQ(r.state, WsQuotaQueueFit::State::Fits);
+        EXPECT_EQ(r.shortfallBytes, 0LL);
+        EXPECT_FALSE(r.foreignShortfall);
+    }
+
+    // Every pool has sum <= remaining (incl. the sum==remaining boundary) => Fits.
+    {
+        const WsQuotaQueueFit r = computeWsQuotaQueueFit(
+            true,
+            {WsQuotaPoolFit{3 * GB, 10 * GB, false}, WsQuotaPoolFit{5 * GB, 5 * GB, true}});
+        EXPECT_EQ(r.state, WsQuotaQueueFit::State::Fits);
+        EXPECT_EQ(r.shortfallBytes, 0LL);
+        EXPECT_FALSE(r.foreignShortfall); // a FITTING foreign pool never flags foreign
+    }
+
+    // Single own (non-foreign) short pool => Shortfall; shortfall = sum - remaining.
+    {
+        const WsQuotaQueueFit r =
+            computeWsQuotaQueueFit(true, {WsQuotaPoolFit{10 * GB, 4 * GB, false}});
+        EXPECT_EQ(r.state, WsQuotaQueueFit::State::Shortfall);
+        EXPECT_EQ(r.shortfallBytes, 6 * GB);
+        EXPECT_FALSE(r.foreignShortfall);
+    }
+
+    // Multiple short pools: shortfallBytes sums across them; foreignShortfall is
+    // true iff ANY short pool is foreign (a fitting foreign pool does not count).
+    {
+        const WsQuotaQueueFit r =
+            computeWsQuotaQueueFit(true,
+                                   {
+                                       WsQuotaPoolFit{10 * GB, 4 * GB, false}, // short by 6, own
+                                       WsQuotaPoolFit{8 * GB, 3 * GB, true}, // short by 5, foreign
+                                       WsQuotaPoolFit{2 * GB, 9 * GB, true}, // fits (foreign)
+                                   });
+        EXPECT_EQ(r.state, WsQuotaQueueFit::State::Shortfall);
+        EXPECT_EQ(r.shortfallBytes, 11 * GB); // 6 + 5
+        EXPECT_TRUE(r.foreignShortfall); // the 8GB foreign pool is short
+    }
+
+    // A short pool that is foreign, with every other pool fitting => foreign flag set.
+    {
+        const WsQuotaQueueFit r =
+            computeWsQuotaQueueFit(true,
+                                   {
+                                       WsQuotaPoolFit{1 * GB, 100 * GB, false}, // fits (own)
+                                       WsQuotaPoolFit{7 * GB, 2 * GB, true}, // short by 5, foreign
+                                   });
+        EXPECT_EQ(r.state, WsQuotaQueueFit::State::Shortfall);
+        EXPECT_EQ(r.shortfallBytes, 5 * GB);
+        EXPECT_TRUE(r.foreignShortfall);
+    }
 }
 
 #endif // MEGA_USE_WSUPLOAD
