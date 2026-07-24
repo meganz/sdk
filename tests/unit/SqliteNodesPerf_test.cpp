@@ -1464,6 +1464,83 @@ TEST_F(SqliteGifRawPerfTest, DISABLED_ResidualFilterPerf)
     }
 }
 
+// ─── byFavourite residual-filter perf ───────────────────────────────────────
+// Times listAllNodesByPage with FAVOURITE_FILTER_ONLY_TRUE over a large tree with sparse
+// favourites (~0.5%), across three orders: FAV_DESC (index seek — favourites sort first),
+// DEFAULT_ASC (does the planner still pick the fav index?), and MTIME_DESC (true residual —
+// the mtime index has no fav prefix, so every row must be re-checked). No assertions
+// (DISABLED); read the logged us. Backs the "no new index" decision for byFavourite.
+class SqliteFavouritePerfTest: public SqliteNodesPerfTest
+{
+protected:
+    static constexpr int EXTRA_PHOTOS = 50000;
+    static constexpr int FAV_EVERY = 200; // ~0.5% favourited
+
+    // Seeds `photos` files under a fresh folder: one favourite every favEvery, the rest not.
+    NodeHandle seedPhotoTree(int photos, int favEvery, size_t& favCount)
+    {
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        EXPECT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, "FavouriteFolder");
+        favCount = 0;
+        for (int k = 0; k < photos; ++k)
+        {
+            const bool isFav = (k % favEvery == 0);
+            if (isFav)
+                ++favCount;
+            addNode(FILENODE, folder, "p_" + std::to_string(k) + ".jpg", isFav);
+        }
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+        return folder->nodeHandle();
+    }
+
+    long long timePage(int order, int64_t offset, size_t& resultCount)
+    {
+        ListAllNodesParams p;
+        p.mimeType = MIME_TYPE_PHOTO; // matches the seeded .jpg files
+        p.favouriteFilter = FAVOURITE_FILTER_ONLY_TRUE;
+        p.order = order;
+        p.maxElements = 100;
+        p.offset = offset;
+        const std::vector<NodeHandle> filesRoots{mRootHandle};
+        resultCount = 0;
+        const long long us = measureUs(COMPLEX_ITERS,
+                                       [&]
+                                       {
+                                           std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+                                           CancelToken ct;
+                                           table()->listAllNodesByPage(p, filesRoots, nodes, ct);
+                                           resultCount = nodes.size();
+                                       });
+        return us / COMPLEX_ITERS;
+    }
+
+    SqliteAccountState* table()
+    {
+        return dynamic_cast<SqliteAccountState*>(mClient->sctable.get());
+    }
+};
+
+TEST_F(SqliteFavouritePerfTest, DISABLED_FavouriteResidualPerf)
+{
+    size_t favCount = 0;
+    seedPhotoTree(EXTRA_PHOTOS, FAV_EVERY, favCount);
+    // offset=100 (mid, full page) vs offset=2000 (deep, favourites exhausted -> residual
+    // worst case: ~250 favourites total means an offset-2000 favourite-ordered page is empty,
+    // while DEFAULT_ASC/MTIME_DESC must residual-scan the whole 50k-row tree to confirm it).
+    for (int64_t offset: {int64_t{100}, int64_t{2000}})
+    {
+        size_t nFavDesc = 0, nDefaultAsc = 0, nMtimeDesc = 0;
+        const long long favDesc = timePage(OrderByClause::FAV_DESC, offset, nFavDesc);
+        const long long defaultAsc = timePage(OrderByClause::DEFAULT_ASC, offset, nDefaultAsc);
+        const long long mtimeDesc = timePage(OrderByClause::MTIME_DESC, offset, nMtimeDesc);
+        GTEST_LOG_(INFO) << "offset=" << offset << " | FAV_DESC=" << favDesc << "us (" << nFavDesc
+                         << ") | DEFAULT_ASC=" << defaultAsc << "us (" << nDefaultAsc
+                         << ") | MTIME_DESC=" << mtimeDesc << "us (" << nMtimeDesc << ")";
+    }
+}
+
 } // anonymous namespace
 
 #endif // USE_SQLITE

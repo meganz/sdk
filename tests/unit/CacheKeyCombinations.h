@@ -77,5 +77,13 @@ inline constexpr std::array<DateSectionGranularity, 3> kAllGranularities{{
 static_assert(kAllGranularities.size() == static_cast<size_t>(DateSectionGranularity::Max) + 1,
               "kAllGranularities out of sync with DateSectionGranularity — add the new value");
 
+inline constexpr std::array<FavouriteFilter_t, 3> kAllFavouriteFilters{{
+    FAVOURITE_FILTER_DISABLED,
+    FAVOURITE_FILTER_ONLY_TRUE,
+    FAVOURITE_FILTER_ONLY_FALSE,
+}};
+static_assert(kAllFavouriteFilters.size() == static_cast<size_t>(FAVOURITE_FILTER_MAX) + 1,
+              "kAllFavouriteFilters out of sync with FavouriteFilter_t — add the new value");
+
 } // namespace pagetest
 } // namespace mega

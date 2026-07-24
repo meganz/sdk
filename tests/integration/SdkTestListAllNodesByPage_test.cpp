@@ -137,6 +137,24 @@ private:
     int mSubCategory;
 };
 
+// Reports an arbitrary byFavourite value, bypassing the validating byFavourite() setter as a
+// misbehaving app/binding subclass could. Mirrors SubCategoryOverrideFilter above.
+class FavouriteOverrideFilter: public MegaListAllNodesFilterPrivate
+{
+public:
+    explicit FavouriteOverrideFilter(int favourite):
+        mFavourite(favourite)
+    {}
+
+    int byFavourite() const override
+    {
+        return mFavourite;
+    }
+
+private:
+    int mFavourite;
+};
+
 // Build a MegaHandleList from a brace-init list of handles. Caller owns.
 std::unique_ptr<MegaHandleList> handleList(std::initializer_list<MegaHandle> handles)
 {
@@ -428,6 +446,41 @@ TEST_F(SdkTestListAllNodesByPage, InvalidInputs_ReturnEmpty)
         std::unique_ptr<MegaSearchCursorOffset> cursor(MegaSearchCursorOffset::createInstance());
         tc.setup(cursor.get());
         expectEmpty(MegaApi::FILE_TYPE_PHOTO, tc.order, cursor.get());
+    }
+}
+
+// Out-of-range byFavourite value, injected via FavouriteOverrideFilter bypassing the validating
+// setter. parseListAllFilterIntoBase must reject any value outside
+// [BOOL_FILTER_DISABLED, BOOL_FILTER_ONLY_FALSE] → empty. Mirrors the subCategoryCases loop above.
+TEST_F(SdkTestListAllNodesByPage, FavouriteInvalidValueReturnsEmpty)
+{
+    struct InvalidFavouriteCase
+    {
+        const char* name;
+        int favourite;
+    };
+
+    // clang-format off
+    const std::vector<InvalidFavouriteCase> favouriteCases{
+        {"just below DISABLED (-1)", MegaNodeScopeFilter::BOOL_FILTER_DISABLED - 1},
+        {"just above ONLY_FALSE",    MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE + 1},
+        {"INT_MIN",                  std::numeric_limits<int>::min()},
+        {"INT_MAX",                  std::numeric_limits<int>::max()},
+    };
+    // clang-format on
+
+    for (const auto& tc: favouriteCases)
+    {
+        SCOPED_TRACE(tc.name);
+        FavouriteOverrideFilter filter(tc.favourite);
+        filter.byCategory(MegaApi::FILE_TYPE_PHOTO);
+        std::unique_ptr<MegaNodeList> r(megaApi[0]->listAllNodesByPage(&filter,
+                                                                       MegaApi::ORDER_DEFAULT_ASC,
+                                                                       nullptr,
+                                                                       0,
+                                                                       nullptr));
+        ASSERT_NE(r, nullptr);
+        EXPECT_EQ(r->size(), 0);
     }
 }
 
@@ -930,4 +983,83 @@ TEST_F(SdkTestListAllNodesBySubCategory, SubCategoryGifFilter)
     EXPECT_THAT(names(MegaApi::FILE_TYPE_VIDEO, MegaNodeScopeFilter::FILE_SUBTYPE_GIF), IsEmpty());
     EXPECT_THAT(names(MegaApi::FILE_TYPE_ALL_DOCS, MegaNodeScopeFilter::FILE_SUBTYPE_GIF),
                 IsEmpty());
+}
+
+// ─── Group 11: Filter API — byFavourite tri-state ────────────────────────────
+//
+// The DISABLED/ONLY_TRUE/ONLY_FALSE calls share one session on purpose, so a
+// stale per-connection prepared statement would surface as a wrong count. Extra
+// nodes for the folder / subtree / sub-category cases are added ad hoc rather than
+// via getElements(), so sibling tests asserting exact node lists stay unaffected.
+TEST_F(SdkTestListAllNodesByPage, FavouriteFilterTriState)
+{
+    const int order = MegaApi::ORDER_DEFAULT_ASC;
+
+    // Builds a FILE_TYPE_PHOTO filter with the given byFavourite state, optionally
+    // restricted to a location handle, and returns the matching names.
+    auto namesFor =
+        [this](int favouriteState, std::initializer_list<MegaHandle> locationHandles = {})
+    {
+        std::unique_ptr<MegaListAllNodesFilter> filter{MegaListAllNodesFilter::createInstance()};
+        filter->byCategory(MegaApi::FILE_TYPE_PHOTO);
+        filter->byFavourite(favouriteState);
+        std::unique_ptr<MegaHandleList> locations;
+        if (locationHandles.size() > 0)
+        {
+            locations = handleList(locationHandles);
+            filter->byLocationHandles(locations.get());
+        }
+        std::unique_ptr<MegaNodeList> results(
+            megaApi[0]->listAllNodesByPage(filter.get(), order, nullptr, 0, nullptr));
+        return results ? toNames(results.get()) : std::vector<std::string>{};
+    };
+
+    // ── Tri-state counts over the fixture's PHOTO set: alpha.jpg (non-fav),
+    // delta.jpg and golf.jpg (fav) ────────────────────────────────
+    EXPECT_THAT(namesFor(MegaNodeScopeFilter::BOOL_FILTER_DISABLED),
+                UnorderedElementsAre("alpha.jpg", "delta.jpg", "golf.jpg"));
+    EXPECT_THAT(namesFor(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE),
+                UnorderedElementsAre("delta.jpg", "golf.jpg"));
+    EXPECT_THAT(namesFor(MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE), ElementsAre("alpha.jpg"));
+
+    // ── Extra nodes for the folder / subtree / sub-category cases ─────────
+    //  favDir/          DIR    fav=true   folder itself favourited
+    //  freshSub/        DIR    fav=false  no favourites anywhere below
+    //    subA.jpg       PHOTO  fav=false
+    //    subB.jpg       PHOTO  fav=false
+    //  clip.gif         PHOTO  fav=true   GIF sub-category
+    //  clip2.gif        PHOTO  fav=false  GIF sub-category
+    const std::vector<NodeInfo> extraElements{
+        DirNodeInfo("favDir").setFav(true),
+        DirNodeInfo("freshSub")
+            .addChild(FileNodeInfo("subA.jpg"))
+            .addChild(FileNodeInfo("subB.jpg")),
+        FileNodeInfo("clip.gif").setFav(true),
+        FileNodeInfo("clip2.gif"),
+    };
+    ASSERT_NO_FATAL_FAILURE(createNodes(extraElements, getRootTestDirectory()));
+
+    // (b) favDir is itself favourited but is a folder, not a PHOTO file: it must
+    // never surface under ONLY_TRUE.
+    EXPECT_THAT(namesFor(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE),
+                Not(Contains(std::string("favDir"))));
+
+    // (a) freshSub has no favourites at all: ONLY_TRUE restricted to that subtree
+    // must be empty.
+    const std::unique_ptr<MegaNode> freshSub(
+        megaApi[0]->getNodeByPath(convertToTestPath("freshSub").c_str()));
+    ASSERT_NE(freshSub, nullptr);
+    EXPECT_THAT(namesFor(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE, {freshSub->getHandle()}),
+                IsEmpty());
+
+    // (c) ONLY_TRUE + bySubCategory(FILE_SUBTYPE_GIF) must return only the
+    // favourite GIF (clip.gif), excluding the non-favourite clip2.gif.
+    std::unique_ptr<MegaListAllNodesFilter> gifFilter{MegaListAllNodesFilter::createInstance()};
+    gifFilter->byCategory(MegaApi::FILE_TYPE_PHOTO);
+    gifFilter->bySubCategory(MegaNodeScopeFilter::FILE_SUBTYPE_GIF);
+    gifFilter->byFavourite(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE);
+    std::unique_ptr<MegaNodeList> gifResults(
+        megaApi[0]->listAllNodesByPage(gifFilter.get(), order, nullptr, 0, nullptr));
+    ASSERT_NE(gifResults, nullptr);
+    EXPECT_THAT(toNames(gifResults.get()), ElementsAre("clip.gif"));
 }

@@ -3329,7 +3329,8 @@ size_t oracleComputeListAllCacheId(MimeType_t mimeType,
                                    AnchorDirectionDigit anchorDir,
                                    bool excludeSensitive,
                                    size_t numRoots,
-                                   size_t numExcludes)
+                                   size_t numExcludes,
+                                   FavouriteFilter_t favourite)
 {
     constexpr size_t orderStride = static_cast<size_t>(OrderByClause::FAV_DESC) + 1;
     constexpr size_t maxRoots = 3; // mirrors kListAllMaxLocationHandles
@@ -3345,6 +3346,8 @@ size_t oracleComputeListAllCacheId(MimeType_t mimeType,
     key = key * 2 + (excludeSensitive ? 1u : 0u);
     key = key * maxRoots + (numRoots - 1);
     key = key * (maxExcludes + 1) + numExcludes;
+    constexpr size_t favStride = static_cast<size_t>(FAVOURITE_FILTER_MAX) + 1;
+    key = key * favStride + static_cast<size_t>(favourite);
     return key;
 }
 
@@ -3354,7 +3357,8 @@ size_t oracleComputeDateSectionsCacheId(MimeType_t mimeType,
                                         DateSectionGranularity granularity,
                                         bool excludeSensitive,
                                         size_t numRoots,
-                                        size_t numExcludes)
+                                        size_t numExcludes,
+                                        FavouriteFilter_t favourite)
 {
     constexpr size_t orderStride = static_cast<size_t>(OrderByClause::FAV_DESC) + 1;
     constexpr size_t maxRoots = 3;
@@ -3368,6 +3372,8 @@ size_t oracleComputeDateSectionsCacheId(MimeType_t mimeType,
     key = key * 2 + (excludeSensitive ? 1u : 0u);
     key = key * maxRoots + (numRoots - 1);
     key = key * (maxExcludes + 1) + numExcludes;
+    constexpr size_t favStride = static_cast<size_t>(FAVOURITE_FILTER_MAX) + 1;
+    key = key * favStride + static_cast<size_t>(favourite);
     return key;
 }
 
@@ -3391,32 +3397,37 @@ TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
                         for (bool sens: {false, true})
                             for (size_t roots = 1; roots <= 3; ++roots)
                                 for (size_t excludes = 0; excludes <= 3; ++excludes)
-                                {
-                                    const size_t actual = computeListAllCacheId(mime,
-                                                                                sub,
-                                                                                order,
-                                                                                hasCursor,
-                                                                                anchorDir,
-                                                                                sens,
-                                                                                roots,
-                                                                                excludes);
-                                    const size_t expected = oracleComputeListAllCacheId(mime,
-                                                                                        sub,
-                                                                                        order,
-                                                                                        hasCursor,
-                                                                                        anchorDir,
-                                                                                        sens,
-                                                                                        roots,
-                                                                                        excludes);
-                                    ASSERT_EQ(actual, expected)
-                                        << "mime=" << mime << " sub=" << static_cast<int>(sub)
-                                        << " order=" << order << " hasCursor=" << hasCursor
-                                        << " anchorDir=" << static_cast<int>(anchorDir)
-                                        << " sens=" << sens << " roots=" << roots
-                                        << " excludes=" << excludes;
-                                    ++checked;
-                                }
-    EXPECT_EQ(checked, 14u * 3u * 12u * 2u * 3u * 2u * 3u * 4u); // 72576
+                                    for (auto fav: kAllFavouriteFilters)
+                                    {
+                                        const size_t actual = computeListAllCacheId(mime,
+                                                                                    sub,
+                                                                                    order,
+                                                                                    hasCursor,
+                                                                                    anchorDir,
+                                                                                    sens,
+                                                                                    roots,
+                                                                                    excludes,
+                                                                                    fav);
+                                        const size_t expected =
+                                            oracleComputeListAllCacheId(mime,
+                                                                        sub,
+                                                                        order,
+                                                                        hasCursor,
+                                                                        anchorDir,
+                                                                        sens,
+                                                                        roots,
+                                                                        excludes,
+                                                                        fav);
+                                        ASSERT_EQ(actual, expected)
+                                            << "mime=" << mime << " sub=" << static_cast<int>(sub)
+                                            << " order=" << order << " hasCursor=" << hasCursor
+                                            << " anchorDir=" << static_cast<int>(anchorDir)
+                                            << " sens=" << sens << " roots=" << roots
+                                            << " excludes=" << excludes
+                                            << " fav=" << static_cast<int>(fav);
+                                        ++checked;
+                                    }
+    EXPECT_EQ(checked, 14u * 3u * 12u * 2u * 3u * 2u * 3u * 4u * 3u); // 217728
 }
 
 TEST(CacheKeyBuilder, DateSections_MatchesOracleArithmetic)
@@ -3429,29 +3440,34 @@ TEST(CacheKeyBuilder, DateSections_MatchesOracleArithmetic)
                     for (bool sens: {false, true})
                         for (size_t roots = 1; roots <= 3; ++roots)
                             for (size_t excludes = 0; excludes <= 3; ++excludes)
-                            {
-                                const size_t actual = computeDateSectionsCacheId(mime,
-                                                                                 sub,
-                                                                                 order,
-                                                                                 gran,
-                                                                                 sens,
-                                                                                 roots,
-                                                                                 excludes);
-                                const size_t expected = oracleComputeDateSectionsCacheId(mime,
-                                                                                         sub,
-                                                                                         order,
-                                                                                         gran,
-                                                                                         sens,
-                                                                                         roots,
-                                                                                         excludes);
-                                ASSERT_EQ(actual, expected)
-                                    << "mime=" << mime << " sub=" << static_cast<int>(sub)
-                                    << " order=" << order << " gran=" << static_cast<int>(gran)
-                                    << " sens=" << sens << " roots=" << roots
-                                    << " excludes=" << excludes;
-                                ++checked;
-                            }
-    EXPECT_EQ(checked, 14u * 3u * 12u * 3u * 2u * 3u * 4u); // 36288
+                                for (auto fav: kAllFavouriteFilters)
+                                {
+                                    const size_t actual = computeDateSectionsCacheId(mime,
+                                                                                     sub,
+                                                                                     order,
+                                                                                     gran,
+                                                                                     sens,
+                                                                                     roots,
+                                                                                     excludes,
+                                                                                     fav);
+                                    const size_t expected =
+                                        oracleComputeDateSectionsCacheId(mime,
+                                                                         sub,
+                                                                         order,
+                                                                         gran,
+                                                                         sens,
+                                                                         roots,
+                                                                         excludes,
+                                                                         fav);
+                                    ASSERT_EQ(actual, expected)
+                                        << "mime=" << mime << " sub=" << static_cast<int>(sub)
+                                        << " order=" << order << " gran=" << static_cast<int>(gran)
+                                        << " sens=" << sens << " roots=" << roots
+                                        << " excludes=" << excludes
+                                        << " fav=" << static_cast<int>(fav);
+                                    ++checked;
+                                }
+    EXPECT_EQ(checked, 14u * 3u * 12u * 3u * 2u * 3u * 4u * 3u); // 108864
 }
 
 TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
@@ -3465,7 +3481,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                                AnchorDirectionDigit::None,
                                                /*sens=*/false,
                                                /*roots=*/1,
-                                               /*excludes=*/0);
+                                               /*excludes=*/0,
+                                               FAVOURITE_FILTER_DISABLED);
 
     EXPECT_NE(baseKey,
               computeListAllCacheId(MIME_TYPE_VIDEO,
@@ -3475,7 +3492,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::None,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
     EXPECT_NE(baseKey,
               computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_GIF,
@@ -3484,7 +3502,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::None,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
     EXPECT_NE(computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_GIF,
                                     OrderByClause::MTIME_DESC,
@@ -3492,7 +3511,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::None,
                                     false,
                                     1,
-                                    0),
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED),
               computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_RAW,
                                     OrderByClause::MTIME_DESC,
@@ -3500,7 +3520,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::None,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
     EXPECT_NE(baseKey,
               computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_NONE,
@@ -3509,7 +3530,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::None,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
     EXPECT_NE(baseKey,
               computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_NONE,
@@ -3518,7 +3540,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::None,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
     EXPECT_NE(baseKey,
               computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_NONE,
@@ -3527,7 +3550,8 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::Asc,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
     EXPECT_NE(baseKey,
               computeListAllCacheId(MIME_TYPE_PHOTO,
                                     FILE_SUBTYPE_NONE,
@@ -3536,7 +3560,46 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     AnchorDirectionDigit::Desc,
                                     false,
                                     1,
-                                    0));
+                                    0,
+                                    FAVOURITE_FILTER_DISABLED));
+
+    const auto favBase = computeListAllCacheId(MIME_TYPE_PHOTO,
+                                               FILE_SUBTYPE_NONE,
+                                               OrderByClause::MTIME_DESC,
+                                               false,
+                                               AnchorDirectionDigit::None,
+                                               false,
+                                               1,
+                                               0,
+                                               FAVOURITE_FILTER_DISABLED);
+    EXPECT_NE(favBase,
+              computeListAllCacheId(MIME_TYPE_PHOTO,
+                                    FILE_SUBTYPE_NONE,
+                                    OrderByClause::MTIME_DESC,
+                                    false,
+                                    AnchorDirectionDigit::None,
+                                    false,
+                                    1,
+                                    0,
+                                    FAVOURITE_FILTER_ONLY_TRUE));
+    EXPECT_NE(computeListAllCacheId(MIME_TYPE_PHOTO,
+                                    FILE_SUBTYPE_NONE,
+                                    OrderByClause::MTIME_DESC,
+                                    false,
+                                    AnchorDirectionDigit::None,
+                                    false,
+                                    1,
+                                    0,
+                                    FAVOURITE_FILTER_ONLY_TRUE),
+              computeListAllCacheId(MIME_TYPE_PHOTO,
+                                    FILE_SUBTYPE_NONE,
+                                    OrderByClause::MTIME_DESC,
+                                    false,
+                                    AnchorDirectionDigit::None,
+                                    false,
+                                    1,
+                                    0,
+                                    FAVOURITE_FILTER_ONLY_FALSE));
 }
 
 } // anonymous namespace

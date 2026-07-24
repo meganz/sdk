@@ -2641,6 +2641,7 @@ constexpr size_t kListAllMaxExcludes = kListAllMaxLocationHandles;
 constexpr size_t kListAllOrderStride = static_cast<size_t>(OrderByClause::LAST) + 1;
 constexpr size_t kMimeTypeCount = static_cast<size_t>(MIME_TYPE_MAX) + 1;
 constexpr size_t kFileSubTypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
+constexpr size_t kFavouriteFilterStride = static_cast<size_t>(FAVOURITE_FILTER_MAX) + 1;
 constexpr size_t kAnchorDirectionStride = static_cast<size_t>(AnchorDirectionDigit::Max) + 1;
 constexpr size_t kDateSectionGranularityStride =
     static_cast<size_t>(DateSectionGranularity::Max) + 1;
@@ -2650,14 +2651,15 @@ constexpr size_t kDateSectionGranularityStride =
 constexpr size_t kListAllMaxCacheKey = kMimeTypeCount * kFileSubTypeStride * kListAllOrderStride *
                                        2 /* hasCursor */ * kAnchorDirectionStride *
                                        2 /* excludeSensitive */ * kListAllMaxRoots *
-                                       (kListAllMaxExcludes + 1);
+                                       (kListAllMaxExcludes + 1) * kFavouriteFilterStride;
 static_assert(kListAllMaxCacheKey < (uint64_t{1} << 32),
               "cache-key product no longer fits in 32 bits; revisit bounds");
 
 // Same bound for the date-section key (granularity digit replaces hasCursor + anchorDir).
-constexpr size_t kDateSectionMaxCacheKey =
-    kMimeTypeCount * kFileSubTypeStride * kListAllOrderStride * kDateSectionGranularityStride *
-    2 /* excludeSensitive */ * kListAllMaxRoots * (kListAllMaxExcludes + 1);
+constexpr size_t kDateSectionMaxCacheKey = kMimeTypeCount * kFileSubTypeStride *
+                                           kListAllOrderStride * kDateSectionGranularityStride *
+                                           2 /* excludeSensitive */ * kListAllMaxRoots *
+                                           (kListAllMaxExcludes + 1) * kFavouriteFilterStride;
 static_assert(kDateSectionMaxCacheKey < (uint64_t{1} << 32),
               "date-section cache-key product no longer fits in 32 bits; revisit bounds");
 
@@ -3325,8 +3327,23 @@ std::string fileSubTypeResidualClause(FileSubType_t subtype)
     return " AND getfilesubtype(name) = " + std::to_string(static_cast<int>(subtype));
 }
 
+// Bare column ref (like fileSubTypeResidualClause's bare `name`) so it resolves in every
+// route, including the grouped-mime CTEs. fav is always bound as 0/1, so `fav = 0` is exact.
+std::string favouriteFilterClause(FavouriteFilter_t f)
+{
+    switch (f)
+    {
+        case FAVOURITE_FILTER_ONLY_TRUE:
+            return " AND fav = 1";
+        case FAVOURITE_FILTER_ONLY_FALSE:
+            return " AND fav = 0";
+        default:
+            return {};
+    }
+}
+
 std::string buildGroupedListAllQuery(MimeType_t mimeType,
-                                     const std::string& fileSubTypeClause,
+                                     const std::string& residualClause,
                                      int order,
                                      const SubtreeScopeSql& scope,
                                      const CursorSql& cursor,
@@ -3350,7 +3367,7 @@ std::string buildGroupedListAllQuery(MimeType_t mimeType,
         ctes += routeName + " AS (\n" +
                 buildListAllRouteSelect(
                     "mimetypeVirtual = " + std::to_string(static_cast<int>(routeMimeTypes[i])) +
-                        fileSubTypeClause,
+                        residualClause,
                     order,
                     scope,
                     cursor,
@@ -3584,7 +3601,8 @@ std::string buildGroupedMimeInListClause(MimeType_t mimeType)
 // numRoots.
 //
 // Digit order: mimeType, fileSubType, order, hasCursor, anchorDir,
-// excludeSensitive, numRoots-1, numExcludes (see the append() chain below for each base).
+// excludeSensitive, numRoots-1, numExcludes, favourite (see the append() chain below for each
+// base).
 size_t computeListAllCacheId(MimeType_t mimeType,
                              FileSubType_t fileSubType,
                              int order,
@@ -3592,7 +3610,8 @@ size_t computeListAllCacheId(MimeType_t mimeType,
                              AnchorDirectionDigit anchorDir,
                              bool excludeSensitive,
                              size_t numRoots,
-                             size_t numExcludes)
+                             size_t numExcludes,
+                             FavouriteFilter_t favourite)
 {
     assert(numRoots > 0); // numRoots - 1 below would underflow; append() bounds the rest
 
@@ -3609,6 +3628,7 @@ size_t computeListAllCacheId(MimeType_t mimeType,
         .append(excludeSensitive ? 1u : 0u, 2)
         .append(numRoots - 1, kListAllMaxRoots)
         .append(numExcludes, kListAllMaxExcludes + 1)
+        .append(static_cast<size_t>(favourite), kFavouriteFilterStride)
         .build();
 }
 
@@ -3623,7 +3643,8 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
                                   DateSectionGranularity granularity,
                                   bool excludeSensitive,
                                   size_t numRoots,
-                                  size_t numExcludes)
+                                  size_t numExcludes,
+                                  FavouriteFilter_t favourite)
 {
     assert(numRoots > 0);
 
@@ -3635,6 +3656,7 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
         .append(excludeSensitive ? 1u : 0u, 2)
         .append(numRoots - 1, kListAllMaxRoots)
         .append(numExcludes, kListAllMaxExcludes + 1)
+        .append(static_cast<size_t>(favourite), kFavouriteFilterStride)
         .build();
 }
 
@@ -3815,7 +3837,8 @@ bool SqliteAccountState::listAllNodesByPage(
                                                  anchorDir,
                                                  params.excludeSensitive,
                                                  numRoots,
-                                                 numExcludes);
+                                                 numExcludes,
+                                                 params.favouriteFilter);
     // Look up without creating a slot; cache only after a successful prepare
     // (below), so a prepare failure leaves no dead nullptr entry behind.
     auto stmtIt = mStmtListAllNodesByPage.find(cacheId);
@@ -3843,12 +3866,13 @@ bool SqliteAccountState::listAllNodesByPage(
     int sqlResult = SQLITE_OK;
     if (!stmt)
     {
-        const std::string fileSubTypeClause = fileSubTypeResidualClause(params.fileSubType);
+        const std::string residualClause = fileSubTypeResidualClause(params.fileSubType) +
+                                           favouriteFilterClause(params.favouriteFilter);
         std::string query;
         if (isGroupMimeType)
         {
             query = buildGroupedListAllQuery(params.mimeType,
-                                             fileSubTypeClause,
+                                             residualClause,
                                              params.order,
                                              scope,
                                              cursor,
@@ -3857,7 +3881,7 @@ bool SqliteAccountState::listAllNodesByPage(
         else
         {
             query = buildListAllRouteSelect("mimetypeVirtual = ?" +
-                                                std::to_string(mimeFilterParam) + fileSubTypeClause,
+                                                std::to_string(mimeFilterParam) + residualClause,
                                             params.order,
                                             scope,
                                             cursor,
@@ -4034,7 +4058,8 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
                                                       params.granularity,
                                                       params.excludeSensitive,
                                                       numRoots,
-                                                      numExcludes);
+                                                      numExcludes,
+                                                      params.favouriteFilter);
 
     auto stmtIt = mStmtDateSections.find(cacheId);
     sqlite3_stmt* stmt = (stmtIt != mStmtDateSections.end()) ? stmtIt->second : nullptr;
@@ -4053,7 +4078,8 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
         const std::string mimeFilterClause =
             (isGroupMimeType ? buildGroupedMimeInListClause(params.mimeType) :
                                ("mimetypeVirtual = ?" + std::to_string(mimeFilterParam))) +
-            fileSubTypeResidualClause(params.fileSubType);
+            fileSubTypeResidualClause(params.fileSubType) +
+            favouriteFilterClause(params.favouriteFilter);
 
         const SubtreeScopeSql scope{filesRootParam,
                                     numRoots,

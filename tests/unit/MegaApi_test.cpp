@@ -756,3 +756,21 @@ TEST(MegaApi, ParseUtcOffsetSeconds_RejectsMalformedAndOutOfRange)
         EXPECT_FALSE(parseUtcOffsetSeconds(bad).has_value()) << "should reject: " << bad;
     }
 }
+
+TEST(MegaApi, ListAllNodesFilterByFavouriteRoundTrips)
+{
+    std::unique_ptr<MegaListAllNodesFilter> f{MegaListAllNodesFilter::createInstance()};
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_DISABLED);
+
+    f->byFavourite(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE);
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE);
+
+    f->byFavourite(MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+
+    f->byFavourite(999); // invalid -> ignored
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+
+    std::unique_ptr<MegaListAllNodesFilter> c{f->copy()};
+    EXPECT_EQ(c->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+}
