@@ -686,8 +686,12 @@ TEST_F(SdkWsUploadTest, QuotaCompletionDeductionHoldsSubsequentUpload)
     ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
         << "tfs never issued after enqueue (issuances=0)";
 
-    // Neither held before completion (individual-fit; U8 pins). file1 completes.
-    megaApi[0]->setMaxUploadSpeed(-1);
+    // Neither held before completion (individual-fit; U8 pins). file1 completes
+    // UNDER the throttle: file2 must still be streaming slowly when the
+    // completion-deduction evaluation lands, or the hold could race file2's own
+    // completion frame (an uncapped 2 MiB stream can reach COMPLETING before the
+    // next exec-cycle flush; the eval rightly skips COMPLETING transfers). The
+    // throttle gives the hold a ~20s window; it is lifted after the hold lands.
     ASSERT_EQ(tracker1.waitForResult(kCompleteTimeoutS), API_OK)
         << "first S-sized file did not complete";
 
@@ -707,6 +711,9 @@ TEST_F(SdkWsUploadTest, QuotaCompletionDeductionHoldsSubsequentUpload)
     // Discriminator: the hold came from the deduction, NOT a fresh tfs.
     ASSERT_EQ(tfsIssued.issuanceCount(), issuancesBeforeHold)
         << "a fresh tfs was issued between completion and hold — deduction was not the cause";
+
+    // Hold observed under throttle: lift it for a fast release/completion phase.
+    megaApi[0]->setMaxUploadSpeed(-1);
 
     // Release via generous + M1 -> file2 completes.
     script.setDefaultPlan(WsTfsResultScript::generous({folderH}));
