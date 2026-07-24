@@ -325,6 +325,9 @@ struct ListAllFilterParams
     /// Optional gif/raw sub-filter within MIME_TYPE_PHOTO (FILE_SUBTYPE_NONE = no filter).
     FileSubType_t fileSubType = FILE_SUBTYPE_NONE;
 
+    /// Optional favourite filter. FAVOURITE_FILTER_DISABLED = no filter.
+    FavouriteFilter_t favouriteFilter = FAVOURITE_FILTER_DISABLED;
+
     int order = 0;
     bool excludeSensitive = false;
 

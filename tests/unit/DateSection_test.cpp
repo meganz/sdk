@@ -1068,6 +1068,205 @@ TEST_F(GifRawFilterTest, SubCategoryFilterHonouredWithCursor)
     EXPECT_EQ(paged, gifCount);
 }
 
+// ═══════════════════════════════════════════════════════════════════════════
+//  FavouriteFilterTest – the tri-state favourite filter on listAllNodesByPage +
+//  groupAllNodesByDate. Real SQLite via SearchByPageTest.
+// ═══════════════════════════════════════════════════════════════════════════
+class FavouriteFilterTest: public SearchByPageTest
+{
+protected:
+    // includeK0=false suppresses the k==0 favourite so a genuinely favourite-free
+    // subtree can be seeded (k==0 always satisfies k % favEvery == 0 otherwise).
+    NodeHandle seedFavTree(int photos, int favEvery, size_t& favCount, bool includeK0 = true)
+    {
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        EXPECT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, NodeMeta{"FavFolder", FOLDERNODE});
+        favCount = 0;
+        for (int k = 0; k < photos; ++k)
+        {
+            NodeMeta meta{"p_" + std::to_string(k) + ".jpg",
+                          FILENODE,
+                          100,
+                          1'700'000'000LL + k + 1};
+            if (k % favEvery == 0 && (k != 0 || includeK0))
+            {
+                meta.fav = 1;
+                ++favCount;
+            }
+            addNode(FILENODE, folder, meta);
+        }
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+        return folder->nodeHandle();
+    }
+
+    size_t countRows(FavouriteFilter_t fav,
+                     NodeHandle ancestor,
+                     MimeType_t mime = MIME_TYPE_PHOTO,
+                     int order = OrderByClause::MTIME_DESC)
+    {
+        ListAllNodesParams p;
+        p.mimeType = mime;
+        p.favouriteFilter = fav;
+        p.order = order;
+        p.maxElements = 0;
+        p.explicitAncestors = {ancestor};
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+        CancelToken ct;
+        table()->listAllNodesByPage(p, {ancestor}, nodes, ct);
+        return nodes.size();
+    }
+
+    size_t sumSections(FavouriteFilter_t fav,
+                       NodeHandle ancestor,
+                       MimeType_t mime = MIME_TYPE_PHOTO)
+    {
+        DateSectionParams params;
+        params.mimeType = mime;
+        params.favouriteFilter = fav;
+        params.order = OrderByClause::MTIME_DESC;
+        params.granularity = DateSectionGranularity::Month;
+        params.explicitAncestors = {ancestor};
+        std::vector<DateSection> out;
+        CancelToken ct;
+        table()->groupAllNodesByDate(params, {ancestor}, out, ct);
+        size_t total = 0;
+        for (const auto& s: out)
+            total += static_cast<size_t>(s.mCount);
+        return total;
+    }
+
+    SqliteAccountState* table()
+    {
+        return dynamic_cast<SqliteAccountState*>(mClient->sctable.get());
+    }
+
+    // Pages the whole result set at pageSize 2 and returns the total rows seen.
+    // lastFav >= 0 populates the cursor's mLastFav, required for ORDER_FAV_* cursors.
+    size_t pageAllAtSize2(FavouriteFilter_t fav, int order, NodeHandle folder, int lastFav)
+    {
+        ListAllNodesParams p;
+        p.mimeType = MIME_TYPE_PHOTO;
+        p.favouriteFilter = fav;
+        p.order = order;
+        p.maxElements = 2;
+        p.explicitAncestors = {folder};
+
+        size_t paged = 0;
+        std::optional<NodeSearchCursorOffset> cursor;
+        for (int guard = 0; guard < 100; ++guard)
+        {
+            p.cursor = cursor;
+            std::vector<std::pair<NodeHandle, NodeSerialized>> page;
+            CancelToken ct;
+            table()->listAllNodesByPage(p, {folder}, page, ct);
+            if (page.empty())
+                break;
+            paged += page.size();
+            const auto last = mClient->mNodeManager.getNodeByHandle(page.back().first);
+            if (!last)
+            {
+                ADD_FAILURE() << "paged node not found in NodeManager";
+                break;
+            }
+            NodeSearchCursorOffset c;
+            c.mLastName = last->displayname();
+            c.mLastHandle = page.back().first.as8byte();
+            if (lastFav >= 0)
+                c.mLastFav = lastFav;
+            cursor = c;
+        }
+        return paged;
+    }
+};
+
+TEST_F(FavouriteFilterTest, FiltersRowsCorrectly)
+{
+    size_t favCount = 0;
+    const NodeHandle folder = seedFavTree(/*photos=*/40, /*favEvery=*/5, favCount);
+    ASSERT_GT(favCount, 0u);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_DISABLED, folder), 40u);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_TRUE, folder), favCount);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_FALSE, folder), 40u - favCount);
+}
+
+// All-favourite subtree: ONLY_FALSE must be empty, ONLY_TRUE must be all.
+TEST_F(FavouriteFilterTest, AllOrNoneBoundaries)
+{
+    size_t favCount = 0;
+    const NodeHandle allFav =
+        seedFavTree(/*photos=*/10, /*favEvery=*/1, favCount); // every file fav
+    ASSERT_EQ(favCount, 10u);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_FALSE, allFav), 0u);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_TRUE, allFav), 10u);
+
+    size_t none = 0;
+    const NodeHandle noFav =
+        seedFavTree(/*photos=*/10, /*favEvery=*/100, none, /*includeK0=*/false);
+    ASSERT_EQ(none, 0u);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_TRUE, noFav), 0u);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_FALSE, noFav), 10u);
+}
+
+// Grouped-mime path: ALL_VISUAL_MEDIA builds one CTE per route — the fav predicate must ride each.
+TEST_F(FavouriteFilterTest, FiltersGroupedMimeRows)
+{
+    size_t favCount = 0;
+    const NodeHandle folder = seedFavTree(40, 5, favCount);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_TRUE, folder, MIME_TYPE_ALL_VISUAL_MEDIA), favCount);
+    EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_FALSE, folder, MIME_TYPE_ALL_VISUAL_MEDIA),
+              40u - favCount);
+}
+
+// Date-section counts must honour favourite on BOTH the simple-PHOTO and the grouped
+// ALL_VISUAL_MEDIA (separate IN-list) route. And the section-query fold (site 2) must
+// agree with the row-query fold (site 1): sumSections == countRows for each state.
+TEST_F(FavouriteFilterTest, DateSectionCountsHonourFavourite)
+{
+    size_t favCount = 0;
+    const NodeHandle folder = seedFavTree(40, 5, favCount);
+    EXPECT_EQ(sumSections(FAVOURITE_FILTER_ONLY_TRUE, folder), favCount);
+    EXPECT_EQ(sumSections(FAVOURITE_FILTER_ONLY_FALSE, folder), 40u - favCount);
+    EXPECT_EQ(sumSections(FAVOURITE_FILTER_DISABLED, folder), 40u);
+    // grouped route
+    EXPECT_EQ(sumSections(FAVOURITE_FILTER_ONLY_TRUE, folder, MIME_TYPE_ALL_VISUAL_MEDIA),
+              favCount);
+    // cross-fold consistency (site1 rows vs site2 sections)
+    EXPECT_EQ(sumSections(FAVOURITE_FILTER_ONLY_TRUE, folder),
+              countRows(FAVOURITE_FILTER_ONLY_TRUE, folder));
+    EXPECT_EQ(sumSections(FAVOURITE_FILTER_ONLY_FALSE, folder),
+              countRows(FAVOURITE_FILTER_ONLY_FALSE, folder));
+}
+
+// Cursor path (name-only, ORDER_DEFAULT_ASC): residual must ride the cursor query, both states.
+TEST_F(FavouriteFilterTest, FavouriteHonouredWithNameCursor)
+{
+    for (FavouriteFilter_t state: {FAVOURITE_FILTER_ONLY_TRUE, FAVOURITE_FILTER_ONLY_FALSE})
+    {
+        size_t favCount = 0;
+        const NodeHandle folder = seedFavTree(40, 5, favCount);
+        const size_t expected = (state == FAVOURITE_FILTER_ONLY_TRUE) ? favCount : 40u - favCount;
+        ASSERT_GT(expected, 2u);
+        EXPECT_EQ(pageAllAtSize2(state, OrderByClause::DEFAULT_ASC, folder, /*lastFav=*/-1),
+                  expected)
+            << "state=" << static_cast<int>(state);
+    }
+}
+
+// ORDER_FAV_ASC degenerate cursor: fav is the primary sort key. With ONLY_TRUE every row
+// shares fav=1, so the FAV keyset predicate degenerates to name>tiebreak. The cursor MUST
+// populate mLastFav or bindCursorParamsForListAll rejects it — this exercises that path.
+TEST_F(FavouriteFilterTest, FavouriteHonouredWithFavOrderCursor)
+{
+    size_t favCount = 0;
+    const NodeHandle folder = seedFavTree(40, 5, favCount);
+    ASSERT_GT(favCount, 2u);
+    EXPECT_EQ(
+        pageAllAtSize2(FAVOURITE_FILTER_ONLY_TRUE, OrderByClause::FAV_ASC, folder, /*lastFav=*/1),
+        favCount);
+}
+
 } // anonymous namespace
 
 #endif // USE_SQLITE

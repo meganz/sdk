@@ -3782,6 +3782,26 @@ public:
         return mSensitivity;
     }
 
+    void byFavourite(int boolFilterOption) override
+    {
+        switch (boolFilterOption)
+        {
+            case MegaNodeScopeFilter::BOOL_FILTER_DISABLED:
+            case MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE:
+            case MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE:
+                mFavourite = boolFilterOption;
+                return;
+            default:
+                LOG_warn << "Invalid value for byFavourite: " << boolFilterOption << ". Ignored.";
+                return;
+        }
+    }
+
+    int byFavourite() const override
+    {
+        return mFavourite;
+    }
+
 protected:
     static void copyMegaHandleListInto(const MegaHandleList* src, std::vector<MegaHandle>& dst)
     {
@@ -3803,6 +3823,7 @@ protected:
 
     int mCategory = MegaApi::FILE_TYPE_DEFAULT;
     int mSubCategory = MegaNodeScopeFilter::FILE_SUBTYPE_NONE;
+    int mFavourite = MegaNodeScopeFilter::BOOL_FILTER_DISABLED;
     std::vector<MegaHandle> mLocationHandles; // empty == use mLocation scope
     std::vector<MegaHandle> mExcludeLocationHandles; // empty == disabled
     int mLocation = MegaNodeScopeFilter::LOCATION_CLOUD_DRIVE_AND_VAULT;

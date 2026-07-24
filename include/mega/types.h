@@ -442,6 +442,17 @@ typedef enum
     FILE_SUBTYPE_MAX = FILE_SUBTYPE_RAW,
 } FileSubType_t;
 
+// Tri-state favourite filter, mirroring the public MegaNodeScopeFilter::BOOL_FILTER_*.
+// Not NodeSearchFilter::BoolFilter: db/sqlite.h only forward-declares NodeSearchFilter, so
+// its member enum is unnameable there.
+typedef enum
+{
+    FAVOURITE_FILTER_DISABLED = 0,
+    FAVOURITE_FILTER_ONLY_TRUE = 1,
+    FAVOURITE_FILTER_ONLY_FALSE = 2,
+    FAVOURITE_FILTER_MAX = FAVOURITE_FILTER_ONLY_FALSE,
+} FavouriteFilter_t;
+
 typedef enum { NO_SHARES = 0x00, IN_SHARES = 0x01, OUT_SHARES = 0x02, PENDING_OUTSHARES = 0x04, LINK = 0x08} ShareType_t;
 
 // MimeType_t maps to file extensionse declared at Node

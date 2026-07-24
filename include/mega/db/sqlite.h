@@ -425,7 +425,8 @@ size_t computeListAllCacheId(MimeType_t mimeType,
                              AnchorDirectionDigit anchorDir,
                              bool excludeSensitive,
                              size_t numRoots,
-                             size_t numExcludes);
+                             size_t numExcludes,
+                             FavouriteFilter_t favourite);
 
 /// Cache key for mStmtDateSections. Same shape as computeListAllCacheId but
 /// with a granularity digit instead of cursor + anchor (the section query
@@ -436,7 +437,8 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
                                   DateSectionGranularity granularity,
                                   bool excludeSensitive,
                                   size_t numRoots,
-                                  size_t numExcludes);
+                                  size_t numExcludes,
+                                  FavouriteFilter_t favourite);
 
 } // namespace
 
