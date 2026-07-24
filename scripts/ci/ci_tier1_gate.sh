@@ -63,13 +63,17 @@ run_cell() { # label timeout_s args...
 }
 
 # Cell 1 — the full WS Tier-1 surface, DIRECT form, DEFAULT env (the form CI's main stage
-# uses per test; empty-filter-equivalent for the WS surface).
+# uses per test; empty-filter-equivalent for the WS surface). Includes the 19 Quota* cells.
 run_cell tier1_ws_direct 5400 "--gtest_filter=SdkWsUploadTest.*"
+
+# Cell 1b — SDK-6298 real-path quota probe: makes the SdkWsQuotaRealTest tier-1 escape
+# non-silent. Pass-or-clean-SKIP (tfs unavailable in this env => GTEST_SKIP, rc 0).
+run_cell quota_real_probe 300 "--gtest_filter=SdkWsQuotaRealTest.ProbeTfsCommandOwnRoot"
 
 # Cell 2 — the skip-prone cells under the PARALLEL runner (the form that fabricated CRASHED
 # verdicts pre-F1). Two workers exercise GTestProc line-parsing + tally.
 run_cell skiplabel_instances 1200 --INSTANCES:2 \
-  "--gtest_filter=SdkWsUploadTest.EscalationWindowNotPerpetuallyResetByNullCandidate:SdkBenchmarkTest.QaMixedUpload"
+  "--gtest_filter=SdkWsUploadTest.EscalationWindowNotPerpetuallyResetByNullCandidate:SdkWsUploadTest.QuotaTfsApiErrorFailsOpen:SdkBenchmarkTest.QaMixedUpload"
 # S15 (Goal-0 cell-7 committed-defect repair): --INSTANCES:2 silently degrades to a
 # single instance when no multi-account email template is configured. The degrade is now
 # LOUD; with GATE_REQUIRE_INSTANCES=1 (hosts provisioned for 2 instances) it hard-fails.
