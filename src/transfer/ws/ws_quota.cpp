@@ -88,6 +88,18 @@ bool UploadQuotaManager::applyGroups(std::uint64_t gen,
     for (const auto& group: groups)
     {
         const m_off_t bytes = group.first;
+
+        // Ledger-level fail-open mirror of the tfs parser contract: a malformed
+        // entry (negative balance, or no folders) is skipped so it cannot corrupt
+        // a pool. The parser already drops these for real server replies, but the
+        // H2 test hook injects groups straight into applyGroups, and any future
+        // direct caller must not be able to seed a pool with a negative remaining
+        // (which would make every upload "exceed" it and produce false holds).
+        if (bytes < 0 || group.second.empty())
+        {
+            continue;
+        }
+
         for (const NodeHandle folder: group.second)
         {
             const std::pair<std::uint64_t, bool> classified = classify(folder);

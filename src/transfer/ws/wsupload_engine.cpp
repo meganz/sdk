@@ -840,6 +840,12 @@ void UploadEngine::Impl::start()
         {
             this->run();
         });
+
+    // Engine (re)start = reconnect-all moment: re-validate quota balances with one
+    // coalesced tfs. A bare stop()/start() otherwise leaves the ledger clean, so no
+    // fresh tfs would be issued and stale holds could never be re-evaluated. Runs on
+    // the client thread (maybeStartWsUploadEngine / restart helper); null-safe.
+    client.wsQuotaMarkDirty();
 }
 
 void UploadEngine::Impl::kick()
