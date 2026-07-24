@@ -229,6 +229,8 @@ public:
 
     void unpause(Transfer& t);
 
+    void setQuotaHold(Transfer& t, bool held);
+
     void remove(Transfer& t);
 
     void setRetryUntil(Transfer& t, const dstime when);

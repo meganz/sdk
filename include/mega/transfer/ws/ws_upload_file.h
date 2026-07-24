@@ -452,9 +452,12 @@ public:
 
     bool paused() const noexcept
     {
-        WSUPLOAD_TRACE << "[WsUploadFile::paused] return mPaused=" << mPaused << " [this = " << this
-                  << "]";
-        return mPaused;
+        WSUPLOAD_TRACE << "[WsUploadFile::paused] return mPaused=" << mPaused
+                       << " mQuotaHeld=" << mQuotaHeld << " [this = " << this << "]";
+        // A predictive quota hold makes the file ineligible everywhere paused()
+        // gates, with zero added lock time (it is one extra bool read inside a
+        // predicate already evaluated under uploadMutex).
+        return mPaused || mQuotaHeld;
     }
 
     void setPaused(const bool p) noexcept
@@ -463,6 +466,22 @@ public:
         mPaused = p;
         invalidateOutstandingWork();
         closeFA();
+    }
+
+    // Predictive WS upload-quota hold (SDK-6298), an engine-side bit independent
+    // of the user/global pause bit so the two compose by construction. Holding
+    // invalidates outstanding work and closes the FA (same proven semantics as
+    // pause): the in-flight chunk is requeued, the connection kept, and the file
+    // resumes without a fresh onStart once released.
+    void setQuotaHeld(const bool q) noexcept
+    {
+        WSUPLOAD_TRACE << "[WsUploadFile::setQuotaHeld] q=" << q << " [this = " << this << "]";
+        mQuotaHeld = q;
+        if (q)
+        {
+            invalidateOutstandingWork();
+            closeFA();
+        }
     }
 
     bool aborted() const noexcept
@@ -581,11 +600,14 @@ public:
     bool isUploading() const noexcept
     {
         WSUPLOAD_TRACE << "[WsUploadFile::isUploading] mUploadStartTime= " << mUploadStartTime
-                  << " mPaused=" << mPaused << " mAborted=" << mAborted
-                  << " mUploadFailedTime=" << mUploadFailedTime << " returning "
-                  << (mUploadStartTime != 0 && !mPaused && !mAborted && mUploadFailedTime == 0)
-                  << " [this = " << this << "]";
-        return mUploadStartTime != 0 && !mPaused && !mAborted && mUploadFailedTime == 0;
+                       << " mPaused=" << mPaused << " mQuotaHeld=" << mQuotaHeld
+                       << " mAborted=" << mAborted << " mUploadFailedTime=" << mUploadFailedTime
+                       << " returning "
+                       << (mUploadStartTime != 0 && !mPaused && !mQuotaHeld && !mAborted &&
+                           mUploadFailedTime == 0)
+                       << " [this = " << this << "]";
+        return mUploadStartTime != 0 && !mPaused && !mQuotaHeld && !mAborted &&
+               mUploadFailedTime == 0;
     }
 
     void onRequestSent() noexcept
@@ -793,6 +815,7 @@ private:
     bool mEofSet{false};
     bool mAborted{false};
     bool mPaused{false};
+    bool mQuotaHeld{false};
 
     dstime mUploadStartTime{0};
     dstime mUploadCompletionTime{0};

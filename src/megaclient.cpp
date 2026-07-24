@@ -3617,6 +3617,9 @@ void MegaClient::exec()
 #ifdef MEGA_USE_WSUPLOAD
         wsDrainClientActions();
         wsProcessVerifyUploads();
+        // Coalesced quota step: completions drained above have already deducted,
+        // so evaluation/issue this cycle sees up-to-date balances (SDK-6298).
+        wsQuotaFlush();
 #endif
 
 #ifdef ENABLE_SYNC
@@ -6707,6 +6710,12 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
 
         app->notify_storage(ststatus);
 
+#ifdef MEGA_USE_WSUPLOAD
+        // usl transition (all ingestion paths funnel here): orphan any in-flight
+        // tfs and re-query on the next exec cycle so holds re-evaluate (SDK-6298).
+        wsQuotaInvalidateAndMarkDirty();
+#endif
+
 #ifdef ENABLE_SYNC
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) // transitioning to OQ
         {
@@ -8885,6 +8894,13 @@ void MegaClient::sc_sqac(JSON& json)
 
                 // Invalidate cached storage info.
                 mLastKnownCapacity = -1;
+
+#ifdef MEGA_USE_WSUPLOAD
+                // A purchase that raises capacity WITHOUT a level transition never
+                // reaches setstoragestatus; re-query tfs so a queued oversized hold
+                // releases at the "user just paid" moment (SDK-6298).
+                wsQuotaInvalidateAndMarkDirty();
+#endif
 
                 getuserdata(0);
                 return;

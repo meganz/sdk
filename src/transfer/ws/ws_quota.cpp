@@ -18,6 +18,8 @@
 
 #include "mega/logging.h"
 
+#include <algorithm>
+
 namespace mega
 {
 namespace ws
@@ -30,7 +32,14 @@ void UploadQuotaManager::markDirty()
 
 void UploadQuotaManager::invalidate()
 {
-    ++mLatestGen;
+    // Bump the generation only when there is an in-flight reply or existing
+    // balances to orphan; otherwise a storage-state transition on a fresh
+    // session (no issue yet, no balances) would needlessly burn generation
+    // numbers and desynchronise per-generation reply plans.
+    if (mInFlight || mHaveBalances)
+    {
+        ++mLatestGen;
+    }
     mInFlight = false;
     mDirty = true;
 }
@@ -38,6 +47,11 @@ void UploadQuotaManager::invalidate()
 bool UploadQuotaManager::shouldIssue() const
 {
     return mDirty && !mInFlight;
+}
+
+void UploadQuotaManager::consumeDirtyNoIssue()
+{
+    mDirty = false;
 }
 
 std::uint64_t UploadQuotaManager::beginIssue()
@@ -111,9 +125,10 @@ bool UploadQuotaManager::applyGroups(std::uint64_t gen,
 
     mHaveBalances = true;
 
-    // P1: outstanding stays at its rebuild value (0). P3 populates outstanding
-    // from the multi_transfers scan and recomputes mUnconstrained there; here it
-    // is derived from remaining >= outstanding with outstanding as-is.
+    // Pre-accumulation default: outstanding is 0 after this wholesale rebuild, so
+    // this derivation is trivially true. The client's evaluation scan rebuilds
+    // real outstanding via the accumulation API immediately after apply and
+    // recomputes mUnconstrained there.
     mUnconstrained = true;
     for (const Pool& pool: mPools)
     {
@@ -177,6 +192,66 @@ std::uint64_t UploadQuotaManager::latestGen() const
 bool UploadQuotaManager::haveBalances() const
 {
     return mHaveBalances;
+}
+
+bool UploadQuotaManager::unconstrained() const
+{
+    return mUnconstrained;
+}
+
+bool UploadQuotaManager::evalPending() const
+{
+    return mEvalPending;
+}
+
+void UploadQuotaManager::setEvalPending(bool v)
+{
+    mEvalPending = v;
+}
+
+void UploadQuotaManager::beginOutstandingAccumulation()
+{
+    for (Pool& pool: mPools)
+    {
+        pool.outstanding = 0;
+    }
+}
+
+void UploadQuotaManager::addOutstandingForTargets(const std::vector<NodeHandle>& folders,
+                                                  m_off_t size)
+{
+    // Count `size` once per DISTINCT pool among a transfer's target folders: two
+    // targets sharing one pool (own-account siblings) contribute a single amount.
+    // N is tiny (targets of one transfer), so a linear "already seen" scan is fine.
+    std::vector<std::size_t> seenPools;
+    for (const NodeHandle folder: folders)
+    {
+        const auto it = mPoolByFolder.find(folder.as8byte());
+        if (it == mPoolByFolder.end())
+        {
+            continue; // unknown folder: not in any known pool
+        }
+        const std::size_t idx = it->second;
+        if (std::find(seenPools.begin(), seenPools.end(), idx) != seenPools.end())
+        {
+            continue; // already counted this pool for this transfer
+        }
+        seenPools.push_back(idx);
+        mPools[idx].outstanding += size;
+    }
+}
+
+void UploadQuotaManager::finishOutstandingAccumulation()
+{
+    mUnconstrained = true;
+    for (const Pool& pool: mPools)
+    {
+        if (pool.remaining < pool.outstanding)
+        {
+            mUnconstrained = false;
+            break;
+        }
+    }
 }
 
 void UploadQuotaManager::reset()

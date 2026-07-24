@@ -149,6 +149,10 @@ public:
     void reposition(Transfer& t, Transfer* before /* nullptr=end */);
     void pause(Transfer& t);
     void unpause(Transfer& t);
+    // Predictive quota hold (SDK-6298): O(1) transition-only bit, toggled ONLY on
+    // hold-state changes (never per-chunk/per-preflight). Same cost profile as
+    // pause/unpause (one withFile under uploadMutex).
+    void setQuotaHold(Transfer& t, bool held);
     void remove(Transfer& t);
     void setRetryUntil(Transfer& t, dstime when);
     void markFailed(Transfer& t, dstime retryUntil);

@@ -298,6 +298,11 @@ void UploadEngine::unpause(Transfer& t)
     pImpl->unpause(t);
 }
 
+void UploadEngine::setQuotaHold(Transfer& t, bool held)
+{
+    pImpl->setQuotaHold(t, held);
+}
+
 void UploadEngine::remove(Transfer& t)
 {
     pImpl->remove(t);

@@ -26,6 +26,7 @@
 #ifdef MEGA_USE_WSUPLOAD
 
 #include "mega.h"
+#include "mega/commands_ws.h"
 #include "mega/logging.h"
 #include "mega/megaclient.h"
 #include "mega/testhooks.h"
@@ -34,7 +35,10 @@
 
 #include <cstring>
 #include <functional>
+#include <memory>
+#include <unordered_set>
 #include <utility>
+#include <vector>
 
 // S12 Cluster-E: annotate the INTENTIONAL engine leak (quiesce-or-leak logout path) so
 // LeakSanitizer treats it as a live root instead of failing sanitizer runs; real leaks
@@ -66,6 +70,10 @@ void MegaClient::maybeStartWsUploadEngine()
     if (!m_wsEngine)
     {
         m_wsEngine.reset(new ws::UploadEngine(*this));
+    }
+    if (!mWsQuota)
+    {
+        mWsQuota = std::make_unique<ws::UploadQuotaManager>();
     }
 
     m_wsEngine->setMaxConnections(connections[PUT]);
@@ -136,6 +144,10 @@ void MegaClient::wsReenqueueTransferAfterFailure(Transfer& t,
         wsEngine()->pause(t);
     }
 
+    // enqueue() built a fresh WsUploadFile (mQuotaHeld=false); re-apply a still-in-force
+    // predictive hold. No markDirty: a retry changes neither the target set nor balances.
+    wsQuotaReassertHold(t);
+
     dstime retryAt = t.bt.nextset();
     if (!retryAt || retryAt == 1)
     {
@@ -144,11 +156,8 @@ void MegaClient::wsReenqueueTransferAfterFailure(Transfer& t,
     wsEngine()->setRetryUntil(t, retryAt);
 }
 
-// WS upload-quota ledger wrappers (SDK-6298). These are null-safe plumbing for
-// P1: nothing constructs mWsQuota yet, so every call below is currently inert.
-// P3 constructs mWsQuota in maybeStartWsUploadEngine() and fills in the flush /
-// deduction / hold-reassert bodies; the two forwarders below are already wired so
-// the trigger sites can call them unchanged once mWsQuota exists.
+// WS upload-quota ledger (SDK-6298). Client-thread-only. Every wrapper is
+// null-safe (mWsQuota exists only while the WS engine is started + logged in).
 void MegaClient::wsQuotaMarkDirty()
 {
     if (mWsQuota)
@@ -161,19 +170,265 @@ void MegaClient::wsQuotaInvalidateAndMarkDirty()
         mWsQuota->invalidate();
 }
 
+std::pair<std::uint64_t, bool> MegaClient::wsQuotaClassifyPool(NodeHandle h)
+{
+    std::shared_ptr<Node> node = nodeByHandle(h);
+    if (!node)
+    {
+        // Unknown/deleted folder: a unique per-folder key, never foreign — isolates
+        // it in its own pool so a min-merge can never contaminate the own pool.
+        return {h.as8byte(), false};
+    }
+    if (isPrivateNode(h))
+    {
+        // Own account: files/vault/rubbish unify into one physical quota pool.
+        return {mNodeManager.getRootNodeFiles().as8byte(), false};
+    }
+    // Inshare root / writable folder-link root: one pool each, foreign.
+    return {getrootnode(node)->nodeHandle().as8byte(), true};
+}
+
 void MegaClient::wsQuotaFlush()
 {
-    // P3 wires the exec-cycle issue/apply/evaluate step here.
+    if (!mWsQuota || !mWsEngineStarted || loggedin() == NOTLOGGEDIN)
+        return;
+
+    // A completion that shrank a constrained pool deferred its re-evaluation to here.
+    if (mWsQuota->evalPending())
+    {
+        wsQuotaEvaluateHolds();
+        mWsQuota->setEvalPending(false);
+    }
+
+    if (!mWsQuota->shouldIssue())
+        return;
+
+    // Gather the distinct, non-undef target folders of every WS PUT transfer.
+    std::vector<NodeHandle> folders;
+    std::unordered_set<handle> seen;
+    for (auto& it: multi_transfers[PUT])
+    {
+        Transfer* t = it.second;
+        if (!t || t->channel != Transfer::Channel::WebSocket)
+            continue;
+        for (File* f: t->files)
+        {
+            if (f->h.isUndef())
+                continue;
+            if (seen.insert(f->h.as8byte()).second)
+                folders.push_back(f->h);
+        }
+    }
+
+    if (folders.empty())
+    {
+        // Nothing to query this cycle (inbox/targetuser-only queue): drop the dirty
+        // flag without issuing — no generation bump, no in-flight guard.
+        mWsQuota->consumeDirtyNoIssue();
+        return;
+    }
+
+    const std::uint64_t gen = mWsQuota->beginIssue();
+    queueCommand(new CommandTfsForWsUpload(
+        *this,
+        folders,
+        [this, gen](Error e, WsTfsGroupBalances&& groups)
+        {
+            wsQuotaOnTfsReply(gen, e, std::move(groups), /*firstPass*/ true, /*requeueCount*/ 0);
+        }));
+    // H1: issuance folders + generation (fired after the command is queued).
+    DEBUG_TEST_HOOK_WS_TFS_ISSUED(folders, gen);
 }
 
-void MegaClient::wsQuotaOnUploadCompleted(Transfer& /*t*/)
+void MegaClient::wsQuotaOnTfsReply(std::uint64_t gen,
+                                   Error e,
+                                   WsTfsGroupBalances groups,
+                                   bool firstPass,
+                                   int requeueCount)
 {
-    // P3 wires the per-File balance deduction here.
+    if (!mWsQuota)
+        return;
+
+    // Clear the in-flight guard exactly once (the first, command-driven pass);
+    // a bounded Requeue re-run must NOT re-fire it and free a newer issue's guard.
+    if (firstPass)
+        mWsQuota->endIssue(gen);
+
+    if (gen != mWsQuota->latestGen())
+    {
+        DEBUG_TEST_HOOK_WS_TFS_STALE_DISCARDED(gen, mWsQuota->latestGen());
+        return; // orphaned by a newer issue / usl invalidation
+    }
+
+    // H2: after the generation check, before apply. All refs mutable so a test can
+    // forge API_OK + synthetic balances and steer the reply.
+    WsTfsReplyAction action = WsTfsReplyAction::Apply;
+    DEBUG_TEST_HOOK_WS_TFS_RESULT(gen, e, groups, action);
+
+    if (action == WsTfsReplyAction::Drop)
+        return; // discard as if lost; leave the dirty flag as-is
+
+    if (action == WsTfsReplyAction::Requeue)
+    {
+        // Bound the defer chain (test-only path: Requeue is imposed solely by the
+        // onWsTfsResult hook, a no-op in Release). Prevents an unbounded re-post loop.
+        constexpr int kMaxTfsRequeues = 8;
+        if (requeueCount < kMaxTfsRequeues)
+        {
+            wsPostToClientThread(
+                [gen, e, groups = std::move(groups), requeueCount](MegaClient& c,
+                                                                   TransferDbCommitter&) mutable
+                {
+                    // Re-run the FULL reply logic on a later exec cycle: a usl bump
+                    // while requeued must still orphan it via the gen check.
+                    c.wsQuotaOnTfsReply(gen,
+                                        e,
+                                        std::move(groups),
+                                        /*firstPass*/ false,
+                                        requeueCount + 1);
+                });
+        }
+        return;
+    }
+
+    if (e != API_OK)
+        return; // fail-open: apply nothing, no auto-retry (next trigger re-issues)
+
+    mWsQuota->applyGroups(gen,
+                          groups,
+                          [this](NodeHandle h)
+                          {
+                              return wsQuotaClassifyPool(h);
+                          });
+    wsQuotaEvaluateHolds();
 }
 
-void MegaClient::wsQuotaReassertHold(Transfer& /*t*/)
+void MegaClient::wsQuotaEvaluateHolds()
 {
-    // P3 wires re-application of the engine quota-hold bit here.
+    if (!mWsQuota || !mWsQuota->haveBalances())
+        return; // fail-open: no balances => no holds
+
+    mWsQuota->beginOutstandingAccumulation();
+
+    bool anyReleased = false;
+    for (auto& it: multi_transfers[PUT])
+    {
+        Transfer* t = it.second;
+        if (!t || t->channel != Transfer::Channel::WebSocket)
+            continue;
+        if (t->state == TRANSFERSTATE_COMPLETING || t->state == TRANSFERSTATE_COMPLETED)
+            continue; // finishing / deduct-eligible: no hold decision
+
+        bool shouldHold = false;
+        NodeHandle reprFolder; // undef unless a balance-bearing target exists
+        std::vector<NodeHandle> targets;
+        for (File* f: t->files)
+        {
+            if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h))
+                continue; // no balance => fail-open (never held)
+            targets.push_back(f->h);
+            if (reprFolder.isUndef())
+                reprFolder = f->h; // first balance-bearing target (release reporting)
+            if (!shouldHold && t->size > mWsQuota->availableFor(f->h))
+            {
+                // hold-if-ANY-target-short: pin the first shortfall folder for the hook.
+                shouldHold = true;
+                reprFolder = f->h;
+            }
+        }
+
+        // Outstanding grows only for unfinished WS uploads with known targets.
+        mWsQuota->addOutstandingForTargets(targets, t->size);
+
+        if (wsQuotaApplyHoldState(*t, shouldHold, reprFolder))
+            anyReleased = true;
+    }
+
+    mWsQuota->finishOutstandingAccumulation();
+
+    if (anyReleased && wsEngine())
+    {
+        // Mirror how unpause's effect is picked up: nudge workers + kick once.
+        wsEngine()->notifyWorkers();
+        wsEngine()->kick();
+    }
+}
+
+bool MegaClient::wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFolder)
+{
+    if (hold)
+    {
+        if (t.ws_quota_held)
+            return false; // already held: no transition
+
+        t.ws_quota_held = true;
+        if (wsEngine())
+            wsEngine()->setQuotaHold(t, true);
+
+        // Mirror wsActivateOverquotaForTransfer's temp-error surfacing exactly.
+        if (t.state != TRANSFERSTATE_RETRYING)
+        {
+            t.state = TRANSFERSTATE_RETRYING;
+            app->transfer_failed(&t, API_EOVERQUOTA, 0);
+            ++performanceStats.transferTempErrors;
+        }
+
+        // Args inlined: in a hooks-off (Release) build the macro vanishes, so a
+        // named foreign/avail here would be an unused-variable error (HR42).
+        DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(t.tag,
+                                              true,
+                                              mWsQuota->isForeignGroup(reprFolder),
+                                              mWsQuota->availableFor(reprFolder));
+        return false;
+    }
+
+    if (!t.ws_quota_held)
+        return false; // not held: no transition
+
+    t.ws_quota_held = false;
+    if (wsEngine())
+        wsEngine()->setQuotaHold(t, false);
+
+    // Requeue to QUEUED only if the temp-error hold put it in RETRYING and no
+    // genuine account overquota is in force (RED/PAYWALL still gates via its path).
+    if (t.state == TRANSFERSTATE_RETRYING && ststatus != STORAGE_RED && ststatus != STORAGE_PAYWALL)
+    {
+        t.state = TRANSFERSTATE_QUEUED;
+        app->transfer_update(&t);
+    }
+
+    DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(t.tag,
+                                          false,
+                                          mWsQuota->isForeignGroup(reprFolder),
+                                          mWsQuota->availableFor(reprFolder));
+    return true;
+}
+
+void MegaClient::wsQuotaOnUploadCompleted(Transfer& t)
+{
+    if (!mWsQuota || !mWsQuota->haveBalances())
+        return;
+
+    // Fast path while unconstrained: per-File map lookup + subtraction only, no scan.
+    for (File* f: t.files)
+    {
+        if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h))
+            continue;
+        mWsQuota->deductOnCompletion(f->h, t.size);
+        DEBUG_TEST_HOOK_WS_QUOTA_DEDUCTED(f->h, t.size, mWsQuota->availableFor(f->h));
+    }
+
+    // Only a constrained pool needs a re-evaluation; defer it to the next flush.
+    if (!mWsQuota->unconstrained())
+        mWsQuota->setEvalPending(true);
+}
+
+void MegaClient::wsQuotaReassertHold(Transfer& t)
+{
+    // A (re-)enqueue creates a fresh WsUploadFile with mQuotaHeld=false; re-apply
+    // the engine bit for a transfer whose predictive hold is still in force.
+    if (t.ws_quota_held && wsEngine())
+        wsEngine()->setQuotaHold(t, true);
 }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
@@ -624,6 +879,9 @@ MegaClient::WsVerifyResult MegaClient::wsVerifyUploadUnchanged(Transfer& t,
 
 void MegaClient::wsFinalizeUploadCompletion(Transfer& t)
 {
+    // The single client-thread completion funnel (direct + verify-retry paths):
+    // debit the quota pool(s) before the transfer is retired.
+    wsQuotaOnUploadCompleted(t);
     if (!gfxdisabled)
         t.addAnyMissingMediaFileAttributes(nullptr, t.localfilename);
     checkfacompletion(t.uploadhandle, &t, true);
@@ -1211,6 +1469,7 @@ void MegaClient::wsLocallogoutCleanup()
     }
     m_wsEngine.reset();
     LOG_debug << "WsUpload locallogout: engine destroyed (" << phaseMs() << " ms)";
+    mWsQuota.reset(); // session-scoped: a new session re-derives holds from a fresh tfs
     mWsEngineStarted = false;
 }
 

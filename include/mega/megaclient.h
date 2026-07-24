@@ -680,6 +680,25 @@ public:
     void wsQuotaOnUploadCompleted(Transfer& t);
     void wsQuotaReassertHold(Transfer& t);
 
+    // WS upload-quota internals (client-thread-only; drive mWsQuota).
+    // Handle a "tfs" reply for generation `gen`. firstPass=false is a bounded
+    // Requeue re-run (skips endIssue); requeueCount bounds the defer chain.
+    void wsQuotaOnTfsReply(std::uint64_t gen,
+                           Error e,
+                           WsTfsGroupBalances groups,
+                           bool firstPass,
+                           int requeueCount);
+    // One O(N) scan of multi_transfers[PUT]: accumulate per-pool outstanding and
+    // apply hold/release transitions; wakes engine workers once if any released.
+    void wsQuotaEvaluateHolds();
+    // Apply a single hold/release transition for `t` (no-op when already in the
+    // target state). Returns true iff a RELEASE transition happened.
+    bool wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFolder);
+    // Client-side pool identity for a target folder: own-account roots share one
+    // pool (foreign=false); each inshare/link root is its own pool (foreign=true);
+    // an unresolvable folder gets a unique, non-foreign key (isolated, never held).
+    std::pair<std::uint64_t, bool> wsQuotaClassifyPool(NodeHandle h);
+
     // Bounce WS callbacks to the client thread.
     // Enqueue a client-thread action (same signature as sync’s queueClient functors).
     void wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f);

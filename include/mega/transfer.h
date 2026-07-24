@@ -177,6 +177,9 @@ struct MEGA_API Transfer : public FileFingerprint
     // Together with chunkmacs/progresscompleted/pos these allow best-effort resume after restart.
     std::uint32_t ws_fileno = 0;
     std::string ws_session_url;
+    // Predictive WS upload-quota hold (SDK-6298). NOT serialized: holds are
+    // recomputed from a fresh "tfs" each session, so the serializer is untouched.
+    bool ws_quota_held = false;
     // Last per-transfer WS speeds sampled while the transfer is still tracked by wsEngine().
     // Used by MegaApiImpl as a fallback when completion/update callbacks run after wsEngine
     // has detached this transfer and live WS stats are no longer queryable.

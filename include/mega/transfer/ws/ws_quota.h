@@ -59,9 +59,17 @@ public:
     // Coalescing / generation control: dirty-flag + in-flight guard + monotonic
     // generation counter (stale-reply discard).
     void markDirty();
+    // Orphan an in-flight reply and force a fresh issue (usl/sqac change). Bumps
+    // the generation ONLY when there is something to orphan (an in-flight reply
+    // or existing balances); a storage-state transition before any balances
+    // exist must not consume generation numbers, so a fresh session's issues
+    // stay densely numbered (1, 2, ...).
     void invalidate();
     bool shouldIssue() const;
     std::uint64_t beginIssue();
+    // Clear the dirty flag WITHOUT issuing (no generation bump, no in-flight
+    // guard). Used when a flush finds an empty folder set: nothing to query.
+    void consumeDirtyNoIssue();
 
     // Note the reply for generation `gen` arrived (success OR error), clearing the
     // in-flight guard so the next flush may issue again. Gen-guarded: a stale reply
@@ -93,6 +101,27 @@ public:
 
     std::uint64_t latestGen() const;
     bool haveBalances() const;
+
+    // Fast-path invariant flag: true when every known pool still satisfies
+    // remaining >= outstanding, so completions need no re-evaluation (the
+    // benchmark/unconstrained profile). Recomputed at apply and at
+    // finishOutstandingAccumulation().
+    bool unconstrained() const;
+
+    // Deferred-evaluation flag. A completion that shrinks a constrained pool sets
+    // it; the next exec-cycle flush runs one evaluation and clears it.
+    bool evalPending() const;
+    void setEvalPending(bool v);
+
+    // Outstanding (queued+running WS upload bytes) accumulation, driven by the
+    // client's one O(N) evaluation scan:
+    //   begin  -> zero every pool's outstanding,
+    //   addOutstandingForTargets(folders, size) -> add `size` ONCE per distinct
+    //             pool among a transfer's target folders (dedup handled here),
+    //   finish -> recompute unconstrained() = all pools remaining >= outstanding.
+    void beginOutstandingAccumulation();
+    void addOutstandingForTargets(const std::vector<NodeHandle>& folders, m_off_t size);
+    void finishOutstandingAccumulation();
 
     // Clear all balances and orphan any in-flight reply (bumps the generation).
     void reset();

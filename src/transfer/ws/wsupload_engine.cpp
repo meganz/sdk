@@ -1065,6 +1065,17 @@ void UploadEngine::Impl::unpause(Transfer& t)
              });
 }
 
+void UploadEngine::Impl::setQuotaHold(Transfer& t, bool held)
+{
+    // Transition-only bit; the client layer wakes workers after a release scan
+    // (mirroring how unpause's effect is picked up), so no notify here.
+    withFile(t,
+             [held](WsUploadFile& f)
+             {
+                 f.setQuotaHeld(held);
+             });
+}
+
 void UploadEngine::Impl::setRetryUntil(Transfer& t, const dstime when)
 {
     withFile(t,
