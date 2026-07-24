@@ -913,20 +913,20 @@ TEST(JSONWriter, arg_stringWithEscapes)
     EXPECT_EQ(writer.getstring(), "\"ke\":\"\\\"\\\\\"");
 }
 
-TEST(JSONWriter, escape)
+TEST(JSONWriter, escapeQuotes)
 {
     class Writer
       : public JSONWriter
     {
     public:
-        using JSONWriter::escape;
+        using JSONWriter::escapeQuotes;
     };
 
     Writer writer;
     string input = "\"\\";
     string expected = "\\\"\\\\";
 
-    EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
+    EXPECT_EQ(writer.escapeQuotes(input.c_str(), input.size()), expected);
 }
 
 TEST(JSON, stripWhitespace)

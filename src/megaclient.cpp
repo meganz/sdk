@@ -12474,12 +12474,12 @@ string MegaClient::sessiontransferdata(const char *url, string *session)
     ss << aeskey << ",\"";
 
     // add session ID
-    ss << *session << "\",\"";
+    ss << JSON::escape(session->c_str(), session->size()) << "\",\"";
 
     // add URL
     if (url)
     {
-        ss << url;
+        ss << JSON::escape(url, strlen(url));
     }
     ss << "\",false]";
 

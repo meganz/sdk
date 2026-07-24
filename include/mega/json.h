@@ -104,6 +104,16 @@ public:
     static void unescape(string*);
 
     /**
+     * @brief JSON-escape a string's raw content (the inverse of unescape()).
+     *
+     * Escapes what RFC 8259 requires inside a string literal: " and \, and control characters
+     * U+0000..U+001F (as \n \r \t \b \f, otherwise \u00XX). Other bytes (incl. multi-byte
+     * UTF-8) pass through. Returns a new string and takes ptr+length (rather than mutating in
+     * place like unescape) because escaping grows the content and callers escape const char*.
+     */
+    static string escape(const char* data, size_t length);
+
+    /**
      * @brief Extract a string value for a name in a JSON string
      * @param json JSON string to check
      * @param name Attribute name.
@@ -180,7 +190,7 @@ public:
     void clear() { mJson.clear(); }
 
 protected:
-    string escape(const char* data, size_t length) const;
+    string escapeQuotes(const char* data, size_t length) const;
 
 private:
     static const int MAXDEPTH = 8;

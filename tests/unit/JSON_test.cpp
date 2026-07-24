@@ -228,3 +228,80 @@ TEST(JSONUnescape, LoneSurrogateIsEncodedAsThreeBytesNonStrict)
     // failing; this test locks that documented behavior.
     EXPECT_EQ(unescaped("\\ud83d"), "\xED\xA0\xBD");
 }
+
+//
+// Encode side: JSON::escape() must produce valid JSON string content,
+// escaping ", \ and control characters (RFC 8259) - the inverse of unescape().
+//
+
+namespace
+{
+
+// JSON-escape a string's raw content.
+std::string escaped(const std::string& s)
+{
+    return mega::JSON::escape(s.data(), s.size());
+}
+
+} // namespace
+
+TEST(EscapeJsonString, EmptyAndPlainAreUnchanged)
+{
+    EXPECT_EQ(escaped(""), "");
+    EXPECT_EQ(escaped("hello world"), "hello world");
+    EXPECT_EQ(escaped("no/escapes:here?!"), "no/escapes:here?!");
+}
+
+TEST(EscapeJsonString, EscapesQuoteAndBackslash)
+{
+    EXPECT_EQ(escaped("a\"b"), "a\\\"b");
+    EXPECT_EQ(escaped("a\\b"), "a\\\\b");
+}
+
+TEST(EscapeJsonString, EscapesShortControlChars)
+{
+    EXPECT_EQ(escaped("\n"), "\\n");
+    EXPECT_EQ(escaped("\r"), "\\r");
+    EXPECT_EQ(escaped("\t"), "\\t");
+    EXPECT_EQ(escaped("\b"), "\\b");
+    EXPECT_EQ(escaped("\f"), "\\f");
+}
+
+TEST(EscapeJsonString, EscapesOtherControlCharsAsUnicode)
+{
+    EXPECT_EQ(escaped(std::string(1, '\0')), "\\u0000");
+    EXPECT_EQ(escaped("\x01"), "\\u0001");
+    EXPECT_EQ(escaped("\x1f"), "\\u001f");
+}
+
+TEST(EscapeJsonString, PassesThroughMultibyteUtf8)
+{
+    // U+00E9 and U+4E2D must pass through unchanged (JSON only requires ",\ and
+    // control chars to be escaped).
+    EXPECT_EQ(escaped("\xC3\xA9"), "\xC3\xA9");
+    EXPECT_EQ(escaped("\xE4\xB8\xAD"), "\xE4\xB8\xAD");
+}
+
+TEST(EscapeJsonString, RoundTripsThroughUnescape)
+{
+    // A JSON-injection attempt via a breakout quote survives escape+unescape intact.
+    const std::string raw = "path\"with\\odd\nchars\t\x01 and \xC3\xA9 utf8";
+    EXPECT_EQ(unescaped(escaped(raw)), raw);
+}
+
+#ifdef NDEBUG
+// Release-only: escape() asserts on malformed UTF-8 in debug builds; here (asserts disabled)
+// the guard must pass invalid UTF-8 through unchanged rather than looping/over-reading. Such
+// bytes are always >= 0x80, so they never need escaping.
+TEST(EscapeJsonString, MalformedUtf8PassesThroughSafely)
+{
+    EXPECT_EQ(escaped(std::string("\xff")), std::string("\xff"));
+    EXPECT_EQ(escaped(std::string("a\xff"
+                                  "b")),
+              std::string("a\xff"
+                          "b"));
+    EXPECT_EQ(escaped(std::string("\x80")), std::string("\x80")); // lone continuation byte
+    // Escaping of valid characters still happens alongside an invalid byte.
+    EXPECT_EQ(escaped(std::string("\"\xff")), std::string("\\\"\xff"));
+}
+#endif
