@@ -149,6 +149,47 @@ private:
     std::uint64_t mLatestGen{0};
 };
 
+// ---------------------------------------------------------------------------
+// App-facing, observational queue-fit query (SDK-6298 P5).
+//
+// These types back MegaApi::getWsUploadQueueQuotaFit — a pure, read-only answer
+// to "can the current WS upload queue complete under the current tfs balances?"
+// for apps to build interactive quota warnings. They carry NO behaviour and the
+// SDK never consults them for upload decision-making; the value is a snapshot.
+// ---------------------------------------------------------------------------
+
+// The reduced answer: whether the queue fits, plus (on shortfall) how many bytes
+// it overshoots and whether any short pool is foreign.
+struct WsQuotaQueueFit
+{
+    enum class State
+    {
+        Unknown, // no ledger / no balances yet (fail-open, "no data yet")
+        Fits, // every quota pool can absorb its queued+running WS uploads
+        Shortfall // at least one pool's queued+running WS uploads exceed its balance
+    };
+
+    State state{State::Unknown};
+    m_off_t shortfallBytes{0}; // Σ over short pools of (sum - remaining); 0 unless Shortfall
+    bool foreignShortfall{false}; // true iff any SHORT pool is foreign
+};
+
+// One quota pool's contribution to the queue-fit question: the summed size of
+// unfinished WS uploads targeting the pool vs the pool's remaining balance.
+struct WsQuotaPoolFit
+{
+    m_off_t sum{0}; // Σ unfinished WS PUT sizes targeting this pool
+    m_off_t remaining{0}; // the pool's remaining writable balance
+    bool foreign{false}; // pool not owned by the local user (inshare/link root)
+};
+
+// Pure reduction of per-pool (sum, remaining, foreign) into the app-facing answer.
+// No side effects — unit-tested directly (U12). haveBalances=false => Unknown (no
+// ledger yet). Otherwise Fits iff every pool has sum <= remaining; else Shortfall
+// with shortfallBytes = Σ max(0, sum - remaining) and foreignShortfall = true iff
+// any SHORT pool is foreign.
+WsQuotaQueueFit computeWsQuotaQueueFit(bool haveBalances, const std::vector<WsQuotaPoolFit>& pools);
+
 } // namespace ws
 } // namespace mega
 

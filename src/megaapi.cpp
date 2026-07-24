@@ -3682,6 +3682,11 @@ MegaTransfer *MegaApi::getFirstTransfer(int type)
     return pImpl->getFirstTransfer(type);
 }
 
+MegaWsUploadQuotaFit* MegaApi::getWsUploadQueueQuotaFit()
+{
+    return pImpl->getWsUploadQueueQuotaFit();
+}
+
 void MegaApi::notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
 {
     pImpl->notifyTransfer(transfer ? transfer->getTag() : 0, listener);
@@ -8150,6 +8155,28 @@ unsigned long long MegaTransferData::getUploadPriority(int /*i*/) const
 long long MegaTransferData::getNotificationNumber() const
 {
     return 0;
+}
+
+MegaWsUploadQuotaFit::~MegaWsUploadQuotaFit() {}
+
+MegaWsUploadQuotaFit* MegaWsUploadQuotaFit::copy() const
+{
+    return NULL;
+}
+
+int MegaWsUploadQuotaFit::getState() const
+{
+    return STATE_UNKNOWN;
+}
+
+long long MegaWsUploadQuotaFit::getShortfallBytes() const
+{
+    return 0;
+}
+
+bool MegaWsUploadQuotaFit::isForeignShortfall() const
+{
+    return false;
 }
 
 MegaEvent::~MegaEvent() { }

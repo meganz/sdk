@@ -279,6 +279,31 @@ void UploadQuotaManager::reset()
     ++mLatestGen; // orphan any in-flight reply
 }
 
+WsQuotaQueueFit computeWsQuotaQueueFit(bool haveBalances, const std::vector<WsQuotaPoolFit>& pools)
+{
+    WsQuotaQueueFit fit;
+    if (!haveBalances)
+    {
+        fit.state = WsQuotaQueueFit::State::Unknown; // fail-open: apps get "no data yet"
+        return fit;
+    }
+
+    bool anyShort = false;
+    for (const auto& p: pools)
+    {
+        const m_off_t over = p.sum - p.remaining;
+        if (over > 0)
+        {
+            anyShort = true;
+            fit.shortfallBytes += over;
+            if (p.foreign)
+                fit.foreignShortfall = true;
+        }
+    }
+    fit.state = anyShort ? WsQuotaQueueFit::State::Shortfall : WsQuotaQueueFit::State::Fits;
+    return fit;
+}
+
 } // namespace ws
 } // namespace mega
 

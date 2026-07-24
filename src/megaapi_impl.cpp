@@ -10022,6 +10022,62 @@ MegaTransferData *MegaApiImpl::getTransferData(MegaTransferListener *listener)
     return data;
 }
 
+MegaWsUploadQuotaFitPrivate::MegaWsUploadQuotaFitPrivate(int state,
+                                                         long long shortfallBytes,
+                                                         bool foreignShortfall):
+    mState(state),
+    mShortfallBytes(shortfallBytes),
+    mForeignShortfall(foreignShortfall)
+{}
+
+MegaWsUploadQuotaFitPrivate::~MegaWsUploadQuotaFitPrivate() {}
+
+MegaWsUploadQuotaFit* MegaWsUploadQuotaFitPrivate::copy() const
+{
+    return new MegaWsUploadQuotaFitPrivate(mState, mShortfallBytes, mForeignShortfall);
+}
+
+int MegaWsUploadQuotaFitPrivate::getState() const
+{
+    return mState;
+}
+
+long long MegaWsUploadQuotaFitPrivate::getShortfallBytes() const
+{
+    return mShortfallBytes;
+}
+
+bool MegaWsUploadQuotaFitPrivate::isForeignShortfall() const
+{
+    return mForeignShortfall;
+}
+
+MegaWsUploadQuotaFit* MegaApiImpl::getWsUploadQueueQuotaFit()
+{
+    SdkMutexGuard g(sdkMutex);
+#ifdef MEGA_USE_WSUPLOAD
+    const ws::WsQuotaQueueFit fit = client->wsQuotaQueueFitSnapshot();
+    int state = MegaWsUploadQuotaFit::STATE_UNKNOWN;
+    switch (fit.state)
+    {
+        case ws::WsQuotaQueueFit::State::Unknown:
+            state = MegaWsUploadQuotaFit::STATE_UNKNOWN;
+            break;
+        case ws::WsQuotaQueueFit::State::Fits:
+            state = MegaWsUploadQuotaFit::STATE_FITS;
+            break;
+        case ws::WsQuotaQueueFit::State::Shortfall:
+            state = MegaWsUploadQuotaFit::STATE_SHORTFALL;
+            break;
+    }
+    return new MegaWsUploadQuotaFitPrivate(state,
+                                           static_cast<long long>(fit.shortfallBytes),
+                                           fit.foreignShortfall);
+#else
+    return new MegaWsUploadQuotaFitPrivate(MegaWsUploadQuotaFit::STATE_UNKNOWN, 0, false);
+#endif
+}
+
 MegaTransfer *MegaApiImpl::getFirstTransfer(int type)
 {
     if (type != MegaTransfer::TYPE_DOWNLOAD && type != MegaTransfer::TYPE_UPLOAD)

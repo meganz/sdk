@@ -36,6 +36,7 @@
 #include <cstring>
 #include <functional>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 #include <utility>
 #include <vector>
@@ -429,6 +430,66 @@ void MegaClient::wsQuotaReassertHold(Transfer& t)
     // the engine bit for a transfer whose predictive hold is still in force.
     if (t.ws_quota_held && wsEngine())
         wsEngine()->setQuotaHold(t, true);
+}
+
+ws::WsQuotaQueueFit MegaClient::wsQuotaQueueFitSnapshot()
+{
+    // OBSERVATIONAL ONLY — a pure read for app-facing quota warnings. Zero side
+    // effects: never touches the ledger's outstanding fields, the engine, or any
+    // transfer state, and is never consulted by SDK-internal upload decisions.
+    // Safely serialised against the client thread's ledger writes by the sdkMutex
+    // held around this whole call (MegaApiImpl::getWsUploadQueueQuotaFit).
+    if (!mWsQuota)
+        return {}; // State::Unknown: ledger not constructed yet
+
+    const bool haveBalances = mWsQuota->haveBalances();
+
+    // Per distinct quota pool, accumulate the summed size of every unfinished WS
+    // PUT targeting it, alongside that pool's remaining balance + foreign flag.
+    // Purely LOCAL — mirrors wsQuotaEvaluateHolds's read side without its writes.
+    struct Accum
+    {
+        m_off_t sum{0};
+        m_off_t remaining{0};
+        bool foreign{false};
+    };
+
+    std::unordered_map<std::uint64_t, Accum> pools;
+
+    for (auto& it: multi_transfers[PUT])
+    {
+        Transfer* t = it.second;
+        if (!t || t->channel != Transfer::Channel::WebSocket)
+            continue;
+        if (t->state == TRANSFERSTATE_COMPLETING || t->state == TRANSFERSTATE_COMPLETED)
+            continue; // finishing / deduct-eligible: not part of the outstanding queue
+
+        // Count t->size ONCE per distinct pool among this transfer's balance-bearing
+        // targets (a multi-target transfer to the same pool must not double-count).
+        std::unordered_set<std::uint64_t> seenThisTransfer;
+        for (File* f: t->files)
+        {
+            if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h))
+                continue; // no balance data => fail-open (contributes nothing)
+            const std::uint64_t key = wsQuotaClassifyPool(f->h).first;
+            if (!seenThisTransfer.insert(key).second)
+                continue; // pool already counted for this transfer
+            Accum& a = pools[key];
+            a.sum += t->size;
+            // availableFor/isForeignGroup answer per merged pool, so any member folder
+            // yields the same values — recorded once, harmless to overwrite.
+            a.remaining = mWsQuota->availableFor(f->h);
+            a.foreign = mWsQuota->isForeignGroup(f->h);
+        }
+    }
+
+    std::vector<ws::WsQuotaPoolFit> poolFits;
+    poolFits.reserve(pools.size());
+    for (const auto& entry: pools)
+        poolFits.push_back(
+            ws::WsQuotaPoolFit{entry.second.sum, entry.second.remaining, entry.second.foreign});
+
+    return ws::computeWsQuotaQueueFit(haveBalances, poolFits);
 }
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED

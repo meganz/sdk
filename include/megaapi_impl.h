@@ -1906,6 +1906,23 @@ protected:
     vector<uint64_t> uploadPriorities;
 };
 
+class MegaWsUploadQuotaFitPrivate: public MegaWsUploadQuotaFit
+{
+public:
+    MegaWsUploadQuotaFitPrivate(int state, long long shortfallBytes, bool foreignShortfall);
+
+    ~MegaWsUploadQuotaFitPrivate() override;
+    MegaWsUploadQuotaFit* copy() const override;
+    int getState() const override;
+    long long getShortfallBytes() const override;
+    bool isForeignShortfall() const override;
+
+private:
+    int mState;
+    long long mShortfallBytes;
+    bool mForeignShortfall;
+};
+
 class MegaFolderInfoPrivate : public MegaFolderInfo
 {
 public:
@@ -4533,6 +4550,7 @@ class MegaApiImpl : public MegaApp
         int getUploadMethod();
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
         MegaTransfer *getFirstTransfer(int type);
+        MegaWsUploadQuotaFit* getWsUploadQueueQuotaFit();
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();

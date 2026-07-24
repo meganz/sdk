@@ -699,6 +699,12 @@ public:
     // an unresolvable folder gets a unique, non-foreign key (isolated, never held).
     std::pair<std::uint64_t, bool> wsQuotaClassifyPool(NodeHandle h);
 
+    // Observational, app-facing (SDK-6298 P5): compute FRESH whether the current WS
+    // upload queue can complete under the current tfs balances. Pure read — zero
+    // side effects on the ledger, engine or transfers; never consulted by any
+    // SDK-internal upload decision. Backs MegaApi::getWsUploadQueueQuotaFit.
+    ws::WsQuotaQueueFit wsQuotaQueueFitSnapshot();
+
     // Bounce WS callbacks to the client thread.
     // Enqueue a client-thread action (same signature as sync’s queueClient functors).
     void wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f);

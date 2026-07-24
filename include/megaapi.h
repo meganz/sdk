@@ -7902,6 +7902,79 @@ public:
     virtual long long getNotificationNumber() const;
 };
 
+/**
+ * @brief Observational snapshot of whether the current websocket-upload queue can
+ * complete under the account's current transfer-quota balances.
+ *
+ * This is a purely OBSERVATIONAL, app-facing helper for building interactive quota
+ * warnings (e.g. alerting a user who is not watching when storage nears the limit).
+ * The SDK does NOT use it for any internal upload decision-making: querying it takes
+ * no quota holds, changes no transfer state, and has zero side effects.
+ *
+ * The answer is a SNAPSHOT computed at the moment MegaApi::getWsUploadQueueQuotaFit
+ * is called. Because uploads, completions and quota replies keep arriving, races
+ * against ongoing transfers are inherent and the value may be stale immediately.
+ *
+ * The state is MegaWsUploadQuotaFit::STATE_UNKNOWN until the first transfer-quota
+ * balance has arrived from the server; apps should treat STATE_UNKNOWN as "no data
+ * yet", never as "fits".
+ *
+ * Objects of this class are immutable. You take the ownership of objects returned by
+ * MegaApi::getWsUploadQueueQuotaFit and of MegaWsUploadQuotaFit::copy.
+ *
+ * @see MegaApi::getWsUploadQueueQuotaFit
+ */
+class MegaWsUploadQuotaFit
+{
+public:
+    enum
+    {
+        STATE_UNKNOWN = 0, ///< No balance data yet (fail-open); treat as "no data".
+        STATE_FITS = 1, ///< Every quota pool can absorb its queued+running WS uploads.
+        STATE_SHORTFALL = 2, ///< At least one pool's queued+running WS uploads exceed its balance.
+    };
+
+    virtual ~MegaWsUploadQuotaFit();
+
+    /**
+     * @brief Creates a copy of this MegaWsUploadQuotaFit object.
+     *
+     * The resulting object is fully independent of the source object. You are the
+     * owner of the returned object.
+     *
+     * @return Copy of the MegaWsUploadQuotaFit object
+     */
+    virtual MegaWsUploadQuotaFit* copy() const;
+
+    /**
+     * @brief Returns whether the current WS upload queue fits under current balances.
+     *
+     * @return One of MegaWsUploadQuotaFit::STATE_UNKNOWN (no balance data yet),
+     * STATE_FITS or STATE_SHORTFALL.
+     */
+    virtual int getState() const;
+
+    /**
+     * @brief Returns the total number of bytes by which the queue overshoots quota.
+     *
+     * Summed across every quota pool that is short. It is 0 unless getState() is
+     * STATE_SHORTFALL. Observational only.
+     *
+     * @return Total shortfall in bytes, or 0 when the queue fits / is unknown.
+     */
+    virtual long long getShortfallBytes() const;
+
+    /**
+     * @brief Returns whether any short quota pool belongs to another user.
+     *
+     * True when at least one pool in shortfall is foreign (an inbound-share owner or
+     * a folder-link root) rather than the local account. Meaningful only when
+     * getState() is STATE_SHORTFALL.
+     *
+     * @return True if a foreign pool is in shortfall.
+     */
+    virtual bool isForeignShortfall() const;
+};
 
 /**
  * @brief Provides information about a contact request
@@ -18351,6 +18424,26 @@ class MegaApi
          * @return MegaTransfer object related to the first transfer in the queue or NULL if there isn't any transfer
          */
         MegaTransfer *getFirstTransfer(int type);
+
+        /**
+         * @brief Observational query: can the current websocket-upload queue complete
+         * under the account's current transfer-quota balances?
+         *
+         * Intended for apps building interactive quota warnings (the user may not be
+         * watching when quota nears the limit). This is OBSERVATIONAL ONLY — the SDK
+         * does NOT use it for any internal upload decision-making, it takes no quota
+         * holds and has no side effects on transfers or the quota ledger.
+         *
+         * The result is a snapshot at call time (races with ongoing transfers,
+         * completions and quota replies are inherent). The state is
+         * MegaWsUploadQuotaFit::STATE_UNKNOWN until the first transfer-quota balance
+         * arrives from the server, which apps should treat as "no data yet".
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return A MegaWsUploadQuotaFit snapshot. Never NULL.
+         */
+        MegaWsUploadQuotaFit* getWsUploadQueueQuotaFit();
 
         /**
          * @brief Force an onTransferUpdate callback for the specified transfer
