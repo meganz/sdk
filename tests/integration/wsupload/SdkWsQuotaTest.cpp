@@ -1173,13 +1173,32 @@ TEST_F(SdkWsUploadTest, QuotaStaleTfsReplyDiscardedOnUslRace)
     ASSERT_TRUE(tfsIssued.waitForIssuance(2, kIssueTimeout))
         << "usl race did not issue a second tfs";
 
-    // The requeued stale gen-1 application lands last -> discarded by the gen check (H4).
-    ASSERT_TRUE(staleDiscarded.waitForFire(kHoldTimeout))
-        << "stale tfs reply was not discarded (H4 never fired)";
+    // Preferred ordering: the requeued stale gen-1 application lands AFTER the M1
+    // generation bump -> discarded by the gen check (H4 fires). Fallback (test-plan
+    // §4 T10 protocol): the gen-1 reply may instead exhaust its bounded requeue
+    // chain (~8 fast exec cycles) BEFORE the client-thread M1 post lands, in which
+    // case it is dropped by bound-exhaustion and H4 legitimately never fires. The
+    // SAFETY property — the stale shortfall must never produce a hold — is
+    // unconditional either way and asserted below.
+    if (staleDiscarded.waitForFire(kHoldTimeout))
+    {
+        const auto rec = staleDiscarded.recordAt(0);
+        EXPECT_EQ(rec.staleGen, 1u) << "discarded generation should be the requeued gen-1";
+        // Two valid orderings: M1 landing AFTER the gen-1 reply's first pass (no
+        // in-flight, no balances -> no bump; next issue = gen-2) or WHILE gen-1 is
+        // in flight (invalidate bumps to orphan it; next issue = gen-3). Both are
+        // correct; only "newer than the stale gen" is the invariant.
+        EXPECT_GE(rec.currentGen, 2u) << "current generation at discard should be newer than gen-1";
+    }
+    else
+    {
+        LOG_info << "[T10] tolerance: gen-1 reply dropped by requeue-bound exhaustion "
+                    "before the M1 bump landed (H4 not fired); safety asserts follow";
+    }
 
-    // No held=true events from the stale shortfall; completes API_OK.
+    // UNCONDITIONAL safety: no held=true events from the stale shortfall; completes API_OK.
     ASSERT_EQ(holdChanged.heldCountFor(tag), 0)
-        << "a discarded stale shortfall must never produce a hold";
+        << "a stale shortfall must never produce a hold (discarded or bound-dropped)";
     megaApi[0]->setMaxUploadSpeed(-1);
     ASSERT_EQ(tracker.waitForResult(kCompleteTimeoutS), API_OK);
 }
@@ -1520,20 +1539,28 @@ TEST_F(SdkWsUploadTest, QuotaAccountRedOverquotaCoexistsWithPredictiveHolds)
     std::unique_ptr<MegaNode> f2{megaApi[0]->getNodeByHandle(f2Handle)};
     ASSERT_TRUE(f1 && f2);
 
-    const std::string fileX = makeBinName("ws_quota_t14_X_"); // -> F1 generous, running
-    const std::string fileY = makeBinName("ws_quota_t14_Y_"); // -> F2 shortfall, held
+    const std::string fileX = makeBinName("ws_quota_t14_X_"); // -> F1, fits pool: uploads
+    const std::string fileY = makeBinName("ws_quota_t14_Y_"); // -> F2, overshoots pool: held
     constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    constexpr size_t ySize = 2 * kWsUploadDefaultFileSize; // larger -> overshoots the shared pool
     ASSERT_TRUE(createFileWithSize(fileX, fileSize, "X"));
-    ASSERT_TRUE(createFileWithSize(fileY, fileSize, "Y"));
+    ASSERT_TRUE(createFileWithSize(fileY, ySize, "Y"));
     localFiles = {fileX, fileY};
 
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
     WsQuotaHoldTracker holdTracker(megaApi[0].get());
+    // F1 and F2 are BOTH own-account folders, so wsQuotaClassifyPool maps them to ONE
+    // quota pool (DECISION-P1-POOLKEY: own-account roots unify; applyGroups min-merges
+    // sibling entries into a single balance). A single balance therefore governs both
+    // folders: size it to fit the smaller X (fileSize) while the larger Y (ySize)
+    // overshoots and is predictively held. Two own-account folders cannot carry
+    // independent balances — an earlier revision that gave F1 a "generous" and F2 a
+    // "shortfall" balance saw them merge to the minimum and held BOTH (X then never
+    // uploaded, so the legacy chunk-send overquota below could never fire).
     script.setDefaultPlan(WsTfsResultScript::withGroups(::mega::WsTfsGroupBalances{
-        {kGenerousBytes, {f1H}},
-        {static_cast<::m_off_t>(fileSize) - 1, {f2H}},
+        {static_cast<::m_off_t>(ySize) - 1, {f1H, f2H}},
     }));
 
     RequestTracker ct(megaApi[0].get());
@@ -1572,12 +1599,19 @@ TEST_F(SdkWsUploadTest, QuotaAccountRedOverquotaCoexistsWithPredictiveHolds)
         << "Y's predictive hold perturbed by X's account-RED overquota";
     ASSERT_FALSE(trackerY.finished.load()) << "Y must remain held, not finish";
 
-    // Cancel X; release Y -> Y completes; release must not resurrect X.
+    // Cancel X, then recover the account. X's injected chunk-send overquota drove
+    // activateoverquota -> setstoragestatus(RED), which backed off EVERY PUT with
+    // NEVER (account-wide), so releasing Y's quota hold alone cannot resume it. A
+    // storage-status GREEN transition models the real recovery: setstoragestatus
+    // fires abortbackoff(true) (re-arms the NEVER backoff) AND, via the Q6 usl hook,
+    // wsQuotaInvalidateAndMarkDirty() (a fresh generous tfs releases Y's predictive
+    // hold). Y then completes; the release/recovery must not resurrect cancelled X.
     megaApi[0]->cancelTransferByTag(xTag);
     ASSERT_EQ(trackerX.waitForResult(kCompleteTimeoutS), API_EINCOMPLETE);
 
     script.setDefaultPlan(WsTfsResultScript::generous({f1H, f2H}));
-    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(setStorageStatusOnClientThread(*megaApi[0], ::mega::STORAGE_GREEN))
+        << "storage-recovery dispatch failed";
     ASSERT_TRUE(holdChanged.waitForRelease(yTag, kHoldTimeout));
     ASSERT_EQ(trackerY.waitForResult(kCompleteTimeoutS), API_OK);
     ASSERT_EQ(trackerX.result.load(), static_cast<ErrorCodes>(API_EINCOMPLETE))

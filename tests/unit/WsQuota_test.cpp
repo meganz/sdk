@@ -524,6 +524,48 @@ TEST(WsQuotaLedger, ResetOrphansInFlight)
     EXPECT_FALSE(mgr.hasBalanceFor(a));
 }
 
+// U15 — applyGroups enforces the parser's fail-open contract at the LEDGER: an
+//       entry with a negative balance, or an empty folder set, is skipped while
+//       a valid sibling entry still applies. Folders of skipped entries report
+//       no balance (hasBalanceFor()==false), so downstream fail-open never holds
+//       them. This is defense-in-depth for the H2 hook (which injects groups
+//       directly into applyGroups, bypassing the parser) and any future direct
+//       caller: a negative remaining must never reach a pool.
+TEST(WsQuotaLedger, ApplyGroupsSkipsMalformedEntries)
+{
+    UploadQuotaManager mgr;
+    const NodeHandle good = nh(0xA1);
+    const NodeHandle neg = nh(0xB2); // sits in a negative-balance entry -> skipped
+
+    // Distinct pool key per folder, so a (wrongly) applied negative entry would
+    // form its own pool with remaining < 0 rather than being masked by a merge.
+    const Classifier perFolder = [](NodeHandle h) -> std::pair<std::uint64_t, bool>
+    {
+        return std::make_pair(static_cast<std::uint64_t>(h.as8byte()), false);
+    };
+
+    seed(mgr,
+         WsTfsGroupBalances{
+             {-5, {neg}}, // negative balance -> entry skipped (fail-open)
+             {0, {}}, // empty folder set -> entry skipped (fail-open)
+             {100, {good}}, // valid sibling -> applies
+         },
+         perFolder);
+
+    // The valid sibling applied normally.
+    EXPECT_TRUE(mgr.hasBalanceFor(good));
+    EXPECT_EQ(mgr.availableFor(good), 100LL);
+
+    // The negative-balance entry's folder was skipped: no pool, fail-open (a
+    // wrongly-applied entry would give hasBalanceFor()==true, availableFor()==-5).
+    EXPECT_FALSE(mgr.hasBalanceFor(neg));
+    EXPECT_EQ(mgr.availableFor(neg), 0LL);
+
+    // Only the good pool exists: unconstrained pre-accumulation. A negative
+    // remaining slipping through would have flipped this to false.
+    EXPECT_TRUE(mgr.unconstrained());
+}
+
 // PINS the parser's cursor contract: the standard Command reply dispatch
 // (Request::process -> processCmdJSON) ALREADY enters the result array one level
 // before calling a CmdArray procresult (Command::CmdArray == "an array, and we
