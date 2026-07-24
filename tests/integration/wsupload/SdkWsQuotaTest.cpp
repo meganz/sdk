@@ -98,7 +98,20 @@ constexpr int kCompleteTimeoutS = 240; // TransferTracker::waitForResult takes i
 
 // ============================================================================
 // T1 QuotaPreflightShortfallHoldsUploadNotBlockingStart
-// OQ known from outset + "starts immediately".
+//
+// Proves both halves of the "predictive shortfall holds the upload but does NOT
+// block its start" contract. A live tfs reply applies in ~one cs round-trip
+// (~200ms) — sooner than a 100KB/s-throttled 12MiB upload emits its first
+// progress snapshot — so progress-before-hold is unobservable against a fast
+// reply (the hold would always precede any byte). The cell therefore separates
+// the two guarantees into two phases:
+//   Phase 1 (start-not-blocked): the first reply (gen 1) is DROPPED, so no
+//     balances ever exist and nothing can hold; the throttled upload MUST show
+//     WS progress, proving enqueue/start never waits on quota state.
+//   Phase 2 (the hold): a shortfall is armed as the default plan and an
+//     M1-modelled usl change (wsQuotaInvalidateAndMarkDirty) forces a fresh tfs
+//     (gen 2) whose apply holds the running upload with a non-foreign, temporary
+//     EOVERQUOTA that never terminally fails it.
 // ============================================================================
 TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
 {
@@ -137,9 +150,12 @@ TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
     WsTfsResultScript script;
     WsQuotaHoldTracker holdTracker(megaApi[0].get());
 
-    // H2 armed: own-root balance = fileSize-1 (a shortfall — the file does not fit).
-    script.setDefaultPlan(
-        WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {rootH}));
+    // Phase 1 (start-not-blocked): DROP the first reply (gen 1 — a fresh session
+    // numbers its issues densely from 1). No balances are ever applied, so nothing
+    // can hold and the throttled upload must show progress. (A live shortfall reply
+    // would apply its hold in ~one round-trip, before the first progress snapshot,
+    // so progress-before-hold is unobservable against a fast reply — hence the drop.)
+    script.setPlanForGen(1, WsTfsResultScript::drop());
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
@@ -163,7 +179,8 @@ TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
     ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
         << "tfs never issued after enqueue (issuances=0)";
 
-    // (a) WS progress observed regardless of tfs apply — enqueue didn't wait.
+    // (a) Phase-1 guarantee: the dropped gen-1 reply left NO balances, so nothing
+    // can hold — the throttled upload must show WS progress (enqueue didn't wait).
     WsUploadTransferSnapshot snap{};
     ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -179,6 +196,15 @@ TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
     // (b) H1 fired with the own-root handle.
     ASSERT_TRUE(handleSet(tfsIssued.foldersOfIssuance(0)).count(rootH.as8byte()) == 1)
         << "first tfs issuance did not query the own-root folder";
+
+    // Phase 2 (the hold): now that start-not-blocked is proven, arm a shortfall
+    // (own-root balance = fileSize-1, so the file does not fit) as the default plan
+    // and model a usl change (M1) to force a fresh tfs (gen 2). Its apply holds the
+    // still-running upload — the observable "shortfall holds it" without racing the
+    // first progress snapshot.
+    script.setDefaultPlan(
+        WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {rootH}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
 
     // (c) H3 held=true, foreign=false.
     ASSERT_TRUE(holdChanged.waitForHold(tag, kHoldTimeout))
@@ -471,6 +497,20 @@ TEST_F(SdkWsUploadTest, QuotaCrossPoolHoldDoesNotBlockOtherPool)
 
 // ============================================================================
 // T4 QuotaBatchEnqueueCoalescesSingleTfs  (HR43 x15)
+//
+// Proves the burst-coalescing contract as three observable properties, NOT as a
+// single tfs: (a) full COVERAGE — the union of all issuances' queried folders is
+// exactly the deduped target set; (b) a bounded ANTI-STORM issuance count (<= 3;
+// 8 naive per-file issues would be a storm — the design's worst case for a burst
+// is one exec-cycle snapshot plus one in-flight-guarded follow-up); (c) per-issuance
+// DEDUP. "Exactly one tfs covering the whole burst" is deliberately NOT asserted:
+// it is a scheduling accident, not a guarantee. Through the public async API each
+// startUpload independently notifies the client-thread waiter, and the loop drains
+// whatever is queued at that instant then flushes once (megaapi_impl.cpp:8136-8149;
+// sendPendingTransfers drains <=100 transfers / 100ms, :20709), so whether all 8
+// enqueues land in one snapshot before the first flush is pure timing the design
+// never promised. Files are pre-created so the enqueue loop is genuinely tight (no
+// interleaved disk I/O spreading the burst across client-thread wake-ups).
 // ============================================================================
 TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
 {
@@ -512,18 +552,25 @@ TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
     WsTfsResultScript script;
     script.setDefaultPlan(WsTfsResultScript::generous(folderHandles));
 
-    // 8 small files across the 3 folders.
+    // Pre-create ALL 8 small files (across the 3 folders) BEFORE enqueuing, so the
+    // enqueue loop below is genuinely tight — startUpload calls only, no interleaved
+    // 1 MiB disk writes to spread the burst across client-thread wake-ups.
     constexpr size_t fileSize = 1 * 1024 * 1024;
-    std::vector<std::unique_ptr<TransferTracker>> trackers;
-    auto uploadOptions = makeDefaultUploadOptions();
+    std::vector<std::string> uploadNames;
     for (int i = 0; i < 8; ++i)
     {
         const std::string nm = makeBinName("ws_quota_t4_") + "_" + std::to_string(i);
         ASSERT_TRUE(createFileWithSize(nm, fileSize, std::to_string(i)));
         localFiles.push_back(nm);
+        uploadNames.push_back(nm);
+    }
+
+    std::vector<std::unique_ptr<TransferTracker>> trackers;
+    auto uploadOptions = makeDefaultUploadOptions();
+    for (int i = 0; i < 8; ++i)
+    {
         trackers.push_back(std::make_unique<TransferTracker>(megaApi[0].get()));
-        // Tight loop: enqueue all 8 so they coalesce into a single tfs.
-        megaApi[0]->startUpload(nm,
+        megaApi[0]->startUpload(uploadNames[static_cast<size_t>(i)],
                                 folderNodes[static_cast<size_t>(i) % 3].get(),
                                 nullptr,
                                 &uploadOptions,
@@ -532,21 +579,40 @@ TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
 
     ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout)) << "no tfs issued for batch (issuances=0)";
 
-    // First issuance queries exactly the 3 deduped folder handles.
     std::set<std::uint64_t> want;
     for (const auto& h: folderHandles)
         want.insert(h.as8byte());
-    ASSERT_EQ(handleSet(tfsIssued.foldersOfIssuance(0)), want)
-        << "first issuance folder set != the 3 deduped folder handles";
 
-    // All complete.
+    // (a) COVERAGE: the UNION of every issuance's queried folders is exactly the 3
+    // deduped targets. A burst may be snapshotted by the first tfs (single exec
+    // cycle) or spill its remainder into one in-flight-guarded follow-up tfs, so
+    // wait for the union to settle rather than pinning the first issuance.
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return handleSet(tfsIssued.unionFoldersFrom(0)).size() >= folderHandles.size();
+        },
+        60000))
+        << "tfs issuances never covered all target folders (union="
+        << handleSet(tfsIssued.unionFoldersFrom(0)).size() << ")";
+    ASSERT_EQ(handleSet(tfsIssued.unionFoldersFrom(0)), want)
+        << "union of issuance folder sets != the 3 deduped folder handles";
+
+    // (b) ANTI-STORM BOUND: the whole batch produces a bounded number of issuances.
+    // 8 naive per-file issues would be a storm; the design's worst case for a burst
+    // is one snapshot + one follow-up, so <= 3 is robust headroom without encoding
+    // scheduler timing.
+    ASSERT_LE(tfsIssued.issuanceCount(), 3u)
+        << "batch produced a tfs storm (issuances=" << tfsIssued.issuanceCount() << ")";
+
+    // (c) PER-ISSUANCE DEDUP: the first issuance never lists a folder handle twice.
+    const auto firstIssuance = tfsIssued.foldersOfIssuance(0);
+    ASSERT_EQ(handleSet(firstIssuance).size(), firstIssuance.size())
+        << "first tfs issuance queried a duplicate folder handle (dedup not applied)";
+
+    // All 8 uploads complete (generous balance => never held; fail-open).
     for (auto& t: trackers)
         ASSERT_EQ(t->waitForResult(kCompleteTimeoutS), API_OK) << "batch upload failed";
-
-    // Coalescing contract: completions never re-issue — exactly one tfs for the batch.
-    ASSERT_EQ(tfsIssued.issuanceCount(), 1u)
-        << "batch produced more than one tfs issuance (issuances=" << tfsIssued.issuanceCount()
-        << ")";
 }
 
 // ============================================================================
