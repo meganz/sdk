@@ -6071,6 +6071,7 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
             std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsUploadDropCompletion = nullptr;
             globalMegaTestHooks.onWsTailCompletionRecovery = nullptr;
+            globalMegaTestHooks.onWsSilentByteShortfallRecovery = nullptr;
             globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = nullptr;
         });
 
@@ -6093,6 +6094,15 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
     // Installs under the hooks mutex — see the AckStall cell's comment (S11 TSAN).
     std::atomic<int> dropped{0};
     std::atomic<int> recoveries{0};
+    // The dropped-completion wedge has TWO valid recovery paths, and staging weather decides which:
+    //   - the tail-completion watchdog (onWsTailCompletionRecovery) when the file reaches full
+    //     byte-confirmation before the completion is dropped (the common case); OR
+    //   - the silent-byte-shortfall watchdog (onWsSilentByteShortfallRecovery, SDK-6298 F-2) when a
+    //     chunk-ack is ALSO lost organically (the ~12% flake this cell used to hit at 190s): the
+    //     confirmed count freezes one chunk short, so the tail watchdog cannot arm; the shortfall
+    //     watchdog re-sends the un-acked gap, which draws a fresh completion. Count BOTH so either
+    //     recovery satisfies the assertion.
+    std::atomic<int> shortfallRecoveries{0};
     {
         std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
         globalMegaTestHooks.onWsUploadDropCompletion = [&](std::uint32_t /*fileno*/)
@@ -6104,6 +6114,11 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
             [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
         {
             recoveries.fetch_add(1, std::memory_order_relaxed);
+        };
+        globalMegaTestHooks.onWsSilentByteShortfallRecovery =
+            [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
+        {
+            shortfallRecoveries.fetch_add(1, std::memory_order_relaxed);
         };
     }
 
@@ -6119,16 +6134,172 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
     const ErrorCodes res = ut.waitForResult(deadlineS);
     const int droppedCount = dropped.load(std::memory_order_relaxed);
     const int recoveryCount = recoveries.load(std::memory_order_relaxed);
+    const int shortfallCount = shortfallRecoveries.load(std::memory_order_relaxed);
     LOG_info << "[TailCompletionWatchdog] tailMs=" << tailMs << " deadlineS=" << deadlineS
              << " dropped=" << droppedCount << " recoveries=" << recoveryCount
-             << " result=" << res;
+             << " shortfallRecoveries=" << shortfallCount << " result=" << res;
 
     ASSERT_EQ(res, API_OK) << "upload did not complete after the dropped completion frame — "
-                              "tail-completion watchdog did not recover the wedge";
+                              "neither the tail-completion nor the silent-byte-shortfall watchdog "
+                              "recovered the wedge";
     EXPECT_EQ(droppedCount, 1) << "the drop hook should have consumed exactly the first "
                                   "completion frame; if 0 the repro did not engage";
-    EXPECT_GE(recoveryCount, 1)
-        << "expected the tail-completion watchdog to fire at least once (onWsTailCompletionRecovery)";
+    EXPECT_GE(recoveryCount + shortfallCount, 1)
+        << "expected a watchdog to recover the dropped-completion wedge at least once — the "
+           "tail-completion watchdog (onWsTailCompletionRecovery) in the common case, or the "
+           "silent-byte-shortfall watchdog (onWsSilentByteShortfallRecovery) when a chunk-ack was "
+           "also lost organically";
+}
+
+/**
+ * @brief Silent-byte-shortfall watchdog recovers the orphan-ack purge wedge (SDK-6298 F-2).
+ *
+ * The wedge (a third class between the ack-stall and tail-completion watchdogs): an ack for a
+ * chunk whose in-flight entry was already purged hits the "acked chunk not in-flight" early-return
+ * (ws_conn.cpp), so its byte credit is lost by design (the purged entry owned the
+ * ChunkFingerprintMacUpdate). The file then freezes at mHeadPos == size, mBytesConfirmed < size,
+ * ZERO in-flight, ZERO resend, no completion — invisible to the ack-stall watchdog (needs in-flight
+ * work) AND the tail-completion watchdog (needs mBytesConfirmed >= mSize). In production the
+ * shortfall self-heals when the completion frame arrives (uploadCompleted fixes up
+ * mBytesConfirmed), so the wedge only persists as a DOUBLE fault — a lost chunk-ack AND a lost
+ * completion.
+ *
+ * Deterministic repro: (1) onWsPurgeInflightForTesting removes EXACTLY one in-flight entry
+ * mid-stream (its server ack orphans -> confirmed count freezes one chunk short); (2)
+ * onWsUploadDropCompletion swallows the first completion frame (so the shortfall does not
+ * self-heal). Together they build the exact wedge. The silent-byte-shortfall watchdog in
+ * WsPoolMgr::checkPools must then re-queue the un-acked gap chunk(s) (observed via the dedicated
+ * onWsSilentByteShortfallRecovery hook); the server AlreadyOnServer-credits the missing bytes, the
+ * file reaches bytes-complete, and the proven tail-completion watchdog (or a fresh server
+ * completion) finishes it API_OK end-to-end.
+ *
+ * Self-configures the tail-completion window (the shortfall watchdog is its sibling and keys on the
+ * SAME knob/override), same HR58 discipline as the AckStall / TailCompletion cells; hooks-off
+ * SKIPs.
+ */
+TEST_F(SdkWsUploadTest, SilentByteShortfallWedgeRecovers)
+{
+    LOG_info << "___TEST SdkWsUploadSilentByteShortfallWedgeRecovers___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Effective window: the shortfall watchdog reuses the tail-completion window + override. HR58
+    // self-config (CI has no env knobs); MEGA_WSTEST_DEFAULT_WINDOWS=1 keeps the 60s product
+    // default.
+    const char* tmo = getenv("MEGA_WS_TAIL_COMPLETION_TIMEOUT_MS");
+    const char* dwEnv = getenv("MEGA_WSTEST_DEFAULT_WINDOWS");
+    const bool defaultWindows = (dwEnv && std::string(dwEnv) == "1");
+    long tailMs = (tmo ? atol(tmo) : (defaultWindows ? 60000 : 5000));
+    if (tailMs <= 0)
+        tailMs = defaultWindows ? 60000 : 5000;
+    // Budget: shortfall persistence (tailMs) + gap re-send + tail-completion persistence (tailMs)
+    // + re-upload + completion, padded.
+    const int deadlineS = static_cast<int>(std::max<long>(6 * tailMs / 1000, 90) + 150);
+
+    const std::string fileName =
+        "ws_byteshortfall_watchdog_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    constexpr size_t fileSize = 8 * 1024 * 1024; // several WS chunks; one is purged mid-stream
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "F")) << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            // ALL hook writes under the hooks mutex — see the AckStall cell's clearWsHooks comment.
+            std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsPurgeInflightForTesting = nullptr;
+            globalMegaTestHooks.onWsUploadDropCompletion = nullptr;
+            globalMegaTestHooks.onWsSilentByteShortfallRecovery = nullptr;
+            globalMegaTestHooks.onWsTailCompletionRecovery = nullptr;
+            globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = nullptr;
+        });
+
+    // Shrink the product window through the debug hook (both the shortfall watchdog and the tail
+    // watchdog read it). Installed under the hooks mutex.
+    if (!defaultWindows)
+    {
+        const dstime tailDs = static_cast<dstime>(std::max<long>(tailMs / 100, 1));
+        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsUploadTailCompletionTimeoutDs = [tailDs](dstime& v)
+        {
+            v = tailDs;
+        };
+    }
+
+    // Deterministic double-fault: (1) purge exactly ONE in-flight entry mid-stream; (2) drop the
+    // FIRST completion frame. compare-exchange keeps each one-shot. Installed under the hooks
+    // mutex.
+    std::atomic<int> purged{0};
+    std::atomic<int> dropped{0};
+    std::atomic<int> shortfallRecoveries{0};
+    std::atomic<int> tailRecoveries{0};
+    {
+        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsPurgeInflightForTesting = [&](std::uint32_t /*fileno*/)
+        {
+            int expected = 0;
+            return purged.compare_exchange_strong(expected, 1);
+        };
+        globalMegaTestHooks.onWsUploadDropCompletion = [&](std::uint32_t /*fileno*/)
+        {
+            int expected = 0;
+            return dropped.compare_exchange_strong(expected, 1);
+        };
+        globalMegaTestHooks.onWsSilentByteShortfallRecovery =
+            [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
+        {
+            shortfallRecoveries.fetch_add(1, std::memory_order_relaxed);
+        };
+        globalMegaTestHooks.onWsTailCompletionRecovery =
+            [&](std::uint32_t /*fileno*/, ::mega::ws::WsPool* /*pool*/)
+        {
+            tailRecoveries.fetch_add(1, std::memory_order_relaxed);
+        };
+    }
+
+    // Throttle so chunks linger in-flight across checkPools ticks (reliable purge) and the wedge
+    // has time to form; RAII-restored on scope exit.
+    ScopedUploadSpeedLimit throttle{*megaApi[0], 2 * 1024 * 1024}; // 2 MB/s
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    const ErrorCodes res = ut.waitForResult(deadlineS);
+    const int purgedCount = purged.load(std::memory_order_relaxed);
+    const int droppedCount = dropped.load(std::memory_order_relaxed);
+    const int shortfallCount = shortfallRecoveries.load(std::memory_order_relaxed);
+    const int tailCount = tailRecoveries.load(std::memory_order_relaxed);
+    LOG_info << "[SilentByteShortfall] tailMs=" << tailMs << " deadlineS=" << deadlineS
+             << " purged=" << purgedCount << " dropped=" << droppedCount
+             << " shortfallRecoveries=" << shortfallCount << " tailRecoveries=" << tailCount
+             << " result=" << res;
+
+    ASSERT_EQ(res, API_OK)
+        << "upload did not complete after the orphan-ack purge + dropped "
+           "completion — silent-byte-shortfall watchdog did not recover the wedge";
+    EXPECT_EQ(purgedCount, 1)
+        << "the purge hook should have removed exactly one in-flight entry; "
+           "if 0 the repro did not engage (upload too fast / no in-flight tick)";
+    EXPECT_GE(shortfallCount, 1)
+        << "expected the silent-byte-shortfall watchdog to fire at least once "
+           "(onWsSilentByteShortfallRecovery)";
+    // tailRecoveries is logged, not asserted: whether the tail watchdog finishes the recovery (the
+    // gap re-send left the file completionless) or the gap re-send itself drew a fresh completion
+    // is server-timing dependent — res==API_OK above is the end-to-end gate.
 }
 
 } // namespace mega::test::wsupload
