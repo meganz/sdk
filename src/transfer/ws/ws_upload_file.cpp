@@ -46,6 +46,11 @@ namespace mega
 namespace ws
 {
 
+// Forward decl of the TU-local chunk-size lookup defined in wsupload.cpp (the same always-on
+// declaration ws_pool.cpp uses). collectUnackedGapChunks needs it to split an un-acked gap
+// back into the exact chunk boundaries the send path originally produced.
+int chunkSizeAtPosition(m_off_t pos);
+
 bool WsUploadFile::readData(char* buf,
                             const m_off_t pos,
                             const int len,
@@ -385,6 +390,51 @@ bool WsUploadFile::getCurrentSessionUrl(std::string& outUrl) const
     }
     outUrl = mPool->mUrl;
     return true;
+}
+
+std::size_t WsUploadFile::collectUnackedGapChunks(std::vector<WsChunk>& out) const
+{
+    // Enumerate [0, mHeadPos) minus mAckedIntervals (sorted, coalesced, non-overlapping),
+    // splitting every gap at chunk boundaries so each appended WsChunk reproduces exactly the
+    // (pos,len) the send path originally produced (keeping the len-blind server ack-match safe).
+    std::size_t appended = 0;
+    const auto appendRange = [&](m_off_t g0, const m_off_t g1)
+    {
+        while (g0 < g1)
+        {
+            const m_off_t len = std::min<m_off_t>(chunkSizeAtPosition(g0), g1 - g0);
+            if (len <= 0)
+            {
+                break; // defensive: never advance by 0 (would spin)
+            }
+            out.push_back(WsChunk{g0, static_cast<int>(len), mFileNo, 0u});
+            g0 += len;
+            ++appended;
+        }
+    };
+
+    m_off_t cursor = 0;
+    for (const auto& iv: mAckedIntervals)
+    {
+        if (cursor >= mHeadPos)
+        {
+            break;
+        }
+        if (iv.first > cursor)
+        {
+            appendRange(cursor, std::min<m_off_t>(iv.first, mHeadPos));
+        }
+        if (iv.second > cursor)
+        {
+            cursor = iv.second;
+        }
+    }
+    if (cursor < mHeadPos)
+    {
+        appendRange(cursor, mHeadPos);
+    }
+
+    return appended;
 }
 
 } // namespace ws

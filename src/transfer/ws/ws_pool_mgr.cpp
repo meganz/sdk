@@ -239,6 +239,53 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 
     cleanupRetiringPools();
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    // Deterministic silent-byte-shortfall repro (SDK-6298 F-2): let a test remove ONE in-flight
+    // entry — the first fileno the hook accepts — WITHOUT crediting or re-queuing it, simulating
+    // the mChunksInFlight bookkeeping race that strands a chunk's server-ack as an orphan and
+    // freezes confirmedBytes one chunk short. Runs under uploadMutex (checkPools contract), so
+    // mConns / mChunksInFlight are stable. The chunk's data was already written to the wire, so
+    // the server still holds it (its ack, now orphaned, lands on ws_conn.cpp's not-in-flight
+    // early-return); the file wedges once its remaining chunks confirm and mHeadPos == size.
+    {
+        bool purgedForTest = false;
+        for (const auto& pptr: mPools)
+        {
+            if (purgedForTest)
+                break;
+            if (!pptr)
+                continue;
+            for (WsConn* const conn: pptr->mConns)
+            {
+                if (purgedForTest)
+                    break;
+                if (!conn)
+                    continue;
+                for (auto it = conn->mChunksInFlight.begin(); it != conn->mChunksInFlight.end();
+                     ++it)
+                {
+                    bool wantPurge = false;
+                    DEBUG_TEST_HOOK_WS_PURGE_INFLIGHT(it->first.fileno, wantPurge);
+                    if (wantPurge)
+                    {
+                        LOG_warn << "[WsPoolMgr::checkPools] TEST HOOK purging in-flight entry "
+                                    "without credit/resend [fileno="
+                                 << it->first.fileno << " pos=" << it->first.pos
+                                 << " len=" << it->first.len
+                                 << "] (silent-byte-shortfall repro) [pool = " << pptr.get()
+                                 << "] [conn = " << conn << "]";
+                        conn->mChunksInFlight.erase(it);
+                        if (pptr->mNumChunksInFlight > 0)
+                            --pptr->mNumChunksInFlight;
+                        purgedForTest = true;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+#endif
+
     // ENGINE-wide newest inbound stamp (fu8 S11 F11): the ack-stall gate below keys on this.
     // Pool-level staleness is the wrong granularity — capped links starve WHOLE small pools
     // (QaMixed: 42 files across 12-20 concurrent pools at 1 Mbit), so a per-pool gate still
@@ -553,6 +600,146 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
             impl.notifyWorkersLocked();
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(fileno, fpool);
+#endif
+        }
+    }
+
+    // Silent-byte-shortfall watchdog (SDK-6298 F-2). Third wedge class, sitting in the gap
+    // between the ack-stall watchdog (needs in-flight work) and the tail-completion watchdog
+    // (needs mBytesConfirmed >= mSize): an ack for a chunk whose in-flight entry was already
+    // purged hits the "acked chunk not in-flight" early-return (ws_conn.cpp), so its byte credit
+    // is lost BY DESIGN (the purged entry owned the ChunkFingerprintMacUpdate; crediting there
+    // would corrupt MAC state). The file then sits with mHeadPos == size, mBytesConfirmed < size,
+    // ZERO in-flight for it, ZERO resend for it, no completion — DEAD by construction: no
+    // legitimate LIVE upload can hold this state for a full window (a live one keeps in-flight or
+    // resend nonzero for the file, or still has bytes/EOF to send). So over-firing is safe here in
+    // a way the F11 burst-churn concern (which was about firing on LIVE state) never was.
+    // Recovery re-queues EXACTLY the un-acked gap chunks (collectUnackedGapChunks) — "rewind to
+    // the lowest unconfirmed position and re-send", re-reading + re-encrypting so MAC state
+    // rebuilds correctly on the fresh in-flight entry; the server AlreadyOnServer-credits the
+    // missing bytes (no over-credit), the file reaches bytes-complete, and if the completion is
+    // still absent the PROVEN tail-completion watchdog above takes over (so the cell's
+    // recoveries>=1 is met naturally). Keyed on the SAME tail-completion window + override
+    // (sibling class; the repro cell self-configures it per HR58) and gated identically
+    // (mAckStallWatchdog — already && mLossRecovery — AND mTailCompletionWatchdog) so watchdog-off
+    // A/B arms stay byte-identical. Per-file clock survives pool retirement. Two-phase (scan, then
+    // recover) because the recovery mutates pool bookkeeping while fileByNo is iterated. Runs under
+    // uploadMutex (checkPools contract). Candidate predicate is evaluated BEFORE the per-file
+    // conn/resend scan so the O(conns·inflight) walk only runs for the rare finished-but-short
+    // file.
+    if (impl.mAckStallWatchdog && impl.mTailCompletionWatchdog)
+    {
+        dstime shortfallTimeout = impl.tailCompletionTimeoutDs();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        DEBUG_TEST_HOOK_WSUPLOAD_TAILCOMPLETION_TIMEOUT_DS(shortfallTimeout);
+#endif
+        std::vector<WsUploadFile*> shortfallExpired;
+        for (const auto& kv: impl.fileByNo)
+        {
+            WsUploadFile* const f = kv.second;
+            if (!f)
+            {
+                continue;
+            }
+            WsPool* const fpool = f->mPool;
+            const bool candidate = fpool && !f->paused() && !fpool->throttledByServer() &&
+                                   f->silentByteShortfallCandidateLocked();
+            bool armed = false;
+            if (candidate)
+            {
+                // Per-file in-flight/resend emptiness (unlike the pool-wide poolBusy the tail
+                // watchdog uses, the shortfall wedge is per-file: a busy multi-file pool can still
+                // strand THIS file). Only reached for a finished-but-short candidate, so the walk
+                // is cold-path.
+                const std::uint32_t fno = f->fileno();
+                bool fileHasPoolWork = false;
+                for (const WsChunk& rc: fpool->mToResend)
+                {
+                    if (rc.fileno == fno)
+                    {
+                        fileHasPoolWork = true;
+                        break;
+                    }
+                }
+                for (WsConn* const conn: fpool->mConns)
+                {
+                    if (fileHasPoolWork)
+                        break;
+                    if (!conn)
+                        continue;
+                    for (const auto& cf: conn->mChunksInFlight)
+                    {
+                        if (cf.first.fileno == fno)
+                        {
+                            fileHasPoolWork = true;
+                            break;
+                        }
+                    }
+                }
+                armed = !fileHasPoolWork;
+            }
+            if (!armed)
+            {
+                f->mByteShortfallWedgeSinceDs = 0;
+            }
+            else if (!f->mByteShortfallWedgeSinceDs)
+            {
+                f->mByteShortfallWedgeSinceDs = impl.currentTime;
+                LOG_warn << "[WsPoolMgr::checkPools] silent byte-shortfall wedge ARMED: file "
+                         << f->fileno() << " confirmed=" << f->bytesConfirmed()
+                         << " size=" << f->size() << " headPos=" << f->headPos()
+                         << " (no in-flight/resend for this file, no completion) [pool = " << fpool
+                         << ((fpool && fpool->mRetiring) ? " (retiring)" : "") << "]";
+            }
+            else if (SteadyTime::difference(impl.currentTime, f->mByteShortfallWedgeSinceDs) >
+                     shortfallTimeout)
+            {
+                shortfallExpired.push_back(f);
+            }
+        }
+        for (WsUploadFile* const wedged: shortfallExpired)
+        {
+            WsPool* const fpool = wedged->mPool;
+            const std::uint32_t fileno = wedged->fileno();
+            wedged->mByteShortfallWedgeSinceDs = 0;
+            std::size_t requeued = 0;
+            if (fpool && impl.mAckedChunkRewind)
+            {
+                requeued = wedged->collectUnackedGapChunks(fpool->mToResend);
+            }
+            LOG_warn << "[WsPoolMgr::checkPools] silent byte-shortfall wedge: file " << fileno
+                     << " confirmed=" << wedged->bytesConfirmed() << " size=" << wedged->size()
+                     << " headPos=" << wedged->headPos() << " re-queued " << requeued
+                     << " gap chunk(s) for retry [pool = " << fpool
+                     << ((fpool && fpool->mRetiring) ? " (retiring)" : "") << "]";
+            if (requeued == 0)
+            {
+                // Nothing to mine from mAckedIntervals (MEGA_WS_ACKED_REWIND=0, or an
+                // inconsistent set): fall back to the proven clean full restart (re-upload from
+                // scratch rebuilds all MAC state and re-fetches a completion) so the wedge always
+                // clears — same recovery the tail-completion watchdog uses.
+                if (fpool)
+                {
+                    fpool->purgeFileLocked(fileno);
+                    if (fpool->mUploadingFile == wedged)
+                    {
+                        fpool->clearUploadingFileLocked();
+                    }
+                    fpool->mUFTQversion = impl.queueVersion.load(std::memory_order_relaxed);
+                }
+                wedged->markFailedForRetry(0);
+                wedged->unsetPool();
+                if (impl.mCb.onFail)
+                {
+                    impl.mCb.onFail(wedged->transfer(),
+                                    API_EAGAIN,
+                                    0,
+                                    UploadEngine::FailureDisposition::Retryable);
+                }
+            }
+            impl.notifyWorkersLocked();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            DEBUG_TEST_HOOK_WS_SILENT_BYTE_SHORTFALL_RECOVERY(fileno, fpool);
 #endif
         }
     }

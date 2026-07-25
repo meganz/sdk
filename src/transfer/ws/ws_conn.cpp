@@ -703,9 +703,15 @@ struct ChunkResponse
         }
         if (chunk.pos < 0)
         {
+            // SDK-6298 F-2 telemetry: enrich the orphan-ack early-return with confirmed-vs-size so
+            // field logs can see the silent-byte-shortfall wedge forming. The byte credit is
+            // unrecoverable HERE by design — the purged in-flight entry owned the
+            // ChunkFingerprintMacUpdate, so crediting without it would corrupt MAC state; the
+            // silent-byte-shortfall watchdog (WsPoolMgr::checkPools) re-drives the file via a gap
+            // re-send instead. Telemetry only — no crediting.
             LOG_warn << "WsUpload: PROTOCOL - acked chunk not in-flight [pos=" << chunkPos
                      << " fileno=" << response->fileno << " type=" << static_cast<int>(event)
-                     << "]";
+                     << " confirmed=" << uf->bytesConfirmed() << " size=" << uf->size() << "]";
             return;
         }
     }

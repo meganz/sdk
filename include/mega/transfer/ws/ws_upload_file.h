@@ -273,6 +273,17 @@ public:
         return false;
     }
 
+    // Silent-byte-shortfall recovery (SDK-6298 F-2). Enumerate the whole-chunk ranges in
+    // [0, mHeadPos) that are NOT covered by mAckedIntervals (the un-acked gaps left by the
+    // orphan-ack purge), split each at chunk boundaries via chunkSizeAtPosition, and append
+    // them to `out` as resend WsChunks (fileno = mFileNo, retryCount = 0). Re-sending exactly
+    // the un-acked ranges — never mHeadPos/eofSet/mBytesConfirmed — re-reads + re-encrypts and
+    // so rebuilds MAC state on the fresh in-flight entry (apply is position-keyed); the server
+    // answers AlreadyOnServer (already ingested) or ingests it, either way crediting the
+    // missing bytes with no over-credit. Body in ws_upload_file.cpp (needs chunkSizeAtPosition).
+    // Caller must hold uploadMutex. Returns the number of chunks appended.
+    std::size_t collectUnackedGapChunks(std::vector<WsChunk>& out) const;
+
     // progress coalescing (server-confirmed): report if delta or time threshold hit
     bool progressReportDue(const dstime now)
     {
@@ -324,6 +335,23 @@ public:
     {
         return mSize > 0 && mBytesConfirmed >= mSize && !mUploadCompletionTime &&
                !mUploadFailedTime;
+    }
+
+    // Silent-byte-shortfall watchdog candidate check (SDK-6298 F-2). True when the file is
+    // uploading-active, every byte + EOF has been SENT (nothing left to send normally), yet the
+    // server-confirmed byte COUNT froze below size and no completion/failure arrived — the
+    // orphan-ack purge wedge (an ack for a chunk whose in-flight entry was already purged hits
+    // the "acked chunk not in-flight" early-return, so its byte credit is lost). This state sits
+    // in the gap between the ack-stall watchdog (needs in-flight work) and the tail-completion
+    // watchdog (needs mBytesConfirmed >= mSize). isUploading() already excludes paused/quota-held/
+    // aborted/failed; the extra terms add "no completion" and "nothing pending to send" so a file
+    // that still has bytes to push (which the pool would send unaided) is never a candidate.
+    // Caller must hold uploadMutex (same discipline as completionWedgeCandidateLocked). The
+    // per-file in-flight/resend emptiness is checked separately by the caller (pool-side state).
+    bool silentByteShortfallCandidateLocked() const noexcept
+    {
+        return mSize > 0 && isUploading() && !mUploadCompletionTime && mBytesConfirmed < mSize &&
+               !hasPendingBytesOrEofToSend();
     }
 
     void markEOF() noexcept
@@ -563,6 +591,13 @@ public: // accessed by engine
     // the clock survives pool retirement/rebinding — a wedged file has nothing to send, so
     // it never migrates with a refresh and a per-pool clock never accumulates the window.
     dstime mCompletionWedgeSinceDs{0};
+    // Silent-byte-shortfall watchdog persistence clock (SDK-6298 F-2). Written/read ONLY under
+    // uploadMutex by WsPoolMgr::checkPools: stamped the first tick the file is observed in the
+    // orphan-ack shortfall wedge (silentByteShortfallCandidateLocked() true AND no per-file
+    // in-flight/resend AND pool not server-throttled), cleared whenever that state does not hold,
+    // and cleared on fire. Sibling of mCompletionWedgeSinceDs and keyed on the SAME tail-
+    // completion window (a wedged file cannot migrate, so a per-file clock is the right grain).
+    dstime mByteShortfallWedgeSinceDs{0};
 
 private:
     void invalidateOutstandingWork() noexcept
