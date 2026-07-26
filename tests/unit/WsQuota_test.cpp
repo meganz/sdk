@@ -354,7 +354,7 @@ TEST(WsQuotaLedger, ForeignPoolSeparation)
     const NodeHandle own = nh(0xA1);
     const NodeHandle foreign = nh(0xB2);
 
-    const Classifier byHandle = [own, foreign](NodeHandle h) -> std::pair<std::uint64_t, bool>
+    const Classifier byHandle = [own](NodeHandle h) -> std::pair<std::uint64_t, bool>
     {
         if (h == own)
             return std::make_pair(std::uint64_t(1), false);
@@ -455,7 +455,7 @@ TEST(WsQuotaLedger, DuplicateHandleFirstMappingWins)
 
     // Same folder in two entries, DIFFERENT pool keys -> the first entry's pool
     // owns the folder; the second mapping is dropped (a warning is logged).
-    const Classifier perEntry = [a](NodeHandle) -> std::pair<std::uint64_t, bool>
+    const Classifier perEntry = [](NodeHandle) -> std::pair<std::uint64_t, bool>
     {
         return std::make_pair(std::uint64_t(1), false);
     };
