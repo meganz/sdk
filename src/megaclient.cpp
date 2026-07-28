@@ -18034,7 +18034,8 @@ SyncErrorInfo MegaClient::isValidLocalSyncRoot(const LocalPath& localPath,
 SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
 {
     assert(syncConfig.mExternalDrivePath.empty() || syncConfig.mExternalDrivePath.isAbsolute());
-    assert(syncConfig.mLocalPath.isAbsolute());
+    // The local path is a URI on Android.
+    assert(syncConfig.mLocalPath.isAbsolute() || syncConfig.mLocalPath.isURI());
 
     // If failed to unserialize nodes from DB, syncs get disabled -> prevent re-enable them
     // until the account is reloaded (or the app restarts)

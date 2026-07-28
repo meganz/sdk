@@ -205,7 +205,12 @@ public:
 
     // Create a Localpath from a utf8 string where no character conversions or escaping is
     // necessary.
+    // If path is recognized as a URI, the result is URI-backed (as per fromURIPath).
     static LocalPath fromAbsolutePath(const std::string& path);
+
+    // Create a LocalPath from a relative path where no character conversions or escaping is
+    // necessary.
+    // The path should not be a URI.
     static LocalPath fromRelativePath(const std::string& path);
     // Build LocalPath from URI, path can have following structure
     // URI#subFolde1#subFolder2#file
