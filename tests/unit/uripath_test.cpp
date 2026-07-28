@@ -177,3 +177,71 @@ TEST(UriPathTest, endsInSeparator)
     auto uriPath = LocalPath::fromURIPath(uriStr);
     EXPECT_TRUE(uriPath.endsInSeparator());
 }
+
+TEST(UriPathTest, trimNonDriveTrailingSeparator)
+{
+    // No trailing separator to remove is not an error: the call must be a silent no-op.
+    auto bare = LocalPath::fromURIPath(uriBase);
+    const auto bareBefore = bare.toPath(false);
+    bare.trimNonDriveTrailingSeparator();
+    EXPECT_EQ(bare.toPath(false), bareBefore);
+
+    auto uriPath = LocalPath::fromURIPath(uriBase);
+    uriPath.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf1), true);
+    uriPath.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf2), true);
+    const auto before = uriPath.toPath(false);
+    uriPath.trimNonDriveTrailingSeparator();
+    EXPECT_EQ(uriPath.toPath(false), before);
+
+    // Consecutive separators make splitString emit an empty leaf, so the last one can be empty.
+    auto emptyLeaf = LocalPath::fromURIPath(uriBase);
+    emptyLeaf.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf1 + pathSep + pathSep),
+                                  true);
+    const auto emptyLeafBefore = emptyLeaf.toPath(false);
+    emptyLeaf.trimNonDriveTrailingSeparator();
+    EXPECT_EQ(emptyLeaf.toPath(false), emptyLeafBefore);
+}
+
+/**
+ *  Test that trimNonDriveTrailingSeparator() works as expected on the four SAF URI forms.
+ *  content://<authority>/document/<documentId>
+ *  content://<authority>/tree/<treeDocumentId>
+ *  content://<authority>/tree/<treeDocumentId>/document/<documentId>
+ *  content://<authority>/tree/<treeDocumentId>/document/<parentDocumentId>/children
+ */
+TEST(UriPathTest, trimNonDriveTrailingSeparatorOnSafUriForms)
+{
+    // The four shapes DocumentsContract builds, all addressing primary:Documents/node1k/abc.
+    // The document id is a single path segment, so its ':' and '/' arrive percent-encoded.
+    static const std::string authority{"content://com.android.externalstorage.documents"};
+    static const std::string treeId{"primary%3ADocuments"};
+    static const std::string docId{"primary%3ADocuments%2Fnode1k%2Fabc"};
+    static const std::string parentId{"primary%3ADocuments%2Fnode1k"};
+
+    const std::vector<std::string> safUris{
+        authority + "/document/" + docId,
+        authority + "/tree/" + treeId,
+        authority + "/tree/" + treeId + "/document/" + docId,
+        authority + "/tree/" + treeId + "/document/" + parentId + "/children",
+    };
+
+    for (const auto& uri: safUris)
+    {
+        string_type uriStr;
+        LocalPath::path2local(&uri, &uriStr);
+
+        // No leaves yet, so there is nothing that could be trimmed.
+        auto bare = LocalPath::fromURIPath(uriStr);
+        ASSERT_TRUE(bare.isURI()) << uri;
+        bare.trimNonDriveTrailingSeparator();
+        EXPECT_EQ(bare.toPath(false), uri) << uri;
+
+        // A leaf that does not end in a separator must be left alone too.
+        auto withLeaf = LocalPath::fromURIPath(uriStr);
+        withLeaf.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf2), true);
+        const auto expected{uri + uriPathSep + auxUriLeaf2};
+        ASSERT_EQ(withLeaf.toPath(false), expected) << uri;
+        withLeaf.trimNonDriveTrailingSeparator();
+        EXPECT_EQ(withLeaf.toPath(false), expected) << uri;
+    }
+}

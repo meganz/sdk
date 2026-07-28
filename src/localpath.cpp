@@ -1783,9 +1783,15 @@ LocalPath PathURI::prependNewWithSeparator(const LocalPath&) const
 
 void PathURI::trimNonDriveTrailingSeparator()
 {
+    // Nothing to trim is not an error.
+    if (mAuxPath.empty() || mAuxPath.back().empty() ||
+        mAuxPath.back().back() != LocalPath::localPathSeparator)
+    {
+        return;
+    }
+
     LOG_err << "Invalid operation for URI Path (trimNonDriveTrailingSeparator)";
     assert(false);
-    return;
 }
 
 bool PathURI::findPrevSeparator(size_t& separatorBytePos, const FileSystemAccess&) const
