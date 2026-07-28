@@ -213,9 +213,9 @@ class DelegateMegaTransferListener extends MegaTransferListener {
     @Override
     public void onFolderTransferUpdate(MegaApi api, MegaTransfer transfer, int stage, long folderCount, long createdFolderCount, long fileCount, String currentFolder, String currentFileLeafName) {
         if (listener != null) {
+            final MegaTransfer megaTransfer = transfer.copy();
             megaApi.runCallback(new Runnable() {
                 public void run() {
-                    final MegaTransfer megaTransfer = transfer.copy();
                     listener.onFolderTransferUpdate(megaApi, megaTransfer, stage, folderCount, createdFolderCount, fileCount, currentFolder, currentFileLeafName);
                 }
             });
