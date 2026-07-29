@@ -405,7 +405,10 @@ struct WsConn
 struct WsPoolThread
 {
     std::thread t;
-    bool terminate{false};
+    // atomic (S12): the Cluster-E sliced backoff sleep polls `terminate` with the engine
+    // lock released; every other reader/writer holds the lock, so a plain bool raced
+    // (caught by the S12 TSAN battery — WsPool::checkThreads vs poolWorkerThread).
+    std::atomic<bool> terminate{false};
     bool terminated{false};
 
     explicit WsPoolThread(WsPool* pool); // defined after WsPool
