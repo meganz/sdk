@@ -1017,7 +1017,9 @@ void runQaMixedUploadBenchmark(SdkTest& test)
         std::error_code ec;
         for (const auto& entry: fs::directory_iterator(sourceDir, ec))
         {
-            if (entry.is_regular_file())
+            // S12 (M5): exclude harvest metadata — a stray manifest inside the dataset
+            // dir shifts fileCount/per-file distribution metrics (S11 cells ran 43-file).
+            if (entry.is_regular_file() && entry.path().extension() != ".tsv")
             {
                 sourceFiles.push_back(entry.path());
             }

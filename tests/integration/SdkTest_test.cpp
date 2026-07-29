@@ -11309,7 +11309,11 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
     ASSERT_FALSE(destEc) << "cannot create dataset dir " << destDir << ": " << destEc.message();
     LOG_info << "[HarvestQaMixedDataset] destDir=" << destDir;
 
-    const fs::path manifestPath = destDir / "qa_mixed_manifest.tsv";
+    // S12 (M5): the manifest must NOT live inside destDir — runQaMixedUploadBenchmark
+    // enumerates every regular file there, so an in-dir manifest self-poisons the
+    // dataset (S11 QaMixed cells uploaded it as file #43). Write it next to the dir.
+    const fs::path manifestPath =
+        destDir.parent_path() / (destDir.filename().string() + "_manifest.tsv");
     std::ofstream manifest(manifestPath, std::ios::trunc);
     ASSERT_TRUE(manifest.is_open()) << "cannot open manifest " << manifestPath;
 
