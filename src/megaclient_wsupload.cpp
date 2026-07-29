@@ -35,6 +35,22 @@
 #include <functional>
 #include <utility>
 
+// S12 Cluster-E: annotate the INTENTIONAL engine leak (quiesce-or-leak logout path) so
+// LeakSanitizer treats it as a live root instead of failing sanitizer runs; real leaks
+// stay detectable.
+#if defined(__SANITIZE_ADDRESS__)
+#include <sanitizer/lsan_interface.h>
+#define MEGA_WS_LSAN_IGNORE(p) __lsan_ignore_object(p)
+#elif defined(__has_feature)
+#if __has_feature(address_sanitizer)
+#include <sanitizer/lsan_interface.h>
+#define MEGA_WS_LSAN_IGNORE(p) __lsan_ignore_object(p)
+#endif
+#endif
+#ifndef MEGA_WS_LSAN_IGNORE
+#define MEGA_WS_LSAN_IGNORE(p) ((void)(p))
+#endif
+
 namespace mega
 {
 
@@ -1112,7 +1128,7 @@ void MegaClient::wsLocallogoutCleanup()
             LOG_err << "WsUpload: engine workers did not quiesce at locallogout — "
                        "intentionally leaking the engine to avoid an unbounded thread "
                        "join (stuck filesystem IO?) (Cluster E, S12)";
-            (void)m_wsEngine.release();
+            MEGA_WS_LSAN_IGNORE(m_wsEngine.release());
         }
     }
     m_wsEngine.reset();

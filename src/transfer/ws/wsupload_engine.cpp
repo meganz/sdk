@@ -803,6 +803,11 @@ void UploadEngine::Impl::enqueue(Transfer& t)
     }
 
     auto uf = std::make_unique<WsUploadFile>(client, t, fileno);
+    // S12 Cluster-E: leaked-alive stop-flag pointer — an abandoned reader must never
+    // dereference MegaClient once the engine is stopping (the client can be destroyed
+    // while a stuck reader is parked; the engine object itself is kept alive by the
+    // quiesce-or-leak logout path, so this pointer stays valid). ASAN-caught UAF.
+    uf->mEngineStopping = &mStopping;
     auto raw = uf.get();
 
     fileList.push_back(raw);

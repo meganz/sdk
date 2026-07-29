@@ -91,6 +91,19 @@ bool WsUploadFile::readData(char* buf,
         // dying FUSE-backed source path produces (win_9515).
         DEBUG_TEST_HOOK_WSUPLOAD_BLOCKING_READ(fileno());
 #endif
+        if (mEngineStopping && mEngineStopping->load(std::memory_order_acquire))
+        {
+            // S12 Cluster-E (ASAN-caught UAF): the engine is stopping — MegaClient may
+            // already be destroyed while this reader was parked. Never touch mClient;
+            // bail as an interrupted read (the engine object itself is leaked-alive).
+            ioLock.unlock();
+            engineMutex.lock();
+            if (interruptedByStateChange)
+            {
+                *interruptedByStateChange = true;
+            }
+            return false;
+        }
         auto fa = mClient.fsaccess->newfileaccess();
         fa->mShareDelete =
             true; // Allow file to be moved/deleted while WS upload holds the handle
@@ -195,6 +208,16 @@ bool WsUploadFile::readData(char* buf,
         const LocalPath& path = mLocalPath;
 
         engineMutex.unlock();
+        if (mEngineStopping && mEngineStopping->load(std::memory_order_acquire))
+        {
+            // S12 Cluster-E: see the first-open gate — never touch mClient while stopping.
+            engineMutex.lock();
+            if (interruptedByStateChange)
+            {
+                *interruptedByStateChange = true;
+            }
+            return false;
+        }
         auto checkFA = mClient.fsaccess->newfileaccess();
         checkFA->mShareDelete = true;
         bool exists = checkFA->fopen(path, FSLogging::logOnError);

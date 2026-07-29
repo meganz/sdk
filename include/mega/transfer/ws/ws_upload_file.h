@@ -640,6 +640,10 @@ public: // accessed by engine
     // and cleared on fire. Sibling of mCompletionWedgeSinceDs and keyed on the SAME tail-
     // completion window (a wedged file cannot migrate, so a per-file clock is the right grain).
     dstime mByteShortfallWedgeSinceDs{0};
+    // S12 Cluster-E: points at the owning engine Impl's mStopping (leaked-alive on the
+    // quiesce-or-leak logout path). readData checks it before EVERY MegaClient
+    // dereference so an abandoned reader can never touch a destroyed client (ASAN UAF).
+    const std::atomic<bool>* mEngineStopping{nullptr};
 
 private:
     void invalidateOutstandingWork() noexcept
