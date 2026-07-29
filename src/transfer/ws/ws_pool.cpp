@@ -424,37 +424,48 @@ WsUploadFile* WsPool::findFile(const std::uint32_t fileno, UploadEngine::Impl& i
 bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAfterDs)
 {
     WSUPLOAD_TRACE << "[WsPool::nextChunk] BEGIN [this = " << this << "]";
-    // queued retry first
-    while (!mToResend.empty())
+    // Queued retry first — but only entries whose owner is SENDABLE. S12 Cluster-B fix
+    // (JENKINS_RCA_S12): a parked chunk whose owner was paused underneath used to be
+    // popped and BUDGETED here every accrual cycle, then requeued by sendChunk's paused
+    // check — livelocking this pool's fresh path/candidate re-selection (both sit behind
+    // this loop) and starving sibling pools via the engine-global budget. Paused-owner
+    // entries now stay parked at zero cost and the loop falls through to the fresh path.
+    for (std::size_t ri = 0; ri < mToResend.size();)
     {
-        chunk = mToResend.front();
+        chunk = mToResend[ri];
         // Discard stale resend entries whose target file is gone or whose byte range no
         // longer fits the current attempt (e.g. resetAttemptState rewound mHeadPos = 0
         // but the entry was queued under a previous attempt). Re-sending out-of-bounds
         // bytes would break the server-side sliding window; bytes the server already has
         // would be re-acked via opcode 2, but never-fitting ranges must be dropped here.
+        WsUploadFile* const ufResend = findFile(chunk.fileno, impl);
+        if (!ufResend || (chunk.len && chunk.pos + chunk.len > ufResend->size()))
         {
-            WsUploadFile* const ufStale = findFile(chunk.fileno, impl);
-            if (!ufStale || (chunk.len && chunk.pos + chunk.len > ufStale->size()))
-            {
-                WSUPLOAD_TRACE << "[WsPool::nextChunk] discard stale resend entry [pos=" << chunk.pos
-                          << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
-                mToResend.erase(mToResend.begin());
-                continue;
-            }
+            WSUPLOAD_TRACE << "[WsPool::nextChunk] discard stale resend entry [pos=" << chunk.pos
+                      << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
+            mToResend.erase(mToResend.begin() + static_cast<std::ptrdiff_t>(ri));
+            continue;
         }
-        if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
+        if (ufResend->paused())
+        {
+            WSUPLOAD_TRACE << "[WsPool::nextChunk] resend entry owner paused -> keep parked "
+                         "at zero budget cost [pos="
+                      << chunk.pos << "] [fileno=" << chunk.fileno << "] [this = " << this
+                      << "]";
+            ++ri;
+            continue;
+        }
+        if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs, this))
         {
             // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
             // force an unnecessary refresh.
             mLastActive = impl.currentTime;
             return false;
         }
-        mToResend.erase(mToResend.begin());
+        mToResend.erase(mToResend.begin() + static_cast<std::ptrdiff_t>(ri));
         WSUPLOAD_TRACE << "WsUpload: resending chunk pos=" << chunk.pos << " len=" << chunk.len
                   << " fileno=" << chunk.fileno;
-        if (findFile(chunk.fileno, impl))
-            return true; // file still valid?
+        return true;
     }
 
     if (impl.paused)
@@ -497,7 +508,7 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
 
                 chunk.len = static_cast<int>(newHead - chunk.pos);
 
-                if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs))
+                if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs, this))
                 {
                     // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
                     // force an unnecessary refresh.
@@ -831,6 +842,9 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                       << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
             mToResend.push_back(chunk);
+            // S12 Cluster-B fix: the chunk never reached the wire — refund its budget so
+            // pool-mates are not charged for the paused-underneath race.
+            impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
             return false;
         }
         assert(uf->isUploading() && "invariant: upload must be active after successful read "
@@ -884,6 +898,8 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                           << localChunkPos << "] [fileno=" << chunk.fileno
                           << "] [this = " << this << "]";
                 mToResend.push_back(chunk);
+                // S12 Cluster-B fix: never reached the wire — refund (see post-read site).
+                impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
                 return false;
             }
             update = ChunkFingerprintMacUpdate(chunk.pos, std::move(macs));

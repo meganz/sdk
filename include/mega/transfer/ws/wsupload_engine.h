@@ -364,7 +364,22 @@ public:
     void setMaxConnections(const unsigned char maxConnections);
 
     // Must be called with uploadMutex held.
-    bool consumeUploadBudget(const m_off_t bytes, dstime* retryAfterDs = nullptr);
+    // requesterKey (S12 Cluster-B fix v2): identity token for head-waiter fairness —
+    // callers pass their pool pointer (never dereferenced). All-or-nothing grants with
+    // phase-locked pollers otherwise let one pool win the accrual crossing EVERY cycle
+    // and starve an equal-need sibling forever (deterministic repro:
+    // RepeatedPauseResumeMixedPoolsStress capped arm). The first consumer to fail
+    // registers as the head waiter; its need is RESERVED out of the budget for other
+    // keys until served (surplus above the reservation stays grantable — work-
+    // conserving), with staleness expiry for waiters that stop asking.
+    bool consumeUploadBudget(const m_off_t bytes,
+                             dstime* retryAfterDs = nullptr,
+                             const void* requesterKey = nullptr);
+    // S12 Cluster-B fix: refund a chunk whose send was cancelled AFTER budgeting (the
+    // paused-underneath requeue in sendChunk) so pool-mates are not charged for bytes
+    // that never reached the wire. Caller holds uploadMutex (consumeUploadBudget's
+    // contract); clamped to the same burst cap.
+    void refundUploadBudget(const m_off_t bytes);
 
     void setMaxUploadSpeed(const m_off_t bytesPerSecond);
 
@@ -434,6 +449,20 @@ public:
     m_off_t mMaxUploadSpeed{0};
     m_off_t mUploadBudget{0};
     dstime mUploadBudgetLastDs{0};
+    // S12 Cluster-B fix v3: FIFO budget-waiter queue (see consumeUploadBudget). Keys are
+    // identity tokens only — NEVER dereferenced (safe across pool retirement; staleness
+    // expiry bounds any recycled-address confusion window). Strict serve order: under
+    // contention every asker is served in registration order, bounding starvation at
+    // (queue length × per-grant accrual time). A v2-style single reservation was
+    // falsified: the reserved waiter monopolizes every accrual crossing and inverts the
+    // starvation (JENKINS_RCA_S12 Cluster B).
+    struct BudgetWaiter
+    {
+        const void* key{nullptr};
+        m_off_t bytes{0};
+        dstime lastAskDs{0};
+    };
+    std::vector<BudgetWaiter> mBudgetWaiters;
     bool paused{false};
     // Loss-recovery feature flags. Each is assigned EXACTLY ONCE in the ctor (before any
     // worker/manager thread exists) and never mutated thereafter, so it is effectively

@@ -1280,7 +1280,9 @@ void UploadEngine::Impl::setMaxConnections(const unsigned char maxConnections)
     }
 }
 
-bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes, dstime* retryAfterDs)
+bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes,
+                                             dstime* retryAfterDs,
+                                             const void* requesterKey)
 {
     if (bytes <= 0 || mMaxUploadSpeed <= 0)
     {
@@ -1321,7 +1323,18 @@ bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes, dstime* retryA
             (mMaxUploadSpeed > (maxValue / burstWindowSeconds)) ?
                 maxValue :
                 (mMaxUploadSpeed * burstWindowSeconds);
-        const m_off_t budgetCap = std::max(maxBurstBudget, bytes);
+        // S12 Cluster-B fix v3: the cap must accommodate the LARGEST currently-waiting
+        // need, not just the transient caller's. maxBurstBudget (speed×5 s) is smaller
+        // than a chunk at low caps, so a frequent smaller-need poller otherwise clamps
+        // the shared budget below a larger-need pool's threshold FOREVER (the
+        // deterministic starvation of the stress repro — no waiter scheme can accrue
+        // past a clamp applied by its competitor's polls).
+        m_off_t largestPendingNeed = bytes;
+        if (!mBudgetWaiters.empty())
+        {
+            largestPendingNeed = std::max(largestPendingNeed, mBudgetWaiters.front().bytes);
+        }
+        const m_off_t budgetCap = std::max(maxBurstBudget, largestPendingNeed);
         if (mUploadBudget > budgetCap)
         {
             mUploadBudget = budgetCap;
@@ -1329,6 +1342,75 @@ bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes, dstime* retryA
         mUploadBudgetLastDs = now;
     }
 
+    // S12 Cluster-B fix v3 — strict-FIFO fairness. All-or-nothing global grants with
+    // phase-locked pollers starve an equal-need sibling forever (deterministic repro);
+    // a v2-style single reservation merely inverted the starvation. Under contention,
+    // grants go STRICTLY in registration order: non-front askers register (once) and
+    // fail even when the budget momentarily suffices — the front waiter is always served
+    // first, so every asker's wait is bounded by (queue position × per-grant accrual).
+    constexpr dstime kBudgetWaiterStaleDs = 100;
+    constexpr std::size_t kBudgetWaiterCap = 16;
+    // Expire waiters that stopped asking (retired pool, paused/completed file).
+    for (auto it = mBudgetWaiters.begin(); it != mBudgetWaiters.end();)
+    {
+        if (SteadyTime::difference(now, it->lastAskDs) > kBudgetWaiterStaleDs)
+        {
+            it = mBudgetWaiters.erase(it);
+        }
+        else
+        {
+            ++it;
+        }
+    }
+
+    if (requesterKey)
+    {
+        auto me = std::find_if(mBudgetWaiters.begin(),
+                               mBudgetWaiters.end(),
+                               [requesterKey](const BudgetWaiter& w)
+                               {
+                                   return w.key == requesterKey;
+                               });
+        if (me != mBudgetWaiters.end())
+        {
+            me->lastAskDs = now;
+            me->bytes = bytes;
+        }
+        const bool queueEmpty = mBudgetWaiters.empty();
+        const bool amFront = !queueEmpty && mBudgetWaiters.front().key == requesterKey;
+        if (queueEmpty || amFront)
+        {
+            if (mUploadBudget >= bytes)
+            {
+                if (amFront)
+                {
+                    mBudgetWaiters.erase(mBudgetWaiters.begin()); // served
+                }
+                mUploadBudget -= bytes;
+                return true;
+            }
+            if (queueEmpty)
+            {
+                mBudgetWaiters.push_back({requesterKey, bytes, now});
+            }
+        }
+        else if (me == mBudgetWaiters.end() && mBudgetWaiters.size() < kBudgetWaiterCap)
+        {
+            mBudgetWaiters.push_back({requesterKey, bytes, now});
+        }
+        if (retryAfterDs)
+        {
+            const m_off_t deficit =
+                bytes > mUploadBudget ? bytes - mUploadBudget : static_cast<m_off_t>(1);
+            const m_off_t numerator =
+                deficit * static_cast<m_off_t>(SpeedController::DS_PER_SECOND) + mMaxUploadSpeed - 1;
+            const dstime suggestedDs = static_cast<dstime>(numerator / mMaxUploadSpeed);
+            *retryAfterDs = std::clamp<dstime>(suggestedDs, 1, 10);
+        }
+        return false;
+    }
+
+    // Legacy keyless path (no current callers): plain all-or-nothing.
     if (mUploadBudget < bytes)
     {
         if (retryAfterDs)
@@ -1344,6 +1426,35 @@ bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes, dstime* retryA
 
     mUploadBudget -= bytes;
     return true;
+}
+
+void UploadEngine::Impl::refundUploadBudget(const m_off_t bytes)
+{
+    if (bytes <= 0 || mMaxUploadSpeed <= 0)
+    {
+        return;
+    }
+
+    const m_off_t maxValue = std::numeric_limits<m_off_t>::max();
+    const m_off_t burstWindowSeconds =
+        static_cast<m_off_t>(SpeedController::SPEED_MEAN_CIRCULAR_BUFFER_SIZE_SECONDS);
+    const m_off_t maxBurstBudget = (mMaxUploadSpeed > (maxValue / burstWindowSeconds)) ?
+                                       maxValue :
+                                       (mMaxUploadSpeed * burstWindowSeconds);
+    // Same v3 clamp rule as consumeUploadBudget: never clamp below the front waiter's
+    // pending need (a refund must not destroy budget a waiter is accruing toward).
+    m_off_t largestPendingNeed = bytes;
+    if (!mBudgetWaiters.empty())
+    {
+        largestPendingNeed = std::max(largestPendingNeed, mBudgetWaiters.front().bytes);
+    }
+    const m_off_t budgetCap = std::max(maxBurstBudget, largestPendingNeed);
+    if (bytes > (maxValue - mUploadBudget))
+    {
+        mUploadBudget = budgetCap;
+        return;
+    }
+    mUploadBudget = std::min(mUploadBudget + bytes, budgetCap);
 }
 
 void UploadEngine::Impl::setMaxUploadSpeed(const m_off_t bytesPerSecond)
