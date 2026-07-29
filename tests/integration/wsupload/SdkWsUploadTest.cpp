@@ -3410,6 +3410,277 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
 }
 
 /**
+ * @brief Cluster-B stress form of RepeatedPauseResumeMixedPools (SDK-5360 fu8 S12).
+ *
+ * win_9515 + the S11 TSAN i5 specimen (pid_697398) showed the shipped cell's wedge:
+ * after a pause batch, the UNPAUSED pool-mates freeze (inflight=0, parked resend never
+ * drained or drained-then-still-frozen, confirmedBytes flat, no watchdog arms — the
+ * inflight==0 && (resend>0 || bytes<size) joint blind spot). Entry is timing-dependent:
+ * a chunk must be in flight (or mid-read) for a file at the moment its pool-mate batch
+ * pauses it, so the chunk parks in the pool-level mToResend while its owner is paused.
+ *
+ * This cell makes that precondition DETERMINISTIC: before every pause batch it arms a
+ * bounded onWsConnForceCloseNow budget, force-closing the pools' conns so any in-flight
+ * chunks are requeued into mToResend right as their owners get paused
+ * (retryChunksOnTheWireLocked), then asserts BOTH unpaused files progress within a
+ * bounded window each cycle. Alternating the paused pair across kCycles exercises both
+ * directions. Uncapped control arm (H1 discriminator: the engine-global upload budget
+ * short-circuits when no cap is set): MEGA_WSTEST_PAUSERESUME_STRESS_UNCAPPED=1 — the
+ * DEFAULT (capped, CI) form matches the shipped cell's cap formula.
+ */
+TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPoolsStress)
+{
+    LOG_info << "___TEST SdkWsUploadRepeatedPauseResumeMixedPoolsStress___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::vector<m_off_t> sizeClasses;
+    ASSERT_TRUE(fetchUscSizeClasses(*megaApi[0], sizeClasses, 60))
+        << "Unable to fetch USC size classes";
+
+    bool hasOpenEndedClass = false;
+    std::vector<m_off_t> finiteClasses;
+    for (const m_off_t classMax: sizeClasses)
+    {
+        if (classMax == 0)
+        {
+            hasOpenEndedClass = true;
+            continue;
+        }
+        if (classMax > 1)
+        {
+            finiteClasses.push_back(classMax);
+        }
+    }
+    std::sort(finiteClasses.begin(), finiteClasses.end());
+    finiteClasses.erase(std::unique(finiteClasses.begin(), finiteClasses.end()),
+                        finiteClasses.end());
+    if (finiteClasses.empty() || !(hasOpenEndedClass || finiteClasses.size() >= 2))
+    {
+        GTEST_SKIP() << "Could not derive two USC class boundaries for the stress cell";
+    }
+
+    const m_off_t firstClassMax = finiteClasses.front();
+    const size_t fileSizeA = static_cast<size_t>(firstClassMax - 1);
+    const size_t fileSizeB = static_cast<size_t>(firstClassMax);
+
+    const std::string stamp =
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::string fileA1 = "ws_stress_A1_" + stamp + ".bin";
+    const std::string fileA2 = "ws_stress_A2_" + stamp + ".bin";
+    const std::string fileB1 = "ws_stress_B1_" + stamp + ".bin";
+    const std::string fileB2 = "ws_stress_B2_" + stamp + ".bin";
+    ASSERT_TRUE(createFileWithSize(fileA1, fileSizeA, "A1"));
+    ASSERT_TRUE(createFileWithSize(fileA2, fileSizeA, "A2"));
+    ASSERT_TRUE(createFileWithSize(fileB1, fileSizeB, "B1"));
+    ASSERT_TRUE(createFileWithSize(fileB2, fileSizeB, "B2"));
+
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileA1, &fileA2, &fileB1, &fileB2]()
+        {
+            deleteFile(fileA1);
+            deleteFile(fileA2);
+            deleteFile(fileB1);
+            deleteFile(fileB2);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsConnForceCloseNow = nullptr;
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(2, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    const char* uncappedEnv = std::getenv("MEGA_WSTEST_PAUSERESUME_STRESS_UNCAPPED");
+    const bool uncapped = uncappedEnv && *uncappedEnv && std::string(uncappedEnv) != "0";
+    const m_off_t uploadSpeedLimit =
+        std::max<m_off_t>(10000, static_cast<m_off_t>(fileSizeB / 500));
+    std::optional<ScopedUploadSpeedLimit> restoreUploadSpeed;
+    if (!uncapped)
+    {
+        restoreUploadSpeed.emplace(*megaApi[0], static_cast<int>(uploadSpeedLimit));
+    }
+    LOG_info << "[PauseResumeStress] arm=" << (uncapped ? "UNCAPPED" : "capped")
+             << " limitBps=" << (uncapped ? 0 : uploadSpeedLimit);
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    struct StartIdCapture final: ::mega::MegaTransferListener
+    {
+        std::mutex m;
+        std::map<std::string, uint32_t> idsByName;
+
+        void onTransferStart(MegaApi*, MegaTransfer* transfer) override
+        {
+            if (!transfer || !transfer->getFileName())
+            {
+                return;
+            }
+            std::lock_guard<std::mutex> g(m);
+            idsByName[transfer->getFileName()] = transfer->getUniqueId();
+        }
+    } startIdCapture;
+
+    megaApi[0]->addTransferListener(&startIdCapture);
+    auto removeStartIdCapture = makeScopedDestructor(
+        [this, &startIdCapture]()
+        {
+            megaApi[0]->removeTransferListener(&startIdCapture);
+        });
+
+    TransferTracker trackerA1(megaApi[0].get());
+    TransferTracker trackerA2(megaApi[0].get());
+    TransferTracker trackerB1(megaApi[0].get());
+    TransferTracker trackerB2(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileA1, rootnode.get(), nullptr, &uploadOptions, &trackerA1);
+    megaApi[0]->startUpload(fileA2, rootnode.get(), nullptr, &uploadOptions, &trackerA2);
+    megaApi[0]->startUpload(fileB1, rootnode.get(), nullptr, &uploadOptions, &trackerB1);
+    megaApi[0]->startUpload(fileB2, rootnode.get(), nullptr, &uploadOptions, &trackerB2);
+
+    uint32_t idA1 = 0, idA2 = 0, idB1 = 0, idB2 = 0;
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::lock_guard<std::mutex> g(startIdCapture.m);
+            auto get = [&](const std::string& n) -> uint32_t
+            {
+                auto it = startIdCapture.idsByName.find(n);
+                return it == startIdCapture.idsByName.end() ? 0 : it->second;
+            };
+            idA1 = get(fileA1);
+            idA2 = get(fileA2);
+            idB1 = get(fileB1);
+            idB2 = get(fileB2);
+            return idA1 && idA2 && idB1 && idB2;
+        },
+        30000))
+        << "Did not capture transfer IDs for 4 uploads";
+
+    auto getTransferById = [this](const uint32_t id) -> std::unique_ptr<MegaTransfer>
+    {
+        return std::unique_ptr<MegaTransfer>(megaApi[0]->getTransferByUniqueId(id));
+    };
+    auto bytesOf = [&](const uint32_t id, TransferTracker& tracker) -> long long
+    {
+        if (tracker.finished.load() &&
+            tracker.result.load() == static_cast<ErrorCodes>(API_OK))
+        {
+            return -1; // completed: always counts as progressed
+        }
+        auto t = getTransferById(id);
+        return t ? t->getTransferredBytes() : 0;
+    };
+
+    // Deterministic parked-resend precondition: a bounded force-close budget consumed by
+    // onWsConnForceCloseNow right before each pause batch (in-flight chunks requeue into
+    // the pool-level mToResend via retryChunksOnTheWireLocked as their owners pause).
+    std::atomic<int> forceCloseBudget{0};
+    std::atomic<int> forceCloseCount{0};
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsConnForceCloseNow =
+            [&forceCloseBudget, &forceCloseCount](ws::WsConn*, ws::WsPool*, const std::string&)
+        {
+            if (forceCloseBudget.fetch_sub(1, std::memory_order_acq_rel) > 0)
+            {
+                ++forceCloseCount;
+                return true;
+            }
+            forceCloseBudget.fetch_add(1, std::memory_order_acq_rel);
+            return false;
+        };
+    }
+
+    auto pauseOne = [&](const uint32_t id, const bool paused)
+    {
+        if (auto t = getTransferById(id))
+        {
+            RequestTracker req(megaApi[0].get());
+            megaApi[0]->pauseTransfer(t.get(), paused, &req);
+            const auto res = req.waitForResult(60);
+            ASSERT_TRUE(res == API_OK || res == API_ENOENT)
+                << "pauseTransfer(" << paused << ") failed: " << res;
+        }
+    };
+
+    constexpr int kCycles = 6;
+    // 90 s bound (matches the shipped cell's progress window): with FAIR strict-FIFO
+    // budget alternation at the capped rate, the second-served pool's grant can land up
+    // to ~2 × (chunkBytes / capBps) ≈ 50 s after the batch; 45 s would flake a CORRECT
+    // engine at this cap.
+    constexpr int kCycleBoundMs = 90000;
+    for (int cycle = 0; cycle < kCycles; ++cycle)
+    {
+        const bool pauseTwos = (cycle % 2) == 0; // even cycles pause A2/B2, odd pause A1/B1
+        const uint32_t pausedA = pauseTwos ? idA2 : idA1;
+        const uint32_t pausedB = pauseTwos ? idB2 : idB1;
+        const uint32_t activeA = pauseTwos ? idA1 : idA2;
+        const uint32_t activeB = pauseTwos ? idB1 : idB2;
+        TransferTracker& activeTrackerA = pauseTwos ? trackerA1 : trackerA2;
+        TransferTracker& activeTrackerB = pauseTwos ? trackerB1 : trackerB2;
+
+        forceCloseBudget.store(4, std::memory_order_release); // park in-flight chunks
+        pauseOne(pausedA, true);
+        pauseOne(pausedB, true);
+        pauseOne(activeA, false);
+        pauseOne(activeB, false);
+
+        const long long beforeA = bytesOf(activeA, activeTrackerA);
+        const long long beforeB = bytesOf(activeB, activeTrackerB);
+        const bool progressed = WaitFor(
+            [&]()
+            {
+                const long long nowA = bytesOf(activeA, activeTrackerA);
+                const long long nowB = bytesOf(activeB, activeTrackerB);
+                const bool okA = nowA == -1 || (beforeA == -1) || nowA > beforeA;
+                const bool okB = nowB == -1 || (beforeB == -1) || nowB > beforeB;
+                return okA && okB;
+            },
+            kCycleBoundMs);
+        ASSERT_TRUE(progressed)
+            << "PAUSE/RESUME WEDGE (Cluster B class): unpaused pool-mates made no progress "
+               "within "
+            << kCycleBoundMs / 1000 << "s [cycle=" << cycle << "/" << kCycles
+            << "] [pausedPair=" << (pauseTwos ? "A2/B2" : "A1/B1")
+            << "] [forceCloses=" << forceCloseCount.load()
+            << "] [bytesA before=" << beforeA << " now=" << bytesOf(activeA, activeTrackerA)
+            << "] [bytesB before=" << beforeB << " now=" << bytesOf(activeB, activeTrackerB)
+            << "]";
+        LOG_info << "[PauseResumeStress] cycle " << cycle << " ok"
+                 << " [forceCloses=" << forceCloseCount.load() << "]";
+    }
+
+    // Disarm and let everything finish. The cap is lifted first: with the S12 budget
+    // fix the cap is ENFORCED (pre-fix it leaked ~18x), and 4 x ~5 MiB at ~10 KB/s
+    // cannot meet any sane completion budget — capped completion is not this cell's
+    // subject (the per-cycle progress assertions above are).
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsConnForceCloseNow = nullptr;
+    }
+    restoreUploadSpeed.reset();
+    pauseOne(idA1, false);
+    pauseOne(idA2, false);
+    pauseOne(idB1, false);
+    pauseOne(idB2, false);
+
+    ASSERT_EQ(trackerA1.waitForResult(300), API_OK) << "A1 did not complete";
+    ASSERT_EQ(trackerA2.waitForResult(300), API_OK) << "A2 did not complete";
+    ASSERT_EQ(trackerB1.waitForResult(300), API_OK) << "B1 did not complete";
+    ASSERT_EQ(trackerB2.waitForResult(300), API_OK) << "B2 did not complete";
+}
+
+/**
  * @brief Verify pause/resume handles late processing of in-flight ACKs safely.
  *
  * - TEST1: Start active upload and pause while chunks are already in flight.
