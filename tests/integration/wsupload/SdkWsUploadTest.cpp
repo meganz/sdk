@@ -3693,6 +3693,97 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPoolsStress)
 }
 
 /**
+ * @brief Cluster-E guard (SDK-5360 fu8 S12): locallogout stays BOUNDED when a WS upload's
+ * source read is stuck in a filesystem syscall.
+ *
+ * win_9515: a FUSE-backed upload source was torn down mid-read; the reader blocked inside
+ * fopen/read holding ActiveIOGuard; the client thread then spun FOREVER in
+ * WsUploadFile::waitForNoIO inside locallogout/freeq(PUT) (and the engine destructor's
+ * unbounded thread joins carried the same hazard) — the CI watchdog killed the job 15
+ * minutes later with zero log output.
+ *
+ * Mechanism repro: the blocking-read seam sleeps 15 s on the FIRST read — longer than the
+ * bounded removal wait (2 s) and the engine quiesce window (3 s) combined. Post-fix,
+ * locallogout completes in seconds (the stuck file is parked in the engine graveyard and,
+ * if the worker is still blocked at engine teardown, the engine is intentionally leaked —
+ * both loudly logged); pre-fix this test hangs for the full stuck-read duration (unbounded
+ * in the real case). The session is resumed afterwards so teardown runs normally.
+ */
+TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
+{
+    LOG_info << "___TEST SdkWsUploadLocallogoutBoundedWithStuckReadIO___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_stuckread_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "E"))
+        << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsUploadBlockingReadForTesting = {};
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    std::atomic<int> blockedReads{0};
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsUploadBlockingReadForTesting = [&blockedReads](std::uint32_t)
+        {
+            if (blockedReads.fetch_add(1) == 0)
+            {
+                // Only the FIRST read blocks (simulated stuck syscall); later reads
+                // (post-resume re-attempts) proceed normally.
+                std::this_thread::sleep_for(std::chrono::seconds(15));
+            }
+        };
+    }
+
+    TransferTracker upload(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &upload);
+
+    ASSERT_TRUE(WaitFor(
+        [&blockedReads]()
+        {
+            return blockedReads.load() >= 1;
+        },
+        30000))
+        << "The blocking-read seam never fired (no WS read attempt)";
+
+    // The reader is now blocked holding ActiveIOGuard. locallogout must stay bounded:
+    // removal waits <= 2 s per file, engine quiesce <= 3 s, drain <= 3 s; assert well
+    // under the 15 s stuck-read duration with headroom for account teardown RTTs.
+    std::unique_ptr<char[]> session(dumpSession());
+    const auto logoutStart = std::chrono::steady_clock::now();
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    const auto logoutMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - logoutStart)
+                              .count();
+    EXPECT_LT(logoutMs, 12000) << "locallogout was not bounded while a WS read was stuck (took "
+                               << logoutMs
+                               << " ms; pre-fix this is unbounded — win_9515 Cluster E)";
+    LOG_info << "[LocallogoutBoundedWithStuckReadIO] logoutMs=" << logoutMs
+             << " blockedReads=" << blockedReads.load();
+
+    // Restore a working session for fixture teardown.
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+}
+
+/**
  * @brief Verify pause/resume handles late processing of in-flight ACKs safely.
  *
  * - TEST1: Start active upload and pause while chunks are already in flight.

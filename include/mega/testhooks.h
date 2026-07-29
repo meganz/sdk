@@ -558,6 +558,12 @@ namespace mega {
         // evaluation-cycle marker.
         std::function<bool(ws::WsPool* /*pool*/, std::uint32_t /*candidateFileno*/)>
             onWsHandshakeFailureCandidateVeto;
+        // S12 Cluster-E repro seam: invoked from WsUploadFile::readData on the
+        // first-open path, with the engine mutex RELEASED and ActiveIOGuard held —
+        // exactly the state of a reader blocked in a filesystem syscall. The test's
+        // lambda sleeps to simulate the stuck read; the locallogout path must stay
+        // bounded regardless.
+        std::function<void(std::uint32_t /*fileno*/)> onWsUploadBlockingReadForTesting;
         std::function<void(const char* /*reason*/, bool /*stillTracked*/)>
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
@@ -705,6 +711,7 @@ namespace mega {
             onWsUploadSustainedHandshakeFailureWindowDs =
                 std::move(other.onWsUploadSustainedHandshakeFailureWindowDs);
             onWsHandshakeFailureCandidateVeto = std::move(other.onWsHandshakeFailureCandidateVeto);
+            onWsUploadBlockingReadForTesting = std::move(other.onWsUploadBlockingReadForTesting);
             onWsUploadFailureDetached = std::move(other.onWsUploadFailureDetached);
             onWsUploadCorruptToken = std::move(other.onWsUploadCorruptToken);
             onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
@@ -1052,6 +1059,21 @@ namespace mega {
         } \
         while (0)
 
+    // S12 Cluster-E repro seam: fired on readData's first-open path with the engine mutex
+    // released and ActiveIOGuard held (the test's lambda sleeps = a stuck FS read).
+#define DEBUG_TEST_HOOK_WSUPLOAD_BLOCKING_READ(FILENO) \
+        do \
+        { \
+            std::function<void(std::uint32_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsUploadBlockingReadForTesting; \
+            } \
+            if (_fn) \
+                _fn((FILENO)); \
+        } \
+        while (0)
+
 #define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR) \
         do \
         { \
@@ -1288,6 +1310,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE_FAILURE_CANDIDATE_VETO(POOLPTR, FILENO, OUTVETO)
+#define DEBUG_TEST_HOOK_WSUPLOAD_BLOCKING_READ(FILENO)
 #define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR)
 #define DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(FILENO, POOLPTR)
 #define DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(FILENO, DROPPED)
