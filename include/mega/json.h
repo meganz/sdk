@@ -189,9 +189,6 @@ public:
     size_t size() const;
     void clear() { mJson.clear(); }
 
-protected:
-    string escapeQuotes(const char* data, size_t length) const;
-
 private:
     static const int MAXDEPTH = 8;
 

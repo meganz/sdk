@@ -285,23 +285,20 @@ TEST(EscapeJsonString, PassesThroughMultibyteUtf8)
 TEST(EscapeJsonString, RoundTripsThroughUnescape)
 {
     // A JSON-injection attempt via a breakout quote survives escape+unescape intact.
-    const std::string raw = "path\"with\\odd\nchars\t\x01 and \xC3\xA9 utf8";
+    const char* const raw = "path\"with\\odd\nchars\t\x01 and \xC3\xA9 utf8";
     EXPECT_EQ(unescaped(escaped(raw)), raw);
 }
 
-#ifdef NDEBUG
-// Release-only: escape() asserts on malformed UTF-8 in debug builds; here (asserts disabled)
-// the guard must pass invalid UTF-8 through unchanged rather than looping/over-reading. Such
-// bytes are always >= 0x80, so they never need escaping.
+// escape() passes invalid UTF-8 through unchanged rather than looping/over-reading (e.g. a
+// non-UTF-8 local path on Linux, which exportSyncConfig may escape). Such bytes are always
+// >= 0x80, so they never need escaping. Runs in both debug and release now that escape() no
+// longer asserts on malformed UTF-8.
 TEST(EscapeJsonString, MalformedUtf8PassesThroughSafely)
 {
-    EXPECT_EQ(escaped(std::string("\xff")), std::string("\xff"));
-    EXPECT_EQ(escaped(std::string("a\xff"
-                                  "b")),
-              std::string("a\xff"
-                          "b"));
-    EXPECT_EQ(escaped(std::string("\x80")), std::string("\x80")); // lone continuation byte
+    EXPECT_EQ(escaped("\xff"), "\xff");
+    // 'z' rather than a hex digit after the escape: "a\xffb" would be a single greedy escape.
+    EXPECT_EQ(escaped("a\xffz"), "a\xffz");
+    EXPECT_EQ(escaped("\x80"), "\x80"); // lone continuation byte
     // Escaping of valid characters still happens alongside an invalid byte.
-    EXPECT_EQ(escaped(std::string("\"\xff")), std::string("\\\"\xff"));
+    EXPECT_EQ(escaped("\"\xff"), "\\\"\xff");
 }
-#endif
