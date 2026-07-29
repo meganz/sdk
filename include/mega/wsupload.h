@@ -199,6 +199,13 @@ public:
         // Exposed for B8 regression test: mPausedByServerUntil (deciseconds). Zero when
         // the pool is not currently throttled by the server.
         dstime pausedByServerUntilDs = 0;
+        // C-7 escalation-gate observability (SDK-5360 fu8 S12). The gate's retryCount /
+        // firstConnectFailureDs are pool-worker STACK locals; these mirrors are
+        // last-writer-wins across workers, exact only at setMaxConnections(1) — the C-7
+        // cell pins 1 connection for that reason.
+        int gateRetryCount = 0;
+        std::uint64_t gateNullCandidateStreak = 0;
+        std::uint64_t gateEvaluationCount = 0;
     };
 
     struct WsUploadStatsForTesting

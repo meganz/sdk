@@ -1679,10 +1679,16 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 
                 if (!retryCount++)
                 {
+#ifndef NDEBUG
+                    mGateRetryCountForTesting = static_cast<int>(retryCount);
+#endif
                     WSUPLOAD_TRACE << "[WsPool::poolWorkerThread] retryCount=" << retryCount
                               << " -> continue [this = " << this << "]";
                     continue;
                 }
+#ifndef NDEBUG
+                mGateRetryCountForTesting = static_cast<int>(retryCount);
+#endif
 
                 // Pinned session invalidation should be conservative: brief network glitches can
                 // cause a few connect failures, but do not necessarily mean the pinned endpoint
@@ -1717,6 +1723,24 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                     failedForDs >= sustainedHandshakeFailureWindowDs)
                 {
                     auto* uploadToFail = handshakeFailureCandidateLocked(nowDs);
+#ifndef NDEBUG
+                    ++mGateEvaluationCountForTesting;
+#endif
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    // C-7 seam: a test may veto the candidate — same branch as the real
+                    // mid-migration null. fileno=0 signals the gate found none naturally.
+                    {
+                        bool vetoCandidate = false;
+                        DEBUG_TEST_HOOK_WS_HANDSHAKE_FAILURE_CANDIDATE_VETO(
+                            this,
+                            uploadToFail ? uploadToFail->fileno() : 0,
+                            vetoCandidate);
+                        if (vetoCandidate)
+                        {
+                            uploadToFail = nullptr;
+                        }
+                    }
+#endif
                     if (uploadToFail)
                     {
                         LOG_warn << "[WsPool::poolWorkerThread] sustained WS handshake failures for "
@@ -1750,6 +1774,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                         // Reset connect-failure window for the next attempt.
                         retryCount = 0;
                         firstConnectFailureDs = 0;
+#ifndef NDEBUG
+                        mGateRetryCountForTesting = 0;
+                        mGateNullCandidateStreakForTesting = 0;
+#endif
                         continue;
                     }
                     else
@@ -1761,6 +1789,10 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                         // closes the pure-handshake-failure forever-loop (root_cause.md sec.4).
                         retryCount = 0;
                         firstConnectFailureDs = 0;
+#ifndef NDEBUG
+                        mGateRetryCountForTesting = 0;
+                        ++mGateNullCandidateStreakForTesting;
+#endif
                     }
                 }
 
@@ -1794,6 +1826,9 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             }
             retryCount = 0;
             firstConnectFailureDs = 0;
+#ifndef NDEBUG
+            mGateRetryCountForTesting = 0;
+#endif
         }
 
         lastQueueVersion = mImpl->queueVersion.load(std::memory_order_relaxed);

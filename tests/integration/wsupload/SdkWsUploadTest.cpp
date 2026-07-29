@@ -5531,46 +5531,237 @@ TEST_F(SdkWsUploadTest, ForceCloseMidChunkResendWaste)
  * after N null cycles" fix (which otherwise risks firing onFail on a file that is
  * legitimately mid-migration).
  *
- * TODO(SDK-5360 followup8): this scaffold is intentionally NOT a live assertion yet.
- * A faithful, non-flaky, deterministic trigger of the NULL-candidate branch is not
- * feasible with the current hooks:
- *   - There is no hook to force handshakeFailureCandidateLocked() to alternate
- *     null/non-null on a schedule (the eligibility predicate keys on the file's
- *     mPool/paused()/continuingUpload() under uploadMutex; no test seam toggles it).
- *   - PoolStateForTesting (include/mega/wsupload.h) does NOT expose retryCount /
- *     firstConnectFailureDs, so the window-reset itself is not observable from a test.
- * Closing this needs a small, behavior-neutral observability seam (e.g. surface the
- * gate's consecutive-null-candidate cycle count + the live retryCount on
- * PoolStateForTesting) AND a realistic way to flap the candidate's eligibility (e.g.
- * pause/continuingUpload toggling driven each manager cycle while onWsHandshake forces
- * failures, as DistressStormDuringFailureDoesNotCrash drives failures). Once that seam
- * exists, this test should:
- *   1. start an upload at setMaxConnections(1) and observe an active uploading pool
- *      (mirror RetryAfterHandshakeFailureRestartsTransferStart steps 1-2);
- *   2. shrink the window via onWsUploadSustainedHandshakeFailureWindowDs to a small
- *      non-zero value and force all /ul/ handshakes to fail via onWsHandshake;
- *   3. flap the candidate's eligibility each manager cycle so the gate is satisfied
- *      while the candidate is null on roughly alternating cycles;
- *   4. ASSERT the escalation onFail fires within a bounded number of cycles, i.e.
- *      tracker.temporaryErrorCount eventually reaches >=1 (the window is NOT
- *      perpetually reset). If it never fires within the bound, starvation is real and
- *      the gate fix (bounded consecutive-null-candidate counter that forces escalation)
- *      is justified; if it fires within the bound, the branch is self-correcting and
- *      NO fix should ship — this test stays as a regression guard.
+ * S12 (SDK-5360 fu8): the seam now exists and this is a LIVE regression guard.
+ *   - PoolStateForTesting exposes gateRetryCount / gateNullCandidateStreak /
+ *     gateEvaluationCount (last-writer-wins mirrors; exact at setMaxConnections(1),
+ *     which this cell pins) — include/mega/wsupload.h.
+ *   - onWsHandshakeFailureCandidateVeto fires on EVERY satisfied-gate evaluation with
+ *     the resolved candidate's fileno (0 = naturally null); returning true vetoes the
+ *     candidate, taking the exact null-candidate reset branch (ws_pool.cpp). The veto
+ *     is observationally identical to the real mid-migration null, and non-vetoed
+ *     evaluations run the full real escalation path — a phase-locked, load-immune
+ *     eligibility flap (an alternating veto = the scaffold's "flap each cycle").
+ * The assertion bound is EVALUATION-counted, not wall-clock: one gate evaluation per
+ * worker reconnect cycle (~25-38 s: backoff(0) 5-7.5 s + fail#1 immediate + backoff(2)
+ * 20-30 s + fail#3 evaluates). With an alternating veto the escalation is expected at
+ * evaluation #2; the test allows 6 evaluations / 240 s before declaring starvation.
+ * If 6 alternating evaluations all reset without firing, starvation is REAL and this
+ * test's failure is the demonstration the genetic-fight verdict requires before any
+ * "force escalation after N null cycles" fix may ship.
  */
 TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
 {
+    LOG_info << "___TEST SdkWsUploadEscalationWindowNotPerpetuallyResetByNullCandidate___";
     WSUPLOAD_REQUIRE_TEST_HOOKS();
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
-    GTEST_SKIP()
-        << "C-7 scaffold (SDK-5360 followup8): deterministic trigger/observation of the "
-           "escalation-gate null-candidate window reset needs a behavior-neutral "
-           "observability seam (gate retryCount + consecutive-null-candidate count on "
-           "PoolStateForTesting) and a candidate-eligibility flap hook that do not yet "
-           "exist. See the doc comment above for the exact steps + assertion. Per the "
-           "genetic-fight verdict the gate FIX must NOT ship until this test demonstrates "
-           "real starvation with a realistic eligibility flap.";
+    // Step 1: start an upload at 1 connection and observe an active uploading pool
+    // (mirrors RetryAfterHandshakeFailureRestartsTransferStart steps 1-2).
+    const std::string fileName =
+        "ws_escalation_flap_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "E"))
+        << "Couldn't create " << fileName;
+
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    // F10 discipline: ALL hook installs/clears take the hooks mutex (product-side reads
+    // are guarded and always-ticking).
+    auto resetWsHooks = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsHandshake = {};
+            globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
+            globalMegaTestHooks.onWsHandshakeFailureCandidateVeto = {};
+        });
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
+
+    WsUploadRetryTracker tracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
+
+    ASSERT_TRUE(WaitFor(
+        [&tracker]()
+        {
+            return tracker.startCount.load() >= 1;
+        },
+        30000))
+        << "Upload did not emit the initial onTransferStart callback";
+
+    WsUploadTransferSnapshot activeSession{};
+    ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        activeSession,
+        [](const WsUploadTransferSnapshot& snapshot)
+        {
+            return snapshot.wsFileno > 0 && !snapshot.wsSessionUrl.empty() &&
+                   snapshot.state == TRANSFERSTATE_ACTIVE;
+        },
+        60,
+        200))
+        << "Upload did not expose an active WS session before forcing handshake failures";
+    ASSERT_TRUE(activeSession.found);
+
+    ws::UploadEngine::PoolStateForTesting activePoolState{};
+    ASSERT_TRUE(waitForWsUploadPoolStateForTesting(
+        *megaApi[0],
+        activeSession.wsSessionUrl,
+        activePoolState,
+        [](const ws::UploadEngine::PoolStateForTesting& state)
+        {
+            return state.found && state.hasUploadingFile;
+        },
+        60,
+        200))
+        << "Could not observe an active uploading pool for URL before forcing handshake failures"
+        << " [url=" << activeSession.wsSessionUrl << "]";
+
+    // Step 2 + 3: shrink the window, force /ul/ handshake failures, and flap the
+    // candidate's eligibility on alternating gate evaluations via the veto hook.
+    std::atomic<int> forcedHandshakeFailureCount{0};
+    std::atomic<int> gateEvaluations{0};
+    std::atomic<int> vetoedEvaluations{0};
+    std::atomic<int> naturallyNullEvaluations{0};
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake =
+            [&forcedHandshakeFailureCount, &tracker](const std::string& url, long, std::string& err)
+        {
+            if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
+            {
+                return false;
+            }
+            if (tracker.temporaryErrorCount.load() >= 1)
+            {
+                return false; // escalation fired; stop failing handshakes so teardown settles
+            }
+            ++forcedHandshakeFailureCount;
+            err = "debug forced WS handshake failure (C-7 escalation flap)";
+            return true;
+        };
+        globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = [](dstime& windowDs)
+        {
+            windowDs = 0;
+        };
+        globalMegaTestHooks.onWsHandshakeFailureCandidateVeto =
+            [&gateEvaluations,
+             &vetoedEvaluations,
+             &naturallyNullEvaluations](ws::WsPool*, std::uint32_t candidateFileno)
+        {
+            const int evalNo = ++gateEvaluations;
+            if (candidateFileno == 0)
+            {
+                ++naturallyNullEvaluations; // already null — nothing to veto
+                return false;
+            }
+            if ((evalNo % 2) == 1)
+            {
+                const int vetoed = ++vetoedEvaluations;
+                LOG_debug << "[SdkWsUploadEscalationFlap] veto candidate fileno=" << candidateFileno
+                          << " [eval=" << evalNo << "] [vetoed=" << vetoed << "]";
+                return true; // flap: this evaluation takes the null-candidate reset branch
+            }
+            LOG_debug << "[SdkWsUploadEscalationFlap] allow candidate fileno=" << candidateFileno
+                      << " [eval=" << evalNo << "]";
+            return false;
+        };
+    }
+
+    ASSERT_TRUE(notifyWsUploadNetworkDisconnectForTesting(*megaApi[0], 10))
+        << "Failed to trigger a WS disconnect before the forced handshake failures";
+
+    // Step 4: the escalation must fire within a bounded number of gate evaluations.
+    // Bound = 6 evaluations (fire expected at #2 with the alternating veto) with a 240 s
+    // wall backstop; the primary bound is evaluation-counted so CI/TSAN load cannot fake
+    // a starvation verdict.
+    constexpr int kMaxGateEvaluations = 6;
+    bool escalationFired = false;
+    int lastForcedHandshakeFailureCount = -1;
+    second_timer escalationTimer;
+    while (escalationTimer.elapsed() < 240)
+    {
+        if (tracker.temporaryErrorCount.load() >= 1)
+        {
+            escalationFired = true;
+            break;
+        }
+        if (gateEvaluations.load() >= kMaxGateEvaluations)
+        {
+            break; // starvation bound reached without a fire
+        }
+        const int currentForcedFailureCount = forcedHandshakeFailureCount.load();
+        if (currentForcedFailureCount == lastForcedHandshakeFailureCount)
+        {
+            // Re-nudge reconnect so retries keep being consumed against the active pool.
+            (void)notifyWsUploadNetworkDisconnectForTesting(*megaApi[0], 1);
+        }
+        lastForcedHandshakeFailureCount = currentForcedFailureCount;
+        WaitMillisec(200);
+    }
+
+    // Diagnostics (best-effort — pools can rotate under refreshPools; never a hard gate).
+    ws::UploadEngine::PoolStateForTesting gateState{};
+    (void)fetchWsUploadPoolStateForTesting(*megaApi[0], activeSession.wsSessionUrl, gateState);
+
+    ASSERT_GE(gateEvaluations.load(), 2)
+        << "The escalation gate was never evaluated enough to flap eligibility"
+        << " [gateEvals=" << gateEvaluations.load()
+        << "] [forcedHandshakeFailures=" << forcedHandshakeFailureCount.load()
+        << "] [elapsedS=" << escalationTimer.elapsed() << "]";
+    ASSERT_GE(vetoedEvaluations.load(), 1)
+        << "No evaluation was vetoed — the eligibility flap never happened"
+        << " [gateEvals=" << gateEvaluations.load()
+        << "] [naturallyNull=" << naturallyNullEvaluations.load() << "]";
+    ASSERT_TRUE(escalationFired)
+        << "STARVATION DEMONSTRATED: " << gateEvaluations.load()
+        << " alternating-veto gate evaluations reset the window without ever escalating "
+           "(the C-7 residual concern is real; per the genetic-fight verdict this failure "
+           "is the evidence required to justify the bounded consecutive-null-candidate "
+           "escalation fix)"
+        << " [vetoed=" << vetoedEvaluations.load()
+        << "] [naturallyNull=" << naturallyNullEvaluations.load()
+        << "] [gateRetryCount=" << gateState.gateRetryCount
+        << "] [gateNullCandidateStreak=" << gateState.gateNullCandidateStreak
+        << "] [gateEvaluationCount=" << gateState.gateEvaluationCount
+        << "] [poolFound=" << gateState.found << "]";
+
+    // Disarm the failure injection (under the hooks mutex) and let the transfer settle so
+    // teardown does not race a still-failing reconnect loop.
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake = {};
+        globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
+        globalMegaTestHooks.onWsHandshakeFailureCandidateVeto = {};
+    }
+    (void)WaitFor(
+        [&tracker]()
+        {
+            return tracker.finished.load();
+        },
+        120000);
+    LOG_info << "[SdkWsUploadEscalationFlap] done"
+             << " [escalationFired=" << escalationFired << "] [gateEvals=" << gateEvaluations.load()
+             << "] [vetoed=" << vetoedEvaluations.load()
+             << "] [naturallyNull=" << naturallyNullEvaluations.load()
+             << "] [temporaryErrors=" << tracker.temporaryErrorCount.load()
+             << "] [finished=" << tracker.finished.load() << "]";
 }
 
 /**

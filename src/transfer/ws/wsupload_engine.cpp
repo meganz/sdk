@@ -1030,6 +1030,10 @@ bool UploadEngine::Impl::getPoolStateForTesting(const std::string& url,
         out.maxConnectionsWithInFlightSeen =
             std::max(pool.mMaxConnectionsWithInFlightSeen, out.connectionsWithInFlight);
         out.pausedByServerUntilDs = pool.mPausedByServerUntil;
+        // C-7 gate mirrors (last-writer-wins; exact at 1 worker/pool — see wsupload.h).
+        out.gateRetryCount = pool.mGateRetryCountForTesting;
+        out.gateNullCandidateStreak = pool.mGateNullCandidateStreakForTesting;
+        out.gateEvaluationCount = pool.mGateEvaluationCountForTesting;
     };
 
     for (const auto& poolPtr: poolMgr.mPools)

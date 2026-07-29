@@ -668,6 +668,14 @@ struct WsPool
     std::atomic<std::int64_t> mBenchThrottlePauseCount{0};
     std::atomic<std::int64_t> mBenchThrottlePauseTotalMs{0};
 #ifndef NDEBUG
+    // C-7 escalation-gate mirrors (SDK-5360 fu8 S12). The gate's retryCount /
+    // firstConnectFailureDs live on each pool worker's stack; these mirrors are written
+    // by the worker with the engine lock held (poolWorkerThread already holds it at every
+    // write site) and copied out by getPoolStateForTesting under the same lock.
+    // Last-writer-wins across workers — exact only with one worker per pool.
+    int mGateRetryCountForTesting{0};
+    std::uint64_t mGateNullCandidateStreakForTesting{0};
+    std::uint64_t mGateEvaluationCountForTesting{0};
     unsigned mMaxConnectionsWithInFlightSeen{0};
     std::uint64_t mUploadingFileSinceMs{0};
     std::uint64_t mUploadingFileOccupiedMs{0};

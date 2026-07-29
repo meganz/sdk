@@ -549,6 +549,15 @@ namespace mega {
             onHttpReqFinish;
         std::function<bool(const std::string&, long, std::string&)> onWsHandshake;
         std::function<void(dstime&)> onWsUploadSustainedHandshakeFailureWindowDs;
+        // C-7 (SDK-5360 fu8 S12): consulted at the sustained-handshake-failure escalation
+        // gate's candidate-resolution site (WsPool::poolWorkerThread). Receives the pool and
+        // the resolved candidate's fileno (0 when the gate found no candidate naturally);
+        // returning true VETOES the candidate — observationally identical to the real
+        // mid-migration null — so a test can flap eligibility phase-locked to gate
+        // evaluations. Fires on every satisfied-gate evaluation, so it doubles as the
+        // evaluation-cycle marker.
+        std::function<bool(ws::WsPool* /*pool*/, std::uint32_t /*candidateFileno*/)>
+            onWsHandshakeFailureCandidateVeto;
         std::function<void(const char* /*reason*/, bool /*stillTracked*/)>
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
@@ -680,6 +689,7 @@ namespace mega {
             onWsHandshake = std::move(other.onWsHandshake);
             onWsUploadSustainedHandshakeFailureWindowDs =
                 std::move(other.onWsUploadSustainedHandshakeFailureWindowDs);
+            onWsHandshakeFailureCandidateVeto = std::move(other.onWsHandshakeFailureCandidateVeto);
             onWsUploadFailureDetached = std::move(other.onWsUploadFailureDetached);
             onWsUploadCorruptToken = std::move(other.onWsUploadCorruptToken);
             onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
@@ -1010,148 +1020,200 @@ namespace mega {
         if (_fn) _fn((POOLPTR), (RETRYCOUNT), (FIRSTFAILUREDS)); \
     } while (0)
 
-#define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR) \
-    do { \
-        std::function<void(ws::WsConn*, ws::WsPool*)> _fn; \
+    // C-7 (SDK-5360 fu8 S12): escalation-gate candidate veto. OUTVETO is only written when a
+    // hook is installed, so the uninstalled path is byte-identical to pre-seam behavior.
+#define DEBUG_TEST_HOOK_WS_HANDSHAKE_FAILURE_CANDIDATE_VETO(POOLPTR, FILENO, OUTVETO) \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsAckStallForceReconnect; \
+            std::function<bool(ws::WsPool*, std::uint32_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsHandshakeFailureCandidateVeto; \
+            } \
+            if (_fn) \
+                (OUTVETO) = _fn((POOLPTR), (FILENO)); \
         } \
-        if (_fn) _fn((CONNPTR), (POOLPTR)); \
-    } while (0)
+        while (0)
+
+#define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR) \
+        do \
+        { \
+            std::function<void(ws::WsConn*, ws::WsPool*)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsAckStallForceReconnect; \
+            } \
+            if (_fn) \
+                _fn((CONNPTR), (POOLPTR)); \
+        } \
+        while (0)
 
 #define DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(FILENO, POOLPTR) \
-    do { \
-        std::function<void(std::uint32_t, ws::WsPool*)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsTailCompletionRecovery; \
+            std::function<void(std::uint32_t, ws::WsPool*)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsTailCompletionRecovery; \
+            } \
+            if (_fn) \
+                _fn((FILENO), (POOLPTR)); \
         } \
-        if (_fn) _fn((FILENO), (POOLPTR)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(FILENO, DROPPED) \
-    do { \
-        std::function<bool(std::uint32_t)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsUploadDropCompletion; \
+            std::function<bool(std::uint32_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsUploadDropCompletion; \
+            } \
+            if (_fn) \
+                (DROPPED) = _fn((FILENO)); \
         } \
-        if (_fn) (DROPPED) = _fn((FILENO)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON) \
-    do { \
-        std::function<void(int, const std::string&, const std::string&, const char*)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsSessionUrlTransition; \
+            std::function<void(int, const std::string&, const std::string&, const char*)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsSessionUrlTransition; \
+            } \
+            if (_fn) \
+                _fn((TAG), (OLDURL), (NEWURL), (REASON)); \
         } \
-        if (_fn) _fn((TAG), (OLDURL), (NEWURL), (REASON)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA) \
-    do { \
-        std::function<bool(int)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsChunkSendOverquota; \
+            std::function<bool(int)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsChunkSendOverquota; \
+            } \
+            if (_fn) \
+                (OUT_INJECT_OVERQUOTA) = _fn((TAG)); \
         } \
-        if (_fn) (OUT_INJECT_OVERQUOTA) = _fn((TAG)); \
-    } while (0)
+        while (0)
 
-// Goodput-gate v2 controller-input seams (SDK-5360 QCT-K). Copy-under-lock / invoke-outside-
-// lock like every other hook; the callbacks only write their out-params, so they cannot
-// re-enter uploadMutex. POOLPTR is passed as a const void* identity token.
+    // Goodput-gate v2 controller-input seams (SDK-5360 QCT-K). Copy-under-lock / invoke-outside-
+    // lock like every other hook; the callbacks only write their out-params, so they cannot
+    // re-enter uploadMutex. POOLPTR is passed as a const void* identity token.
 #define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP) \
-    do { \
-        std::function<void(const void*, unsigned, unsigned&)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsGateBackpressureSample; \
+            std::function<void(const void*, unsigned, unsigned&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsGateBackpressureSample; \
+            } \
+            if (_fn) \
+                _fn((POOLPTR), (OPEN), (BP)); \
         } \
-        if (_fn) _fn((POOLPTR), (OPEN), (BP)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_WS_GATE_GOODPUT(POOLPTR, CONNS, BPS, OUT_OVERRIDDEN) \
-    do { \
-        std::function<void(const void*, unsigned, double&)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onWsGateGoodputSample; \
+            std::function<void(const void*, unsigned, double&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsGateGoodputSample; \
+            } \
+            if (_fn) \
+            { \
+                _fn((POOLPTR), (CONNS), (BPS)); \
+                /* A synthetic goodput signal IS the evidence: the controller's min-event \
+                   sufficiency checks are bypassed so hook-driven tests stay deterministic \
+                   and time-bounded (real acks at a test throttle are minutes apart). */ \
+                (OUT_OVERRIDDEN) = true; \
+            } \
         } \
-        if (_fn) \
-        { \
-            _fn((POOLPTR), (CONNS), (BPS)); \
-            /* A synthetic goodput signal IS the evidence: the controller's min-event \
-               sufficiency checks are bypassed so hook-driven tests stay deterministic \
-               and time-bounded (real acks at a test throttle are minutes apart). */ \
-            (OUT_OVERRIDDEN) = true; \
-        } \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
-    do { \
-        std::function<void(bool&)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc; \
+            std::function<void(bool&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onHookFileFingerprintUseLegacyBuggySparseCrc; \
+            } \
+            if (_fn) \
+                _fn((FLAG)); \
         } \
-        if (_fn) _fn((FLAG)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID) \
-    do { \
-        std::function<void(std::string&)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onHookDeviceId; \
+            std::function<void(std::string&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onHookDeviceId; \
+            } \
+            if (_fn) \
+                _fn((DEVICEID)); \
         } \
-        if (_fn) _fn((DEVICEID)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED \
-    do { \
-        std::function<void()> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onHashcashCalculationStarted; \
+            std::function<void()> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onHashcashCalculationStarted; \
+            } \
+            if (_fn) \
+                _fn(); \
         } \
-        if (_fn) _fn(); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(OFFSET) \
-    do { \
-        std::function<void(const m_off_t)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onMacGenerationChunkRead; \
+            std::function<void(const m_off_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onMacGenerationChunkRead; \
+            } \
+            if (_fn) \
+                _fn((OFFSET)); \
         } \
-        if (_fn) _fn((OFFSET)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN) \
-    do { \
-        std::function<void(std::vector<NewNode>&)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onFolderUploadPutnodesResult; \
+            std::function<void(std::vector<NewNode>&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onFolderUploadPutnodesResult; \
+            } \
+            if (_fn) \
+                _fn((NN)); \
         } \
-        if (_fn) _fn((NN)); \
-    } while (0)
+        while (0)
 
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT) \
-    do { \
-        std::function<bool(const std::string&)> _fn; \
+        do \
         { \
-            std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
-            _fn = globalMegaTestHooks.onFolderUploadSimulateMissing; \
+            std::function<bool(const std::string&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onFolderUploadSimulateMissing; \
+            } \
+            if ((SENT) && (MEGANODE) && _fn && _fn((FOLDERNAME))) \
+            { \
+                (MEGANODE).reset(); \
+            } \
         } \
-        if ((SENT) && (MEGANODE) && _fn && _fn((FOLDERNAME))) \
-        { \
-            (MEGANODE).reset(); \
-        } \
-    } while (0)
+        while (0)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -1182,6 +1244,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_RECV_SWALLOW(OUTBOOL)
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
+#define DEBUG_TEST_HOOK_WS_HANDSHAKE_FAILURE_CANDIDATE_VETO(POOLPTR, FILENO, OUTVETO)
 #define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR)
 #define DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(FILENO, POOLPTR)
 #define DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(FILENO, DROPPED)
