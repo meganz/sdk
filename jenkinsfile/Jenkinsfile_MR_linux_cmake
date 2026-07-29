@@ -217,6 +217,15 @@ pipeline {
                                             fi
                                         fi
 
+                                        # SDK-5360 fu8 S12 C(ii): provision the QaMixed real-media dataset on a
+                                        # persistent per-agent path so SdkBenchmarkTest.QaMixedUpload RUNS instead
+                                        # of skipping. HarvestQaMixedDataset is idempotent (skips files already
+                                        # present at the right size), so this is a one-time download per agent.
+                                        export MEGA_BENCH_UPLOAD_SOURCE_DIR=\"\${HOME}/mega_bench_dataset/qa_mixed\"
+                                        if [ -z \"\$FAILED\" ]; then
+                                            ${env.BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter=SdkTest.HarvestQaMixedDataset || FAILED=2
+                                        fi
+
                                         if [ -z \"\$FAILED\" ]; then
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
@@ -443,7 +452,9 @@ pipeline {
                         // surface fields (mChunksInFlight, mUploadingFile, etc.) fails the stage.
                         // SDK-5360 fu7-17 G6.S1: this is the fallback used when the user did
                         // NOT supply --gtest_filter= alongside --tsan. User filter wins below.
-                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools"
+                        // SDK-5360 fu8 S12: + the two watchdog cells (CI TSAN previously never covered
+                        // the watchdog/pause recovery paths; S11 carry-over ruled in by the user).
+                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion"
                     }
                     steps {
                         timeout(time: 90, unit: 'MINUTES') {

@@ -223,6 +223,14 @@ pipeline {
                                             rm gfxworker_test_integration.log || :
                                         fi
 
+                                        # SDK-5360 fu8 S12 C(ii): provision the QaMixed real-media dataset on a
+                                        # persistent per-agent path so SdkBenchmarkTest.QaMixedUpload RUNS instead
+                                        # of skipping (HarvestQaMixedDataset is idempotent).
+                                        export MEGA_BENCH_UPLOAD_SOURCE_DIR=\"\${HOME}/mega_bench_dataset/qa_mixed\"
+                                        if [ -z \"\$FAILED\" ]; then
+                                            ./tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter=SdkTest.HarvestQaMixedDataset || FAILED=2
+                                        fi
+
                                         if [ -z \"\$FAILED\" ]; then
                                             if [ -z \"${TESTS_PARALLEL}\" ]; then
                                                 # Sequential run
@@ -414,7 +422,9 @@ pipeline {
                         TSAN_OPTIONS = "halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0"
                         // SDK-5360 fu7-17 G6.S2: fallback used when the user did NOT supply
                         // --gtest_filter= alongside --tsan. User filter wins below.
-                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools"
+                        // SDK-5360 fu8 S12: + the two watchdog cells (CI TSAN previously never covered
+                        // the watchdog/pause recovery paths; S11 carry-over ruled in by the user).
+                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion"
                     }
                     steps {
                         timeout(time: 90, unit: 'MINUTES') {

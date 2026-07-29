@@ -47,6 +47,18 @@ Start-job -Name "childrenMonitor" -ScriptBlock {
 
 # Start the tests with a unique name, based on BUILD_ID, so we can monitor their PIDs
 cp $Env:BUILD_DIR\tests\integration\Debug\test_integration.exe $Env:BUILD_DIR\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe
+
+# SDK-5360 fu8 S12 C(ii): provision the QaMixed real-media dataset on a persistent
+# per-agent path so SdkBenchmarkTest.QaMixedUpload RUNS instead of skipping.
+# HarvestQaMixedDataset is idempotent (skips files already present at the right size)
+# and falls back to USERPROFILE when HOME is absent (S11 F4).
+$Env:MEGA_BENCH_UPLOAD_SOURCE_DIR = "$Env:USERPROFILE\mega_bench_dataset\qa_mixed"
+$harvestProcess = Start-Process "$Env:BUILD_DIR\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe" -PassThru -NoNewWindow -Wait -ArgumentList "--FREEACCOUNTS --CI --USERAGENT:$Env:USER_AGENT_TESTS_SDK --APIURL:$Env:APIURL_TO_TEST --gtest_filter=SdkTest.HarvestQaMixedDataset"
+If ($harvestProcess.ExitCode) {
+  echo "QaMixed dataset provisioning (HarvestQaMixedDataset) FAILED with $($harvestProcess.ExitCode)"
+  exit $harvestProcess.ExitCode
+}
+
 $testProcess = Start-Process "$Env:BUILD_DIR\tests\integration\Debug\test_integration_$Env:BUILD_ID.exe" -PassThru -NoNewWindow -Wait -ArgumentList "--FREEACCOUNTS --CI --USERAGENT:$Env:USER_AGENT_TESTS_SDK --APIURL:$Env:APIURL_TO_TEST $Env:GTEST_FILTER $Env:GTEST_REPEAT $Env:TESTS_PARALLEL"
 $testResult = $testProcess.ExitCode
 
