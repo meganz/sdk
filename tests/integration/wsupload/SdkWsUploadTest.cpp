@@ -914,6 +914,7 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     auto cleanupHooks = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
             globalMegaTestHooks.onWsGateGoodputSample = nullptr;
         });
@@ -969,17 +970,20 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     // the gate has SEEDed on real traffic. Backpressure: full quorum every tick. Goodput:
     // +10%/conn up to the knee, flat above -- 10% clears the 5% gain judge below the knee and
     // fails it above, forcing retreat-to-knee.
-    globalMegaTestHooks.onWsGateBackpressureSample =
-        [](const void* /*pool*/, unsigned open, unsigned& bp)
     {
-        bp = open;
-    };
-    globalMegaTestHooks.onWsGateGoodputSample =
-        [](const void* /*pool*/, unsigned conns, double& bps)
-    {
-        const unsigned effective = std::min(conns, 12u); // knee
-        bps = 1.0e6 * (1.0 + 0.10 * (static_cast<double>(effective) - 8.0));
-    };
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsGateBackpressureSample =
+            [](const void* /*pool*/, unsigned open, unsigned& bp)
+        {
+            bp = open;
+        };
+        globalMegaTestHooks.onWsGateGoodputSample =
+            [](const void* /*pool*/, unsigned conns, double& bps)
+        {
+            const unsigned effective = std::min(conns, 12u); // knee
+            bps = 1.0e6 * (1.0 + 0.10 * (static_cast<double>(effective) - 8.0));
+        };
+    }
 
     ws::UploadEngine::PoolStateForTesting state{};
     ws::UploadEngine::PoolStateForTesting lastObservedState{};
@@ -1052,8 +1056,11 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     // PHASE C -- trim: clear the seams. The app-throttled link presents no real backpressure
     // (quorum false), so halving trim must return the pool to base within 60 s (3 halvings x
     // 10 calm windows, plus slack) and STAY there.
-    globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
-    globalMegaTestHooks.onWsGateGoodputSample = nullptr;
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
+        globalMegaTestHooks.onWsGateGoodputSample = nullptr;
+    }
 
     bool trimmed = false;
     phaseTimer.reset();
@@ -1184,6 +1191,7 @@ TEST_F(SdkWsUploadTest, ClientThreadNotFrozenByHandshakes)
     auto clearWsHook = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsHandshake = nullptr;
         });
 
@@ -1237,25 +1245,28 @@ TEST_F(SdkWsUploadTest, ClientThreadNotFrozenByHandshakes)
 
     // Install the delay hook: sleep D ms on each WS UPLOAD handshake, then return false (DO NOT
     // fail — only inject latency). Under Design A the sleep runs on a worker thread (client
-    // stays free); under the baton path it runs on the client thread (frozen). Direct
-    // assignment + RAII clear exactly as the other onWsHandshake tests in this file
+    // stays free); under the baton path it runs on the client thread (frozen). Assignment under
+    // the hooks mutex + RAII clear exactly as the other onWsHandshake tests in this file
     // (RetryAfterHandshakeFailureRestartsTransferStart, DistressStormDuringFailureDoesNotCrash).
-    globalMegaTestHooks.onWsHandshake =
-        [handshakesStarted, handshakesInFlight, kHandshakeDelayMs](const std::string& url,
-                                                                   long /*timeoutMs*/,
-                                                                   std::string& /*err*/) -> bool
     {
-        // Only delay WS UPLOAD handshakes; leave any other handshake untouched.
-        if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake =
+            [handshakesStarted, handshakesInFlight, kHandshakeDelayMs](const std::string& url,
+                                                                       long /*timeoutMs*/,
+                                                                       std::string& /*err*/) -> bool
         {
-            return false;
-        }
-        handshakesStarted->fetch_add(1, std::memory_order_acq_rel);
-        handshakesInFlight->fetch_add(1, std::memory_order_acq_rel);
-        std::this_thread::sleep_for(std::chrono::milliseconds(kHandshakeDelayMs));
-        handshakesInFlight->fetch_sub(1, std::memory_order_acq_rel);
-        return false; // do not fail the handshake — the injected latency is the whole point
-    };
+            // Only delay WS UPLOAD handshakes; leave any other handshake untouched.
+            if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
+            {
+                return false;
+            }
+            handshakesStarted->fetch_add(1, std::memory_order_acq_rel);
+            handshakesInFlight->fetch_add(1, std::memory_order_acq_rel);
+            std::this_thread::sleep_for(std::chrono::milliseconds(kHandshakeDelayMs));
+            handshakesInFlight->fetch_sub(1, std::memory_order_acq_rel);
+            return false; // do not fail the handshake — the injected latency is the whole point
+        };
+    }
 
     // Start the multi-file upload so several handshakes run concurrently and stay slow.
     auto uploadOptions = makeDefaultUploadOptions();
@@ -1406,6 +1417,7 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
     auto resetWsHooks = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsHandshake = {};
             globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
         });
@@ -1469,13 +1481,13 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
     std::atomic<int> forcedHandshakeFailureCount{0};
     // Keep failing reconnect handshakes on WS upload URLs until transfer surfaces a temporary
     // error.
-    globalMegaTestHooks.onWsHandshake =
-        [&forcedHandshakeFailureCount, &tracker](
-            const std::string& url,
-            long,
-            std::string& err)
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake =
+            [&forcedHandshakeFailureCount, &tracker](const std::string& url, long, std::string& err)
         {
-            // Reconnect can rotate WS upload endpoints, so do not gate failure injection on one URL.
+            // Reconnect can rotate WS upload endpoints, so do not gate failure injection on one
+            // URL.
             if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
             {
                 return false;
@@ -1497,11 +1509,11 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
                       << " [url=" << url << "] [forcedCount=" << forced << "]";
             return true;
         };
-    globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs =
-        [](dstime& windowDs)
+        globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = [](dstime& windowDs)
         {
             windowDs = 0;
         };
+    }
 
     ASSERT_TRUE(notifyWsUploadNetworkDisconnectForTesting(*megaApi[0], 10))
         << "Failed to trigger a WS disconnect before the forced handshake failures";
@@ -3985,6 +3997,7 @@ TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
     auto clearCompletionHook = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsUploadCompletionPayloadLen = {};
         });
 
@@ -3998,13 +4011,17 @@ TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
     ASSERT_TRUE(rootnode);
 
     std::atomic<int> completionLenOverrideHits{0};
-    globalMegaTestHooks.onWsUploadCompletionPayloadLen = [&completionLenOverrideHits](int& payLen)
     {
-        if (completionLenOverrideHits.fetch_add(1) == 0)
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsUploadCompletionPayloadLen =
+            [&completionLenOverrideHits](int& payLen)
         {
-            payLen = 0;
-        }
-    };
+            if (completionLenOverrideHits.fetch_add(1) == 0)
+            {
+                payLen = 0;
+            }
+        };
+    }
 
     WsUploadRetryTracker tracker(megaApi[0].get());
     auto uploadOptions = makeDefaultUploadOptions();
@@ -4664,6 +4681,7 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
     auto clearWsHooks = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.wsUploadServerEventHook.reset();
             globalMegaTestHooks.onWsConnForceCloseNow = nullptr;
             globalMegaTestHooks.onWsPoolReconnectAttempt = nullptr;
@@ -4703,50 +4721,59 @@ TEST_F(SdkWsUploadTest, B9ClosedThrottleReconnectPacing)
     std::mutex attemptMu;
     std::vector<std::chrono::steady_clock::time_point> attemptTimes;
     std::vector<unsigned> attemptRetryCounts;
-    globalMegaTestHooks.onWsPoolReconnectAttempt =
-        [&](::mega::ws::WsPool* pool, unsigned retryCount, dstime /*firstFailureDs*/)
     {
-        if (pool != targetPool.load(std::memory_order_acquire))
-            return;
-        std::lock_guard<std::mutex> lk(attemptMu);
-        attemptTimes.push_back(std::chrono::steady_clock::now());
-        attemptRetryCounts.push_back(retryCount);
-    };
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsPoolReconnectAttempt =
+            [&](::mega::ws::WsPool* pool, unsigned retryCount, dstime /*firstFailureDs*/)
+        {
+            if (pool != targetPool.load(std::memory_order_acquire))
+                return;
+            std::lock_guard<std::mutex> lk(attemptMu);
+            attemptTimes.push_back(std::chrono::steady_clock::now());
+            attemptRetryCounts.push_back(retryCount);
+        };
+    }
 
     std::atomic<bool> throttleObserved{false};
     std::atomic<int> forceCloseFired{0};
-    globalMegaTestHooks.onWsConnForceCloseNow =
-        [&](::mega::ws::WsConn*, ::mega::ws::WsPool* pool, const std::string& url) -> bool
     {
-        if (!throttleObserved.load(std::memory_order_acquire))
-            return false;
-        const bool fire = forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
-        if (fire)
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsConnForceCloseNow =
+            [&](::mega::ws::WsConn*, ::mega::ws::WsPool* pool, const std::string& url) -> bool
         {
-            targetPool.store(pool, std::memory_order_release);
-            std::lock_guard<std::mutex> lk(targetUrlMu);
-            targetUrl = url;
-        }
-        return fire;
-    };
+            if (!throttleObserved.load(std::memory_order_acquire))
+                return false;
+            const bool fire = forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
+            if (fire)
+            {
+                targetPool.store(pool, std::memory_order_release);
+                std::lock_guard<std::mutex> lk(targetUrlMu);
+                targetUrl = url;
+            }
+            return fire;
+        };
+    }
 
     std::atomic<int> handshakeFailsRemaining{2};
-    globalMegaTestHooks.onWsHandshake =
-        [&](const std::string& url, long /*timeoutMs*/, std::string& err) -> bool
     {
-        if (!throttleObserved.load(std::memory_order_acquire))
-            return false;
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake =
+            [&](const std::string& url, long /*timeoutMs*/, std::string& err) -> bool
         {
-            std::lock_guard<std::mutex> lk(targetUrlMu);
-            if (targetUrl.empty() || url != targetUrl)
+            if (!throttleObserved.load(std::memory_order_acquire))
                 return false;
-        }
-        if (handshakeFailsRemaining.load(std::memory_order_acquire) <= 0)
-            return false;
-        handshakeFailsRemaining.fetch_sub(1, std::memory_order_acq_rel);
-        err = "[B9 test] simulated handshake failure";
-        return true;
-    };
+            {
+                std::lock_guard<std::mutex> lk(targetUrlMu);
+                if (targetUrl.empty() || url != targetUrl)
+                    return false;
+            }
+            if (handshakeFailsRemaining.load(std::memory_order_acquire) <= 0)
+                return false;
+            handshakeFailsRemaining.fetch_sub(1, std::memory_order_acq_rel);
+            err = "[B9 test] simulated handshake failure";
+            return true;
+        };
+    }
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -5372,6 +5399,7 @@ TEST_F(SdkWsUploadTest, ForceCloseMidChunkResendWaste)
     auto clearWsHooks = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsConnForceCloseNow = nullptr;
         });
 
@@ -5390,19 +5418,22 @@ TEST_F(SdkWsUploadTest, ForceCloseMidChunkResendWaste)
     std::atomic<int> forceCloseFired{0};
     std::mutex poolUrlMu;
     std::string observedPoolUrl;
-    globalMegaTestHooks.onWsConnForceCloseNow =
-        [&](::mega::ws::WsConn*, ::mega::ws::WsPool*, const std::string& url) -> bool
     {
-        if (!url.empty())
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsConnForceCloseNow =
+            [&](::mega::ws::WsConn*, ::mega::ws::WsPool*, const std::string& url) -> bool
         {
-            std::lock_guard<std::mutex> lk(poolUrlMu);
-            if (observedPoolUrl.empty())
-                observedPoolUrl = url;
-        }
-        if (!armed.load(std::memory_order_acquire))
-            return false;
-        return forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
-    };
+            if (!url.empty())
+            {
+                std::lock_guard<std::mutex> lk(poolUrlMu);
+                if (observedPoolUrl.empty())
+                    observedPoolUrl = url;
+            }
+            if (!armed.load(std::memory_order_acquire))
+                return false;
+            return forceCloseFired.fetch_add(1, std::memory_order_acq_rel) == 0;
+        };
+    }
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);

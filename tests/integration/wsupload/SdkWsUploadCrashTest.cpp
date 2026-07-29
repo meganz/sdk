@@ -117,6 +117,7 @@ TEST_F(SdkWsUploadTest, DistressStormDuringFailureDoesNotCrash)
     auto clearWsHooks = makeScopedDestructor(
         []()
         {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.wsUploadServerEventHook.reset();
             globalMegaTestHooks.onWsHandshake = {};
             globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
@@ -154,24 +155,28 @@ TEST_F(SdkWsUploadTest, DistressStormDuringFailureDoesNotCrash)
     // shrunk to 0 so escalation is reached on the 3rd retry without a 60s wait.
     std::atomic<bool> stormArmed{false};
     std::atomic<int> forcedHandshakeFailures{0};
-    globalMegaTestHooks.onWsHandshake =
-        [&stormArmed, &forcedHandshakeFailures](const std::string& url, long, std::string& err) -> bool
     {
-        if (!stormArmed.load(std::memory_order_acquire))
-            return false;
-        // Only the WS upload endpoints — never the cs/sc/api channels.
-        if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
-            return false;
-        forcedHandshakeFailures.fetch_add(1, std::memory_order_relaxed);
-        err = "[DistressStorm] forced WS handshake failure";
-        return true;
-    };
-    globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs =
-        [&stormArmed](dstime& windowDs)
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake =
+            [&stormArmed,
+             &forcedHandshakeFailures](const std::string& url, long, std::string& err) -> bool
+        {
+            if (!stormArmed.load(std::memory_order_acquire))
+                return false;
+            // Only the WS upload endpoints — never the cs/sc/api channels.
+            if (url.rfind("wss://", 0) != 0 || url.find("/ul/") == std::string::npos)
+                return false;
+            forcedHandshakeFailures.fetch_add(1, std::memory_order_relaxed);
+            err = "[DistressStorm] forced WS handshake failure";
+            return true;
+        };
+        globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs =
+            [&stormArmed](dstime& windowDs)
         {
             if (stormArmed.load(std::memory_order_acquire))
                 windowDs = 0;
         };
+    }
 
     // ---- Start the upload and wait for the first Distress rewrite to confirm a
     // connection opened and a chunk was acked (proving a worker reached onmessage,
@@ -236,8 +241,11 @@ TEST_F(SdkWsUploadTest, DistressStormDuringFailureDoesNotCrash)
     // gracefully). Removing the handshake-failure + distress injection lets pools
     // open again so a survivable transfer can converge.
     stormArmed.store(false, std::memory_order_release);
-    globalMegaTestHooks.onWsHandshake = {};
-    globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsHandshake = {};
+        globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
+    }
     globalMegaTestHooks.wsUploadServerEventHook.reset();
     megaApi[0]->setMaxUploadSpeed(-1);
 
