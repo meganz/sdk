@@ -1552,6 +1552,18 @@ void WsPool::runGoodputGateLocked(const UploadEngine::Impl& impl, const unsigned
 
 void WsPool::poolWorkerThread(WsPoolThread* th)
 {
+    // S12 Cluster-E fix: live-worker accounting for the bounded locallogout quiesce.
+    ++mImpl->mLiveWorkerThreads;
+    const auto liveWorkerGuard = [](std::atomic<int>* c)
+    {
+        return std::unique_ptr<std::atomic<int>, void (*)(std::atomic<int>*)>(
+            c,
+            [](std::atomic<int>* cc)
+            {
+                --*cc;
+            });
+    }(&mImpl->mLiveWorkerThreads);
+
     int retryCount{0};
     dstime firstConnectFailureDs{0};
     std::uint32_t lastQueueVersion = mImpl->queueVersion.load(std::memory_order_relaxed);
@@ -1833,7 +1845,13 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
                     // sleep duration, not retryCount/firstConnectFailureDs accounting.
                     const dstime backoffDs = reconnectBackoffDsLocked(retryCount);
                     ScopedUnlock unlock(lk);
-                    SteadyTime::sleep_ds(backoffDs);
+                    // S12 Cluster-E fix: sliced, terminate-aware — an uninterruptible
+                    // multi-second sleep here would defeat the bounded locallogout
+                    // quiesce (wsLocallogoutCleanup) and read as a stuck worker.
+                    for (dstime slept = 0; slept < backoffDs && !th->terminate; ++slept)
+                    {
+                        SteadyTime::sleep_ds(1);
+                    }
                 }
                 continue;
             }

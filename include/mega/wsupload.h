@@ -131,6 +131,9 @@ public:
     // Shutdown engine: stop scheduling new WS work and request worker threads to exit.
     void stop();
     bool isStopping() const;
+    // S12 Cluster-E fix: true when no pool worker thread is live — the bounded
+    // locallogout quiesce probe (see MegaClient::wsLocallogoutCleanup).
+    bool workersQuiesced() const;
 
     // Mirror TransferList semantics (PUT only):
     void enqueue(Transfer& t); // addtransfer()

@@ -66,14 +66,31 @@ bool WsUploadFile::readData(char* buf,
         *interruptedByStateChange = false;
     }
     ActiveIOGuard io(*this);
-    // open on first use
-    std::unique_lock<std::mutex> ioLock(mReadMutex);
+    // open on first use. S12 Cluster-E: the acquisition must NEVER block while the
+    // engine mutex is held — a sibling reader stuck in a filesystem syscall holds
+    // mReadMutex (engine lock released); blocking here pinned the engine mutex, every
+    // pool AND locallogout to the syscall's duration (win_9515; gdb-proven locally).
+    std::unique_lock<std::mutex> ioLock(mReadMutex, std::defer_lock);
+    if (!lockReadYieldingEngine(ioLock, engineMutex, expectedGeneration))
+    {
+        if (interruptedByStateChange)
+        {
+            *interruptedByStateChange = true;
+        }
+        return false;
+    }
     if (!mFA)
     {
         WSUPLOAD_TRACE << "[WsUploadFile::readData] !mFA -> newfileaccess for localname="
                   << mLocalPath << " [this = " << this
                   << "] [thread_id=" << std::this_thread::get_id() << "]";
         engineMutex.unlock();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        // S12 Cluster-E repro seam: simulate a stuck filesystem open/read here — engine
+        // mutex released, ActiveIOGuard + mReadMutex held — the exact blocked state a
+        // dying FUSE-backed source path produces (win_9515).
+        DEBUG_TEST_HOOK_WSUPLOAD_BLOCKING_READ(fileno());
+#endif
         auto fa = mClient.fsaccess->newfileaccess();
         fa->mShareDelete =
             true; // Allow file to be moved/deleted while WS upload holds the handle
@@ -99,7 +116,14 @@ bool WsUploadFile::readData(char* buf,
 
         // Re-check under mReadMutex: another worker may have completed the open
         // while this thread had both locks released.
-        ioLock.lock();
+        if (!lockReadYieldingEngine(ioLock, engineMutex, expectedGeneration))
+        {
+            if (interruptedByStateChange)
+            {
+                *interruptedByStateChange = true;
+            }
+            return false;
+        }
         if (mFA)
         {
             ioLock.unlock();
@@ -157,7 +181,15 @@ bool WsUploadFile::readData(char* buf,
 
         FileAccess* faRawCheck = nullptr;
         {
-            std::lock_guard<std::mutex> ioRead(mReadMutex);
+            std::unique_lock<std::mutex> ioRead(mReadMutex, std::defer_lock);
+            if (!lockReadYieldingEngine(ioRead, engineMutex, expectedGeneration))
+            {
+                if (interruptedByStateChange)
+                {
+                    *interruptedByStateChange = true;
+                }
+                return false;
+            }
             faRawCheck = mFA.get();
         }
         const LocalPath& path = mLocalPath;
@@ -174,7 +206,15 @@ bool WsUploadFile::readData(char* buf,
 
         bool faSwapped = false;
         {
-            std::lock_guard<std::mutex> ioRead(mReadMutex);
+            std::unique_lock<std::mutex> ioRead(mReadMutex, std::defer_lock);
+            if (!lockReadYieldingEngine(ioRead, engineMutex, expectedGeneration))
+            {
+                if (interruptedByStateChange)
+                {
+                    *interruptedByStateChange = true;
+                }
+                return false;
+            }
             faSwapped = (mFA.get() != faRawCheck);
         }
 
@@ -218,7 +258,14 @@ bool WsUploadFile::readData(char* buf,
     bool reopenSourceChanged = false;
 
     FileAccess* faRaw = nullptr;
-    ioLock.lock();
+    if (!lockReadYieldingEngine(ioLock, engineMutex, expectedGeneration))
+    {
+        if (interruptedByStateChange)
+        {
+            *interruptedByStateChange = true;
+        }
+        return false;
+    }
     faRaw = mFA.get();
     engineMutex.unlock();
     {

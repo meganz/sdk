@@ -893,8 +893,18 @@ void UploadEngine::Impl::remove(Transfer& t)
         bumpQueueVersion();
     }
 
-    if (removed)
-        removed->waitForNoIO();
+    if (removed && !removed->waitForNoIO(2000))
+    {
+        // S12 Cluster-E fix: the IO holder is blocked in a filesystem syscall that may
+        // never return (dying FUSE mount at teardown). Do NOT hang the client thread —
+        // keep the file alive in the graveyard so the stuck reader's member accesses
+        // stay valid, and let ~Transfer proceed.
+        LOG_err << "WsUpload: removal abandoned file " << removed->fileno()
+                << " with stuck IO (blocked filesystem read?) — parked in the engine "
+                   "graveyard (Cluster E, S12)";
+        std::lock_guard<std::mutex> g(uploadMutex);
+        mAbandonedFiles.push_back(std::move(removed));
+    }
 }
 
 // Linear-scan fileList for f and erase it, rebasing nextIt to the successor on hit.

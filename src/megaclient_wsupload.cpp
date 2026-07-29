@@ -1093,6 +1093,28 @@ void MegaClient::wsLocallogoutCleanup()
     if (m_wsEngine)
         m_wsEngine->stop();
     wsDrainClientActions(30);
+    if (m_wsEngine)
+    {
+        // S12 Cluster-E fix: the engine destructor joins worker threads UNBOUNDED. A
+        // worker blocked in a filesystem syscall that may never return (win_9515: a
+        // FUSE-backed upload source torn down mid-read) turned this into a locallogout
+        // hang the CI watchdog had to kill. Quiesce with a bound; on timeout,
+        // intentionally leak the engine — loudly — so logout completes and the stuck
+        // threads' member accesses stay valid on the leaked-alive object. Workers exit
+        // promptly when unblocked (terminate-aware loops + sliced sleeps).
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::milliseconds(3000);
+        while (!m_wsEngine->workersQuiesced() && std::chrono::steady_clock::now() < deadline)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(5));
+        }
+        if (!m_wsEngine->workersQuiesced())
+        {
+            LOG_err << "WsUpload: engine workers did not quiesce at locallogout — "
+                       "intentionally leaking the engine to avoid an unbounded thread "
+                       "join (stuck filesystem IO?) (Cluster E, S12)";
+            (void)m_wsEngine.release();
+        }
+    }
     m_wsEngine.reset();
     mWsEngineStarted = false;
 }

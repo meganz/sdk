@@ -233,6 +233,11 @@ bool UploadEngine::isStopping() const
     return pImpl->stopping();
 }
 
+bool UploadEngine::workersQuiesced() const
+{
+    return pImpl->mLiveWorkerThreads.load(std::memory_order_acquire) == 0;
+}
+
 void UploadEngine::enqueue(Transfer& t)
 {
     pImpl->enqueue(t);

@@ -463,6 +463,15 @@ public:
         dstime lastAskDs{0};
     };
     std::vector<BudgetWaiter> mBudgetWaiters;
+    // S12 Cluster-E fix: files whose IO holder never quiesced within the bounded
+    // removal wait (blocked FS syscall — e.g. a dying FUSE-backed source path at
+    // locallogout). Kept alive so the stuck reader's member accesses stay valid;
+    // guarded by uploadMutex; freed with the engine (or leaked with it if the engine
+    // itself cannot quiesce — see MegaClient::wsLocallogoutCleanup).
+    std::vector<std::unique_ptr<WsUploadFile>> mAbandonedFiles;
+    // Live pool-worker count for the bounded locallogout quiesce (entry/exit in
+    // WsPool::poolWorkerThread).
+    std::atomic<int> mLiveWorkerThreads{0};
     bool paused{false};
     // Loss-recovery feature flags. Each is assigned EXACTLY ONCE in the ctor (before any
     // worker/manager thread exists) and never mutated thereafter, so it is effectively

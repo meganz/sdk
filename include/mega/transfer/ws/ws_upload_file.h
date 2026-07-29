@@ -188,8 +188,39 @@ public:
 
     void closeFA()
     {
-        std::lock_guard<std::mutex> io(mReadMutex);
-        mFA = nullptr;
+        // S12 Cluster-E: NEVER block on mReadMutex from under the engine mutex — a
+        // reader stuck in a filesystem syscall (dying FUSE-backed source) holds
+        // mReadMutex with the engine lock released; blocking here pins the engine mutex
+        // (every pool + locallogout) to the syscall's duration. On contention the close
+        // is skipped: the stuck reader's generation check discards its work anyway, and
+        // the FA is replaced on the next open (mShareDelete keeps delete/move semantics
+        // tolerable meanwhile).
+        std::unique_lock<std::mutex> io(mReadMutex, std::try_to_lock);
+        if (io.owns_lock())
+        {
+            mFA = nullptr;
+        }
+    }
+
+    // S12 Cluster-E: acquire mReadMutex WITHOUT ever blocking while engineMutex is held
+    // (see closeFA). Yields the engine lock in 1 ms slices while contended. Returns false
+    // when the upload's work generation changed while yielding — the caller treats that
+    // as an interrupted read. On true, ioLock owns mReadMutex and engineMutex is held.
+    bool lockReadYieldingEngine(std::unique_lock<std::mutex>& ioLock,
+                                std::mutex& engineMutex,
+                                const std::uint64_t expectedGeneration)
+    {
+        while (!ioLock.try_lock())
+        {
+            engineMutex.unlock();
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            engineMutex.lock();
+            if (mWorkGeneration != expectedGeneration)
+            {
+                return false;
+            }
+        }
+        return true;
     }
 
     // I/O (open on first read) — engineMutex is the single engine mutex.
@@ -201,10 +232,21 @@ public:
                   const std::uint64_t expectedGeneration,
                   bool* interruptedByStateChange = nullptr);
 
-    void waitForNoIO() const
+    // S12 Cluster-E fix: BOUNDED — an IO holder blocked in an unbounded FS syscall
+    // (dying FUSE-backed source path, network filesystem) must never hang the caller
+    // (win_9515: the client thread spun here inside locallogout/freeq(PUT) until the CI
+    // watchdog killed the job). Returns true when quiesced, false on timeout.
+    bool waitForNoIO(const int maxWaitMs) const
     {
-        while (mActiveIO.load(std::memory_order_acquire) != 0)
+        for (int waitedMs = 0; mActiveIO.load(std::memory_order_acquire) != 0; ++waitedMs)
+        {
+            if (waitedMs >= maxWaitMs)
+            {
+                return false;
+            }
             std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        return true;
     }
 
     // server-confirmed progression
