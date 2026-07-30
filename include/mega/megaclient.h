@@ -698,8 +698,10 @@ public:
     // target state). Returns true iff a RELEASE transition happened.
     bool wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFolder);
     // Client-side pool identity for a target folder: own-account roots share one
-    // pool (foreign=false); each inshare/link root is its own pool (foreign=true);
-    // an unresolvable folder gets a unique, non-foreign key (isolated, never held).
+    // pool (foreign=false); shares are keyed by their OWNER, so every inshare from
+    // the same user merges into one pool (foreign=true), with a link/share whose
+    // owner is unknown isolated under its own root handle; an unresolvable folder
+    // gets a unique, non-foreign key (isolated, never held).
     std::pair<std::uint64_t, bool> wsQuotaClassifyPool(NodeHandle h);
 
     // Observational, app-facing (SDK-6298 P5): compute FRESH whether the current WS
