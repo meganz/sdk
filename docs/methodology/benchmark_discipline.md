@@ -239,6 +239,47 @@ Jenkins MR CI sets NO bench/test env knobs and runs the whole suite (empty `--gt
 - Local sweeps must include `scripts/ci/ci_tier1_gate.sh` (direct AND `--INSTANCES` forms; the
   parallel-runner form catches skip-verdict regressions in `GTestParallelRunner`).
 
+## HR61 — no unlanded-filter exemptions
+
+A claim that a cell is "nightly-only" / "not on the MR surface" is VOID unless the excluding
+filter is LANDED in-tree and verified at the claimed tip:
+
+```bash
+git grep -n '<CellOrFixture>' -- jenkinsfile/    # must show the exclusion
+```
+
+Until it does, the cell IS on the MR surface (the MR Jenkinsfiles run the whole suite with an
+empty default `GTEST_FILTER`) and must be in the local pre-push sweep AT THE FINAL TIP.
+Rationale: SDK-6298's `SdkWsQuotaRealTest.*` real-fill cells were designated nightly-only in the
+test plan and the MR notes, but no filter ever landed — so they ran on every MR pipeline while
+every local sweep treated them as excluded. `RealFillOwnAccountHoldAndRelease` then failed on CI
+(linux_9684) exposing a product bug our own runs never exercised at the final tip. A designation
+is not a control; the grep is.
+
+## HR62 — server-notification dependencies are explicit
+
+A cell whose PASS depends on an ASYNCHRONOUS server-side notification (`^!usl`, `sqac`,
+cross-client `sc` events) must either:
+
+- gain a deterministic in-product trigger for the transition it asserts, or
+- carry an explicit server-dependency note in its docstring PLUS n>=5 local repeats before any
+  green claim.
+
+Rationale: T19's release leg passed locally only because a `^!usl` ORANGE->GREEN pair happened to
+arrive 0.65s after its delete; CI never received one and the cell sat inert for its full 420s
+window. At n=1 a notification race is invisible — the green was luck, and it concealed a missing
+product trigger (fixed by the sc_deltree-driven re-query). Where a deterministic trigger is added,
+also assert it TIGHTLY (a short "progress observed" bound separate from the long completion
+bound), so a future failure distinguishes "trigger never fired" from "the network was slow".
+
+## HR63 — artifact-backed flake grading
+
+A timing failure may be graded "flake" ONLY with artifact evidence of an environmental cause.
+A once-observed timing failure whose signature later matches a CI failure is BY DEFINITION not a
+flake: it reopens the cell, and any verdict that rested on the flake grading is retroactively
+invalid. (Adopted from the main branch's S12 postmortem, which retro-invalidated an S11
+"TSAN-slowdown flake" grading after `win_9515` reproduced the same wedge signature.)
+
 ## What NOT to do
 
 - Don't compare bench numbers from different builds with different
