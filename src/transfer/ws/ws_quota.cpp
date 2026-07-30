@@ -135,19 +135,11 @@ bool UploadQuotaManager::applyGroups(std::uint64_t gen,
 
     mHaveBalances = true;
 
-    // Pre-accumulation default: outstanding is 0 after this wholesale rebuild, so
-    // this derivation is trivially true. The client's evaluation scan rebuilds
-    // real outstanding via the accumulation API immediately after apply and
-    // recomputes mUnconstrained there.
+    // Every pool above was (re)built with outstanding == 0 and remaining >= 0, so
+    // the unconstrained derivation is unconditionally true here — no scan needed.
+    // The client's evaluation scan rebuilds real outstanding via the accumulation
+    // API immediately after apply and recomputes mUnconstrained there.
     mUnconstrained = true;
-    for (const Pool& pool: mPools)
-    {
-        if (pool.remaining < pool.outstanding)
-        {
-            mUnconstrained = false;
-            break;
-        }
-    }
 
     return true;
 }
@@ -261,19 +253,6 @@ void UploadQuotaManager::finishOutstandingAccumulation()
             break;
         }
     }
-}
-
-void UploadQuotaManager::reset()
-{
-    mPools.clear();
-    mPoolByFolder.clear();
-    mPoolIndexByKey.clear();
-    mHaveBalances = false;
-    mUnconstrained = true;
-    mEvalPending = false;
-    mDirty = false;
-    mInFlight = false;
-    ++mLatestGen; // orphan any in-flight reply
 }
 
 WsQuotaQueueFit computeWsQuotaQueueFit(bool haveBalances, const std::vector<WsQuotaPoolFit>& pools)

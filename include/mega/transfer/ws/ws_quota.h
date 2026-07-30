@@ -125,9 +125,6 @@ public:
     void addOutstandingForTargets(const std::vector<NodeHandle>& folders, m_off_t size);
     void finishOutstandingAccumulation();
 
-    // Clear all balances and orphan any in-flight reply (bumps the generation).
-    void reset();
-
 private:
     struct Pool
     {

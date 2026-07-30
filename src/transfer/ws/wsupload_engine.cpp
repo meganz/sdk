@@ -804,47 +804,51 @@ void UploadEngine::Impl::start()
     // teardown (~WsConn() acquires uploadMutex).
     stoppedPoolThreads.clear();
 
-    std::lock_guard<std::mutex> g(uploadMutex);
-    if (uploadThread.joinable())
-        return;
-
-    mStopping.store(false, std::memory_order_release);
-    paused = false;
-    // Defensive: ensure the refresh gate is not stuck from a prior engine lifecycle
-    // where the posted clearRefreshing lambda was dropped before execution.
-    poolMgr.mRefreshing.store(false, std::memory_order_release);
-    poolMgr.mImpl = this;
-    for (auto& pool: poolMgr.mPools)
     {
-        if (!pool)
-            continue;
+        std::lock_guard<std::mutex> g(uploadMutex);
+        if (uploadThread.joinable())
+            return;
 
-        // Non-retiring pools always re-arm to the configured pool limit.
-        // Retiring pools re-arm only if they still own work — otherwise they
-        // would be picked up by cleanupRetiringPools on the next manager-thread
-        // tick. The active-upload case fixes a stop()/start() race where a
-        // server-side Distress (opcode 5) had retired the original size-class
-        // pool serving an in-flight file, and applyRefreshedUrls had not yet
-        // migrated the file off that pool because
-        // UploadEngine::Impl::nextEligible() reserves a bound file to f->mPool.
-        const bool retiringHasWork = pool->mRetiring &&
-            (pool->mUploadingFile || pool->mNumPoolFiles ||
-             pool->mNumChunksInFlight || !pool->mToResend.empty());
-        if (!pool->mRetiring || retiringHasWork)
-            pool->setPoolNumConn(mPoolConnectionLimit);
-    }
-    poolMgr.refreshPools();
-
-    uploadThread = std::thread(
-        [this]
+        mStopping.store(false, std::memory_order_release);
+        paused = false;
+        // Defensive: ensure the refresh gate is not stuck from a prior engine lifecycle
+        // where the posted clearRefreshing lambda was dropped before execution.
+        poolMgr.mRefreshing.store(false, std::memory_order_release);
+        poolMgr.mImpl = this;
+        for (auto& pool: poolMgr.mPools)
         {
-            this->run();
-        });
+            if (!pool)
+                continue;
+
+            // Non-retiring pools always re-arm to the configured pool limit.
+            // Retiring pools re-arm only if they still own work — otherwise they
+            // would be picked up by cleanupRetiringPools on the next manager-thread
+            // tick. The active-upload case fixes a stop()/start() race where a
+            // server-side Distress (opcode 5) had retired the original size-class
+            // pool serving an in-flight file, and applyRefreshedUrls had not yet
+            // migrated the file off that pool because
+            // UploadEngine::Impl::nextEligible() reserves a bound file to f->mPool.
+            const bool retiringHasWork =
+                pool->mRetiring && (pool->mUploadingFile || pool->mNumPoolFiles ||
+                                    pool->mNumChunksInFlight || !pool->mToResend.empty());
+            if (!pool->mRetiring || retiringHasWork)
+                pool->setPoolNumConn(mPoolConnectionLimit);
+        }
+        poolMgr.refreshPools();
+
+        uploadThread = std::thread(
+            [this]
+            {
+                this->run();
+            });
+    }
 
     // Engine (re)start = reconnect-all moment: re-validate quota balances with one
     // coalesced tfs. A bare stop()/start() otherwise leaves the ledger clean, so no
-    // fresh tfs would be issued and stale holds could never be re-evaluated. Runs on
-    // the client thread (maybeStartWsUploadEngine / restart helper); null-safe.
+    // fresh tfs would be issued and stale holds could never be re-evaluated.
+    // Deliberately OUTSIDE the uploadMutex scope above: the ledger is client-owned
+    // and client-thread-only, so the engine must never mutate it while holding its
+    // own lock (the design's one cross-boundary interaction rule). Null-safe.
     client.wsQuotaMarkDirty();
 }
 

@@ -506,27 +506,6 @@ TEST(WsQuotaLedger, IssueLifecycle)
     EXPECT_TRUE(g.shouldIssue()); // dirty && !in-flight
 }
 
-// U14 — reset() clears balances and orphans any in-flight generation.
-TEST(WsQuotaLedger, ResetOrphansInFlight)
-{
-    UploadQuotaManager mgr;
-    const NodeHandle a = nh(0xA1);
-
-    seed(mgr, WsTfsGroupBalances{{100, {a}}}, ownPool());
-    EXPECT_TRUE(mgr.haveBalances());
-    EXPECT_TRUE(mgr.hasBalanceFor(a));
-
-    const std::uint64_t inFlight = mgr.beginIssue(); // capture pre-reset generation
-
-    mgr.reset();
-    EXPECT_FALSE(mgr.haveBalances());
-    EXPECT_FALSE(mgr.hasBalanceFor(a));
-
-    // The pre-reset generation is orphaned: its apply is rejected, state stays clear.
-    EXPECT_FALSE(mgr.applyGroups(inFlight, WsTfsGroupBalances{{50, {a}}}, ownPool()));
-    EXPECT_FALSE(mgr.hasBalanceFor(a));
-}
-
 // U15 — applyGroups enforces the parser's fail-open contract at the LEDGER: an
 //       entry with a negative balance, or an empty folder set, is skipped while
 //       a valid sibling entry still applies. Folders of skipped entries report
@@ -675,7 +654,7 @@ TEST(WsQuota, QueueFitComputation)
     }
 }
 
-// U15 — a multi-target transfer counts once per TARGET, not once per pool, and the
+// U16 — a multi-target transfer counts once per TARGET, not once per pool, and the
 // documented `remaining >= outstanding` invariant survives its completion.
 // (followup1 Goal-0 audit: outstanding used to dedup by pool while
 // deductOnCompletion debited per File, so a same-pool 2-target transfer credited
