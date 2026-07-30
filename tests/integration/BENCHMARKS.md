@@ -47,7 +47,7 @@ Use when investigating side effects beyond the immediate fix.
 
 | Filter | Tests | Budget |
 | --- | --- | --- |
-| `SdkWsUploadTest.*` | 30 | ~15–20 min |
+| `SdkWsUploadTest.*` | 63 (incl. 21 `Quota*`) | ~35–50 min |
 | `SyncTest.*Notify*:SyncTest.*Scan*:SdkWsUploadTest.*` | 31 | ~20–25 min |
 | `SdkTest.*Sync*:SdkTestSyncRootOperations.*:SdkTestSyncUploadThrottling.*:SdkTestSyncLocalRootChange.*:SdkTestBackupSyncLocalRootChange.*:SdkTestSyncPrevalidation.*:SyncFingerprintCollisionTest.*` | 59 | ~45–90 min |
 | `SyncTest.*` | 78 | 60–120+ min; some individual tests exceed 25 min |
@@ -57,7 +57,32 @@ Use when investigating side effects beyond the immediate fix.
 Do **not** attribute these to your fix without evidence.
 
 - `SdkTest.SyncImage` — media-related, fails in current test env, pre-existing. Treat as expected.
-- `SdkWsUploadTest.OverquotaDuringTransfer` — reliably SKIPs ("Could not inject overquota into active WS upload path in this environment").
+- `SdkWsUploadTest.OverquotaDuringTransfer` — historically SKIPped ("Could not inject
+  overquota…"); since the S11 testhooks window-override work it RUNS and must PASS (it sits in
+  the Jenkins `TSAN_SURFACE_FILTER` and the tier-1 gate). A SKIP here is now a regression signal.
+
+## Quota cells (SDK-6298 predictive WS upload-quota)
+
+- **Hook cells** — `SdkWsUploadTest.Quota*` (21 cells, `tests/integration/wsupload/
+  SdkWsQuotaTest.cpp`): exercise the tfs ledger through the H1–H4/H6 + M1 seams. They open with
+  `WSUPLOAD_REQUIRE_TEST_HOOKS()`, so in hooks-OFF (Release) builds every one must emit a clean
+  `[ SKIPPED ]` — a FAIL in a hooks-off run is real. No env knobs (HR58); cells self-configure.
+- **Real-path cells** — `SdkWsQuotaRealTest.{ProbeTfsCommandOwnRoot,
+  RealFillOwnAccountHoldAndRelease,RealFillInshareForeignHold}` (hook-FREE, run in any build):
+  live-server probe + own/foreign real-fill discriminators. They run on the MR pipeline surface
+  (user ruling 2026-07-30) and SKIP with a precise reason on non-conforming accounts (plan
+  shape / already-full / copies cap). The fill targets GREEN-but-insufficient (1.5 GiB free) —
+  never near-full, which would flip usl=RED and tautologize the discriminator.
+- **Timing subset (HR43)** — `Quota{CrossPoolHoldDoesNotBlockOtherPool,BatchEnqueueCoalescesSingleTfs,
+  CompletionDeductionHoldsSubsequentUpload,LateTfsReplyAfterUploadCompleted,
+  StaleTfsReplyDiscardedOnUslRace,EnqueueWhileTfsInFlightIssuesFollowUp,
+  AccountRedOverquotaCoexistsWithPredictiveHolds,NodeDeletionReleasesHold,
+  HeldFileDoesNotStarvePoolUnderCap}`: run ×15 under `taskset -c 0 nice -n 19`, count `[ OK ]`
+  lines per iteration (never the last summary).
+- **Bad-network assertions**: loss5 (`QuotaManyUploadsGenerousBalanceSoak` +
+  `QuotaBatchEnqueueCoalescesSingleTfs` under `netem_profile.sh loss5`) gate on completion +
+  ZERO false holds; loss20cap gates on no-false-holds + graceful degradation ONLY (completion
+  out-of-envelope per the standing P4 ruling).
 
 ## Test-infrastructure quirks
 
