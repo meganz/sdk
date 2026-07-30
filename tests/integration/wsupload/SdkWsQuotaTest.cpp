@@ -2430,9 +2430,11 @@ TEST_F(SdkWsUploadTest, QuotaSameOwnerInsharesShareOnePool)
 
     const std::string file1 = makeBinName("ws_quota_t25_1_");
     const std::string file2 = makeBinName("ws_quota_t25_2_");
-    constexpr size_t fileSize = kWsUploadDefaultFileSize;
-    ASSERT_TRUE(createFileWithSize(file1, fileSize, "1"));
-    ASSERT_TRUE(createFileWithSize(file2, fileSize, "2"));
+    // 2 MiB each (T5's sizing): small enough that file1 completes under the
+    // throttle while file2 is still streaming.
+    constexpr ::m_off_t fileSize = 2 * 1024 * 1024;
+    ASSERT_TRUE(createFileWithSize(file1, static_cast<size_t>(fileSize), "1"));
+    ASSERT_TRUE(createFileWithSize(file2, static_cast<size_t>(fileSize), "2"));
     localFiles = {file1, file2};
 
     WsTfsIssuedCapture tfsIssued;
@@ -2444,48 +2446,48 @@ TEST_F(SdkWsUploadTest, QuotaSameOwnerInsharesShareOnePool)
     // one pool with room for one file total; root-keyed it is two pools with room
     // for one file EACH.
     script.setDefaultPlan(WsTfsResultScript::withGroups(::mega::WsTfsGroupBalances{
-        {static_cast<::m_off_t>(fileSize), {share1H}},
-        {static_cast<::m_off_t>(fileSize), {share2H}},
+        {fileSize, {share1H}},
+        {fileSize, {share2H}},
     }));
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
     ASSERT_EQ(API_OK, ct.waitForResult(60));
+    // Throttle BEFORE enqueueing so file2 is still streaming when file1 completes
+    // (the T5 lesson: the hold must land while the sibling still runs).
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
 
-    // Phase 1: file1 -> share1 fits exactly (size == remaining, not >) and completes,
-    // so the ledger deducts its bytes from the owner's pool.
-    TransferTracker tracker1(megaApi[0].get());
+    // BOTH uploads are enqueued UP FRONT, one per share. Enqueueing file2 later
+    // would mark the ledger dirty and the forged reply would restore the balance,
+    // erasing the very deduction under test (same reason T5 enqueues both).
+    // Each file fits its share's reported balance exactly, so neither is held now.
+    TransferTracker tracker1(megaApi[0].get()); // -> share 1
+    TransferTracker tracker2(megaApi[0].get()); // -> share 2 (the discriminator)
     auto uploadOptions = makeDefaultUploadOptions();
     megaApi[0]->startUpload(file1, share1.get(), nullptr, &uploadOptions, &tracker1);
+    megaApi[0]->startUpload(file2, share2.get(), nullptr, &uploadOptions, &tracker2);
     ASSERT_TRUE(WaitFor(
         [&]
         {
-            return tracker1.mTag.load() >= 0;
+            return tracker1.mTag.load() >= 0 && tracker2.mTag.load() >= 0;
         },
         30000));
     const int tag1 = tracker1.mTag.load();
+    const int tag2 = tracker2.mTag.load();
     ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
         << "tfs never issued after enqueue (issuances=0)";
+
+    // file1 completes -> the ledger deducts its bytes from the owner's pool.
     ASSERT_EQ(tracker1.waitForResult(kCompleteTimeoutS), API_OK)
         << "the exactly-fitting inshare upload should complete";
     ASSERT_EQ(holdChanged.heldCountFor(tag1), 0) << "an exactly-fitting upload must not be held";
     ASSERT_TRUE(deducted.waitForFire(kHoldTimeout))
         << "completion did not deduct from the ledger (H6 never fired)";
 
-    // Phase 2 — THE DISCRIMINATOR: an equally-sized upload into the SIBLING share
-    // of the SAME owner must now be held, because the deduction consumed the one
-    // physical pool both shares draw on. Throttled so the hold can be observed
-    // before any completion path is reached.
-    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
-    TransferTracker tracker2(megaApi[0].get());
-    megaApi[0]->startUpload(file2, share2.get(), nullptr, &uploadOptions, &tracker2);
-    ASSERT_TRUE(WaitFor(
-        [&]
-        {
-            return tracker2.mTag.load() >= 0;
-        },
-        30000));
-    const int tag2 = tracker2.mTag.load();
+    // THE DISCRIMINATOR: file2 targets the SIBLING share of the SAME owner and is
+    // still streaming. Owner-keyed, the deduction consumed the one physical pool
+    // both shares draw on, so file2 must now be held. Root-keyed, share 2 keeps a
+    // stale full balance and file2 sails through.
     ASSERT_TRUE(holdChanged.waitForHold(tag2, kHoldTimeout))
         << "sibling-share upload was NOT held: the two same-owner inshares are being "
            "treated as independent pools, so the completion deduction never debited "

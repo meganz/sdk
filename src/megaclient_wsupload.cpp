@@ -502,8 +502,8 @@ ws::WsQuotaQueueFit MegaClient::wsQuotaQueueFitSnapshot()
         {
             if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h))
                 continue; // no balance data => fail-open (contributes nothing)
-            const std::uint64_t key = wsQuotaClassifyPool(f->h).first;
-            Accum& a = pools[key];
+            const std::uint64_t _key = wsQuotaClassifyPool(f->h).first;
+            Accum& a = pools[_key];
             a.sum += t->size;
             // availableFor/isForeignGroup answer per merged pool, so any member folder
             // yields the same values — recorded once, harmless to overwrite.
