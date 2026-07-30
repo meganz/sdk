@@ -702,6 +702,54 @@ TEST_F(SdkWsQuotaRealTest, RealFillInshareForeignHold)
     std::unique_ptr<MegaNode> aRoot{megaApi[0]->getRootNode()};
     ASSERT_TRUE(aRoot);
 
+    // ---- MULTI-OWNER reply-shape probe (closes the "multi-owner tfs reply shape
+    // never captured" carryover; previously pinned only behaviourally). A single
+    // `tfs` for A's OWN root + B's inshare root crosses two owner pools. The SDK
+    // is grouping-independent by design (DECISION-P1-POOLKEY classifies pools
+    // client-side), so this asserts only the SEMANTICS we may legitimately
+    // require — both handles answered, and B's (full) balance far below A's —
+    // and LOGS the grouping shape for the record rather than pinning a server
+    // behaviour we do not control.
+    {
+        const ::mega::NodeHandle aRootH = toNodeHandle(aRoot->getHandle());
+        const ::mega::NodeHandle inshareH = toNodeHandle(shareHandle);
+        ::mega::WsTfsGroupBalances groups;
+        ::mega::Error tfsErr{::mega::API_OK};
+        ASSERT_TRUE(fetchTfsGroups(*megaApi[0],
+                                   {aRootH, inshareH},
+                                   groups,
+                                   tfsErr,
+                                   std::chrono::seconds{60}))
+            << "multi-owner tfs probe did not receive a reply";
+        ASSERT_EQ(tfsErr, ::mega::API_OK) << "multi-owner tfs probe returned an error";
+
+        ::m_off_t availOwn = -1;
+        ::m_off_t availForeign = -1;
+        std::string shape;
+        for (const auto& [bytes, handles]: groups)
+        {
+            shape += "[" + std::to_string(bytes) + ":";
+            for (const auto& h: handles)
+            {
+                shape += " " + std::to_string(h.as8byte());
+                if (h == aRootH)
+                    availOwn = bytes;
+                if (h == inshareH)
+                    availForeign = bytes;
+            }
+            shape += "]";
+        }
+        LOG_info << "[T20 multi-owner tfs shape] groups=" << groups.size() << " " << shape;
+        ASSERT_GE(availOwn, 0) << "own root absent from the multi-owner tfs reply";
+        ASSERT_GE(availForeign, 0) << "inshare root absent from the multi-owner tfs reply";
+        ASSERT_LT(availForeign, availOwn)
+            << "B is filled to kFreeToLeave, so the foreign pool's balance must be well below "
+               "A's own pool (foreign="
+            << availForeign << " own=" << availOwn << ")";
+        ASSERT_LT(availForeign, static_cast<::m_off_t>(kDiscriminatorSize))
+            << "foreign balance must be smaller than the discriminator upload";
+    }
+
     // ---- A uploads the discriminator file into the inshare (larger than B's
     // remaining space; A's own storage untouched) ----
     const std::string foreignName = makeBinName("ws_quota_t20_foreign_");
