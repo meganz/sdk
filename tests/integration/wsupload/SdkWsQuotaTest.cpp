@@ -1,6 +1,6 @@
 /**
  * @file SdkWsQuotaTest.cpp
- * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21).
+ * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T23).
  *
  * These cells exercise the predictive WS upload-quota ledger through the Q9 test
  * seams (analysis/DESIGN_IMPL_SDK6298.md): H1 onWsTfsIssued, H2 onWsTfsResult
@@ -23,7 +23,7 @@
  * failure remain present as secondary post-impl asserts; see the module report
  * for this deliberate deviation from the plan's §1 per-cell fail-first messages.
  *
- * Timing cells (T3, T4, T9, T10, T11, T14; T13 recommended) run under
+ * Timing cells (T3, T4, T9, T10, T11, T14, T23; T13 recommended) run under
  * --gtest_repeat=15 taskset -c 0 nice -n 19 per HR43. No setenv anywhere (HR58);
  * synchronization is cv-waits with timeouts and bounded quiet-window polls.
  * `::mega::` prefixes in using-decls (C++20, feedback_cxx_standard_per_target.md).
@@ -2066,6 +2066,139 @@ TEST_F(SdkWsUploadTest, QuotaQueueFitsQueryReflectsLedger)
         ASSERT_EQ(fit->getShortfallBytes(), 0LL);
         ASSERT_FALSE(fit->isForeignShortfall());
     }
+}
+
+// ============================================================================
+// T23 QuotaNodeDeletionReleasesHold
+// ============================================================================
+// The release-path gap Jenkins exposed (linux_9684, RealFillOwnAccountHoldAndRelease):
+// freeing storage by DELETING nodes re-queries the ledger through no path at all —
+// release depended on a usl band-transition packet the server may never send.
+// Contract under test: a locally-visible node removal (server `d` actionpacket ->
+// sc_deltree) while any hold/shortfall is in force marks the ledger dirty, so the
+// next exec-cycle flush re-issues tfs and the hold releases on the fresh balances.
+// The trigger must be event-driven and state-gated, NOT a poll: the negative-control
+// phase asserts an unconstrained-ledger deletion issues nothing.
+TEST_F(SdkWsUploadTest, QuotaNodeDeletionReleasesHold)
+{
+    LOG_info << "___TEST QuotaNodeDeletionReleasesHold___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName = makeBinName("ws_quota_t23_");
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "d"));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
+
+    // Two EMPTY cloud folders: deleting the first is the release trigger (an empty
+    // folder frees zero bytes — proving the trigger needs no freed-bytes threshold);
+    // the second feeds the negative control after completion.
+    const ::MegaHandle trigHandle = createFolder(0, makeBinName("t23del_").c_str(), rootnode.get());
+    const ::MegaHandle ctlHandle = createFolder(0, makeBinName("t23ctl_").c_str(), rootnode.get());
+    ASSERT_NE(trigHandle, ::mega::UNDEF);
+    ASSERT_NE(ctlHandle, ::mega::UNDEF);
+
+    std::vector<std::string> localFiles{fileName};
+    std::vector<std::string> rootUploadNames{fileName};
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            if (std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()})
+                for (const auto& nm: rootUploadNames)
+                    if (std::unique_ptr<MegaNode> n{
+                            megaApi[0]->getNodeByPathOfType(nm.c_str(),
+                                                            root.get(),
+                                                            MegaNode::TYPE_FILE)})
+                        (void)synchronousRemove(0, n.get());
+            for (const ::MegaHandle fh: {trigHandle, ctlHandle})
+                if (std::unique_ptr<MegaNode> f{megaApi[0]->getNodeByHandle(fh)})
+                    (void)synchronousRemove(0, f.get());
+            for (const auto& nm: localFiles)
+                deleteFile(nm);
+        });
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    WsQuotaHoldTracker holdTracker(megaApi[0].get());
+    script.setDefaultPlan(
+        WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {rootH}));
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+
+    TransferTracker tracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker.mTag.load() >= 0;
+        },
+        30000));
+    const int tag = tracker.mTag.load();
+
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
+        << "tfs never issued after enqueue (issuances=0)";
+    ASSERT_TRUE(holdChanged.waitForHold(tag, kHoldTimeout))
+        << "predictive hold never observed (holdEvents=0)";
+    ASSERT_TRUE(holdTracker.waitForTemporaryError(tag, kHoldTimeout));
+
+    const std::size_t nBeforeDelete = tfsIssued.issuanceCount();
+    const std::uint64_t genBeforeDelete = tfsIssued.genOfIssuance(nBeforeDelete - 1);
+    script.setDefaultPlan(WsTfsResultScript::generous({rootH}));
+
+    // THE TRIGGER: a real server round-trip deletion. The `d` actionpacket flows
+    // through sc_deltree on the client thread — the exact funnel the product fix
+    // hooks — so this cell exercises the full live chain, not a simulation.
+    {
+        std::unique_ptr<MegaNode> trigNode{megaApi[0]->getNodeByHandle(trigHandle)};
+        ASSERT_TRUE(trigNode);
+        ASSERT_EQ(API_OK, synchronousRemove(0, trigNode.get()));
+    }
+
+    // KEY ASSERT (fail-first): without the deletion-driven trigger no path re-queries
+    // the ledger here — pre-fix this times out deterministically.
+    ASSERT_TRUE(tfsIssued.waitForIssuance(nBeforeDelete + 1, kIssueTimeout))
+        << "node deletion did not trigger a tfs re-query (deletion-driven release "
+           "trigger missing)";
+    ASSERT_GT(tfsIssued.genOfIssuance(nBeforeDelete), genBeforeDelete)
+        << "generation did not advance on the deletion-triggered issuance";
+    ASSERT_TRUE(holdChanged.waitForRelease(tag, kHoldTimeout))
+        << "hold never released after the deletion-triggered generous re-query";
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(tracker.waitForResult(kCompleteTimeoutS), API_OK);
+
+    // HoldTracker sequence: [tempError EOVERQUOTA...], then finish OK.
+    const auto seq = holdTracker.sequence(tag);
+    ASSERT_FALSE(seq.empty());
+    ASSERT_EQ(seq.front().kind, WsQuotaHoldTracker::Event::Kind::TemporaryError);
+    ASSERT_EQ(seq.front().code, API_EOVERQUOTA);
+    ASSERT_EQ(seq.back().kind, WsQuotaHoldTracker::Event::Kind::Finish);
+    ASSERT_EQ(seq.back().code, API_OK);
+
+    // NEGATIVE CONTROL (not-a-poll proof): with the queue drained and the ledger
+    // unconstrained, deleting the control folder must issue NOTHING inside a bounded
+    // quiet window — the trigger is state-gated, not unconditional.
+    const std::size_t nAfterComplete = tfsIssued.issuanceCount();
+    {
+        std::unique_ptr<MegaNode> ctlNode{megaApi[0]->getNodeByHandle(ctlHandle)};
+        ASSERT_TRUE(ctlNode);
+        ASSERT_EQ(API_OK, synchronousRemove(0, ctlNode.get()));
+    }
+    ASSERT_FALSE(WaitFor(
+        [&]
+        {
+            return tfsIssued.issuanceCount() > nAfterComplete;
+        },
+        10000))
+        << "unconstrained-ledger deletion issued a tfs (trigger must be state-gated)";
 }
 
 } // namespace mega::test::wsupload

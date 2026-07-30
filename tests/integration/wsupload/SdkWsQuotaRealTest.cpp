@@ -27,12 +27,16 @@
  * production `tfs` command, so they run in hooks-OFF builds too — no
  * WSUPLOAD_REQUIRE_TEST_HOOKS gate.
  *
- * PRE-IMPLEMENTATION fail-first discipline: the predictive ledger (P3) does not
- * exist yet, so pre-P3 the real overquota surfaces only at putnodes AFTER all
- * bytes have been uploaded to storage. T18 PASSES today; T19/T20 are written to
- * their POST-implementation contract but land their FIRST behavioural failure on
- * the discriminator "no predictive hold observed before upload sent all bytes"
- * (foreign variant for T20), then run their mandatory cleanup.
+ * Fail-first history: these cells predate the predictive ledger (P3) and landed
+ * their first behavioural failures on the discriminator "no predictive hold
+ * observed before upload sent all bytes" (foreign variant for T20). Post-P3 both
+ * discriminators PASS; T19 additionally pins the RELEASE path — a hold must lift
+ * when storage is freed by node deletion (the sc_deltree-driven re-query; the
+ * usl band-transition packet is NOT guaranteed to arrive, per the linux_9684
+ * Jenkins forensics where the release leg sat inert for 420s without it).
+ *
+ * These cells run on the MR pipeline surface (user ruling 2026-07-30: no nightly
+ * filter; the release path is deterministic via the deletion trigger).
  *
  * SHARED-ACCOUNT SAFETY: T19/T20 fill a shared test account. Every created cloud
  * resource is torn down through a body-scope RAII ScopedDestructor that runs on
@@ -103,8 +107,19 @@ constexpr ::m_off_t kFreeToLeave = 1536LL * 1024 * 1024; // 1.5 GiB free after f
 constexpr ::m_off_t kDiscriminatorSize = 2304LL * 1024 * 1024; // 2.25 GiB > kFreeToLeave
 constexpr int kDiscriminatorWaitS = 240; // upper bound: 2.25 GiB stream + putnodes (pre-P3 legacy)
 constexpr int kReleaseWaitS =
-    420; // T19 release: wait for the freed upload to (re-)stream + complete
+    420; // T19 release: wait for the freed upload to (re-)stream + complete (completion-bound:
+         // the 2.25 GiB restream dominates; the release TRIGGER itself is pinned separately)
+constexpr int kReleaseObserveS =
+    90; // T19: byte progress past the held level must appear this soon after the free —
+        // isolates "release trigger never fired" from "network slow" (linux_9684 lesson)
 constexpr int kForeignReleaseWaitS = 120; // T20 SOFT release window (no foreign re-poll by ruling)
+
+// Fill-conformance guards: the controlled fill only makes sense on a test-account
+// plan shaped like the FREE 25 GiB baseline. A plan too small cannot host the
+// discriminator; a plan too large would need an unbounded number of seed copies
+// (and hours of fill) — SKIP instead of mis-targeting a live account.
+constexpr long long kMaxConformingPlanBytes = 100LL * 1024 * 1024 * 1024; // 100 GiB
+constexpr long long kMaxFillCopies = 32; // FREE 25 GiB needs ~22; anything above is non-conforming
 
 // Records, per transfer tag, the transfer's byte progress and foreign flag at the
 // FIRST temporary EOVERQUOTA it emits. This is the race-free "was the hold
@@ -227,16 +242,17 @@ protected:
     // SdkTestUploadsOverquota mechanics (import gzlQ3DIY 1 GB link + doCopyNode +
     // filler upload). Records the created fill-folder handle (set BEFORE the first
     // fallible assert) and any local filler file into the caller's cleanup state.
-    // Sets alreadyOverquota=true and returns WITHOUT importing if the account
-    // cannot reach the controlled state. Uses ASSERT_* — invoke via
-    // ASSERT_NO_FATAL_FAILURE.
+    // Sets a non-empty skipReason and returns WITHOUT filling if the account
+    // cannot reach the controlled state (already full, non-conforming plan, or a
+    // fill that would need more than kMaxFillCopies copies). Uses ASSERT_* —
+    // invoke via ASSERT_NO_FATAL_FAILURE.
     void fillStorageLeavingInsufficient(unsigned apiIndex,
                                         const std::string& fillFolderName,
                                         ::MegaHandle& fillFolderHandleOut,
                                         std::vector<std::string>& localFilesOut,
-                                        bool& alreadyOverquota)
+                                        std::string& skipReason)
     {
-        alreadyOverquota = false;
+        skipReason.clear();
 
         std::unique_ptr<MegaNode> root{megaApi[apiIndex]->getRootNode()};
         ASSERT_TRUE(root) << "cannot resolve own root node";
@@ -248,9 +264,18 @@ protected:
         const long long storageMax = mApi[apiIndex].accountDetails->getStorageMax();
         const long long storageUsed = mApi[apiIndex].accountDetails->getStorageUsed();
         ASSERT_GT(storageMax, 0);
-        if (storageUsed + kFreeToLeave >= storageMax)
+        if (storageMax < kDiscriminatorSize + kFreeToLeave || storageMax > kMaxConformingPlanBytes)
         {
-            alreadyOverquota = true;
+            skipReason = "non-conforming account plan (storageMax=" + std::to_string(storageMax) +
+                         ") — controlled fill targets the FREE 25 GiB baseline";
+            return;
+        }
+        // The seed import below consumes ~1 GiB on top of the fill headroom.
+        if (storageUsed + kFreeToLeave + (1LL << 30) >= storageMax)
+        {
+            skipReason =
+                "account too full for the controlled fill (used=" + std::to_string(storageUsed) +
+                " of " + std::to_string(storageMax) + ")";
             return;
         }
 
@@ -270,9 +295,18 @@ protected:
         const std::string seedName = seedNode->getName() ? seedNode->getName() : "seed";
 
         // Copy the seed until just over kFreeToLeave remains free (the filler
-        // below tops the state up to exactly kFreeToLeave).
-        const long long remaining = storageMax - storageUsed;
-        const long long copies = (remaining - kFreeToLeave) / copySize;
+        // below tops the state up to exactly kFreeToLeave). The seed import
+        // itself already consumed copySize — subtract it, or the fill overshoots
+        // by exactly one copy (512 MiB free at 98% instead of 1.5 GiB at 94%;
+        // the linux_9684 Jenkins forensics caught the original overshoot).
+        const long long remaining = storageMax - storageUsed - copySize;
+        const long long copies = std::max<long long>(0, (remaining - kFreeToLeave) / copySize);
+        if (copies > kMaxFillCopies)
+        {
+            skipReason = "controlled fill would need " + std::to_string(copies) + " copies (cap " +
+                         std::to_string(kMaxFillCopies) + ") — non-conforming account";
+            return;
+        }
         for (long long i = 1; i <= copies; ++i)
         {
             const std::string copyName = seedName + std::to_string(i);
@@ -424,7 +458,9 @@ TEST_F(SdkWsQuotaRealTest, ProbeTfsCommandOwnRoot)
 
 // ============================================================================
 // T19 RealFillOwnAccountHoldAndRelease — real end-to-end, OWN pool. Hook-free.
-// Minutes; nightly-only. Fails pre-P3 on the discriminator, then cleans up.
+// Runs on the MR surface (user ruling 2026-07-30). Pins BOTH legs: the
+// predictive hold discriminator AND the deletion-driven release (freeing the
+// fill folder must re-query tfs via sc_deltree — no reliance on a usl packet).
 // ============================================================================
 TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
 {
@@ -470,16 +506,16 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
             warnIfStorageStillHigh(0);
         });
 
-    // Guard 2 + fill: SKIP if the account is already OQ (cannot set the controlled
-    // < 16 MiB-free state), else fill to leave < 16 MiB.
-    bool alreadyOverquota = false;
+    // Guard 2 + fill: SKIP on any non-conforming account state (already full,
+    // wrong plan shape, oversized fill), else fill to leave exactly kFreeToLeave.
+    std::string fillSkipReason;
     ASSERT_NO_FATAL_FAILURE(fillStorageLeavingInsufficient(0,
                                                            makeBinName("ws_quota_t19_fill_"),
                                                            fillFolderHandle,
                                                            localFiles,
-                                                           alreadyOverquota));
-    if (alreadyOverquota)
-        GTEST_SKIP() << "account already overquota/full — cannot set up the controlled fill";
+                                                           fillSkipReason));
+    if (!fillSkipReason.empty())
+        GTEST_SKIP() << fillSkipReason;
 
     // ---- discriminator upload to own root: larger than the free space ----
     uploadName = makeBinName("ws_quota_t19_upload_");
@@ -502,13 +538,15 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
         << "transfer tag not captured";
     const int tag = tracker.mTag.load();
 
-    // DISCRIMINATOR (pre-P3 FAILS here): predictive own-pool hold before all bytes.
+    // DISCRIMINATOR (fail-first anchor pre-P3; PASSES post-P3): predictive
+    // own-pool hold before all bytes.
     ASSERT_NO_FATAL_FAILURE(assertPredictiveHoldDiscriminator(holdTracker,
                                                               latch,
                                                               tracker,
                                                               tag,
                                                               /*expectForeign*/ false,
                                                               kDiscriminatorWaitS));
+    const ::m_off_t heldAtBytes = latch.at(tag).transferred;
 
     // ---- Release: free space → the held upload completes OK ----
     if (std::unique_ptr<MegaNode> f{megaApi[0]->getNodeByHandle(fillFolderHandle)})
@@ -516,6 +554,20 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
         ASSERT_EQ(API_OK, synchronousRemove(0, f.get())) << "freeing fill space failed";
         fillFolderHandle = ::mega::UNDEF; // freed; cleanup must not re-remove
     }
+    // Trigger observability (linux_9684 lesson): byte progress past the held level
+    // must appear within kReleaseObserveS of the free — a tight bound on the
+    // deletion-driven re-query itself, separating "trigger never fired" from
+    // "restream slow". A vanished transfer means it already reached a terminal
+    // state; the completion assert below adjudicates it.
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag)};
+            return !t || t->getTransferredBytes() > heldAtBytes;
+        },
+        kReleaseObserveS * 1000))
+        << "no byte progress within " << kReleaseObserveS
+        << "s of freeing space — the deletion-driven release trigger did not fire";
     ASSERT_EQ(tracker.waitForResult(kReleaseWaitS), API_OK)
         << "held upload did not complete within " << kReleaseWaitS << "s after freeing space";
     uploadNodeHandle = tracker.resultNodeHandle;
@@ -530,8 +582,11 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
 // ============================================================================
 // T20 RealFillInshareForeignHold — real end-to-end, FOREIGN pool. 2 accounts.
 // A = megaApi[0] (uploader); B = megaApi[1] (owner who fills + shares). Hook-free.
-// Nightly-only. Fails pre-P3 on the foreign discriminator, then cleans up BOTH
-// accounts. Release phase is a SOFT assert (no foreign re-poll per user ruling).
+// Runs on the MR surface (user ruling 2026-07-30). Pins the foreign-flagged
+// predictive discriminator; cleans up BOTH accounts. Release phase stays a SOFT
+// assert: B's deletion happens OUTSIDE A's visible share, so no `d` packet
+// reaches A and no foreign re-poll exists (user ruling) — the deletion-driven
+// trigger deliberately does not cover this leg.
 // ============================================================================
 TEST_F(SdkWsQuotaRealTest, RealFillInshareForeignHold)
 {
@@ -595,15 +650,16 @@ TEST_F(SdkWsQuotaRealTest, RealFillInshareForeignHold)
     bShareFolderHandle = shareHandle;
     ASSERT_NE(shareHandle, ::mega::UNDEF) << "creating B's share folder failed";
 
-    // ---- Guard 2 + B fill: SKIP if B already OQ, else fill B to < 16 MiB free ----
-    bool alreadyOverquota = false;
+    // ---- Guard 2 + B fill: SKIP on non-conforming B state, else fill B to
+    // leave exactly kFreeToLeave free ----
+    std::string fillSkipReason;
     ASSERT_NO_FATAL_FAILURE(fillStorageLeavingInsufficient(1,
                                                            makeBinName("ws_quota_t20_fill_"),
                                                            bFillFolderHandle,
                                                            localFiles,
-                                                           alreadyOverquota));
-    if (alreadyOverquota)
-        GTEST_SKIP() << "account B already overquota/full — cannot set up the controlled fill";
+                                                           fillSkipReason));
+    if (!fillSkipReason.empty())
+        GTEST_SKIP() << "account B: " << fillSkipReason;
 
     // ---- Ensure A<->B contact (tolerant of pre-existing state; B invites A) ----
     std::unique_ptr<MegaUser> bContactOfA{megaApi[0]->getContact(mApi[1].email.c_str())};
@@ -672,7 +728,8 @@ TEST_F(SdkWsQuotaRealTest, RealFillInshareForeignHold)
         << "foreign transfer tag not captured";
     const int foreignTag = foreignTracker.mTag.load();
 
-    // DISCRIMINATOR (pre-P3 FAILS here): predictive FOREIGN hold before all bytes.
+    // DISCRIMINATOR (fail-first anchor pre-P3; PASSES post-P3): predictive
+    // FOREIGN hold before all bytes.
     ASSERT_NO_FATAL_FAILURE(assertPredictiveHoldDiscriminator(holdTracker,
                                                               latch,
                                                               foreignTracker,
