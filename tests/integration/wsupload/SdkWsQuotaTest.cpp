@@ -1,6 +1,6 @@
 /**
  * @file SdkWsQuotaTest.cpp
- * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T23).
+ * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T24).
  *
  * These cells exercise the predictive WS upload-quota ledger through the Q9 test
  * seams (analysis/DESIGN_IMPL_SDK6298.md): H1 onWsTfsIssued, H2 onWsTfsResult
@@ -23,7 +23,7 @@
  * failure remain present as secondary post-impl asserts; see the module report
  * for this deliberate deviation from the plan's §1 per-cell fail-first messages.
  *
- * Timing cells (T3, T4, T9, T10, T11, T14, T23; T13 recommended) run under
+ * Timing cells (T3, T4, T9, T10, T11, T14, T23, T24; T13 recommended) run under
  * --gtest_repeat=15 taskset -c 0 nice -n 19 per HR43. No setenv anywhere (HR58);
  * synchronization is cv-waits with timeouts and bounded quiet-window polls.
  * `::mega::` prefixes in using-decls (C++20, feedback_cxx_standard_per_target.md).
@@ -2199,6 +2199,127 @@ TEST_F(SdkWsUploadTest, QuotaNodeDeletionReleasesHold)
         },
         10000))
         << "unconstrained-ledger deletion issued a tfs (trigger must be state-gated)";
+}
+
+// ============================================================================
+// T24 QuotaHeldFileDoesNotStarvePoolUnderCap  (HR43 x15)
+// ============================================================================
+// S12 budget-fairness interplay guard (rebase onto post-S12 main). The S12
+// Cluster-B fix parks paused-owner resend entries at zero budget cost in
+// WsPool::nextChunk, keyed on paused() — which OR-s in mQuotaHeld, so a
+// quota-held file inherits the parking for free. The S12 defect class only
+// bit under a LOW upload cap (the accrual clamp starved the pool-mate), so
+// this cell keeps the throttle ON through the sibling's completion — T2
+// covers the uncapped variant. Contract: with Y quota-held MID-FLIGHT (parked
+// resend entries in the pool), a fitting sibling X in the SAME own pool must
+// complete under the cap, Y must stay held throughout, and Y resumes to
+// completion once released. A livelock here = the S12 skip mishandling
+// quota-held owners = product bug.
+TEST_F(SdkWsUploadTest, QuotaHeldFileDoesNotStarvePoolUnderCap)
+{
+    LOG_info << "___TEST QuotaHeldFileDoesNotStarvePoolUnderCap___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string bigName = makeBinName("ws_quota_t24_big_");
+    const std::string smallName = makeBinName("ws_quota_t24_small_");
+    constexpr size_t bigSize = kWsUploadDefaultFileSize; // 12 MiB — will be held
+    constexpr size_t smallSize = 1024 * 1024; // 1 MiB — fits, ~10s at kThrottleBps
+    ASSERT_TRUE(createFileWithSize(bigName, bigSize, "Y"));
+    ASSERT_TRUE(createFileWithSize(smallName, smallSize, "X"));
+
+    std::vector<std::string> localFiles{bigName, smallName};
+    std::vector<std::string> rootUploadNames{bigName, smallName};
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            if (std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()})
+                for (const auto& nm: rootUploadNames)
+                    if (std::unique_ptr<MegaNode> n{
+                            megaApi[0]->getNodeByPathOfType(nm.c_str(),
+                                                            root.get(),
+                                                            MegaNode::TYPE_FILE)})
+                        (void)synchronousRemove(0, n.get());
+            for (const auto& nm: localFiles)
+                deleteFile(nm);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    WsQuotaHoldTracker holdTracker(megaApi[0].get());
+
+    // Phase 1: generous — Y streams under the cap and gets chunks in flight.
+    script.setDefaultPlan(WsTfsResultScript::generous({rootH}));
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+
+    TransferTracker bigTracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(bigName, rootnode.get(), nullptr, &uploadOptions, &bigTracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return bigTracker.mTag.load() >= 0;
+        },
+        30000));
+    const int bigTag = bigTracker.mTag.load();
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
+        << "tfs never issued after enqueue (issuances=0)";
+    // Mid-flight precondition: Y must have byte progress (in-flight chunks that
+    // the hold will requeue into mToResend as parked entries).
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(bigTag)};
+            return t && t->getTransferredBytes() > 0;
+        },
+        60000))
+        << "big upload never streamed under the cap";
+
+    // Phase 2: re-arm the own pool at half of Y's size (Y no longer fits, X does)
+    // and trigger the re-issue by enqueueing X — Y is held MID-FLIGHT.
+    script.setDefaultPlan(WsTfsResultScript::withGroups(
+        ::mega::WsTfsGroupBalances{{static_cast<::m_off_t>(bigSize) / 2, {rootH}}}));
+    TransferTracker smallTracker(megaApi[0].get());
+    megaApi[0]->startUpload(smallName, rootnode.get(), nullptr, &uploadOptions, &smallTracker);
+    ASSERT_TRUE(holdChanged.waitForHold(bigTag, kHoldTimeout))
+        << "mid-flight hold never observed on the big upload (holdEvents=0)";
+    ASSERT_TRUE(holdTracker.waitForTemporaryError(bigTag, kHoldTimeout));
+
+    // Phase 3 — THE INTERPLAY ASSERT: the throttle stays ON (the S12 Cluster-B
+    // budget regime). X must complete while Y's parked entries sit in the pool.
+    ASSERT_EQ(smallTracker.waitForResult(kCompleteTimeoutS), API_OK)
+        << "sibling upload starved under cap while a quota-held file was parked "
+           "(S12 budget-fairness interplay regression)";
+    // Y stayed held throughout: every H3 event for Y so far is a held=true event.
+    ASSERT_EQ(holdChanged.heldCountFor(bigTag), holdChanged.countFor(bigTag))
+        << "big upload saw a spurious release while the sibling completed";
+
+    // Phase 4: release Y (generous + M1), lift the cap, Y completes.
+    script.setDefaultPlan(WsTfsResultScript::generous({rootH}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(holdChanged.waitForRelease(bigTag, kHoldTimeout))
+        << "hold never released after the generous re-query";
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(bigTracker.waitForResult(kCompleteTimeoutS), API_OK)
+        << "released upload did not resume from its parked entries and complete";
+
+    // HoldTracker sequence for Y: [tempError EOVERQUOTA...], then finish OK.
+    const auto seq = holdTracker.sequence(bigTag);
+    ASSERT_FALSE(seq.empty());
+    ASSERT_EQ(seq.front().kind, WsQuotaHoldTracker::Event::Kind::TemporaryError);
+    ASSERT_EQ(seq.front().code, API_EOVERQUOTA);
+    ASSERT_EQ(seq.back().kind, WsQuotaHoldTracker::Event::Kind::Finish);
+    ASSERT_EQ(seq.back().code, API_OK);
 }
 
 } // namespace mega::test::wsupload
