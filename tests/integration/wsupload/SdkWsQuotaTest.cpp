@@ -1692,6 +1692,27 @@ TEST_F(SdkWsUploadTest, QuotaTfsApiErrorFailsOpen)
     TransferTracker t2(megaApi[0].get());
     megaApi[0]->startUpload(nm, rootnode.get(), nullptr, &uploadOptions, &t2);
     ASSERT_EQ(t2.waitForResult(kCompleteTimeoutS), API_OK);
+
+    // Sub-phase: EGOINGOVERQUOTA (-24) — the documented webclient-parity delta.
+    // The webclient special-cases -24 by silently dropping the WHOLE batch
+    // (transfers.js u.length = 0; WEBCLIENT_TFS_CONTRACT.md §3). The SDK
+    // deliberately treats it as a generic command-level error: apply nothing,
+    // no auto-retry, no hold, and the next natural trigger re-issues — so an
+    // upload that would actually fit is never blocked by a -24 reply.
+    const std::size_t issuancesBefore24 = tfsIssued.issuanceCount();
+    script.setDefaultPlan(WsTfsResultScript::forceError(API_EGOINGOVERQUOTA));
+    const std::string nm24 = makeBinName("ws_quota_t15c_");
+    ASSERT_TRUE(createFileWithSize(nm24, fileSize, "c"));
+    localFiles.push_back(nm24);
+    rootUploadNames.push_back(nm24);
+    TransferTracker t3(megaApi[0].get());
+    megaApi[0]->startUpload(nm24, rootnode.get(), nullptr, &uploadOptions, &t3);
+    ASSERT_EQ(t3.waitForResult(kCompleteTimeoutS), API_OK)
+        << "EGOINGOVERQUOTA(-24) must fail open (SDK does not drop the batch)";
+    ASSERT_EQ(holdChanged.totalEvents(), 0u)
+        << "a -24 reply must produce zero holds (fail-open, no batch drop)";
+    ASSERT_LE(tfsIssued.issuanceCount() - issuancesBefore24, 4u)
+        << "EGOINGOVERQUOTA triggered a retry storm";
 }
 
 // ============================================================================
