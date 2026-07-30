@@ -44,18 +44,24 @@ Recommended TSAN_OPTIONS (matches the Jenkinsfile lines ~420):
 ## Surface filter vs full sweep
 
 The full TSAN sweep is expensive. For per-commit gates, use the
-4-cell **WS-upload surface filter** (matches the Jenkinsfile
-`TSAN_SURFACE_FILTER`):
+8-cell **WS-upload surface filter** (matches the Jenkinsfile
+`TSAN_SURFACE_FILTER` — the single source of truth; this list mirrors it):
 
 ```
-SdkWsUploadTest.ActivePoolUsesParallelConnections          # T1
-SdkWsUploadTest.B9ClosedThrottleReconnectPacing            # B9
-SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession # IP
-SdkWsUploadTest.OverquotaDuringTransfer                    # Overquota
+SdkWsUploadTest.ActivePoolUsesParallelConnections            # pool/worker threads
+SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession  # session URL fallback
+SdkWsUploadTest.OverquotaDuringTransfer                      # legacy OQ path
+SdkWsUploadTest.RepeatedPauseResumeMixedPools                # S12 Cluster-B pause/budget
+SdkWsUploadTest.AckStallForceReconnectsHungConnection        # S11 watchdog (fu8)
+SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion # S11 watchdog (fu8)
+SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool      # SDK-6298 T3 (quota x engine)
+SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds # SDK-6298 T14 (quota x legacy OQ)
 ```
 
 This is the minimum surface that exercises the WS pool + worker thread
-+ session URL fallback paths where new races would land.
++ session URL fallback + watchdog + quota-hold paths where new races
+would land. (History: 4-cell through S11; S12 added the watchdog pair;
+SDK-6298 added the two quota cells.)
 
 For final session sweeps, extend with the full `SdkWsUploadTest.*`
 suite at lower n.

@@ -154,8 +154,11 @@ stage('TSAN Sweep') {
     environment {
         TSAN_BUILD_DIR = "build_dir_tsan"
         TSAN_OPTIONS = 'halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0'
-        // Surface filter (your project: customise the cell list)
-        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.B9ClosedThrottleReconnectPacing:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer"
+        // Surface filter (your project: customise the cell list). Keep this in
+        // sync with the LIVE MR Jenkinsfiles' TSAN_SURFACE_FILTER — the live
+        // files are the source of truth (8 cells as of SDK-6298; see
+        // docs/methodology/tsan_discipline.md "Surface filter vs full sweep").
+        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion:SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool:SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds"
     }
     steps {
         timeout(time: 120, unit: 'MINUTES') {

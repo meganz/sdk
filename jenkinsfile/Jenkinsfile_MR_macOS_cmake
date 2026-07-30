@@ -424,7 +424,7 @@ pipeline {
                         // --gtest_filter= alongside --tsan. User filter wins below.
                         // SDK-5360 fu8 S12: + the two watchdog cells (CI TSAN previously never covered
                         // the watchdog/pause recovery paths; S11 carry-over ruled in by the user).
-                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion"
+                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion:SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool:SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds"
                     }
                     steps {
                         timeout(time: 90, unit: 'MINUTES') {
