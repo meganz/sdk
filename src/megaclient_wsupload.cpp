@@ -495,16 +495,14 @@ ws::WsQuotaQueueFit MegaClient::wsQuotaQueueFitSnapshot()
         if (t->state == TRANSFERSTATE_COMPLETING || t->state == TRANSFERSTATE_COMPLETED)
             continue; // finishing / deduct-eligible: not part of the outstanding queue
 
-        // Count t->size ONCE per distinct pool among this transfer's balance-bearing
-        // targets (a multi-target transfer to the same pool must not double-count).
-        std::unordered_set<std::uint64_t> seenThisTransfer;
+        // Count t->size once per TARGET, matching the ledger's outstanding
+        // accumulation and deductOnCompletion: a multi-target transfer creates one
+        // node per target File, so two targets in one pool consume 2 * size.
         for (File* f: t->files)
         {
             if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h))
                 continue; // no balance data => fail-open (contributes nothing)
             const std::uint64_t key = wsQuotaClassifyPool(f->h).first;
-            if (!seenThisTransfer.insert(key).second)
-                continue; // pool already counted for this transfer
             Accum& a = pools[key];
             a.sum += t->size;
             // availableFor/isForeignGroup answer per merged pool, so any member folder

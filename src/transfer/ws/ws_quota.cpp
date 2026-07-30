@@ -18,8 +18,6 @@
 
 #include "mega/logging.h"
 
-#include <algorithm>
-
 namespace mega
 {
 namespace ws
@@ -232,10 +230,15 @@ void UploadQuotaManager::beginOutstandingAccumulation()
 void UploadQuotaManager::addOutstandingForTargets(const std::vector<NodeHandle>& folders,
                                                   m_off_t size)
 {
-    // Count `size` once per DISTINCT pool among a transfer's target folders: two
-    // targets sharing one pool (own-account siblings) contribute a single amount.
-    // N is tiny (targets of one transfer), so a linear "already seen" scan is fine.
-    std::vector<std::size_t> seenPools;
+    // Count `size` once per TARGET, NOT once per distinct pool. A multi-target
+    // transfer uploads the bytes once but creates one NODE per target File
+    // (File::completed -> one sendPutnodesOfUpload each), and quota is storage, not
+    // bandwidth: N targets in one pool consume N * size of that pool. This mirrors
+    // deductOnCompletion (also per File) and is what keeps the documented
+    // `remaining >= outstanding` invariant true across completions — a per-pool
+    // dedup credited 1x while completion debited Nx, so `unconstrained()` could
+    // read true for a pool that was about to be overshot and the predictive hold
+    // would silently fail to arm.
     for (const NodeHandle folder: folders)
     {
         const auto it = mPoolByFolder.find(folder.as8byte());
@@ -243,13 +246,7 @@ void UploadQuotaManager::addOutstandingForTargets(const std::vector<NodeHandle>&
         {
             continue; // unknown folder: not in any known pool
         }
-        const std::size_t idx = it->second;
-        if (std::find(seenPools.begin(), seenPools.end(), idx) != seenPools.end())
-        {
-            continue; // already counted this pool for this transfer
-        }
-        seenPools.push_back(idx);
-        mPools[idx].outstanding += size;
+        mPools[it->second].outstanding += size;
     }
 }
 

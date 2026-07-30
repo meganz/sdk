@@ -116,8 +116,10 @@ public:
     // Outstanding (queued+running WS upload bytes) accumulation, driven by the
     // client's one O(N) evaluation scan:
     //   begin  -> zero every pool's outstanding,
-    //   addOutstandingForTargets(folders, size) -> add `size` ONCE per distinct
-    //             pool among a transfer's target folders (dedup handled here),
+    //   addOutstandingForTargets(folders, size) -> add `size` once per TARGET
+    //             folder (a multi-target transfer creates one node per target, so
+    //             two targets in one pool consume 2 * size of that pool — same
+    //             convention as deductOnCompletion),
     //   finish -> recompute unconstrained() = all pools remaining >= outstanding.
     void beginOutstandingAccumulation();
     void addOutstandingForTargets(const std::vector<NodeHandle>& folders, m_off_t size);

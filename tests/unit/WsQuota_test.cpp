@@ -675,4 +675,53 @@ TEST(WsQuota, QueueFitComputation)
     }
 }
 
+// U15 — a multi-target transfer counts once per TARGET, not once per pool, and the
+// documented `remaining >= outstanding` invariant survives its completion.
+// (followup1 Goal-0 audit: outstanding used to dedup by pool while
+// deductOnCompletion debited per File, so a same-pool 2-target transfer credited
+// 1x and debited 2x — unconstrained() could read true for a pool about to be
+// overshot, silently disarming the predictive hold.)
+TEST(WsQuotaLedger, MultiTargetSamePoolCountsPerTarget)
+{
+    const m_off_t size = 100;
+    UploadQuotaManager mgr;
+    const NodeHandle a = nh(0xA1); // two own-account folders...
+    const NodeHandle b = nh(0xB2); // ...that share ONE physical pool
+
+    seed(mgr, WsTfsGroupBalances{{150, {a, b}}}, ownPool());
+    EXPECT_TRUE(mgr.unconstrained()); // nothing queued yet
+
+    // One transfer, two targets in the same pool: 2 nodes will be created, so the
+    // pool must be charged 2 * size = 200 against remaining 150 -> constrained.
+    mgr.beginOutstandingAccumulation();
+    mgr.addOutstandingForTargets({a, b}, size);
+    mgr.finishOutstandingAccumulation();
+    EXPECT_FALSE(mgr.unconstrained())
+        << "a 2-target transfer of 100 into a 150-byte pool must read as constrained";
+
+    // Completion debits per File (2 x 100): remaining 150 -> clamped 0, and the
+    // matching outstanding credit is fully consumed, so the invariant holds.
+    mgr.deductOnCompletion(a, size);
+    mgr.deductOnCompletion(b, size);
+    EXPECT_EQ(mgr.availableFor(a), 0);
+    EXPECT_EQ(mgr.availableFor(b), 0);
+    mgr.beginOutstandingAccumulation();
+    mgr.finishOutstandingAccumulation();
+    EXPECT_TRUE(mgr.unconstrained()) // queue is empty again
+        << "remaining >= outstanding must hold after the completion";
+
+    // Control: two targets in DIFFERENT pools are charged size each, not 2x in one.
+    UploadQuotaManager split;
+    const Classifier byHandle = [](NodeHandle h) -> std::pair<std::uint64_t, bool>
+    {
+        return std::make_pair(h.as8byte(), false);
+    };
+    seed(split, WsTfsGroupBalances{{150, {a}}, {150, {b}}}, byHandle);
+    split.beginOutstandingAccumulation();
+    split.addOutstandingForTargets({a, b}, size);
+    split.finishOutstandingAccumulation();
+    EXPECT_TRUE(split.unconstrained())
+        << "one target per pool at 100 into 150-byte pools must stay unconstrained";
+}
+
 #endif // MEGA_USE_WSUPLOAD
