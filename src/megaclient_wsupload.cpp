@@ -202,8 +202,22 @@ std::pair<std::uint64_t, bool> MegaClient::wsQuotaClassifyPool(NodeHandle h)
         // Own account: files/vault/rubbish unify into one physical quota pool.
         return {mNodeManager.getRootNodeFiles().as8byte(), false};
     }
-    // Inshare root / writable folder-link root: one pool each, foreign.
-    return {getrootnode(node)->nodeHandle().as8byte(), true};
+    // Inshare / writable folder-link: FOREIGN, keyed by the OWNER. Two folders
+    // shared by the same user draw on ONE physical account quota, so they must
+    // merge into one pool (min-merge) exactly like own-account roots do.
+    // Keying by the share ROOT instead gives each share its own pool, and since
+    // the deduct-on-completion ledger debits only the completing upload's pool,
+    // a sibling share of the same owner keeps a STALE full balance: the next
+    // upload there is predicted to fit and fails at putnodes — precisely the
+    // EOVERQUOTA this feature exists to predict away (T25 discriminates).
+    std::shared_ptr<Node> shareRoot = getrootnode(node);
+    if (shareRoot && shareRoot->owner != UNDEF)
+    {
+        return {shareRoot->owner, true};
+    }
+    // Owner unknown (e.g. a folder link with no owner attribute): isolate the
+    // share in its own pool — conservative, never contaminates another pool.
+    return {shareRoot ? shareRoot->nodeHandle().as8byte() : h.as8byte(), true};
 }
 
 void MegaClient::wsQuotaFlush()

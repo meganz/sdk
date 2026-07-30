@@ -1,6 +1,6 @@
 /**
  * @file SdkWsQuotaTest.cpp
- * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T24).
+ * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T25).
  *
  * These cells exercise the predictive WS upload-quota ledger through the Q9 test
  * seams (analysis/DESIGN_IMPL_SDK6298.md): H1 onWsTfsIssued, H2 onWsTfsResult
@@ -2341,6 +2341,168 @@ TEST_F(SdkWsUploadTest, QuotaHeldFileDoesNotStarvePoolUnderCap)
     ASSERT_EQ(seq.front().code, API_EOVERQUOTA);
     ASSERT_EQ(seq.back().kind, WsQuotaHoldTracker::Event::Kind::Finish);
     ASSERT_EQ(seq.back().code, API_OK);
+}
+
+// ============================================================================
+// T25 QuotaSameOwnerInsharesShareOnePool  (2 accounts)
+// ============================================================================
+// Pool-identity discriminator for the DECISION-P1-POOLKEY contract on the
+// FOREIGN side (followup1 Goal-0 audit finding I-4: the docs promised
+// "each inshare OWNER = one pool" while the classifier keyed by share ROOT).
+// Two folders shared by the SAME owner draw on ONE physical account quota, so
+// they must merge into one pool. The discriminator is the deduct-on-completion
+// ledger, not the fit predicate (which is per-upload individual fit): after an
+// upload into share 1 completes and debits the pool, an equally-sized upload
+// into share 2 must be predictively HELD.
+//   owner-keyed (correct): share2's balance is debited to 0 -> file2 HELD.
+//   root-keyed  (bug):     share2 keeps a stale full balance -> file2 sails
+//                          through and fails later at putnodes.
+TEST_F(SdkWsUploadTest, QuotaSameOwnerInsharesShareOnePool)
+{
+    LOG_info << "___TEST QuotaSameOwnerInsharesShareOnePool___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // --- B (account 1) creates TWO folders in its own cloud ---
+    std::unique_ptr<MegaNode> bRoot{megaApi[1]->getRootNode()};
+    ASSERT_TRUE(bRoot);
+    const ::MegaHandle bFolder1 = createFolder(1, makeBinName("t25_share1_").c_str(), bRoot.get());
+    const ::MegaHandle bFolder2 = createFolder(1, makeBinName("t25_share2_").c_str(), bRoot.get());
+    ASSERT_NE(bFolder1, ::mega::UNDEF);
+    ASSERT_NE(bFolder2, ::mega::UNDEF);
+
+    std::vector<std::string> localFiles;
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            for (const ::MegaHandle fh: {bFolder1, bFolder2})
+                if (std::unique_ptr<MegaNode> n{megaApi[1]->getNodeByHandle(fh)})
+                    (void)synchronousRemove(1, n.get()); // drops the share + contents
+            for (const auto& nm: localFiles)
+                deleteFile(nm);
+        });
+
+    // --- ensure A<->B contact (tolerant of pre-existing contact state) ---
+    std::unique_ptr<MegaUser> bContactOfA{megaApi[0]->getContact(mApi[1].email.c_str())};
+    const bool alreadyContacts =
+        bContactOfA && bContactOfA->getVisibility() == MegaUser::VISIBILITY_VISIBLE;
+    if (!alreadyContacts)
+    {
+        const std::string msg = "SDK-6298 T25 same-owner inshare pool";
+        mApi[0].contactRequestUpdated = false;
+        ASSERT_NO_FATAL_FAILURE(
+            inviteContact(1, mApi[0].email, msg, MegaContactRequest::INVITE_ACTION_ADD));
+        ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated))
+            << "A did not receive B's contact request";
+        ASSERT_NO_FATAL_FAILURE(getContactRequest(0, false));
+        mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+        ASSERT_NO_FATAL_FAILURE(
+            replyContact(mApi[0].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT, 0));
+        ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated));
+        ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated));
+        mApi[0].cr.reset();
+    }
+
+    // --- B shares BOTH folders FULL with A; A waits for both inshares ---
+    for (const ::MegaHandle fh: {bFolder1, bFolder2})
+    {
+        std::unique_ptr<MegaNode> bFolder{megaApi[1]->getNodeByHandle(fh)};
+        ASSERT_TRUE(bFolder);
+        ASSERT_NO_FATAL_FAILURE(
+            shareFolder(bFolder.get(), mApi[0].email.c_str(), MegaShare::ACCESS_FULL, 1));
+    }
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::unique_ptr<MegaNode> n1{megaApi[0]->getNodeByHandle(bFolder1)};
+            std::unique_ptr<MegaNode> n2{megaApi[0]->getNodeByHandle(bFolder2)};
+            return n1 && n2 && n1->isNodeKeyDecrypted() && n2->isNodeKeyDecrypted();
+        },
+        60000))
+        << "both inshares never became visible/decrypted to A";
+    std::unique_ptr<MegaNode> share1{megaApi[0]->getNodeByHandle(bFolder1)};
+    std::unique_ptr<MegaNode> share2{megaApi[0]->getNodeByHandle(bFolder2)};
+    ASSERT_TRUE(share1);
+    ASSERT_TRUE(share2);
+    const ::mega::NodeHandle share1H = toNodeHandle(bFolder1);
+    const ::mega::NodeHandle share2H = toNodeHandle(bFolder2);
+
+    const std::string file1 = makeBinName("ws_quota_t25_1_");
+    const std::string file2 = makeBinName("ws_quota_t25_2_");
+    constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(file1, fileSize, "1"));
+    ASSERT_TRUE(createFileWithSize(file2, fileSize, "2"));
+    localFiles = {file1, file2};
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsQuotaDeductedCapture deducted;
+    WsTfsResultScript script;
+    WsQuotaHoldTracker holdTracker(megaApi[0].get());
+    // Each share reports EXACTLY one file's worth of room. Owner-merged that is
+    // one pool with room for one file total; root-keyed it is two pools with room
+    // for one file EACH.
+    script.setDefaultPlan(WsTfsResultScript::withGroups(::mega::WsTfsGroupBalances{
+        {static_cast<::m_off_t>(fileSize), {share1H}},
+        {static_cast<::m_off_t>(fileSize), {share2H}},
+    }));
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+
+    // Phase 1: file1 -> share1 fits exactly (size == remaining, not >) and completes,
+    // so the ledger deducts its bytes from the owner's pool.
+    TransferTracker tracker1(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(file1, share1.get(), nullptr, &uploadOptions, &tracker1);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker1.mTag.load() >= 0;
+        },
+        30000));
+    const int tag1 = tracker1.mTag.load();
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
+        << "tfs never issued after enqueue (issuances=0)";
+    ASSERT_EQ(tracker1.waitForResult(kCompleteTimeoutS), API_OK)
+        << "the exactly-fitting inshare upload should complete";
+    ASSERT_EQ(holdChanged.heldCountFor(tag1), 0) << "an exactly-fitting upload must not be held";
+    ASSERT_TRUE(deducted.waitForFire(kHoldTimeout))
+        << "completion did not deduct from the ledger (H6 never fired)";
+
+    // Phase 2 — THE DISCRIMINATOR: an equally-sized upload into the SIBLING share
+    // of the SAME owner must now be held, because the deduction consumed the one
+    // physical pool both shares draw on. Throttled so the hold can be observed
+    // before any completion path is reached.
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+    TransferTracker tracker2(megaApi[0].get());
+    megaApi[0]->startUpload(file2, share2.get(), nullptr, &uploadOptions, &tracker2);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker2.mTag.load() >= 0;
+        },
+        30000));
+    const int tag2 = tracker2.mTag.load();
+    ASSERT_TRUE(holdChanged.waitForHold(tag2, kHoldTimeout))
+        << "sibling-share upload was NOT held: the two same-owner inshares are being "
+           "treated as independent pools, so the completion deduction never debited "
+           "share 2 (DECISION-P1-POOLKEY foreign-side violation)";
+    const auto hold2 = holdChanged.firstHold(tag2);
+    ASSERT_TRUE(hold2.has_value());
+    ASSERT_TRUE(hold2->foreign) << "an inshare hold must carry the foreign flag";
+    ASSERT_TRUE(holdTracker.waitForTemporaryError(tag2, kHoldTimeout));
+
+    // Phase 3: a generous re-query releases it and it completes.
+    script.setDefaultPlan(WsTfsResultScript::generous({share1H, share2H}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(holdChanged.waitForRelease(tag2, kHoldTimeout))
+        << "hold never released after the generous re-query";
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(tracker2.waitForResult(kCompleteTimeoutS), API_OK)
+        << "sibling-share upload did not complete after release";
 }
 
 } // namespace mega::test::wsupload
