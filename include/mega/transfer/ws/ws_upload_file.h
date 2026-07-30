@@ -470,9 +470,11 @@ public:
 
     // Predictive WS upload-quota hold (SDK-6298), an engine-side bit independent
     // of the user/global pause bit so the two compose by construction. Holding
-    // invalidates outstanding work and closes the FA (same proven semantics as
-    // pause): the in-flight chunk is requeued, the connection kept, and the file
-    // resumes without a fresh onStart once released.
+    // invalidates outstanding work and requests an FA close (same semantics as
+    // pause; best-effort under the S12 try-lock closeFA() — a reader stuck in a
+    // filesystem syscall keeps the FA open, and the bumped work generation
+    // discards that reader's result): the in-flight chunk is requeued, the
+    // connection kept, and the file resumes without a fresh onStart once released.
     void setQuotaHeld(const bool q) noexcept
     {
         WSUPLOAD_TRACE << "[WsUploadFile::setQuotaHeld] q=" << q << " [this = " << this << "]";
