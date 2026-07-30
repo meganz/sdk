@@ -171,6 +171,23 @@ void MegaClient::wsQuotaInvalidateAndMarkDirty()
         mWsQuota->invalidate();
 }
 
+void MegaClient::wsQuotaOnNodesRemoved()
+{
+    if (!mWsQuota || !mWsEngineStarted)
+        return;
+    // No balances yet => fail-open, nothing to re-evaluate. Unconstrained => every
+    // pool already covers its outstanding bytes, so a pool GROWING cannot change a
+    // decision: stay silent (this is what keeps ordinary deletions free of `tfs`).
+    if (!mWsQuota->haveBalances() || mWsQuota->unconstrained())
+        return;
+
+    // markDirty, NOT invalidate: a removal never makes an in-flight reply
+    // dangerous, only conservatively stale. The generation guard keeps ordering
+    // correct — the in-flight reply applies under its own gen, then the still-set
+    // dirty flag issues gen+1 with post-removal balances.
+    mWsQuota->markDirty();
+}
+
 std::pair<std::uint64_t, bool> MegaClient::wsQuotaClassifyPool(NodeHandle h)
 {
     std::shared_ptr<Node> node = nodeByHandle(h);

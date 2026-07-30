@@ -679,6 +679,9 @@ public:
     void wsQuotaFlush();
     void wsQuotaOnUploadCompleted(Transfer& t);
     void wsQuotaReassertHold(Transfer& t);
+    // A locally-visible node removal is the only local evidence that a quota pool
+    // can have GROWN. Inert unless some pool is currently constrained.
+    void wsQuotaOnNodesRemoved();
 
     // WS upload-quota internals (client-thread-only; drive mWsQuota).
     // Handle a "tfs" reply for generation `gen`. firstPass=false is a bounded

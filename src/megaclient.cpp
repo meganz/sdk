@@ -9644,6 +9644,18 @@ std::shared_ptr<Node> MegaClient::sc_deltree(JSON& json, bool& moveOperation)
                     {
                         useralerts.convertNotedSharedNodes(false, originatingUser);
                     }
+#ifdef MEGA_USE_WSUPLOAD
+                    // SDK-6298: a locally-visible removal is the only local evidence a
+                    // quota pool can have GROWN — own account or a visible inshare
+                    // subtree (frees in an owner's account OUTSIDE the share stay
+                    // invisible to us, matching the no-foreign-re-poll ruling). Fired
+                    // for moves too: a move across the share boundary does change two
+                    // pools' balances. Event-driven and state-gated, never periodic:
+                    // the callee returns immediately unless a pool is constrained, and
+                    // the dirty flag + in-flight guard coalesce a delete storm into at
+                    // most one follow-up `tfs` per exec cycle.
+                    wsQuotaOnNodesRemoved();
+#endif
                 }
 
                 return moveOperation ? n : nullptr;
