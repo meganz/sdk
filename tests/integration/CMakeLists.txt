@@ -9,6 +9,7 @@ target_sources(test_integration
     SdkTestSyncNodesOperations.h
     SdkTestSyncPrevalidation.h
     test.h
+    api_request_hook.h
     integration_test_utils.h
     mock_listeners.h
     sdk_test_share.h
@@ -33,6 +34,7 @@ target_sources(test_integration
     Sync_test.cpp
     one_question_survey_test.cpp
     sdk_test_purge_notification.cpp
+    api_request_hook.cpp
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
     SdkTestPersistConnections_test.cpp
@@ -47,6 +49,7 @@ target_sources(test_integration
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp
+    SdkTestSyncOverquotaReason_test.cpp
     SdkTestSyncVersionedNodeDeletion_test.cpp
     SdkTestCaseInsensitiveCollision_test.cpp
     backup_sync_operations_test.cpp
