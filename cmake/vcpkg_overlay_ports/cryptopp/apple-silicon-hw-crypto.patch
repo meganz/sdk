@@ -1,0 +1,14 @@
+--- a/cpu.cpp
++++ b/cpu.cpp
+@@ -240,7 +240,10 @@
+ 				brand.resize(size);
+ 			}
+ 
+-			if (brand == "Apple M1")
++			// All Apple Silicon brand strings start with "Apple M"
++			// ("Apple M1", "Apple M1 Max", "Apple M2 Pro", ...), and all
++			// of them implement the ARMv8.2 crypto extensions.
++			if (brand.compare(0, 7, "Apple M") == 0)
+ 			{
+ 				m_device = Mac;
+ 				m_arch = ARMV82;

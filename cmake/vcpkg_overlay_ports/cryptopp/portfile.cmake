@@ -18,6 +18,7 @@ vcpkg_from_github(
   PATCHES
       patch.patch
       cryptopp.patch
+      apple-silicon-hw-crypto.patch
 )
 
 file(COPY "${CMAKE_SOURCE_PATH}/cryptopp" DESTINATION "${SOURCE_PATH}")
