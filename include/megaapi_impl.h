@@ -231,6 +231,45 @@ public:
     }
 };
 
+class CollisionChecker
+{
+public:
+    enum class Option
+    {
+        Begin = 1,
+        AssumeSame = 1,
+        AlwaysError = 2,
+        Fingerprint = 3,
+        Metamac = 4,
+        AssumeDifferent = 5,
+        End = 6,
+    };
+
+    enum class Result
+    {
+        NotYet = 1, // Not checked yet
+        Skip = 2, // Skip it
+        ReportError = 3, // Report Error
+        Download = 4, // Download it
+    };
+
+    // Use faGetter instead of a FileAcccess instance which delays the access to the file system and
+    // only does it based on demand by check. This helps in a network folder.
+    static Result check(FileSystemAccess* fsaccess,
+                        const LocalPath& fileLocalPath,
+                        MegaNode* fileNode,
+                        Option option);
+    static Result check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option);
+    static Result check(std::function<FileAccess*()> faGetter, Node* node, Option option);
+
+private:
+    static Result check(std::function<bool()> fingerprintEqualF,
+                        std::function<bool()> metamacEqualF,
+                        Option option);
+    static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+    static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
+};
+
 class MegaRecursiveOperation : public MegaTransferListener
 {
 public:
@@ -569,7 +608,12 @@ protected:
         }
 
         LocalPath localPath;
+
+        // Only store TYPE_FILE child node.
         vector<unique_ptr<MegaNode>> childrenNodes;
+
+        // Collision check decision per entry in childrenNodes.
+        vector<CollisionChecker::Result> childrenCollisionDecisions;
     };
     vector<LocalTree> mLocalTree;
 
@@ -580,11 +624,16 @@ protected:
     // Create all local directories in one shot. This happens on the worker thread.
     std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error& e);
 
+    // Do file collision checks in parallel, reports STAGE_SCAN progress whose filecount is the
+    // number of files processed.
+    bool runCollisionCheckPrepass(FileSystemType fsType, Error& e);
+
     // Iterate through all pending files, and adds all download transfers
     bool genDownloadTransfersForFiles(TransferQueue* transferQueue,
                                       LocalTree& folder,
-                                      FileSystemType fsType,
-                                      bool folderExists);
+                                      FileSystemType fsType);
+    // Calls notifyStage, need fire on main thread via executeOnThread.
+    void notifyStageThreadSafe(uint8_t stage);
 };
 
 namespace totp
@@ -1604,40 +1653,6 @@ public:
 
 private:
     std::vector<MegaVpnRegionPrivate> mRegions;
-};
-
-class CollisionChecker
-{
-public:
-    enum class Option
-    {
-        Begin   = 1,
-        AssumeSame      = 1,
-        AlwaysError     = 2,
-        Fingerprint     = 3,
-        Metamac         = 4,
-        AssumeDifferent = 5,
-        End     = 6,
-    };
-
-    enum class Result
-    {
-        NotYet      = 1,                // Not checked yet
-        Skip        = 2,                // Skip it
-        ReportError = 3,                // Report Error
-        Download    = 4,                // Download it
-    };
-
-    // Use faGetter instead of a FileAcccess instance which delays the access to the file system and only does it based
-    // on demand by check. This helps in a network folder.
-    static Result check(FileSystemAccess* fsaccess, const LocalPath &fileLocalPath, MegaNode* fileNode, Option option);
-    static Result check(std::function<FileAccess* ()> faGetter, MegaNode* fileNode, Option option);
-    static Result check(std::function<FileAccess* ()> faGetter, Node* node, Option option);
-
-private:
-    static Result check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option);
-    static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
-    static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
 };
 
 class MegaTransferPrivate : public MegaTransfer, public Cacheable
@@ -6869,7 +6884,7 @@ private:
     std::unique_ptr<MegaNodeTree> mNodeTreeChild;
     std::string mName;
     std::string mS4AttributeValue;
-    // new leaf-file-node is created from upload-token or as a 
+    // new leaf-file-node is created from upload-token or as a
     // copy of an existing node (cannot use both at the same time)
 
     // data to create node from upload-token
@@ -7108,7 +7123,6 @@ public:
     void setFlags(const MegaMountFlags* flags) override;
 
     void setHandle(MegaHandle handle) override;
-    
     void setPath(const char* path) override;
 }; // MegaMountPrivate
 
