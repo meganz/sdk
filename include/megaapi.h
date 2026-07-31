@@ -6524,6 +6524,7 @@ public:
         EVENT_NETWORK_ACTIVITY = 22,
         EVENT_TRANSFERS_RESUMED = 23,
         EVENT_LAST_PURGE = 24,
+        EVENT_STREAM_OVERQUOTA = 25,
     };
 
     enum
@@ -6674,6 +6675,16 @@ public:
      *   PURGE_REASON_INACTIVE when warning history is available, otherwise empty.
      *   To suppress across sessions and devices, call setLastPurgeAcknowledged(ts) on dismiss.
      *
+     * - EVENT_STREAM_OVERQUOTA (25):
+     *   A streaming read (MegaApi::startStreaming or the local HTTP streaming server) could not
+     *   proceed because the account is over its transfer quota. Streaming reads are not backed by
+     *   a MegaTransfer, so they cannot report this through a normal transfer listener.
+     *   Use getNumber() for the number of seconds left in the overquota state.
+     *   The blocked read is dropped rather than retried: the streaming client decides when to try
+     *   again, and each new attempt raises this event again. Consecutive events are throttled,
+     *   because media players tend to reconnect every few seconds while blocked.
+     *   MegaApi::getBandwidthOverquotaDelay() reports the remaining time at any point.
+     *
      * @return Event type, from the MegaEvent::EventType enum.
      */
     virtual int getType() const;
@@ -6758,6 +6769,9 @@ public:
      *     - 2: Public RSA key
      *     - 3: Signature of chat key
      *     - 4: Signature of RSA key
+     *
+     * - EVENT_STREAM_OVERQUOTA:
+     *   Provides the number of seconds left in the transfer overquota state.
      *
      * @return Number relative to this event.
      */
