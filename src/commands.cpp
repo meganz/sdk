@@ -1993,7 +1993,8 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
-                        client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                        client->mSerializedPrivateRsaKey.resize(
+                            Base64::btoaSize(static_cast<size_t>(len_privk)));
                         client->mSerializedPrivateRsaKey.resize(
                             Base64::btoa(privkbuf,
                                          static_cast<size_t>(len_privk),
@@ -5093,7 +5094,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             if (len_privk)
             {
                 client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
-                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                privk.resize(Base64::btoaSize(static_cast<size_t>(len_privk)));
                 privk.resize(
                     Base64::btoa(privkbuf, static_cast<size_t>(len_privk), (char*)privk.data()));
 
