@@ -5590,6 +5590,9 @@ public:
         // notify about a storage event
         void notify_storage(int) override;
 
+        // notify about a streaming bandwidth overquota event
+        void notify_stream_overquota(dstime) override;
+
         // notify about account confirmation
         void notify_confirmation(const char*) override;
 
