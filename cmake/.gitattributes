@@ -1,1 +1,7 @@
-*.patch binary
+# Patch bodies carry the line endings of the sources they apply to (some
+# upstreams, like cryptopp, ship CRLF), so keep them byte-exact: EOL
+# normalization on commit would strip those CRs and break "git apply" by hand.
+# Do not use "binary" here: it also unsets diff and merge, which hides patch
+# contents in git diff and in the GitLab web UI.
+*.patch -text
+*.diff -text
