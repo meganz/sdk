@@ -2238,6 +2238,9 @@ public:
     void resumeTransfersForNotLoggedInInstance();
     void resumeTransferFromDB();
 
+    // When false, cached transfers are kept persisted but not auto-resumed at boot
+    bool mAutoResumeTransfers = true;
+
     // application callbacks
     struct MegaApp* app;
 

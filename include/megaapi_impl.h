@@ -4526,6 +4526,7 @@ class MegaApiImpl : public MegaApp
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
         bool areTransfersPaused(int direction);
         void resumeTransfersForNotLoggedInInstance();
+        void setAutoResumeTransfers(bool enable);
         void setMaxConnections(int direction,
                                int connections,
                                MegaRequestListener* listener = NULL);

@@ -24388,6 +24388,12 @@ void MegaApiImpl::resumeTransfersForNotLoggedInInstance()
     client->resumeTransfersForNotLoggedInInstance();
 }
 
+void MegaApiImpl::setAutoResumeTransfers(bool enable)
+{
+    SdkMutexGuard g(sdkMutex);
+    client->mAutoResumeTransfers = enable;
+}
+
 error MegaApiImpl::performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)
 {
             bool automove = request->getFlag();

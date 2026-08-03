@@ -5762,7 +5762,7 @@ void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChangin
             syncsAlreadyLoadedOnStatecurrent = true;
         }
 #endif
-        if (tctable && cachedfiles.size())
+        if (mAutoResumeTransfers && tctable && cachedfiles.size())
         {
             resumeTransferFromDB();
         }
@@ -15901,7 +15901,7 @@ void MegaClient::enabletransferresumption()
 
     // if we are logged in but the filesystem is not current yet
     // postpone the resumption until the filesystem is updated
-    if ((!sid.size() && !loggedIntoFolder()) || statecurrent)
+    if (mAutoResumeTransfers && ((!sid.size() && !loggedIntoFolder()) || statecurrent))
     {
         resumeTransferFromDB();
     }
