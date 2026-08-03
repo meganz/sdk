@@ -3728,6 +3728,26 @@ public:
         return mCategory;
     }
 
+    void bySubCategory(int subtype) override
+    {
+        switch (subtype)
+        {
+            case MegaNodeScopeFilter::FILE_SUBTYPE_NONE:
+            case MegaNodeScopeFilter::FILE_SUBTYPE_GIF:
+            case MegaNodeScopeFilter::FILE_SUBTYPE_RAW:
+                mSubCategory = subtype;
+                return;
+            default:
+                LOG_warn << "Invalid value for bySubCategory: " << subtype << ". Ignored.";
+                return;
+        }
+    }
+
+    int bySubCategory() const override
+    {
+        return mSubCategory;
+    }
+
     void byLocationHandles(const MegaHandleList* ancestorHandles) override
     {
         copyMegaHandleListInto(ancestorHandles, mLocationHandles);
@@ -3777,6 +3797,26 @@ public:
         return mSensitivity;
     }
 
+    void byFavourite(int boolFilterOption) override
+    {
+        switch (boolFilterOption)
+        {
+            case MegaNodeScopeFilter::BOOL_FILTER_DISABLED:
+            case MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE:
+            case MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE:
+                mFavourite = boolFilterOption;
+                return;
+            default:
+                LOG_warn << "Invalid value for byFavourite: " << boolFilterOption << ". Ignored.";
+                return;
+        }
+    }
+
+    int byFavourite() const override
+    {
+        return mFavourite;
+    }
+
 protected:
     static void copyMegaHandleListInto(const MegaHandleList* src, std::vector<MegaHandle>& dst)
     {
@@ -3797,6 +3837,8 @@ protected:
     }
 
     int mCategory = MegaApi::FILE_TYPE_DEFAULT;
+    int mSubCategory = MegaNodeScopeFilter::FILE_SUBTYPE_NONE;
+    int mFavourite = MegaNodeScopeFilter::BOOL_FILTER_DISABLED;
     std::vector<MegaHandle> mLocationHandles; // empty == use mLocation scope
     std::vector<MegaHandle> mExcludeLocationHandles; // empty == disabled
     int mLocation = MegaNodeScopeFilter::LOCATION_CLOUD_DRIVE_AND_VAULT;

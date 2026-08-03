@@ -497,6 +497,33 @@ MimeType_t Node::getMimetype(const std::string& ext)
     return MimeType_t::MIME_TYPE_OTHERS;
 }
 
+// Invariant: any extension classified GIF/RAW here must also be MIME_TYPE_PHOTO (getMimetype),
+// else the sub-category filter — which only narrows a FILE_TYPE_PHOTO query — silently drops it.
+// Guarded by FileSubType.SubCategoryExtensionsAreAlsoPhotos.
+FileSubType_t Node::getFileSubType(const std::string& ext)
+{
+    const nameid id = getExtensionNameId(ext);
+    const std::set<nameid>& raws = photoRawExtensions();
+    if (raws.find(id) != raws.end())
+        return FileSubType_t::FILE_SUBTYPE_RAW;
+    if (id == makeNameid("gif"))
+        return FileSubType_t::FILE_SUBTYPE_GIF;
+    return FileSubType_t::FILE_SUBTYPE_NONE;
+}
+
+MimeType_t Node::fileSubTypeParent(FileSubType_t subType)
+{
+    switch (subType)
+    {
+        case FILE_SUBTYPE_GIF:
+        case FILE_SUBTYPE_RAW:
+            return MimeType_t::MIME_TYPE_PHOTO;
+        case FILE_SUBTYPE_NONE:
+        default:
+            return MimeType_t::MIME_TYPE_UNKNOWN;
+    }
+}
+
 nameid Node::getExtensionNameId(const std::string& ext)
 {
     if (ext.length() > 8)

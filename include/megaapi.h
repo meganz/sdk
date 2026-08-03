@@ -11002,7 +11002,7 @@ public:
  *
  * Deliberately narrower than MegaSearchFilter: only the fields the flat,
  * cursor-paginated queries can honour. byName / byTag / byDescription /
- * byFavourite / time windows / byNodeType / text-search operators are
+ * time windows / byNodeType / text-search operators are
  * intentionally absent — use MegaApi::search / MegaApi::getChildren for those.
  *
  * Scope (resolved in priority order):
@@ -11058,6 +11058,30 @@ public:
         LOCATION_CLOUD_DRIVE = 0, ///< Cloud Drive only.
         LOCATION_CLOUD_DRIVE_AND_VAULT = 1, ///< Cloud Drive + Vault (default).
         LOCATION_CLOUD_DRIVE_VAULT_AND_RUBBISH = 2, ///< All three rootnodes.
+    };
+
+    /**
+     * @brief File sub-category selector for bySubCategory().
+     *
+     * Narrows a byCategory() query to a sub-category such as GIF or RAW within
+     * FILE_TYPE_PHOTO. A sub-category is an extra filter, not a new category, so
+     * a plain byCategory() query still returns its members.
+     */
+    enum
+    {
+        FILE_SUBTYPE_NONE = 0, ///< No sub-filtering (default).
+        FILE_SUBTYPE_GIF = 1, ///< Only GIF files.
+        FILE_SUBTYPE_RAW = 2, ///< Only RAW files.
+    };
+
+    /**
+     * @brief Tri-state selector for byFavourite().
+     */
+    enum
+    {
+        BOOL_FILTER_DISABLED = 0, ///< No favourite filtering (default).
+        BOOL_FILTER_ONLY_TRUE = 1, ///< Only favourites.
+        BOOL_FILTER_ONLY_FALSE = 2, ///< Only non-favourites.
     };
 
     /// Maximum number of handles accepted by byLocationHandles() and
@@ -11141,6 +11165,27 @@ public:
      */
     virtual void bySensitivity(int filterOption);
     virtual int bySensitivity() const;
+
+    /**
+     * @brief Optional. Narrow a query to a file sub-category (e.g. GIF or RAW
+     *        within FILE_TYPE_PHOTO).
+     *
+     * One of FILE_SUBTYPE_NONE (default), FILE_SUBTYPE_GIF, FILE_SUBTYPE_RAW; other
+     * values are ignored. Applied on top of byCategory(), so it only narrows; pairing it
+     * with a category that can't contain it (e.g. FILE_TYPE_VIDEO + GIF) yields an empty result.
+     */
+    virtual void bySubCategory(int subtype);
+    virtual int bySubCategory() const;
+
+    /**
+     * @brief Optional. Filter by favourite flag.
+     *
+     * One of BOOL_FILTER_DISABLED (default), BOOL_FILTER_ONLY_TRUE, BOOL_FILTER_ONLY_FALSE;
+     * other values are ignored.
+     */
+    // Declared last so adding it doesn't renumber the other virtuals' vtable slots.
+    virtual void byFavourite(int boolFilterOption);
+    virtual int byFavourite() const;
 };
 
 /**
@@ -11148,8 +11193,8 @@ public:
  *        anchor (byTimestampAnchor).
  *
  * Cursor validity: a cursor built from a previous page is only reusable when
- * the filter's scope tuple (byCategory, byLocation, byLocationHandles,
- * byExcludeLocationHandles, bySensitivity) and the sort order all match the
+ * the filter's scope tuple (byCategory, bySubCategory, byLocation, byLocationHandles,
+ * byExcludeLocationHandles, bySensitivity, byFavourite) and the sort order all match the
  * original call. Mixing configurations may skip or duplicate entries — restart
  * pagination when any of these change.
  */

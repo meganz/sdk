@@ -7582,6 +7582,20 @@ int MegaNodeScopeFilter::byCategory() const
     return MegaApi::FILE_TYPE_DEFAULT;
 }
 
+void MegaNodeScopeFilter::bySubCategory(int /*subtype*/) {}
+
+int MegaNodeScopeFilter::bySubCategory() const
+{
+    return MegaNodeScopeFilter::FILE_SUBTYPE_NONE;
+}
+
+void MegaNodeScopeFilter::byFavourite(int /*boolFilterOption*/) {}
+
+int MegaNodeScopeFilter::byFavourite() const
+{
+    return MegaNodeScopeFilter::BOOL_FILTER_DISABLED;
+}
+
 void MegaNodeScopeFilter::byLocationHandles(const MegaHandleList* /*ancestorHandles*/) {}
 
 MegaHandleList* MegaNodeScopeFilter::byLocationHandles() const

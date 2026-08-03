@@ -13549,7 +13549,42 @@ bool MegaApiImpl::parseListAllFilterIntoBase(const MegaNodeScopeFilter* filter,
                                logPrefix))
         return false;
 
+    static_assert(static_cast<int>(MegaNodeScopeFilter::FILE_SUBTYPE_NONE) == FILE_SUBTYPE_NONE &&
+                      static_cast<int>(MegaNodeScopeFilter::FILE_SUBTYPE_GIF) == FILE_SUBTYPE_GIF &&
+                      static_cast<int>(MegaNodeScopeFilter::FILE_SUBTYPE_RAW) == FILE_SUBTYPE_RAW,
+                  "public FILE_SUBTYPE_* must match FileSubType_t");
+
+    // bySubCategory() is an overridable public getter and its value becomes a bounded
+    // cache-key digit, so an out-of-range value must be rejected here: an overflowing digit
+    // would alias one filter's prepared statement onto another's slot.
+    const int subCategory = filter->bySubCategory();
+    if (subCategory < FILE_SUBTYPE_NONE || subCategory > FILE_SUBTYPE_MAX)
+    {
+        LOG_warn << logPrefix << ": invalid bySubCategory value " << subCategory;
+        return false;
+    }
+
+    static_assert(static_cast<int>(MegaNodeScopeFilter::BOOL_FILTER_DISABLED) ==
+                          FAVOURITE_FILTER_DISABLED &&
+                      static_cast<int>(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE) ==
+                          FAVOURITE_FILTER_ONLY_TRUE &&
+                      static_cast<int>(MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE) ==
+                          FAVOURITE_FILTER_ONLY_FALSE,
+                  "public BOOL_FILTER_* must match FavouriteFilter_t");
+
+    // byFavourite() is an overridable public getter and its value becomes a bounded cache-key
+    // digit, so an out-of-range value must be rejected here (the validating setter can be bypassed
+    // by a misbehaving binding subclass); an overflowing digit would alias prepared statements.
+    const int favourite = filter->byFavourite();
+    if (favourite < FAVOURITE_FILTER_DISABLED || favourite > FAVOURITE_FILTER_MAX)
+    {
+        LOG_warn << logPrefix << ": invalid byFavourite value " << favourite;
+        return false;
+    }
+
     out.mimeType = static_cast<MimeType_t>(mimeType);
+    out.fileSubType = static_cast<FileSubType_t>(subCategory);
+    out.favouriteFilter = static_cast<FavouriteFilter_t>(favourite);
     out.excludeSensitive =
         (filter->bySensitivity() == MegaNodeScopeFilter::SENSITIVITY_HIDE_SENSITIVE);
     out.explicitAncestors = std::move(explicitAncestors);
