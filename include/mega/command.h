@@ -930,9 +930,32 @@ private:
 class MEGA_API CommandQueryTransferQuota : public Command
 {
 public:
+    // Receives the code the API answered with. When absent, the code is reported through
+    // MegaApp::querytransferquota_result instead, which is how app-issued queries are answered.
+    using Completion = std::function<void(int /*code*/)>;
+
     bool procresult(Result, JSON&) override;
 
-    CommandQueryTransferQuota(MegaClient*, m_off_t size);
+    /**
+     * Query the transfer quota for the free user.
+     *
+     * @param ownNodes handles of own nodes to account for
+     * @param publicNodes handles of public nodes to account for
+     * @param extraSize bytes to add to (or, when negative, subtract from) the size of the nodes,
+     *                  only sent when not 0
+     * @param completion completion callback
+     * @note Both node lists are optional, but they MUST NOT both be empty.
+     */
+    CommandQueryTransferQuota(MegaClient*,
+                              const std::vector<handle>& ownNodes,
+                              const std::vector<handle>& publicNodes,
+                              m_off_t extraSize = 0,
+                              Completion&& completion = {});
+
+private:
+    Completion mCompletion;
+
+    void reportCode(int code);
 };
 
 class MEGA_API CommandGetUserTransactions : public Command

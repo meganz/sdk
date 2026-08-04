@@ -27,6 +27,7 @@
 #import "MEGAAccountType.h"
 #import "MEGAPaymentMethod.h"
 #import "MEGAStringIntegerMap.h"
+#import "MEGATransferQuotaState.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -59,6 +60,33 @@ NS_ASSUME_NONNULL_BEGIN
  * @brief Maximum available bandwidth for the account (in bytes).
  */
 @property (readonly, nonatomic) long long transferMax;
+
+/**
+ * @brief Transfer quota state for the account, as a traffic light.
+ *
+ * The state is the ratio between [MEGAAccountDetails transferUsed] and
+ * [MEGAAccountDetails transferMax].
+ *
+ * Valid values are:
+ * - MEGATransferQuotaStateGreen = 0
+ * Below 90% of the allowance is used
+ *
+ * - MEGATransferQuotaStateOrange = 1
+ * From 90% to 99% of the allowance is used
+ *
+ * - MEGATransferQuotaStateRed = 2
+ * Above 99% of the allowance is used
+ *
+ * - MEGATransferQuotaStateUnknown = -9
+ * No allowance is configured, which is the case for free accounts. Use
+ * [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:] for those
+ *
+ * The light means the same either way — orange warns that little quota is left, red that there is
+ * none to spare — but it is derived differently: from the allowance ratio here, and from the API's
+ * verdict on a specific set of nodes in [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:].
+ *
+ */
+@property (readonly, nonatomic) MEGATransferQuotaState transferQuotaState;
 
 /**
  * @brief PRO level of the MEGA account.

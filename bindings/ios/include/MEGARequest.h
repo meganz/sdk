@@ -251,7 +251,9 @@ typedef NS_ENUM (NSInteger, MEGARequestType) {
     MEGARequestTypeAddSyncPrevalidation = 207,
     MEGARequestTypeGetMaxConnections = 208,
     MEGARequestTypeGetSubscriptionCancellationDetails = 209,
-    TotalOfRequestTypes = 210
+    MEGARequestTypeQueryProTransferQuotaStateLite = 213,
+    MEGARequestTypeEstimateFreeTransferQuotaState = 214,
+    TotalOfRequestTypes = 215
 };
 
 typedef NS_ENUM (NSInteger, MEGANodeAccessLevel) {
@@ -491,6 +493,14 @@ NS_SWIFT_SENDABLE
  * This value is valid for these requests:
  * - [MEGASdk retryPendingConnections] - Returns if transfers are retried
  * - [MEGASdk submitFeedbackWithRating:comment:] - Returns the rating for the app
+ *
+ * This value is valid for these requests in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:] - Transfer quota state for those nodes, as a
+ *   traffic light: MEGATransferQuotaStateGreen (enough transfer quota), MEGATransferQuotaStateOrange
+ *   (they can be transferred, but little quota would be left afterwards),
+ *   MEGATransferQuotaStateRed (not enough quota to transfer them all),
+ *   MEGATransferQuotaStateUnknown.
  *
  */
 @property (readonly, nonatomic) long long number;

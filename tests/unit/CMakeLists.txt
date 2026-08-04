@@ -48,6 +48,7 @@ target_sources(test_unit
     Sync_test.cpp
     SyncUploadThrottling_test.cpp
     TextChat_test.cpp
+    TransferQuotaChecker_test.cpp
     Transfer_test.cpp
     Transferstats_test.cpp
     User_test.cpp

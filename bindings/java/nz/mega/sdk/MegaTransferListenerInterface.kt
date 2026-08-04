@@ -144,4 +144,32 @@ interface MegaTransferListenerInterface {
         currentFolder: String?,
         currentFileLeafName: String?,
     )
+
+    /**
+     * @brief Predicted transfer-quota state for this transfer
+     *
+     * Called once the SDK knows every file a transfer will fetch and the API has answered for
+     * them. It predicts what the account's transfer quota will look like once that transfer
+     * completes, so an app can warn before the bandwidth is spent rather than after.
+     *
+     * Currently only MegaApiJava::startDownloadBatch reports this; an ordinary download does not.
+     * Like onFolderTransferUpdate, it reaches only the listener passed to that call, not any
+     * listener registered with MegaApiJava::addTransferListener. It arrives before any of the
+     * transfer's files starts. A state that could not be determined is still reported, as
+     * MegaApiJava::TRANSFER_QUOTA_STATE_UNKNOWN, and never stops the transfer.
+     *
+     * It is reported at most once per transfer, and not at all when there was nothing to ask
+     * about or the transfer was cancelled while waiting, so an app waiting on the prediction must
+     * also treat onTransferFinish as a release condition.
+     *
+     * A default no-op is provided so implementers can adopt this callback without breaking
+     * existing listeners; only startDownloadBatch callers need to override it.
+     * 
+     * @param api MegaApiJava object that started the transfer
+     * @param transfer Information about the transfer
+     * @param state Predicted transfer quota state, one of MegaApiJava::TRANSFER_QUOTA_STATE_GREEN,
+     * MegaApiJava::TRANSFER_QUOTA_STATE_ORANGE, MegaApiJava::TRANSFER_QUOTA_STATE_RED or
+     * MegaApiJava::TRANSFER_QUOTA_STATE_UNKNOWN
+     */
+    fun onTransferQuotaState(api: MegaApiJava, transfer: MegaTransfer, state: Int) {}
 }

@@ -408,6 +408,9 @@ struct MEGA_API MegaApp
     // The parameter is the time left (in deciseconds) until the overquota state ends.
     virtual void notify_stream_overquota(dstime) {}
 
+    // Predicted transfer-quota state for a streaming read, which has no MegaTransfer to report on
+    virtual void notify_transfer_quota_state(int) {}
+
     virtual void notify_business_status(BizStatus) { }
 
     // account confirmation via signup link

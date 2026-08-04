@@ -49,6 +49,7 @@ typedef NS_ENUM(NSUInteger, Event) {
     EventTransfersResumed = 23,
     EventLastPurge = 24,
     EventStreamOverquota = 25,
+    EventTransferQuotaState = 26,
 };
 
 typedef NS_ENUM(NSInteger, ReasonError) {
@@ -90,6 +91,12 @@ NS_SWIFT_SENDABLE
 ///
 /// For `EventStreamOverquota`, this number is the number of seconds left until the
 /// bandwidth overquota state ends.
+///
+/// For `EventTransferQuotaState`, this number is the transfer quota state, as a
+/// `MEGATransferQuotaState` value. Every state is reported, green and unknown included. Without a
+/// fixed allowance it predicts where the quota lands once the streaming read finishes; with one
+/// (PRO) it is the account's current usage ratio. A batch download reports through its transfer
+/// delegate instead.
 ///
 /// For `EventReqStatProgress`, this number is the per mil progress of a long-running
 /// API operation, or -1 if there isn't any operation in progress.

@@ -1719,7 +1719,7 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
     if (timeleft)
     {
         assert(!isPaywall);
-        LOG_warn << "Bandwidth overquota for " << timeleft << " seconds";
+        LOG_warn << "Bandwidth overquota for " << timeleft << " ds";
         overquotauntil = Waiter::ds + timeleft;
 
         for (auto& it : multi_transfers[GET])
@@ -5451,6 +5451,8 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     ststatus = STORAGE_UNKNOWN;
     overquotauntil = 0;
     mLastStreamOverquotaNotifyDs = 0;
+    // reqs.clear() above drops the commands without running completions, so reset the checker too
+    mTransferQuotaChecker.reset();
     mOverquotaDeadlineTs = 0;
     mOverquotaWarningTs.clear();
     mBizGracePeriodTs = 0;
@@ -14929,9 +14931,16 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
     completion(info, API_OK);
 }
 
-void MegaClient::querytransferquota(m_off_t size)
+void MegaClient::querytransferquota(const std::vector<handle>& ownNodes,
+                                    const std::vector<handle>& publicNodes,
+                                    m_off_t extraSize,
+                                    std::function<void(int)> completion)
 {
-    queueCommand(new CommandQueryTransferQuota(this, size));
+    queueCommand(new CommandQueryTransferQuota(this,
+                                               ownNodes,
+                                               publicNodes,
+                                               extraSize,
+                                               std::move(completion)));
 }
 
 // export node link
@@ -18143,6 +18152,14 @@ void MegaClient::queueread(handle handle,
         }
         else
         {
+            // No need to pass node here. hdrns already have it.
+            mTransferQuotaChecker.check({},
+                                        {},
+                                        [this](transferquotastatus_t state, Error)
+                                        {
+                                            app->notify_transfer_quota_state(state);
+                                        });
+
             it->second->dispatch();
         }
     }

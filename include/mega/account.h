@@ -24,6 +24,8 @@
 
 #include "types.h"
 
+#include <numeric>
+
 namespace mega {
 // account details/history
 struct MEGA_API AccountBalance
@@ -106,7 +108,7 @@ struct MEGA_API AccountPlan
 
     bool isProPlan() const
     {
-        return level > ACCOUNT_TYPE_FREE && level != ACCOUNT_TYPE_FEATURE;
+        return isProAccountType(static_cast<AccountType>(level));
     }
 };
 
@@ -154,6 +156,18 @@ struct MEGA_API AccountDetails
 
     // Active plans for the account. Both PRO and feature plans.
     vector<AccountPlan> plans;
+
+    // Total transfer bandwidth consumed: own + 3rd-party-served + the temporal (per-IP window)
+    // history, capped at the allowance.
+    m_off_t transferUsed() const
+    {
+        const m_off_t total = std::accumulate(transfer_hist.begin(),
+                                              transfer_hist.end(),
+                                              transfer_own_used + transfer_srv_used);
+        // Free accounts have no allowance to cap against; a paid account's per-IP history can
+        // otherwise push the total past its max.
+        return (transfer_max && total > transfer_max) ? transfer_max : total;
+    }
 };
 
 // award classes with the award values the class is supposed to get

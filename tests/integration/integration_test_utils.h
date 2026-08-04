@@ -18,6 +18,7 @@
 #include <filesystem>
 #include <memory>
 #include <optional>
+#include <vector>
 
 namespace sdk_test
 {
@@ -289,6 +290,51 @@ std::unique_ptr<::mega::MegaNode> uploadFile(::mega::MegaApi* megaApi,
  */
 void setScParserMode(bool isStreamingMode);
 void resetScParserMode();
+
+/**
+ * @brief Removes a local file or directory tree. A missing one is not an error
+ *
+ * @return True if nothing is left at @p path
+ */
+bool removeLocalTree(const std::filesystem::path& path);
+
+/**
+ * @brief Creates <root>/sub<f>/file<i>: folders of files, with nothing directly under the root
+ *
+ * @warning @p root is REMOVED first, so the tree is exactly what this creates. Do not point it at
+ * a directory holding anything you need.
+ *
+ * @return The files created, relative to @p root
+ */
+std::vector<std::filesystem::path> createWideLocalTree(const std::filesystem::path& root,
+                                                       int folders,
+                                                       int filesPerFolder);
+
+/**
+ * @brief Creates a tree of every shape a download has to handle:
+ * <root>/{rootFile0..2, emptySub/, sub0/{file0, file1, nested/nestedFile}, sub1/{file0, file1}}
+ *
+ * Files directly under the root, a folder that holds nothing, and a nested non-empty one.
+ *
+ * @warning @p root is REMOVED first, so the tree is exactly what this creates. Do not point it at
+ * a directory holding anything you need.
+ *
+ * @return The files created, relative to @p root. The empty folder is not listed
+ */
+std::vector<std::filesystem::path> createMixedLocalTree(const std::filesystem::path& root);
+
+/**
+ * @brief Whether a transfer is one of the files of a folder or batch download
+ */
+bool isDownloadSubTransfer(const ::mega::MegaTransfer& transfer);
+
+/**
+ * @brief Whether a sub-transfer completed without fetching anything, i.e. the collision check
+ * decided the local file was already the one being downloaded
+ *
+ * Only meaningful for a non-empty file: a 0-byte one transfers no bytes either way.
+ */
+bool isSkippedDownload(const ::mega::MegaTransfer& transfer);
 }
 
 #endif // INCLUDE_INTEGRATION_INTEGRATION_TEST_UTILS_H_

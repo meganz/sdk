@@ -14,6 +14,14 @@ namespace sdk_test
 {
 using namespace mega;
 using namespace testing;
+
+namespace
+{
+// Small but non-empty, so a download of one transfers bytes and the collision check has a
+// fingerprint to compare.
+constexpr size_t TREE_FILE_SIZE = 16;
+}
+
 #ifdef ENABLE_SYNC
 
 /**
@@ -538,5 +546,66 @@ void resetScParserMode()
 #else
     // Do nothing
 #endif
+}
+
+bool removeLocalTree(const std::filesystem::path& path)
+{
+    std::error_code ignoredEc;
+    std::filesystem::remove_all(path, ignoredEc);
+    return !std::filesystem::exists(path);
+}
+
+std::vector<std::filesystem::path> createWideLocalTree(const std::filesystem::path& root,
+                                                       const int folders,
+                                                       const int filesPerFolder)
+{
+    EXPECT_TRUE(removeLocalTree(root)) << "Could not clear " << path_u8string(root);
+
+    std::vector<std::filesystem::path> files;
+    for (int f = 0; f < folders; ++f)
+    {
+        const std::filesystem::path sub{"sub" + std::to_string(f)};
+        std::filesystem::create_directories(root / sub);
+        for (int i = 0; i < filesPerFolder; ++i)
+        {
+            files.push_back(sub / ("file" + std::to_string(i)));
+            createFile(root / files.back(), TREE_FILE_SIZE);
+        }
+    }
+    return files;
+}
+
+std::vector<std::filesystem::path> createMixedLocalTree(const std::filesystem::path& root)
+{
+    EXPECT_TRUE(removeLocalTree(root)) << "Could not clear " << path_u8string(root);
+    std::filesystem::create_directories(root / "emptySub");
+    std::filesystem::create_directories(root / "sub0" / "nested");
+    std::filesystem::create_directories(root / "sub1");
+
+    std::vector<std::filesystem::path> files{"rootFile0",
+                                             "rootFile1",
+                                             "rootFile2",
+                                             std::filesystem::path{"sub0"} / "file0",
+                                             std::filesystem::path{"sub0"} / "file1",
+                                             std::filesystem::path{"sub0"} / "nested" /
+                                                 "nestedFile",
+                                             std::filesystem::path{"sub1"} / "file0",
+                                             std::filesystem::path{"sub1"} / "file1"};
+    for (const auto& relative: files)
+    {
+        createFile(root / relative, TREE_FILE_SIZE);
+    }
+    return files;
+}
+
+bool isDownloadSubTransfer(const ::mega::MegaTransfer& transfer)
+{
+    return transfer.getType() == ::mega::MegaTransfer::TYPE_DOWNLOAD &&
+           !transfer.isFolderTransfer() && transfer.getFolderTransferTag() > 0;
+}
+
+bool isSkippedDownload(const ::mega::MegaTransfer& transfer)
+{
+    return transfer.getTransferredBytes() == 0 && transfer.getTotalBytes() > 0;
 }
 }

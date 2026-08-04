@@ -69,6 +69,7 @@ set(SDKLIB_HEADERS
     include/mega/utils_optional.h
     include/mega/account.h
     include/mega/transfer.h
+    include/mega/transfer_quota_checker.h
     include/mega/transferstats.h
     include/mega/totp.h
     include/mega/treeproc.h
@@ -159,6 +160,7 @@ set(SDKLIB_SOURCES
     src/heartbeats.cpp
     src/testhooks.cpp
     src/transfer.cpp
+    src/transfer_quota_checker.cpp
     src/transferslot.cpp
     src/transferstats.cpp
     src/treeproc.cpp
