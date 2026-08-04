@@ -2682,7 +2682,6 @@ public:
     void handleScNonStreaming();
     void handleScInStreaming();
 
-    bool handleScKeepAliveInSuccessState();
     void handleScErrorInSuccessState();
     void handleScInFailureState();
     void clearForScError();

@@ -1016,6 +1016,19 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
         curl_easy_setopt(curl, CURLOPT_DEBUGDATA, (void*)req);
         curl_easy_setopt(curl, CURLOPT_VERBOSE, 1);
 
+        // An HTTPS request through any HTTP proxy is tunnelled with CONNECT; the proxy's own
+        // CONNECT response(s) ("HTTP/1.1 200 Connection established", preceded by a "407"
+        // round-trip under proxy auth) would otherwise reach check_header, where the ">= 200"
+        // status line sets HttpReq::mResponseStarted before the real request is even sent -
+        // permanently disabling the pre-response heartbeat timeout for proxied requests. Suppress
+        // the CONNECT headers so only the actual server response drives mResponseStarted. Set
+        // unconditionally: it is a no-op when no CONNECT happens (direct, SOCKS, or no proxy) and
+        // so also covers Proxy::AUTO / environment (http_proxy) proxies that curl tunnels through.
+        // cURL still performs the tunnel/auth handshake internally.
+#if LIBCURL_VERSION_NUM >= 0x073600 // CURLOPT_SUPPRESS_CONNECT_HEADERS: curl >= 7.54.0
+        curl_easy_setopt(curl, CURLOPT_SUPPRESS_CONNECT_HEADERS, 1L);
+#endif
+
         if (httpio->proxyip.size())
         {
             if (!httpio->proxyschema.size() || !httpio->proxyschema.compare(0, 4, "http"))
@@ -1835,16 +1848,7 @@ size_t CurlHttpIO::check_header(const char* ptr, size_t size, size_t nmemb, void
     const char* val = nullptr;
     if (Utils::startswith(ptr, "HTTP/"))
     {
-        if (req->contentlength >= 0)
-        {
-            // For authentication with some proxies, cURL sends two requests in the context of a single one
-            // Content-Length is reset here to not take into account the header from the first response
-
-            LOG_warn << req->getLogName()
-                     << "Receiving a second response. Resetting Content-Length";
-            req->contentlength = -1;
-        }
-
+        req->processStatusLine(ptr, len - endChars);
         return size * nmemb;
     }
     else if ((val = Utils::startswith(ptr, "Content-Length:")) != nullptr)

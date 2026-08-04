@@ -51,6 +51,17 @@ protected:
 
         return req;
     }
+
+    void setTimedOutPendingScRequest(bool responseStarted)
+    {
+        HttpReq* req = setPendingScResponse(R"({"a":[{}]})");
+        client->chooseScParsingMode();
+
+        req->status = REQ_INFLIGHT;
+        req->mResponseStarted = responseStarted;
+        req->lastdata = Waiter::ds -
+                        (responseStarted ? HttpIO::SCREQUESTTIMEOUT : HttpIO::HEARTBEATTIMEOUT) - 1;
+    }
 #endif
 };
 
@@ -176,6 +187,27 @@ TEST_F(MegaClientTest, chooseScParsingMode_DoesNothingForShortPayload)
     // No change
     EXPECT_FALSE(client->isStreamingEnabled());
     EXPECT_FALSE(pendingScHolder->mChunked);
+}
+
+TEST_F(MegaClientTest, handleScTimeoutInFlightState_PreResponseTimeoutIsRetryable)
+{
+    setTimedOutPendingScRequest(false);
+    EXPECT_TRUE(client->handleScTimeoutInFlightState());
+
+    setTimedOutPendingScRequest(false);
+    EXPECT_TRUE(client->handleScTimeoutInFlightState())
+        << "pre-response heartbeat timeouts must not leave the SC timeout latch set";
+}
+
+TEST_F(MegaClientTest, handleScTimeoutInFlightState_PostResponseTimeoutLatches)
+{
+    setTimedOutPendingScRequest(true);
+    EXPECT_TRUE(client->handleScTimeoutInFlightState());
+
+    setTimedOutPendingScRequest(true);
+    EXPECT_FALSE(client->handleScTimeoutInFlightState())
+        << "post-response timeouts must set the SC timeout latch to break an endless "
+           "request loop (until the next REQ_SUCCESS clears it)";
 }
 #endif
 
