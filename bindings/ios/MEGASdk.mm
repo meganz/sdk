@@ -4026,18 +4026,18 @@ using namespace mega;
     if (delegate == nil) return;
     
     pthread_mutex_lock(&listenerMutex);
-    _activeRequestListeners.erase(delegate);
+    size_t removed = _activeRequestListeners.erase(delegate);
     pthread_mutex_unlock(&listenerMutex);
-    delete delegate;
+    if (removed) delete delegate;
 }
 
 - (void)freeTransferListener:(DelegateMEGATransferListener *)delegate {
     if (delegate == nil) return;
     
     pthread_mutex_lock(&listenerMutex);
-    _activeTransferListeners.erase(delegate);
+    size_t removed = _activeTransferListeners.erase(delegate);
     pthread_mutex_unlock(&listenerMutex);
-    delete delegate;
+    if (removed) delete delegate;
 }
 
 - (std::unique_ptr<MegaSearchFilter>)generateSearchFilterFrom:(MEGASearchFilter *)filter {
