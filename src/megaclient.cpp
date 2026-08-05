@@ -19737,6 +19737,13 @@ error MegaClient::transferRemoteCopy(File* file,
         }
     }
 
+    // S13 round-3 (Cluster F): the same-FP+MAC remote-copy completion sends its own
+    // putnodes but bypasses File::sendPutnodesOfUpload, so the pre-putnodes test hook
+    // never fired for these tags — tripping the bench timing guard
+    // (BenchmarkRunners.cpp "Missing pre-putnodes timestamp") on any corpus with
+    // duplicate-content files (linux_9741 tag 21, linux_9747 tag 22, win_9649 tags
+    // 51+52). Fire it here so remote-copy putnodes are timed like every other upload.
+    DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
     if (inboxTarget.has_value())
     {
         putnodes(inboxTarget.value().c_str(), std::move(tc.nn), tag);

@@ -41,6 +41,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstdint>
+#include <cstdio>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
@@ -1038,6 +1039,57 @@ void runQaMixedUploadBenchmark(SdkTest& test)
     }
     LOG_info << "[BenchQaMixedUpload] sourceDir=" << sourceDir << " fileCount=" << fileCount
              << " totalBytes=" << totalBytes;
+
+    // S13 round-3 (Cluster F): manifest guard. The cell used to assert only
+    // non-emptiness, so per-agent dataset drift ran silently as the bench corpus —
+    // win_9649 measured 77 files / 394,640,726 B instead of the canonical corpus,
+    // making per-file metrics non-comparable across platforms. When the harvest
+    // manifest exists next to the dir, the enumerated set must match its trailer
+    // exactly; the harvest prunes to the manifest, so a mismatch means it was not
+    // (re-)run on this agent. Custom dirs without a manifest stay supported.
+    {
+        const fs::path manifestPath =
+            sourceDir.parent_path() / (sourceDir.filename().string() + "_manifest.tsv");
+        std::ifstream manifest(manifestPath);
+        if (manifest.is_open())
+        {
+            std::uintmax_t manifestBytes = 0;
+            std::size_t manifestCount = 0;
+            bool trailerFound = false;
+            for (std::string line; std::getline(manifest, line);)
+            {
+                std::uintmax_t b = 0;
+                std::size_t n = 0;
+                if (std::sscanf(line.c_str(),
+                                "# total_bytes=%ju file_count=%zu",
+                                &b,
+                                &n) == 2)
+                {
+                    manifestBytes = b;
+                    manifestCount = n;
+                    trailerFound = true;
+                }
+            }
+            if (trailerFound)
+            {
+                ASSERT_EQ(fileCount, manifestCount)
+                    << "dataset drift: enumerated file count does not match the harvest "
+                       "manifest — re-run SdkTest.HarvestQaMixedDataset on this agent (it "
+                       "prunes the dir to the manifest) [dir=" << sourceDir << "]";
+                ASSERT_EQ(totalBytes, manifestBytes)
+                    << "dataset drift: enumerated total bytes do not match the harvest "
+                       "manifest — re-run SdkTest.HarvestQaMixedDataset on this agent (it "
+                       "prunes the dir to the manifest) [dir=" << sourceDir << "]";
+                LOG_info << "[BenchQaMixedUpload] manifest guard OK (" << manifestCount
+                         << " files / " << manifestBytes << " bytes)";
+            }
+            else
+            {
+                LOG_warn << "[BenchQaMixedUpload] manifest present but no trailer — guard "
+                            "skipped: " << manifestPath;
+            }
+        }
+    }
 
     LOG_info << "___TEST___ " << kTestName;
     ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
