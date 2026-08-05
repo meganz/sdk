@@ -11317,11 +11317,9 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
     std::ofstream manifest(manifestPath, std::ios::trunc);
     ASSERT_TRUE(manifest.is_open()) << "cannot open manifest " << manifestPath;
 
-    std::int64_t downloadedBytes = 0;
-    std::size_t downloadedCount = 0;
-    for (const HarvestNode* hn: chosen)
+    // Sanitize a leaf name (folder-link names can contain path separators).
+    const auto sanitizeLeafName = [](const HarvestNode* hn)
     {
-        // Sanitize the leaf name (folder-link names can contain path separators).
         std::string safeName = hn->name;
         for (char& c: safeName)
         {
@@ -11337,6 +11335,31 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
                                        MegaApi::handleToBase64(hn->node->getHandle())}
                                        .get()};
         }
+        return safeName;
+    };
+    // S13 round-3 (Cluster F): repeated leaf names among the chosen nodes used to
+    // collide at download time, leaving " (1)" copies on disk that no manifest row
+    // describes — one source of the per-agent dataset drift that made win_9649 run
+    // 77 files / 394,640,726 B instead of the canonical corpus. Uniquify repeats
+    // deterministically (handle suffix) before downloading instead.
+    std::map<std::string, int> nameUses;
+    for (const HarvestNode* hn: chosen)
+    {
+        ++nameUses[sanitizeLeafName(hn)];
+    }
+
+    std::int64_t downloadedBytes = 0;
+    std::size_t downloadedCount = 0;
+    std::set<std::string> manifestNames;
+    for (const HarvestNode* hn: chosen)
+    {
+        std::string safeName = sanitizeLeafName(hn);
+        if (nameUses[safeName] > 1)
+        {
+            const std::unique_ptr<char[]> handleSuffix{
+                MegaApi::handleToBase64(hn->node->getHandle())};
+            safeName += std::string{"_"} + handleSuffix.get();
+        }
         const fs::path target = destDir / safeName;
 
         std::error_code sizeEc;
@@ -11348,6 +11371,9 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
         else
         {
             TransferTracker tt(api.get());
+            // S13 round-3 (Cluster F): OVERWRITE, not NEW_WITH_N — this is a dataset
+            // mirror, and NEW_WITH_N turned every re-download of a changed/partial
+            // file into an extra " (N)" copy accumulating on the persistent agent dir.
             api->startDownload(hn->node.get(),
                                target.string().c_str(),
                                nullptr /*customName*/,
@@ -11355,7 +11381,7 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
                                false /*startFirst*/,
                                nullptr /*cancelToken*/,
                                MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
-                               MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N /*collisionResolution*/,
+                               MegaTransfer::COLLISION_RESOLUTION_OVERWRITE /*collisionResolution*/,
                                false /*undelete*/,
                                &tt);
             ASSERT_EQ(API_OK, tt.waitForResult(kNetTimeoutS)) << "download failed for: " << safeName;
@@ -11365,6 +11391,7 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
 
         const std::unique_ptr<char[]> handleB64{MegaApi::handleToBase64(hn->node->getHandle())};
         manifest << safeName << '\t' << hn->size << '\t' << handleB64.get() << '\n';
+        manifestNames.insert(safeName);
         downloadedBytes += hn->size;
         ++downloadedCount;
     }
@@ -11372,6 +11399,54 @@ TEST_F(SdkTest, HarvestQaMixedDataset)
     manifest.close();
     LOG_info << "[HarvestQaMixedDataset] wrote manifest " << manifestPath << " (" << downloadedCount
              << " files, " << downloadedBytes << " bytes)";
+
+    // S13 round-3 (Cluster F): prune-to-manifest. The persistent per-agent dir keeps
+    // whatever older harvests left behind (" (N)" collision copies, retired
+    // selections), silently changing the bench corpus per platform — the bench cell
+    // only asserted non-emptiness. Delete everything the manifest does not list, then
+    // hard-assert the final on-disk state so drift can never reach the bench unnoticed.
+    std::size_t prunedCount = 0;
+    std::error_code iterEc;
+    for (const auto& entry: fs::directory_iterator(destDir, iterEc))
+    {
+        std::error_code entryEc;
+        if (!entry.is_regular_file(entryEc) || entryEc)
+        {
+            continue;
+        }
+        const std::string leaf = entry.path().filename().string();
+        if (manifestNames.count(leaf))
+        {
+            continue;
+        }
+        std::error_code rmEc;
+        const auto staleSize = fs::file_size(entry.path(), rmEc);
+        fs::remove(entry.path(), rmEc);
+        LOG_warn << "[HarvestQaMixedDataset] pruned stale file not in manifest: " << leaf << " ("
+                 << staleSize << " bytes)";
+        ASSERT_FALSE(rmEc) << "cannot prune stale dataset file " << entry.path() << ": "
+                           << rmEc.message();
+        ++prunedCount;
+    }
+    ASSERT_FALSE(iterEc) << "cannot enumerate dataset dir for prune: " << iterEc.message();
+
+    std::int64_t diskBytes = 0;
+    std::size_t diskCount = 0;
+    for (const auto& entry: fs::directory_iterator(destDir))
+    {
+        std::error_code entryEc;
+        if (entry.is_regular_file(entryEc) && !entryEc)
+        {
+            diskBytes += static_cast<std::int64_t>(entry.file_size());
+            ++diskCount;
+        }
+    }
+    LOG_info << "[HarvestQaMixedDataset] prune done: removed " << prunedCount
+             << " stale files; dataset now " << diskCount << " files / " << diskBytes << " bytes";
+    ASSERT_EQ(diskCount, downloadedCount)
+        << "dataset drift survived the prune (file count) — dir " << destDir;
+    ASSERT_EQ(diskBytes, downloadedBytes)
+        << "dataset drift survived the prune (total bytes) — dir " << destDir;
 
     RequestTracker logoutTracker{api.get()};
     api->logout(false /*keepSyncConfigsFile*/, &logoutTracker);
