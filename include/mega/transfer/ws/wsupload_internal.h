@@ -582,6 +582,12 @@ struct WsPool
     dstime mLastServerResponse{0};
     dstime mPausedByServerUntil{0};
 
+    // S13 round-3 (Cluster G): resend-stall watchdog clocks (WsPoolMgr::checkPools).
+    // Armed while the pool holds unpaused-owner resend entries with zero in-flight and
+    // no serve; reset by the resend-serve path in nextChunk. uploadMutex-guarded.
+    dstime mResendStallSinceDs{0};
+    bool mResendStallReprimed{false};
+
     unsigned char mNumberOfConnections{3};
     bool mRetiring{false};
     bool mPinned{false};

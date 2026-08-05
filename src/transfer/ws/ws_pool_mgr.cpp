@@ -76,6 +76,7 @@
 #include <cassert>
 #include <cstddef>
 #include <cstdint>
+#include <cstdio>
 #include <memory>
 #include <string>
 #include <utility>
@@ -741,6 +742,147 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
             DEBUG_TEST_HOOK_WS_SILENT_BYTE_SHORTFALL_RECOVERY(fileno, fpool);
 #endif
+        }
+    }
+
+    // S13 round-3 (Cluster G): resend-stall watchdog — the blind spot BETWEEN the three
+    // existing detectors. win_9642/win_9649 terminal telemetry showed bp=0 inflight=0
+    // resend=1..2 with confirmedBytes frozen for 40-140 s and ZERO watchdog arms:
+    // ack-stall needs in-flight work, tail/shortfall need the file's resend queue empty,
+    // so a pool whose resend SERVE path is jammed (unpaused owners, no in-flight, no
+    // server throttle, grants not flowing) is invisible to all of them by construction.
+    // Linux cannot form the state (bare-host: acks beat force-closes so mToResend never
+    // populates — trace-proven; poorRTT ×8: grants flow) — this detector is therefore
+    // both the un-wedge AND the Windows evidence channel:
+    //   stage 1 (reprime): dump the budget/waiter state (the RCA payload) and clear the
+    //     budget-waiter queue — a stale head-of-line waiter blocks every grant by design
+    //     of the strict-FIFO rule; entries re-register on their next ask, so clearing is
+    //     free for a healthy pool. Wake the workers.
+    //   stage 2 (full restart): if a second window expires still stalled, the proven
+    //     tail-watchdog clean-restart for the stalled owners.
+    // Window = the shortfall window scaled to fair low-cap physics: under a cap C the
+    // front need N legitimately waits ~N/C per competitor grant (strict FIFO), so the
+    // bound is max(window, 3*N*10ds/C) — a correct capped engine never arms.
+    if (impl.mAckStallWatchdog && impl.mTailCompletionWatchdog)
+    {
+        const dstime stallBaseWindow = impl.tailCompletionTimeoutDs();
+        for (const auto& pptr: mPools)
+        {
+            if (!pptr)
+                continue;
+            WsPool& pool = *pptr;
+            if (pool.mToResend.empty() || pool.mNumChunksInFlight > 0 ||
+                pool.throttledByServer())
+            {
+                pool.mResendStallSinceDs = 0;
+                pool.mResendStallReprimed = false;
+                continue;
+            }
+            bool anyUnpausedOwner = false;
+            m_off_t frontNeed = 0;
+            for (const WsChunk& rc: pool.mToResend)
+            {
+                WsUploadFile* const owner = pool.findFile(rc.fileno, impl);
+                if (owner && !owner->paused())
+                {
+                    anyUnpausedOwner = true;
+                    if (!frontNeed)
+                        frontNeed = static_cast<m_off_t>(rc.len);
+                }
+            }
+            if (!anyUnpausedOwner)
+            {
+                // All owners paused: the legitimate parked state (Cluster-B fix), not a stall.
+                pool.mResendStallSinceDs = 0;
+                pool.mResendStallReprimed = false;
+                continue;
+            }
+            dstime window = stallBaseWindow;
+            if (impl.mMaxUploadSpeed > 0 && frontNeed > 0)
+            {
+                const dstime accrualDs =
+                    static_cast<dstime>((frontNeed * 10 * 3) / impl.mMaxUploadSpeed);
+                window = std::max(window, accrualDs);
+            }
+            if (!pool.mResendStallSinceDs)
+            {
+                pool.mResendStallSinceDs = impl.currentTime;
+                continue;
+            }
+            if (SteadyTime::difference(impl.currentTime, pool.mResendStallSinceDs) <= window)
+            {
+                continue;
+            }
+            // Expired. The state dump IS the RCA payload for the CI log.
+            {
+                std::string waiters;
+                for (const auto& w: impl.mBudgetWaiters)
+                {
+                    waiters += " {key=";
+                    char buf[32];
+                    std::snprintf(buf, sizeof(buf), "%p", w.key);
+                    waiters += buf;
+                    waiters += " bytes=" + std::to_string(w.bytes) +
+                               " ageDs=" + std::to_string(
+                                   SteadyTime::difference(impl.currentTime, w.lastAskDs)) + "}";
+                }
+                LOG_warn << "[WsPoolMgr::checkPools] RESEND-STALL "
+                         << (pool.mResendStallReprimed ? "stage-2 (restart)" : "stage-1 (reprime)")
+                         << ": pool=" << &pool << " resend=" << pool.mToResend.size()
+                         << " frontNeed=" << frontNeed << " inflight=0 windowDs=" << window
+                         << " budget=" << impl.mUploadBudget
+                         << " maxSpeed=" << impl.mMaxUploadSpeed
+                         << " waiters=" << impl.mBudgetWaiters.size() << waiters
+                         << " (Cluster G, S13)";
+            }
+            if (!pool.mResendStallReprimed)
+            {
+                impl.mBudgetWaiters.clear();
+                pool.mResendStallReprimed = true;
+                pool.mResendStallSinceDs = impl.currentTime;
+                impl.notifyWorkersLocked();
+                continue;
+            }
+            // Stage 2: clean full restart of the stalled unpaused owners (the proven
+            // tail/shortfall recovery — rebuilds MAC state; AlreadyOnServer re-credits).
+            std::vector<std::uint32_t> stalledOwners;
+            for (const WsChunk& rc: pool.mToResend)
+            {
+                WsUploadFile* const owner = pool.findFile(rc.fileno, impl);
+                if (owner && !owner->paused() &&
+                    std::find(stalledOwners.begin(), stalledOwners.end(), rc.fileno) ==
+                        stalledOwners.end())
+                {
+                    stalledOwners.push_back(rc.fileno);
+                }
+            }
+            for (const std::uint32_t fno: stalledOwners)
+            {
+                WsUploadFile* const owner = pool.findFile(fno, impl);
+                if (!owner)
+                    continue;
+                LOG_warn << "[WsPoolMgr::checkPools] RESEND-STALL restarting file " << fno
+                         << " confirmed=" << owner->bytesConfirmed() << " size=" << owner->size()
+                         << " (Cluster G, S13)";
+                pool.purgeFileLocked(fno);
+                if (pool.mUploadingFile == owner)
+                {
+                    pool.clearUploadingFileLocked();
+                }
+                pool.mUFTQversion = impl.queueVersion.load(std::memory_order_relaxed);
+                owner->markFailedForRetry(0);
+                owner->unsetPool();
+                if (impl.mCb.onFail)
+                {
+                    impl.mCb.onFail(owner->transfer(),
+                                    API_EAGAIN,
+                                    0,
+                                    UploadEngine::FailureDisposition::Retryable);
+                }
+            }
+            pool.mResendStallSinceDs = 0;
+            pool.mResendStallReprimed = false;
+            impl.notifyWorkersLocked();
         }
     }
 

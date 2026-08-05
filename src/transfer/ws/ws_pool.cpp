@@ -463,6 +463,9 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             return false;
         }
         mToResend.erase(mToResend.begin() + static_cast<std::ptrdiff_t>(ri));
+        // Resend served: disarm the resend-stall watchdog (Cluster G, S13).
+        mResendStallSinceDs = 0;
+        mResendStallReprimed = false;
         WSUPLOAD_TRACE << "WsUpload: resending chunk pos=" << chunk.pos << " len=" << chunk.len
                   << " fileno=" << chunk.fileno;
         return true;
