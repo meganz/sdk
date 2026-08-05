@@ -472,6 +472,12 @@ public:
     // Live pool-worker count for the bounded locallogout quiesce (entry/exit in
     // WsPool::poolWorkerThread).
     std::atomic<int> mLiveWorkerThreads{0};
+    // S13 round-3 (Cluster I+J / SDK-6298 FU1 §4.1): manager-thread liveness for the
+    // same quiesce. workersQuiesced() previously implied only pool-worker exit, so
+    // ~Impl's uploadThread.join() could hang unbounded and UNLOGGED when the manager
+    // was wedged — the "Logout failed after 600 seconds" CI job-killers. Set/cleared
+    // by UploadEngine::Impl::run() itself (true at body entry, false as it returns).
+    std::atomic<bool> mManagerThreadLive{false};
     bool paused{false};
     // Loss-recovery feature flags. Each is assigned EXACTLY ONCE in the ctor (before any
     // worker/manager thread exists) and never mutated thereafter, so it is effectively

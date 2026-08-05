@@ -235,7 +235,23 @@ bool UploadEngine::isStopping() const
 
 bool UploadEngine::workersQuiesced() const
 {
-    return pImpl->mLiveWorkerThreads.load(std::memory_order_acquire) == 0;
+    // S13 round-3 (Cluster I+J / SDK-6298 FU1 §4.1): cover the manager thread too.
+    // Pool-worker-only quiesce let ~Impl's uploadThread.join() hang unbounded and
+    // unlogged when the manager was wedged — the "Logout failed after 600 seconds"
+    // round-3 CI job-killers. True now means EVERY engine thread body has exited,
+    // so the destructor joins are guaranteed prompt.
+    return pImpl->mLiveWorkerThreads.load(std::memory_order_acquire) == 0 &&
+           !pImpl->mManagerThreadLive.load(std::memory_order_acquire);
+}
+
+int UploadEngine::liveWorkerCount() const
+{
+    return pImpl->mLiveWorkerThreads.load(std::memory_order_acquire);
+}
+
+bool UploadEngine::managerThreadLive() const
+{
+    return pImpl->mManagerThreadLive.load(std::memory_order_acquire);
 }
 
 void UploadEngine::enqueue(Transfer& t)

@@ -457,7 +457,7 @@ void* MegaClient::wsHandshakeForUpload(const std::string& url, long timeoutMs, s
     return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err));
 }
 
-void MegaClient::wsDrainClientActions(dstime maxExecTimeDs)
+void MegaClient::wsDrainClientActions(dstime maxExecTimeDs, bool loudPhases)
 {
     CodeCounter::ScopeTimer clientActionTime(performanceStats.clientThreadActions);
     const dstime ctr_start = waiter->ds;
@@ -472,6 +472,13 @@ void MegaClient::wsDrainClientActions(dstime maxExecTimeDs)
                 break;
             f = std::move(mWsClientActions.front());
             mWsClientActions.pop_front();
+        }
+        // S13 round-3 (Cluster I+J): a wedged lambda logs nothing on its own — the
+        // post-drain dt log below only fires after it RETURNS. On the locallogout
+        // path, pre-log each action so a pin names the drain phase + action index.
+        if (loudPhases)
+        {
+            LOG_debug << "WsUpload locallogout: draining action #" << ctr_N;
         }
         // [SyncPutnodesDiag] measure single-lambda drain time — identifies
         // whether wsVerifyUploadUnchanged FS open is the slow leg on Windows.
@@ -1119,9 +1126,24 @@ void MegaClient::wsApplyLatchedTransferStats(Transfer& t)
 // maybeStartWsUploadEngine() will recreate the engine lazily after the next login.
 void MegaClient::wsLocallogoutCleanup()
 {
+    // S13 round-3 (Cluster I+J): phase-stamped so any future wedge names its phase —
+    // the round-3 "Logout failed after 600 seconds" CI aborts were completely silent
+    // between "MediaInfo version" and the harness timeout.
+    const auto logoutT0 = std::chrono::steady_clock::now();
+    const auto phaseMs = [&logoutT0]()
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - logoutT0)
+            .count();
+    };
     if (m_wsEngine)
+    {
+        LOG_debug << "WsUpload locallogout: stop() begin";
         m_wsEngine->stop();
-    wsDrainClientActions(30);
+        LOG_debug << "WsUpload locallogout: stop() done (" << phaseMs() << " ms)";
+    }
+    wsDrainClientActions(30, /*loudPhases=*/true);
+    LOG_debug << "WsUpload locallogout: drain done (" << phaseMs() << " ms)";
     if (m_wsEngine)
     {
         // S12 Cluster-E fix: the engine destructor joins worker threads UNBOUNDED. A
@@ -1140,11 +1162,19 @@ void MegaClient::wsLocallogoutCleanup()
         {
             LOG_err << "WsUpload: engine workers did not quiesce at locallogout — "
                        "intentionally leaking the engine to avoid an unbounded thread "
-                       "join (stuck filesystem IO?) (Cluster E, S12)";
+                       "join (stuck filesystem IO?) (Cluster E, S12)"
+                    << " [liveWorkers=" << m_wsEngine->liveWorkerCount()
+                    << " managerLive=" << m_wsEngine->managerThreadLive()
+                    << " elapsedMs=" << phaseMs() << "]";
             MEGA_WS_LSAN_IGNORE(m_wsEngine.release());
+        }
+        else
+        {
+            LOG_debug << "WsUpload locallogout: engine quiesced (" << phaseMs() << " ms)";
         }
     }
     m_wsEngine.reset();
+    LOG_debug << "WsUpload locallogout: engine destroyed (" << phaseMs() << " ms)";
     mWsEngineStarted = false;
 }
 

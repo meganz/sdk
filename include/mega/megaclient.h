@@ -578,7 +578,8 @@ class MEGA_API MegaClient
     WsVerifyResult wsVerifyUploadUnchanged(Transfer& t, TransferDbCommitter& committer);
     void wsFinalizeUploadCompletion(Transfer& t);
     void wsScheduleVerifyUpload(Transfer& t);
-    void wsDrainClientActions(dstime maxExecTimeDs = 5);
+    // loudPhases: pre-log each drained action (locallogout path — Cluster I+J, S13).
+    void wsDrainClientActions(dstime maxExecTimeDs = 5, bool loudPhases = false);
     void wsProcessVerifyUploads();
     void wsCleanupPreflightRequests();
     void wsRefreshCanStartAnotherFileSnapshot();

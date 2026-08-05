@@ -203,20 +203,39 @@ public:
     }
 
     // S12 Cluster-E: acquire mReadMutex WITHOUT ever blocking while engineMutex is held
-    // (see closeFA). Yields the engine lock in 1 ms slices while contended. Returns false
-    // when the upload's work generation changed while yielding — the caller treats that
-    // as an interrupted read. On true, ioLock owns mReadMutex and engineMutex is held.
+    // (see closeFA). Yields the engine lock while contended. Returns false when the
+    // upload's work generation changed — or the engine began stopping — while yielding;
+    // the caller treats that as an interrupted read. On true, ioLock owns mReadMutex
+    // and engineMutex is held.
+    // S13 round-3 (Cluster I+J): the yield slice BACKS OFF 1 -> 64 ms. The previous
+    // fixed 1 ms unlock/relock churn starved threads BLOCKED on engineMutex for the
+    // full duration of a stuck sibling read on platforms with barging mutex handoff
+    // (Windows SRW, macOS first-fit pthread): the running spinner re-won the lock
+    // every slice, so locallogout's freeq(PUT)->remove()/stop() never acquired and
+    // NEITHER bounded escape hatch could fire — logout sat pinned to the stuck read
+    // (macos_9454/win_9642: logoutMs ~= the whole 15 s injected read; Linux masked
+    // the churn via futex wake ordering). With the backoff, the engine mutex stays
+    // free in >=64 ms stretches, so a blocked acquirer wins within a few slices.
     bool lockReadYieldingEngine(std::unique_lock<std::mutex>& ioLock,
                                 std::mutex& engineMutex,
                                 const std::uint64_t expectedGeneration)
     {
+        int backoffMs = 1;
         while (!ioLock.try_lock())
         {
             engineMutex.unlock();
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            std::this_thread::sleep_for(std::chrono::milliseconds(backoffMs));
+            backoffMs = std::min(backoffMs * 2, 64);
             engineMutex.lock();
             if (mWorkGeneration != expectedGeneration)
             {
+                return false;
+            }
+            if (mEngineStopping && mEngineStopping->load(std::memory_order_acquire))
+            {
+                // Engine teardown in progress: bail as an interrupted read so the
+                // locallogout quiesce window sees this worker exit instead of it
+                // spinning on a parked/abandoned file.
                 return false;
             }
         }

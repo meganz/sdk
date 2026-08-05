@@ -66,6 +66,7 @@
 #include "mega/utils.h" // Utils::getenv (cross-platform env read for wsLossRecoveryEnvDefault)
 
 #include <algorithm>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib> // std::strtol (wsDatasetConnLimitOverrideEnvDefault)
@@ -594,6 +595,40 @@ bool wsSmallFileColdStartEnvDefault()
 
 // ========== Lifecycle ==========
 
+namespace
+{
+// S13 round-3 (Cluster I+J): engine-mutex acquisitions on the client thread's
+// locallogout path (freeq(PUT) -> remove(), then stop()) were silent and unbounded —
+// when the acquirer was starved (see WsUploadFile::lockReadYieldingEngine) the wedge
+// produced zero telemetry between "MediaInfo version" and the harness's 600 s logout
+// timeout. Acquire with periodic loud progress: the acquisition itself must stay
+// unbounded (callers need the lock for correctness), so the loudness IS the safety
+// net — any future pin names its phase and elapsed wait in the SDK log.
+std::unique_lock<std::mutex> lockEngineMutexLoudly(std::mutex& m, const char* who)
+{
+    std::unique_lock<std::mutex> g(m, std::try_to_lock);
+    if (g.owns_lock())
+        return g;
+    const auto start = std::chrono::steady_clock::now();
+    auto nextWarn = start + std::chrono::seconds(1);
+    while (!g.try_lock())
+    {
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= nextWarn)
+        {
+            LOG_warn << "WsUpload: " << who
+                     << " still waiting for the engine mutex ("
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(now - start)
+                            .count()
+                     << " ms) — stuck reader churn / wedged manager? (Cluster I+J, S13)";
+            nextWarn = now + std::chrono::seconds(10);
+        }
+    }
+    return g;
+}
+} // namespace
+
 UploadEngine::Impl::~Impl()
 {
     WSUPLOAD_TRACE << "[UploadEngine::Impl::~Impl] BEGIN";
@@ -631,8 +666,9 @@ void UploadEngine::Impl::stop()
 {
     mStopping.store(true, std::memory_order_release);
 
-    // Stop everything under the same mutex the workers use.
-    std::lock_guard<std::mutex> g(uploadMutex);
+    // Stop everything under the same mutex the workers use. Loud acquisition: this is
+    // the locallogout path's first stop-phase lock (Cluster I+J, S13).
+    auto g = lockEngineMutexLoudly(uploadMutex, "stop()");
     paused = true;
     uploadThreadRunning = false; // lets run() break out
 
@@ -749,6 +785,8 @@ void UploadEngine::Impl::kick()
 // Manager thread
 void UploadEngine::Impl::run()
 {
+    // S13 round-3: liveness for the locallogout quiesce — see mManagerThreadLive.
+    mManagerThreadLive.store(true, std::memory_order_release);
     uploadThreadRunning = true;
     std::unique_lock<std::mutex> lk(uploadMutex);
     while (uploadThreadRunning)
@@ -769,6 +807,8 @@ void UploadEngine::Impl::run()
         cleanupExitedPoolThreads(lk);
     }
     uploadThreadRunning = false;
+    lk.unlock();
+    mManagerThreadLive.store(false, std::memory_order_release);
 }
 
 // ========== Queue mutation ==========
@@ -860,7 +900,10 @@ void UploadEngine::Impl::remove(Transfer& t)
 {
     std::unique_ptr<WsUploadFile> removed;
     {
-        std::lock_guard<std::mutex> g(uploadMutex);
+        // Loud acquisition: freeq(PUT) calls this on the client thread BEFORE stop()
+        // during locallogout, while workers and the manager still churn the mutex —
+        // the round-3 starvation pinned exactly this lock (Cluster I+J, S13).
+        auto g = lockEngineMutexLoudly(uploadMutex, "remove()");
         auto it = files.find(&t);
         if (it == files.end())
             return;
@@ -907,7 +950,7 @@ void UploadEngine::Impl::remove(Transfer& t)
         LOG_err << "WsUpload: removal abandoned file " << removed->fileno()
                 << " with stuck IO (blocked filesystem read?) — parked in the engine "
                    "graveyard (Cluster E, S12)";
-        std::lock_guard<std::mutex> g(uploadMutex);
+        auto g = lockEngineMutexLoudly(uploadMutex, "remove()/graveyard");
         mAbandonedFiles.push_back(std::move(removed));
     }
 }
