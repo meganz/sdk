@@ -188,6 +188,7 @@ void MegaClient::installWsEngineCallbacks()
                 t.ws_latched_mean_speed = 0;
                 t.ws_latched_avg_latency_ms = 0;
                 t.ws_latched_failed_request_ratio = 0.0;
+                t.ws_latched_stats_valid = false;
 
                 if (wsEngine())
                 {
@@ -1086,7 +1087,16 @@ void MegaClient::wsApplyLatchedTransferStats(Transfer& t)
 
     ws::UploadEngine::WsTransferStats wsStats;
     if (!wse->getTransferStats(t, wsStats))
+    {
+        // S13 round-3 (Cluster H): make the miss visible — if BOTH latch points
+        // (onProgress + completion) hit this branch, the upload can only be counted
+        // via a live-engine lookup at stats time, and a silent miss here is the
+        // uncounted-upload precursor.
+        LOG_debug << "[MegaClient::wsApplyLatchedTransferStats] engine stats unavailable — "
+                     "latch skipped [size="
+                  << t.size << "]";
         return;
+    }
 
     m_off_t boundedSpeed = wsStats.windowSpeedBytesPerSecond;
     const m_off_t maxUploadSpeed = getmaxuploadspeed();
@@ -1098,6 +1108,9 @@ void MegaClient::wsApplyLatchedTransferStats(Transfer& t)
     t.ws_latched_mean_speed = wsStats.meanSpeedBytesPerSecond;
     t.ws_latched_avg_latency_ms = static_cast<m_off_t>(wsStats.avgStartTransferTime.count());
     t.ws_latched_failed_request_ratio = wsStats.failedRequestRatio;
+    // Zero mean speed / latency are legitimate latched values (tiny file, slow
+    // cold-start window) — validity is this flag, not ">0" sentinels (Cluster H, S13).
+    t.ws_latched_stats_valid = true;
 }
 
 // WS logout cleanup: process pending WS client-thread actions before engine teardown.

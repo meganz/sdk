@@ -184,6 +184,12 @@ struct MEGA_API Transfer : public FileFingerprint
     m_off_t ws_latched_mean_speed = 0;
     m_off_t ws_latched_avg_latency_ms = 0;
     double ws_latched_failed_request_ratio = 0.0;
+    // S13 round-3 (Cluster H): explicit latch validity. The old ">0 && >0" sentinel
+    // test on the two fields above silently dropped a completed upload from the stats
+    // whenever the latched mean speed was legitimately 0 (a tiny file over a slow
+    // cold-start window: 17 B over ~10 s), under-counting uploads in production and
+    // failing SdkTestTransferStatsLogging (macos_9454). Runtime-only, not serialized.
+    bool ws_latched_stats_valid = false;
 
     // WebSocket composition (PUT only)
     // (No ownership cycles: engine keeps no owning ptrs to Transfer)

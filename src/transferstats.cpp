@@ -258,7 +258,13 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
         ws::UploadEngine::WsTransferStats wsStats;
         if (!transfer->client->wsEngine()->getTransferStats(*transfer, wsStats))
         {
-            if (transfer->ws_latched_mean_speed > 0 && transfer->ws_latched_avg_latency_ms > 0)
+            // S13 round-3 (Cluster H): explicit latch-validity flag. The former
+            // ">0 && >0" sentinel test rejected legitimately-zero latched values
+            // (17 B over a ~10 s cold start ⇒ integer mean speed 0), silently
+            // dropping the upload from the stats (macos_9454: got (8,136) vs
+            // (9,153)). Zeros are safe downstream — the add path clamps both
+            // axes to >=1.
+            if (transfer->ws_latched_stats_valid)
             {
                 wsStats.meanSpeedBytesPerSecond = transfer->ws_latched_mean_speed;
                 wsStats.avgStartTransferTime =
@@ -270,10 +276,19 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
             }
             else
             {
-                LOG_debug << "[TransferStatsManager::addTransferStats] WS stats unavailable and "
-                             "no latched fallback [size="
-                          << transfer->size << "]";
-                return false;
+                // S13 round-3 (Cluster H, hardened per GOAL0 audit): the upstream
+                // trigger for a missing latch varies (engine detach before any
+                // successful stats read, pool refresh mid-transfer, cold start) and
+                // silently returning false un-counted a COMPLETED upload — the
+                // production under-count and the macos_9454 failure. Count it with
+                // floor axes instead (the add path clamps both axes to >=1 anyway)
+                // and say so loudly.
+                LOG_warn << "[TransferStatsManager::addTransferStats] WS stats unavailable and "
+                            "no latched fallback — counting upload with floor stats [size="
+                         << transfer->size << "]";
+                wsStats.meanSpeedBytesPerSecond = 0;
+                wsStats.avgStartTransferTime = std::chrono::milliseconds(0);
+                wsStats.failedRequestRatio = 0.0;
             }
         }
 
