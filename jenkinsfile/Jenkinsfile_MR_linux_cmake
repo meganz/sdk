@@ -185,15 +185,20 @@ pipeline {
                         BUILD_DIR = "build_dir"
                     }
                     steps{
-                        timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
-                            script {
-                                def lockLabel = ''
-                                if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
-                                    lockLabel = 'SDK_Concurrent_Test_Accounts'
-                                } else  {
-                                    lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
-                                }
-                                lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                        // S13 round-3 (Cluster J): the account-lock WAIT must not burn the test
+                        // timeout — macOS/Windows nest lock{ timeout{ } } but linux nested them
+                        // the other way round, so a job queued behind the single shared
+                        // SDK_Concurrent_Test_Accounts resource could abort on CUSTOM_TIMEOUT
+                        // without running a single test. Match the other platforms.
+                        script {
+                            def lockLabel = ''
+                            if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts'
+                            } else  {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                            }
+                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
                                     dir("${linux_sources_workspace}") {
                                         script{
                                             env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"

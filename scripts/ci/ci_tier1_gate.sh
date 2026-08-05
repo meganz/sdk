@@ -83,6 +83,30 @@ if [ "$rc" -ne 0 ] || ! grep -q "\[  SKIPPED \]" "$OUT_DIR/harvest_nohome.log"; 
   echo "GATE: [harvest_nohome] expected clean SKIP, rc=$rc"; FAIL=1
 fi
 
+# Cell 5 — S13 round-3 (Cluster F postmortem): the CI-FAITHFUL provisioned form. Cells 3/4
+# only ever asserted the SKIP form, so the gate was structurally blind to the form CI
+# actually runs (MEGA_BENCH_UPLOAD_SOURCE_DIR exported, dataset on a persistent agent
+# path) — which is exactly where round 3 failed on linux+win. Runs QaMixedUpload against
+# the local harvested dataset; the in-test manifest guard catches dataset drift.
+QA_DATASET_DIR="${HOME:?}/mega_bench_dataset/qa_mixed"
+if [ -d "$QA_DATASET_DIR" ]; then
+  echo "GATE: [bench_ci_env] MEGA_BENCH_UPLOAD_SOURCE_DIR=$QA_DATASET_DIR"
+  env MEGA_BENCH_UPLOAD_SOURCE_DIR="$QA_DATASET_DIR" timeout 1800 ./test_integration --CI "$UA" \
+    "--gtest_filter=SdkBenchmarkTest.QaMixedUpload" > "$OUT_DIR/bench_ci_env.log" 2>&1
+  rc=$?
+  echo "rc=$rc" > "$OUT_DIR/bench_ci_env.rc"
+  if grep -qE "\] .* CRASHED" "$OUT_DIR/bench_ci_env.log"; then
+    echo "GATE: [bench_ci_env] FABRICATED-CRASH VERDICT DETECTED"; FAIL=1
+  fi
+  if [ "$rc" -ne 0 ]; then
+    echo "GATE: [bench_ci_env] rc=$rc"; FAIL=1
+  fi
+else
+  echo "GATE: [bench_ci_env] DATASET MISSING at $QA_DATASET_DIR — run" \
+       "SdkTest.HarvestQaMixedDataset once on this host; the CI-faithful form is REQUIRED"
+  FAIL=1
+fi
+
 if [ "$FAIL" -eq 0 ]; then
   echo "GATE: PASS" | tee "$OUT_DIR/VERDICT.txt"
 else
