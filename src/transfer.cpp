@@ -1072,12 +1072,13 @@ void Transfer::complete(TransferDbCommitter& committer)
                     LOG_debug << "Transient error completing file";
                     it++;
                 }
-                else if (!(*it)->failed(API_EAGAIN, client))
+                else if (name_too_long || !(*it)->failed(API_EAGAIN, client))
                 {
                     File* f = (*it);
                     files.erase(it++);
 
-                    LOG_warn << "Unable to complete transfer due to a persistent error";
+                    LOG_warn << "Unable to complete transfer due to a persistent error"
+                             << (name_too_long ? ": the target's name is too long" : "");
                     client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
                     if (f->syncxfer)
@@ -1098,10 +1099,6 @@ void Transfer::complete(TransferDbCommitter& committer)
                 {
                     failcount++;
                     LOG_debug << "Persistent error completing file. Failcount: " << failcount;
-                    if (name_too_long)
-                    {
-                        LOG_warn << "Error is: name too long";
-                    }
                     it++;
                 }
             }

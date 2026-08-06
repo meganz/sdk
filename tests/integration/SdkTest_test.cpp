@@ -4377,6 +4377,81 @@ TEST_F(SdkTestDownload, ConflictFileExistingName)
 }
 
 /**
+ * This test tries to download a File node to a local name that is too long for the filesystem.
+ *
+ * The download itself succeeds (the temporary file uses a short generated name), but moving it to
+ * the requested target fails with ENAMETOOLONG. That condition cannot be cleared by retrying, so
+ * the transfer must fail straight away with API_EWRITE instead of retrying the completion
+ * FILE_MAX_RETRIES times first.
+ */
+TEST_F(SdkTestDownload, TargetNameTooLongFailsWithoutRetrying)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const fs::path basePath = fs::current_path();
+
+    LOG_debug << "#### TEST1: Create File in cloud drive ####";
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(),
+                                              sdk_test::LocalTempFile{basePath / "testItem", 1},
+                                              rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << "#### TEST2: Download it with a target name too long for the filesystem ####";
+    // 255 bytes is the longest path component every filesystem we support accepts.
+    const std::string tooLongName(256, 'a');
+
+    // Transfer::complete() sets STATE_COMPLETING and notifies listeners every time it runs, and a
+    // retried completion runs it again, so counting those updates tells whether the failure was
+    // retried. MegaTransfer::getNumRetry() can't be used instead: it only counts temporary-error
+    // callbacks, which this path never fires.
+    const auto nodeHandle = newNode->getHandle();
+    std::atomic<unsigned> completingUpdates{0};
+    testing::NiceMock<MockMegaTransferListener> updateListener{megaApi[0].get()};
+    EXPECT_CALL(updateListener, onTransferUpdate)
+        .WillRepeatedly(
+            [&completingUpdates, nodeHandle](MegaApi*, MegaTransfer* t)
+            {
+                if (t && t->getNodeHandle() == nodeHandle &&
+                    t->getState() == MegaTransfer::STATE_COMPLETING)
+                {
+                    ++completingUpdates;
+                }
+            });
+    megaApi[0]->addTransferListener(&updateListener);
+
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / tooLongName,
+                                                false,
+                                                180s,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                                onTransferFinish);
+
+    ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadNode) has returned nullopt";
+    ASSERT_EQ(*errCode, API_EWRITE) << "Unexpected error code: " << *errCode;
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    // The data did transfer; only moving it to its target failed.
+    ASSERT_EQ(transfer->getTransferredBytes(), 1);
+
+    // One run of Transfer::complete(); each retry of the failed completion would add another.
+    ASSERT_EQ(completingUpdates.load(), 1u)
+        << "The failed completion was retried instead of failing immediately";
+
+    CASE_info << "finished";
+}
+
+/**
  * @brief TEST_F SdkTestTransfers
  *
  * It performs different operations related to transfers in both directions: up and down.
