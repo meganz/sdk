@@ -16032,6 +16032,8 @@ void MegaClient::resumeTransferFromDB()
                 auto remoteCopyNode = mNodeManager.getNodeByHandle(data.sameNodeHandle);
                 // It should be valid, obtained in file_resume
                 assert(remoteCopyNode);
+                // transferRemoteCopy deletes file; capture dbid first
+                const auto fileDbid = file->dbid;
                 transferRemoteCopy(file,
                                    remoteCopyNode,
                                    data.remoteName,
@@ -16039,7 +16041,7 @@ void MegaClient::resumeTransferFromDB()
                                    tag,
                                    std::nullopt,
                                    data.inboxTarget);
-                resumedUniqueIds.push_back(file->dbid);
+                resumedUniqueIds.push_back(fileDbid);
                 break;
             }
         }
