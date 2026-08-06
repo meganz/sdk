@@ -874,7 +874,7 @@ int MegaNodePrivate::getShortformat()
     if (shortformat >= 0)
         return shortformat;
 
-    if (auto sf = getMediaProperty(&MediaProperties::shortformat); sf)
+    if (auto sf = getMediaProperty(&MediaProperties::shortformat); sf && *sf)
         shortformat = *sf;
 
     return shortformat;
