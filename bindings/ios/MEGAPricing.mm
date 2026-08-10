@@ -129,6 +129,10 @@ using namespace mega;
     return self.pricing ? self.pricing->getMobileOfferReshowInterval((int)index) : 0;
 }
 
+- (uint64_t)mobileOfferCampaignIdAtProductIndex:(NSInteger)index {
+    return self.pricing ? self.pricing->getMobileOfferCampaignId((int)index) : 0;
+}
+
 - (BOOL)hasMobileOfferIosAtProductIndex:(NSInteger)index {
     return self.pricing ? self.pricing->hasMobileOfferIos((int)index) : NO;
 }

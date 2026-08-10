@@ -2669,6 +2669,7 @@ public:
     int64_t getMobileOfferExpiryTimestamp(int productIndex) const override;
     uint32_t getMobileOfferFlags(int productIndex) const override;
     int64_t getMobileOfferReshowInterval(int productIndex) const override;
+    uint64_t getMobileOfferCampaignId(int productIndex) const override;
     bool hasMobileOfferIos(int productIndex) const override;
     std::string getMobileOfferIosOfferId(int productIndex) const override;
     std::string getMobileOfferIosKeyId(int productIndex) const override;

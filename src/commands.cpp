@@ -2990,6 +2990,9 @@ bool CommandEnumerateQuotaItems::procresult(Result r, JSON& json)
                             case makeNameid("r"):
                                 temporalMobileOffer.reshowInterval = json.getint();
                                 break;
+                            case makeNameid("c"):
+                                temporalMobileOffer.campaignId = json.getuint64();
+                                break;
                             case makeNameid("ios"):
                             {
                                 if (!json.enterobject())

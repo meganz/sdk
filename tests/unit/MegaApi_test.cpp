@@ -550,7 +550,7 @@ TEST(MegaApi, MegaApiImpl_mobileOffer)
         1,
         std::make_unique<BusinessPlan>(BusinessPlan{20, 40, 3, 50, 60, 70, 80, 90, 100, 15, 10}),
         0,
-        MobileOffer{title, uat, label, discountPercentage, 0, 0, 0, std::nullopt, std::nullopt},
+        MobileOffer{title, uat, label, discountPercentage, 0, 0, 0, 0, std::nullopt, std::nullopt},
         std::nullopt};
     MegaPricingPrivate pricing;
     pricing.addProduct(testProduct);

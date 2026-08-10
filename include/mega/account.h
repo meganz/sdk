@@ -246,6 +246,7 @@ struct MEGA_API MobileOffer
     int64_t expiryTimestamp{0}; // "e" - offer expiry, seconds since the Epoch (0 if none)
     uint32_t flags{0}; // "f" - client feature-flag bitmask (bit meanings defined by the API)
     int64_t reshowInterval{0}; // "r" - reshow timeout, seconds (0 if none)
+    uint64_t campaignId{0}; // "c" - campaign this offer belongs to (0 if none)
     std::optional<MobileOfferIos> ios; // iOS StoreKit promotional-offer signature (mo.ios)
     std::optional<MobileOfferAndroid> android; // Google Play offer reference (mo.and)
 };

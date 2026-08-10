@@ -223,6 +223,17 @@ NS_ASSUME_NONNULL_BEGIN
 - (int64_t)mobileOfferReshowIntervalAtProductIndex:(NSInteger)index;
 
 /**
+ * @brief Get the campaign of the mobile offer (mo.c)
+ *
+ * Offers of the same campaign share this identifier, so they can be shown and
+ * dismissed as one.
+ *
+ * @param index Product index (from 0 to [MEGAPricing products])
+ * @return Campaign identifier, or 0 if the offer belongs to no campaign
+ */
+- (uint64_t)mobileOfferCampaignIdAtProductIndex:(NSInteger)index;
+
+/**
  * @brief Check whether the mobile offer has an iOS section (mo.ios)
  *
  * @param index Product index (from 0 to [MEGAPricing products])

@@ -31223,6 +31223,17 @@ int64_t MegaPricingPrivate::getMobileOfferReshowInterval(int productIndex) const
     return 0;
 }
 
+uint64_t MegaPricingPrivate::getMobileOfferCampaignId(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
+    {
+        return products[index].mobileOffer->campaignId;
+    }
+
+    return 0;
+}
+
 bool MegaPricingPrivate::hasMobileOfferIos(int productIndex) const
 {
     if (auto index = static_cast<size_t>(productIndex);

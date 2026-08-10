@@ -337,7 +337,7 @@ TEST(Commands, CommandEnumerateQuotaItems_parsesMobileOffer)
                R"("d":"MEGA Pro I","tc":1,"ios":"mega.new.ios.pro1.oneYear.test",)"
                R"("google":"mega.android.pro1.oneyear.test",)"
                R"("mo":{"id":"mega-discount","uat":0,"f":3,"l":"MEGA Discount","p":20,)"
-               R"("e":1787464050,"r":86400,)"
+               R"("e":1787464050,"r":86400,"c":90210,)"
                R"("ios":{"oid":"mega.new.ios.pro1.oneYear.test.promo","ki":"KYV4FR348H",)"
                R"("n":"8c39d535-9237-4b96-888d-699296d5c877","tsm":1783997257514,)"
                R"("s":"sig-abc+def/ghi=="},)"
@@ -361,6 +361,7 @@ TEST(Commands, CommandEnumerateQuotaItems_parsesMobileOffer)
     EXPECT_EQ(1787464050, mo.expiryTimestamp);
     EXPECT_EQ(3u, mo.flags);
     EXPECT_EQ(86400, mo.reshowInterval);
+    EXPECT_EQ(90210u, mo.campaignId);
 
     ASSERT_TRUE(mo.ios.has_value());
     EXPECT_EQ("mega.new.ios.pro1.oneYear.test.promo", mo.ios->offerId);
@@ -371,5 +372,32 @@ TEST(Commands, CommandEnumerateQuotaItems_parsesMobileOffer)
 
     ASSERT_TRUE(mo.android.has_value());
     EXPECT_EQ("mega-discount", mo.android->offerId);
+}
+
+TEST(Commands, CommandEnumerateQuotaItems_mobileOfferWithoutCampaignId)
+{
+    // `mo.c` is only sent for offers that belong to a campaign group. When absent,
+    // campaignId stays 0, which the API never uses as a real campaign id.
+    MobileOfferCapturingApp app;
+    auto client = mt::makeClient(app);
+
+    JSON json;
+    json.pos = R"([{"l":{"c":"EUR","cs":"4oKs"}},)"
+               R"({"it":0,"id":"ITKCjurRtbQ","al":1,"s":3072,"t":36864,"m":12,"p":9999,"mbp":999,)"
+               R"("d":"MEGA Pro I","tc":1,"ios":"mega.new.ios.pro1.oneYear.test",)"
+               R"("google":"mega.android.pro1.oneyear.test",)"
+               R"("mo":{"id":"mega-discount","uat":0,"f":3,"l":"MEGA Discount","p":20,)"
+               R"("e":1787464050,"r":86400}}])";
+
+    ASSERT_TRUE(json.enterarray());
+
+    CommandEnumerateQuotaItems command(std::nullopt, client.get());
+    command.client = client.get();
+
+    command.procresult(Command::CmdArray, json);
+
+    ASSERT_EQ(0, app.errorCalls) << "parser reported an error, code=" << app.lastError;
+    ASSERT_TRUE(app.capturedOffer.has_value());
+    EXPECT_EQ(0u, app.capturedOffer->campaignId);
 }
 } // anonymous

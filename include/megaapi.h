@@ -27278,6 +27278,17 @@ public:
     virtual int64_t getMobileOfferReshowInterval(int productIndex) const = 0;
 
     /**
+     * @brief Get the campaign of the mobile offer (mo.c)
+     *
+     * Offers of the same campaign share this identifier, so they can be shown and
+     * dismissed as one.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Campaign identifier, or 0 if the offer belongs to no campaign
+     */
+    virtual uint64_t getMobileOfferCampaignId(int productIndex) const = 0;
+
+    /**
      * @brief Check whether the mobile offer carries an iOS StoreKit signature
      *
      * The iOS section (mo.ios) is only present for offers that target the App
