@@ -1068,7 +1068,6 @@ int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
     ssize_t p, l;
     inotify_event* in;
     WatchMapIterator it;
-    string localpath;
 
     auto notifyAll = [&](int handle, const string& name)
     {
@@ -1141,17 +1140,19 @@ int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
 #ifndef IN_EXCL_UNLINK
 #define IN_EXCL_UNLINK 0x04000000
 #endif
-            if ((in->mask & (IN_ATTRIB | IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM
-                | IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
+            if ((in->mask & (IN_ATTRIB | IN_CREATE | IN_DELETE_SELF | IN_DELETE | IN_MOVED_FROM |
+                             IN_MOVED_TO | IN_CLOSE_WRITE | IN_EXCL_UNLINK)))
             {
-                LOG_verbose << "Filesystem notification:"
-                    << " event " << in->name << ": " << std::hex << in->mask;
+                const string name =
+                    (in->len > 0) ? string{in->name, strnlen(in->name, in->len)} : string{};
+                LOG_verbose << "Filesystem notification:" << " event " << name << ": " << std::hex
+                            << in->mask;
                 it = mWatches.find(in->wd);
 
                 if (it != mWatches.end())
                 {
                     // What nodes are associated with this handle?
-                    notifyAll(it->first, in->len? in->name : "");
+                    notifyAll(it->first, name);
                 }
             }
         }
