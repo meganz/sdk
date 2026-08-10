@@ -36074,7 +36074,10 @@ struct ReadContext
     static constexpr unsigned int MAX_READ_SIZE = 2 * 1024 * 1024;
     uv_fs_t read_req{};
     uv_buf_t iov{};
-    std::weak_ptr<MegaHTTPContext> ctx;
+    // Strong reference: while the read is in flight the libuv threadpool worker writes directly
+    // into the context-owned streaming buffer (and reads from the context-owned fd), so the
+    // context must outlive the read.
+    std::shared_ptr<MegaHTTPContext> ctx;
 };
 
 static void onReadComplete(uv_fs_t* req)
@@ -36091,9 +36094,7 @@ static void onReadComplete(uv_fs_t* req)
             uv_fs_req_cleanup(req);
         });
 
-    auto httpctx = ctx->ctx.lock();
-    if (!httpctx)
-        return;
+    const auto& httpctx = ctx->ctx;
 
     httpctx->mCacheFile.setReading(false);
 
@@ -36137,6 +36138,13 @@ static void readCacheFile(MegaHTTPContext* httpctx)
     if (fd < 0 || availableBytes <= consumedBytes)
         return;
 
+    // Another is reading
+    if (httpctx->mCacheFile.isReading())
+    {
+        LOG_verbose << httpctx->getLogName() << "[Streaming] Skip reading, another is reading";
+        return;
+    }
+
     uv_mutex_lock(&httpctx->mutex);
     const auto iov = httpctx->streamingBuffer.nextWriteBuffer(ReadContext::MAX_READ_SIZE);
     uv_mutex_unlock(&httpctx->mutex);
@@ -36145,15 +36153,8 @@ static void readCacheFile(MegaHTTPContext* httpctx)
     if (!iov.base || !iov.len)
         return;
 
-    // Another is reading
-    if (httpctx->mCacheFile.isReading())
-    {
-        LOG_verbose << httpctx->getLogName() << "[Streaming] Skip reading, another is reading";
-        return;
-    }
-
-    const auto readLength = std::min(static_cast<unsigned int>(iov.len),
-                                     static_cast<unsigned int>(availableBytes - consumedBytes));
+    const auto remaining = static_cast<uint64_t>(availableBytes - consumedBytes);
+    const auto readLength = static_cast<unsigned int>(std::min<uint64_t>(iov.len, remaining));
     const auto readOffset = offset + consumedBytes;
 
     HTTP_verbose_timed << httpctx->getLogName() << "[Streaming] Read more from file: " << readOffset
@@ -36161,7 +36162,7 @@ static void readCacheFile(MegaHTTPContext* httpctx)
 
     auto ctx = std::make_unique<ReadContext>();
     ctx->read_req.data = ctx.get();
-    ctx->ctx = httpctx->weak_from_this();
+    ctx->ctx = httpctx->shared_from_this();
     ctx->iov = uv_buf_init(iov.base, readLength);
 
     const int r = uv_fs_read(httpctx->server->getUvLoop(), /* Loop */
