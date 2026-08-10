@@ -29,6 +29,7 @@
 
 #include <curl/curl.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstring>
 #include <future>
@@ -39,6 +40,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <vector>
 
 using namespace ::mega;
 using namespace ::std;
@@ -1336,6 +1338,306 @@ TEST_F(SdkHttpServerTest, ConnectionHandling)
     auto fullResponse = HttpClient::get(url);
     EXPECT_EQ(200, fullResponse.statusCode);
     EXPECT_TRUE(testFileContent == fullResponse.body);
+}
+
+/**
+ * GET `url` from `offset` to the end, but abruptly close the connection after
+ * receiving `abortAfter` bytes — as a media player does when the user seeks
+ * elsewhere or closes the player. Returning 0 from the write callback makes
+ * curl abort the transfer and close the socket while the server is still
+ * streaming.
+ *
+ * Returns the number of bytes received before the connection was closed.
+ */
+size_t getAndAbort(const std::string& url, const uint64_t offset, const size_t abortAfter)
+{
+    struct AbortContext
+    {
+        size_t received;
+        size_t limit;
+    } context{0, abortAfter};
+
+    auto easyCurl = sdk_test::EasyCurl();
+    auto curl = easyCurl.curl();
+
+    const std::string range = std::to_string(offset) + "-";
+
+    curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+    curl_easy_setopt(curl, CURLOPT_RANGE, range.c_str());
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT, 30L);
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+    curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
+    curl_easy_setopt(curl, CURLOPT_WRITEDATA, &context);
+    curl_easy_setopt(
+        curl,
+        CURLOPT_WRITEFUNCTION,
+        +[](char*, size_t size, size_t nmemb, void* userp) -> size_t
+        {
+            auto& ctx = *static_cast<AbortContext*>(userp);
+            ctx.received += size * nmemb;
+            return ctx.received >= ctx.limit ? 0 : size * nmemb;
+        });
+
+    // CURLE_WRITE_ERROR is the expected outcome — the abort is the point.
+    curl_easy_perform(curl);
+    return context.received;
+}
+
+/**
+ * Workflow: several viewers stream a large video from the local HTTP server
+ * at once; some scrub through it — every seek opens a new ranged request and
+ * abruptly drops the previous connection — while others watch end to end.
+ *
+ * Aborted connections exercise teardown while the server still has
+ * asynchronous cache-file reads pending, and the parallel viewers keep the
+ * libuv threadpool busy so teardown also lands on reads still queued behind
+ * other connections' work. The end-to-end watchers verify that every
+ * download stays bit-exact throughout.
+ *
+ * Recommended way to run this test:
+ *   1. Configure the build with -DENABLE_ASAN=ON -DUSE_LIBUV=ON.
+ *   2. Run:
+ *        UV_THREADPOOL_SIZE=1 ASAN_OPTIONS="detect_leaks=0" \
+ *        ./test_integration \
+ *            --gtest_filter=SdkHttpServerTest.StreamingAbortSoak \
+ *            --gtest_repeat=5 --gtest_break_on_failure
+ * UV_THREADPOOL_SIZE=1 serializes the libuv threadpool so more reads are
+ * still queued when a connection is dropped, and ASAN turns latent memory
+ * errors into deterministic test failures.
+ */
+TEST_F(SdkHttpServerTest, StreamingAbortSoak)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    MegaApi* api = megaApi[0].get();
+
+    // Several MAX_READ_SIZE (2MB) cache-read cycles per connection.
+    constexpr size_t fileSize = 10 * 1024 * 1024;
+    const std::string testFileContent = randomBytes(fileSize);
+    std::unique_ptr<MegaNode> uploadedNode =
+        uploadFile(0, "test_http_abort_soak.bin", testFileContent);
+    ASSERT_NE(uploadedNode, nullptr);
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    std::unique_ptr<char[]> link(api->httpServerGetLocalLink(uploadedNode.get()));
+    ASSERT_NE(link, nullptr);
+    const std::string url = link.get();
+
+    // Play once to the end: validates content and fully populates the
+    // file-service cache, so all connections below stream from the local
+    // cache file (the readCacheFile/onReadComplete path) at full speed.
+    auto response = HttpClient::get(url);
+    ASSERT_EQ(200, response.statusCode);
+    ASSERT_TRUE(testFileContent == response.body);
+
+    std::atomic<bool> scrubbing{true};
+
+    // Watchers: stream the whole file end to end, repeatedly, while the
+    // scrubbers below tear connections down, byte-comparing every download
+    // against the uploaded content.
+    constexpr int watchers = 2;
+    std::vector<std::future<int>> watcherResults;
+    for (int w = 0; w < watchers; w++)
+    {
+        watcherResults.push_back(std::async(std::launch::async,
+                                            [&]()
+                                            {
+                                                int corrupted = 0;
+                                                while (scrubbing)
+                                                {
+                                                    auto r = HttpClient::get(url);
+                                                    if (r.statusCode != 200 ||
+                                                        r.body != testFileContent)
+                                                    {
+                                                        corrupted++;
+                                                    }
+                                                }
+                                                return corrupted;
+                                            }));
+    }
+
+    // Scrubbers: seek and drop connections at deterministic pseudo-random
+    // offsets and abort points, so teardown lands at every stage of the read
+    // pump — during the first buffer fill, mid-refill, and on headers alone.
+    constexpr int scrubbers = 8;
+    constexpr int seeksPerScrubber = 25;
+    std::vector<std::future<void>> scrubberResults;
+    for (int t = 0; t < scrubbers; t++)
+    {
+        scrubberResults.push_back(std::async(
+            std::launch::async,
+            [&, t]()
+            {
+                for (int i = 0; i < seeksPerScrubber; i++)
+                {
+                    const auto seek = static_cast<uint64_t>(t * seeksPerScrubber + i);
+                    const uint64_t offset = (seek * 1327 * 1024) % (fileSize - 2 * 1024 * 1024);
+                    const size_t abortAfter = 1 + (seek * 37 * 1024) % (4 * 1024 * 1024);
+                    getAndAbort(url, offset, abortAfter);
+                }
+            }));
+    }
+
+    for (auto& scrubber: scrubberResults)
+    {
+        scrubber.get();
+    }
+    scrubbing = false;
+
+    for (auto& watcher: watcherResults)
+    {
+        EXPECT_EQ(0, watcher.get()) << "corrupted or failed downloads during scrubbing";
+    }
+
+    // The server must have survived every abort and still serve intact data.
+    EXPECT_GT(api->httpServerIsRunning(), 0);
+    response = HttpClient::get(url);
+    ASSERT_EQ(200, response.statusCode);
+    ASSERT_EQ(testFileContent.size(), response.body.size());
+    EXPECT_TRUE(testFileContent == response.body);
+}
+
+// fd-recycling: abruptly drop streaming connections mid-transfer while the other
+// files are streamed and (re)opened concurrently, so file descriptors and buffers
+// released by one connection are immediately recycled by the others. Each file
+// carries a distinct marker, so any cross-file data in a response is caught
+// byte-exactly and its source file is reported. See StreamingAbortSoak above for
+// the recommended way to run this test.
+TEST_F(SdkHttpServerTest, StreamingFdRecycleNoCrossFileData)
+{
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    MegaApi* api = megaApi[0].get();
+
+    // Each file spans several MAX_READ_SIZE (2MB) cache-read cycles, so reads
+    // chain for the whole transfer and aborts land while the pump is active.
+    constexpr size_t kNumFiles = 4; // single-digit markers -> unambiguous
+    constexpr size_t kFileSize = 8 * 1024 * 1024;
+    constexpr size_t kAbortsPerFile = 12;
+
+    auto markerFor = [](size_t i)
+    {
+        return "MEGAFILE#" + std::to_string(i) + "#";
+    };
+
+    auto makeContent = [&](size_t i)
+    {
+        const std::string marker = markerFor(i);
+        std::string content;
+        content.reserve(kFileSize + marker.size());
+        while (content.size() < kFileSize)
+            content += marker;
+        content.resize(kFileSize);
+        return content;
+    };
+
+    std::vector<std::string> contents(kNumFiles);
+    std::vector<std::unique_ptr<MegaNode>> nodes(kNumFiles);
+    for (size_t i = 0; i < kNumFiles; ++i)
+    {
+        contents[i] = makeContent(i);
+        nodes[i] = uploadFile(0, "fd_recycle_" + std::to_string(i) + ".bin", contents[i]);
+        ASSERT_TRUE(nodes[i]);
+    }
+
+    auto server = scopedHttpServer(api);
+    ASSERT_TRUE(server);
+
+    std::vector<std::string> links(kNumFiles);
+    for (size_t i = 0; i < kNumFiles; ++i)
+    {
+        std::unique_ptr<char[]> link(api->httpServerGetLocalLink(nodes[i].get()));
+        ASSERT_NE(link, nullptr);
+        links[i] = link.get();
+    }
+
+    // Returns an empty string if the download is clean, otherwise a
+    // description of the first problem found.
+    auto checkFullGet = [&](size_t i) -> std::string
+    {
+        auto response = HttpClient::get(links[i]);
+        if (response.statusCode != 200)
+            return "file " + std::to_string(i) + ": status " + std::to_string(response.statusCode);
+
+        for (size_t j = 0; j < kNumFiles; ++j)
+        {
+            if (j != i && response.body.find(markerFor(j)) != std::string::npos)
+                return "cross-file data leak: file " + std::to_string(j) +
+                       " bytes appeared in file " + std::to_string(i) + "'s response";
+        }
+
+        if (response.body != contents[i])
+            return "file " + std::to_string(i) + ": body content mismatch";
+
+        return {};
+    };
+
+    // Warm-up pass: validates content and fully populates the file-service
+    // cache, so every connection below streams from the local cache file at
+    // full speed.
+    for (size_t i = 0; i < kNumFiles; ++i)
+    {
+        const auto problem = checkFullGet(i);
+        ASSERT_TRUE(problem.empty()) << problem;
+    }
+
+    // Verifiers: stream every file end to end, repeatedly, while the aborters
+    // below churn connections, fds and buffers.
+    std::atomic<bool> aborting{true};
+    std::vector<std::future<std::string>> verifiers;
+    for (size_t v = 0; v < kNumFiles; ++v)
+    {
+        verifiers.push_back(std::async(std::launch::async,
+                                       [&, v]() -> std::string
+                                       {
+                                           while (aborting)
+                                           {
+                                               if (auto problem = checkFullGet(v); !problem.empty())
+                                                   return problem;
+                                           }
+                                           return {};
+                                       }));
+    }
+
+    // Aborters: drop connections at deterministic pseudo-random mid-transfer
+    // depths, one per file, concurrently with the verifiers.
+    std::vector<std::future<void>> aborters;
+    for (size_t t = 0; t < kNumFiles; ++t)
+    {
+        aborters.push_back(
+            std::async(std::launch::async,
+                       [&, t]()
+                       {
+                           for (size_t i = 0; i < kAbortsPerFile; ++i)
+                           {
+                               const auto seek = static_cast<uint64_t>(t * kAbortsPerFile + i);
+                               const uint64_t offset = (seek * 1327 * 1024) % (kFileSize / 2);
+                               const size_t abortAfter = 1 + (seek * 37 * 1024) % (4 * 1024 * 1024);
+                               getAndAbort(links[t], offset, abortAfter);
+                           }
+                       }));
+    }
+
+    for (auto& aborter: aborters)
+    {
+        aborter.get();
+    }
+    aborting = false;
+
+    for (auto& verifier: verifiers)
+    {
+        const auto problem = verifier.get();
+        EXPECT_TRUE(problem.empty()) << problem;
+    }
+
+    // Everything must still be served intact after the churn.
+    EXPECT_GT(api->httpServerIsRunning(), 0);
+    for (size_t i = 0; i < kNumFiles; ++i)
+    {
+        const auto problem = checkFullGet(i);
+        EXPECT_TRUE(problem.empty()) << problem;
+    }
 }
 
 /**
