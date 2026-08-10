@@ -284,6 +284,35 @@ namespace
         NO
     };
 
+    // Look a notification up by its id. The list also carries notifications that are always
+    // enabled for every account (promo campaigns and alike), which come and go independently
+    // of this test, so neither the size of the list nor the position within it can be relied
+    // upon.
+    static const MegaNotification* findNotification(const MegaNotificationList* list, int64_t id)
+    {
+        for (unsigned i = 0; i < list->size(); ++i)
+        {
+            if (list->get(i)->getID() == id)
+            {
+                return list->get(i);
+            }
+        }
+        return nullptr;
+    }
+
+    // ug.notifs carries the always-enabled ids too, so membership is the only safe check.
+    static bool containsId(const MegaIntegerList* ids, int64_t id)
+    {
+        for (int i = 0; i < ids->size(); ++i)
+        {
+            if (ids->get(i) == id)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
     void validateNotification(const MegaNotification* notification, int64_t id, HasIcon hasIcon)
     {
         ASSERT_EQ(notification->getID(), id);
@@ -20340,7 +20369,13 @@ TEST_F(SdkTest, DynamicMessageNotifs)
         ::testing::AnyOf(::testing::Eq(API_OK), ::testing::Eq(API_ENOENT)));
     const auto* notificationList = gnotifTracker.request->getMegaNotifications();
     ASSERT_THAT(notificationList, ::testing::NotNull());
-    ASSERT_EQ(notificationList->size(), 0u);
+    // IDs 1-5 are reserved for "^!tnotif" only, so none of them may be returned once
+    // test-notifications have been cleared; 9 is added because this test enables it too.
+    for (const int64_t id: {int64_t{1}, int64_t{2}, int64_t{3}, int64_t{4}, int64_t{5}, int64_t{9}})
+    {
+        ASSERT_EQ(findNotification(notificationList, id), nullptr)
+            << "test-notification " << id << " is still enabled after clearing them";
+    }
 
     // Enable some test-notifications.
     // IDs 1,2,3,4,5 have been reserved to be "^!tnotif" only notifications.
@@ -20364,12 +20399,13 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     // Get IDs of enabled-notifications
     unique_ptr<MegaIntegerList> enabledNotifs{ megaApi[0]->getEnabledNotifications() };
     ASSERT_THAT(enabledNotifs, ::testing::NotNull());
-    ASSERT_EQ(
-        enabledNotifs->size(),
-        3); // only IDs of existing notifications will be there, dummy IDs will not be included
-    ASSERT_EQ(enabledNotifs->get(0), 1);
-    ASSERT_EQ(enabledNotifs->get(1), 2);
-    ASSERT_EQ(enabledNotifs->get(2), 9);
+    for (const int64_t id: {int64_t{1}, int64_t{2}, int64_t{9}})
+    {
+        ASSERT_TRUE(containsId(enabledNotifs.get(), id))
+            << "test-notification " << id << " was not enabled";
+    }
+    // IDs of notifications that do not exist are not included
+    ASSERT_FALSE(containsId(enabledNotifs.get(), numeric_limits<uint32_t>::max() - 1));
 
     // Get the complete notifications (corresponding only to existing IDs)
     RequestTracker gnotifTracker2(megaApi[0].get());
@@ -20377,19 +20413,23 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     ASSERT_EQ(gnotifTracker2.waitForResult(), API_OK);
     const auto* notificationList2 = gnotifTracker2.request->getMegaNotifications();
     ASSERT_THAT(notificationList2, ::testing::NotNull());
-    ASSERT_EQ(notificationList2->size(), 3u);
 
     // validate complete notifications
-    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(0), 1, HasIcon::NO));
-    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(1), 2, HasIcon::YES));
-    ASSERT_NO_FATAL_FAILURE(validateNotification(notificationList2->get(2), 9, HasIcon::NO));
-    unique_ptr<MegaStringList> renderModes{notificationList2->get(2)->getRenderModes()};
+    const auto* notif1 = findNotification(notificationList2, 1);
+    const auto* notif2 = findNotification(notificationList2, 2);
+    const auto* notif9 = findNotification(notificationList2, 9);
+    ASSERT_THAT(notif1, ::testing::NotNull()) << "test-notification 1 was not returned";
+    ASSERT_THAT(notif2, ::testing::NotNull()) << "test-notification 2 was not returned";
+    ASSERT_THAT(notif9, ::testing::NotNull()) << "test-notification 9 was not returned";
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notif1, 1, HasIcon::NO));
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notif2, 2, HasIcon::YES));
+    ASSERT_NO_FATAL_FAILURE(validateNotification(notif9, 9, HasIcon::NO));
+    unique_ptr<MegaStringList> renderModes{notif9->getRenderModes()};
     ASSERT_THAT(renderModes, ::testing::NotNull());
     ASSERT_GT(renderModes->size(), 0);
     for (int i = 0; i < renderModes->size(); ++i)
     {
-        unique_ptr<MegaStringMap> fields{
-            notificationList2->get(2)->getRenderModeFields(renderModes->get(i))};
+        unique_ptr<MegaStringMap> fields{notif9->getRenderModeFields(renderModes->get(i))};
         ASSERT_THAT(fields, ::testing::NotNull());
         if (string{"btp"} == renderModes->get(i))
         {
@@ -20460,10 +20500,15 @@ TEST_F(SdkTest, DynamicMessageNotifs)
     megaApi[0]->getUserData(&userDataTracker3);
     ASSERT_EQ(userDataTracker3.waitForResult(), API_OK);
 
-    // Get IDs of enabled-notifications
+    // Get IDs of enabled-notifications. Always-enabled ids may still be listed, so only the
+    // test-notifications must be gone.
     defaultNotifs.reset(megaApi[0]->getEnabledNotifications()); // get cached value of ug.notifs
     ASSERT_THAT(defaultNotifs, ::testing::NotNull());
-    ASSERT_EQ(defaultNotifs->size(), 0);
+    for (const int64_t id: {int64_t{1}, int64_t{2}, int64_t{3}, int64_t{4}, int64_t{5}, int64_t{9}})
+    {
+        ASSERT_FALSE(containsId(defaultNotifs.get(), id))
+            << "test-notification " << id << " is still enabled after clearing them";
+    }
 }
 
 /**
