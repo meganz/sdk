@@ -383,7 +383,7 @@ target_compile_definitions(SDKlib
     $<$<BOOL:${ENABLE_SYNC}>:ENABLE_SYNC>
     $<$<BOOL:${USE_LIBUV}>:HAVE_LIBUV>
     $<$<PLATFORM_ID:iOS>:USE_IOS>
-    $<$<PLATFORM_ID:Android>:USE_POLL>
+    $<$<OR:$<PLATFORM_ID:Android>,$<PLATFORM_ID:Linux>>:USE_POLL>
     $<$<PLATFORM_ID:Android>:USE_INOTIFY>
     $<$<PLATFORM_ID:Android>:HAVE_SDK_CONFIG_H>
 )
