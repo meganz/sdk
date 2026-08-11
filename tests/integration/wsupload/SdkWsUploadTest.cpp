@@ -3243,6 +3243,15 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
         return t && t->getTransferredBytes() > beforePause;
     };
 
+    // Option-D calibration for the 90 s bound (S15, round-1 win_9741 RCA): at this
+    // cell's cap (max(10000, fileSizeB/500) ≈ 10,485 B/s) the strict-FIFO budget
+    // grants one chunk per need/cap = 12.5-25 s, so a correct engine serves both
+    // unpaused pool-mates within ~2 grant rounds ≈ 50 s worst case; 90 s leaves ≥40 s
+    // of scheduler margin. The S15 watchdog stage-1 (window 30-60 s) fires INSIDE this
+    // bound; stage-2 (2× window) intentionally does not — a run that needs stage-2 to
+    // pass is already broken. Do NOT widen this bound to absorb engine defects: the
+    // capped-mode refund fix (ws_pool.cpp) is what makes the arithmetic hold when a
+    // granted chunk dies pre-ack (the round-1 wedge burned every grant slot for 78 s).
     ASSERT_TRUE(WaitFor(
         [&]()
         {
@@ -3630,6 +3639,12 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPoolsStress)
     // budget alternation at the capped rate, the second-served pool's grant can land up
     // to ~2 × (chunkBytes / capBps) ≈ 50 s after the batch; 45 s would flake a CORRECT
     // engine at this cap.
+    // Option-D addendum (S15, round-1 win_9741): the arithmetic above additionally
+    // requires that a granted chunk which dies pre-ack (pre-wire requeue, conn
+    // teardown) REFUNDS its budget — without the refund each death re-buys a full
+    // 12.5-25 s grant and the cycle consumes every slot (round-1: zero engine-wide
+    // acks for 78 s at cycle 1). Bound stays 90 s; the engine, not the bound, carries
+    // the margin.
     constexpr int kCycleBoundMs = 90000;
     for (int cycle = 0; cycle < kCycles; ++cycle)
     {
