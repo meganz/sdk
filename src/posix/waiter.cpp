@@ -121,6 +121,7 @@ int PosixWaiter::wait()
     {
         fds[polli].fd = fd;
         fds[polli].events = POLLIN_SET;
+        fds[polli].revents = 0;
         polli++;
     }
 
@@ -128,6 +129,7 @@ int PosixWaiter::wait()
     {
         fds[polli].fd = fd;
         fds[polli].events = POLLOUT_SET;
+        fds[polli].revents = 0;
         polli++;
     }
 
@@ -135,9 +137,44 @@ int PosixWaiter::wait()
     {
         fds[polli].fd = fd;
         fds[polli].events = POLLEX_SET;
+        fds[polli].revents = 0;
         polli++;
     }
     numfd = poll(fds, total, timeoutInMs);
+
+    // Mirror select(): rewrite rfds/wfds/efds to hold only the fds that are
+    // actually ready, so post-wait MEGA_FD_ISSET() means "ready", not
+    // "registered". poll() only reports requested events (plus
+    // POLLERR/POLLHUP/POLLNVAL), so any nonzero revents marks the fd ready
+    // for the set it was registered in - including POLLNVAL, which select()
+    // surfaces as EBADF and must trigger exec() so stale fds get cleaned up.
+    {
+        const size_t nr = rfds.size();
+        const size_t nw = nr + wfds.size();
+        mega_fd_set_t readyr, readyw, readye;
+        for (size_t i = 0; i < total; i++)
+        {
+            if (!fds[i].revents)
+            {
+                continue;
+            }
+            if (i < nr)
+            {
+                readyr.insert(fds[i].fd);
+            }
+            else if (i < nw)
+            {
+                readyw.insert(fds[i].fd);
+            }
+            else
+            {
+                readye.insert(fds[i].fd);
+            }
+        }
+        rfds = std::move(readyr);
+        wfds = std::move(readyw);
+        efds = std::move(readye);
+    }
 #else
     numfd = select(maxfd + 1, &rfds, &wfds, &efds, EVER(maxds) ? &tv : NULL);
 #endif
@@ -165,7 +202,10 @@ int PosixWaiter::wait()
 #ifdef USE_POLL
     for (unsigned int i = 0 ; i < total ; i++)
     {
-        if  ((fds[i].revents & (POLLIN_SET | POLLOUT_SET | POLLEX_SET) )  && !MEGA_FD_ISSET(fds[i].fd, &ignorefds) )
+        // Any event counts, POLLNVAL included: a stale fd must wake exec()
+        // for cleanup (select() reports it as EBADF -> NEEDEXEC), otherwise
+        // poll() returns instantly forever without ever running exec().
+        if  (fds[i].revents  && !MEGA_FD_ISSET(fds[i].fd, &ignorefds) )
         {
             return NEEDEXEC;
         }
