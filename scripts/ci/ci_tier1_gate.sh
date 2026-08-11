@@ -46,7 +46,9 @@ UA="--USERAGENT:JenkinsCanSpam-SDK"
 run_cell() { # label timeout_s args...
   local label="$1" tmo="$2"; shift 2
   echo "GATE: [$label] $*"
-  timeout "$tmo" ./test_integration --CI "$UA" "$@" > "$OUT_DIR/$label.log" 2>&1
+  # S15 (Goal-0 cell-7 committed-defect repair): without --kill-after a SIGTERM-ignoring
+  # wedge runs unbounded wall-clock even though the verdict is already FAIL.
+  timeout --kill-after=60 "$tmo" ./test_integration --CI "$UA" "$@" > "$OUT_DIR/$label.log" 2>&1
   local rc=$?
   echo "rc=$rc" > "$OUT_DIR/$label.rc"
   # A skip-ending run must exit 0; CRASHED must never appear (fabricated-verdict guard);
@@ -68,6 +70,15 @@ run_cell tier1_ws_direct 5400 "--gtest_filter=SdkWsUploadTest.*"
 # verdicts pre-F1). Two workers exercise GTestProc line-parsing + tally.
 run_cell skiplabel_instances 1200 --INSTANCES:2 \
   "--gtest_filter=SdkWsUploadTest.EscalationWindowNotPerpetuallyResetByNullCandidate:SdkBenchmarkTest.QaMixedUpload"
+# S15 (Goal-0 cell-7 committed-defect repair): --INSTANCES:2 silently degrades to a
+# single instance when no multi-account email template is configured. The degrade is now
+# LOUD; with GATE_REQUIRE_INSTANCES=1 (hosts provisioned for 2 instances) it hard-fails.
+if grep -q "Continuing with sequential run in 1 separate instance" "$OUT_DIR/skiplabel_instances.log"; then
+  echo "GATE: [skiplabel_instances] DEGRADED — --INSTANCES:2 ran as 1 instance (no email template)"
+  if [ "${GATE_REQUIRE_INSTANCES:-0}" = 1 ]; then
+    echo "GATE: [skiplabel_instances] GATE_REQUIRE_INSTANCES=1 — treating degrade as FAIL"; FAIL=1
+  fi
+fi
 
 # Cell 3 — bench/dataset cells under DEFAULT env: must SKIP cleanly, never crash/fail.
 run_cell bench_default_env 900 \
@@ -75,7 +86,7 @@ run_cell bench_default_env 900 \
 
 # Cell 4 — win-parity: Harvest with NO HOME must SKIP (USERPROFILE also absent on linux).
 echo "GATE: [harvest_nohome] env -u HOME"
-env -u HOME timeout 900 ./test_integration --CI "$UA" \
+env -u HOME timeout --kill-after=60 900 ./test_integration --CI "$UA" \
   "--gtest_filter=SdkTest.HarvestQaMixedDataset" > "$OUT_DIR/harvest_nohome.log" 2>&1
 rc=$?
 echo "rc=$rc" > "$OUT_DIR/harvest_nohome.rc"
@@ -91,7 +102,7 @@ fi
 QA_DATASET_DIR="${HOME:?}/mega_bench_dataset/qa_mixed"
 if [ -d "$QA_DATASET_DIR" ]; then
   echo "GATE: [bench_ci_env] MEGA_BENCH_UPLOAD_SOURCE_DIR=$QA_DATASET_DIR"
-  env MEGA_BENCH_UPLOAD_SOURCE_DIR="$QA_DATASET_DIR" timeout 1800 ./test_integration --CI "$UA" \
+  env MEGA_BENCH_UPLOAD_SOURCE_DIR="$QA_DATASET_DIR" timeout --kill-after=60 1800 ./test_integration --CI "$UA" \
     "--gtest_filter=SdkBenchmarkTest.QaMixedUpload" > "$OUT_DIR/bench_ci_env.log" 2>&1
   rc=$?
   echo "rc=$rc" > "$OUT_DIR/bench_ci_env.rc"
