@@ -752,6 +752,8 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                // S15 round-1 (Cluster G): watchdog progress stamp — ungated (see field).
+                mPool->mLastConfirmAdvanceDs = SteadyTime::ds();
                 // Goodput-saturation gate (SDK-5360): aggregate this pool's server-confirmed
                 // bytes so the checkPools ramp controller can measure goodput gain. Under
                 // uploadMutex (held from :609) so a plain add is race-free (HR23). Guarded on
@@ -783,6 +785,8 @@ struct ChunkResponse
             if (chunk.len)
             {
                 uf->onServerConfirmedBytes(chunk.len);
+                // S15 round-1 (Cluster G): watchdog progress stamp — ungated (see field).
+                mPool->mLastConfirmAdvanceDs = SteadyTime::ds();
                 // Goodput-saturation gate (SDK-5360): aggregate this pool's server-confirmed
                 // bytes (same accumulator + discipline as the ChunkIngested arm above). Under
                 // uploadMutex; guarded so gate=0 is byte-behaviour-identical.

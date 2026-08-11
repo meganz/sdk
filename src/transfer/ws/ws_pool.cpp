@@ -463,9 +463,11 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             return false;
         }
         mToResend.erase(mToResend.begin() + static_cast<std::ptrdiff_t>(ri));
-        // Resend served: disarm the resend-stall watchdog (Cluster G, S13).
-        mResendStallSinceDs = 0;
-        mResendStallReprimed = false;
+        // S15 round-1 (Cluster G): the resend-stall watchdog must NOT be disarmed here.
+        // A pop only proves the entry was budgeted — every pre-wire requeue path
+        // (paused-underneath, uf invalidated, interrupted read) puts it straight back,
+        // and a pop-time reset let that cycle re-arm the clock forever while the pool
+        // confirmed nothing (win_9741). Disarm moved to sendChunk's wire-accept.
         WSUPLOAD_TRACE << "WsUpload: resending chunk pos=" << chunk.pos << " len=" << chunk.len
                   << " fileno=" << chunk.fileno;
         return true;
@@ -576,6 +578,15 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
             }
         }
         mToResend.push_back(p.first);
+        // S15 round-1 (Cluster G): a requeued un-acked chunk refunds its budget in FULL.
+        // Under a cap, the grant period (need/cap, 12.5-25 s at CI's 10,485 B/s) can
+        // exceed the conn's idle lifetime, so each granted chunk rides a dying conn and
+        // is requeued — re-buying budget then makes the retransmit cycle consume every
+        // grant slot and starves ALL pools (the win_9741 wedge: zero engine-wide acks
+        // for 78 s). The cap governs steady-state goodput; loss-retransmit overhead may
+        // transiently exceed it (TCP-like semantics), which is the acceptable side of
+        // the trade-off. No-op when uncapped.
+        mImpl->refundUploadBudget(static_cast<m_off_t>(p.first.len));
     }
     mNumChunksInFlight -= static_cast<int>(ws->mChunksInFlight.size());
     ws->mChunksInFlight.clear();
@@ -826,22 +837,31 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         uf = findFile(chunk.fileno, impl);
         if (!uf)
         {
-            WSUPLOAD_TRACE << "[WsPool::sendChunk] drop chunk after read (file no longer in map) [pos="
+            // S15 round-1 (Cluster G): every charged chunk that dies before the wire
+            // refunds its budget — a leaked grant starves EVERY pool via the shared
+            // strict-FIFO bucket (12.5-25 s per grant at CI's 10,485 B/s cap), which is
+            // the capped-mode grant-flow wedge (win_9741). refundUploadBudget no-ops
+            // when uncapped, so clean/MassNotify behavior is untouched. Loud (LOG_debug,
+            // per-event, not per-iteration): these paths were trace-only, which is what
+            // blinded two rounds of RCA.
+            LOG_debug << "[WsPool::sendChunk] drop chunk after read (file no longer in map) [pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
+            impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
             return false;
         }
         if (!uf->inPool() || uf->aborted())
         {
-            WSUPLOAD_TRACE << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
+            LOG_debug << "[WsPool::sendChunk] drop chunk after read (no longer in pool or aborted) "
                          "[pos="
                       << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
+            impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
             return false;
         }
         if (uf->paused())
         {
-            WSUPLOAD_TRACE << "[WsPool::sendChunk] requeue chunk after read (paused) [pos=" << chunk.pos
+            LOG_debug << "[WsPool::sendChunk] requeue chunk after read (paused) [pos=" << chunk.pos
                       << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
                       << "] [this = " << this << "]";
             mToResend.push_back(chunk);
@@ -858,9 +878,10 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             // keeps the file pooled, so the inPool/aborted/paused checks above do
             // not catch it: drop the chunk; the attempt reset already cleared the
             // acked intervals, so a future retry re-sends from scratch.
-            WSUPLOAD_TRACE << "[WsPool::sendChunk] drop chunk after read (failed underneath) [pos="
-                           << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
-                           << "] [this = " << this << "]";
+            LOG_debug << "[WsPool::sendChunk] drop chunk after read (failed underneath) [pos="
+                      << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno
+                      << "] [this = " << this << "]";
+            impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
             return false;
         }
         assert(uf->isUploading() && "invariant: upload must be active after successful read "
@@ -905,6 +926,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                              "(uf invalidated) [pos="
                           << localChunkPos << "] [fileno=" << chunk.fileno
                           << "] [this = " << this << "]";
+                impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
                 return false;
             }
             if (uf->paused())
@@ -937,6 +959,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                             "[pos="
                          << chunk.pos << "] [fileno=" << chunk.fileno
                          << "] [tag=" << uf->transfer().tag << "] [this = " << this << "]";
+                impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
                 purgeFileLocked(chunk.fileno);
                 uf->uploadFailed(FailReason::ServerError);
                 if (impl.mCb.onFail)
@@ -955,6 +978,12 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
                      "[mNumChunksInFlight="
                   << mNumChunksInFlight << "] [this = " << this << "]";
         ws->mChunksInFlight.emplace_back(chunk, std::move(update));
+        // S15 round-1 (Cluster G): wire-accept is the ONLY place the resend-stall
+        // watchdog may be disarmed — a chunk actually handed to the transport proves
+        // the pool's send path is alive (pop-time disarm hid the pre-wire requeue
+        // livelock this watchdog exists to catch).
+        mResendStallSinceDs = 0;
+        mResendStallReprimed = false;
 #ifndef NDEBUG
         updateMaxConnectionsWithInFlightSeenLocked();
         if (chunk.len > 0)
@@ -979,9 +1008,12 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         // uploadFailed / uploadCompleted), mHeadPos is 0 and nextChunk will skip this
         // stale entry on drain. Never drop silently — there is no server opcode that
         // recovers a never-sent byte range.
-        WSUPLOAD_TRACE << "[WsPool::sendChunk] requeue chunk after interrupted read/open [pos="
+        LOG_debug << "[WsPool::sendChunk] requeue chunk after interrupted read/open [pos="
                   << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
         mToResend.push_back(chunk);
+        // S15 round-1 (Cluster G): never reached the wire — refund (see the drop sites
+        // above; a leaked grant starves the shared FIFO bucket for 12.5-25 s per leak).
+        impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
         return false;
     }
 
@@ -993,6 +1025,7 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         LOG_warn << "[WsPool::sendChunk] read/open failed, aborting upload attempt [pos="
                  << chunk.pos << "] [len=" << chunk.len << "] [fileno=" << chunk.fileno << "]";
 
+        impl.refundUploadBudget(static_cast<m_off_t>(chunk.len));
         purgeFileLocked(chunk.fileno);
 
         if (uf->hasFailed())

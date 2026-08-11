@@ -89,6 +89,11 @@ namespace mega
 namespace ws
 {
 
+// Forward decl of the TU-local chunk-size lookup defined in wsupload.cpp (same
+// pattern as ws_pool.cpp) — the S15 frozen-progress watchdog arm scales its window
+// to the starving file's next fresh-chunk size.
+int chunkSizeAtPosition(m_off_t pos);
+
 // ---------- Pool manager (USC refresh + cURL multi) ----------
 // struct WsPoolMgr is declared in include/mega/transfer/ws/ws_pool_mgr.h.
 // All method bodies except curlIO / ensurePinnedPool (ws_curl.cpp) live here.
@@ -771,12 +776,20 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
             if (!pptr)
                 continue;
             WsPool& pool = *pptr;
-            if (pool.mToResend.empty() || pool.mNumChunksInFlight > 0 ||
-                pool.throttledByServer())
+            if (pool.mNumChunksInFlight > 0 || pool.throttledByServer() || impl.paused)
             {
                 pool.mResendStallSinceDs = 0;
                 pool.mResendStallReprimed = false;
                 continue;
+            }
+            // S15 round-1 (Cluster G): server-confirmed progress since arming disarms —
+            // the pool is demonstrably alive (companion to the wire-accept reset in
+            // sendChunk; pop-time resets are gone).
+            if (pool.mResendStallSinceDs && pool.mLastConfirmAdvanceDs &&
+                SteadyTime::difference(pool.mLastConfirmAdvanceDs, pool.mResendStallSinceDs) > 0)
+            {
+                pool.mResendStallSinceDs = 0;
+                pool.mResendStallReprimed = false;
             }
             bool anyUnpausedOwner = false;
             m_off_t frontNeed = 0;
@@ -790,9 +803,34 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                         frontNeed = static_cast<m_off_t>(rc.len);
                 }
             }
+            // S15 round-1 (Cluster G, fifth wedge class): a pool can be wedged with an
+            // EMPTY resend queue (win_9741: pool E150 froze 42 s at resend=0,
+            // inflight=0, confirms frozen — no detector had a hook on that state), and
+            // the all-owners-paused park is only legitimate while no unpaused
+            // pool-mate is starving behind it. Arm the same clocks when an unpaused
+            // sendable file sits at zero in-flight with no confirm advance; frontNeed
+            // scales the window to the fresh chunk the starving file would send next
+            // (capped physics: a correct capped engine never lets this expire).
+            bool unpausedSendableStarving = false;
             if (!anyUnpausedOwner)
             {
-                // All owners paused: the legitimate parked state (Cluster-B fix), not a stall.
+                for (const auto& kv: impl.fileByNo)
+                {
+                    WsUploadFile* const f = kv.second;
+                    if (f && f->mPool == &pool && f->inPool() && !f->paused() &&
+                        (f->headPos() < f->size() || !f->eofSet()))
+                    {
+                        unpausedSendableStarving = true;
+                        if (!frontNeed && f->headPos() < f->size())
+                            frontNeed =
+                                static_cast<m_off_t>(chunkSizeAtPosition(f->headPos()));
+                        break;
+                    }
+                }
+            }
+            if (!anyUnpausedOwner && !unpausedSendableStarving)
+            {
+                // Nothing unpaused wants to send: the legitimate parked/idle state.
                 pool.mResendStallSinceDs = 0;
                 pool.mResendStallReprimed = false;
                 continue;
@@ -829,11 +867,13 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                 LOG_warn << "[WsPoolMgr::checkPools] RESEND-STALL "
                          << (pool.mResendStallReprimed ? "stage-2 (restart)" : "stage-1 (reprime)")
                          << ": pool=" << &pool << " resend=" << pool.mToResend.size()
+                         << " mode=" << (anyUnpausedOwner ? "resend" : "frozen-progress")
                          << " frontNeed=" << frontNeed << " inflight=0 windowDs=" << window
+                         << " lastConfirmAdvanceDs=" << pool.mLastConfirmAdvanceDs
                          << " budget=" << impl.mUploadBudget
                          << " maxSpeed=" << impl.mMaxUploadSpeed
                          << " waiters=" << impl.mBudgetWaiters.size() << waiters
-                         << " (Cluster G, S13)";
+                         << " (Cluster G, S13/S15)";
             }
             if (!pool.mResendStallReprimed)
             {
@@ -844,7 +884,12 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                 continue;
             }
             // Stage 2: clean full restart of the stalled unpaused owners (the proven
-            // tail/shortfall recovery — rebuilds MAC state; AlreadyOnServer re-credits).
+            // tail/shortfall recovery — rebuilds MAC state). NOTE (S15, P-S14-2): the
+            // restart DISCARDS already-confirmed bytes and re-sends them
+            // (ws_conn.cpp restart path does NOT re-credit — run 035 re-sent 11.5 MB
+            // of confirmed data); acceptable as last-resort recovery, and the reason
+            // the frozen-progress arm added in S15 deliberately reaches stage 1 only
+            // in practice (its stalledOwners set is empty when the resend queue is).
             std::vector<std::uint32_t> stalledOwners;
             for (const WsChunk& rc: pool.mToResend)
             {

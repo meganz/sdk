@@ -583,10 +583,19 @@ struct WsPool
     dstime mPausedByServerUntil{0};
 
     // S13 round-3 (Cluster G): resend-stall watchdog clocks (WsPoolMgr::checkPools).
-    // Armed while the pool holds unpaused-owner resend entries with zero in-flight and
-    // no serve; reset by the resend-serve path in nextChunk. uploadMutex-guarded.
+    // S15 round-1: armed while the pool has zero in-flight, is not server-throttled,
+    // and EITHER holds unpaused-owner resend entries OR has an unpaused sendable file
+    // with frozen confirms (the fifth wedge class — win_9741 froze 42 s with
+    // resend=0 and no detector had a hook on that state). Reset ONLY at sendChunk's
+    // wire-accept (pop-time reset hid pre-wire requeue livelocks) or on confirm
+    // advance. uploadMutex-guarded.
     dstime mResendStallSinceDs{0};
     bool mResendStallReprimed{false};
+    // S15 round-1 (Cluster G): last time ANY owner's bytes were server-confirmed on
+    // this pool. Set at both WsConn::onmessage ack sites under uploadMutex,
+    // deliberately NOT gated on mDatasetConnGate (unlike mConfirmedBytesTotal) — it is
+    // the watchdog's progress source, not gate telemetry.
+    dstime mLastConfirmAdvanceDs{0};
 
     unsigned char mNumberOfConnections{3};
     bool mRetiring{false};
