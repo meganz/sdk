@@ -1610,7 +1610,15 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
               << "] [this = " << this << "]";
 
     std::unique_lock<std::mutex> lk(mImpl->uploadMutex);
-    while (!th->terminate)
+    // S15 (SHARED9_i9 wedge, thread-stack proven): the loop MUST also exit on
+    // stopping(). mStopping is set by stop() BEFORE it acquires the engine mutex;
+    // every park predicate below returns true on stopping(), so a terminate-only
+    // loop turns the parked workers into a hot mutex acquire/release spin the
+    // moment teardown begins — and th->terminate can only be set by stop() UNDER
+    // the very mutex that spin is starving (8.8 h locallogout starvation on
+    // TSAN-Linux; same class as the 41-61 s macOS engine-mutex pins). Exiting on
+    // stopping() drains the churn so stop()'s loud acquisition wins immediately.
+    while (!th->terminate && !mImpl->stopping())
     {
         // fu7-21 Lever F (FU-RSS): non-pinned size-class pools defer the WsConn
         // allocation + connect until they have eligible work, so idle
