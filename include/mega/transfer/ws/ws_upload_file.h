@@ -255,11 +255,19 @@ public:
     // (dying FUSE-backed source path, network filesystem) must never hang the caller
     // (win_9515: the client thread spun here inside locallogout/freeq(PUT) until the CI
     // watchdog killed the job). Returns true when quiesced, false on timeout.
+    // S15 round-1 (Cluster I, macos_9562): the bound must be WALL-CLOCK, not an
+    // iteration count. The former `++waitedMs per sleep_for(1ms)` loop assumed one
+    // iteration == 1 ms; on an oversubscribed macOS agent each iteration cost >=7.5 ms,
+    // silently stretching the nominal 2 s bound across the entire 15 s stuck read
+    // (logoutMs 15806 vs the 12 s test bound) while Windows (1.52x) and Linux (1.11x)
+    // still timed out. steady_clock deadline, mirroring the locallogout quiesce loop.
     bool waitForNoIO(const int maxWaitMs) const
     {
-        for (int waitedMs = 0; mActiveIO.load(std::memory_order_acquire) != 0; ++waitedMs)
+        const auto deadline =
+            std::chrono::steady_clock::now() + std::chrono::milliseconds(maxWaitMs);
+        while (mActiveIO.load(std::memory_order_acquire) != 0)
         {
-            if (waitedMs >= maxWaitMs)
+            if (std::chrono::steady_clock::now() >= deadline)
             {
                 return false;
             }

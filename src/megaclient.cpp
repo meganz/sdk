@@ -5309,13 +5309,29 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mSfuid = sfu_invalid_id;
 #endif
 
+    // S15 round-1 (Cluster I, macos_9562): phase stamps. A 15.8 s macOS logout pin sat
+    // in this segment with ZERO log lines between "MediaInfo version" and the WS
+    // teardown's first stamp — each phase below is stamped so any future pin is
+    // localized from the CI log alone. steady_clock (the macOS logger's ms field is
+    // second-granular and unusable for this).
+    const auto logoutPhaseStart = std::chrono::steady_clock::now();
+    const auto logoutPhaseMs = [&logoutPhaseStart]()
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - logoutPhaseStart)
+            .count();
+    };
+
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
+    LOG_debug << "locallogout: purgeOrphanTransfers done (" << logoutPhaseMs() << " ms)";
 
     // delete all remaining transfers (optimized not to remove from transfer list one by one)
     // transfer destructors update the transfer in the cache database
     freeq(GET);
+    LOG_debug << "locallogout: freeq(GET) done (" << logoutPhaseMs() << " ms)";
     freeq(PUT);
+    LOG_debug << "locallogout: freeq(PUT) done (" << logoutPhaseMs() << " ms)";
 
 #ifdef MEGA_USE_WSUPLOAD
     wsLocallogoutCleanup();
