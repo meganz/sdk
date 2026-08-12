@@ -249,6 +249,11 @@ int UploadEngine::liveWorkerCount() const
     return pImpl->mLiveWorkerThreads.load(std::memory_order_acquire);
 }
 
+std::uint64_t UploadEngine::workerItersWhileStopping() const
+{
+    return pImpl->mWorkerItersWhileStopping.load(std::memory_order_relaxed);
+}
+
 bool UploadEngine::managerThreadLive() const
 {
     return pImpl->mManagerThreadLive.load(std::memory_order_acquire);

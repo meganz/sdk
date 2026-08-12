@@ -1158,6 +1158,9 @@ void MegaClient::wsLocallogoutCleanup()
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(5));
         }
+        // S15 FIX-T regression seam: report the teardown worker-churn count while the
+        // engine is still alive on both branches below (the leak branch releases it).
+        DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(m_wsEngine->workerItersWhileStopping());
         if (!m_wsEngine->workersQuiesced())
         {
             LOG_err << "WsUpload: engine workers did not quiesce at locallogout — "

@@ -3746,12 +3746,20 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
         {
             std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsUploadBlockingReadForTesting = {};
+            globalMegaTestHooks.onWsTeardownWorkerChurn = {};
         });
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
 
     std::atomic<int> blockedReads{0};
+    // S15 FIX-T regression net: worker-loop iterations executed while stopping() was
+    // true, reported once from wsLocallogoutCleanup. Post-fix bound: <=1 per worker
+    // lifetime. A regression of the `!stopping()` loop-exit condition turns the parked
+    // workers into a hot mutex spin at teardown (the SHARED9_i9 8.8 h starvation) and
+    // this count explodes to hundreds within one teardown on every platform.
+    std::atomic<std::uint64_t> teardownChurn{0};
+    std::atomic<bool> teardownChurnReported{false};
     {
         std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
         globalMegaTestHooks.onWsUploadBlockingReadForTesting = [&blockedReads](std::uint32_t)
@@ -3762,6 +3770,12 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
                 // (post-resume re-attempts) proceed normally.
                 std::this_thread::sleep_for(std::chrono::seconds(15));
             }
+        };
+        globalMegaTestHooks.onWsTeardownWorkerChurn =
+            [&teardownChurn, &teardownChurnReported](std::uint64_t iters)
+        {
+            teardownChurn.store(iters);
+            teardownChurnReported.store(true);
         };
     }
 
@@ -3789,8 +3803,16 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
     EXPECT_LT(logoutMs, 12000) << "locallogout was not bounded while a WS read was stuck (took "
                                << logoutMs
                                << " ms; pre-fix this is unbounded — win_9515 Cluster E)";
+    EXPECT_TRUE(teardownChurnReported.load())
+        << "teardown worker-churn hook never fired (wsLocallogoutCleanup not reached?)";
+    EXPECT_LE(teardownChurn.load(), 64u)
+        << "TEARDOWN WORKER CHURN (FIX-T regression): " << teardownChurn.load()
+        << " worker-loop iterations ran with stopping()==true — the poolWorkerThread "
+           "loop is no longer exiting on stopping() and teardown is one barging mutex "
+           "away from the SHARED9_i9 starvation wedge";
     LOG_info << "[LocallogoutBoundedWithStuckReadIO] logoutMs=" << logoutMs
-             << " blockedReads=" << blockedReads.load();
+             << " blockedReads=" << blockedReads.load()
+             << " teardownChurn=" << teardownChurn.load();
 
     // Restore a working session for fixture teardown.
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));

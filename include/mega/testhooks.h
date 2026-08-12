@@ -630,6 +630,15 @@ namespace mega {
         // Used by SdkWsUploadTest.OverquotaDuringTransfer to deterministically exercise
         // the WS-channel OVERQUOTA path without depending on staging quota state.
         std::function<bool(int /*transferTag*/)> onWsChunkSendOverquota;
+        // S15 FIX-T regression seam: fired once from wsLocallogoutCleanup after the
+        // worker quiesce window with the engine's count of worker-loop iterations
+        // executed while stopping() was already true. Post-fix invariant: <=1 per
+        // worker lifetime (the loop condition exits before re-entry). If the
+        // `!stopping()` loop-exit condition ever regresses, parked workers hot-loop
+        // and this count explodes (hundreds within one teardown) on every platform —
+        // deterministically, no starvation timing needed. Asserted (<=64) by
+        // SdkWsUploadTest.LocallogoutBoundedWithStuckReadIO.
+        std::function<void(std::uint64_t /*itersWhileStopping*/)> onWsTeardownWorkerChurn;
         // Goodput-saturation gate v2 (SDK-5360 QCT-K) controller-input seams. Both fire on the
         // WS engine thread under uploadMutex, inside WsPool::runGoodputGateLocked, so a test can
         // drive the ramp controller with a deterministic synthetic signal while the REAL send
@@ -1152,6 +1161,19 @@ namespace mega {
         } \
         while (0)
 
+#define DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(COUNT) \
+        do \
+        { \
+            std::function<void(std::uint64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsTeardownWorkerChurn; \
+            } \
+            if (_fn) \
+                _fn((COUNT)); \
+        } \
+        while (0)
+
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA) \
         do \
         { \
@@ -1318,6 +1340,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_PURGE_INFLIGHT(FILENO, OUT_PURGE)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
+#define DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(COUNT)
 #define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP)
 #define DEBUG_TEST_HOOK_WS_GATE_GOODPUT(POOLPTR, CONNS, BPS, OUT_OVERRIDDEN)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)

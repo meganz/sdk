@@ -136,6 +136,10 @@ public:
     // S13 round-3: covers the manager thread too, not just pool workers, so a true
     // result guarantees the destructor joins return promptly (Cluster I+J).
     bool workersQuiesced() const;
+
+    // S15 FIX-T regression seam: worker-loop iterations executed while stopping()
+    // was true (<=1 per worker lifetime unless the loop-exit condition regresses).
+    std::uint64_t workerItersWhileStopping() const;
     // Diagnostics for the quiesce-timeout leak log (Cluster I+J, S13).
     int liveWorkerCount() const;
     bool managerThreadLive() const;

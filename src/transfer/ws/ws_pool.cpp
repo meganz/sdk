@@ -1620,6 +1620,16 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
     // stopping() drains the churn so stop()'s loud acquisition wins immediately.
     while (!th->terminate && !mImpl->stopping())
     {
+        // S15 FIX-T regression counter: reachable only in the tiny window where
+        // stopping() flips between the loop condition and here — bounded <=1 per
+        // worker lifetime. If the `!stopping()` condition above ever regresses, this
+        // counts every parked-wake iteration and the teardown-churn hook assertion
+        // fails deterministically.
+        if (mImpl->stopping())
+        {
+            mImpl->mWorkerItersWhileStopping.fetch_add(1, std::memory_order_relaxed);
+            continue;
+        }
         // fu7-21 Lever F (FU-RSS): non-pinned size-class pools defer the WsConn
         // allocation + connect until they have eligible work, so idle
         // non-matching size-class pools hold zero WsBuf (~2 MiB/conn). The

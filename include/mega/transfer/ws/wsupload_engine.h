@@ -442,6 +442,11 @@ public:
     std::atomic<std::uint64_t> disconnectEpoch{0};
     std::uint64_t workerWakeEpoch{0};
     std::atomic<bool> mStopping{false};
+    // S15 FIX-T regression counter: worker-loop iterations executed while stopping()
+    // was already true. Bounded <=1 per worker lifetime by the loop-exit condition;
+    // explodes if that condition regresses (see poolWorkerThread + the
+    // DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN seam).
+    std::atomic<std::uint64_t> mWorkerItersWhileStopping{0};
 
     dstime currentTime{0};
     std::atomic<std::uint32_t> nextFileNo{1};
