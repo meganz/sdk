@@ -10172,7 +10172,7 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
         MegaTransferPrivate *t = it->second;
         if (t->getFolderTransferTag() == transferTag)
         {
-            transfers.push_back(transfer);
+            transfers.push_back(t);
         }
     }
 
