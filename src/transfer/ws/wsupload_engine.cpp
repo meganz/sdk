@@ -1503,14 +1503,22 @@ void UploadEngine::Impl::refundUploadBudget(const m_off_t bytes)
     const m_off_t maxBurstBudget = (mMaxUploadSpeed > (maxValue / burstWindowSeconds)) ?
                                        maxValue :
                                        (mMaxUploadSpeed * burstWindowSeconds);
-    // Same v3 clamp rule as consumeUploadBudget: never clamp below the front waiter's
-    // pending need (a refund must not destroy budget a waiter is accruing toward).
+    // Same v3 clamp rule as consumeUploadBudget, PLUS the S15 round-4 correction: the
+    // cap must accommodate the refund ON TOP of the front waiter's need. maxBurstBudget
+    // (speed x 5 s) is smaller than one chunk at low caps (52,425 B vs 131,072 B at CI's
+    // 10,485 B/s), so the old cap == exactly one chunk — a refund arriving into a full
+    // bucket was silently DESTROYED, and the refunding pool ate a full strict-FIFO
+    // round-robin penalty per dead grant anyway (win_9822/9823: pool A frozen 90 s while
+    // its slots died on conn teardowns). Burst stays bounded: <= one pending need + the
+    // refunded in-flight bytes, both already granted once.
     m_off_t largestPendingNeed = bytes;
     if (!mBudgetWaiters.empty())
     {
         largestPendingNeed = std::max(largestPendingNeed, mBudgetWaiters.front().bytes);
     }
-    const m_off_t budgetCap = std::max(maxBurstBudget, largestPendingNeed);
+    const m_off_t budgetCap =
+        std::max(maxBurstBudget, largestPendingNeed) +
+        (bytes > (std::numeric_limits<m_off_t>::max() - largestPendingNeed) ? 0 : bytes);
     if (bytes > (maxValue - mUploadBudget))
     {
         mUploadBudget = budgetCap;

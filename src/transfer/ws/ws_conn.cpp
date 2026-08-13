@@ -152,6 +152,14 @@ WsConn::~WsConn()
             for (auto& p: mChunksInFlight)
             {
                 mPool->mToResend.push_back(p.first);
+                // S15 round-4: this Release-only salvage path requeued WITHOUT
+                // refunding — under a cap the resend would re-buy its grant and eat a
+                // full FIFO round (the same budget leak class fixed at
+                // retryChunksOnTheWireLocked). Mirror the refund.
+                mPool->mImpl->refundUploadBudget(static_cast<m_off_t>(p.first.len));
+                LOG_debug << "[WsConn::~WsConn] requeue+refund in-flight chunk [pos="
+                          << p.first.pos << "] [len=" << p.first.len
+                          << "] [fileno=" << p.first.fileno << "] [this = " << this << "]";
             }
             mPool->mNumChunksInFlight -= static_cast<int>(mChunksInFlight.size());
             mChunksInFlight.clear();

@@ -789,6 +789,7 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
     ws::UploadEngine::PoolStateForTesting lastObservedState{};
     std::string observedPoolUrl = activeUpload.wsSessionUrl;
     bool observedParallelInFlight = false;
+    bool sawUploadingFile = false;
 
     second_timer parallelTimer;
     while (parallelTimer.elapsed() < 90)
@@ -804,8 +805,17 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
             fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, 1))
         {
             lastObservedState = state;
-            if (state.found && state.hasUploadingFile && state.activeThreads >= 2 &&
-                state.maxConnectionsWithInFlightSeen >= 2)
+            // S15 round-4 (linux_9925): hasUploadingFile samples an INSTANTANEOUS state
+            // that is cleared the moment the last chunk is handed out — on a fast
+            // storage node the whole observable window is ~0.5 s and a 200 ms poll can
+            // miss it even though the property under test held (the failing dump showed
+            // maxConnectionsWithInFlightSeen=8). Latch it across samples, and accept a
+            // FINISHED upload as uploading-evidence: the snapshot's wsSessionUrl proves
+            // the transfer ran through this pool, and maxConnectionsWithInFlightSeen is
+            // an engine high-water, not a sample.
+            sawUploadingFile = sawUploadingFile || state.hasUploadingFile;
+            if (state.found && (sawUploadingFile || ut.finished) &&
+                state.activeThreads >= 2 && state.maxConnectionsWithInFlightSeen >= 2)
             {
                 observedParallelInFlight = true;
                 break;
@@ -814,6 +824,18 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
 
         if (ut.finished)
         {
+            // One post-completion check with the latched semantics before giving up —
+            // the fast-link race leaves the high-water intact after the upload ends.
+            if (!observedPoolUrl.empty() &&
+                fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, 1))
+            {
+                lastObservedState = state;
+                if (state.found && state.activeThreads >= 2 &&
+                    state.maxConnectionsWithInFlightSeen >= 2)
+                {
+                    observedParallelInFlight = true;
+                }
+            }
             break;
         }
         WaitMillisec(200);

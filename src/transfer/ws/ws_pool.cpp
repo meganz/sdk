@@ -587,6 +587,16 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
         // transiently exceed it (TCP-like semantics), which is the acceptable side of
         // the trade-off. No-op when uncapped.
         mImpl->refundUploadBudget(static_cast<m_off_t>(p.first.len));
+        // S15 round-4 (win_9822/9823 RCA): this is the DOMINANT loss path on Windows —
+        // granted chunks dying post-wire with the conn — and it was trace-only, which
+        // blinded two censuses. Loud, with the conn-liveness stamps: the close reason
+        // for the ~38 s Windows conn-death cadence is the one datum still missing.
+        LOG_debug << "[WsPool::retryChunksOnTheWireLocked] requeue+refund un-acked chunk "
+                     "[pos=" << p.first.pos << "] [len=" << p.first.len
+                  << "] [fileno=" << p.first.fileno << "] [conn=" << ws
+                  << "] [connLastInboundDs=" << ws->mLastInboundFrameDs.load(std::memory_order_relaxed)
+                  << "] [connLastSendProgressDs=" << ws->mLastSendProgressDs.load(std::memory_order_relaxed)
+                  << "] [nowDs=" << SteadyTime::ds() << "] [this = " << this << "]";
     }
     mNumChunksInFlight -= static_cast<int>(ws->mChunksInFlight.size());
     ws->mChunksInFlight.clear();
