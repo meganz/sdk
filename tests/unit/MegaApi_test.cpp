@@ -835,3 +835,27 @@ TEST(MegaNodePrivate, getShortformat_known_format_returns_index)
 
     EXPECT_EQ(node.getShortformat(), 5);
 }
+
+// mediats is 0 for anything that is not a photo / video / audio file, so a
+// mediats date-section grouping is only meaningful over a media category. This
+// pins the partition the groupAllNodesByDate gate depends on.
+TEST(MegaApi, IsMediaMimeType_PartitionsMediaFromNonMedia)
+{
+    using ::mega::isMediaMimeType;
+
+    EXPECT_TRUE(isMediaMimeType(MIME_TYPE_PHOTO));
+    EXPECT_TRUE(isMediaMimeType(MIME_TYPE_VIDEO));
+    EXPECT_TRUE(isMediaMimeType(MIME_TYPE_AUDIO));
+    EXPECT_TRUE(isMediaMimeType(MIME_TYPE_ALL_VISUAL_MEDIA));
+
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_UNKNOWN));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_DOCUMENT));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_PDF));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_PRESENTATION));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_ARCHIVE));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_PROGRAM));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_MISC));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_SPREADSHEET));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_ALL_DOCS));
+    EXPECT_FALSE(isMediaMimeType(MIME_TYPE_OTHERS));
+}

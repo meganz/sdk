@@ -68,8 +68,11 @@ NS_SWIFT_SENDABLE
  * @brief Number of items in this section.
  *
  * Sum count across all sections for the timeline's total length (the value the
- * fast scroller uses for its track). int64_t (not NSInteger narrowing): a large
- * account's total can exceed INT_MAX.
+ * fast scroller uses for its track).
+ * Under a capture-time order with no timestamp anchor set, listAllNodesByPage also
+ * returns nodes with no capture time, which belong to no section — so the sum
+ * matches the list length only when an anchor is set. int64_t (not NSInteger
+ * narrowing): a large account's total can exceed INT_MAX.
  */
 @property (readonly, nonatomic) int64_t count;
 

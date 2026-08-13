@@ -11339,9 +11339,11 @@ public:
      * fields don't swap meaning based on direction.
      *
      * **Half-bounded semantics.** Only one bound is enforced, picked by
-     * @p sectionOrder:
-     *   - ORDER_MODIFICATION_ASC:  enforces the lower bound @p startDate (walks forward)
-     *   - ORDER_MODIFICATION_DESC: enforces the upper bound @p endDate   (walks backward)
+     * @p sectionOrder, which also selects the timestamp column:
+     *   - ORDER_MODIFICATION_ASC:  mtime,   enforces the lower bound @p startDate
+     *   - ORDER_MODIFICATION_DESC: mtime,   enforces the upper bound @p endDate
+     *   - ORDER_MEDIATS_ASC:       mediats, enforces the lower bound @p startDate
+     *   - ORDER_MEDIATS_DESC:      mediats, enforces the upper bound @p endDate
      * Pagination continues into adjacent sections. To fetch ONLY this bucket,
      * the app stops after MegaDateSection::getCount() items.
      *
@@ -11349,7 +11351,10 @@ public:
      * disable; all three fields reset together. This setter only stores the
      * values; validity is enforced when the filter is used. listAllNodesByPage
      * returns an empty list (and logs a warning) for an unsupported
-     * @p sectionOrder, a negative bound, or @p startDate >= @p endDate.
+     * @p sectionOrder, a negative bound, @p startDate >= @p endDate, or an
+     * ORDER_MEDIATS_* @p sectionOrder paired with a non-media
+     * MegaNodeScopeFilter::byCategory() — capture time is unset for every other
+     * kind of file, so that pairing could only ever return an empty page.
      * @p startDate == 0 is allowed and means "no lower bound" for an ASC anchor.
      *
      * Honoured only by listAllNodesByPage. Ignored by
@@ -11357,9 +11362,19 @@ public:
      * across the entire remaining filter scope.
      *
      * The @p order on listAllNodesByPage controls only the ORDER BY, not which
-     * half-bound is enforced. NOTE: a non-mtime page order is NOT scoped to one
-     * bucket; fetch getCount() items with ORDER_MODIFICATION_* and sort
-     * client-side.
+     * half-bound is enforced. NOTE: the page is scoped to this bucket ONLY when
+     * that @p order EQUALS this @p sectionOrder. Every other pairing yields an
+     * unscoped page of plausible-looking rows — a different column
+     * (ORDER_MEDIATS_DESC page + ORDER_MODIFICATION_DESC anchor), and equally the
+     * same column reversed (ORDER_MEDIATS_ASC page + ORDER_MEDIATS_DESC anchor,
+     * whose first getCount() items are the oldest media in scope, not this
+     * bucket's). Otherwise fetch getCount() items and sort client-side.
+     *
+     * NOTE: with no anchor set, ORDER_MEDIATS_* pages include nodes whose
+     * mediats is 0 (any non-media file, or a media file from which no timestamp
+     * could be derived). Those nodes belong to no MegaDateSection, so section
+     * counts do not sum to an unanchored page's length. Set an anchor to
+     * exclude them.
      */
     virtual void byTimestampAnchor(int64_t startDate, int64_t endDate, int sectionOrder);
 
@@ -11510,6 +11525,11 @@ public:
      *
      * Sum getCount() across all sections for the timeline's total length (the
      * value the fast scroller uses for its track).
+     *
+     * Under an ORDER_MEDIATS_* order with no MegaListAllNodesFilter timestamp
+     * anchor set, listAllNodesByPage also returns nodes with no capture time,
+     * which belong to no section — so that sum matches the page's length only
+     * when an anchor is set.
      *
      * int64_t (not int): a large account's total can exceed INT_MAX; bindings
      * must not narrow it.
@@ -21031,6 +21051,7 @@ class MegaApi
          *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
          *   - ORDER_LABEL_ASC        / ORDER_LABEL_DESC
          *   - ORDER_FAV_ASC          / ORDER_FAV_DESC
+         *   - ORDER_MEDIATS_ASC      / ORDER_MEDIATS_DESC
          *
          * The call returns an empty list and logs a warning when:
          *   - @p filter is nullptr.
@@ -21052,6 +21073,7 @@ class MegaApi
          *       * ORDER_LABEL_*        → getLastLabel() outside
          *                                [NODE_LBL_UNKNOWN, NODE_LBL_GREY]
          *       * ORDER_FAV_*          → getLastFav() not 0 or 1
+         *       * ORDER_MEDIATS_*      → getLastMediaTsMs() < 0
          *     ORDER_DEFAULT_* requires no extra field beyond lastName /
          *     lastHandle.
          *
@@ -21104,8 +21126,9 @@ class MegaApi
          * @param filter       Required. Scope/category filter; may carry byTimestampAnchor.
          * @param order        Sort order constant. Accepts the same set as
          *                     listAllNodesByPage (ORDER_DEFAULT / SIZE / MODIFICATION /
-         *                     LABEL / FAV, each ASC/DESC); the fast-scroller flow uses
-         *                     NEWEST/OLDEST = ORDER_MODIFICATION_DESC/ASC.
+         *                     LABEL / FAV / MEDIATS, each ASC/DESC); the fast-scroller
+         *                     flow uses NEWEST/OLDEST = ORDER_MODIFICATION_DESC/ASC, or
+         *                     the ORDER_MEDIATS_* pair for a capture-time timeline.
          * @param cancelToken  Optional; may be null.
          * @param maxElements  Window size (limit). 0 means no limit.
          * @param offset       Leading nodes to skip; must be >= 0 (negative => empty list).
@@ -21124,14 +21147,24 @@ class MegaApi
          *
          * Same scope / sensitivity / file-version exclusion as
          * MegaApi::listAllNodesByPage; any FILE_TYPE_* the latter accepts is
-         * accepted here. Nodes with mtime <= 0 are excluded so the section
-         * list does not contain a spurious "1970-01-01" bucket. Sections with
+         * accepted here, except that ORDER_MEDIATS_* additionally requires a
+         * media category (see below). Nodes with no timestamp in the active
+         * column (mtime <= 0, or mediats == 0) are excluded so the section list
+         * does not contain a spurious "1970-01-01" bucket. Sections with
          * zero remaining items are omitted.
          *
          * Always returns the section list across the entire filter scope.
          *
          * Supported sort orders (@p order):
          *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
+         *   - ORDER_MEDIATS_ASC      / ORDER_MEDIATS_DESC
+         *
+         * ORDER_MEDIATS_* groups by media capture timestamp rather than
+         * modification time, and requires @p filter->byCategory() to be one of
+         * FILE_TYPE_PHOTO / FILE_TYPE_VIDEO / FILE_TYPE_AUDIO /
+         * FILE_TYPE_ALL_VISUAL_MEDIA: mediats is 0 for every other category, so
+         * the grouping would have no rows to bucket. Any other combination is
+         * rejected (empty list + warning).
          *
          * Other order values are rejected (empty list + warning).
          *

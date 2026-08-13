@@ -6990,9 +6990,48 @@ static_assert(static_cast<int>(DateSectionGranularity::Year) ==
                   MegaGroupNodesByDateFilter::SECTION_GRANULARITY_YEAR,
               "DateSectionGranularity::Year must mirror SECTION_GRANULARITY_YEAR");
 
+// The public ORDER_* values travel verbatim into ListAllNodesParams::order and
+// TimestampAnchorFilter::mOrder, where the node table reads them as OrderByClause - and the
+// anchor cache-key digit needs the exact value to stay collision-free.
+static_assert(MegaApi::ORDER_DEFAULT_ASC == static_cast<int>(OrderByClause::DEFAULT_ASC) &&
+                  MegaApi::ORDER_DEFAULT_DESC == static_cast<int>(OrderByClause::DEFAULT_DESC),
+              "ORDER_DEFAULT_* must mirror OrderByClause::DEFAULT_*");
+static_assert(MegaApi::ORDER_SIZE_ASC == static_cast<int>(OrderByClause::SIZE_ASC) &&
+                  MegaApi::ORDER_SIZE_DESC == static_cast<int>(OrderByClause::SIZE_DESC),
+              "ORDER_SIZE_* must mirror OrderByClause::SIZE_*");
+static_assert(MegaApi::ORDER_MODIFICATION_ASC == static_cast<int>(OrderByClause::MTIME_ASC) &&
+                  MegaApi::ORDER_MODIFICATION_DESC == static_cast<int>(OrderByClause::MTIME_DESC),
+              "ORDER_MODIFICATION_* must mirror OrderByClause::MTIME_*");
+static_assert(MegaApi::ORDER_LABEL_ASC == static_cast<int>(OrderByClause::LABEL_ASC) &&
+                  MegaApi::ORDER_LABEL_DESC == static_cast<int>(OrderByClause::LABEL_DESC),
+              "ORDER_LABEL_* must mirror OrderByClause::LABEL_*");
+static_assert(MegaApi::ORDER_FAV_ASC == static_cast<int>(OrderByClause::FAV_ASC) &&
+                  MegaApi::ORDER_FAV_DESC == static_cast<int>(OrderByClause::FAV_DESC),
+              "ORDER_FAV_* must mirror OrderByClause::FAV_*");
+static_assert(MegaApi::ORDER_MEDIATS_ASC == static_cast<int>(OrderByClause::MEDIATS_ASC) &&
+                  MegaApi::ORDER_MEDIATS_DESC == static_cast<int>(OrderByClause::MEDIATS_DESC),
+              "ORDER_MEDIATS_* must mirror OrderByClause::MEDIATS_*");
+
+// Gates both date-section routes: groupAllNodesByDate via buildDateSectionParams, and
+// byTimestampAnchor's sectionOrder via buildListAllParams — the setter only stores it.
 static bool isSupportedTimestampOrder(int order)
 {
-    return order == MegaApi::ORDER_MODIFICATION_ASC || order == MegaApi::ORDER_MODIFICATION_DESC;
+    return order == MegaApi::ORDER_MODIFICATION_ASC || order == MegaApi::ORDER_MODIFICATION_DESC ||
+           order == MegaApi::ORDER_MEDIATS_ASC || order == MegaApi::ORDER_MEDIATS_DESC;
+}
+
+bool isMediaMimeType(MimeType_t mimeType)
+{
+    switch (mimeType)
+    {
+        case MIME_TYPE_PHOTO:
+        case MIME_TYPE_VIDEO:
+        case MIME_TYPE_AUDIO:
+        case MIME_TYPE_ALL_VISUAL_MEDIA:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void MegaListAllNodesFilterPrivate::byTimestampAnchor(int64_t startDate,
@@ -13753,6 +13792,19 @@ std::optional<ListAllNodesParams>
                 return std::nullopt;
             }
 
+            // Mirrors the buildDateSectionParams gate. mediats is 0 for every non-media node
+            // and an anchored page drops that sentinel, so this pairing can only ever return
+            // an empty page; warn instead of leaving the caller to guess why.
+            if ((anchorOrder == MegaApi::ORDER_MEDIATS_ASC ||
+                 anchorOrder == MegaApi::ORDER_MEDIATS_DESC) &&
+                !isMediaMimeType(params.mimeType))
+            {
+                LOG_warn << "listAllNodesByPage: mediats byTimestampAnchor requires a media "
+                            "file type, got "
+                         << params.mimeType;
+                return std::nullopt;
+            }
+
             if (anchorStart < 0 || anchorEnd < 0)
             {
                 LOG_warn << "listAllNodesByPage: byTimestampAnchor has a negative bound";
@@ -13821,6 +13873,17 @@ std::optional<DateSectionParams>
     // is only read once it's known non-null.
     if (!parseListAllFilterIntoBase(filter, "groupAllNodesByDate", params))
         return std::nullopt;
+
+    // mediats is 0 for non-media nodes, so a mediats grouping over a non-media
+    // category returns zero sections while listAllNodesByPage with the same filter
+    // returns every row — reject rather than emit a list the caller cannot diagnose.
+    if ((order == MegaApi::ORDER_MEDIATS_ASC || order == MegaApi::ORDER_MEDIATS_DESC) &&
+        !isMediaMimeType(params.mimeType))
+    {
+        LOG_warn << "groupAllNodesByDate: mediats grouping requires a media file type, got "
+                 << params.mimeType;
+        return std::nullopt;
+    }
 
     const int granularity = filter->byGranularity();
     if (granularity < MegaGroupNodesByDateFilter::SECTION_GRANULARITY_DAY ||
@@ -19030,6 +19093,10 @@ std::function<bool(Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, 
         case MegaApi::ORDER_SHARE_CREATION_ASC:
         case MegaApi::ORDER_SHARE_CREATION_DESC:
             return nullptr;
+        case MegaApi::ORDER_MEDIATS_ASC:
+            return MegaApiImpl::nodeComparatorMediaTsASC;
+        case MegaApi::ORDER_MEDIATS_DESC:
+            return MegaApiImpl::nodeComparatorMediaTsDESC;
     }
     assert(false);
     return nullptr;
@@ -19411,6 +19478,57 @@ bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
     {
         return 1;
     }
+}
+
+bool MegaApiImpl::nodeComparatorMediaTsASC(Node* i, Node* j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t != 0;
+    }
+
+    if (i->type != FILENODE) // only file nodes carry a capture timestamp
+    {
+        return nodeNaturalComparatorASC(i, j);
+    }
+
+    // getMediaTs() is unsigned - compare, never subtract as the mtime pair does.
+    if (i->getMediaTs() < j->getMediaTs())
+    {
+        return 1;
+    }
+    if (i->getMediaTs() > j->getMediaTs())
+    {
+        return 0;
+    }
+
+    return nodeNaturalComparatorASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorMediaTsDESC(Node* i, Node* j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t != 0;
+    }
+
+    if (i->type != FILENODE)
+    {
+        return nodeNaturalComparatorDESC(i, j);
+    }
+
+    if (i->getMediaTs() < j->getMediaTs())
+    {
+        return 0;
+    }
+    if (i->getMediaTs() > j->getMediaTs())
+    {
+        return 1;
+    }
+
+    return nodeNaturalComparatorDESC(i, j);
 }
 
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.

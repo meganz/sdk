@@ -183,6 +183,11 @@ using namespace mega;
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getModificationTime()] : nil;
 }
 
+- (NSDate *)mediaCaptureTime {
+    int64_t mediaCaptureTimeMs = self.megaNode ? self.megaNode->getMediaCaptureTimeMs() : 0;
+    return mediaCaptureTimeMs > 0 ? [[NSDate alloc] initWithTimeIntervalSince1970:mediaCaptureTimeMs / 1000.0] : nil;
+}
+
 - (NSDate *)publicLinkCreationTime {
     return self.megaNode ? [[NSDate alloc] initWithTimeIntervalSince1970:self.megaNode->getPublicLinkCreationTime()] : nil;
 }

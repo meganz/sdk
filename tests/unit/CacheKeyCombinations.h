@@ -7,7 +7,7 @@
  */
 #pragma once
 
-#include <mega/db/sqlite.h> // OrderByClause, AnchorDirectionDigit
+#include <mega/db/sqlite.h> // OrderByClause
 #include <mega/nodemanager.h> // DateSectionGranularity
 #include <mega/types.h> // MimeType_t
 
@@ -61,14 +61,19 @@ inline constexpr std::array<int, 14> kAllValidOrders{{
 static_assert(kAllValidOrders.back() == OrderByClause::LAST,
               "kAllValidOrders must end at OrderByClause::LAST — add the new order pair");
 
-inline constexpr std::array<AnchorDirectionDigit, 3> kAllAnchorDirs{{
-    AnchorDirectionDigit::None,
-    AnchorDirectionDigit::Asc,
-    AnchorDirectionDigit::Desc,
+// Anchor-digit inputs the production call site can produce: 0 (no anchor) plus every order
+// timestampColumnForOrder() accepts. The digit's base is the full order stride, so an order
+// missing here still gets a distinct key — this array bounds coverage, not collisions.
+// No tripwire is possible either: kAllValidOrders' `back() == LAST` would break on a future
+// non-timestamp order pair, and timestampColumnForOrder() is internal to sqlite.cpp. So add a
+// third timestamp column here by hand, or these tests silently skip it.
+inline constexpr std::array<int, 5> kAllAnchorOrders{{
+    0, // no anchor
+    OrderByClause::MTIME_ASC,
+    OrderByClause::MTIME_DESC,
+    OrderByClause::MEDIATS_ASC,
+    OrderByClause::MEDIATS_DESC,
 }};
-// Tripwire: a new value bumps AnchorDirectionDigit::Max, so size != Max + 1 until covered here.
-static_assert(kAllAnchorDirs.size() == static_cast<size_t>(AnchorDirectionDigit::Max) + 1,
-              "kAllAnchorDirs out of sync with AnchorDirectionDigit — add the new value");
 
 inline constexpr std::array<DateSectionGranularity, 3> kAllGranularities{{
     DateSectionGranularity::Day,

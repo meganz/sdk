@@ -4127,10 +4127,9 @@ using namespace mega;
         megaFilter->bySensitivity(static_cast<int>(filter.sensitivityFilter));
     }
 
-    // Forward the date-bucket anchor only when a direction is set; the C++
-    // filter validates the bounds (rejects startDate >= endDate, negatives)
-    // when the query runs. The section order maps to a modification-time order
-    // constant and is independent of the listing's own ORDER BY.
+    // Forward the date-bucket anchor only when a direction is set; the C++ filter
+    // validates the bounds (rejects startDate >= endDate, negatives) when the query runs.
+    // A page is scoped to its bucket only when the listing's orderType matches the anchor.
     switch (filter.timestampAnchorSectionOrder) {
         case MEGAListAllNodesTimestampAnchorOrderModificationAsc:
             megaFilter->byTimestampAnchor(filter.timestampAnchorStartDate,
@@ -4145,11 +4144,10 @@ using namespace mega;
         case MEGAListAllNodesTimestampAnchorOrderNone:
             break;
         default:
-            // An out-of-range raw value (ObjC NS_ENUM is not a closed type) still
-            // signals intent to anchor. Forward an order the anchor path does not
-            // support (ORDER_NONE is not in {MODIFICATION_ASC, MODIFICATION_DESC}
-            // nor the -1 disable sentinel) so the query fails loudly with an empty
-            // list + warning, rather than silently degrading to a global scan.
+            // An out-of-range raw value (ObjC NS_ENUM is not closed) still signals intent to
+            // anchor, so forward ORDER_NONE — which the anchor path rejects — and a request
+            // with real date bounds fails loudly with an empty list rather than scanning
+            // everything. With both bounds still 0 the SDK resets to no anchor, as for None.
             megaFilter->byTimestampAnchor(filter.timestampAnchorStartDate,
                                           filter.timestampAnchorEndDate,
                                           MegaApi::ORDER_NONE);
@@ -4233,6 +4231,9 @@ using namespace mega;
     }
     if (cursor.lastFav >= 0) {
         megaCursor->setLastFav(static_cast<int>(cursor.lastFav));
+    }
+    if (cursor.lastMediaTsMs >= 0) {
+        megaCursor->setLastMediaTsMs(cursor.lastMediaTsMs);
     }
 
     return megaCursor;

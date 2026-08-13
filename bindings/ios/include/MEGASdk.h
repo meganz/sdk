@@ -8145,21 +8145,28 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 
 /**
  * @brief Group all nodes matching a MEGAGroupNodesByDateFilter into date buckets,
- * sorted by modification time.
+ * sorted by the active timestamp column.
  *
  * Same scope / sensitivity / file-version exclusion as listAllNodesByPage. Nodes
- * with a modification time <= 0 are excluded so the section list does not contain
- * a spurious "1970-01-01" bucket. Sections with zero items are omitted. Always
- * returns the section list across the entire filter scope — this call has no
- * pagination anchor.
+ * with no timestamp in the active column (modification time <= 0, or a media
+ * capture time of 0) are excluded so the section list does not contain a spurious
+ * "1970-01-01" bucket. Sections with zero items are omitted. Always returns the
+ * section list across the entire filter scope — this call has no pagination
+ * anchor.
  *
  * Sum the count of every returned section for the timeline's total length (the
- * value the fast scroller uses for its track).
+ * value the fast scroller uses for its track). Under a capture-time order with
+ * no timestamp anchor set, listAllNodesByPage also returns nodes with no capture
+ * time, which belong to no section — so the sum matches the page length only
+ * when an anchor is set.
  *
  * Supported sort orders:
- *   - MEGASortOrderTypeModificationAsc  (oldest first)
- *   - MEGASortOrderTypeModificationDesc (newest first)
+ *   - MEGASortOrderTypeModificationAsc  (oldest first, by modification time)
+ *   - MEGASortOrderTypeModificationDesc (newest first, by modification time)
  * Any other order value is rejected (returns an empty array and logs a warning).
+ * The engine also groups by media capture time, but MEGASortOrderType carries no
+ * capture-time value yet — adding one changes an NS_ENUM the app switches over
+ * exhaustively, so it ships with the matching app change.
  *
  * @param filter      Node-selection scope and bucket granularity. Must not be nil.
  * @param orderType   Timeline sort order; controls section ordering.

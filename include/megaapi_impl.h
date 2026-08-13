@@ -5025,6 +5025,8 @@ public:
         static bool nodeComparatorLabelDESC(Node *i, Node *j);
         static bool nodeComparatorFavASC(Node *i, Node *j);
         static bool nodeComparatorFavDESC(Node *i, Node *j);
+        static bool nodeComparatorMediaTsASC(Node* i, Node* j);
+        static bool nodeComparatorMediaTsDESC(Node* i, Node* j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
         static m_off_t sizeDifference(Node *i, Node *j);
@@ -7434,6 +7436,11 @@ std::unique_ptr<FileSystemAccess> createFSA();
 // nullptr / "" → 0 (UTC). Returns nullopt for malformed input, MM > 59, or a
 // total outside [-12:00, +14:00].
 std::optional<int64_t> parseUtcOffsetSeconds(const char* tz);
+
+/// True for the mime categories whose nodes can carry a media capture timestamp
+/// (mediats is 0 for everything else). Declared here, like parseUtcOffsetSeconds
+/// above, so the unit suite can pin the partition.
+bool isMediaMimeType(MimeType_t mimeType);
 }
 
 // Specializations of std::hash for custom Sync types

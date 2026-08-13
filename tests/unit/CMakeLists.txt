@@ -78,6 +78,7 @@ target_sources(test_unit
     WsQuota_test.cpp
     MediaTs_test.cpp
     MediaTs_db_test.cpp
+    NodeComparator_test.cpp
 )
 
 target_sources_conditional(test_unit

@@ -35,12 +35,15 @@ typedef NS_ENUM (NSInteger, MEGAListAllNodesFilterLocation) {
 /**
  * @brief Direction of the date-bucket timestamp anchor (see
  * `timestampAnchorSectionOrder`). Identifies both the timestamp column and the
- * traversal direction; only modification-time ordering is supported.
+ * traversal direction. Modification time only: a page is scoped to its bucket
+ * only when the listing's `orderType` matches the anchor, and MEGASortOrderType
+ * carries no capture-time value yet, so a capture-time anchor could not be paired
+ * with one. Both ship together with the matching app change.
  */
 typedef NS_ENUM (NSInteger, MEGAListAllNodesTimestampAnchorOrder) {
     MEGAListAllNodesTimestampAnchorOrderNone = 0,             ///< Anchor disabled (default).
-    MEGAListAllNodesTimestampAnchorOrderModificationAsc = 1,  ///< Enforce the lower bound; walk forward.
-    MEGAListAllNodesTimestampAnchorOrderModificationDesc = 2  ///< Enforce the upper bound; walk backward.
+    MEGAListAllNodesTimestampAnchorOrderModificationAsc = 1,  ///< mtime; enforce the lower bound, walk forward.
+    MEGAListAllNodesTimestampAnchorOrderModificationDesc = 2  ///< mtime; enforce the upper bound, walk backward.
 };
 
 /**
@@ -155,8 +158,11 @@ NS_ASSUME_NONNULL_BEGIN
  * to activate the anchor; MEGAListAllNodesTimestampAnchorOrderNone (default)
  * disables it and leaves the start/end bounds ignored.
  *
- * Independent of the `orderType` passed to the listing call, which controls
- * only the ORDER BY.
+ * The `orderType` passed to the listing call controls only the ORDER BY, never
+ * which bound is enforced. The page is scoped to this bucket ONLY when that
+ * `orderType` is the sort matching this value; any other pairing — a different
+ * timestamp column, or the same column reversed — returns rows from outside the
+ * bucket, ordered so that they look plausible.
  */
 @property (nonatomic) MEGAListAllNodesTimestampAnchorOrder timestampAnchorSectionOrder;
 

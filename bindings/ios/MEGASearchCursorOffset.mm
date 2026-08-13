@@ -34,6 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
         _lastMtime = -1;
         _lastLabel = -1;
         _lastFav = -1;
+        _lastMediaTsMs = -1;
     }
     return self;
 }

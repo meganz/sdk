@@ -74,6 +74,13 @@ NS_ASSUME_NONNULL_BEGIN
  */
 @property (nonatomic) NSInteger lastFav;
 
+/**
+ * @brief Media capture timestamp in milliseconds, for parity with the engine's cursor.
+ *        MEGASortOrderType carries no capture-time value yet, so nothing on this binding
+ *        needs it. Default: -1 (unset). Any negative value is treated as unset.
+ */
+@property (nonatomic) int64_t lastMediaTsMs;
+
 - (instancetype)init;
 
 @end

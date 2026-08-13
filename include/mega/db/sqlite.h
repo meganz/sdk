@@ -417,27 +417,16 @@ public:
     };
 };
 
-/// Timestamp-anchor presence + direction packed as one cache-key digit.
-/// 0 = no anchor; 1 = anchor with ASC direction (SQL `<col> >= ?`);
-/// 2 = anchor with DESC direction (SQL `<col> < ?`). Used as input to
-/// computeListAllCacheId below. Internal-only; declared here so the
-/// CacheKeyBuilder regression test can reach it.
-enum class AnchorDirectionDigit : uint8_t
-{
-    None = 0,
-    Asc = 1,
-    Desc = 2,
-    Max = Desc,
-};
-
 /// Cache key for mStmtListAllNodesByPage. Positional-number digit packing.
 /// Distinct SQL shapes produce distinct keys, so prepared statements never
-/// alias. Internal-only (see note above).
+/// alias. @p anchorOrder is the timestamp anchor's own OrderByClause value, or
+/// 0 when no anchor is set, so it identifies the anchor's column as well as its
+/// direction. Internal-only (see note above).
 size_t computeListAllCacheId(MimeType_t mimeType,
                              FileSubType_t fileSubType,
                              int order,
                              bool hasCursor,
-                             AnchorDirectionDigit anchorDir,
+                             int anchorOrder,
                              bool excludeSensitive,
                              size_t numRoots,
                              size_t numExcludes,

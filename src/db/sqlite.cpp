@@ -2679,6 +2679,7 @@ inline bool isAscOrder(int order)
         case OrderByClause::MTIME_ASC:
         case OrderByClause::LABEL_ASC:
         case OrderByClause::FAV_ASC:
+        case OrderByClause::MEDIATS_ASC:
             return true;
         default:
             return false;
@@ -2694,20 +2695,20 @@ constexpr size_t kListAllOrderStride = static_cast<size_t>(OrderByClause::LAST) 
 constexpr size_t kMimeTypeCount = static_cast<size_t>(MIME_TYPE_MAX) + 1;
 constexpr size_t kFileSubTypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
 constexpr size_t kFavouriteFilterStride = static_cast<size_t>(FAVOURITE_FILTER_MAX) + 1;
-constexpr size_t kAnchorDirectionStride = static_cast<size_t>(AnchorDirectionDigit::Max) + 1;
 constexpr size_t kDateSectionGranularityStride =
     static_cast<size_t>(DateSectionGranularity::Max) + 1;
 
 // Cache-key space upper bound; assert it stays within 32 bits (size_t is 32-bit on
-// armv7) if a base grows.
+// armv7) if a base grows. The anchor digit shares kListAllOrderStride, so adding an
+// order pair grows this product quadratically rather than linearly.
 constexpr size_t kListAllMaxCacheKey = kMimeTypeCount * kFileSubTypeStride * kListAllOrderStride *
-                                       2 /* hasCursor */ * kAnchorDirectionStride *
+                                       2 /* hasCursor */ * kListAllOrderStride /* anchorOrder */ *
                                        2 /* excludeSensitive */ * kListAllMaxRoots *
                                        (kListAllMaxExcludes + 1) * kFavouriteFilterStride;
 static_assert(kListAllMaxCacheKey < (uint64_t{1} << 32),
               "cache-key product no longer fits in 32 bits; revisit bounds");
 
-// Same bound for the date-section key (granularity digit replaces hasCursor + anchorDir).
+// Same bound for the date-section key (granularity digit replaces hasCursor + anchorOrder).
 constexpr size_t kDateSectionMaxCacheKey = kMimeTypeCount * kFileSubTypeStride *
                                            kListAllOrderStride * kDateSectionGranularityStride *
                                            2 /* excludeSensitive */ * kListAllMaxRoots *
@@ -2767,15 +2768,19 @@ struct TimestampColumnDescriptor
 // orders and the column / unit / direction each maps to; std::nullopt otherwise.
 std::optional<TimestampColumnDescriptor> timestampColumnForOrder(int order)
 {
-    // ⚠️ Adding a case for a NEW column also requires extending computeListAllCacheId —
-    // its anchor digit only encodes direction, which identifies the column only while
-    // mtime is the sole one here.
     switch (order)
     {
         case OrderByClause::MTIME_ASC:
             return TimestampColumnDescriptor{"mtime", "mtime", 0, 1, false};
         case OrderByClause::MTIME_DESC:
             return TimestampColumnDescriptor{"mtime", "mtime", 0, 1, true};
+        // mediats is milliseconds. secondsColumnExpr floors to the whole second so the
+        // strftime() callers keep receiving epoch seconds — a filename-derived mediats
+        // can carry sub-second digits, so it is not necessarily a multiple of 1000.
+        case OrderByClause::MEDIATS_ASC:
+            return TimestampColumnDescriptor{"mediats", "(mediats / 1000)", 0, 1000, false};
+        case OrderByClause::MEDIATS_DESC:
+            return TimestampColumnDescriptor{"mediats", "(mediats / 1000)", 0, 1000, true};
         default:
             return std::nullopt;
     }
@@ -3105,8 +3110,8 @@ bool bindTimestampAnchorParamForListAll(int& sqlResult,
         return false;
     const auto col = *colOpt;
 
-    // Scale seconds → column units. unitsPerSecond is always 1 today, so the overflow
-    // clamps are dead; they guard a future ms-resolution column against signed-overflow UB.
+    // Scale seconds → column units. mediats is milliseconds, so the clamps below are
+    // live: a bound near int64 max would otherwise overflow the multiply.
     auto scaleSat = [&](int64_t v) -> sqlite3_int64
     {
         if (col.unitsPerSecond > 1)
@@ -3684,35 +3689,36 @@ std::string buildGroupedMimeInListClause(MimeType_t mimeType)
 // Cache key for mStmtListAllNodesByPage. Distinct SQL shapes never collide
 // on one prepared statement — numRoots / numExcludes set IN-list arity;
 // excludeSensitive gates a WHERE clause; hasCursor adds cursor predicates;
-// anchorDir picks one of three half-bound shapes (none / >= / <).
+// anchorOrder picks the half-bound shape: none, or `>=` / `<` on the anchor's own
+// timestamp column.
 // locationScope is omitted: it only picks rootnodes; SQL depends only on
 // numRoots.
 //
-// Digit order: mimeType, fileSubType, order, hasCursor, anchorDir,
+// Digit order: mimeType, fileSubType, order, hasCursor, anchorOrder,
 // excludeSensitive, numRoots-1, numExcludes, favourite (see the append() chain below for each
 // base).
 size_t computeListAllCacheId(MimeType_t mimeType,
                              FileSubType_t fileSubType,
                              int order,
                              bool hasCursor,
-                             AnchorDirectionDigit anchorDir,
+                             int anchorOrder,
                              bool excludeSensitive,
                              size_t numRoots,
                              size_t numExcludes,
                              FavouriteFilter_t favourite)
 {
     assert(numRoots > 0); // numRoots - 1 below would underflow; append() bounds the rest
+    assert(anchorOrder >= 0 && static_cast<size_t>(anchorOrder) < kListAllOrderStride);
 
-    // anchorDir encodes only the anchor direction, not which timestamp column.
-    // Safe only while timestampColumnForOrder() has a single column (mtime); a
-    // second column would need its identity folded in here too (see the warning
-    // at timestampColumnForOrder).
+    // The anchor digit is the anchor's own OrderByClause value (0 = no anchor), so it
+    // identifies the column as well as the direction — any order timestampColumnForOrder()
+    // accepts gets its own slot, and a new timestamp column cannot be forgotten here.
     return CacheKeyBuilder{}
         .append(static_cast<size_t>(mimeType), kMimeTypeCount)
         .append(static_cast<size_t>(fileSubType), kFileSubTypeStride)
         .append(static_cast<size_t>(order), kListAllOrderStride)
         .append(hasCursor ? 1u : 0u, 2)
-        .append(static_cast<size_t>(anchorDir), kAnchorDirectionStride)
+        .append(static_cast<size_t>(anchorOrder), kListAllOrderStride)
         .append(excludeSensitive ? 1u : 0u, 2)
         .append(numRoots - 1, kListAllMaxRoots)
         .append(numExcludes, kListAllMaxExcludes + 1)
@@ -3721,7 +3727,7 @@ size_t computeListAllCacheId(MimeType_t mimeType,
 }
 
 // Cache key for mStmtDateSections — same shape as computeListAllCacheId but
-// with a base-3 granularity digit instead of hasCursor + anchorDir (the
+// with a base-3 granularity digit instead of hasCursor + anchorOrder (the
 // section query has no cursor and no timestamp-anchor filter). The tz offset is
 // a bound value, not part of the SQL text, so it needs no key digit. Declared in
 // include/mega/db/sqlite.h for the same test-reach reason as above.
@@ -3911,18 +3917,15 @@ bool SqliteAccountState::listAllNodesByPage(
     // Group mime types use literal per-route WHERE clauses in CTEs — no parameter slot needed.
     const bool mimeFilterNeedsParam = !isGroupMimeType;
 
-    // Anchor presence + direction (none / ASC / DESC) is a base-3 cache-key
-    // digit. Direction comes from the anchor's own sectionOrder, so the ASC and
-    // DESC SQL shapes get distinct cache slots.
-    const AnchorDirectionDigit anchorDir = !hasTimestampAnchor ? AnchorDirectionDigit::None :
-                                           isAscOrder(params.timestampAnchor->mOrder) ?
-                                                                 AnchorDirectionDigit::Asc :
-                                                                 AnchorDirectionDigit::Desc;
+    // Anchor digit: the anchor's own sectionOrder, or 0 for no anchor. The order value
+    // identifies both the column and the direction, so mtime and mediats anchors over an
+    // otherwise identical filter never share a prepared statement.
+    const int timestampAnchorOrder = hasTimestampAnchor ? params.timestampAnchor->mOrder : 0;
     const size_t cacheId = computeListAllCacheId(params.mimeType,
                                                  params.fileSubType,
                                                  params.order,
                                                  hasCursor,
-                                                 anchorDir,
+                                                 timestampAnchorOrder,
                                                  params.excludeSensitive,
                                                  numRoots,
                                                  numExcludes,
@@ -3941,7 +3944,6 @@ bool SqliteAccountState::listAllNodesByPage(
     const int excludeHandleParam = filesRootParam + static_cast<int>(numRoots);
     const int timestampAnchorParam = excludeHandleParam + static_cast<int>(numExcludes);
     const int cursorStartParam = timestampAnchorParam + (hasTimestampAnchor ? 1 : 0);
-    const int timestampAnchorOrder = hasTimestampAnchor ? params.timestampAnchor->mOrder : 0;
 
     const SubtreeScopeSql scope{filesRootParam,
                                 numRoots,
