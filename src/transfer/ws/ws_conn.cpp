@@ -527,8 +527,10 @@ void WsConn::curlRecv()
         {
             if (res != CURLE_AGAIN || meta)
             {
-                WSUPLOAD_TRACE << "[WsConn::curlRecv] res(=" << res
-                          << ") != CURLE_AGAIN || meta -> closeWS() [this = " << this << "]";
+                // S15 round-5: the close REASON was the last uninstrumented datum on
+                // the conn-death path (rare event, capped-path frequency ~4/2 min).
+                LOG_debug << "[WsConn::curlRecv] closeWS: res=" << res
+                          << " meta=" << (meta ? 1 : 0) << " [this = " << this << "]";
                 closeWS();
             }
 #ifndef NDEBUG
@@ -1107,8 +1109,9 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     }
     if (res != CURLE_AGAIN)
     {
-        WSUPLOAD_TRACE << "[WsBuf::sendWS] res(=" << res << ") != CURLE_AGAIN(=" << CURLE_AGAIN
-                  << ") -> ws->closeWS() [this = " << this << "]";
+        // S15 round-5: close reason on the send side (see curlRecv counterpart).
+        LOG_debug << "[WsBuf::sendWS] closeWS: res=" << res << " sent=" << sent
+                  << " [this = " << this << "]";
         ws->closeWS();
     }
 #ifndef NDEBUG

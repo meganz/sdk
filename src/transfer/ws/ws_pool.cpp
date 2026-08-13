@@ -502,7 +502,28 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             {
                 chunk.pos = mUploadingFile->headPos();
 
-                const int advance = chunkSizeAtPosition(chunk.pos);
+                int advance = chunkSizeAtPosition(chunk.pos);
+                // S15 round-5 (win_9829 differential RCA): under a speed cap the grant
+                // period MUST stay below the connection idle-break horizon (measured
+                // H <= ~23 s on Windows CI; TCP KEEPIDLE 90 s, no WS keepalive). The
+                // ChunkMap ramp (128K -> 768K+) drives the strict-FIFO two-pool cycle
+                // to 75-150 s at low caps, so the eventual grant lands on a conn that
+                // has been idle for multiples of the horizon, curl accepts zero bytes,
+                // the chunk is refunded to the BACK of the FIFO, and the loop closes —
+                // the pool starves for whole 90 s cycles (progress requires
+                // sum(grant needs)/cap < H, impossible once the ramp outgrows H).
+                // Clamp the chunk so one grant accrues in <= ~12 s at the cap: the
+                // FIFO round for two pools stays under the horizon and every pool
+                // keeps its conns warm. Bit-exact no-op when uncapped.
+                if (impl.mMaxUploadSpeed > 0)
+                {
+                    constexpr m_off_t kSafeGrantSeconds = 12;
+                    constexpr m_off_t kMinChunkLen = 131072; // = ChunkedHash::SEGSIZE
+                    const m_off_t maxLen = std::max<m_off_t>(
+                        impl.mMaxUploadSpeed * kSafeGrantSeconds, kMinChunkLen);
+                    if (static_cast<m_off_t>(advance) > maxLen)
+                        advance = static_cast<int>(maxLen);
+                }
                 m_off_t newHead = chunk.pos + advance;
 
                 if (newHead > mUploadingFile->size())
