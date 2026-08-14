@@ -77,6 +77,7 @@
 #include "mega/transfer/ws/wsupload_engine.h"
 
 #include "mega/logging.h"
+#include "mega/utils.h" // ChunkedHash::chunkfloor (round-6 lattice guard)
 #include "mega/testhooks.h" // DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA / WSCONN_FORCE_CLOSE_NOW / WSPOOL_RECONNECT_ATTEMPT / WSUPLOAD_SUSTAINED_HANDSHAKE_FAILURE_WINDOW_DS
 #include "mega/transfer/ws/ws_encryption.h" // mega::ws::encryptChunk
 #include "mega/transfer/ws/ws_pool_mgr.h" // WsPoolMgr::refreshPools (poolWorkerThread)
@@ -502,28 +503,20 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             {
                 chunk.pos = mUploadingFile->headPos();
 
-                int advance = chunkSizeAtPosition(chunk.pos);
-                // S15 round-5 (win_9829 differential RCA): under a speed cap the grant
-                // period MUST stay below the connection idle-break horizon (measured
-                // H <= ~23 s on Windows CI; TCP KEEPIDLE 90 s, no WS keepalive). The
-                // ChunkMap ramp (128K -> 768K+) drives the strict-FIFO two-pool cycle
-                // to 75-150 s at low caps, so the eventual grant lands on a conn that
-                // has been idle for multiples of the horizon, curl accepts zero bytes,
-                // the chunk is refunded to the BACK of the FIFO, and the loop closes —
-                // the pool starves for whole 90 s cycles (progress requires
-                // sum(grant needs)/cap < H, impossible once the ramp outgrows H).
-                // Clamp the chunk so one grant accrues in <= ~12 s at the cap: the
-                // FIFO round for two pools stays under the horizon and every pool
-                // keeps its conns warm. Bit-exact no-op when uncapped.
-                if (impl.mMaxUploadSpeed > 0)
-                {
-                    constexpr m_off_t kSafeGrantSeconds = 12;
-                    constexpr m_off_t kMinChunkLen = 131072; // = ChunkedHash::SEGSIZE
-                    const m_off_t maxLen = std::max<m_off_t>(
-                        impl.mMaxUploadSpeed * kSafeGrantSeconds, kMinChunkLen);
-                    if (static_cast<m_off_t>(advance) > maxLen)
-                        advance = static_cast<int>(maxLen);
-                }
+                const int advance = chunkSizeAtPosition(chunk.pos);
+                // S15 round-6 (utils.cpp:843 chunkfloor assert, both Windows jobs):
+                // chunk positions/lengths MUST stay on the canonical ChunkedHash
+                // lattice — the per-chunk CBC-MACs are boundary-dependent and macsmac
+                // folds them in canonical partition order, so ANY re-partitioning
+                // silently corrupts the node-key meta-MAC (downloads then fail
+                // API_EKEY on every client), and 16-byte-misaligned positions corrupt
+                // the CTR keystream itself. The round-5 capped-mode clamp that cut
+                // chunks to cap*12 s was therefore REVERTED: a lattice-legal smaller
+                // stride does not exist (past ~3.6 MiB the smallest legal chunk is
+                // 1 MiB). The grant-period-vs-conn-idle-horizon problem it targeted
+                // stays OPEN (dossier in followup8_QA_14/15): candidate fixes are
+                // conn-keepalive or frame-level sub-chunk budgeting — both leave the
+                // chunk lattice untouched.
                 m_off_t newHead = chunk.pos + advance;
 
                 if (newHead > mUploadingFile->size())
@@ -533,6 +526,11 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
                 }
 
                 chunk.len = static_cast<int>(newHead - chunk.pos);
+                // S15 round-6 permanent guard: fresh chunks must start ON the lattice
+                // (see the revert note above; utils.cpp:843 is the downstream assert
+                // this catches at the source).
+                assert(chunk.pos == ChunkedHash::chunkfloor(chunk.pos) &&
+                       "WS chunk position off the canonical chunk lattice");
 
                 if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs, this))
                 {
