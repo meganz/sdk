@@ -20115,11 +20115,15 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
     waiter->notify();
 }
 
-bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode)
+MacComparisonResult CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa,
+                                                              MegaNode* fileNode,
+                                                              CancelToken cancelToken)
 {
     if (fileNode->getNodeKey() == nullptr)
     {
-        return false;
+        MacComparisonResult result;
+        result.errorCode = API_EKEY;
+        return result;
     }
 
     auto name =
@@ -20127,8 +20131,8 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
     return CompareLocalFileMetaMacWithNodeKey(fa,
                                               *fileNode->getNodeKey(),
                                               fileNode->getType(),
-                                              name)
-        .areEqualMacs;
+                                              name,
+                                              cancelToken);
 }
 
 bool CollisionChecker::fingerprintEqualRelaxed(const FileFingerprint& lhs,
@@ -20141,7 +20145,9 @@ bool CollisionChecker::fingerprintEqualRelaxed(const FileFingerprint& lhs,
 #endif
 }
 
-CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF,
+                                                 std::function<MacComparisonResult()> metamacCheckF,
+                                                 Option option)
 {
     auto decision = CollisionChecker::Result::Download;
 
@@ -20167,7 +20173,14 @@ CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerpri
     }
     case Option::Metamac:
     {
-        if (metamacEqualF())
+        const auto comparison = metamacCheckF();
+        if (comparison.errorCode == API_EINCOMPLETE)
+        {
+            // The comparison was aborted, so it says nothing about the file. Report that no
+            // decision was reached instead of deciding to download.
+            decision = Result::NotYet;
+        }
+        else if (comparison.areEqualMacs)
         {
             decision = Result::Skip;
         }
@@ -20186,7 +20199,10 @@ CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerpri
 
 }
 
-CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter,
+                                                 MegaNode* fileNode,
+                                                 Option option,
+                                                 CancelToken cancelToken)
 {
     if (!fileNode)
     {
@@ -20212,38 +20228,26 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
         return ff->isvalid && resGenFp && fp.isvalid && fingerprintEqualRelaxed(*ff, fp);
     };
 
-    auto metaMacFunc = [fileNode, faGetter]() {
-
+    auto metaMacFunc = [fileNode, faGetter, cancelToken]() -> MacComparisonResult
+    {
         auto fa = faGetter();
         if (!fa)
         {
-            return false;
+            MacComparisonResult result;
+            result.errorCode = API_EREAD;
+            return result;
         }
 
-        return CompareLocalFileMetaMac(fa, fileNode);
+        return CompareLocalFileMetaMac(fa, fileNode, cancelToken);
     };
 
-    return check(
-        fingerprintEqualF,
-        metaMacFunc,
-        option);
+    return check(fingerprintEqualF, metaMacFunc, option);
 }
 
-CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, const LocalPath& fileLocalPath, MegaNode* fileNode, Option option)
-{
-    auto fa = fsaccess->newfileaccess();
-    auto fap = fa.get();
-    auto faGetter = [fap, &fileLocalPath]()
-    {
-        return fap->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
-                       fap->type == FILENODE ?
-                   fap :
-                   nullptr;
-    };
-    return CollisionChecker::check(std::move(faGetter), fileNode, option);
-}
-
-CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> faGetter, Node* node, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter,
+                                                 Node* node,
+                                                 Option option,
+                                                 CancelToken cancelToken)
 {
     if (!node)
     {
@@ -20264,21 +20268,20 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> f
                fingerprintEqualRelaxed(fp, nodeFp);
     };
 
-    auto metaMacFunc = [node, faGetter]() {
-
+    auto metaMacFunc = [node, faGetter, cancelToken]() -> MacComparisonResult
+    {
         auto fa = faGetter();
         if (!fa)
         {
-            return false;
+            MacComparisonResult result;
+            result.errorCode = API_EREAD;
+            return result;
         }
 
-        return CompareLocalFileMetaMacWithNode(fa, node);
+        return CompareLocalFileMetaMacWithNode(fa, node, cancelToken);
     };
 
-    return check(
-        fingerprintEqualF,
-        metaMacFunc,
-        option);
+    return check(fingerprintEqualF, metaMacFunc, option);
 }
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer, m_off_t availableDiskSpace)
@@ -20307,7 +20310,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
 
-        if (transfer->accessCancelToken().isCancelled())
+        const auto finishCancelledTransfer = [&]()
         {
             if (queue && recursiveTransfer && recursiveTransfer->isCancelledByFolderTransferToken())
             {
@@ -20330,6 +20333,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
             transfer->setUpdateTime(Waiter::ds);
             transfer->setState(MegaTransfer::STATE_CANCELLED);
             fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EINCOMPLETE));
+        };
+
+        if (transfer->accessCancelToken().isCancelled())
+        {
+            finishCancelledTransfer();
             continue;
         }
 
@@ -20460,7 +20468,14 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                 *client,
                                 wLocalPath,
                                 fp_forCloud,
-                                prevNodeSameName.get());
+                                prevNodeSameName.get(),
+                                transfer->accessCancelToken());
+
+                            if (compRes == NODE_COMP_CANCELLED)
+                            {
+                                finishCancelledTransfer();
+                                continue;
+                            }
 
                             if (compRes == NODE_COMP_DIFFERS_MTIME)
                             {
@@ -20502,6 +20517,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
                         bool sameNodeSameNameInTarget{false};
+                        bool macComparisonCancelled{false};
 
                         // MAC computation requires reading the local file (expensive I/O). When
                         // many cloud nodes share the same fingerprint, verifying all of them is
@@ -20526,7 +20542,16 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                                 *client,
                                                 wLocalPath,
                                                 fp_forCloud,
-                                                n.get());
+                                                n.get(),
+                                                transfer->accessCancelToken());
+
+                                        if (compRes == NODE_COMP_CANCELLED)
+                                        {
+                                            // Stop the search, the caller skips any remaining
+                                            // phase and finishes the transfer as cancelled.
+                                            macComparisonCancelled = true;
+                                            return false;
+                                        }
 
                                         if (compRes == NODE_COMP_EQUAL ||
                                             compRes == NODE_COMP_DIFFERS_MTIME)
@@ -20563,13 +20588,20 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         // a full re-upload. nameMatch nodes are skipped here because they were
                         // already checked in Phase 1. Breaks at the first MAC-verified match, so
                         // typically only one extra MAC computation is needed.
-                        if (!sameNodeFpFound && !alreadyCheckedSameNodeNameInTarget)
+                        if (!macComparisonCancelled && !sameNodeFpFound &&
+                            !alreadyCheckedSameNodeNameInTarget)
                         {
                             findNodeWithMacMatch(
                                 [](bool nameMatch)
                                 {
                                     return !nameMatch;
                                 });
+                        }
+
+                        if (macComparisonCancelled)
+                        {
+                            finishCancelledTransfer();
+                            continue;
                         }
 
                         if (sameNodeFpFound)
@@ -20847,19 +20879,25 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         auto fap = fa.get();
                         if (node)
                         {
-                            transfer->setCollisionCheckResult(
-                                CollisionChecker::check(
-                                    [fap]() { return fap; }
-                                    , node.get()
-                                    , transfer->getCollisionCheck()));
+                            transfer->setCollisionCheckResult(CollisionChecker::check(
+                                [fap]()
+                                {
+                                    return fap;
+                                },
+                                node.get(),
+                                transfer->getCollisionCheck(),
+                                transfer->accessCancelToken()));
                         }
                         else
                         {
-                            transfer->setCollisionCheckResult(
-                                CollisionChecker::check(
-                                    [fap]() { return fap; }
-                                    , publicNode
-                                    , transfer->getCollisionCheck()));
+                            transfer->setCollisionCheckResult(CollisionChecker::check(
+                                [fap]()
+                                {
+                                    return fap;
+                                },
+                                publicNode,
+                                transfer->getCollisionCheck(),
+                                transfer->accessCancelToken()));
                         }
                     }
                     else if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) // no collision
@@ -34848,7 +34886,8 @@ bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsTyp
                                 return fap;
                             },
                             fileNode,
-                            option);
+                            option,
+                            transfer->accessCancelToken());
                     }
                     folder.childrenCollisionDecisions[w.fileIdx] = result;
                     processedFiles.fetch_add(1);

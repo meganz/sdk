@@ -1126,6 +1126,70 @@ TEST_F(SdkTestFolderController, CancelDownloadOntoExistingLocalTree)
 }
 
 /**
+ * Verify cancellation from the only MetaMAC chunk interrupts the folder-download collision
+ * pre-pass. This covers both the folder-controller token propagation and the final-chunk check.
+ */
+TEST_F(SdkTestFolderController, CancelMetamacDuringCollisionPrepass)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED (debug test hooks)";
+#else
+    static const std::string logPre{getLogPrefix()};
+
+    const fs::path basePath = createWideLocalTree(1, 1);
+    ASSERT_LT(fs::file_size(basePath / "sub0" / "file0"), 128u * 1024u)
+        << "the fixture must fit in one MetaMAC chunk";
+
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    std::atomic<int> chunkReads{0};
+    globalMegaTestHooks.onMacGenerationChunkRead = [&](m_off_t)
+    {
+        if (chunkReads.fetch_add(1) == 0)
+        {
+            cancelToken->cancel();
+        }
+    };
+    MrProper clearHook{[]()
+                       {
+                           globalMegaTestHooks.onMacGenerationChunkRead = nullptr;
+                       }};
+
+    DownloadObserver obs;
+    NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+    observeSubTransfers(subTransferListener, obs);
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+
+    startFolderDownload(remoteFolderNode.get(),
+                        &listener,
+                        MegaTransfer::COLLISION_CHECK_METAMAC,
+                        cancelToken.get());
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::seconds{60}))
+        << "MetaMAC-cancelled folder download never finished";
+    EXPECT_EQ(chunkReads.load(), 1)
+        << "the collision pre-pass continued after cancellation in its only MetaMAC chunk";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(MegaError::API_EINCOMPLETE, obs.folderError)
+            << "the folder collision pre-pass did not propagate cancellation";
+        EXPECT_EQ(0u, obs.skippedFiles);
+        EXPECT_EQ(0u, obs.downloadedFiles);
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+#endif
+}
+
+/**
  * Verify the collision decision computed by the parallel pre-pass is the one actually applied,
  * by running the same download over the same unchanged local tree under two collision options
  * whose outcomes are distinguishable from the fingerprint default.

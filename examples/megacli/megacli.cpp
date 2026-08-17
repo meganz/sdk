@@ -12117,13 +12117,20 @@ void exec_compare_file_and_node(autocomplete::ACState& s)
     }
 
     const auto [compRes, localFileMac] =
-        CompareLocalFileWithNodeMacAndFpExludingMtime(*client, localPath, localFileFp, node.get());
+        CompareLocalFileWithNodeMacAndFpExludingMtime(*client,
+                                                      localPath,
+                                                      localFileFp,
+                                                      node.get(),
+                                                      CancelToken());
 
     std::string errMsg{"Node and file content comparisson: "};
     switch (compRes)
     {
         case NODE_COMP_EREAD:
             errMsg += "Local file read error";
+            break;
+        case NODE_COMP_CANCELLED:
+            errMsg += "Comparison cancelled";
             break;
         case NODE_COMP_EARGS:
             errMsg += "Arguments error";

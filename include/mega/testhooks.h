@@ -875,6 +875,9 @@ namespace mega {
         // Called during generateMetaMac after reading each chunk. Allows tests to modify/lock
         // the file mid-computation to trigger read errors.
         std::function<void(const m_off_t currentOffset)> onMacGenerationChunkRead;
+        // Called when an upload-dedup comparison starts. Allows tests to verify that cancellation
+        // stops the candidate search without reopening the local file for another comparison.
+        std::function<void()> onLocalFileNodeMacComparison;
 
         // Folder-upload testing: force per-node putnodes errors in the folder-creation
         // completion callback, to exercise partial-failure handling (some nodes fail while
@@ -950,6 +953,7 @@ namespace mega {
             onHookDeviceId = std::move(other.onHookDeviceId);
             onHashcashCalculationStarted = std::move(other.onHashcashCalculationStarted);
             onMacGenerationChunkRead = std::move(other.onMacGenerationChunkRead);
+            onLocalFileNodeMacComparison = std::move(other.onLocalFileNodeMacComparison);
             onFolderUploadPutnodesResult = std::move(other.onFolderUploadPutnodesResult);
             onFolderUploadSimulateMissing = std::move(other.onFolderUploadSimulateMissing);
         }
@@ -1565,6 +1569,19 @@ namespace mega {
         } \
         while (0)
 
+#define DEBUG_TEST_HOOK_LOCAL_FILE_NODE_MAC_COMPARISON \
+        do \
+        { \
+            std::function<void()> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onLocalFileNodeMacComparison; \
+            } \
+            if (_fn) \
+                _fn(); \
+        } \
+        while (0)
+
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN) \
         do \
         { \
@@ -1645,6 +1662,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED
 #define DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(OFFSET)
+#define DEBUG_TEST_HOOK_LOCAL_FILE_NODE_MAC_COMPARISON
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN)
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT)
 #endif

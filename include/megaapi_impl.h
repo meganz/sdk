@@ -255,18 +255,24 @@ public:
 
     // Use faGetter instead of a FileAcccess instance which delays the access to the file system and
     // only does it based on demand by check. This helps in a network folder.
-    static Result check(FileSystemAccess* fsaccess,
-                        const LocalPath& fileLocalPath,
+    // cancelToken aborts a long Metamac read. A cancelled check yields Result::NotYet, decided
+    // from the returned MacComparisonResult rather than by sampling the token afterwards.
+    static Result check(std::function<FileAccess*()> faGetter,
                         MegaNode* fileNode,
-                        Option option);
-    static Result check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option);
-    static Result check(std::function<FileAccess*()> faGetter, Node* node, Option option);
+                        Option option,
+                        CancelToken cancelToken);
+    static Result check(std::function<FileAccess*()> faGetter,
+                        Node* node,
+                        Option option,
+                        CancelToken cancelToken);
 
 private:
     static Result check(std::function<bool()> fingerprintEqualF,
-                        std::function<bool()> metamacEqualF,
+                        std::function<MacComparisonResult()> metamacCheckF,
                         Option option);
-    static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+    static MacComparisonResult CompareLocalFileMetaMac(FileAccess* fa,
+                                                       MegaNode* fileNode,
+                                                       CancelToken cancelToken);
     static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
 };
 

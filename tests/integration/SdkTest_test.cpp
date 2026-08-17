@@ -3858,6 +3858,273 @@ TEST_F(SdkTest, SdkTestUploadMacReadError)
 
     LOG_info << logPre << "Test completed";
 }
+
+namespace
+{
+
+// generateMetaMac grows its chunk by 128 KB per iteration up to 1 MB, so 256 KB is
+// exactly two chunks: one to cancel from, and one that must not be read.
+constexpr size_t TWO_CHUNK_FILE_SIZE = 256 * 1024;
+
+/**
+ * @brief Counts MAC comparisons and cancels the token after the first chunk read.
+ *
+ * Removes both hooks on destruction: they are global, so leaving them installed would
+ * corrupt later tests even if this one fails an ASSERT.
+ */
+class CancelOnFirstChunk
+{
+public:
+    explicit CancelOnFirstChunk(MegaCancelToken* token)
+    {
+        globalMegaTestHooks.onLocalFileNodeMacComparison = [this]()
+        {
+            mComparisonAttempts.fetch_add(1);
+        };
+        globalMegaTestHooks.onMacGenerationChunkRead = [this, token](const m_off_t offset)
+        {
+            if (mChunkReads.fetch_add(1) == 0)
+            {
+                LOG_debug << "[SDK-6400 test] cancelling at offset " << offset;
+                token->cancel();
+            }
+        };
+    }
+
+    ~CancelOnFirstChunk()
+    {
+        globalMegaTestHooks.onMacGenerationChunkRead = nullptr;
+        globalMegaTestHooks.onLocalFileNodeMacComparison = nullptr;
+    }
+
+    CancelOnFirstChunk(const CancelOnFirstChunk&) = delete;
+    CancelOnFirstChunk& operator=(const CancelOnFirstChunk&) = delete;
+
+    int chunkReads() const
+    {
+        return mChunkReads.load();
+    }
+
+    int comparisonAttempts() const
+    {
+        return mComparisonAttempts.load();
+    }
+
+private:
+    // Written from the SDK thread, read from the test thread.
+    std::atomic<int> mChunkReads{0};
+    std::atomic<int> mComparisonAttempts{0};
+};
+
+} // namespace
+
+/**
+ * @brief TEST_F SdkTestMetamacCancelStopsUploadDedup
+ *
+ * SDK-6400. The metamac read loop polls its CancelToken once per chunk, so cancelling
+ * during an upload-dedup comparison stops the read at the next chunk boundary rather
+ * than after the whole file.
+ *
+ * 1. Upload a file, so the target folder holds a same-name node with a matching
+ *    fingerprint.
+ * 2. Re-upload the identical file with a cancel token. The same-name branch of
+ *    sendPendingTransfers calls CompareLocalFileWithNodeMacAndFpExludingMtime, which
+ *    reads the whole local file to compute its MAC.
+ * 3. Cancel from the hook after the first chunk.
+ *
+ * The assertion is timing-free: onMacGenerationChunkRead fires at the END of each
+ * iteration while the cancel check sits at the TOP, so the next iteration must return
+ * before reading. The file is exactly two chunks, so a second invocation would mean the
+ * per-chunk check did not take effect.
+ *
+ * A cancelled comparison must also not be mistaken for "the files differ", which would
+ * emit event 800036 and force a needless re-upload.
+ */
+TEST_F(SdkTest, SdkTestMetamacCancelStopsUploadDedup)
+{
+    const auto logPre = getLogPrefix();
+    LOG_info << logPre << "starting";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode) << logPre << "cannot get root node";
+
+    // sdk_test::LocalTempFile rather than createFile: SdkTest has a member
+    // createFile(string, bool largeFile, string content) which hides the namespace-scope
+    // one, so an unqualified call would bind the size to `largeFile` and silently produce
+    // a multi-megabyte file instead.
+    const sdk_test::LocalTempFile localTempFile{"sdk6400_upload_dedup.bin", TWO_CHUNK_FILE_SIZE};
+    const fs::path& localFile = localTempFile.getPath();
+    ASSERT_EQ(fs::file_size(localFile), TWO_CHUNK_FILE_SIZE)
+        << logPre << "the local file is not exactly two metamac chunks";
+
+    LOG_info << logPre << "uploading the original, so a dedup candidate exists";
+    MegaHandle originalHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &originalHandle,
+                            localFile.string().c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << logPre << "failed to upload the original file";
+    ASSERT_NE(originalHandle, UNDEF);
+    const int childrenBeforeCancelledUpload = megaApi[0]->getNumChildren(rootnode.get());
+
+    MrProper removeRemoteNodes{
+        [this, originalHandle]()
+        {
+            std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(originalHandle)};
+            if (n)
+                doDeleteNode(0, n.get());
+        }};
+
+    // MegaCancelToken::createInstance(), not a default-constructed core CancelToken:
+    // the latter has no storage, so cancel() would be a silent no-op.
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    CancelOnFirstChunk hook{cancelToken.get()};
+
+    LOG_info << logPre << "re-uploading with a cancel token";
+    MegaHandle reuploadHandle = UNDEF;
+    const auto result = doStartUpload(0,
+                                      &reuploadHandle,
+                                      localFile.string().c_str(),
+                                      rootnode.get(),
+                                      nullptr /*fileName*/,
+                                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                      nullptr /*appData*/,
+                                      false /*isSourceTemporary*/,
+                                      false /*startFirst*/,
+                                      cancelToken.get());
+
+    MrProper removeReupload{
+        [this, &reuploadHandle, originalHandle]()
+        {
+            if (reuploadHandle == UNDEF || reuploadHandle == originalHandle)
+                return;
+            std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(reuploadHandle)};
+            if (n)
+                doDeleteNode(0, n.get());
+        }};
+
+    EXPECT_EQ(hook.chunkReads(), 1)
+        << logPre
+        << "the metamac loop kept reading after the token was cancelled: the per-chunk "
+           "check did not take effect";
+    EXPECT_EQ(hook.comparisonAttempts(), 1)
+        << logPre << "the cancelled upload-dedup check started another MAC comparison";
+
+    EXPECT_EQ(result, API_EINCOMPLETE)
+        << logPre << "expected the cancelled transfer to report API_EINCOMPLETE";
+    EXPECT_EQ(reuploadHandle, UNDEF) << logPre << "the cancelled transfer still produced a node";
+
+    // The child count on its own does not prove there was no remote write: a putnodes for the
+    // same name in the same folder leaves the count unchanged, filing the previous node as a
+    // version when versioning is on and replacing it outright when it is off. The two checks
+    // below cover both settings - the handle catches a replacement, the version count catches
+    // a new version.
+    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode.get()), childrenBeforeCancelledUpload)
+        << logPre << "the cancelled dedup check created an unexpected remote node";
+
+    const std::unique_ptr<MegaNode> childAfter{
+        megaApi[0]->getChildNode(rootnode.get(), localFile.filename().string().c_str())};
+    ASSERT_TRUE(childAfter) << logPre << "the original node is no longer in the root folder";
+    EXPECT_EQ(childAfter->getHandle(), originalHandle)
+        << logPre << "the cancelled dedup check replaced the original node";
+    EXPECT_EQ(megaApi[0]->getNumVersions(childAfter.get()), 1)
+        << logPre << "the cancelled dedup check added a version to the original node";
+
+    LOG_info << logPre << "done";
+}
+
+/**
+ * @brief TEST_F SdkTestMetamacCancelStopsDownloadCollisionCheck
+ *
+ * SDK-6400, download side. This is the first test in the repository to use
+ * COLLISION_CHECK_METAMAC.
+ *
+ * 1. Upload a file and keep the local copy in place, so the download destination
+ *    already holds identical content.
+ * 2. Download it back with COLLISION_CHECK_METAMAC and a cancel token. The gate in
+ *    sendPendingTransfers opens the existing local file and runs CollisionChecker,
+ *    whose Metamac branch computes the MAC over that whole file.
+ * 3. Cancel from the hook after the first chunk.
+ *
+ * A cancelled check yields Result::NotYet rather than Download, so no decision is
+ * recorded from a comparison that never completed.
+ */
+TEST_F(SdkTest, SdkTestMetamacCancelStopsDownloadCollisionCheck)
+{
+    const auto logPre = getLogPrefix();
+    LOG_info << logPre << "starting";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode) << logPre << "cannot get root node";
+
+    // See the note in the upload test: SdkTest::createFile would hide the one we want.
+    const sdk_test::LocalTempFile localTempFile{"sdk6400_download_collision.bin",
+                                                TWO_CHUNK_FILE_SIZE};
+    const fs::path& localFile = localTempFile.getPath();
+    ASSERT_EQ(fs::file_size(localFile), TWO_CHUNK_FILE_SIZE)
+        << logPre << "the local file is not exactly two metamac chunks";
+
+    LOG_info << logPre << "uploading, then downloading back onto the same local file";
+    MegaHandle uploadedHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &uploadedHandle,
+                            localFile.string().c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << logPre << "failed to upload the file";
+    ASSERT_NE(uploadedHandle, UNDEF);
+
+    std::unique_ptr<MegaNode> uploadedNode{megaApi[0]->getNodeByHandle(uploadedHandle)};
+    ASSERT_TRUE(uploadedNode);
+
+    MrProper removeRemoteNode{[this, &uploadedNode]()
+                              {
+                                  doDeleteNode(0, uploadedNode.get());
+                              }};
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    CancelOnFirstChunk hook{cancelToken.get()};
+
+    const auto result = doStartDownload(0,
+                                        uploadedNode.get(),
+                                        localFile.string().c_str(),
+                                        nullptr /*customName*/,
+                                        nullptr /*appData*/,
+                                        false /*startFirst*/,
+                                        cancelToken.get(),
+                                        MegaTransfer::COLLISION_CHECK_METAMAC,
+                                        MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                        false /*undelete*/);
+
+    EXPECT_EQ(hook.chunkReads(), 1)
+        << logPre
+        << "the metamac loop kept reading after the token was cancelled: the per-chunk "
+           "check did not take effect";
+
+    EXPECT_EQ(result, API_EINCOMPLETE)
+        << logPre << "expected the cancelled transfer to report API_EINCOMPLETE";
+
+    LOG_info << logPre << "done";
+}
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 /**
