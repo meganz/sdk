@@ -226,6 +226,12 @@ namespace mega {
         // Tear the connection down (closeWS) while a frame is mid-flight, before
         // its continuation is presented on the same handle.
         ForceDrop = 2,
+        // S16 stale-kill: emulate the Windows CI conn-death signature byte-exactly —
+        // curl_ws_send fails (res=55 CURLE_SEND_ERROR, sent=0) on the first write to a
+        // conn whose inbound stamp is older than the configured threshold. The call site
+        // skips curl_ws_send and takes the identical error path (close-reason log +
+        // closeWS), reproducing the stale-OPEN grant-burn deterministically on Linux.
+        ForceError = 3,
     };
 
     // Self-locked, always-compiled fault hook (modeled on WsUploadServerEventHook).
@@ -250,6 +256,10 @@ namespace mega {
             mPartialHits = other.mPartialHits;
             mDropHits = other.mDropHits;
             mSawPartial = other.mSawPartial;
+            mStaleKillEnabled = other.mStaleKillEnabled;
+            mStaleKillThresholdDs = other.mStaleKillThresholdDs;
+            mStaleKillMaxHits = other.mStaleKillMaxHits;
+            mStaleKillHits = other.mStaleKillHits;
         }
 
         WsSendFaultHook& operator=(WsSendFaultHook&& other) noexcept
@@ -265,6 +275,10 @@ namespace mega {
             mPartialHits = other.mPartialHits;
             mDropHits = other.mDropHits;
             mSawPartial = other.mSawPartial;
+            mStaleKillEnabled = other.mStaleKillEnabled;
+            mStaleKillThresholdDs = other.mStaleKillThresholdDs;
+            mStaleKillMaxHits = other.mStaleKillMaxHits;
+            mStaleKillHits = other.mStaleKillHits;
             return *this;
         }
 
@@ -283,6 +297,19 @@ namespace mega {
             mSawPartial = false;
         }
 
+        // S16 stale-kill mode: every send attempted on a conn whose inbound-idle age
+        // exceeds idleThresholdDs fails exactly like the Windows CI kill (res=55, sent=0
+        // — the call site skips curl_ws_send and takes the identical error path).
+        // maxHits==0 means unbounded; independent of / composable with configure().
+        void configureStaleKill(dstime idleThresholdDs, int maxHits)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mStaleKillEnabled = true;
+            mStaleKillThresholdDs = idleThresholdDs;
+            mStaleKillMaxHits = maxHits;
+            mStaleKillHits = 0;
+        }
+
         void reset()
         {
             std::lock_guard<std::mutex> g(mMutex);
@@ -292,6 +319,10 @@ namespace mega {
             mPartialHits = 0;
             mDropHits = 0;
             mSawPartial = false;
+            mStaleKillEnabled = false;
+            mStaleKillThresholdDs = 0;
+            mStaleKillMaxHits = 0;
+            mStaleKillHits = 0;
         }
 
         int getPartialHits() const
@@ -306,12 +337,28 @@ namespace mega {
             return mDropHits;
         }
 
-        // Called inside WsBuf::sendWS after `remaining` is computed and before
-        // curl_ws_send. `remaining` is the full unsent length of the current frame.
-        // Returns the action; for ForcePartial sets forcedSendLen in [1, remaining-1].
-        WsSendFaultAction evaluate(std::size_t remaining, std::size_t& forcedSendLen)
+        int getStaleKillHits() const
         {
             std::lock_guard<std::mutex> g(mMutex);
+            return mStaleKillHits;
+        }
+
+        // Called inside WsBuf::sendWS after `remaining` is computed and before
+        // curl_ws_send. `remaining` is the full unsent length of the current frame;
+        // idleInboundDs is the conn's inbound-idle age at this send attempt.
+        // Returns the action; for ForcePartial sets forcedSendLen in [1, remaining-1].
+        WsSendFaultAction evaluate(std::size_t remaining, dstime idleInboundDs,
+                                   std::size_t& forcedSendLen)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            // Stale-kill precedes the partial/drop machinery: it emulates the transport
+            // kill, which in production fires before any application-level fault.
+            if (mStaleKillEnabled && remaining > 0 && idleInboundDs > mStaleKillThresholdDs &&
+                (mStaleKillMaxHits == 0 || mStaleKillHits < mStaleKillMaxHits))
+            {
+                ++mStaleKillHits;
+                return WsSendFaultAction::ForceError;
+            }
             if (!mEnabled || remaining <= 1)
             {
                 return WsSendFaultAction::None;
@@ -354,6 +401,111 @@ namespace mega {
         int mPartialHits = 0;
         int mDropHits = 0;
         bool mSawPartial = false;
+        // S16 stale-kill mode state (configureStaleKill / getStaleKillHits).
+        bool mStaleKillEnabled = false;
+        dstime mStaleKillThresholdDs = 0;
+        int mStaleKillMaxHits = 0;
+        int mStaleKillHits = 0;
+    };
+
+    // Budget-probe event kinds (SDK-5360 fu8 S16). Grant/Denial fire in
+    // UploadEngine::Impl::consumeUploadBudget (keyed strict-FIFO path), Refund in
+    // refundUploadBudget, Burn per requeued chunk in WsPool::retryChunksOnTheWireLocked —
+    // a Burn is the wedge signature: a granted chunk that died on a stale conn and had to
+    // be refunded + requeued.
+    enum class WsBudgetProbeEvent
+    {
+        Grant = 0,
+        Denial = 1,
+        Refund = 2,
+        Burn = 3,
+    };
+
+    // Self-locked, always-compiled budget-probe hook (SDK-5360 fu8 S16 Goal-1 validation:
+    // no way existed to assert grant/refund/burn counts from a test). Counters only — every
+    // call site runs UNDER the engine's uploadMutex, so this hook must never call back into
+    // engine APIs or take other locks; its own mutex exists solely for cross-thread reads
+    // from the test. Locked move ctor/assign like WsSendFaultHook above.
+    struct WsBudgetProbeHook
+    {
+        struct Snapshot
+        {
+            std::uint64_t grants = 0;
+            std::uint64_t denials = 0;
+            std::uint64_t refunds = 0;
+            std::uint64_t burns = 0;
+            std::uint64_t grantBytes = 0;
+            std::uint64_t refundBytes = 0;
+        };
+
+        WsBudgetProbeHook() = default;
+
+        WsBudgetProbeHook(WsBudgetProbeHook&& other)
+        {
+            std::lock_guard<std::mutex> g(other.mMutex);
+            mEnabled = other.mEnabled;
+            mCounts = other.mCounts;
+        }
+
+        WsBudgetProbeHook& operator=(WsBudgetProbeHook&& other)
+        {
+            if (this != &other)
+            {
+                std::scoped_lock g(mMutex, other.mMutex);
+                mEnabled = other.mEnabled;
+                mCounts = other.mCounts;
+            }
+            return *this;
+        }
+
+        // Arm/disarm from the test. Disarmed (default) keeps the record() fast path to one
+        // mutex-protected bool check; production builds never arm it.
+        void setEnabled(bool enabled)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            mEnabled = enabled;
+            if (enabled)
+            {
+                mCounts = Snapshot{};
+            }
+        }
+
+        void record(WsBudgetProbeEvent event, std::uint64_t bytes)
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            if (!mEnabled)
+            {
+                return;
+            }
+            switch (event)
+            {
+                case WsBudgetProbeEvent::Grant:
+                    ++mCounts.grants;
+                    mCounts.grantBytes += bytes;
+                    break;
+                case WsBudgetProbeEvent::Denial:
+                    ++mCounts.denials;
+                    break;
+                case WsBudgetProbeEvent::Refund:
+                    ++mCounts.refunds;
+                    mCounts.refundBytes += bytes;
+                    break;
+                case WsBudgetProbeEvent::Burn:
+                    ++mCounts.burns;
+                    break;
+            }
+        }
+
+        Snapshot snapshot() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return mCounts;
+        }
+
+    private:
+        mutable std::mutex mMutex;
+        bool mEnabled = false;
+        Snapshot mCounts;
     };
 
     // Self-locked, always-compiled recv-swallow hook (SDK-5360 fu8 Session 6 ack-stall
@@ -564,6 +716,11 @@ namespace mega {
         // lambda sleeps to simulate the stuck read; the locallogout path must stay
         // bounded regardless.
         std::function<void(std::uint32_t /*fileno*/)> onWsUploadBlockingReadForTesting;
+        // S16 Gate-3 seam: fired from WsUploadFile::queueConfirmedChunkMacs whenever a
+        // server-confirmed chunkmac map is queued (worker thread, pre-drain) — the
+        // deterministic mid-transfer statecache exercise keys its commit+logout on it.
+        std::function<void(std::uint32_t /*fileno*/, std::size_t /*queuedMaps*/)>
+            onWsConfirmedMacsQueuedForTesting;
         std::function<void(const char* /*reason*/, bool /*stillTracked*/)>
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
@@ -662,6 +819,9 @@ namespace mega {
         // Self-locked WS send-fault hook (fix #6 deterministic repro); own internal
         // mutex + locked move, like wsUploadServerEventHook above.
         WsSendFaultHook wsSendFaultHook;
+        // Self-locked (own internal mutex + locked move), always compiled — see
+        // WsBudgetProbeHook above (SDK-5360 fu8 S16).
+        WsBudgetProbeHook wsBudgetProbeHook;
         // Self-locked WS recv-swallow hook (fu8 S6 ack-stall repro); own internal mutex +
         // locked move, like wsSendFaultHook above.
         WsRecvSwallowHook wsRecvSwallowHook;
@@ -721,6 +881,8 @@ namespace mega {
                 std::move(other.onWsUploadSustainedHandshakeFailureWindowDs);
             onWsHandshakeFailureCandidateVeto = std::move(other.onWsHandshakeFailureCandidateVeto);
             onWsUploadBlockingReadForTesting = std::move(other.onWsUploadBlockingReadForTesting);
+            onWsConfirmedMacsQueuedForTesting =
+                std::move(other.onWsConfirmedMacsQueuedForTesting);
             onWsUploadFailureDetached = std::move(other.onWsUploadFailureDetached);
             onWsUploadCorruptToken = std::move(other.onWsUploadCorruptToken);
             onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
@@ -743,6 +905,8 @@ namespace mega {
             wsUploadServerEventHook = std::move(other.wsUploadServerEventHook);
             // WsSendFaultHook likewise has its own locked move-assign.
             wsSendFaultHook = std::move(other.wsSendFaultHook);
+            // WsBudgetProbeHook likewise has its own locked move-assign.
+            wsBudgetProbeHook = std::move(other.wsBudgetProbeHook);
             // WsRecvSwallowHook likewise has its own locked move-assign.
             wsRecvSwallowHook = std::move(other.wsRecvSwallowHook);
             onHookFileFingerprintUseLegacyBuggySparseCrc =
@@ -1022,15 +1186,26 @@ namespace mega {
 
 // WS_SEND_FAULT reads the self-locked WsSendFaultHook sub-object (own internal
 // mutex), so no outer lock is needed. REMAINING is the current frame's unsent
-// length; on ForcePartial, FORCEDLEN receives a value in [1, REMAINING-1].
-#define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, FORCEDLEN, RESULT) \
+// length; IDLEDS is the conn's inbound-idle age at this send attempt (S16
+// stale-kill mode); on ForcePartial, FORCEDLEN receives a value in [1, REMAINING-1].
+#define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, IDLEDS, FORCEDLEN, RESULT) \
         { \
-            (RESULT) = globalMegaTestHooks.wsSendFaultHook.evaluate((REMAINING), (FORCEDLEN)); \
+            (RESULT) = globalMegaTestHooks.wsSendFaultHook.evaluate((REMAINING), (IDLEDS), \
+                                                                    (FORCEDLEN)); \
         }
 
 #define DEBUG_TEST_HOOK_WS_RECV_SWALLOW(OUTBOOL) \
         { \
             (OUTBOOL) = globalMegaTestHooks.wsRecvSwallowHook.shouldSwallow(); \
+        }
+
+// WS_BUDGET_PROBE reads the self-locked WsBudgetProbeHook sub-object (own internal mutex);
+// call sites run under the engine uploadMutex, so the hook records counters only (never
+// calls engine APIs). Disarmed by default — one bool check per event.
+#define DEBUG_TEST_HOOK_WS_BUDGET_PROBE(EVENT, BYTES) \
+        { \
+            globalMegaTestHooks.wsBudgetProbeHook.record((EVENT), \
+                                                         static_cast<std::uint64_t>(BYTES)); \
         }
 
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL) \
@@ -1070,6 +1245,18 @@ namespace mega {
 
     // S12 Cluster-E repro seam: fired on readData's first-open path with the engine mutex
     // released and ActiveIOGuard held (the test's lambda sleeps = a stuck FS read).
+#define DEBUG_TEST_HOOK_WS_CONFIRMED_MACS_QUEUED(FILENO, QUEUEDMAPS) \
+        do \
+        { \
+            std::function<void(std::uint32_t, std::size_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsConfirmedMacsQueuedForTesting; \
+            } \
+            if (_fn) \
+                _fn((FILENO), (QUEUEDMAPS)); \
+        } while (0)
+
 #define DEBUG_TEST_HOOK_WSUPLOAD_BLOCKING_READ(FILENO) \
         do \
         { \
@@ -1327,12 +1514,14 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WSUPLOAD_CORRUPT_TOKEN(FILENO, PAYLOAD, PAYLEN)
 #define DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(TAG)
 #define DEBUG_TEST_HOOK_WSUPLOAD_SERVER_EVENT(FILENO, EVENT, CHUNKPOS, RESULT)
-#define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, FORCEDLEN, RESULT)
+#define DEBUG_TEST_HOOK_WS_SEND_FAULT(REMAINING, IDLEDS, FORCEDLEN, RESULT)
 #define DEBUG_TEST_HOOK_WS_RECV_SWALLOW(OUTBOOL)
+#define DEBUG_TEST_HOOK_WS_BUDGET_PROBE(EVENT, BYTES)
 #define DEBUG_TEST_HOOK_WSCONN_FORCE_CLOSE_NOW(CONNPTR, POOLPTR, POOLURL, OUTBOOL)
 #define DEBUG_TEST_HOOK_WSPOOL_RECONNECT_ATTEMPT(POOLPTR, RETRYCOUNT, FIRSTFAILUREDS)
 #define DEBUG_TEST_HOOK_WS_HANDSHAKE_FAILURE_CANDIDATE_VETO(POOLPTR, FILENO, OUTVETO)
 #define DEBUG_TEST_HOOK_WSUPLOAD_BLOCKING_READ(FILENO)
+#define DEBUG_TEST_HOOK_WS_CONFIRMED_MACS_QUEUED(FILENO, QUEUEDMAPS)
 #define DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(CONNPTR, POOLPTR)
 #define DEBUG_TEST_HOOK_WS_TAILCOMPLETION_RECOVERY(FILENO, POOLPTR)
 #define DEBUG_TEST_HOOK_WSUPLOAD_DROP_COMPLETION(FILENO, DROPPED)

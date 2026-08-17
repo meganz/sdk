@@ -318,6 +318,63 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
         }
     }
 
+    // S16 R1 constraint: keep a reconnecting pool's budget-FIFO ticket ALIVE. The idle-retire
+    // reconnect is sub-second on a clean network, but a loss-profile handshake (45 s adaptive
+    // timeout + backoff) blocks the pool worker past the 10 s waiter staleness
+    // (kBudgetWaiterStaleDs) — expiring the ticket would send the pool to the FIFO BACK, the
+    // exact starvation the retire exists to break. A pool mid-connect is ASKING by
+    // definition; refresh its waiter stamp. No-op uncapped (waiters only exist under caps).
+    if (impl.mMaxUploadSpeed > 0 && !impl.mBudgetWaiters.empty())
+    {
+        for (const auto& pptr: mPools)
+        {
+            if (!pptr || pptr->mConnectingCount <= 0)
+                continue;
+            for (auto& w: impl.mBudgetWaiters)
+            {
+                if (w.key == static_cast<const void*>(pptr.get()))
+                {
+                    w.lastAskDs = impl.currentTime;
+                    break;
+                }
+            }
+        }
+    }
+
+    // S16 unconditional engine-level budget/waiter dump ([WsBudget], ~5 s cadence). Emitted
+    // only in capped mode and only while the budget economy is non-idle, so uncapped runs and
+    // idle capped clients produce ZERO lines. This is the r5 refuter's mandatory
+    // instrumentation: the only budget dump before S16 was the RESEND-STALL stage-1 line,
+    // which is structurally unreachable inside the 90 s CI windows at low caps (its
+    // cap-scaled window is up to 300 s at 1 MiB/10,485 B/s) — so every capped wedge shipped
+    // with the budget state invisible.
+    if (impl.mMaxUploadSpeed > 0 &&
+        (impl.mUploadBudget != 0 || !impl.mBudgetWaiters.empty()) &&
+        SteadyTime::difference(impl.currentTime, impl.mBudgetDumpNextDs) >= 0)
+    {
+        // Ages clamped at 0: waiter/accrual stamps are SteadyTime::ds()-fresh while
+        // impl.currentTime lags by up to one manager pass (~5ds) — a negative age here is
+        // clock skew, not time travel.
+        std::string waiters;
+        for (const auto& w: impl.mBudgetWaiters)
+        {
+            waiters += " {key=";
+            char buf[32];
+            std::snprintf(buf, sizeof(buf), "%p", w.key);
+            waiters += buf;
+            waiters += " bytes=" + std::to_string(w.bytes) +
+                       " askAgeDs=" + std::to_string(std::max<dstime>(
+                           0, SteadyTime::difference(impl.currentTime, w.lastAskDs))) + "}";
+        }
+        LOG_debug << "[WsBudget] budget=" << impl.mUploadBudget
+                  << " cap=" << impl.mMaxUploadSpeed
+                  << " accrualAgeDs=" << std::max<dstime>(
+                         0, SteadyTime::difference(impl.currentTime, impl.mUploadBudgetLastDs))
+                  << " waiters=" << impl.mBudgetWaiters.size() << waiters;
+        constexpr dstime kBudgetDumpPeriodDs = 50; // 5 s
+        impl.mBudgetDumpNextDs = impl.currentTime + kBudgetDumpPeriodDs;
+    }
+
     // trim connections / refresh stale or stalled pools
     for (std::size_t i = mPools.size(); i-- > 0;)
     {
@@ -434,8 +491,16 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
         if (SteadyTime::difference(impl.currentTime, pool->mPoolCreationTime) > POOLFRESHNESS)
             refreshPools();
 
+        // S16 Lever C: a recent budget ASK counts as activity for the refresh decision (an
+        // actively-asking pool is alive; refreshing it is churn). With the lever OFF,
+        // mLastBudgetAskDs is never written (0) and this is byte-identical to the old
+        // mLastActive-only condition. The POOLCONNKEEPALIVE trim above deliberately does NOT
+        // get the max(): with the lever ON, a budget-starved pool's spare conns are true
+        // traffic-idle and SHOULD trim to 1 (fewer stale conns to burn grants on).
         if ((pool->mUploadingFile || pool->mNumChunksInFlight || !pool->mToResend.empty()) &&
-            SteadyTime::difference(impl.currentTime, pool->mLastActive) > SERVERTIMEOUT)
+            SteadyTime::difference(impl.currentTime,
+                                   std::max(pool->mLastActive, pool->mLastBudgetAskDs)) >
+                SERVERTIMEOUT)
             refreshPools();
 
         // Ack-stall watchdog (SDK-5360 fu8 Session 6): force-reconnect a silently-hung OPEN
@@ -513,6 +578,58 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
                     // notifyWorkersLocked() (NOT notifyWorkers()): checkPools already holds
                     // uploadMutex, and notifyWorkers() re-acquires it -> self-deadlock on the
                     // engine thread (froze the whole WS engine at the first watchdog fire).
+                    impl.notifyWorkersLocked();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(conn, pool);
+#endif
+                }
+            }
+        }
+
+        // S16 (R1 constraint): capped-mode FIRST-ACK stall — the accepted-write black-hole.
+        // curl takes the whole chunk on a fresh conn (send stamp refreshed at acceptance),
+        // then zero inbound forever (r5 win_9829: write at ds 89770, reaped only by the 45 s
+        // watchdog at 90263 — one such event burns ~50 s of a 90 s capped window). The
+        // idle-retire cannot touch it (in-flight non-empty) and the 45 s class above is
+        // (a) too slow for the capped windows and (b) ENGINE-gated — on capped links,
+        // sibling-pool acks keep the engine-wide stamp fresh (the r5 blindness), so the gate
+        // never opens. This capped-only per-conn check bypasses the engine gate with a
+        // shorter window. Misfire cost is one force-reconnect + requeue+refund (r4-proven
+        // safe; no longer loss-branding after the S16 mLossObserved gate). The window must
+        // cover a legitimate slow-wire chunk drain (default 25 s covers 1 MiB at >=42 KB/s;
+        // env-sweepable). Uncapped: structurally unreachable.
+        if (impl.mMaxUploadSpeed > 0 && impl.mAckStallWatchdog && !pool->mPinned &&
+            !pool->throttledByServer())
+        {
+            const dstime firstAckWindow = impl.cappedFirstAckDs();
+            for (WsConn* const conn: pool->mConns)
+            {
+                if (!conn ||
+                    conn->readyState.load(std::memory_order_relaxed) !=
+                        WsConn::ReadyState::OPEN ||
+                    conn->mChunksInFlight.empty())
+                {
+                    continue;
+                }
+                const dstime lastInbound =
+                    conn->mLastInboundFrameDs.load(std::memory_order_relaxed);
+                const dstime lastSend =
+                    conn->mLastSendProgressDs.load(std::memory_order_relaxed);
+                if (lastInbound && lastSend &&
+                    SteadyTime::difference(impl.currentTime, lastInbound) > firstAckWindow &&
+                    SteadyTime::difference(impl.currentTime, lastSend) > firstAckWindow &&
+                    !conn->mForceReconnect.load(std::memory_order_relaxed))
+                {
+                    LOG_warn << "[WsPoolMgr::checkPools] capped first-ack stall: OPEN conn "
+                                "with "
+                             << conn->mChunksInFlight.size()
+                             << " in-flight chunk(s), no server frame AND no send progress "
+                                "for > "
+                             << firstAckWindow
+                             << "ds under an app cap; force-reconnecting (accepted-write "
+                                "black-hole class, S16 R1) [pool = "
+                             << pool << "] [conn = " << conn << "]";
+                    conn->mForceReconnect.store(true, std::memory_order_relaxed);
                     impl.notifyWorkersLocked();
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                     DEBUG_TEST_HOOK_WS_ACKSTALL_FORCE_RECONNECT(conn, pool);

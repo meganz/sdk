@@ -111,6 +111,9 @@ namespace ws
 // `g_chunkMap.chunksize(pos)` call) — the previous `#ifndef NDEBUG` gate is
 // dropped (zero overhead in Release: still a single direct call).
 int chunkSizeAtPosition(m_off_t pos);
+// S16: the extracted fresh-chunk advance step (wsupload.cpp) — nextChunk MUST use this so
+// the Gate-1 unit lattice-closure test covers the real production computation.
+m_off_t wsFreshChunkAdvance(m_off_t pos, m_off_t fileSize);
 
 // Steady-clock millisecond helper used by Debug-only book-keeping. Defined in
 // wsupload.cpp under #ifndef NDEBUG. Forward-declared here so the Debug
@@ -459,8 +462,15 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
         if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs, this))
         {
             // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
-            // force an unnecessary refresh.
-            mLastActive = impl.currentTime;
+            // force an unnecessary refresh. S16 Lever C (default OFF): stamp the ask
+            // separately so the refresh stays suppressed via max() while the
+            // POOLCONNKEEPALIVE trim sees true traffic idleness (r5 residual mechanism 1:
+            // denial-stamping mLastActive disarmed BOTH recovery paths for exactly the
+            // budget-starved pool).
+            if (impl.mBudgetAskStamp)
+                mLastBudgetAskDs = impl.currentTime;
+            else
+                mLastActive = impl.currentTime;
             return false;
         }
         mToResend.erase(mToResend.begin() + static_cast<std::ptrdiff_t>(ri));
@@ -503,7 +513,11 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
             {
                 chunk.pos = mUploadingFile->headPos();
 
-                const int advance = chunkSizeAtPosition(chunk.pos);
+                // S16: the advance computation lives in wsFreshChunkAdvance (wsupload.cpp)
+                // so the Gate-1 unit lattice test exercises the real step; an advance short
+                // of chunkSizeAtPosition(pos) means EOF truncation (and ONLY that — see the
+                // extraction's contract note).
+                const m_off_t advance = wsFreshChunkAdvance(chunk.pos, mUploadingFile->size());
                 // S15 round-6 (utils.cpp:843 chunkfloor assert, both Windows jobs):
                 // chunk positions/lengths MUST stay on the canonical ChunkedHash
                 // lattice — the per-chunk CBC-MACs are boundary-dependent and macsmac
@@ -517,11 +531,12 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
                 // stays OPEN (dossier in followup8_QA_14/15): candidate fixes are
                 // conn-keepalive or frame-level sub-chunk budgeting — both leave the
                 // chunk lattice untouched.
-                m_off_t newHead = chunk.pos + advance;
+                const m_off_t newHead = chunk.pos + advance;
 
-                if (newHead > mUploadingFile->size())
+                if (advance < static_cast<m_off_t>(chunkSizeAtPosition(chunk.pos)))
                 {
-                    newHead = mUploadingFile->size();
+                    // Short-for-position advance == EOF by the extraction's contract
+                    // (identical to the old newHead > size() truncation branch).
                     mUploadingFile->markEOF();
                 }
 
@@ -535,8 +550,12 @@ bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAf
                 if (!impl.consumeUploadBudget(static_cast<m_off_t>(chunk.len), retryAfterDs, this))
                 {
                     // Pool is alive but throttled. Keep it fresh so SERVERTIMEOUT does not
-                    // force an unnecessary refresh.
-                    mLastActive = impl.currentTime;
+                    // force an unnecessary refresh. S16 Lever C (default OFF): see the
+                    // resend-path denial above.
+                    if (impl.mBudgetAskStamp)
+                        mLastBudgetAskDs = impl.currentTime;
+                    else
+                        mLastActive = impl.currentTime;
                     return false;
                 }
                 mUploadingFile->advanceHead(chunk.len);
@@ -566,7 +585,11 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
     // Loss-gated connection-count bump: a connection was lost and its in-flight chunks
     // are being requeued -- the authoritative runtime loss signal for this pool. Sticky
     // (never reset); consumed by lossBoostedConnLimitLocked().
-    mLossObserved = true;
+    // S16: only a NON-EMPTY requeue is loss evidence. An empty close (e.g. the capped-mode
+    // idle-retire, or any teardown with nothing in flight) must not brand the pool
+    // loss-observed — the sticky flag widens the pool's conn ceiling for its whole lifetime.
+    if (!ws->mChunksInFlight.empty())
+        mLossObserved = true;
     WSUPLOAD_TRACE << "WsUpload: WS to " << mUrl << " lost; rescheduling " << ws->mChunksInFlight.size()
               << " in-flight chunks";
     // Tier 2 A whole-chunk-boundary rewind (loss-recovery). When the flag is on, re-queue
@@ -606,6 +629,9 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
         // transiently exceed it (TCP-like semantics), which is the acceptable side of
         // the trade-off. No-op when uncapped.
         mImpl->refundUploadBudget(static_cast<m_off_t>(p.first.len));
+        // S16: a requeued granted chunk IS the wedge signature (a burn) — countable from
+        // tests via the budget-probe hook (WsCappedStaleConnGrantFlow asserts burns <= 2).
+        DEBUG_TEST_HOOK_WS_BUDGET_PROBE(WsBudgetProbeEvent::Burn, p.first.len);
         // S15 round-4 (win_9822/9823 RCA): this is the DOMINANT loss path on Windows —
         // granted chunks dying post-wire with the conn — and it was trace-only, which
         // blinded two censuses. Loud, with the conn-liveness stamps: the close reason
@@ -2044,6 +2070,48 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             mReadyForDataFalseWaitMs += static_cast<std::uint64_t>(dsToMs(READY_FOR_DATA_RETRY_DS));
 #endif
             continue;
+        }
+
+        // S16 capped-mode stale-conn retire (THE grant-vs-horizon wedge fix). At low app caps
+        // the grant period (chunk_len/cap, 12.5-100 s at CI's 10,485 B/s) exceeds the Windows
+        // conn kill horizon (youngest observed genuine wedge 11.8 s; the kill is send-side-only
+        // — 398/398 r6 conn deaths were curl_ws_send res=55 sent=0 with ZERO recv-side closes,
+        // so an OPEN readyState is unfalsifiable between writes). Retiring an idle conn HERE —
+        // before any budget ask — means the grant always lands on a freshly-handshaked conn
+        // (0-2 ms measured), converting every accrued byte to wire bytes exactly once.
+        // Guards: capped-mode only (uncapped byte-identical); !mPinned (pinned churn risks
+        // invalidatePinnedSessionUrl + InvalidPinned* failover timing); in-flight must be empty
+        // (a conn awaiting acks is the ack-stall watchdog's jurisdiction — 45 s — not ours);
+        // pool must have work (idle pools are POOLCONNKEEPALIVE's business). Threshold must
+        // stay under kBudgetWaiterStaleDs (10 s): the reconnect is sub-second on success, so
+        // the pool's budget-FIFO ticket survives (re-ask cadence <=1 s).
+        if (mImpl->mIdleRetire && mImpl->mMaxUploadSpeed > 0 && !mPinned &&
+            ws->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN &&
+            ws->mChunksInFlight.empty())
+        {
+            const bool poolHasWork = mNumPoolFiles || mUploadingFile || !mToResend.empty();
+            // S16 R1 constraint: two-sided idle — inbound freshness does not prove a live
+            // SEND path (r5 win_9830: a conn with 7.3 s inbound-idle had its send wedged for
+            // 100.9 s). With no chunks in flight both stamps normally age together; the max()
+            // covers the asymmetric case where a stray inbound frame refreshed one side.
+            const dstime nowDs = SteadyTime::ds();
+            const dstime idleDs = std::max(
+                SteadyTime::difference(nowDs,
+                                       ws->mLastInboundFrameDs.load(std::memory_order_relaxed)),
+                SteadyTime::difference(nowDs,
+                                       ws->mLastSendProgressDs.load(std::memory_order_relaxed)));
+            if (poolHasWork && idleDs > mImpl->idleRetireDs())
+            {
+                LOG_debug << "[WsPool::poolWorkerThread] capped-mode idle-retire: closing stale "
+                             "OPEN conn before grant [idleDs=" << idleDs
+                          << "] [thresholdDs=" << mImpl->idleRetireDs()
+                          << "] [conn=" << ws.get() << "] [this = " << this << "]";
+                {
+                    ScopedUnlock unlock(lk);
+                    ws->closeWS();
+                }
+                continue; // next pass reconnects via the CLOSED path, then stages the chunk
+            }
         }
 
         // fetch & enqueue next chunk (unlocks around disk I/O internally)

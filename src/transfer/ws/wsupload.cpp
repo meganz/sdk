@@ -156,6 +156,25 @@ int chunkSizeAtPosition(m_off_t pos)
     return g_chunkMap.chunksize(pos);
 }
 
+// S16 (Gate-1 lattice unit surface): THE fresh-chunk advance computation, extracted from
+// WsPool::nextChunk so the unit lattice-closure test exercises the REAL production step, not
+// a copy (the S15 clamp shipped precisely because this step had no unit-reachable form). The
+// contract every caller and every future change MUST preserve: the returned advance keeps
+// head positions on the canonical ChunkedHash lattice — pos == chunkfloor(pos) for every
+// head this walks, an advance shorter than chunkSizeAtPosition(pos) ONLY at EOF (the server
+// infers EOF from a short-for-position chunk, so a non-EOF short chunk silently TRUNCATES
+// the upload server-side), and every non-EOF head 16-byte aligned (ctr_crypt keystream).
+// Forward-declared in ws_pool.cpp; unit tests extern-declare it like chunkSizeAtPosition.
+m_off_t wsFreshChunkAdvance(m_off_t pos, m_off_t fileSize)
+{
+    m_off_t newHead = pos + chunkSizeAtPosition(pos);
+    if (newHead > fileSize)
+    {
+        newHead = fileSize;
+    }
+    return newHead - pos;
+}
+
 // ========== UploadEngine::Impl refresh-latch out-of-class definitions ==========
 // Kept in this TU rather than the engine header so that
 // WsPoolMgr::applyRefreshBackoff / applyRefreshedUrls can stay forward-declared

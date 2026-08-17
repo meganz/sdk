@@ -579,6 +579,14 @@ struct WsPool
     bool mDatasetSeen{false};
 
     dstime mLastActive{0};
+    // S16 Lever C (env MEGA_WS_BUDGET_ASK_STAMP, default OFF): when armed, a budget DENIAL
+    // stamps this instead of mLastActive, so the two mLastActive consumers in checkPools
+    // split honestly: the SERVERTIMEOUT refresh treats max(mLastActive, mLastBudgetAskDs)
+    // as activity (an actively-asking pool is alive — no refresh churn), while the
+    // POOLCONNKEEPALIVE 1-conn trim sees the pool's TRUE traffic idleness and becomes
+    // reachable for budget-starved pools (fewer stale spare conns to burn grants on).
+    // Lever OFF: never written (stays 0), max() == mLastActive, byte-identical behavior.
+    dstime mLastBudgetAskDs{0};
     dstime mLastServerResponse{0};
     dstime mPausedByServerUntil{0};
 

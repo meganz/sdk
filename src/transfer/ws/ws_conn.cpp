@@ -620,7 +620,10 @@ void WsConn::onmessage(const char* msg, const int len)
     // Ack-stall watchdog (fu8 S6): per-conn server-liveness stamp. Refreshed on every
     // validated inbound server frame so checkPools only force-reconnects a conn whose
     // server acks have genuinely gone silent past ACKSTALLTIMEOUT.
-    mLastInboundFrameDs.store(mPool->mImpl->currentTime, std::memory_order_relaxed);
+    // S16: stamp SteadyTime::ds() directly (same steady-ds epoch as impl.currentTime, which
+    // lags by up to one manager-loop pass ~5ds) so the capped-mode idle-retire comparison in
+    // poolWorkerThread — also SteadyTime::ds()-based, like the onopen seed — is skew-free.
+    mLastInboundFrameDs.store(SteadyTime::ds(), std::memory_order_relaxed);
     mPool->mImpl->poolMgr.bumpLastNetRead(mPool->mImpl->currentTime);
 
 #pragma pack(push, 1)
@@ -1056,7 +1059,24 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     {
         std::size_t forcedSendLen = 0;
         WsSendFaultAction faultAction = WsSendFaultAction::None;
-        DEBUG_TEST_HOOK_WS_SEND_FAULT(remaining, forcedSendLen, faultAction);
+        const dstime hookIdleInboundDs =
+            SteadyTime::difference(SteadyTime::ds(),
+                                   ws->mLastInboundFrameDs.load(std::memory_order_relaxed));
+        DEBUG_TEST_HOOK_WS_SEND_FAULT(remaining, hookIdleInboundDs, forcedSendLen, faultAction);
+        if (faultAction == WsSendFaultAction::ForceError)
+        {
+            // S16 stale-kill: byte-exact emulation of the Windows CI conn death — the write
+            // fails with CURLE_SEND_ERROR/sent=0 on a stale-OPEN conn. Same log line + same
+            // closeWS path as the real error branch below, so the engine-side handling
+            // (onclose -> retryChunksOnTheWireLocked requeue+refund) is IDENTICAL.
+            LOG_debug << "[WsBuf::sendWS] closeWS: res=" << CURLE_SEND_ERROR << " sent=0"
+                      << " idleInboundDs=" << hookIdleInboundDs
+                      << " readyState=" << static_cast<int>(ws->readyState.load(std::memory_order_relaxed))
+                      << " (WS_SEND_FAULT ForceError stale-kill emulation) [this = " << this
+                      << "]";
+            ws->closeWS();
+            return false;
+        }
         if (faultAction == WsSendFaultAction::ForceDrop)
         {
             WSUPLOAD_TRACE << "[WsBuf::sendWS] WS_SEND_FAULT ForceDrop -> ws->closeWS() mid-frame "
@@ -1110,7 +1130,14 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     if (res != CURLE_AGAIN)
     {
         // S15 round-5: close reason on the send side (see curlRecv counterpart).
+        // S16: idleInboundDs + readyState inline so future close-reason mining needs no
+        // join against the requeue lines (the r6 census was 398/398 res=55 sent=0; the idle
+        // age at the failing write is the horizon datum).
         LOG_debug << "[WsBuf::sendWS] closeWS: res=" << res << " sent=" << sent
+                  << " idleInboundDs="
+                  << SteadyTime::difference(SteadyTime::ds(),
+                                            ws->mLastInboundFrameDs.load(std::memory_order_relaxed))
+                  << " readyState=" << static_cast<int>(ws->readyState.load(std::memory_order_relaxed))
                   << " [this = " << this << "]";
         ws->closeWS();
     }

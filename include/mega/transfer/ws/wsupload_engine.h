@@ -102,6 +102,10 @@ unsigned wsGateMinEventsEnvDefault(); // MEGA_WS_GATE_MIN_EVENTS -> mGateMinEven
 unsigned char wsGateCeilingMultEnvDefault(); // MEGA_WS_GATE_CEILING_MULT -> mGateCeilingMult (default 4; 0=off)
 unsigned wsConnTelemetryMsEnvDefault(); // MEGA_WS_CONN_TELEMETRY_MS -> mConnTelemetryMs (default 10000; 0=off)
 dstime wsAckStallTimeoutDsEnvDefault(); // MEGA_WS_ACKSTALL_TIMEOUT_MS (ms->ds) -> mAckStallTimeoutDsOverride (0=use ACKSTALLTIMEOUT)
+bool wsIdleRetireEnvDefault(); // MEGA_WS_IDLE_RETIRE -> mIdleRetire (default ON; S16 capped-mode stale-conn retire)
+unsigned wsIdleRetireMsEnvDefault(); // MEGA_WS_IDLE_RETIRE_MS -> mIdleRetireMs (default 8000, clamp [1000,60000])
+bool wsBudgetAskStampEnvDefault(); // MEGA_WS_BUDGET_ASK_STAMP -> mBudgetAskStamp (S16 Lever C, default OFF)
+unsigned wsCappedFirstAckMsEnvDefault(); // MEGA_WS_CAPPED_FIRSTACK_MS -> mCappedFirstAckMs (default 25000, clamp [10000,45000])
 bool wsAckStallWatchdogEnvDefault(); // MEGA_WS_ACKSTALL_WATCHDOG -> mAckStallWatchdog (ANDed with mLossRecovery)
 bool wsTailCompletionWatchdogEnvDefault(); // MEGA_WS_TAILCOMPLETION_WATCHDOG -> mTailCompletionWatchdog (narrows only)
 long wsHandshakeTimeoutMsEnvDefault(); // MEGA_WS_HANDSHAKE_TIMEOUT_MS -> mHandshakeTimeoutMsOverride (0=use constants)
@@ -177,6 +181,15 @@ public:
         mHandshakeTimeoutMsOverride = wsHandshakeTimeoutMsEnvDefault();
         mHandshakeFailWindowDsOverride = wsHandshakeFailWindowDsEnvDefault();
         mTailCompletionTimeoutDsOverride = wsTailCompletionTimeoutDsEnvDefault();
+        // S16 capped-mode stale-conn retire (grant-vs-horizon wedge fix). NOT ANDed with
+        // mLossRecovery: this is the capped-mode grant-flow fix, orthogonal to the loss-recovery
+        // family; MEGA_WS_IDLE_RETIRE=0 alone restores pre-fix behavior for the A/B arms.
+        mIdleRetire = wsIdleRetireEnvDefault();
+        mIdleRetireMs = wsIdleRetireMsEnvDefault();
+        // S16 Lever C (default OFF): not ANDed with mLossRecovery either — it is an
+        // observability/recovery-honesty lever for the capped-mode wedge, not a loss lever.
+        mBudgetAskStamp = wsBudgetAskStampEnvDefault();
+        mCappedFirstAckMs = wsCappedFirstAckMsEnvDefault();
         // Small-file cold-start (candidate 3c). INDEPENDENT of mLossRecovery (small-file
         // concern, not loss-recovery), so it is NOT ANDed with the master kill-switch.
         mSmallFileColdStart = wsSmallFileColdStartEnvDefault();
@@ -318,6 +331,29 @@ public:
                                           : WsPool::ACKSTALLTIMEOUT;
     }
 
+    // S16 capped-mode stale-conn retire threshold in deciseconds (MEGA_WS_IDLE_RETIRE_MS / 100,
+    // floored at 1ds). Consumed by WsPool::poolWorkerThread before staging a chunk: a capped
+    // pool's OPEN conn whose inbound stamp is older than this is closed + re-handshaked so the
+    // grant never lands on a stale-OPEN conn (Windows CI kill horizon: youngest observed genuine
+    // wedge 11.8s; deaths are invisible until first write — 398/398 r6 closes were send-side
+    // res=55 sent=0 with zero recv-side closes). 8s default = 32% under the youngest wedge and
+    // 20% under kBudgetWaiterStaleDs (10s) so a retire+reconnect can never expire the pool's
+    // budget-FIFO ticket.
+    dstime idleRetireDs() const
+    {
+        const dstime ds = msToDs(static_cast<std::int64_t>(mIdleRetireMs));
+        return ds > 0 ? ds : 1;
+    }
+
+    // S16 R1: capped-mode first-ack stall window in deciseconds (MEGA_WS_CAPPED_FIRSTACK_MS
+    // / 100, floored at 1ds). Consumed by WsPoolMgr::checkPools for the accepted-write
+    // black-hole class (per-conn, bypasses the engine-wide ack-stall gate, capped mode only).
+    dstime cappedFirstAckDs() const
+    {
+        const dstime ds = msToDs(static_cast<std::int64_t>(mCappedFirstAckMs));
+        return ds > 0 ? ds : 1;
+    }
+
     // ---- SDK-5360 fu8 Session 7, Lever A: env-tunable handshake timeout + coupled fail-window.
     // Per-attempt WS TLS+upgrade handshake timeout (ms), selected in WsConn::connectWS. Moved
     // here from ws_conn.cpp's anonymous namespace so the MEGA_WS_HANDSHAKE_TIMEOUT_MS override
@@ -454,6 +490,11 @@ public:
     m_off_t mMaxUploadSpeed{0};
     m_off_t mUploadBudget{0};
     dstime mUploadBudgetLastDs{0};
+    // S16: next-due stamp for the unconditional [WsBudget] engine-level dump in
+    // WsPoolMgr::checkPools (~5 s cadence, capped-mode + non-idle only — the r5 refuter's
+    // mandatory instrumentation: without it a budget/waiter wedge is invisible on a
+    // Windows failure because the RESEND-STALL stage-1 dump cannot fire at low caps).
+    dstime mBudgetDumpNextDs{0};
     // S12 Cluster-B fix v3: FIFO budget-waiter queue (see consumeUploadBudget). Keys are
     // identity tokens only — NEVER dereferenced (safe across pool retirement; staleness
     // expiry bounds any recycled-address confusion window). Strict serve order: under
@@ -620,6 +661,23 @@ public:
     // WsPool::ACKSTALLTIMEOUT=45s): runtime numeric override (deciseconds) letting the Goal-2d
     // bench sweep the window on ONE binary. Const-after-init; consumed via ackStallTimeoutDs().
     dstime mAckStallTimeoutDsOverride{0};
+    // mIdleRetire (env MEGA_WS_IDLE_RETIRE, default ON): S16 capped-mode stale-conn retire —
+    // THE grant-vs-horizon wedge fix. Gated at the use site on mMaxUploadSpeed > 0 so uncapped
+    // paths are byte-identical. =0 restores pre-fix behavior (the A/B arm).
+    bool mIdleRetire{true};
+    // mIdleRetireMs (env MEGA_WS_IDLE_RETIRE_MS, default 8000, clamp [1000,60000]): retire
+    // threshold. Must stay < kBudgetWaiterStaleDs (10s) — see idleRetireDs(). Const-after-init.
+    unsigned mIdleRetireMs{8000};
+    // mBudgetAskStamp (env MEGA_WS_BUDGET_ASK_STAMP, S16 Lever C, default OFF): budget denials
+    // stamp WsPool::mLastBudgetAskDs instead of mLastActive — unmasks the POOLCONNKEEPALIVE
+    // trim for budget-starved pools; the SERVERTIMEOUT refresh uses max() of both stamps.
+    // Const-after-init.
+    bool mBudgetAskStamp{false};
+    // mCappedFirstAckMs (env MEGA_WS_CAPPED_FIRSTACK_MS, default 25000, clamp [10000,45000]):
+    // the capped-mode first-ack stall window (S16 R1, accepted-write black-hole class). Must
+    // cover a legitimate slow-wire whole-chunk drain (25 s = 1 MiB at ~42 KB/s wire) and stay
+    // under the 45 s ack-stall class it fast-paths. Const-after-init.
+    unsigned mCappedFirstAckMs{25000};
     // mHandshakeTimeoutMsOverride (env MEGA_WS_HANDSHAKE_TIMEOUT_MS, default 0 = use the compile-
     // time kHandshakeTimeoutMs/kHandshakeTimeoutLossMs): S7 Lever A runtime override
     // (milliseconds) for the per-attempt WS handshake timeout selected in WsConn::connectWS.

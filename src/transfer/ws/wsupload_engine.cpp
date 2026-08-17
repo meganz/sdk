@@ -475,6 +475,80 @@ dstime wsAckStallTimeoutDsEnvDefault()
     return value;
 }
 
+// S16 capped-mode stale-conn retire (THE grant-vs-horizon wedge fix, SDK-5360 fu8 S16).
+// Default ON; only an explicit "0" disables (the pre-fix A/B arm). Deliberately NOT part of
+// the MEGA_WS_LOSS_RECOVERY family: the wedge is a capped-mode grant-flow defect, not a
+// loss-recovery lever, and must stay armed when the loss master kill is used for benches.
+// Read exactly once per process (function-local static).
+bool wsIdleRetireEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_IDLE_RETIRE");
+        return !(hasValue && raw == "0");
+    }();
+    return value;
+}
+
+// S16 Lever C: budget-ask stamp split (MEGA_WS_BUDGET_ASK_STAMP, default OFF — flip in a
+// bench round after FIX-1 validates). When ON, budget denials stamp WsPool::mLastBudgetAskDs
+// instead of mLastActive, unmasking the POOLCONNKEEPALIVE 1-conn trim for budget-starved
+// pools while the SERVERTIMEOUT refresh keeps treating an actively-asking pool as alive via
+// max(). Read exactly once per process (function-local static).
+bool wsBudgetAskStampEnvDefault()
+{
+    static const bool value = []
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_BUDGET_ASK_STAMP");
+        // Default OFF; only an explicit "1" enables.
+        return hasValue && raw == "1";
+    }();
+    return value;
+}
+
+// S16 R1: capped-mode first-ack stall window (MILLISECONDS). Default 25000 — must cover a
+// legitimate slow-wire whole-chunk drain (1 MiB at ~42 KB/s wire) while reaping the
+// accepted-write black-hole class (write accepted, zero inbound forever — one instance
+// burned ~50 s of a 90 s CI window via the 45 s watchdog in r5). Clamp [10000, 45000] —
+// never above the ack-stall class it fast-paths. Read once per process.
+unsigned wsCappedFirstAckMsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_CAPPED_FIRSTACK_MS");
+        if (!hasValue)
+            return 25000u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 25000u;
+        return static_cast<unsigned>(std::min<long>(std::max<long>(v, 10000), 45000));
+    }();
+    return value;
+}
+
+// Numeric override (MILLISECONDS) for the stale-conn retire threshold. Default 8000ms —
+// 32% under the youngest genuine inbound-idle wedge observed on Windows CI (11.8s, r5+r6
+// distribution over 965 conn deaths) and 20% under kBudgetWaiterStaleDs (10s) so a
+// retire+reconnect can never expire the pool's budget-FIFO ticket. Clamped to [1000, 60000];
+// a non-numeric / <=0 value keeps the default. Read once per process (function-local static).
+// Consumed via UploadEngine::Impl::idleRetireDs().
+unsigned wsIdleRetireMsEnvDefault()
+{
+    static const unsigned value = []() -> unsigned
+    {
+        const auto [raw, hasValue] = Utils::getenv("MEGA_WS_IDLE_RETIRE_MS");
+        if (!hasValue)
+            return 8000u;
+        char* end = nullptr;
+        const long v = std::strtol(raw.c_str(), &end, 10);
+        if (end == raw.c_str() || v <= 0)
+            return 8000u;
+        return static_cast<unsigned>(std::min<long>(std::max<long>(v, 1000), 60000));
+    }();
+    return value;
+}
+
 // Gates the ack-stall watchdog (WsPoolMgr::checkPools force-reconnect of a silently-hung OPEN
 // conn; SDK-5360 fu8 Session 6). Default ON; only an explicit "0" disables. ANDed with
 // mLossRecovery in the Impl ctor (so MEGA_WS_LOSS_RECOVERY=0 reproduces full pre-fix behavior)
@@ -1449,6 +1523,7 @@ bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes,
                     mBudgetWaiters.erase(mBudgetWaiters.begin()); // served
                 }
                 mUploadBudget -= bytes;
+                DEBUG_TEST_HOOK_WS_BUDGET_PROBE(WsBudgetProbeEvent::Grant, bytes);
                 return true;
             }
             if (queueEmpty)
@@ -1469,6 +1544,7 @@ bool UploadEngine::Impl::consumeUploadBudget(const m_off_t bytes,
             const dstime suggestedDs = static_cast<dstime>(numerator / mMaxUploadSpeed);
             *retryAfterDs = std::clamp<dstime>(suggestedDs, 1, 10);
         }
+        DEBUG_TEST_HOOK_WS_BUDGET_PROBE(WsBudgetProbeEvent::Denial, bytes);
         return false;
     }
 
@@ -1522,9 +1598,11 @@ void UploadEngine::Impl::refundUploadBudget(const m_off_t bytes)
     if (bytes > (maxValue - mUploadBudget))
     {
         mUploadBudget = budgetCap;
+        DEBUG_TEST_HOOK_WS_BUDGET_PROBE(WsBudgetProbeEvent::Refund, bytes);
         return;
     }
     mUploadBudget = std::min(mUploadBudget + bytes, budgetCap);
+    DEBUG_TEST_HOOK_WS_BUDGET_PROBE(WsBudgetProbeEvent::Refund, bytes);
 }
 
 void UploadEngine::Impl::setMaxUploadSpeed(const m_off_t bytesPerSecond)
