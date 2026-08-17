@@ -6773,4 +6773,121 @@ TEST_F(SdkWsUploadTest, StatecacheMidTransferPendingMacsRoundTrip)
     }
 }
 
+/**
+ * @brief S16 integrity census/purge: enumerate (and optionally delete) truncated test nodes.
+ *
+ * The S15 clamped binary silently server-truncated every capped upload and putnodes'd the
+ * stumps as success (~76 nodes + the S16 ladder/battery additions on the test account).
+ * Truncated nodes PASS meta-MAC verification (server size == truncated length) but carry the
+ * FULL-file fingerprint in their attributes — any later upload of the same source can dedup
+ * onto a truncated node. This cell walks the cloud drive + rubbish and matches the known
+ * truncation signatures (test-corpus name patterns + impossible sizes).
+ *
+ * Ops tool, NOT a CI cell: skips unless MEGA_CENSUS_ENABLE=1. Dry-run by default
+ * (enumerates + logs [Census] lines); MEGA_CENSUS_APPLY=1 deletes the matches.
+ */
+TEST_F(SdkWsUploadTest, CensusPurgeTruncatedNodes)
+{
+    const auto [enableRaw, enableSet] = ::mega::Utils::getenv("MEGA_CENSUS_ENABLE");
+    if (!enableSet || enableRaw != "1")
+    {
+        GTEST_SKIP() << "census disabled (set MEGA_CENSUS_ENABLE=1; MEGA_CENSUS_APPLY=1 to delete)";
+    }
+    LOG_info << "___TEST SdkWsUploadCensusPurgeTruncatedNodes___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    const auto [applyRaw, applySet] = ::mega::Utils::getenv("MEGA_CENSUS_APPLY");
+    const bool apply = applySet && applyRaw == "1";
+
+    // Truncation signatures: test-corpus name patterns whose node size cannot be a legal
+    // completed source. Sources: ws_cross_pool_* / ws_stress_* = 5,242,879/5,242,880;
+    // cap_tiny f1..f4.bin = 524,288; s16_tier1 t1.bin = 5,242,880.
+    const auto isTruncated = [](const std::string& name, long long size) -> bool
+    {
+        const auto startsWith = [&name](const char* p)
+        {
+            return name.rfind(p, 0) == 0;
+        };
+        if ((startsWith("ws_cross_pool_") || startsWith("ws_stress_")) && size < 5242879)
+            return true;
+        if (name.size() == 6 && name[0] == 'f' && name[1] >= '1' && name[1] <= '4' &&
+            name.compare(2, 4, ".bin") == 0 && size < 524288)
+            return true;
+        if (name == "t1.bin" && size != 5242880 && size < 5242880)
+            return true;
+        return false;
+    };
+
+    struct Match
+    {
+        MegaHandle handle;
+        std::string path;
+        long long size;
+    };
+    std::vector<Match> matches;
+    std::function<void(MegaNode*, const std::string&)> walk =
+        [&](MegaNode* node, const std::string& path)
+    {
+        std::unique_ptr<MegaNodeList> children{megaApi[0]->getChildren(node)};
+        for (int i = 0; children && i < children->size(); ++i)
+        {
+            MegaNode* c = children->get(i);
+            if (!c)
+                continue;
+            const std::string cpath = path + "/" + (c->getName() ? c->getName() : "?");
+            if (c->isFile())
+            {
+                if (isTruncated(c->getName() ? c->getName() : "", c->getSize()))
+                {
+                    std::unique_ptr<char[]> b64{MegaApi::handleToBase64(c->getHandle())};
+                    LOG_info << "[Census] MATCH handle=" << (b64 ? b64.get() : "?")
+                             << " path=" << cpath << " size=" << c->getSize()
+                             << (apply ? " action=DELETE" : " action=dry-run");
+                    matches.push_back({c->getHandle(), cpath, c->getSize()});
+                }
+            }
+            else if (c->isFolder())
+            {
+                walk(c, cpath);
+            }
+        }
+    };
+
+    std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(root);
+    walk(root.get(), "");
+    std::unique_ptr<MegaNode> rubbish{megaApi[0]->getRubbishNode()};
+    if (rubbish)
+    {
+        walk(rubbish.get(), "/RUBBISH");
+    }
+
+    LOG_info << "[Census] SUMMARY matches=" << matches.size() << " apply=" << (apply ? 1 : 0);
+    std::cout << "[Census] SUMMARY matches=" << matches.size() << " apply=" << (apply ? 1 : 0)
+              << std::endl;
+    for (const auto& m: matches)
+    {
+        std::cout << "[Census] " << (apply ? "DELETE " : "MATCH ") << m.path
+                  << " size=" << m.size << std::endl;
+    }
+
+    if (apply)
+    {
+        unsigned deleted = 0;
+        for (const auto& m: matches)
+        {
+            std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(m.handle)};
+            if (!n)
+                continue;
+            RequestTracker rt(megaApi[0].get());
+            megaApi[0]->remove(n.get(), &rt);
+            if (rt.waitForResult(60) == API_OK)
+                ++deleted;
+            else
+                LOG_warn << "[Census] delete FAILED for " << m.path;
+        }
+        std::cout << "[Census] deleted=" << deleted << "/" << matches.size() << std::endl;
+        EXPECT_EQ(deleted, matches.size());
+    }
+}
+
 } // namespace mega::test::wsupload
