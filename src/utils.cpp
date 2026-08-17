@@ -510,6 +510,14 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         else
         {
             assert(pos > macsmacSoFarPos);
+            // SDK-5360 S16: catch a lattice-poisoned statecache at RESUME time instead of at
+            // download-time key corruption. macsmac() (below, :~843) already asserts this
+            // invariant on every fold; a serialized map violating it means the writer put an
+            // off-canonical chunk boundary into the cache (the S15 round-6 clamp class —
+            // meta-MAC folds are boundary-dependent, so such a map yields a wrong node key
+            // and API_EKEY on every download). No legal writer produces such an entry.
+            assert(pos == ChunkedHash::chunkfloor(pos) &&
+                   "unserialized chunkmac key off the canonical chunk lattice");
         }
     }
     return true;
