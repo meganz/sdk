@@ -3265,15 +3265,20 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
         return t && t->getTransferredBytes() > beforePause;
     };
 
-    // Option-D calibration for the 90 s bound (S15, round-1 win_9741 RCA): at this
-    // cell's cap (max(10000, fileSizeB/500) ≈ 10,485 B/s) the strict-FIFO budget
-    // grants one chunk per need/cap = 12.5-25 s, so a correct engine serves both
-    // unpaused pool-mates within ~2 grant rounds ≈ 50 s worst case; 90 s leaves ≥40 s
-    // of scheduler margin. The S15 watchdog stage-1 (window 30-60 s) fires INSIDE this
-    // bound; stage-2 (2× window) intentionally does not — a run that needs stage-2 to
-    // pass is already broken. Do NOT widen this bound to absorb engine defects: the
-    // capped-mode refund fix (ws_pool.cpp) is what makes the arithmetic hold when a
-    // granted chunk dies pre-ack (the round-1 wedge burned every grant slot for 78 s).
+    // Option-D calibration for the 90 s bound (S15 round-1 win_9741 RCA; CORRECTED in
+    // S16): at this cell's cap (max(10000, fileSizeB/500) ≈ 10,485 B/s) the strict-FIFO
+    // budget grants one chunk per need/cap — 12.5 s at 128 KiB rising to 100 s at 1 MiB
+    // (positions ≥ 3.5 MiB), so the worst case is ramp-position-dependent: early windows
+    // have ≥40 s margin, late 768K/896K-need windows can consume nearly the whole bound
+    // from an empty bucket (cap physics — no lattice-safe engine change removes it; see
+    // followup8_QA_15 FIX_DESIGN_S16 §3). S16 correction: the resend-stall watchdog
+    // stage-1 does NOT reliably fire inside this bound — its cap-scaled window is
+    // max(60 s, 3·need/cap) = up to 300 s at 1 MiB/10,485 B/s (ws_pool_mgr.cpp), so the
+    // watchdog only covers the 128-256 KiB ramp; the engine must carry the rest via
+    // (a) the capped-mode refund fix and (b) the S16 idle-retire (grants land only on
+    // freshly-verified conns — the r5/r6-proven wedge was every grant burning on a
+    // stale-OPEN conn killed at ≤12.2 s idle). Do NOT widen this bound to absorb engine
+    // defects.
     ASSERT_TRUE(WaitFor(
         [&]()
         {
@@ -3659,14 +3664,17 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPoolsStress)
     constexpr int kCycles = 6;
     // 90 s bound (matches the shipped cell's progress window): with FAIR strict-FIFO
     // budget alternation at the capped rate, the second-served pool's grant can land up
-    // to ~2 × (chunkBytes / capBps) ≈ 50 s after the batch; 45 s would flake a CORRECT
-    // engine at this cap.
-    // Option-D addendum (S15, round-1 win_9741): the arithmetic above additionally
-    // requires that a granted chunk which dies pre-ack (pre-wire requeue, conn
-    // teardown) REFUNDS its budget — without the refund each death re-buys a full
-    // 12.5-25 s grant and the cycle consumes every slot (round-1: zero engine-wide
-    // acks for 78 s at cycle 1). Bound stays 90 s; the engine, not the bound, carries
-    // the margin.
+    // to ~2 × (chunkBytes / capBps) after the batch — ~50 s on the early ramp, and up to
+    // the whole bound once per-chunk needs reach 768K+ (cap physics; see the shipped
+    // cell's option-D note). 45 s would flake a CORRECT engine at this cap.
+    // Option-D addendum (S15 round-1 win_9741; S16-corrected): the arithmetic requires
+    // BOTH that a granted chunk dying pre-ack REFUNDS its budget (without the refund
+    // each death re-buys a full grant and the cycle consumes every slot — round-1: zero
+    // engine-wide acks for 78 s) AND that grants land on live conns (the r5/r6 wedge:
+    // refunds re-flowed correctly but every grant burned on a stale-OPEN conn killed at
+    // ≤12.2 s idle — the S16 idle-retire closes this; the resend-stall watchdog CANNOT,
+    // its cap-scaled window being up to 300 s at 1 MiB needs). Bound stays 90 s; the
+    // engine, not the bound, carries the margin.
     constexpr int kCycleBoundMs = 90000;
     for (int cycle = 0; cycle < kCycles; ++cycle)
     {
@@ -6450,6 +6458,319 @@ TEST_F(SdkWsUploadTest, SilentByteShortfallWedgeRecovers)
     // tailRecoveries is logged, not asserted: whether the tail watchdog finishes the recovery (the
     // gap re-send left the file completionless) or the gap re-send itself drew a fresh completion
     // is server-timing dependent — res==API_OK above is the end-to-end gate.
+}
+
+/**
+ * @brief S16 wedge net: capped-mode grants must land on live conns (grant-vs-horizon fix).
+ *
+ * Deterministic Linux reproduction of the Windows CI conn-kill: the stale-kill hook makes
+ * every curl_ws_send on a conn whose inbound-idle age exceeds 12 s fail EXACTLY like the CI
+ * signature (res=55 CURLE_SEND_ERROR, sent=0 — 398/398 of the r6 conn deaths; the kill is
+ * invisible to recv, so OPEN is unfalsifiable between writes). At this cell's cap the grant
+ * periods are 13-66 s, all past the 12 s horizon, so WITHOUT the S16 idle-retire
+ * (MEGA_WS_IDLE_RETIRE=0, the pre-fix A/B arm) every grant burns on a dead conn and the
+ * upload wedges (the RepeatedPauseResumeMixedPools 90 s-stall class). WITH the fix (default)
+ * the worker retires any conn idle > 8 s before staging, so the upload completes at the cap
+ * and the budget probe sees (almost) no burns.
+ *
+ * - TEST1: arm stale-kill (12 s horizon) + the budget probe; upload one 2 MiB file capped.
+ * - TEST2: require completion within 2x the arithmetic floor (~210 s at 10,000 B/s).
+ * - TEST3: require burns <= 2 and stale-kill hits <= 2 (the fix keeps conns younger than
+ *          the horizon; tolerances absorb scheduler hiccups, not the wedge — a wedge run
+ *          burns every grant).
+ */
+TEST_F(SdkWsUploadTest, WsCappedStaleConnGrantFlow)
+{
+    LOG_info << "___TEST SdkWsUploadWsCappedStaleConnGrantFlow___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    constexpr size_t kFileSize = 2 * 1024 * 1024; // ramp-only: max grant 640K/10KBps = 65.5 s
+    ASSERT_TRUE(createFileWithSize(UPFILE, kFileSize, "R")) << "Couldn't create " << UPFILE;
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Same cap formula as the CI G-cells: max(10000, fileSize/500) = 10,000 B/s here.
+    const m_off_t capBps =
+        std::max<m_off_t>(10000, static_cast<m_off_t>(kFileSize) / 500);
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], static_cast<long long>(capBps)};
+
+    auto resetHooks = makeScopedDestructor(
+        []()
+        {
+            ::mega::globalMegaTestHooks.wsSendFaultHook.reset();
+            ::mega::globalMegaTestHooks.wsBudgetProbeHook.setEnabled(false);
+        });
+    // 120 ds = the youngest genuine wedge observed on CI was 11.8-12.2 s; the S16 retire
+    // default (8 s) sits 32% under it, so a fixed engine never sends on a conn this old.
+    ::mega::globalMegaTestHooks.wsSendFaultHook.configureStaleKill(/*idleThresholdDs*/ 120,
+                                                                   /*maxHits*/ 0);
+    ::mega::globalMegaTestHooks.wsBudgetProbeHook.setEnabled(true);
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(std::string{UPFILE},
+                            rootnode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &ut);
+
+    // Arithmetic floor = kFileSize/capBps ~= 210 s; 420 s = 2x margin. A pre-fix engine
+    // (MEGA_WS_IDLE_RETIRE=0) wedges here: every 13-66 s grant lands on a conn older than
+    // the 12 s kill horizon, burns, refunds, and re-queues forever.
+    const ErrorCodes res = ut.waitForResult(420);
+    ASSERT_EQ(res, API_OK) << "Capped upload did not complete under the stale-kill horizon "
+                              "(the grant-vs-horizon wedge; burns="
+                           << ::mega::globalMegaTestHooks.wsBudgetProbeHook.snapshot().burns
+                           << " staleKills="
+                           << ::mega::globalMegaTestHooks.wsSendFaultHook.getStaleKillHits()
+                           << ")";
+
+    const auto counts = ::mega::globalMegaTestHooks.wsBudgetProbeHook.snapshot();
+    const int staleKills = ::mega::globalMegaTestHooks.wsSendFaultHook.getStaleKillHits();
+    LOG_info << "[WsCappedStaleConnGrantFlow] grants=" << counts.grants
+             << " denials=" << counts.denials << " refunds=" << counts.refunds
+             << " burns=" << counts.burns << " staleKills=" << staleKills;
+    EXPECT_LE(counts.burns, 2u) << "granted chunks died on stale conns despite the retire";
+    EXPECT_LE(staleKills, 2) << "sends reached a conn older than the kill horizon";
+    EXPECT_GE(counts.grants, 5u) << "budget probe saw too few grants for a 2 MiB ramp";
+
+    if (ut.resultNodeHandle != ::mega::INVALID_HANDLE)
+    {
+        std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(ut.resultNodeHandle)};
+        if (n)
+        {
+            RequestTracker rt(megaApi[0].get());
+            megaApi[0]->remove(n.get(), &rt);
+            rt.waitForResult(60);
+        }
+    }
+}
+
+/**
+ * @brief S16 integrity net: a capped upload released mid-transfer must produce the FULL file.
+ *
+ * The regression net for BOTH halves of the S15 round-5/6 data-integrity defect class:
+ * - silent server-side truncation (the server infers EOF from a short-for-position chunk,
+ *   so any engine change that emits one truncates the upload while reporting success —
+ *   S16 ladder E0'/E1b: 1,912,220-byte and 262,144-byte nodes from 5 MiB/512 KiB sources);
+ * - lattice re-partitioning (an off-canonical chunk key corrupts the meta-MAC fold —
+ *   utils.cpp:843 Debug abort / API_EKEY downloads in Release).
+ * On the S15 clamped tree (2b1d4ca4be + this test cherry-picked) this cell FAILS
+ * deterministically — hash mismatch on the truncated node, or the utils.cpp:843 abort if
+ * the un-cap wins the race against the server token (the round-6 Windows CI path). That
+ * run is the Gate-2 E2 sensitivity proof.
+ *
+ * - TEST1: upload 5 MiB capped at the CI G-cell cap; wait until >= 3 chunks are confirmed.
+ * - TEST2: release the cap mid-transfer (setMaxUploadSpeed(-1) — the same un-cap the
+ *          MixedPools same-pool GTEST_SKIP branch performs, which is what detonated r6).
+ * - TEST3: download the node and require byte-exact content (SHA-256).
+ */
+TEST_F(SdkWsUploadTest, WsCappedUncapReleaseIntegrity)
+{
+    LOG_info << "___TEST SdkWsUploadWsCappedUncapReleaseIntegrity___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    constexpr size_t kFileSize = 5242880; // the MixedPools fileSizeB
+    ASSERT_TRUE(createFileWithSize(UPFILE, kFileSize, "R")) << "Couldn't create " << UPFILE;
+    const auto expectedHash = sdk_test::hashFileHex(fs::path(UPFILE));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    const m_off_t capBps =
+        std::max<m_off_t>(10000, static_cast<m_off_t>(kFileSize) / 500); // 10,485 B/s
+    megaApi[0]->setMaxUploadSpeed(static_cast<long long>(capBps));
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(std::string{UPFILE},
+                            rootnode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &ut);
+
+    // Past the first three ramp chunks (0/131072/393216) = 786,432 B confirmed; ~75 s of
+    // budget at the cap. On the clamped tree the transfer "completes" truncated at 262,144
+    // long before this — the WaitFor then times out benignly and the hash gate below fails.
+    WaitFor(
+        [&]()
+        {
+            if (ut.finished)
+                return true; // truncated-early completion (clamp class) or failure
+            std::unique_ptr<MegaTransferList> tl{megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD)};
+            for (int i = 0; tl && i < tl->size(); ++i)
+            {
+                if (tl->get(i) && tl->get(i)->getTransferredBytes() >= 786432)
+                    return true;
+            }
+            return false;
+        },
+        180000);
+
+    // The mid-transfer un-cap release (the r6 detonator on the clamped tree).
+    megaApi[0]->setMaxUploadSpeed(-1);
+
+    const ErrorCodes res = ut.waitForResult(300);
+    ASSERT_EQ(res, API_OK) << "Upload failed after the un-cap release";
+    ASSERT_NE(ut.resultNodeHandle, ::mega::INVALID_HANDLE);
+
+    std::unique_ptr<MegaNode> node{megaApi[0]->getNodeByHandle(ut.resultNodeHandle)};
+    ASSERT_TRUE(node) << "Uploaded node not found";
+    // Loud early signal: node size must be the FULL source (the truncation class produces a
+    // smaller node whose attributes still carry the full-file fingerprint).
+    EXPECT_EQ(node->getSize(), static_cast<long long>(kFileSize))
+        << "SILENT TRUNCATION: node size != source size (S15 clamp defect class)";
+
+    const fs::path downloadPath = fs::current_path() / "ws_uncap_integrity_download.bin";
+    std::error_code ignore;
+    fs::remove(downloadPath, ignore);
+    TransferTracker dt(megaApi[0].get());
+    megaApi[0]->startDownload(node.get(),
+                              downloadPath.string().c_str(),
+                              nullptr,
+                              nullptr,
+                              false,
+                              nullptr,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false,
+                              &dt);
+    ASSERT_EQ(dt.waitForResult(300), API_OK)
+        << "Download failed (API_EKEY here = corrupted meta-MAC, the lattice defect class)";
+    EXPECT_EQ(sdk_test::hashFileHex(downloadPath), expectedHash)
+        << "Downloaded bytes differ from the source (truncation or keystream corruption)";
+    fs::remove(downloadPath, ignore);
+
+    {
+        RequestTracker rt(megaApi[0].get());
+        megaApi[0]->remove(node.get(), &rt);
+        rt.waitForResult(60);
+    }
+}
+
+/**
+ * @brief S16 Gate-3 (binding): statecache commit MID-transfer with pending chunkmacs +
+ *        resume + end-to-end verify — the deterministic Windows-path exercise.
+ *
+ * The S15 clamp shipped bench-green because no test forced a mid-transfer serialize with a
+ * partial chunkmac map through a resume and then VERIFIED the bytes. This cell does exactly
+ * that: it logs out the moment the engine has queued (worker-side, possibly undrained)
+ * confirmed chunk MACs mid-transfer, resumes from the statecache (the new
+ * chunkmac_map::unserialize Debug lattice assert covers the blob), completes, downloads and
+ * byte-compares. On a lattice-poisoned engine this aborts at resume or fails the hash gate.
+ *
+ * - TEST1: capped upload; wait for >= 3 queued confirmed-MAC batches (mid-transfer, with
+ *          onProgress statecache commits every 64 KiB / 0.5 s).
+ * - TEST2: locallogout with the partial map serialized; resume the session; fetchnodes.
+ * - TEST3: uncap, complete, download, SHA-256 must equal the source.
+ */
+TEST_F(SdkWsUploadTest, StatecacheMidTransferPendingMacsRoundTrip)
+{
+    LOG_info << "___TEST SdkWsUploadStatecacheMidTransferPendingMacsRoundTrip___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    constexpr size_t kFileSize = 5242880;
+    ASSERT_TRUE(createFileWithSize(UPFILE, kFileSize, "R")) << "Couldn't create " << UPFILE;
+    const auto expectedHash = sdk_test::hashFileHex(fs::path(UPFILE));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // ~1-8 s per chunk: fast enough for the test, slow enough that logout is mid-transfer.
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 131072};
+
+    std::atomic<unsigned> queuedBatches{0};
+    auto resetHook = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+            ::mega::globalMegaTestHooks.onWsConfirmedMacsQueuedForTesting = nullptr;
+        });
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsConfirmedMacsQueuedForTesting =
+            [&queuedBatches](std::uint32_t, std::size_t)
+        {
+            queuedBatches.fetch_add(1, std::memory_order_relaxed);
+        };
+    }
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(std::string{UPFILE},
+                            rootnode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &ut);
+
+    // >= 3 queued batches == at least three server-confirmed chunk MAC merges are in flight
+    // or already merged; onProgress has committed the statecache at least once (64 KiB /
+    // 0.5 s cadence at this cap). The logout below therefore serializes a PARTIAL map.
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            return queuedBatches.load(std::memory_order_relaxed) >= 3;
+        },
+        120000))
+        << "No mid-transfer confirmed-MAC activity observed";
+    ASSERT_FALSE(ut.finished) << "Upload finished before the mid-transfer logout";
+
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    const int interrupted = ut.waitForResult();
+    ASSERT_TRUE(interrupted == API_EACCESS || interrupted == API_EINCOMPLETE)
+        << "Upload interrupted with unexpected code: " << interrupted;
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // Uncap and require completion of the RESUMED transfer (statecache round-trip:
+    // unserialize ran under the new Debug lattice assert).
+    megaApi[0]->setMaxUploadSpeed(-1);
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> cloudNode(
+        megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    second_timer timer;
+    while ((!cloudNode || cloudNode->getSize() != static_cast<long long>(kFileSize)) &&
+           timer.elapsed() < 300)
+    {
+        WaitMillisec(500);
+        cloudNode.reset(
+            megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
+    }
+    ASSERT_TRUE(cloudNode) << "Resumed upload did not complete";
+    ASSERT_EQ(cloudNode->getSize(), static_cast<long long>(kFileSize))
+        << "Resumed upload completed with the WRONG size (truncation class)";
+
+    const fs::path downloadPath = fs::current_path() / "ws_statecache_roundtrip_download.bin";
+    std::error_code ignore;
+    fs::remove(downloadPath, ignore);
+    TransferTracker dt(megaApi[0].get());
+    megaApi[0]->startDownload(cloudNode.get(),
+                              downloadPath.string().c_str(),
+                              nullptr,
+                              nullptr,
+                              false,
+                              nullptr,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false,
+                              &dt);
+    ASSERT_EQ(dt.waitForResult(300), API_OK)
+        << "Download failed (API_EKEY = corrupted meta-MAC across the statecache round-trip)";
+    EXPECT_EQ(sdk_test::hashFileHex(downloadPath), expectedHash)
+        << "Bytes differ after the mid-transfer-serialize resume";
+    fs::remove(downloadPath, ignore);
+
+    {
+        RequestTracker rt(megaApi[0].get());
+        megaApi[0]->remove(cloudNode.get(), &rt);
+        rt.waitForResult(60);
+    }
 }
 
 } // namespace mega::test::wsupload

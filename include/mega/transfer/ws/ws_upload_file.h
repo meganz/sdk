@@ -42,6 +42,7 @@
 #include "mega/transfer/ws/wsupload_internal.h"
 
 #include "mega/file.h" // File (for frontFile())
+#include "mega/testhooks.h" // DEBUG_TEST_HOOK_WS_CONFIRMED_MACS_QUEUED (S16 Gate-3 seam)
 #include "mega/filesystem.h" // FileAccess, LocalPath, FSLogging
 #include "mega/transfer.h" // Transfer, SpeedController, TRANSFERSTATE_PAUSED
 #include "mega/types.h" // m_off_t, m_time_t, dstime, byte, chunkmac_map
@@ -623,6 +624,11 @@ public: // accessed by engine
         if (macs.size())
         {
             mConfirmedChunkMacs.emplace_back(std::move(macs));
+            // S16 Gate-3 seam: lets the deterministic mid-transfer statecache exercise
+            // observe queued-not-yet-drained MACs (StatecacheMidTransferPendingMacsRoundTrip
+            // forces a commit + locallogout exactly while this queue is non-empty).
+            DEBUG_TEST_HOOK_WS_CONFIRMED_MACS_QUEUED(fileno(),
+                                                     mConfirmedChunkMacs.size());
         }
     }
 
