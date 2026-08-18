@@ -1493,9 +1493,15 @@ bool Node::isbelow(NodeHandle p) const
 
 void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, const string &authKey)
 {
+    // An auth key belongs to a writable link, which only a shared folder can have. A file must
+    // never keep one, whatever the API sent - for a plain file link it sends its error code in
+    // the 'w' field.
+    const bool keepAuthKey = !authKey.empty() && type != FILENODE;
+
     if (!plink) // creation
     {
-        plink.reset(new PublicLink(ph, cts, ets, takendown, authKey.empty() ? nullptr : authKey.c_str()));
+        plink.reset(
+            new PublicLink(ph, cts, ets, takendown, keepAuthKey ? authKey.c_str() : nullptr));
     }
     else            // update
     {
@@ -1503,7 +1509,14 @@ void Node::setpubliclink(handle ph, m_time_t cts, m_time_t ets, bool takendown, 
         plink->cts = cts;
         plink->ets = ets;
         plink->takendown = takendown;
-        plink->mAuthKey = authKey;
+        if (keepAuthKey)
+        {
+            plink->mAuthKey = authKey;
+        }
+        else
+        {
+            plink->mAuthKey.clear();
+        }
     }
 }
 
@@ -1961,7 +1974,7 @@ std::shared_ptr<Node> NodeData::createNode(MegaClient& client,
 
     if (mIsExported)
     {
-        n->plink.reset(new PublicLink(mPubLinkHandle, mPubLinkCts, mPubLinkEts, mPubLinkTakenDown, mAuthKey.c_str()));
+        n->setpubliclink(mPubLinkHandle, mPubLinkCts, mPubLinkEts, mPubLinkTakenDown, mAuthKey);
     }
 
     if (mIsEncrypted)

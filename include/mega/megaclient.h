@@ -1241,6 +1241,7 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
+    // (writable is only used by share so only available for folders)
     error exportnode(std::shared_ptr<Node>,
                      int,
                      m_time_t,

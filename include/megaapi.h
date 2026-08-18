@@ -1457,7 +1457,8 @@ class MegaNode
          * be valid until the MegaNode object is deleted.
          *
          * @return authentication key for a writable folder. If there is no authentication key,
-         * nullptr shall be returned.
+         * nullptr shall be returned. Always return nullptr for a file node, since a writable link
+         * requires a share.
          */
         virtual const char * getWritableLinkAuthKey();
 
@@ -16350,9 +16351,13 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish
          * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * If writable is true and the node is a file, onRequestFinish will be called with the
+         * error code MegaError::API_EARGS and no link is created: a writable link is backed by a
+         * share, so it is only available for folders.
+         *
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
-         * @param writable if the link should be writable.
+         * @param writable if the link should be writable. Only supported for folders
          * @param megaHosted if the share key should be shared with MEGA
          * @param listener MegaRequestListener to track this request
          */
