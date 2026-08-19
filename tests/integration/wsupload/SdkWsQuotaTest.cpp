@@ -1344,21 +1344,22 @@ TEST_F(SdkWsUploadTest, QuotaHoldInterplayWithUserPauseAndCancel)
     std::unique_ptr<MegaNode> folder{megaApi[0]->getNodeByHandle(folderHandle)};
     ASSERT_TRUE(folder);
 
+    const std::string file0 = makeBinName("ws_quota_t12_0_");
     const std::string file1 = makeBinName("ws_quota_t12_1_");
     const std::string file2 = makeBinName("ws_quota_t12_2_");
     const std::string file3 = makeBinName("ws_quota_t12_3_");
     constexpr size_t fileSize = kWsUploadDefaultFileSize;
+    ASSERT_TRUE(createFileWithSize(file0, fileSize, "0"));
     ASSERT_TRUE(createFileWithSize(file1, fileSize, "1"));
     ASSERT_TRUE(createFileWithSize(file2, fileSize, "2"));
     ASSERT_TRUE(createFileWithSize(file3, fileSize, "3"));
-    localFiles = {file1, file2, file3};
+    localFiles = {file0, file1, file2, file3};
 
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
     WsQuotaHoldTracker holdTracker(megaApi[0].get());
-    script.setDefaultPlan(
-        WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {folderH}));
+    script.setDefaultPlan(WsTfsResultScript::drop());
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);
@@ -1366,7 +1367,70 @@ TEST_F(SdkWsUploadTest, QuotaHoldInterplayWithUserPauseAndCancel)
     ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
     auto uploadOptions = makeDefaultUploadOptions();
 
+    // ---- Phase 0: user-pause first, then hold and release -> public state stays paused.
+    TransferTracker tracker0(megaApi[0].get());
+    megaApi[0]->startUpload(file0, folder.get(), nullptr, &uploadOptions, &tracker0);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker0.mTag.load() >= 0;
+        },
+        30000));
+    const int tag0 = tracker0.mTag.load();
+
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout)) << "phase 0: initial tfs was not issued";
+    ASSERT_TRUE(script.waitForResult(1, kIssueTimeout))
+        << "phase 0: dropped tfs reply was not observed";
+
+    RequestTracker pauseFirstReq(megaApi[0].get());
+    megaApi[0]->pauseTransferByTag(tag0, true, &pauseFirstReq);
+    ASSERT_EQ(API_OK, pauseFirstReq.waitForResult(60));
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag0)};
+            return t && t->getState() == MegaTransfer::STATE_PAUSED;
+        },
+        30000));
+
+    script.setDefaultPlan(
+        WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {folderH}));
+    const std::size_t beforePausedHold = tfsIssued.issuanceCount();
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(tfsIssued.waitForIssuance(beforePausedHold + 1, kIssueTimeout))
+        << "phase 0: no tfs issued after invalidation";
+    ASSERT_TRUE(holdChanged.waitForHold(tag0, kHoldTimeout))
+        << "phase 0: hold never applied to the user-paused transfer";
+    {
+        std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag0)};
+        ASSERT_TRUE(t);
+        ASSERT_EQ(t->getState(), MegaTransfer::STATE_PAUSED)
+            << "quota temporary error must not overwrite a pre-existing user pause";
+    }
+
+    script.setDefaultPlan(WsTfsResultScript::generous({folderH}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
+    ASSERT_TRUE(holdChanged.waitForRelease(tag0, kHoldTimeout))
+        << "phase 0: quota hold was not released";
+    {
+        std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag0)};
+        ASSERT_TRUE(t);
+        ASSERT_EQ(t->getState(), MegaTransfer::STATE_PAUSED)
+            << "quota release must preserve a pre-existing user pause";
+    }
+    ASSERT_FALSE(tracker0.finished.load());
+
+    RequestTracker unpauseFirstReq(megaApi[0].get());
+    megaApi[0]->pauseTransferByTag(tag0, false, &unpauseFirstReq);
+    ASSERT_EQ(API_OK, unpauseFirstReq.waitForResult(60));
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(tracker0.waitForResult(kCompleteTimeoutS), API_OK)
+        << "phase 0: unpaused transfer did not complete";
+
     // ---- Phase A: hold file1, user-pause, release quota -> stays paused, unpause -> completes.
+    megaApi[0]->setMaxUploadSpeed(kThrottleBps);
+    script.setDefaultPlan(
+        WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {folderH}));
     TransferTracker tracker1(megaApi[0].get());
     megaApi[0]->startUpload(file1, folder.get(), nullptr, &uploadOptions, &tracker1);
     ASSERT_TRUE(WaitFor(
@@ -2521,6 +2585,366 @@ TEST_F(SdkWsUploadTest, QuotaSameOwnerInsharesShareOnePool)
     megaApi[0]->setMaxUploadSpeed(-1);
     ASSERT_EQ(tracker2.waitForResult(kCompleteTimeoutS), API_OK)
         << "sibling-share upload did not complete after release";
+}
+
+TEST_F(SdkWsUploadTest, QuotaLateEqualContentTargetAttachmentRefreshesAndAccounts)
+{
+    LOG_info << "___TEST QuotaLateEqualContentTargetAttachmentRefreshesAndAccounts___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    std::vector<::MegaHandle> createdFolders;
+    const ::MegaHandle folderAHandle =
+        createFolder(0, makeBinName("late_target_a_").c_str(), rootnode.get());
+    const ::MegaHandle folderBHandle =
+        createFolder(0, makeBinName("late_target_b_").c_str(), rootnode.get());
+    ASSERT_NE(folderAHandle, ::mega::UNDEF);
+    ASSERT_NE(folderBHandle, ::mega::UNDEF);
+    createdFolders = {folderAHandle, folderBHandle};
+    const ::mega::NodeHandle folderAH = toNodeHandle(folderAHandle);
+    const ::mega::NodeHandle folderBH = toNodeHandle(folderBHandle);
+    std::unique_ptr<MegaNode> folderA{megaApi[0]->getNodeByHandle(folderAHandle)};
+    std::unique_ptr<MegaNode> folderB{megaApi[0]->getNodeByHandle(folderBHandle)};
+    ASSERT_TRUE(folderA && folderB);
+
+    const std::string fileName =
+        std::string{"ws_quota_late_target_"} +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".mp4";
+    constexpr size_t fileSize = 24 * 1024 * 1024;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "L"));
+
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            for (const ::MegaHandle h: createdFolders)
+            {
+                if (std::unique_ptr<MegaNode> folder{megaApi[0]->getNodeByHandle(h)})
+                {
+                    (void)synchronousRemove(0, folder.get());
+                }
+            }
+            deleteFile(fileName);
+        });
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsQuotaDeductedCapture deducted;
+    WsTfsResultScript script;
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(
+        ::mega::WsTfsGroupBalances{{kGenerousBytes, {folderAH}}}));
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60));
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+
+    auto uploadOptions = makeDefaultUploadOptions();
+    TransferTracker trackerA(megaApi[0].get());
+    megaApi[0]->startUpload(fileName, folderA.get(), nullptr, &uploadOptions, &trackerA);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return trackerA.started.load() && trackerA.mTag.load() >= 0 &&
+                   !trackerA.finished.load();
+        },
+        30000));
+    const int transferTag = trackerA.mTag.load();
+
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout));
+    ASSERT_TRUE(script.waitForResult(1, kIssueTimeout));
+    std::vector<WsUploadTransferSnapshot> snapshots;
+    ASSERT_TRUE(fetchWsUploadTransferSnapshots(*megaApi[0], snapshots, 5));
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+            return fit && fit->getState() == MegaWsUploadQuotaFit::STATE_FITS;
+        },
+        30000))
+        << "A's successful balance did not apply before the late attachment";
+
+    const std::size_t issuancesBeforeB = tfsIssued.issuanceCount();
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(::mega::WsTfsGroupBalances{
+        {kGenerousBytes, {folderAH}},
+        {static_cast<::m_off_t>(fileSize) - 1, {folderBH}},
+    }));
+
+    TransferTracker trackerB(megaApi[0].get());
+    megaApi[0]->startUpload(fileName, folderB.get(), nullptr, &uploadOptions, &trackerB);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return trackerB.started.load() && trackerB.mTag.load() >= 0 &&
+                   !trackerB.finished.load();
+        },
+        30000));
+
+    WsUploadTransferSnapshot coalesced;
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::vector<WsUploadTransferSnapshot> current;
+            if (!fetchWsUploadTransferSnapshots(*megaApi[0], current, 1))
+            {
+                return false;
+            }
+            const std::set<std::uint64_t> expected{folderAH.as8byte(), folderBH.as8byte()};
+            for (const auto& snapshot: current)
+            {
+                if (handleSet(snapshot.targetHandles) == expected)
+                {
+                    coalesced = snapshot;
+                    return true;
+                }
+            }
+            return false;
+        },
+        30000))
+        << "the identical media uploads did not coalesce into one live Transfer";
+    ASSERT_EQ(handleSet(coalesced.targetHandles),
+              (std::set<std::uint64_t>{folderAH.as8byte(), folderBH.as8byte()}));
+
+    ASSERT_TRUE(tfsIssued.waitForIssuance(issuancesBeforeB + 1, kIssueTimeout))
+        << "the late target attachment did not issue a refreshed tfs";
+    ASSERT_TRUE(handleSet(tfsIssued.foldersOfIssuance(issuancesBeforeB)).count(folderBH.as8byte()))
+        << "the first post-attachment issuance did not contain target B";
+
+    ASSERT_TRUE(holdChanged.waitForHold(transferTag, kHoldTimeout))
+        << "B's short balance did not hold the coalesced transfer";
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_SHORTFALL);
+        ASSERT_EQ(fit->getShortfallBytes(), static_cast<long long>(fileSize) + 1);
+        ASSERT_FALSE(fit->isForeignShortfall());
+    }
+
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(
+        ::mega::WsTfsGroupBalances{{kGenerousBytes, {folderAH, folderBH}}}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0]));
+    ASSERT_TRUE(holdChanged.waitForRelease(transferTag, kHoldTimeout));
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(trackerA.waitForResult(kCompleteTimeoutS), API_OK);
+    ASSERT_EQ(trackerB.waitForResult(kCompleteTimeoutS), API_OK);
+    ASSERT_TRUE(deducted.waitForFire(kHoldTimeout));
+    ASSERT_EQ(deducted.countForFolder(folderAH), 1);
+    ASSERT_EQ(deducted.countForFolder(folderBH), 1);
+}
+
+TEST_F(SdkWsUploadTest, QuotaNoUsableTfsDataKeepsLiveQueueFitUnknown)
+{
+    LOG_info << "___TEST QuotaNoUsableTfsDataKeepsLiveQueueFitUnknown___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    std::vector<::MegaHandle> createdFolders;
+    const ::MegaHandle folderAHandle =
+        createFolder(0, makeBinName("no_usable_a_").c_str(), rootnode.get());
+    const ::MegaHandle folderBHandle =
+        createFolder(0, makeBinName("no_usable_b_").c_str(), rootnode.get());
+    ASSERT_NE(folderAHandle, ::mega::UNDEF);
+    ASSERT_NE(folderBHandle, ::mega::UNDEF);
+    createdFolders = {folderAHandle, folderBHandle};
+    const ::mega::NodeHandle folderAH = toNodeHandle(folderAHandle);
+    const ::mega::NodeHandle folderBH = toNodeHandle(folderBHandle);
+    std::unique_ptr<MegaNode> folderA{megaApi[0]->getNodeByHandle(folderAHandle)};
+    ASSERT_TRUE(folderA);
+
+    const std::string fileName = makeBinName("ws_quota_no_usable_");
+    constexpr size_t fileSize = 24 * 1024 * 1024;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "N"));
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            for (const ::MegaHandle h: createdFolders)
+            {
+                if (std::unique_ptr<MegaNode> folder{megaApi[0]->getNodeByHandle(h)})
+                {
+                    (void)synchronousRemove(0, folder.get());
+                }
+            }
+            deleteFile(fileName);
+        });
+
+    WsTfsIssuedCapture tfsIssued;
+    WsTfsResultScript script;
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups({}));
+
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+    TransferTracker tracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, folderA.get(), nullptr, &uploadOptions, &tracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker.started.load() && tracker.mTag.load() >= 0 && !tracker.finished.load();
+        },
+        30000));
+
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout));
+    ASSERT_TRUE(script.waitForResult(1, kIssueTimeout));
+    std::vector<WsUploadTransferSnapshot> barrier;
+    ASSERT_TRUE(fetchWsUploadTransferSnapshots(*megaApi[0], barrier, 5));
+    ASSERT_TRUE(
+        std::any_of(barrier.begin(),
+                    barrier.end(),
+                    [&](const auto& snapshot)
+                    {
+                        return handleSet(snapshot.targetHandles).count(folderAH.as8byte()) != 0;
+                    }))
+        << "the A-target upload was not live after the empty successful reply";
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        EXPECT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_UNKNOWN)
+            << "successful empty tfs data is not a usable balance snapshot";
+    }
+
+    const std::size_t beforeUnrelated = tfsIssued.issuanceCount();
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(
+        ::mega::WsTfsGroupBalances{{kGenerousBytes, {folderBH}}}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0]));
+    ASSERT_TRUE(tfsIssued.waitForIssuance(beforeUnrelated + 1, kIssueTimeout));
+    ASSERT_TRUE(handleSet(tfsIssued.foldersOfIssuance(beforeUnrelated)).count(folderAH.as8byte()))
+        << "the live target A was not queried in the unrelated-B phase";
+    ASSERT_TRUE(script.waitForResult(2, kIssueTimeout));
+    barrier.clear();
+    ASSERT_TRUE(fetchWsUploadTransferSnapshots(*megaApi[0], barrier, 5));
+    ASSERT_TRUE(
+        std::any_of(barrier.begin(),
+                    barrier.end(),
+                    [&](const auto& snapshot)
+                    {
+                        return handleSet(snapshot.targetHandles).count(folderAH.as8byte()) != 0;
+                    }))
+        << "the A-target upload was not live after the B-only successful reply";
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        EXPECT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_UNKNOWN)
+            << "a live defined target with no mapped balance must not report FITS";
+    }
+
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(
+        ::mega::WsTfsGroupBalances{{kGenerousBytes, {folderAH}}}));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0]));
+    ASSERT_TRUE(script.waitForResult(3, kIssueTimeout));
+    barrier.clear();
+    ASSERT_TRUE(fetchWsUploadTransferSnapshots(*megaApi[0], barrier, 5));
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_FITS);
+    }
+
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(tracker.waitForResult(kCompleteTimeoutS), API_OK);
+}
+
+TEST_F(SdkWsUploadTest, QuotaFailedRefreshReleasesExistingHold)
+{
+    LOG_info << "___TEST QuotaFailedRefreshReleasesExistingHold___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
+    const ::MegaHandle triggerHandle =
+        createFolder(0, makeBinName("failed_refresh_trigger_").c_str(), rootnode.get());
+    ASSERT_NE(triggerHandle, ::mega::UNDEF);
+
+    const std::string fileName = makeBinName("ws_quota_failed_refresh_");
+    constexpr size_t fileSize = 24 * 1024 * 1024;
+    ASSERT_TRUE(createFileWithSize(fileName, fileSize, "F"));
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            if (std::unique_ptr<MegaNode> uploaded{
+                    megaApi[0]->getNodeByPathOfType(fileName.c_str(),
+                                                    rootnode.get(),
+                                                    MegaNode::TYPE_FILE)})
+            {
+                (void)synchronousRemove(0, uploaded.get());
+            }
+            if (std::unique_ptr<MegaNode> trigger{megaApi[0]->getNodeByHandle(triggerHandle)})
+            {
+                (void)synchronousRemove(0, trigger.get());
+            }
+            deleteFile(fileName);
+        });
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    WsQuotaHoldTracker holdTracker(megaApi[0].get());
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(
+        ::mega::WsTfsGroupBalances{{static_cast<::m_off_t>(fileSize) - 1, {rootH}}}));
+
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
+    TransferTracker tracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker.started.load() && tracker.mTag.load() >= 0 && !tracker.finished.load();
+        },
+        30000));
+    const int tag = tracker.mTag.load();
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout));
+    ASSERT_TRUE(holdChanged.waitForHold(tag, kHoldTimeout));
+    ASSERT_TRUE(holdTracker.waitForTemporaryError(tag, kHoldTimeout));
+
+    const std::size_t beforeFailure = tfsIssued.issuanceCount();
+    const std::uint64_t beforeGen = tfsIssued.genOfIssuance(beforeFailure - 1);
+    script.setPlanForGen(beforeGen + 1, WsTfsResultScript::forceError(::mega::API_ETEMPUNAVAIL));
+    {
+        std::unique_ptr<MegaNode> trigger{megaApi[0]->getNodeByHandle(triggerHandle)};
+        ASSERT_TRUE(trigger);
+        ASSERT_EQ(API_OK, synchronousRemove(0, trigger.get()));
+    }
+
+    ASSERT_TRUE(tfsIssued.waitForIssuance(beforeFailure + 1, kIssueTimeout))
+        << "the real deletion did not trigger the failed refresh";
+    ASSERT_EQ(tfsIssued.genOfIssuance(beforeFailure), beforeGen + 1);
+    ASSERT_TRUE(script.waitForResult(beforeFailure + 1, kIssueTimeout));
+    std::vector<WsUploadTransferSnapshot> barrier;
+    ASSERT_TRUE(fetchWsUploadTransferSnapshots(*megaApi[0], barrier, 5));
+    {
+        std::unique_ptr<MegaWsUploadQuotaFit> fit{megaApi[0]->getWsUploadQueueQuotaFit()};
+        ASSERT_TRUE(fit);
+        ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_UNKNOWN)
+            << "a failed current refresh must release the cached snapshot to UNKNOWN";
+    }
+    ASSERT_TRUE(holdChanged.waitForRelease(tag, kHoldTimeout))
+        << "the failed refresh left its predictive hold parked";
+
+    const std::size_t afterFailure = tfsIssued.issuanceCount();
+    ASSERT_FALSE(WaitFor(
+        [&]
+        {
+            return tfsIssued.issuanceCount() > afterFailure;
+        },
+        10000))
+        << "a single failed refresh caused an automatic retry or polling storm";
+
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(tracker.waitForResult(kCompleteTimeoutS), API_OK);
+    const auto sequence = holdTracker.sequence(tag);
+    ASSERT_FALSE(sequence.empty());
+    ASSERT_EQ(sequence.front().kind, WsQuotaHoldTracker::Event::Kind::TemporaryError);
+    ASSERT_EQ(sequence.front().code, API_EOVERQUOTA);
+    ASSERT_EQ(sequence.back().kind, WsQuotaHoldTracker::Event::Kind::Finish);
+    ASSERT_EQ(sequence.back().code, API_OK);
 }
 
 } // namespace mega::test::wsupload

@@ -548,6 +548,28 @@ TEST(WsQuotaLedger, ApplyGroupsSkipsMalformedEntries)
     EXPECT_TRUE(mgr.unconstrained());
 }
 
+TEST(WsQuotaLedger, ApplyGroupsWithoutUsableEntriesClearsSnapshot)
+{
+    UploadQuotaManager mgr;
+    const NodeHandle a = nh(0xA1);
+    const NodeHandle b = nh(0xB2);
+
+    seed(mgr, WsTfsGroupBalances{{100, {a}}}, ownPool());
+    ASSERT_TRUE(mgr.haveBalances());
+    ASSERT_TRUE(mgr.hasBalanceFor(a));
+
+    seed(mgr, {}, ownPool());
+    EXPECT_FALSE(mgr.haveBalances());
+    EXPECT_FALSE(mgr.hasBalanceFor(a));
+
+    seed(mgr, WsTfsGroupBalances{{100, {a}}}, ownPool());
+    ASSERT_TRUE(mgr.haveBalances());
+    seed(mgr, WsTfsGroupBalances{{-1, {b}}, {0, {}}}, ownPool());
+    EXPECT_FALSE(mgr.haveBalances());
+    EXPECT_FALSE(mgr.hasBalanceFor(a));
+    EXPECT_FALSE(mgr.hasBalanceFor(b));
+}
+
 // PINS the parser's cursor contract: the standard Command reply dispatch
 // (Request::process -> processCmdJSON) ALREADY enters the result array one level
 // before calling a CmdArray procresult (Command::CmdArray == "an array, and we

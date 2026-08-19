@@ -57,6 +57,7 @@ struct WsUploadTransferSnapshot
     ::m_off_t pos = 0;
     ::m_off_t size = 0;
     std::uintptr_t poolId = 0;
+    std::vector<::mega::NodeHandle> targetHandles;
 };
 
 inline bool fetchWsUploadTransferSnapshots(::mega::MegaApi& api,
@@ -98,6 +99,13 @@ inline bool fetchWsUploadTransferSnapshots(::mega::MegaApi& api,
                     snapshot.pos = t->pos;
                     snapshot.size = t->size;
                     snapshot.state = t->state;
+                    for (const ::mega::File* file: t->files)
+                    {
+                        if (!file->h.isUndef())
+                        {
+                            snapshot.targetHandles.push_back(file->h);
+                        }
+                    }
                     if (client->wsEngine())
                     {
                         snapshot.poolId = client->wsEngine()->getFilePoolIdForTesting(*t);
@@ -160,6 +168,13 @@ inline bool fetchBestWsUploadTransferSnapshot(::mega::MegaApi& api,
                     candidate.pos = t->pos;
                     candidate.size = t->size;
                     candidate.state = t->state;
+                    for (const ::mega::File* file: t->files)
+                    {
+                        if (!file->h.isUndef())
+                        {
+                            candidate.targetHandles.push_back(file->h);
+                        }
+                    }
 
                     int score = 0;
                     if (t->channel == ::mega::Transfer::Channel::WebSocket)

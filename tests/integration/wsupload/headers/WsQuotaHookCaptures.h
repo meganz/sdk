@@ -292,6 +292,13 @@ public:
         return p;
     }
 
+    static Plan successfulWithGroups(::mega::WsTfsGroupBalances groups)
+    {
+        Plan p = withGroups(std::move(groups));
+        p.forcedError = ::mega::API_OK;
+        return p;
+    }
+
     static Plan drop()
     {
         Plan p;
