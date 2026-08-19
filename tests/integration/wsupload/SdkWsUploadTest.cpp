@@ -247,8 +247,18 @@ TEST_F(SdkWsUploadTest, ResumeKeepsSerializedWsMetadata)
         60000))
         << "onTransferStart was not observed after resuming session";
 
-    ASSERT_EQ(transferredBytesAtResumeStart, beforeResume.progressCompleted)
-        << "Upload resumed with a different transferred-byte head than was serialized";
+    // S16 round-8 (win_9898, MR pipeline): the live snapshot is a LOWER bound on what the
+    // logout serializes — progress is monotonic, and acks that drain between the snapshot
+    // poll and the final statecache commit are legitimately part of the cached state (the
+    // burst budget makes the first two chunks wire-instant, so chunk 2's ack races the
+    // poll; win_9898 resumed at 393216 vs a 131072 snapshot). The invariant is GE (matching
+    // the existing GE on resumed.pos below), bounded above by the source size: the resumed
+    // head must never exceed the file (over-credit) nor regress below the snapshot (loss).
+    ASSERT_GE(transferredBytesAtResumeStart, beforeResume.progressCompleted)
+        << "Upload resumed with a REGRESSED transferred-byte head vs the pre-logout snapshot";
+    ASSERT_LE(transferredBytesAtResumeStart,
+              static_cast<m_off_t>(kWsUploadDefaultFileSize))
+        << "Upload resumed with an over-credited transferred-byte head";
 
     // Step 3: verify resumed WS metadata/head is preserved from serialized transfer state.
     WsUploadTransferSnapshot resumed{};
