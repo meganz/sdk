@@ -567,6 +567,7 @@ TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
 
     std::vector<std::unique_ptr<TransferTracker>> trackers;
     auto uploadOptions = makeDefaultUploadOptions();
+    ScopedUploadSpeedLimit throttle{*megaApi[0], kThrottleBps};
     for (int i = 0; i < 8; ++i)
     {
         trackers.push_back(std::make_unique<TransferTracker>(megaApi[0].get()));
@@ -576,6 +577,20 @@ TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
                                 &uploadOptions,
                                 trackers.back().get());
     }
+
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return std::all_of(trackers.begin(),
+                               trackers.end(),
+                               [](const auto& tracker)
+                               {
+                                   return tracker->started.load() && tracker->mTag.load() >= 0 &&
+                                          !tracker->finished.load();
+                               });
+        },
+        30000))
+        << "not all batch uploads were registered and alive before the quota assertion";
 
     ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout)) << "no tfs issued for batch (issuances=0)";
 
@@ -611,6 +626,7 @@ TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
         << "first tfs issuance queried a duplicate folder handle (dedup not applied)";
 
     // All 8 uploads complete (generous balance => never held; fail-open).
+    megaApi[0]->setMaxUploadSpeed(-1);
     for (auto& t: trackers)
         ASSERT_EQ(t->waitForResult(kCompleteTimeoutS), API_OK) << "batch upload failed";
 }
