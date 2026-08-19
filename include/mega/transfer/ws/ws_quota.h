@@ -74,7 +74,7 @@ public:
     // Note the reply for generation `gen` arrived (success OR error), clearing the
     // in-flight guard so the next flush may issue again. Gen-guarded: a stale reply
     // for an orphaned generation must not clear a newer issue's in-flight flag.
-    // Call before applyGroups(); error replies call only this.
+    // Call before applying or discarding the current reply.
     void endIssue(std::uint64_t gen);
 
     // Apply a "tfs" reply captured for generation `gen`. Returns false and
@@ -83,9 +83,14 @@ public:
     // each reply folder handle to its (poolKey, foreign); entries whose folders
     // share a poolKey merge into one pool taking the minimum reported balance.
     // On duplicate folder handles the first mapping wins (a warning is logged).
+    // An empty or wholly unusable reply leaves haveBalances() false.
     bool applyGroups(std::uint64_t gen,
                      const WsTfsGroupBalances& groups,
                      const PoolClassifier& classify);
+
+    // Discard only the balance-derived snapshot. Generation, dirty and in-flight
+    // state belong to the issue lifecycle and are intentionally preserved.
+    void clearBalanceSnapshot();
 
     // Debit `size` from the merged pool owning `folder` (both remaining and
     // outstanding, each clamped at 0). Unknown folder: no-op.

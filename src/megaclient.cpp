@@ -19390,6 +19390,9 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
+#ifdef MEGA_USE_WSUPLOAD
+            wsQuotaOnTransferTargetsAdded(*t);
+#endif
             f->tag = tag;
             if (!f->dbid && !donotpersist)
             {

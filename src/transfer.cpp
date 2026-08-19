@@ -2944,7 +2944,7 @@ void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committe
             // Quota (SDK-6298): this funnel covers new/sync/resumed WS uploads — mark the
             // ledger dirty (coalesced tfs next exec cycle) and re-apply any in-force
             // predictive hold onto the freshly-created WsUploadFile.
-            client->wsQuotaMarkDirty();
+            client->wsQuotaOnTransferTargetsAdded(*transfer);
             client->wsQuotaReassertHold(*transfer);
         }
 #endif

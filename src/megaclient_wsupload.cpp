@@ -165,6 +165,12 @@ void MegaClient::wsQuotaMarkDirty()
         mWsQuota->markDirty();
 }
 
+void MegaClient::wsQuotaOnTransferTargetsAdded(const Transfer& t)
+{
+    if (t.type == PUT && t.channel == Transfer::Channel::WebSocket)
+        wsQuotaMarkDirty();
+}
+
 void MegaClient::wsQuotaInvalidateAndMarkDirty()
 {
     if (mWsQuota)
@@ -324,23 +330,33 @@ void MegaClient::wsQuotaOnTfsReply(std::uint64_t gen,
     }
 
     if (e != API_OK)
-        return; // fail-open: apply nothing, no auto-retry (next trigger re-issues)
+    {
+        // A failed current refresh makes the cached snapshot unusable. Reconcile
+        // existing predictive holds without scheduling an automatic retry.
+        mWsQuota->clearBalanceSnapshot();
+        wsQuotaEvaluateHolds();
+        return;
+    }
 
-    mWsQuota->applyGroups(gen,
-                          groups,
-                          [this](NodeHandle h)
-                          {
-                              return wsQuotaClassifyPool(h);
-                          });
-    wsQuotaEvaluateHolds();
+    if (mWsQuota->applyGroups(gen,
+                              groups,
+                              [this](NodeHandle h)
+                              {
+                                  return wsQuotaClassifyPool(h);
+                              }))
+    {
+        wsQuotaEvaluateHolds();
+    }
 }
 
 void MegaClient::wsQuotaEvaluateHolds()
 {
-    if (!mWsQuota || !mWsQuota->haveBalances())
-        return; // fail-open: no balances => no holds
+    if (!mWsQuota)
+        return;
 
-    mWsQuota->beginOutstandingAccumulation();
+    const bool haveBalances = mWsQuota->haveBalances();
+    if (haveBalances)
+        mWsQuota->beginOutstandingAccumulation();
 
     bool anyReleased = false;
     for (auto& it: multi_transfers[PUT])
@@ -350,6 +366,13 @@ void MegaClient::wsQuotaEvaluateHolds()
             continue;
         if (t->state == TRANSFERSTATE_COMPLETING || t->state == TRANSFERSTATE_COMPLETED)
             continue; // finishing / deduct-eligible: no hold decision
+
+        if (!haveBalances)
+        {
+            if (t->ws_quota_held && wsQuotaApplyHoldState(*t, false, NodeHandle()))
+                anyReleased = true;
+            continue;
+        }
 
         bool shouldHold = false;
         NodeHandle reprFolder; // undef unless a balance-bearing target exists
@@ -376,7 +399,8 @@ void MegaClient::wsQuotaEvaluateHolds()
             anyReleased = true;
     }
 
-    mWsQuota->finishOutstandingAccumulation();
+    if (haveBalances)
+        mWsQuota->finishOutstandingAccumulation();
 
     if (anyReleased && wsEngine())
     {
@@ -400,8 +424,12 @@ bool MegaClient::wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFo
         // Mirror wsActivateOverquotaForTransfer's temp-error surfacing exactly.
         if (t.state != TRANSFERSTATE_RETRYING)
         {
-            t.state = TRANSFERSTATE_RETRYING;
+            const bool wasPaused = t.state == TRANSFERSTATE_PAUSED;
+            if (!wasPaused)
+                t.state = TRANSFERSTATE_RETRYING;
             app->transfer_failed(&t, API_EOVERQUOTA, 0);
+            if (wasPaused)
+                app->transfer_update(&t);
             ++performanceStats.transferTempErrors;
         }
 
@@ -421,9 +449,10 @@ bool MegaClient::wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFo
     if (wsEngine())
         wsEngine()->setQuotaHold(t, false);
 
-    // Requeue to QUEUED only if the temp-error hold put it in RETRYING and no
-    // genuine account overquota is in force (RED/PAYWALL still gates via its path).
-    if (t.state == TRANSFERSTATE_RETRYING && ststatus != STORAGE_RED && ststatus != STORAGE_PAYWALL)
+    // Requeue only when no independent transfer backoff or account-overquota gate
+    // remains. Pause state is represented independently and is left untouched.
+    if (t.state == TRANSFERSTATE_RETRYING && t.bt.armed() && ststatus != STORAGE_RED &&
+        ststatus != STORAGE_PAYWALL)
     {
         t.state = TRANSFERSTATE_QUEUED;
         app->transfer_update(&t);
@@ -486,6 +515,8 @@ ws::WsQuotaQueueFit MegaClient::wsQuotaQueueFitSnapshot()
     };
 
     std::unordered_map<std::uint64_t, Accum> pools;
+    bool hasLiveDefinedTarget = false;
+    bool hasMappedLiveTarget = false;
 
     for (auto& it: multi_transfers[PUT])
     {
@@ -500,8 +531,12 @@ ws::WsQuotaQueueFit MegaClient::wsQuotaQueueFitSnapshot()
         // node per target File, so two targets in one pool consume 2 * size.
         for (File* f: t->files)
         {
-            if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h))
+            if (f->h.isUndef())
+                continue;
+            hasLiveDefinedTarget = true;
+            if (!mWsQuota->hasBalanceFor(f->h))
                 continue; // no balance data => fail-open (contributes nothing)
+            hasMappedLiveTarget = true;
             const std::uint64_t _key = wsQuotaClassifyPool(f->h).first;
             Accum& a = pools[_key];
             a.sum += t->size;
@@ -517,6 +552,11 @@ ws::WsQuotaQueueFit MegaClient::wsQuotaQueueFitSnapshot()
     for (const auto& entry: pools)
         poolFits.push_back(
             ws::WsQuotaPoolFit{entry.second.sum, entry.second.remaining, entry.second.foreign});
+
+    // A genuinely empty/inbox-only queue retains the reducer's existing policy.
+    // A live queryable queue needs at least one mapped target to claim FITS.
+    if (hasLiveDefinedTarget && !hasMappedLiveTarget)
+        return {};
 
     return ws::computeWsQuotaQueueFit(haveBalances, poolFits);
 }

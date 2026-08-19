@@ -675,6 +675,7 @@ public:
     // WS upload-quota ledger wrappers (SDK-6298). Null-safe: inert until P3
     // constructs mWsQuota and wires the issue/apply/evaluate flow.
     void wsQuotaMarkDirty();
+    void wsQuotaOnTransferTargetsAdded(const Transfer& t);
     void wsQuotaInvalidateAndMarkDirty();
     void wsQuotaFlush();
     void wsQuotaOnUploadCompleted(Transfer& t);

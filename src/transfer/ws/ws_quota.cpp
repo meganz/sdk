@@ -79,9 +79,7 @@ bool UploadQuotaManager::applyGroups(std::uint64_t gen,
     }
 
     // Wholesale rebuild from the reply.
-    mPools.clear();
-    mPoolByFolder.clear();
-    mPoolIndexByKey.clear();
+    clearBalanceSnapshot();
 
     for (const auto& group: groups)
     {
@@ -133,15 +131,19 @@ bool UploadQuotaManager::applyGroups(std::uint64_t gen,
         }
     }
 
-    mHaveBalances = true;
-
-    // Every pool above was (re)built with outstanding == 0 and remaining >= 0, so
-    // the unconstrained derivation is unconditionally true here — no scan needed.
-    // The client's evaluation scan rebuilds real outstanding via the accumulation
-    // API immediately after apply and recomputes mUnconstrained there.
-    mUnconstrained = true;
+    mHaveBalances = !mPoolByFolder.empty();
 
     return true;
+}
+
+void UploadQuotaManager::clearBalanceSnapshot()
+{
+    mPools.clear();
+    mPoolByFolder.clear();
+    mPoolIndexByKey.clear();
+    mHaveBalances = false;
+    mUnconstrained = true;
+    mEvalPending = false;
 }
 
 void UploadQuotaManager::deductOnCompletion(NodeHandle folder, m_off_t size)
