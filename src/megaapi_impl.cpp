@@ -39673,7 +39673,17 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
             ptrdiff_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
             if (seps < 2)
             {
-                ftpctx->cwdpath = string("/") + megaApi->handleToBase64(newcwd->getHandle()) + "/" + newcwd->getName();
+                std::unique_ptr<char[]> cwdHandle{megaApi->handleToBase64(newcwd->getHandle())};
+                ftpctx->cwdpath = string("/") + cwdHandle.get();
+                if (const char* newcwdName = newcwd->getName())
+                {
+                    ftpctx->cwdpath += string("/") + newcwdName;
+                }
+                else
+                {
+                    // The handle alone is a working directory the server understands.
+                    LOG_err << "Rebuilding the FTP working directory from a node without a name";
+                }
             }
             ftpctx->parentcwd = newcwd->getParentHandle();
 
@@ -40272,11 +40282,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     set<handle> handles = getAllowedHandles();
                     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
                     {
-                        string name = megaApi->handleToBase64(*it);
+                        std::unique_ptr<char[]> nameHandle{megaApi->handleToBase64(*it)};
                         MegaNode *n = megaApi->getNodeByHandle(*it);
                         if (n)
                         {
-                            string toret = getListingLineFromNode(n, name);
+                            string toret = getListingLineFromNode(n, nameHandle.get());
                             toret.append(crlfout);
                             ftpctx->ftpDataServer->resultmsj.append(toret);
                             delete n;
