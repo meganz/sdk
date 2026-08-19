@@ -20176,9 +20176,7 @@ CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerpri
         const auto comparison = metamacCheckF();
         if (comparison.errorCode == API_EINCOMPLETE)
         {
-            // The comparison was aborted, so it says nothing about the file. Report that no
-            // decision was reached instead of deciding to download.
-            decision = Result::NotYet;
+            decision = Result::Cancelled;
         }
         else if (comparison.areEqualMacs)
         {
@@ -20907,6 +20905,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     // decision check for early returns
                     {
                         auto decision = transfer->getCollisionCheckResult();
+                        if (decision == CollisionChecker::Result::Cancelled)
+                        {
+                            finishCancelledTransfer();
+                            continue;
+                        }
+
                         if (decision == CollisionChecker::Result::ReportError)
                         {
                             e = API_EEXIST;

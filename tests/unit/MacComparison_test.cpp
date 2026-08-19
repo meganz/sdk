@@ -622,7 +622,7 @@ TEST_F(UploadDedupMacTest, UncancelledComparisonStillReachesTheMacComparison)
     EXPECT_NE(localMac, INVALID_META_MAC); // a MAC really was computed
 }
 
-TEST_F(UploadDedupMacTest, CancelledCollisionCheckReturnsNotYetForCoreAndPublicNodes)
+TEST_F(UploadDedupMacTest, CancelledCollisionCheckReturnsCancelledForCoreAndPublicNodes)
 {
     auto coreFa = client->fsaccess->newfileaccess();
     ASSERT_TRUE(coreFa->fopen(mPath, OPEN_RDONLY, FSLogging::logOnError));
@@ -636,7 +636,7 @@ TEST_F(UploadDedupMacTest, CancelledCollisionCheckReturnsNotYetForCoreAndPublicN
                   mNode.get(),
                   CollisionChecker::Option::Metamac,
                   coreCancelToken),
-              CollisionChecker::Result::NotYet);
+              CollisionChecker::Result::Cancelled);
 
     const std::string emptyAttrs;
     const std::string nodeKey = mNode->nodekey();
@@ -664,7 +664,7 @@ TEST_F(UploadDedupMacTest, CancelledCollisionCheckReturnsNotYetForCoreAndPublicN
                   &publicNode,
                   CollisionChecker::Option::Metamac,
                   publicCancelToken),
-              CollisionChecker::Result::NotYet);
+              CollisionChecker::Result::Cancelled);
 }
 
 TEST(MacComparison, CollisionCheckDoesNotMisclassifyReadErrorAsCancellation)

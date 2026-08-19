@@ -251,11 +251,12 @@ public:
         Skip = 2, // Skip it
         ReportError = 3, // Report Error
         Download = 4, // Download it
+        Cancelled = 5, // Collision check was cancelled
     };
 
     // Use faGetter instead of a FileAcccess instance which delays the access to the file system and
     // only does it based on demand by check. This helps in a network folder.
-    // cancelToken aborts a long Metamac read. A cancelled check yields Result::NotYet, decided
+    // cancelToken aborts a long Metamac read. A cancelled check yields Result::Cancelled, decided
     // from the returned MacComparisonResult rather than by sampling the token afterwards.
     static Result check(std::function<FileAccess*()> faGetter,
                         MegaNode* fileNode,

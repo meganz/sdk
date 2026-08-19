@@ -53,6 +53,7 @@
 #include <cmath>
 #include <cstdint>
 #include <fstream>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -4056,8 +4057,8 @@ TEST_F(SdkTest, SdkTestMetamacCancelStopsUploadDedup)
  *    whose Metamac branch computes the MAC over that whole file.
  * 3. Cancel from the hook after the first chunk.
  *
- * A cancelled check yields Result::NotYet rather than Download, so no decision is
- * recorded from a comparison that never completed.
+ * A cancelled check yields Result::Cancelled rather than Download, so the transfer is not
+ * submitted after a comparison that never completed.
  */
 TEST_F(SdkTest, SdkTestMetamacCancelStopsDownloadCollisionCheck)
 {
@@ -4104,6 +4105,19 @@ TEST_F(SdkTest, SdkTestMetamacCancelStopsDownloadCollisionCheck)
 
     CancelOnFirstChunk hook{cancelToken.get()};
 
+    std::ifstream originalFile{path_u8string(localFile), std::ios::binary};
+    ASSERT_TRUE(originalFile) << logPre << "cannot read the original local file";
+    const std::string originalContents{std::istreambuf_iterator<char>{originalFile}, {}};
+    // Compared as a tick count rather than as file_time_type: gtest instantiates a printer for
+    // whatever EXPECT_EQ receives, and printing a chrono type goes through std::format, whose
+    // floating-point path needs to_chars - unavailable below macOS 13.3, so it breaks the build
+    // there under -Werror.
+    const auto mtimeTicks = [](const fs::path& p)
+    {
+        return fs::last_write_time(p).time_since_epoch().count();
+    };
+    const auto originalMtimeTicks = mtimeTicks(localFile);
+
     const auto result = doStartDownload(0,
                                         uploadedNode.get(),
                                         localFile.string().c_str(),
@@ -4122,6 +4136,16 @@ TEST_F(SdkTest, SdkTestMetamacCancelStopsDownloadCollisionCheck)
 
     EXPECT_EQ(result, API_EINCOMPLETE)
         << logPre << "expected the cancelled transfer to report API_EINCOMPLETE";
+
+    std::ifstream fileAfterCancellation{path_u8string(localFile), std::ios::binary};
+    ASSERT_TRUE(fileAfterCancellation) << logPre << "cannot read the local file after cancellation";
+    const std::string contentsAfterCancellation{
+        std::istreambuf_iterator<char>{fileAfterCancellation},
+        {}};
+    EXPECT_EQ(contentsAfterCancellation, originalContents)
+        << logPre << "the cancelled download changed the local file contents";
+    EXPECT_EQ(mtimeTicks(localFile), originalMtimeTicks)
+        << logPre << "the cancelled download changed the local file mtime";
 
     LOG_info << logPre << "done";
 }
