@@ -10,6 +10,12 @@
 #cmakedefine ENABLE_SYNC 1
 #endif
 
+/* Defined to use periodic scan instead of filesystem notification */
+#if (defined(__FreeBSD__) || defined(__OpenBSD__) || defined(__NetBSD__) || defined(__DragonFly__)) && \
+     defined(ENABLE_SYNC)
+#define USE_PERIODIC 1
+#endif
+
 #ifndef ENABLE_LOG_PERFORMANCE
 #cmakedefine ENABLE_LOG_PERFORMANCE 1
 #endif
@@ -226,7 +232,8 @@
 #define USE_DB 0
 
 /* Use inotify API */
-#if !defined(__APPLE__) && !defined(_WIN32)
+#if !defined(__APPLE__) && !defined(_WIN32) && !defined(__FreeBSD__) && !defined(__OpenBSD__) && \
+    !defined(__NetBSD__) && !defined(__DragonFly__)
 #define USE_INOTIFY 1
 #endif
 

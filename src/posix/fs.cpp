@@ -1162,6 +1162,18 @@ int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
     return result;
 }
 
+#elif defined(USE_PERIODIC)
+
+void FallbackFileSystemAccess::addevents([[maybe_unused]] Waiter* waiter, int /*flags*/)
+{
+    //Nothing
+}
+
+int FallbackFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
+{
+    return 0;
+}
+
 #endif //  __linux__
 
 
@@ -1904,6 +1916,16 @@ void LinuxDirNotify::removeWatch(WatchMapIterator entry)
 }
 
 #endif // USE_INOTIFY
+
+#elif defined(USE_PERIODIC)
+
+FallbackDirNotify::FallbackDirNotify(const LocalPath& rootPath):
+    DirNotify(rootPath)
+{
+    // Let the engine know everything's ok.
+    setFailed(0, "");
+}
+
 #endif // __linux__
 
 #endif //ENABLE_SYNC
@@ -2595,6 +2617,15 @@ DirNotify* LinuxFileSystemAccess::newdirnotify(LocalNode& root,
     return new LinuxDirNotify(*this, root, rootPath);
 }
 #endif
+
+#elif defined(USE_PERIODIC)
+DirNotify* FallbackFileSystemAccess::newdirnotify(LocalNode& root,
+    const LocalPath& rootPath,
+    Waiter*)
+{
+    return new FallbackDirNotify(rootPath);
+}
+
 #endif
 
 bool PosixFileSystemAccess::issyncsupported(const LocalPath& localpathArg,
