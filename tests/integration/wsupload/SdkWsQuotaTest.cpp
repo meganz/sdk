@@ -500,9 +500,11 @@ TEST_F(SdkWsUploadTest, QuotaCrossPoolHoldDoesNotBlockOtherPool)
 //
 // Proves the burst-coalescing contract as three observable properties, NOT as a
 // single tfs: (a) full COVERAGE — the union of all issuances' queried folders is
-// exactly the deduped target set; (b) a bounded ANTI-STORM issuance count (<= 3;
-// 8 naive per-file issues would be a storm — the design's worst case for a burst
-// is one exec-cycle snapshot plus one in-flight-guarded follow-up); (c) per-issuance
+// exactly the deduped target set; (b) the ANTI-STORM mechanism invariant — every
+// issuance is justified by a prior enqueue (issuance k needs >= k+1 enqueues) and
+// requests never overlap (in-flight guard), instead of a fixed count that would
+// encode enqueue-spread/RTT timing (a slow shard legitimately opens one coalescing
+// window per enqueue — see the win_9917 RCA); (c) per-issuance
 // DEDUP. "Exactly one tfs covering the whole burst" is deliberately NOT asserted:
 // it is a scheduling accident, not a guarantee. Through the public async API each
 // startUpload independently notifies the client-thread waiter, and the loop drains
@@ -613,12 +615,36 @@ TEST_F(SdkWsUploadTest, QuotaBatchEnqueueCoalescesSingleTfs)
     ASSERT_EQ(handleSet(tfsIssued.unionFoldersFrom(0)), want)
         << "union of issuance folder sets != the 3 deduped folder handles";
 
-    // (b) ANTI-STORM BOUND: the whole batch produces a bounded number of issuances.
-    // 8 naive per-file issues would be a storm; the design's worst case for a burst
-    // is one snapshot + one follow-up, so <= 3 is robust headroom without encoding
-    // scheduler timing.
-    ASSERT_LE(tfsIssued.issuanceCount(), 3u)
-        << "batch produced a tfs storm (issuances=" << tfsIssued.issuanceCount() << ")";
+    // (b) ANTI-STORM = MECHANISM INVARIANT, not a count guess. beginIssue() clears
+    // dirty and arms the in-flight guard, so issuance k (0-based) can only exist if
+    // >= k+1 enqueues had already marked the ledger dirty; the issuance count is
+    // therefore bounded by the enqueue count regardless of how the burst spreads
+    // across in-flight windows (a slow shard legitimately opens one window per
+    // enqueue; win_9917 opened 4 for 8 enqueues). A genuine storm - a re-issue
+    // with no fresh cause, or more than one request in flight - breaks one of the
+    // two nets below immediately. `<=` on the enqueue side makes same-millisecond
+    // ties lean to "already enqueued", so a tie can never fail the cell; the
+    // tracker stamp is taken right after markDirty on the same client thread.
+    // Read issuanceCount() before resultCount(): a reply landing between the reads
+    // only loosens the guard bound, never tightens it.
+    const std::size_t issuances = tfsIssued.issuanceCount();
+    ASSERT_LE(issuances, script.resultCount() + 1)
+        << "two tfs in flight at once - the in-flight guard did not hold";
+    for (std::size_t k = 0; k < issuances; ++k)
+    {
+        const std::int64_t issuedAt = tfsIssued.steadyMsOfIssuance(k);
+        const auto enqueuedBy =
+            static_cast<std::size_t>(std::count_if(trackers.begin(),
+                                                   trackers.end(),
+                                                   [issuedAt](const auto& t)
+                                                   {
+                                                       const auto s = t->mStartSteadyMs.load();
+                                                       return s != 0 && s <= issuedAt;
+                                                   }));
+        ASSERT_GE(enqueuedBy, k + 1) << "tfs issuance #" << k << " had only " << enqueuedBy
+                                     << " enqueue(s) before it (issuances=" << issuances
+                                     << ") - coalescing/storm regression";
+    }
 
     // (c) PER-ISSUANCE DEDUP: the first issuance never lists a folder handle twice.
     const auto firstIssuance = tfsIssued.foldersOfIssuance(0);

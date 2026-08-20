@@ -53,6 +53,7 @@ public:
     {
         std::vector<::mega::NodeHandle> folders;
         std::uint64_t gen = 0;
+        std::int64_t steadyMs = 0; // client-thread issue instant (steady_clock)
     };
 
     WsTfsIssuedCapture():
@@ -63,8 +64,12 @@ public:
         ::mega::globalMegaTestHooks.onWsTfsIssued =
             [shared](const std::vector<::mega::NodeHandle>& folders, std::uint64_t gen)
         {
+            const auto nowMs =
+                static_cast<std::int64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(
+                                              std::chrono::steady_clock::now().time_since_epoch())
+                                              .count());
             std::lock_guard<std::mutex> lk(shared->m);
-            shared->issuances.push_back(Issuance{folders, gen});
+            shared->issuances.push_back(Issuance{folders, gen, nowMs});
             shared->cv.notify_all();
         };
     }
@@ -108,6 +113,16 @@ public:
         if (i >= mShared->issuances.size())
             return {};
         return mShared->issuances[i].folders;
+    }
+
+    // Client-thread steady_clock instant (ms) at which issuance `i` was recorded;
+    // 0 if out of range.
+    std::int64_t steadyMsOfIssuance(std::size_t i) const
+    {
+        std::lock_guard<std::mutex> lk(mShared->m);
+        if (i >= mShared->issuances.size())
+            return 0;
+        return mShared->issuances[i].steadyMs;
     }
 
     std::uint64_t genOfIssuance(std::size_t i) const
