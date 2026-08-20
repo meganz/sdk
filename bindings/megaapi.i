@@ -530,6 +530,8 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getTransfers;
 %newobject mega::MegaApi::getTransferByTag;
 %newobject mega::MegaApi::getTransferData;
+%newobject mega::MegaApi::getWsUploadQueueQuotaFit;
+%newobject mega::MegaWsUploadQuotaFit::copy;
 %newobject mega::MegaApi::getChildTransfers;
 %newobject mega::MegaApi::getChildren;
 %newobject mega::MegaApi::getChildNode;
