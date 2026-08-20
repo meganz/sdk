@@ -126,12 +126,18 @@ void splitFilename(const std::string& filename, std::string& stem, std::string& 
 // Timestamp extraction from stem
 // ---------------------------------------------------------------------------
 
+// Shortest parseable form is 14 consecutive digits: YYYYMMDDHHMMSS.
+constexpr size_t kMinTsDigits = 14;
+
 // Extract a timestamp from a filename stem (extension already stripped by
 // splitFilename). Scans left-to-right, skipping non-digit characters, and
 // reads groups of digits as YYYY MM DD HH MM SS. Optionally parses fractional
 // seconds (separator: '.' or '_') and timezone offset (+HHMM / -HHMM).
 uint64_t extractTsFromStem(const std::string& stem)
 {
+    if (stem.size() < kMinTsDigits)
+        return 0;
+
     size_t i = 0;
 
     // --- Extract 6 digit groups: YYYY MM DD HH MM SS ---
@@ -272,7 +278,7 @@ uint64_t computeMediaTsIfMediaFile(const std::string& filename, m_time_t mtime, 
     std::string stem, ext;
     splitFilename(filename, stem, ext);
 
-    if (!isPhotoVideoAudioByName(ext))
+    if (ext.empty() || !isPhotoVideoAudioByName(ext))
         return 0;
 
     // Priority 1: filename timestamp (generic digit extraction on the stem)
