@@ -6793,16 +6793,18 @@ TEST_F(SdkWsUploadTest, StatecacheMidTransferPendingMacsRoundTrip)
  * onto a truncated node. This cell walks the cloud drive + rubbish and matches the known
  * truncation signatures (test-corpus name patterns + impossible sizes).
  *
- * Ops tool, NOT a CI cell: skips unless MEGA_CENSUS_ENABLE=1. Dry-run by default
- * (enumerates + logs [Census] lines); MEGA_CENSUS_APPLY=1 deletes the matches.
+ * ALWAYS runs (S16 round-8 review: the MEGA_CENSUS_ENABLE skip-gate was dropped — a
+ * permanently-skipped test reads as a coverage gap). What it honestly asserts: the fixture's
+ * SdkTest::Cleanup() purges the account tree around every test, so by the time this walks,
+ * NO truncation debris may remain — the walk is the post-cleanup zero-debris INVARIANT
+ * (in-memory, seconds). It fires if a future truncation bug ever mints nodes the standard
+ * cleanup cannot reap. Verified 2026-08-19 on vmga+atest3 (the account that held the S15
+ * clamp debris): zero matches — the fixture purge had already reaped the S15 nodes, closing
+ * the S15 census obligation. MEGA_CENSUS_APPLY=1 turns the walk into a manual purge tool
+ * for NON-fixture accounts (deletes matches instead of asserting none).
  */
 TEST_F(SdkWsUploadTest, CensusPurgeTruncatedNodes)
 {
-    const auto [enableRaw, enableSet] = ::mega::Utils::getenv("MEGA_CENSUS_ENABLE");
-    if (!enableSet || enableRaw != "1")
-    {
-        GTEST_SKIP() << "census disabled (set MEGA_CENSUS_ENABLE=1; MEGA_CENSUS_APPLY=1 to delete)";
-    }
     LOG_info << "___TEST SdkWsUploadCensusPurgeTruncatedNodes___";
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
     const auto [applyRaw, applySet] = ::mega::Utils::getenv("MEGA_CENSUS_APPLY");
@@ -6878,6 +6880,14 @@ TEST_F(SdkWsUploadTest, CensusPurgeTruncatedNodes)
     {
         std::cout << "[Census] " << (apply ? "DELETE " : "MATCH ") << m.path
                   << " size=" << m.size << std::endl;
+    }
+
+    if (!apply)
+    {
+        // The invariant: the fixture cleanup must leave no truncation debris standing.
+        EXPECT_EQ(matches.size(), 0u)
+            << "truncation debris SURVIVED the standard account cleanup — a truncation "
+               "source is live or the cleanup has a blind spot (see [Census] lines)";
     }
 
     if (apply)
