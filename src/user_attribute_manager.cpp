@@ -99,6 +99,19 @@ bool UserAttributeManager::setExpired(attr_t at)
     return false;
 }
 
+bool UserAttributeManager::setValid(attr_t at)
+{
+    // find() so this can never bring an attribute into existence; isExpired() so
+    // CACHED_NOT_EXISTING, whose value has been cleared, is not declared current.
+    const auto it = mAttributes.find(at);
+    if (it != mAttributes.end() && it->second.isExpired())
+    {
+        it->second.setValid();
+        return true;
+    }
+    return false;
+}
+
 bool UserAttributeManager::isValid(attr_t at) const
 {
     auto itAttr = mAttributes.find(at);

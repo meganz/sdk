@@ -7746,6 +7746,13 @@ void MegaClient::sc_userattr(JSON& json)
                             else
                             {
                                 LOG_info << "User attribute already up to date: " << User::attr2string(type);
+                                // Equal version proves the cache is current, so clear a
+                                // pessimistic expiry from earlier replayed packets. An empty
+                                // version is the "unknown" marker: matching it proves nothing.
+                                if (!ituav->empty())
+                                {
+                                    u->setAttributeValid(type);
+                                }
                                 continue;
                             }
                         }

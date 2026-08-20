@@ -137,6 +137,7 @@ public:
     void setAttribute(attr_t at, const string& value, const string& version);
     bool updateAttributeIfDifferentVersion(attr_t at, const string& value, const string& version);
     void setAttributeExpired(attr_t at);
+    void setAttributeValid(attr_t at);
     const UserAttribute* getAttribute(attr_t at) const;
     void removeAttribute(attr_t at);
     void removeAttributeUpdateVersion(attr_t at, const string& version); // remove in up2/upv V3 ?
