@@ -39495,13 +39495,24 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
             delete baseFolderNode;
             return NULL;
         }
+        // The served subtree root is the base folder identified by the first path segment.
+        // getNodeByFullFtpPath resolves the remainder with getNodeByPath, which honours "..",
+        // so an absolute path with embedded parent segments can resolve outside the served
+        // folder. Reject any resolved node that escapes the served subtree.
+        const MegaHandle servedHandle = baseFolderNode->getHandle();
         delete baseFolderNode;
 
-        return getNodeByFullFtpPath(path);
+        MegaNode* toret = getNodeByFullFtpPath(path);
+        if (isNodeOutsideServedSubtree(megaApi, toret, servedHandle))
+        {
+            delete toret;
+            return NULL;
+        }
+        return toret;
     }
-    else //it should only enter here if path == ""
+    else // it should only enter here if path == ""
     {
-        MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+        MegaNode* n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
         if (!n)
         {
             return NULL;

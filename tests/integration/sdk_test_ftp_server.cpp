@@ -1,4 +1,14 @@
+#include "easy_curl.h"
+#include "integration_test_utils.h"
+#include "mega/scoped_helpers.h"
 #include "SdkTest_test.h"
+
+#include <curl/curl.h>
+
+#include <future>
+#include <memory>
+#include <string>
+#include <vector>
 
 /**
  * Test for FTP server using port 0, which also consist of:
@@ -23,6 +33,245 @@ TEST_F(SdkTest, FtpServerCanUsePort0)
                    api[1]->ftpServerStop();
                })
         .get();
+
+    CASE_info << "finished";
+}
+
+namespace
+{
+
+/**
+ * @brief Result of an FTP exchange driven through libcurl.
+ *
+ * body collects the data channel payload (the LIST or NLST output). controlLog
+ * collects the raw bytes the server sent on the control channel, so tests can
+ * assert on the exact reply lines the client would parse.
+ */
+struct FtpExchange
+{
+    CURLcode curlCode{CURLE_OK};
+    long ftpCode{0};
+    std::string body;
+    std::string controlLog;
+};
+
+size_t ftpBodyCallback(void* contents, size_t size, size_t nmemb, void* userdata)
+{
+    const size_t total = size * nmemb;
+    static_cast<std::string*>(userdata)->append(static_cast<const char*>(contents), total);
+    return total;
+}
+
+int ftpControlCallback(CURL*, curl_infotype type, char* data, size_t size, void* userdata)
+{
+    // CURLINFO_HEADER_IN carries the server's control channel replies verbatim.
+    if (type == CURLINFO_HEADER_IN)
+    {
+        static_cast<std::string*>(userdata)->append(data, size);
+    }
+    return 0;
+}
+
+/**
+ * @brief Minimal FTP client, built on the shared EasyCurl RAII wrapper.
+ *
+ * It only exposes a directory listing (LIST or NLST) and a way to run explicit
+ * control commands while capturing the raw control replies.
+ */
+class FtpTestClient
+{
+public:
+    static FtpExchange list(const std::string& url)
+    {
+        return perform(url, false, {});
+    }
+
+    static FtpExchange nlst(const std::string& url)
+    {
+        return perform(url, true, {});
+    }
+
+    static FtpExchange runControlCommands(const std::string& baseUrl,
+                                          const std::vector<std::string>& commands)
+    {
+        return perform(baseUrl, false, commands);
+    }
+
+private:
+    static FtpExchange perform(const std::string& url,
+                               bool dirListOnly,
+                               const std::vector<std::string>& quoteCommands)
+    {
+        FtpExchange exchange;
+        sdk_test::EasyCurl easyCurl;
+        sdk_test::EasyCurlSlist quote;
+        CURL* curl = easyCurl.curl();
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, ftpBodyCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &exchange.body);
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, ftpControlCallback);
+        curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &exchange.controlLog);
+
+        if (dirListOnly)
+        {
+            curl_easy_setopt(curl, CURLOPT_DIRLISTONLY, 1L);
+        }
+
+        if (!quoteCommands.empty())
+        {
+            for (const auto& command: quoteCommands)
+            {
+                quote.append(command);
+            }
+            // Run commands on the control channel only, no data transfer.
+            curl_easy_setopt(curl, CURLOPT_NOBODY, 1L);
+            curl_easy_setopt(curl, CURLOPT_QUOTE, quote.slist());
+        }
+
+        exchange.curlCode = curl_easy_perform(curl);
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &exchange.ftpCode);
+        return exchange;
+    }
+};
+
+std::string base64Handle(MegaNode* node)
+{
+    std::unique_ptr<char[]> handle{node->getBase64Handle()};
+    return handle ? std::string{handle.get()} : std::string{};
+}
+
+// Extracts "ftp://host:port/" from a full local FTP link.
+std::string ftpBaseUrl(const std::string& link)
+{
+    const size_t schemeEnd = link.find("://");
+    if (schemeEnd == std::string::npos)
+    {
+        return {};
+    }
+    const size_t firstSlash = link.find('/', schemeEnd + 3);
+    if (firstSlash == std::string::npos)
+    {
+        return link + "/";
+    }
+    return link.substr(0, firstSlash + 1);
+}
+
+} // namespace
+
+/**
+ * The FTP server must not resolve a path outside the served folder.
+ *
+ * For an absolute FTP path the server only validates the handle of the first
+ * segment (the served folder) and then resolves the remainder with getNodeByPath,
+ * which honours "..". An absolute path never triggers the ".." guard (that only
+ * fires when the path literally starts with ".."), so a request like
+ * "/<servedHandle>/<servedName>/../<outsideName>" used to reach a sibling node
+ * outside the served subtree.
+ *
+ * SIZE and RNFR are single control-channel commands routed through the same
+ * getNodeByFtpPath() chokepoint as LIST/NLST/RETR/STOR/DELE/RMD/MKD, so they let
+ * us assert the boundary without a data channel and without mutating anything:
+ * a resolved node inside the served folder answers 213/350, while one that
+ * escapes it must be rejected with 550.
+ */
+TEST_F(SdkTest, FtpServerRejectsPathTraversalOutsideServedFolder)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    auto rootNode = makeUniqueFrom(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+
+    // Secret sibling at the Cloud Drive root. No local link is created for it, so
+    // its handle is never in the served allow-list. It must stay unreachable.
+    const std::string outsideName = "outside_secret.txt";
+    auto outsideNode = sdk_test::uploadFile(megaApi[0].get(),
+                                            sdk_test::LocalTempFile{outsideName, "outside secret"},
+                                            rootNode.get(),
+                                            outsideName.c_str());
+    ASSERT_TRUE(outsideNode);
+
+    const std::string servedName = "served_folder";
+    const MegaHandle servedHandle = createFolder(0, servedName.c_str(), rootNode.get());
+    ASSERT_NE(servedHandle, UNDEF);
+    auto servedNode = makeUniqueFrom(megaApi[0]->getNodeByHandle(servedHandle));
+    ASSERT_TRUE(servedNode);
+
+    const std::string insideName = "inside.txt";
+    auto insideNode = sdk_test::uploadFile(megaApi[0].get(),
+                                           sdk_test::LocalTempFile{insideName, "inside allowed"},
+                                           servedNode.get(),
+                                           insideName.c_str());
+    ASSERT_TRUE(insideNode);
+
+    ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0));
+    const auto ftpServer = makeScopedDestructor(
+        [&api = megaApi]()
+        {
+            api[0]->ftpServerStop();
+        });
+
+    // Generating a local link is what allows the served folder handle over FTP.
+    std::unique_ptr<char[]> servedLink{megaApi[0]->ftpServerGetLocalLink(servedNode.get())};
+    ASSERT_TRUE(servedLink);
+    const std::string baseUrl = ftpBaseUrl(servedLink.get());
+    ASSERT_FALSE(baseUrl.empty());
+
+    const std::string servedRoot = "/" + base64Handle(servedNode.get()) + "/" + servedName;
+    const std::string insidePath = servedRoot + "/" + insideName;
+    const std::string traversalPath = servedRoot + "/../" + outsideName;
+
+    // Positive control: a legitimate path inside the served folder resolves, so the
+    // rejections below are due to the boundary check, not a broken server or link.
+    {
+        const FtpExchange size =
+            FtpTestClient::runControlCommands(baseUrl, {"*SIZE " + insidePath});
+        ASSERT_EQ(CURLE_OK, size.curlCode)
+            << "SIZE inside failed: " << curl_easy_strerror(size.curlCode) << "\n"
+            << size.controlLog;
+        EXPECT_NE(size.controlLog.find("213 "), std::string::npos)
+            << "SIZE did not resolve a file inside the served folder. Control log:\n"
+            << size.controlLog;
+    }
+
+    // SIZE on a path that escapes the served folder must be rejected, never leak the size.
+    {
+        const FtpExchange size =
+            FtpTestClient::runControlCommands(baseUrl, {"*SIZE " + traversalPath});
+        ASSERT_EQ(CURLE_OK, size.curlCode)
+            << "SIZE traversal failed: " << curl_easy_strerror(size.curlCode) << "\n"
+            << size.controlLog;
+        EXPECT_NE(size.controlLog.find("550"), std::string::npos)
+            << "SIZE outside the served folder was not rejected. Control log:\n"
+            << size.controlLog;
+        EXPECT_EQ(size.controlLog.find("213 "), std::string::npos)
+            << "SIZE leaked a node outside the served folder. Control log:\n"
+            << size.controlLog;
+    }
+
+    // RNFR (rename source lookup) must not select a node outside the served folder.
+    {
+        const FtpExchange rnfr =
+            FtpTestClient::runControlCommands(baseUrl, {"*RNFR " + traversalPath});
+        ASSERT_EQ(CURLE_OK, rnfr.curlCode)
+            << "RNFR traversal failed: " << curl_easy_strerror(rnfr.curlCode) << "\n"
+            << rnfr.controlLog;
+        EXPECT_NE(rnfr.controlLog.find("550"), std::string::npos)
+            << "RNFR outside the served folder was not rejected. Control log:\n"
+            << rnfr.controlLog;
+        EXPECT_EQ(rnfr.controlLog.find("350"), std::string::npos)
+            << "RNFR selected a node outside the served folder. Control log:\n"
+            << rnfr.controlLog;
+    }
+
+    EXPECT_EQ(API_OK, doDeleteNode(0, servedNode.get()));
+    EXPECT_EQ(API_OK, doDeleteNode(0, outsideNode.get()));
 
     CASE_info << "finished";
 }
