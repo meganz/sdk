@@ -35,15 +35,20 @@ typedef NS_ENUM (NSInteger, MEGAListAllNodesFilterLocation) {
 /**
  * @brief Direction of the date-bucket timestamp anchor (see
  * `timestampAnchorSectionOrder`). Identifies both the timestamp column and the
- * traversal direction. Modification time only: a page is scoped to its bucket
- * only when the listing's `orderType` matches the anchor, and MEGASortOrderType
- * carries no capture-time value yet, so a capture-time anchor could not be paired
- * with one. Both ship together with the matching app change.
+ * traversal direction.
+ *
+ * A page is scoped to its bucket only when the listing's `orderType` is the sort
+ * matching the anchor: `MEGASortOrderTypeModification*` for the Modification
+ * values here, `MEGASortOrderTypeMediaTs*` for the MediaTs ones. The MediaTs
+ * values additionally require a media `category` (photo / video / audio /
+ * all-visual-media), since capture time is unset for every other kind of file.
  */
 typedef NS_ENUM (NSInteger, MEGAListAllNodesTimestampAnchorOrder) {
     MEGAListAllNodesTimestampAnchorOrderNone = 0,             ///< Anchor disabled (default).
     MEGAListAllNodesTimestampAnchorOrderModificationAsc = 1,  ///< mtime; enforce the lower bound, walk forward.
-    MEGAListAllNodesTimestampAnchorOrderModificationDesc = 2  ///< mtime; enforce the upper bound, walk backward.
+    MEGAListAllNodesTimestampAnchorOrderModificationDesc = 2, ///< mtime; enforce the upper bound, walk backward.
+    MEGAListAllNodesTimestampAnchorOrderMediaTsAsc = 3,       ///< mediats; enforce the lower bound, walk forward.
+    MEGAListAllNodesTimestampAnchorOrderMediaTsDesc = 4       ///< mediats; enforce the upper bound, walk backward.
 };
 
 /**
@@ -141,6 +146,10 @@ NS_ASSUME_NONNULL_BEGIN
  * enforces this lower bound. Pagination continues into adjacent buckets, so to
  * fetch ONLY this bucket the caller stops after MEGADateSection.count items.
  * startDate == 0 with a non-zero endDate means "no lower bound" for an ASC anchor.
+ *
+ * Seconds for both timestamp columns, including the millisecond-valued mediats:
+ * the engine scales the bound to the column's units. Only
+ * MEGASearchCursorOffset.lastMediaTsMs is passed in milliseconds.
  */
 @property (nonatomic) int64_t timestampAnchorStartDate;
 

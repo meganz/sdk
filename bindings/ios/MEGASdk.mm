@@ -4141,6 +4141,16 @@ using namespace mega;
                                           filter.timestampAnchorEndDate,
                                           MegaApi::ORDER_MODIFICATION_DESC);
             break;
+        case MEGAListAllNodesTimestampAnchorOrderMediaTsAsc:
+            megaFilter->byTimestampAnchor(filter.timestampAnchorStartDate,
+                                          filter.timestampAnchorEndDate,
+                                          MegaApi::ORDER_MEDIATS_ASC);
+            break;
+        case MEGAListAllNodesTimestampAnchorOrderMediaTsDesc:
+            megaFilter->byTimestampAnchor(filter.timestampAnchorStartDate,
+                                          filter.timestampAnchorEndDate,
+                                          MegaApi::ORDER_MEDIATS_DESC);
+            break;
         case MEGAListAllNodesTimestampAnchorOrderNone:
             break;
         default:

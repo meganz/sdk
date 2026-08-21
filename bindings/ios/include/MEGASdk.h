@@ -98,6 +98,11 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeFavouriteDesc = 20,
     MEGASortOrderTypeShareCreationAsc = 21,
     MEGASortOrderTypeShareCreationDesc = 22,
+    /// Media capture timestamp, oldest first. Meaningful only for media files
+    /// (photo / video / audio); every other file carries no capture time.
+    MEGASortOrderTypeMediaTsAsc = 23,
+    /// Media capture timestamp, newest first. See MEGASortOrderTypeMediaTsAsc.
+    MEGASortOrderTypeMediaTsDesc = 24,
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -8091,6 +8096,12 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  *   - MEGAOrderTypeModificationAsc / MEGAOrderTypeModificationDesc
  *   - MEGAOrderTypeLabelAsc        / MEGAOrderTypeLabelDesc
  *   - MEGAOrderTypeFavouriteAsc    / MEGAOrderTypeFavouriteDesc
+ *   - MEGAOrderTypeMediaTsAsc      / MEGAOrderTypeMediaTsDesc
+ *
+ * With no timestamp anchor set on the filter, a capture-time order also returns
+ * nodes whose capture time is 0 — any file from which no timestamp could be
+ * derived. Those nodes belong to no MEGADateSection, so section counts do not sum
+ * to such a page's length. Set an anchor to exclude them.
  *
  * The call returns an empty list and logs a warning when:
  *   - filter is nil.
@@ -8163,10 +8174,14 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * Supported sort orders:
  *   - MEGASortOrderTypeModificationAsc  (oldest first, by modification time)
  *   - MEGASortOrderTypeModificationDesc (newest first, by modification time)
+ *   - MEGASortOrderTypeMediaTsAsc       (oldest first, by media capture time)
+ *   - MEGASortOrderTypeMediaTsDesc      (newest first, by media capture time)
  * Any other order value is rejected (returns an empty array and logs a warning).
- * The engine also groups by media capture time, but MEGASortOrderType carries no
- * capture-time value yet — adding one changes an NS_ENUM the app switches over
- * exhaustively, so it ships with the matching app change.
+ *
+ * The capture-time orders additionally require filter.category to be one of
+ * MEGANodeFormatTypePhoto / MEGANodeFormatTypeVideo / MEGANodeFormatTypeAudio /
+ * MEGANodeFormatTypeAllVisualMedia: capture time is 0 for every other category,
+ * so the grouping would have no rows to bucket. Any other pairing is rejected.
  *
  * @param filter      Node-selection scope and bucket granularity. Must not be nil.
  * @param orderType   Timeline sort order; controls section ordering.
