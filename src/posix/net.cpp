@@ -302,6 +302,28 @@ CurlHttpIO::CurlHttpIO()
         throw std::runtime_error("curl built without HTTP/HTTPS support. Aborting.");
     }
 
+#ifdef MEGA_USE_WSUPLOAD
+    // A header/runtime ABI mismatch can fail in the dynamic loader before this constructor runs.
+    const char* const* protocols = data ? data->protocols : nullptr;
+    bool supportsWss = false;
+    for (; protocols && *protocols; ++protocols)
+    {
+        if (std::string_view(*protocols) == "wss")
+        {
+            supportsWss = true;
+            break;
+        }
+    }
+
+    if (!supportsWss)
+    {
+        LOG_fatal
+            << "libcurl built without WebSocket support required by MEGA_USE_WSUPLOAD. Aborting.";
+        throw std::runtime_error(
+            "libcurl built without WebSocket support required by MEGA_USE_WSUPLOAD. Aborting.");
+    }
+#endif
+
     if (data->ares)
     {
         int version{data->ares_num};
