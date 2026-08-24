@@ -410,7 +410,9 @@ void MegaClient::wsQuotaEvaluateHolds()
     }
 }
 
-bool MegaClient::wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFolder)
+bool MegaClient::wsQuotaApplyHoldState(Transfer& t,
+                                       bool hold,
+                                       [[maybe_unused]] NodeHandle reprFolder)
 {
     if (hold)
     {
