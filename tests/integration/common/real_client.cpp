@@ -507,7 +507,7 @@ void RealClient::get(GetCallback callback,
             return callback(unexpected(API_EFAILED)), true;
 
         // Build a minimal description for the node.
-        NodeInfo info;
+        NodeInfo info{};
 
         info.mHandle = handle;
         info.mIsDirectory = false;
