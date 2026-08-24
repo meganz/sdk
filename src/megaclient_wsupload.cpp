@@ -1726,7 +1726,12 @@ void MegaClient::wsApplyTransferPause(direction_t d, bool pause, bool hard)
         }
         else
         {
-            wsEngine()->unpause(*t);
+            // Lifting the global pause must not resume a transfer that was paused
+            // individually.
+            if (t->state != TRANSFERSTATE_PAUSED)
+            {
+                wsEngine()->unpause(*t);
+            }
         }
     }
 
