@@ -177,7 +177,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* imageOut, Hint) {
 
     [QLThumbnailGenerator.sharedGenerator generateBestRepresentationForRequest:request completionHandler:^(QLThumbnailRepresentation * _Nullable thumbnail, NSError * _Nullable error) {
         if (error) {
-            LOG_err << "Error generating best representation for a request: " << error.localizedDescription;
+            LOG_err << "Error generating best representation for a request: " << error.localizedDescription.UTF8String;
 #if TARGET_OS_IPHONE
             NSString *path = ((__bridge NSURL *)sourceURL).path;
             if ([NSFileManager.defaultManager fileExistsAtPath:path]) {
@@ -195,13 +195,13 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* imageOut, Hint) {
                     }
 
                     if (!data) {
-                        LOG_err << "Could not convert image to data for image for path: " << path;
+                        LOG_err << "Could not convert image to data for image for path: " << path.UTF8String;
                     }
                 } else {
-                    LOG_err << "Could not generate thumbnail for image at path: " << path;
+                    LOG_err << "Could not generate thumbnail for image at path: " << path.UTF8String;
                 }
             } else {
-                LOG_err << "Could not find the image at path: " << path;
+                LOG_err << "Could not find the image at path: " << path.UTF8String;
             }
 #endif
         } else {
