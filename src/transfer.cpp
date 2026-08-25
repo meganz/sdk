@@ -3204,7 +3204,8 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
         {
             prepareIncreasePriority(transfer, it, it, committer);
 #ifdef MEGA_USE_WSUPLOAD
-            if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine())
+            if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine() &&
+                (!client->xferpaused[PUT] || transfer->isForSupport()))
             {
                 client->wsEngine()->unpause(*transfer);
                 // WS uploads may continue on the same pool/file without a new onStart callback.
