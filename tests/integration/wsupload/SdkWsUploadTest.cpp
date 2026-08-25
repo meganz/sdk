@@ -16,7 +16,6 @@
 
 #include "wsupload/headers/SdkWsUploadTest.h"
 
-#include "SdkTest_test.h"
 #include "../stdfs.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
@@ -24,12 +23,14 @@
 #include "megaapi.h"
 #include "megautils.h"
 #include "sdk_test_utils.h"
+#include "SdkTest_test.h"
 #include "test.h"
 #include "wsupload/headers/WsUploadHelpers.h"
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
+#include <array>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
@@ -4016,6 +4017,266 @@ TEST_F(SdkWsUploadTest, PauseHandlesLateInFlightAck)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+}
+
+/**
+ * @brief Verify individual and global WS-upload pause reasons compose in either order.
+ *
+ * - TEST1: Individual pause/resume works while uploads are globally enabled.
+ * - TEST2: A global pause cycle does not clear an individual pause.
+ * - TEST3: Individual resume does not clear an active global pause.
+ * - TEST4: A globally held, individually resumed transfer is restored as QUEUED after restart
+ *          and starts only after the global pause is lifted.
+ */
+TEST_F(SdkWsUploadTest, IndividualAndGlobalPauseReasonsComposeAcrossResume)
+{
+    LOG_info << "___TEST SdkWsUploadIndividualAndGlobalPauseReasonsComposeAcrossResume___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    constexpr int requestTimeoutS = 60;
+    constexpr unsigned quietWindowMs = 3000;
+    constexpr size_t activeFileSize = 2 * 1024 * 1024;
+    constexpr size_t queuedFileSize = 937;
+
+    const auto suffix = std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::string folderName = "ws_pause_composition_" + suffix;
+    const std::array<std::string, 4> fileNames{"ws_pause_individual_" + suffix + ".bin",
+                                               "ws_pause_individual_first_" + suffix + ".bin",
+                                               "ws_pause_global_first_" + suffix + ".bin",
+                                               "ws_pause_resume_" + suffix + ".bin"};
+
+    ASSERT_TRUE(createFileWithSize(fileNames[0], activeFileSize, "A"));
+    ASSERT_TRUE(createFileWithSize(fileNames[1], queuedFileSize, "B"));
+    ASSERT_TRUE(createFileWithSize(fileNames[2], queuedFileSize + 1, "C"));
+    ASSERT_TRUE(createFileWithSize(fileNames[3], activeFileSize + 1, "D"));
+
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileNames]()
+        {
+            for (const auto& fileName: fileNames)
+            {
+                deleteFile(fileName);
+            }
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            megaApi[0]->setMaxUploadSpeed(-1);
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+
+    std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootNode);
+    const MegaHandle folderHandle = createFolder(0, folderName.c_str(), rootNode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    auto folderNode = makeUniqueFrom(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+
+    auto setGlobalPause = [this](const bool paused)
+    {
+        RequestTracker request{megaApi[0].get()};
+        megaApi[0]->pauseTransfers(paused, MegaTransfer::TYPE_UPLOAD, &request);
+        return request.waitForResult(requestTimeoutS);
+    };
+    auto setIndividualPause = [this](const int transferTag, const bool paused)
+    {
+        RequestTracker request{megaApi[0].get()};
+        megaApi[0]->pauseTransferByTag(transferTag, paused, &request);
+        return request.waitForResult(requestTimeoutS);
+    };
+    auto waitForState = [this](const int transferTag, const int expectedState)
+    {
+        return WaitFor(
+            [this, transferTag, expectedState]()
+            {
+                std::unique_ptr<MegaTransfer> transfer{megaApi[0]->getTransferByTag(transferTag)};
+                return transfer && transfer->getState() == expectedState;
+            },
+            defaultTimeoutMs);
+    };
+    auto waitForUploadCount = [this](const int expectedCount)
+    {
+        return WaitFor(
+            [this, expectedCount]()
+            {
+                std::unique_ptr<MegaTransferList> transfers{
+                    megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD)};
+                return transfers && transfers->size() == expectedCount;
+            },
+            defaultTimeoutMs);
+    };
+    auto getOnlyUpload = [this]() -> std::unique_ptr<MegaTransfer>
+    {
+        std::unique_ptr<MegaTransferList> transfers{
+            megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD)};
+        if (!transfers || transfers->size() != 1)
+        {
+            return nullptr;
+        }
+        return makeUniqueFrom(transfers->get(0)->copy());
+    };
+
+    RequestTracker connectionsRequest{megaApi[0].get()};
+    megaApi[0]->setMaxConnections(1, &connectionsRequest);
+    ASSERT_EQ(API_OK, connectionsRequest.waitForResult(requestTimeoutS));
+    auto uploadOptions = makeDefaultUploadOptions();
+
+    // TEST1: Without a global pause, individual resume starts the transfer immediately.
+    ASSERT_EQ(API_OK, setGlobalPause(false));
+    megaApi[0]->setMaxUploadSpeed(100000);
+    TransferTracker individualTracker{megaApi[0].get()};
+    megaApi[0]->startUpload(fileNames[0],
+                            folderNode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &individualTracker);
+    ASSERT_TRUE(WaitFor(
+        [&individualTracker]()
+        {
+            return individualTracker.mTag.load() >= 0 &&
+                   individualTracker.mTransferredBytes.load() > 0;
+        },
+        defaultTimeoutMs));
+    const int individualTag = individualTracker.mTag.load();
+    ASSERT_EQ(API_OK, setIndividualPause(individualTag, true));
+    ASSERT_TRUE(waitForState(individualTag, MegaTransfer::STATE_PAUSED));
+    ASSERT_FALSE(individualTracker.finished.load());
+    const auto bytesWhilePaused = individualTracker.mTransferredBytes.load();
+    ASSERT_EQ(API_OK, setIndividualPause(individualTag, false));
+    ASSERT_TRUE(WaitFor(
+        [&individualTracker, bytesWhilePaused]()
+        {
+            return individualTracker.mTransferredBytes.load() > bytesWhilePaused;
+        },
+        defaultTimeoutMs));
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(API_OK, individualTracker.waitForResult(requestTimeoutS));
+
+    // TEST2: Lifting a global pause must preserve an existing individual pause.
+    ASSERT_EQ(API_OK, setGlobalPause(true));
+    TransferTracker individualFirstTracker{megaApi[0].get()};
+    megaApi[0]->startUpload(fileNames[1],
+                            folderNode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &individualFirstTracker);
+    ASSERT_TRUE(WaitFor(
+        [&individualFirstTracker]()
+        {
+            return individualFirstTracker.mTag.load() >= 0;
+        },
+        defaultTimeoutMs));
+    const int individualFirstTag = individualFirstTracker.mTag.load();
+    ASSERT_EQ(API_OK, setIndividualPause(individualFirstTag, true));
+    ASSERT_TRUE(waitForState(individualFirstTag, MegaTransfer::STATE_PAUSED));
+    ASSERT_EQ(API_OK, setGlobalPause(false));
+    WaitMillisec(quietWindowMs);
+    ASSERT_TRUE(waitForState(individualFirstTag, MegaTransfer::STATE_PAUSED));
+    ASSERT_FALSE(individualFirstTracker.finished.load());
+    ASSERT_EQ(API_OK, setIndividualPause(individualFirstTag, false));
+    ASSERT_EQ(API_OK, individualFirstTracker.waitForResult(requestTimeoutS));
+
+    // TEST3: Individual resume changes PAUSED to QUEUED, but the global pause still holds the
+    // engine.
+    ASSERT_EQ(API_OK, setGlobalPause(true));
+    TransferTracker globalFirstTracker{megaApi[0].get()};
+    megaApi[0]->startUpload(fileNames[2],
+                            folderNode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &globalFirstTracker);
+    ASSERT_TRUE(WaitFor(
+        [&globalFirstTracker]()
+        {
+            return globalFirstTracker.mTag.load() >= 0;
+        },
+        defaultTimeoutMs));
+    const int globalFirstTag = globalFirstTracker.mTag.load();
+    ASSERT_EQ(API_OK, setIndividualPause(globalFirstTag, true));
+    ASSERT_TRUE(waitForState(globalFirstTag, MegaTransfer::STATE_PAUSED));
+    ASSERT_EQ(API_OK, setIndividualPause(globalFirstTag, false));
+    ASSERT_TRUE(waitForState(globalFirstTag, MegaTransfer::STATE_QUEUED));
+    const bool escapedGlobalPause = WaitFor(
+        [&globalFirstTracker]()
+        {
+            return globalFirstTracker.finished.load();
+        },
+        quietWindowMs);
+    EXPECT_FALSE(escapedGlobalPause)
+        << "Individual resume completed an upload while global uploads remained paused";
+    ASSERT_EQ(API_OK, setGlobalPause(false));
+    ASSERT_EQ(API_OK, globalFirstTracker.waitForResult(requestTimeoutS));
+
+    // TEST4: Persist QUEUED, not PAUSED. Local logout clears the runtime global flag, so reapply it
+    // before fetchnodes restores the transfer and then verify only global unpause starts it.
+    ASSERT_EQ(API_OK, setGlobalPause(true));
+    megaApi[0]->setMaxUploadSpeed(100000);
+    TransferTracker resumeTracker{megaApi[0].get()};
+    megaApi[0]->startUpload(fileNames[3],
+                            folderNode.get(),
+                            nullptr,
+                            &uploadOptions,
+                            &resumeTracker);
+    ASSERT_TRUE(WaitFor(
+        [&resumeTracker]()
+        {
+            return resumeTracker.mTag.load() >= 0;
+        },
+        defaultTimeoutMs));
+    const int resumeTag = resumeTracker.mTag.load();
+    ASSERT_EQ(API_OK, setIndividualPause(resumeTag, true));
+    ASSERT_TRUE(waitForState(resumeTag, MegaTransfer::STATE_PAUSED));
+    ASSERT_EQ(API_OK, setIndividualPause(resumeTag, false));
+    ASSERT_TRUE(waitForState(resumeTag, MegaTransfer::STATE_QUEUED));
+    const bool progressedWhileGloballyPaused = WaitFor(
+        [&resumeTracker]()
+        {
+            return resumeTracker.mTransferredBytes.load() > 0 || resumeTracker.finished.load();
+        },
+        quietWindowMs);
+    EXPECT_FALSE(progressedWhileGloballyPaused)
+        << "Individually resumed upload made progress while global uploads remained paused";
+
+    std::unique_ptr<char[]> session{dumpSession()};
+    ASSERT_TRUE(session);
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    const auto interruptedResult = resumeTracker.waitForResult(requestTimeoutS);
+    ASSERT_TRUE(interruptedResult == API_EACCESS || interruptedResult == API_EINCOMPLETE)
+        << "Local logout interrupted the upload with unexpected result " << interruptedResult;
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_EQ(API_OK, setGlobalPause(true));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    ASSERT_TRUE(waitForUploadCount(1));
+    auto restoredTransfer = getOnlyUpload();
+    ASSERT_TRUE(restoredTransfer);
+    ASSERT_EQ(MegaTransfer::STATE_QUEUED, restoredTransfer->getState())
+        << "Individually resumed transfer must be serialized and restored as QUEUED";
+
+    WaitMillisec(quietWindowMs);
+    restoredTransfer = getOnlyUpload();
+    ASSERT_TRUE(restoredTransfer);
+    ASSERT_EQ(MegaTransfer::STATE_QUEUED, restoredTransfer->getState());
+
+    megaApi[0]->setMaxUploadSpeed(-1);
+    ASSERT_EQ(API_OK, setGlobalPause(false));
+    ASSERT_TRUE(waitForUploadCount(0));
+
+    folderNode.reset(megaApi[0]->getNodeByHandle(folderHandle));
+    ASSERT_TRUE(folderNode);
+    ASSERT_TRUE(waitForEvent(
+        [this, folderHandle, &fileNames]()
+        {
+            auto folder = makeUniqueFrom(megaApi[0]->getNodeByHandle(folderHandle));
+            auto child =
+                folder ?
+                    makeUniqueFrom(megaApi[0]->getChildNode(folder.get(), fileNames[3].c_str())) :
+                    nullptr;
+            return child != nullptr;
+        },
+        defaultTimeoutMs));
+
+    deleteFolder(folderName);
 }
 
 /**
