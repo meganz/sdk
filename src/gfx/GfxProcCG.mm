@@ -256,7 +256,12 @@ void ios_statsid(std::string *statsid) {
     switch (status) {
         case errSecSuccess: {
             NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
-            statsid->append([uuidString UTF8String]);
+            const char *uuid = [uuidString UTF8String];
+            if (uuid) {
+                statsid->append(uuid);
+            } else {
+                LOG_err << "Could not decode the statsid read from the keychain item";
+            }
             break;
         }
 
@@ -273,7 +278,12 @@ void ios_statsid(std::string *statsid) {
 
             switch (status) {
                 case errSecSuccess: {
-                    statsid->append([uuidString UTF8String]);
+                    const char *uuid = [uuidString UTF8String];
+                    if (uuid) {
+                        statsid->append(uuid);
+                    } else {
+                        LOG_err << "Could not decode the newly generated statsid";
+                    }
                     break;
                 }
                 case errSecDuplicateItem: {
@@ -286,7 +296,12 @@ void ios_statsid(std::string *statsid) {
                     switch (status) {
                         case errSecSuccess: {
                             NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
-                            statsid->append([uuidString UTF8String]);
+                            const char *uuid = [uuidString UTF8String];
+                            if (uuid) {
+                                statsid->append(uuid);
+                            } else {
+                                LOG_err << "Could not decode the statsid read from the duplicated keychain item";
+                            }
                             break;
                         }
                     }
