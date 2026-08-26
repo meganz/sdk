@@ -27711,7 +27711,14 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
         MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
 
-        since = std::max(since, sinceClearHistory);
+        // clearRecentActionHistory(T) means clear every action with ctime up to and
+        // including T. The SQL query keeps rows with ctime >= since, so to drop the ones
+        // at exactly T we start the query at T + 1.
+        // When there is no clear timestamp, T is 0 and since is already the start of the
+        // requested day window, so T + 1 changes nothing.
+        //
+        // See MegaApi::clearRecentActionHistory() for the use cases.
+        since = std::max(since, sinceClearHistory + 1);
 
         recentactions_vector v;
         if (withExcludeSensitives)
