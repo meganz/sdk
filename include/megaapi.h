@@ -21189,6 +21189,11 @@ class MegaApi
          * Each bucket contains files that were added/modified in a set, by a single user.
          * Buckets are grouped into fixed 6-hour windows in UTC: 0-6, 6-12, 12-18, 18-24.
          *
+         * Actions already cleared with clearRecentActionHistory are not returned. See
+         * that method for the use cases. getRecentActionById is not affected. If you
+         * still have a bucket id from before the clear, that call can still return the
+         * bucket.
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
          * - MegaRequest::getParamType - Returns the maximun number of nodes
@@ -21225,6 +21230,11 @@ class MegaApi
          * Each bucket contains files that were added/modified in a set, by a single user.
          * Buckets are grouped into fixed 6-hour windows in UTC: 0-6, 6-12, 12-18, 18-24.
          *
+         * Actions already cleared with clearRecentActionHistory are not returned. See
+         * that method for the use cases. getRecentActionById is not affected. If you
+         * still have a bucket id from before the clear, that call can still return the
+         * bucket.
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
          * - MegaRequest::getParamType - Returns the maximun number of nodes
@@ -21252,6 +21262,10 @@ class MegaApi
 
         /**
          * @brief Get a recent action bucket by its identifier
+         *
+         * Unlike getRecentActionsAsync, this method is not affected by
+         * clearRecentActionHistory. If you still have a bucket id from before the user
+         * cleared recents, this call can still return that bucket.
          *
          * The identifier format is:
          * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
@@ -21291,7 +21305,8 @@ class MegaApi
          * @p excludeSensitives parameter takes precedence over the flag encoded in the bucket
          * identifier (token 8 of the pipe-delimited id string). This lets callers re-query a
          * bucket with a different sensitivity filter than the one that was used when the id was
-         * originally generated.
+         * originally generated. Like the other overload, this method is not affected by
+         * clearRecentActionHistory.
          *
          * The identifier format is:
          * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
@@ -21328,9 +21343,31 @@ class MegaApi
         /**
          * @brief Clear the account’s recent actions history up to a given timestamp.
          *
-         * This method clears the recent actions history on the account by setting a
-         * “recent clear” timestamp. All actions that occurred at or before the given
-         * timestamp are considered cleared.
+         * Stores @p until as a user attribute (the value is not modified). Later calls
+         * to getRecentActionsAsync no longer return recent actions whose node creation
+         * time is at or before @p until. Do not add one second. The SDK already treats
+         * @p until as inclusive.
+         *
+         * @p until is compared with node creation times assigned by the server (whole
+         * seconds). It is not the clock on the user’s device.
+         *
+         * Use cases:
+         * - Clear all currently visible recents. Pass the creation time of the newest
+         *   listed node.
+         * - Pass the device clock (now) instead of a node creation time. If the device
+         *   is ahead of the server, the list still clears. If the device is behind, files
+         *   with a newer server creation time can remain visible. The inclusive bound
+         *   only covers files created in that same second, not a skew of a few seconds.
+         * - The user uploads a file and immediately taps Clear recent activity. The file
+         *   disappears from recents. That is intended.
+         * - The user clears, then a new upload finishes in the same second (camera upload
+         *   or sync). That new file is also cleared, even though it arrived after the tap.
+         * - Clear everything up to a calendar date. Files from that last second are
+         *   included. That is intended.
+         * - Clear one file only. Not possible. Every file created in that same second is
+         *   cleared together.
+         * - Open a recent-action bucket by id after a clear. getRecentActionById is not
+         *   affected by the clear, so an old id can still open.
          *
          * The associated request type for this operation is
          * MegaRequest::TYPE_SET_ATTR_USER.
@@ -21341,7 +21378,9 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
          * actions history clear timestamp.
          *
-         * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+         * @param until     Epoch time in seconds, on the same scale as server-assigned
+         *                  node creation time (ctime). Recent actions with ctime at or
+         *                  before this time will be cleared.
          * @param listener  Optional MegaRequestListener to track this request.
          */
 
