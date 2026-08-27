@@ -14,6 +14,7 @@ target_sources(test_unit
     main.cpp
     Arguments_test.cpp
     AttrMap_test.cpp
+    Base64_test.cpp
     CacheLRU_test.cpp
     canceller_test.cpp
     ChildNodeLookup_test.cpp

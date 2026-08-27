@@ -204,16 +204,16 @@ int64_t Base64::atoi(string *val)
 
 size_t Base64::btoa(const string& in, string& out)
 {
-    out.resize(in.size() * 4 / 3 + 4);
+    out.resize(btoaSize(in.size()));
     out.resize(Base64::btoa((const byte*)in.data(), in.size(), (char*)out.data()));
 
     return out.size();
 }
 
-std::string Base64::btoa(const string &in)
+std::string Base64::btoa(const string& in)
 {
     string out;
-    out.resize(in.size() * 4 / 3 + 4);
+    out.resize(btoaSize(in.size()));
     out.resize(Base64::btoa((const byte*)in.data(), in.size(), (char*)out.data()));
 
     return out;
