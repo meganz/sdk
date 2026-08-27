@@ -32,6 +32,13 @@ Hits: all OSes. (Minimum recommended repeat count for the B9 timing assertion.) 
 `run_bench.sh` equivalent already pins CPU0 via `taskset`; the Jenkins
 worker is single-tenant, so no explicit pin needed.
 
+## Goodput-gate stress n=15 (HR43 timing cell)
+
+    trigger compilation --gtest_filter=SdkWsUploadTest.GoodputGateEngagesRampsToKneeAndTrims --gtest_repeat=15
+
+Hits: all OSes. (Multi-second gate-trajectory assertions; macOS is the platform where the
+server-distress race that broke it showed up first — macos_9808.)
+
 ## MN smoke n=5 ONE batch
 
     trigger compilation --gtest_filter=SdkWsUploadTest.MassNotify --gtest_repeat=5

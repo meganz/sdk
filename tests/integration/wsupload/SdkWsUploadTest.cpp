@@ -900,6 +900,9 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
  * no-op in a batch run -- the adversarial trap); the test runs on the defaults and sizes its
  * timeouts from them. Distinct-content files are REQUIRED (identical content is fingerprint-
  * deduplicated, collapsing the dataset). Timing tolerances are whole gate windows (1 s each).
+ *
+ * HR43 timing cell (three bounded second_timer poll loops judging a multi-second control-loop
+ * trajectory): run --gtest_repeat=15 under `taskset -c 0 nice -n 19`.
  */
 TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
 {
@@ -907,6 +910,17 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
 
     WSUPLOAD_REQUIRE_TEST_HOOKS();
+
+    // Drop server event=5 Distress for this cell's duration, exactly as
+    // B9ClosedThrottleReconnectPacing does (see :5133-5139). WHY: this cell's premise is ONE
+    // stable size-class pool for all of PHASES A+B. A genuine Distress frame calls refreshPools()
+    // (ws_conn.cpp:938); if the USC reply returns a different host for the size class,
+    // applyRefreshedUrls retires the busy pool (ws_pool_mgr.cpp:1174) and `shouldScaleUp =
+    // !pool->mRetiring` (ws_pool_mgr.cpp:390 -- the only guard under which runGoodputGateLocked
+    // runs) silences the gate on it for good, freezing conns one widen short of the knee. That is
+    // exactly how macos_9808 failed (settle 10 vs 11).
+    constexpr int kDistressEvent = 5;
+    globalMegaTestHooks.wsUploadServerEventHook.configureSecondaryDrop(kDistressEvent);
 
     // 8 equal-size (8 MiB) files => one size-class DATASET pool => the dataset boost arms the
     // gate with a ceiling far above the knee. Two sizing constraints BOTH matter:
@@ -950,6 +964,7 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
             std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
             globalMegaTestHooks.onWsGateGoodputSample = nullptr;
+            globalMegaTestHooks.wsUploadServerEventHook.reset();
         });
 
     for (size_t i = 0; i < kFileCount; ++i)
@@ -1022,6 +1037,8 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     ws::UploadEngine::PoolStateForTesting lastObservedState{};
     std::string observedPoolUrl = activeUpload.wsSessionUrl;
     unsigned maxActiveThreadsSeen = 0;
+    bool observingPhasesAB = true; // scopes the premise warning below to PHASES A+B
+    bool retiringWarned = false;
 
     const auto pollPoolState = [&]() -> bool
     {
@@ -1036,9 +1053,29 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
         {
             lastObservedState = state;
             maxActiveThreadsSeen = std::max(maxActiveThreadsSeen, state.activeThreads);
+            // Diagnostics only (no re-anchor): a retiring observed pool means the cell's
+            // one-stable-pool premise broke and the gate is no longer driven on it.
+            if (state.retiring && observingPhasesAB && !retiringWarned)
+            {
+                retiringWarned = true;
+                LOG_warn << "premise violated: observed pool retiring mid-phase (server refresh?)"
+                         << " url=" << observedPoolUrl << " activeThreads=" << state.activeThreads
+                         << " numPoolFiles=" << state.numPoolFiles;
+            }
             return state.found;
         }
         return false;
+    };
+
+    // Self-adjudicating failure suffix: macos_9808 needed a 7.6k-line SDK log to tell a gate
+    // regression from a pool swap. retiring/url/files/drops answer that from the gtest line.
+    const auto poolDiag = [&]() -> std::string
+    {
+        return " [retiring=" + std::string(lastObservedState.retiring ? "1" : "0") +
+               "] [numPoolFiles=" + std::to_string(lastObservedState.numPoolFiles) +
+               "] [distressDrops=" +
+               std::to_string(globalMegaTestHooks.wsUploadServerEventHook.getSecondaryDropHits()) +
+               "] [observedPoolUrl=" + observedPoolUrl + "]";
     };
 
     // PHASE A -- engage+ramp: the forged quorum must take the pool ABOVE the base within 30 s
@@ -1062,8 +1099,8 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     ASSERT_TRUE(engaged) << "Gate never engaged above base=" << kDefaultPoolConnLimit
                          << " under a forged full-backpressure quorum within 30 s"
                          << " [maxActiveThreadsSeen=" << maxActiveThreadsSeen
-                         << "] [activeThreads=" << lastObservedState.activeThreads
-                         << "] [numPoolFiles=" << lastObservedState.numPoolFiles << "]";
+                         << "] [activeThreads=" << lastObservedState.activeThreads << "]"
+                         << poolDiag();
 
     // PHASE B -- knee: keep observing; the climb must stop at the synthetic knee (12), never
     // materially above it (one in-flight +1 probe is legal), proving the gain-judged stop far
@@ -1080,11 +1117,16 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     // judged geometric overshoot past the knee is legal before the failed probe retreats to
     // the remembered best. The SETTLE assertions below are the true knee proof.
     EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + 4)
-        << "Gate climbed far past the synthetic knee (gain-judge failed to stop the ramp)";
+        << "Gate climbed far past the synthetic knee (gain-judge failed to stop the ramp)"
+        << poolDiag();
     EXPECT_GE(settleSample, kSyntheticKnee - 1)
-        << "Gate did not reach/hold the synthetic knee [settle=" << settleSample << "]";
+        << "Gate did not reach/hold the synthetic knee [settle=" << settleSample << "]"
+        << poolDiag();
     EXPECT_LE(settleSample, kSyntheticKnee + 1)
-        << "Gate did not settle at the synthetic knee [settle=" << settleSample << "]";
+        << "Gate did not settle at the synthetic knee [settle=" << settleSample << "]"
+        << poolDiag();
+
+    observingPhasesAB = false; // premise warning above is scoped to PHASES A+B
 
     // PHASE C -- trim: clear the seams. The app-throttled link presents no real backpressure
     // (quorum false), so halving trim must return the pool to base within 60 s (3 halvings x
