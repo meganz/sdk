@@ -58,11 +58,16 @@ namespace mega {
         std::function<void(error e)> onDownloadFailed;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCRequest;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptSCChunk;
+        // Called when an HTTP 1xx (e.g. the 103 heartbeat) is received, with the status code and
+        // the receiving request's id. Used to observe server heartbeats from tests (the id lets a
+        // test tell heartbeats on one request from another).
+        std::function<void(int /*statusCode*/, uint32_t /*reqId*/)> onHeartbeatReceived;
         std::function<void(m_off_t&)> onLimitMaxReqSize;
         std::function<void(int&, unsigned)> onHookNumberOfConnections;
         std::function<void(bool&)> onHookDownloadRequestSingleUrl;
         std::function<void(m_time_t&)> onHookResetTransferLastAccessTime;
         std::function<void(std::unique_ptr<HttpReq>&)> interceptLocklessCSRequest;
+        std::function<void(HttpReq*)> interceptCSRequest;
         std::function<
             void(const int /*httpStatus*/, const unsigned /*curlCode*/, const bool /*failed*/)>
             onHttpReqFinish;
@@ -162,11 +167,23 @@ namespace mega {
             globalMegaTestHooks.interceptLocklessCSRequest(pendingLocklessCS); \
     }
 
+#define DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingCS) \
+        { \
+            if (globalMegaTestHooks.interceptCSRequest) \
+                globalMegaTestHooks.interceptCSRequest(pendingCS); \
+        }
+
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED) \
     { \
         if (globalMegaTestHooks.onHttpReqFinish) \
             globalMegaTestHooks.onHttpReqFinish((HTTPSTATUS), (CURLCODE), (FAILED)); \
     }
+
+#define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID) \
+        { \
+            if (globalMegaTestHooks.onHeartbeatReceived) \
+                globalMegaTestHooks.onHeartbeatReceived((STATUSCODE), (REQID)); \
+        }
 
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG) \
     { \
@@ -229,7 +246,9 @@ namespace mega {
 #define DEBUG_TEST_HOOK_DOWNLOAD_REQUEST_SINGLEURL(singleUrlFlag)
 #define DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastAccessTime)
 #define DEBUG_TEST_HOOK_INTERCEPT_LOCKLESS_CS_REQUEST(pendingLocklessCS)
+#define DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingCS)
 #define DEBUG_TEST_HOOK_HTTPREQ_FINISH(HTTPSTATUS, CURLCODE, FAILED)
+#define DEBUG_TEST_HOOK_HEARTBEAT_RECEIVED(STATUSCODE, REQID)
 #define DEBUG_TEST_HOOK_FILEFINGERPRINT_USE_LEGACY_BUGGY_SPARSE_CRC(FLAG)
 #define DEBUG_TEST_HOOK_DEVICE_ID(DEVICEID)
 #define DEBUG_TEST_HOOK_HASHCASH_CALCULATION_STARTED

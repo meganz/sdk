@@ -24,14 +24,17 @@ target_sources(test_unit
     FileFingerprint_test.cpp
     FileFingerprint_CRC_test.cpp
     File_test.cpp
+    FileSubType_test.cpp
     FsNode.cpp
     getDefaultLogName.cpp
     hashcash_test.cpp
+    Heartbeat_test.cpp
     Logging_test.cpp
     MediaProperties_test.cpp
     MegaApi_test.cpp
     NodeKeyValidation_test.cpp
     NodesMatchedByFsid_test.cpp
+    JSON_test.cpp
     JSONNumericParsers_test.cpp
     name_collision_test.cpp
     PayCrypter_test.cpp

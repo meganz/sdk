@@ -55,8 +55,8 @@ void Session::rename(fuse_req_t request,
     { \
 #name, name \
     }
-    static const std::map<std::string, int> names = {ENTRY(RENAME_EXCHANGE),
-                                                     ENTRY(RENAME_NOREPLACE)}; // names
+    static const std::map<std::string, unsigned int> names = {ENTRY(RENAME_EXCHANGE),
+                                                              ENTRY(RENAME_NOREPLACE)}; // names
 #undef ENTRY
 
     MountInodeID parent_(parent);

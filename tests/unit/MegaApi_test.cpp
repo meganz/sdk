@@ -17,9 +17,11 @@
  */
 
 #include <gtest/gtest.h>
+#include <mega/mediafileattribute.h>
 #include <mega/types.h>
 
 #include <atomic>
+#include <cstring>
 #include <megaapi.h>
 #include <megaapi_impl.h>
 #include <memory>
@@ -755,4 +757,81 @@ TEST(MegaApi, ParseUtcOffsetSeconds_RejectsMalformedAndOutOfRange)
     {
         EXPECT_FALSE(parseUtcOffsetSeconds(bad).has_value()) << "should reject: " << bad;
     }
+}
+
+TEST(MegaApi, ListAllNodesFilterByFavouriteRoundTrips)
+{
+    std::unique_ptr<MegaListAllNodesFilter> f{MegaListAllNodesFilter::createInstance()};
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_DISABLED);
+
+    f->byFavourite(MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE);
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_TRUE);
+
+    f->byFavourite(MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+
+    f->byFavourite(999); // invalid -> ignored
+    EXPECT_EQ(f->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+
+    std::unique_ptr<MegaListAllNodesFilter> c{f->copy()};
+    EXPECT_EQ(c->byFavourite(), MegaNodeScopeFilter::BOOL_FILTER_ONLY_FALSE);
+}
+
+// Regression test for SDK-6398: getShortformat() must fold protocol value 0
+// ("exotic format") to the API sentinel -1, just as the sibling getters fold
+// their zero values.
+TEST(MegaNodePrivate, getShortformat_exotic_returns_minus_one)
+{
+    // Build a known file key (second half of the node key).
+    uint32_t fakey[4] = {0x12345678, 0x9ABCDEF0, 0x0FEDCBA9, 0x87654321};
+    std::string nodekey(FILENODEKEYLENGTH, '\0');
+    std::memcpy(nodekey.data() + FILENODEKEYLENGTH / 2, fakey, sizeof(fakey));
+
+    // shortformat == 0 is the protocol "exotic" sentinel: the codec triple is
+    // not in the shortformat table and fa_mediaext carries the real ids.
+    MediaProperties mp;
+    mp.shortformat = 0;
+    const std::string fileattrstring =
+        "0:" + MediaProperties::encodeMediaPropertiesAttributes(mp, fakey);
+
+    MegaNodePrivate node("test.m4a",
+                         MegaNode::TYPE_FILE,
+                         1024,
+                         0,
+                         0,
+                         42,
+                         &nodekey,
+                         &fileattrstring,
+                         nullptr,
+                         nullptr,
+                         INVALID_HANDLE);
+
+    // Protocol 0 must be folded to the API sentinel -1, not exposed as 0.
+    EXPECT_EQ(node.getShortformat(), -1);
+}
+
+TEST(MegaNodePrivate, getShortformat_known_format_returns_index)
+{
+    uint32_t fakey[4] = {0x12345678, 0x9ABCDEF0, 0x0FEDCBA9, 0x87654321};
+    std::string nodekey(FILENODEKEYLENGTH, '\0');
+    std::memcpy(nodekey.data() + FILENODEKEYLENGTH / 2, fakey, sizeof(fakey));
+
+    MediaProperties mp;
+    mp.shortformat = 5; // a valid entry in the shortformat table
+    const std::string fileattrstring =
+        "0:" + MediaProperties::encodeMediaPropertiesAttributes(mp, fakey);
+
+    MegaNodePrivate node("test.mp4",
+                         MegaNode::TYPE_FILE,
+                         1024,
+                         0,
+                         0,
+                         42,
+                         &nodekey,
+                         &fileattrstring,
+                         nullptr,
+                         nullptr,
+                         INVALID_HANDLE);
+
+    EXPECT_EQ(node.getShortformat(), 5);
 }

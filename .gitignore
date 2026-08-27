@@ -1,4 +1,6 @@
 # Editor and IDE stuff
+.idea
+.zed
 *.user
 *~
 .vs
@@ -7,6 +9,7 @@
 
 # clangd index
 .cache
+.clangd
 
 # Building stuff
 build-*Debug
