@@ -31,12 +31,6 @@ PartFetcher::~PartFetcher()
     if (rr)
     {
         closesocket();
-
-        while (!mReadahead.empty())
-        {
-            free(mReadahead.begin()->second.first);
-            mReadahead.erase(mReadahead.begin());
-        }
     }
 }
 
@@ -562,6 +556,12 @@ bool PartFetcher::feedreadahead()
 
     while (remaining)
     {
+        // procdata() below may change the map, so do not rely on 'remaining' alone
+        if (mReadahead.empty())
+        {
+            break;
+        }
+
         auto it = mReadahead.begin();
 
         // make sure that we feed gaplessly
@@ -581,12 +581,11 @@ bool PartFetcher::feedreadahead()
         if ((it->first - (rr->mDataline * RAIDSECTOR)) >= SECTORSPERPART(rr->mNumLines)) break;
 
         m_off_t p = it->first;
-        byte* d = it->second.first;
-        unsigned l = it->second.second;
+        auto d = std::move(it->second.first);
+        m_off_t l = it->second.second;
         mReadahead.erase(it);
 
-        rr->procdata(part, d, p, l);
-        free(d);
+        rr->procdata(part, d.get(), p, l);
 
         remaining--;
     }
@@ -620,7 +619,7 @@ m_off_t PartFetcher::progress() const
     m_off_t totalReadAhead = 0;
     for (auto& it : mReadahead)
     {
-        totalReadAhead += static_cast<m_off_t>(it.second.second);
+        totalReadAhead += it.second.second;
     }
     auto& httpReq = rr->mHttpReqs[part];
     assert(httpReq != nullptr);
@@ -1006,12 +1005,34 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
         auto itReadAhead = mFetcher[part].mReadahead.find(ahead_pos);
         if (itReadAhead == mFetcher[part].mReadahead.end() || itReadAhead->second.second < ahead_len)
         {
-            byte* p = itReadAhead != mFetcher[part].mReadahead.end() ?
-                          static_cast<byte*>(std::realloc(itReadAhead->second.first,
-                                                          static_cast<size_t>(ahead_len))) :
-                          static_cast<byte*>(malloc(static_cast<size_t>(ahead_len)));
-            std::copy(ahead_ptr, ahead_ptr + ahead_len, p);
-            mFetcher[part].mReadahead[ahead_pos] = pair<byte*, unsigned>(p, static_cast<unsigned>(ahead_len));
+            bool failAlloc = false;
+            DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(part, ahead_len, failAlloc);
+            std::unique_ptr<byte[]> buf(
+                failAlloc ? nullptr : new (std::nothrow) byte[static_cast<size_t>(ahead_len)]);
+            if (!buf)
+            {
+                // Out of memory: fail the request instead of parking this source, so that
+                // TransferSlot::doio() destroys the RaidReq and releases the assembly buffers
+                // and the readahead of all six parts. Parking would keep them allocated.
+                LOG_err << "[RaidReq::procdata] Failed to allocate " << ahead_len
+                        << " bytes of readahead for part " << static_cast<int>(part)
+                        << ", failing the request" << " [this = " << this << "]";
+
+                // Result ignored as in PartFetcher::trigger(): it is only false for a CloudRaid
+                // that is not started, and raidReqDoio drives this call.
+                mCloudRaid->setTransferFailure();
+
+                // Returning without accounting for the prefix below is safe only while the
+                // request is failing: processRaidReq and raidproxyio check the failure flag
+                // before more data is read, this part's mInvalid bits stay set so unwritten
+                // bytes are never delivered, and feedreadahead() resynchronises mPartpos.
+                return;
+            }
+
+            std::copy(ahead_ptr, ahead_ptr + ahead_len, buf.get());
+
+            // any previous buffer is released only now: until here it was valid readahead
+            mFetcher[part].mReadahead[ahead_pos] = {std::move(buf), ahead_len};
         }
         // if this is a pure readahead, we're done
         if (!consecutive) return;

@@ -888,7 +888,11 @@ namespace mega {
         // exercise the "created earlier but gone now" guard (e.g. deleted by another session).
         // Returns true to force the folder to be treated as not found.
         std::function<bool(const std::string& folderName)> onFolderUploadSimulateMissing;
-    
+
+        // Force a readahead allocation in RaidReq::procdata to fail, so that the raid request is
+        // failed with API_EAGAIN and retried. Returns true to fail the allocation.
+        std::function<bool(uint8_t part, m_off_t len)> onRaidReadaheadAllocFailure;
+
     private:
         // Helper used by the move ctor/op=; callers MUST already hold the relevant mutex(es).
         // Must mention EVERY field above — missing one leaks on reset.
@@ -956,6 +960,7 @@ namespace mega {
             onLocalFileNodeMacComparison = std::move(other.onLocalFileNodeMacComparison);
             onFolderUploadPutnodesResult = std::move(other.onFolderUploadPutnodesResult);
             onFolderUploadSimulateMissing = std::move(other.onFolderUploadSimulateMissing);
+            onRaidReadaheadAllocFailure = std::move(other.onRaidReadaheadAllocFailure);
         }
     };
 
@@ -1609,6 +1614,19 @@ namespace mega {
             } \
         } \
         while (0)
+
+#define DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(PART, LEN, OUT_FAIL_ALLOC) \
+        do \
+        { \
+            std::function<bool(uint8_t, m_off_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onRaidReadaheadAllocFailure; \
+            } \
+            if (_fn) \
+                (OUT_FAIL_ALLOC) = _fn((PART), (LEN)); \
+        } \
+        while (0)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -1665,6 +1683,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_LOCAL_FILE_NODE_MAC_COMPARISON
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN)
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT)
+#define DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(PART, LEN, OUT_FAIL_ALLOC)
 #endif
 
 } // namespace

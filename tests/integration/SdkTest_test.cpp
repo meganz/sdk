@@ -7035,6 +7035,9 @@ namespace mega
         static inline int countdownTo503{DEFAULT_COUNTDOWN};
         static inline int countdownTo200WithErrCode{DEFAULT_COUNTDOWN};
         static inline int countdownToTimeout{DEFAULT_COUNTDOWN};
+        static inline std::atomic<int> countdownToReadaheadAllocFailure{DEFAULT_COUNTDOWN};
+        static inline std::atomic<unsigned> readaheadAllocCount{0};
+        static inline std::atomic<unsigned> eagainDownloadFailures{0};
         static inline bool isRaid{DEFAULT_BOOL};
         static inline bool isRaidKnown{DEFAULT_BOOL};
         static inline m_off_t testProgressCompleted{DEFAULT_PROGRESS};
@@ -7050,6 +7053,9 @@ namespace mega
             countdownTo503 = DEFAULT_COUNTDOWN;
             countdownTo200WithErrCode = DEFAULT_COUNTDOWN;
             countdownToTimeout = DEFAULT_COUNTDOWN;
+            countdownToReadaheadAllocFailure = DEFAULT_COUNTDOWN;
+            readaheadAllocCount = 0;
+            eagainDownloadFailures = 0;
             isRaid = DEFAULT_BOOL;
             isRaidKnown = DEFAULT_BOOL;
             testProgressCompleted = DEFAULT_PROGRESS;
@@ -7066,6 +7072,27 @@ namespace mega
             tbm->raidLinesPerChunk = tbm->raidLinesPerChunk / divideBy;
             tbm->disableAvoidSmallLastRequest();
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
+        }
+
+        // simulate an out of memory condition in RaidReq::procdata
+        static bool onRaidReadaheadAllocFailure(uint8_t part, m_off_t len)
+        {
+            ++readaheadAllocCount;
+            if (countdownToReadaheadAllocFailure-- != 0)
+                return false;
+
+            LOG_info << "SIMULATING a failed readahead allocation of " << len << " bytes for part "
+                     << static_cast<int>(part);
+            return true;
+        }
+
+        static void onDownloadFailure(error e)
+        {
+            LOG_info << "onDownloadFailure: error = " << e;
+            if (e == API_EAGAIN)
+            {
+                ++eagainDownloadFailures;
+            }
         }
 
         static void onHttpReqFinished(const int httpStatus,
@@ -7494,6 +7521,9 @@ struct CloudraidTestConfig
     unsigned baseRequestCount{0};
     bool hasExpectedFailures{false};
     std::string testName{};
+    // Set to false when the request count is not deterministic, e.g. a transfer that fails and
+    // is retried: only uploads reset pos in Transfer::failed(), so a download resumes instead.
+    bool checkRequestCount{true};
 };
 
 // Helper functions for cloudraid test analysis
@@ -7558,8 +7588,11 @@ inline void verifyCloudraidSuccessExpectations(const CloudraidFailureAnalysis& a
         EXPECT_EQ(analysis.seen403, 1u) << "Expected one HTTP 403 failure but none observed";
     }
 
-    EXPECT_EQ(transferStats.numTotalRequests,
-              config.baseRequestCount + config.maxExpectedFailedRequests);
+    if (config.checkRequestCount)
+    {
+        EXPECT_EQ(transferStats.numTotalRequests,
+                  config.baseRequestCount + config.maxExpectedFailedRequests);
+    }
     EXPECT_EQ(transferStats.numFailedRequests, config.maxExpectedFailedRequests);
     if (transferStats.numFailedRequests > 0)
     {
@@ -7651,8 +7684,11 @@ public:
 
                 EXPECT_GT(transferStats.failedRequestRatio, 0.0);
                 EXPECT_LE(transferStats.failedRequestRatio, 1.0);
-                EXPECT_EQ(transferStats.numTotalRequests,
-                          m_config.baseRequestCount + analysis.totalFailed);
+                if (m_config.checkRequestCount)
+                {
+                    EXPECT_EQ(transferStats.numTotalRequests,
+                              m_config.baseRequestCount + analysis.totalFailed);
+                }
 
                 const bool allUnexpectedAcceptable =
                     (analysis.acceptableUnexpected == analysis.unexpected);
@@ -7891,6 +7927,94 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         []()
         {
             ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
+        });
+
+    CloudraidTestRunner runner{config, logPre};
+    const bool passed = runner.runTestWithRetries(resetAttempt,
+                                                  runDownloadAndWait,
+                                                  onTransferFinish_transferStats,
+                                                  onTransferUpdate_filesize,
+                                                  onTransferUpdate_progress);
+
+    EXPECT_TRUE(passed);
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+/**
+ * @brief TEST_F SdkTestCloudraidTransferWithReadaheadAllocationFailure
+ *
+ * Download a cloudraid file forcing a readahead allocation to fail, which simulates an out of
+ * memory condition (SDK-6468). The raid request must be failed with API_EAGAIN and retried, and
+ * the download must still complete.
+ *
+ */
+TEST_F(SdkTest, SdkTestCloudraidTransferWithReadaheadAllocationFailure)
+{
+    static const auto logPre = getLogPrefix();
+    LOG_info << logPre << "___TEST Cloudraid transfer with a failing readahead allocation___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = scopedToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
+    std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
+
+    const std::string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
+
+    const CloudraidTestConfig config{
+        2, // maxRetries
+        5, // maxAcceptableUnexpectedPerRun
+        0, // maxExpectedFailedRequests - failing the raid request is not an http request failure
+        0, // baseRequestCount - not checked, see checkRequestCount below
+        false, // hasExpectedFailures - No expected failures like 404/403
+        "ReadaheadAllocationFailure", // testName
+        false // checkRequestCount - the request count of the retried download is timing dependent
+    };
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections =
+        ::mega::DebugTestHook::onHookNumberOfConnections;
+    globalMegaTestHooks.onRaidReadaheadAllocFailure =
+        ::mega::DebugTestHook::onRaidReadaheadAllocFailure;
+    globalMegaTestHooks.onHttpReqFinish = DebugTestHook::onHttpReqFinished;
+    globalMegaTestHooks.onDownloadFailed = DebugTestHook::onDownloadFailure;
+#endif
+
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_info << logPre << "For raidTests: client max connections set to 2";
+
+    auto resetAttempt = [this, &filename]()
+    {
+        DebugTestHook::resetValues();
+        // fail the first readahead allocation
+        DebugTestHook::countdownToReadaheadAllocFailure = 0;
+        deleteFile(filename.c_str());
+    };
+
+    auto runDownloadAndWait = CloudraidTestRunner::createDownloadFunction(
+        this,
+        nimported.get(),
+        filename,
+        logPre,
+        []()
+        {
+            ASSERT_GT(DebugTestHook::readaheadAllocCount.load(), 0u)
+                << "No readahead allocation took place, the target path was not covered";
+            ASSERT_LT(DebugTestHook::countdownToReadaheadAllocFailure.load(), 0)
+                << "The simulated readahead allocation failure never fired";
+
+            // must fail the request, not silently drop the data
+            ASSERT_GT(DebugTestHook::eagainDownloadFailures.load(), 0u)
+                << "The raid request was not failed with API_EAGAIN";
         });
 
     CloudraidTestRunner runner{config, logPre};
