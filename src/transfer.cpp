@@ -2929,9 +2929,9 @@ void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committe
     if (transfer->type == PUT)
     {
 #ifdef MEGA_USE_WSUPLOAD
-        transfer->channel = Transfer::Channel::WebSocket;
         if (client->wsEngine())
         {
+            transfer->channel = Transfer::Channel::WebSocket;
             client->wsEngine()->enqueue(*transfer);
             // Respect explicit per-transfer pause and global PUT pause semantics.
             // Support uploads bypass global pause, matching legacy HTTP behavior.
@@ -2946,6 +2946,11 @@ void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committe
             // predictive hold onto the freshly-created WsUploadFile.
             client->wsQuotaOnTransferTargetsAdded(*transfer);
             client->wsQuotaReassertHold(*transfer);
+        }
+        else
+        {
+            LOG_debug << "wsengine is not running, falling back to legacy uploads";
+            transfer->channel = Transfer::Channel::LegacyHTTP;
         }
 #endif
     }

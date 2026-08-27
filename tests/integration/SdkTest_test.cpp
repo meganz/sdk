@@ -14126,6 +14126,217 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
 }
 
 /**
+ * @brief TEST_F WritableFolderUpload
+ *
+ * Uploads a file into a writable folder link from a separate MegaApi instance
+ * logged into the folder link (loginToFolder with authKey). Such a session has
+ * no logged-in user, so with MEGA_USE_WSUPLOAD the WS upload engine never
+ * starts; the upload must be dispatched through the legacy HTTP path instead
+ * of being left queued forever.
+ */
+TEST_F(SdkTest, WritableFolderUpload)
+{
+    LOG_info << "___TEST WritableFolderUpload___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const string baseFolder = "WritableFolderUpload";
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
+
+    // create the folder to be exported as a writable link
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, baseFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folder";
+    MrProper remoteCleanup{[this, baseFolder]()
+                           {
+                               cleanUp(this->megaApi[0].get(), baseFolder);
+                           }};
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // get a writable link to the folder, and its auth key
+    string nodelink = createPublicLink(0,
+                                       remoteBaseNode.get(),
+                                       0,
+                                       maxTimeout,
+                                       false /*isFreeAccount*/,
+                                       true /*writable*/);
+    std::unique_ptr<MegaNode> nexported(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(nexported.get(), nullptr);
+    ASSERT_NE(nexported->getWritableLinkAuthKey(), nullptr);
+    string authKey(nexported->getWritableLinkAuthKey());
+    ASSERT_FALSE(authKey.empty());
+
+    // login to the folder link from a separate, not-logged-in instance
+    MegaApiTestPointer folderApi = newMegaApi(APP_KEY.c_str(),
+                                              megaApiCacheFolder(10).c_str(),
+                                              USER_AGENT.c_str(),
+                                              static_cast<unsigned>(THREADS_PER_MEGACLIENT));
+    ASSERT_EQ(API_OK,
+              asyncRequestLoginToFolder(folderApi.get(), nodelink.c_str(), authKey.c_str())
+                  ->waitForResult())
+        << " Failed to login to writable folder link";
+    ASSERT_EQ(API_OK, asyncRequestFetchnodes(folderApi.get())->waitForResult())
+        << " Failed to fetchnodes on the folder link session";
+
+    std::unique_ptr<MegaNode> linkRootNode(folderApi->getRootNode());
+    ASSERT_NE(linkRootNode.get(), nullptr);
+
+    // upload a small file into the folder link root
+    const fs::path localFilePath = fs::current_path() / "writable_folder_upload.txt";
+    const sdk_test::LocalTempFile localFile(localFilePath, "writable-folder-link-upload");
+
+    TransferTracker uploadTracker(folderApi.get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    folderApi->startUpload(path_u8string(localFilePath),
+                           linkRootNode.get(),
+                           nullptr /*cancelToken*/,
+                           &uploadOptions,
+                           &uploadTracker);
+
+    // bounded wait: a timeout means the upload was never dispatched
+    ASSERT_EQ(API_OK, uploadTracker.waitForResult())
+        << " Upload into the writable folder link did not finish";
+    ASSERT_NE(uploadTracker.resultNodeHandle, UNDEF);
+    std::unique_ptr<MegaNode> uploadedNode(
+        folderApi->getNodeByHandle(uploadTracker.resultNodeHandle));
+    ASSERT_NE(uploadedNode.get(), nullptr) << "Uploaded node not found in the folder link";
+    // the whole file must have made it, not just a node
+    ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(fs::file_size(localFilePath)));
+}
+
+/**
+ * @brief TEST_F WritableFolderUploadSessionResumption
+ *
+ * Queues an upload on a writable folder link session, restarts the session
+ * (dumpSession + local logout + fast login + fetchnodes) while the upload is
+ * still pending, and checks that the resumed upload completes. The resumed
+ * transfer is re-added through TransferList::addtransfer in a session where
+ * the WS upload engine never starts, so it must go through the legacy HTTP
+ * path.
+ */
+TEST_F(SdkTest, WritableFolderUploadSessionResumption)
+{
+    LOG_info << "___TEST WritableFolderUploadSessionResumption___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const string baseFolder = "WritableFolderUploadSessionResumption";
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
+
+    // create the folder to be exported as a writable link
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, baseFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folder";
+    MrProper remoteCleanup{[this, baseFolder]()
+                           {
+                               cleanUp(this->megaApi[0].get(), baseFolder);
+                           }};
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // get a writable link to the folder, and its auth key
+    string nodelink = createPublicLink(0,
+                                       remoteBaseNode.get(),
+                                       0,
+                                       maxTimeout,
+                                       false /*isFreeAccount*/,
+                                       true /*writable*/);
+    std::unique_ptr<MegaNode> nexported(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(nexported.get(), nullptr);
+    ASSERT_NE(nexported->getWritableLinkAuthKey(), nullptr);
+    string authKey(nexported->getWritableLinkAuthKey());
+    ASSERT_FALSE(authKey.empty());
+
+    // login to the folder link from a separate, not-logged-in instance
+    MegaApiTestPointer folderApi = newMegaApi(APP_KEY.c_str(),
+                                              megaApiCacheFolder(11).c_str(),
+                                              USER_AGENT.c_str(),
+                                              static_cast<unsigned>(THREADS_PER_MEGACLIENT));
+    ASSERT_EQ(API_OK,
+              asyncRequestLoginToFolder(folderApi.get(), nodelink.c_str(), authKey.c_str())
+                  ->waitForResult())
+        << " Failed to login to writable folder link";
+    ASSERT_EQ(API_OK, asyncRequestFetchnodes(folderApi.get())->waitForResult())
+        << " Failed to fetchnodes on the folder link session";
+
+    std::unique_ptr<MegaNode> linkRootNode(folderApi->getRootNode());
+    ASSERT_NE(linkRootNode.get(), nullptr);
+
+    // pause uploads so the transfer is deterministically still pending when
+    // the session restarts
+    RequestTracker pauseTracker(folderApi.get());
+    folderApi->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD, &pauseTracker);
+    ASSERT_EQ(API_OK, pauseTracker.waitForResult());
+
+    const fs::path localFilePath = fs::current_path() / "writable_folder_upload_resume.txt";
+    const sdk_test::LocalTempFile localFile(localFilePath, "writable-folder-link-upload-resume");
+
+    TransferTracker uploadTracker(folderApi.get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    folderApi->startUpload(path_u8string(localFilePath),
+                           linkRootNode.get(),
+                           nullptr /*cancelToken*/,
+                           &uploadOptions,
+                           &uploadTracker);
+
+    // wait until the upload is queued (and persisted to the transfer cache)
+    ASSERT_TRUE(WaitFor(
+        [&api = *folderApi]()
+        {
+            std::unique_ptr<MegaTransferList> transfers(
+                api.getTransfers(MegaTransfer::TYPE_UPLOAD));
+            return transfers && transfers->size() == 1;
+        },
+        defaultTimeoutMs))
+        << "Upload did not appear in the transfer queue";
+
+    // restart the folder link session while the upload is pending
+    std::unique_ptr<char[]> session(folderApi->dumpSession());
+    ASSERT_NE(session.get(), nullptr);
+    ASSERT_EQ(API_OK, asyncRequestLocalLogout(folderApi.get())->waitForResult())
+        << " Failed to local logout from the folder link session";
+    ASSERT_EQ(API_OK, asyncRequestFastLogin(folderApi.get(), session.get())->waitForResult())
+        << " Failed to resume the folder link session";
+    ASSERT_EQ(API_OK, asyncRequestFetchnodes(folderApi.get())->waitForResult())
+        << " Failed to fetchnodes on the resumed folder link session";
+
+    // the global transfer pause is not persisted (MegaClient::locallogout resets
+    // xferpaused), but make the precondition for completion explicit
+    RequestTracker unpauseTracker(folderApi.get());
+    folderApi->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD, &unpauseTracker);
+    ASSERT_EQ(API_OK, unpauseTracker.waitForResult());
+
+    // the resumed upload must complete: wait for the uploaded node to appear.
+    // Note: the local logout above tears down the still-queued transfer, so an
+    // onTransferFinish carrying API_EACCESS for this file is expected before the
+    // resume (nothing was sent at that point - TransferSlot stats show 0 requests).
+    // The upload that matters is the one startxfer resumes from the transfer DB.
+    std::unique_ptr<MegaNode> linkRootAfter(folderApi->getRootNode());
+    ASSERT_NE(linkRootAfter.get(), nullptr);
+    const string fileName = path_u8string(localFilePath.filename());
+    std::unique_ptr<MegaNode> uploadedNode;
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            uploadedNode.reset(folderApi->getChildNode(linkRootAfter.get(), fileName.c_str()));
+            return uploadedNode != nullptr;
+        },
+        defaultTimeoutMs))
+        << "Resumed upload did not finish on the folder link session";
+
+    // the whole file must have made it, and nothing may be left queued behind it
+    ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(fs::file_size(localFilePath)));
+    std::unique_ptr<MegaTransferList> remaining(folderApi->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    ASSERT_TRUE(remaining);
+    ASSERT_EQ(remaining->size(), 0) << "Upload queue not drained after the resumed transfer";
+}
+
+/**
  * @brief TEST_F SdkTargetOverwriteTest
  *
  * Testing to upload a file into an inshare with read only privileges.
