@@ -244,7 +244,19 @@ std::string JSON::getname()
             ptr++;
         }
 
-        pos = ptr + 2;
+        if (*ptr != '"')
+        {
+            LOG_err << "Malformed or truncated JSON while parsing name in getname";
+            pos = ptr;
+            return std::string{};
+        }
+
+        pos = ptr + 1;
+
+        if (*pos == ':' || *pos == ',')
+        {
+            pos++;
+        }
     }
 
     return name;
@@ -266,6 +278,12 @@ std::string JSON::getnameWithoutAdvance() const
         {
             name += *ptr;
             ptr++;
+        }
+
+        if (*ptr != '"')
+        {
+            LOG_err << "Malformed or truncated JSON while parsing name in getnameWithoutAdvance";
+            return std::string{};
         }
     }
 
@@ -292,10 +310,16 @@ nameid JSON::getNameidSkipNull(bool skipnullvalues)
             id = (id << 8) + static_cast<nameid>(*ptr++);
         }
 
-        assert(*ptr == '"'); // if either assert fails, check the json syntax, it might be something new/changed
+        if (*ptr != '"')
+        {
+            LOG_err << "Malformed or truncated JSON while parsing name in getNameidSkipNull";
+            pos = ptr;
+            return EOO;
+        }
+
         pos = ptr + 1;
 
-        if (*pos == ':' || *pos == ',' )
+        if (*pos == ':' || *pos == ',')
         {
             pos++;
         }
