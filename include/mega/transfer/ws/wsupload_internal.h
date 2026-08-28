@@ -371,6 +371,17 @@ struct WsConn
     // in-flight chunk log (for resends on drop)
     std::vector<std::pair<WsChunk, ChunkFingerprintMacUpdate>> mChunksInFlight;
 
+    // SDK-5360 (macos_9808 followup2): filenos whose FINAL data THIS connection delivered
+    // (opcode-7 FinalDataIngested, or an opcode-1 ack that brought bytesConfirmed up to size)
+    // and whose one-shot opcode-4 completion frame has NOT arrived yet. A chunk leaves
+    // mChunksInFlight on its ack, but the completion is a separate, later frame, so
+    // mChunksInFlight.empty() alone is not a safe-to-close predicate for a connection.
+    // Maintained under uploadMutex only: appended in WsConn::onmessage, cleared per-file by
+    // WsPool::applyInFlightLocked / purgeFileLocked, cleared wholesale by
+    // retryChunksOnTheWireLocked (the connection is closing). Consumed by the
+    // drain-before-exit phase in WsPool::poolWorkerThread.
+    std::vector<std::uint32_t> mCompletionOwed;
+
     explicit WsConn(WsPool* pool);
     ~WsConn();
 
@@ -438,6 +449,11 @@ struct WsPoolThread
     // (caught by the S12 TSAN battery — WsPool::checkThreads vs poolWorkerThread).
     std::atomic<bool> terminate{false};
     bool terminated{false};
+    // SDK-5360 (macos_9808 followup2): set by WsPool::checkThreads under uploadMutex when the
+    // shed was requested by the Distress clamp, and read by the OWNING worker under uploadMutex
+    // once its main loop has ended. A plain bool is correct here -- unlike `terminate`, which
+    // the sliced backoff sleep polls with the lock released, this flag has no lock-free reader.
+    bool drainBeforeExit{false};
 
     explicit WsPoolThread(WsPool* pool); // defined after WsPool
 
@@ -834,12 +850,15 @@ struct WsPool
     }
 
     void poolWorkerThread(WsPoolThread* th);
-    void checkThreads();
+    // drainShed (SDK-5360 macos_9808 followup2): stamp WsPoolThread::drainBeforeExit on every
+    // worker this call sheds, so each one drains its own connection before the exit close. The
+    // default keeps every pre-existing caller byte-identical.
+    void checkThreads(bool drainShed = false);
 
-    void setPoolNumConn(const unsigned char n)
+    void setPoolNumConn(const unsigned char n, const bool drainShed = false)
     {
         mNumberOfConnections = n;
-        checkThreads();
+        checkThreads(drainShed);
     }
 
     // Release-safe twin of countOpenConnectionsLocked() (which is #ifndef NDEBUG and

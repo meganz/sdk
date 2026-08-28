@@ -207,6 +207,7 @@ bool UploadEngine::Impl::applyRefreshResultForInstance(
     else
     {
         poolMgr.applyRefreshBackoff(e);
+        poolMgr.mPendingDistressClamp.store(false, std::memory_order_release);
     }
     poolMgr.mRefreshing.store(false, std::memory_order_release);
     return true;

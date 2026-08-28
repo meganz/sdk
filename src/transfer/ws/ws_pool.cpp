@@ -694,6 +694,10 @@ void WsPool::retryChunksOnTheWireLocked(WsConn* ws)
     }
     mNumChunksInFlight -= static_cast<int>(ws->mChunksInFlight.size());
     ws->mChunksInFlight.clear();
+    // SDK-5360 (macos_9808 followup2): this connection is going away, so it can no longer be
+    // the one that receives an owed one-shot completion frame. Drop the debt rather than let a
+    // dead connection hold the drain-before-exit phase open.
+    ws->mCompletionOwed.clear();
 }
 
 void WsPool::retryChunkLocked(const WsChunk& chunk)
@@ -822,6 +826,11 @@ void WsPool::purgeFileLocked(const std::uint32_t fileno)
     {
         if (!conn)
             continue;
+        // SDK-5360 (macos_9808 followup2): the file is being unbound/failed, so no connection
+        // still owes its completion frame.
+        conn->mCompletionOwed.erase(
+            std::remove(conn->mCompletionOwed.begin(), conn->mCompletionOwed.end(), fileno),
+            conn->mCompletionOwed.end());
         for (auto it = conn->mChunksInFlight.begin(); it != conn->mChunksInFlight.end();)
         {
             if (it->first.fileno == fileno)
@@ -866,6 +875,14 @@ void WsPool::applyInFlightLocked(const std::uint32_t fileno)
     WsUploadFile* uf = findFile(fileno, *mImpl);
     for (auto& conn: mConns)
     {
+        // SDK-5360 (macos_9808 followup2): the one-shot completion for this file has ARRIVED,
+        // so nobody owes it any more. Cleared across ALL conns of the pool because the
+        // opcode-4 frame may land on a different connection than the one that delivered the
+        // file's final data. WsConn::onmessage calls this before crediting the completion, so
+        // the debt is always cleared exactly once per completion.
+        conn->mCompletionOwed.erase(
+            std::remove(conn->mCompletionOwed.begin(), conn->mCompletionOwed.end(), fileno),
+            conn->mCompletionOwed.end());
         for (auto it = conn->mChunksInFlight.begin(); it != conn->mChunksInFlight.end();)
         {
             if (it->first.fileno == fileno)
@@ -2220,6 +2237,130 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
 #endif
     }
 
+    // SDK-5360 (macos_9808 followup2) drain-before-exit. This worker was shed by the Distress
+    // clamp (WsPoolMgr::applyRefreshedUrls), which only wants the pool's connection COUNT back
+    // at base -- the pool is retiring but still owns files, and nothing about the clamp says
+    // this socket's outstanding work is worthless. Closing right here loses it two ways.
+    // (1) The exit close below requeues this conn's in-flight chunks; their acks then land on a
+    //     dead socket and hit the orphan-ack early-return in onmessage, which by design cannot
+    //     credit them (the purged in-flight record owned the ChunkFingerprintMacUpdate) -- the
+    //     silent byte-shortfall wedge.
+    // (2) A chunk leaves mChunksInFlight on its ack, but a FILE's completion is a separate,
+    //     later, one-shot opcode-4 frame. If this conn delivered a file's final data and closes
+    //     inside that window the completion is dropped with no client re-request -- the
+    //     tail-completion wedge, i.e. a byte-0 re-upload of a fully-uploaded file.
+    // So keep servicing THIS connection only -- no new chunks, no reconnect, no handshake --
+    // until it owes neither an ack nor a completion. Single-writer by construction:
+    // drainBeforeExit is set only by checkThreads(drainShed=true), whose one caller is the
+    // Distress clamp, so every other shed path stays byte-identical.
+    //
+    // v3.1 progress-aware budget. The hold is bounded by ackStallTimeoutDs() of NO PROGRESS --
+    // no inbound frame AND no send progress, which is the shipped "this connection is hung"
+    // judgment (WsPoolMgr::checkPools), env- and hook-overridable exactly as the ack-stall
+    // watchdog is -- plus an absolute cap of 3x that. Deliberately NOT a fixed wall clock:
+    // under an upload cap a conn's in-flight BYTES trickle out at its share of that cap, so
+    // with 12 conns sharing 400 KB/s a single 512 KiB chunk needs ~45 s of steady progress
+    // just to reach the server, and a busy conn legitimately needs longer than one stall
+    // window to be drained. A fixed window cuts it mid-transmission, which is the expensive
+    // side of the trade: draining sends those bytes to the distressed host ONCE, whereas the
+    // requeue the exit close performs sends them TWICE. A conn that has genuinely stopped
+    // moving is still cut after one stall window (reason=stalled), and the cap bounds the
+    // pathological case (reason=budget). Both stamps zero means the conn never progressed at
+    // all; that one is left to the cap. The hold is also cut short by stopping(), by the
+    // connection leaving OPEN, by a force-reconnect request or by a disconnect-epoch bump.
+    // The exit close below is UNCHANGED, so reason=stalled/budget/forced/closed degrade to
+    // precisely the pre-drain teardown.
+    if (th->drainBeforeExit && ws && !mImpl->stopping())
+    {
+        dstime stallDs = mImpl->ackStallTimeoutDs();
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+        DEBUG_TEST_HOOK_WSUPLOAD_ACKSTALL_TIMEOUT_DS(stallDs);
+#endif
+        // Absolute cap: 3x the hung-conn threshold, so both windows follow the same env/hook
+        // knob and a bench or cell that shortens one shortens the other in proportion.
+        const dstime capDs = 3 * stallDs;
+        const dstime drainStartDs = SteadyTime::ds();
+        const char* reason = "idle";
+        bool loudExit = false;
+        LOG_debug << "[WsPool::poolWorkerThread] drain-before-exit: begin [inflight="
+                  << ws->mChunksInFlight.size() << "] [owed=" << ws->mCompletionOwed.size()
+                  << "] [stallDs=" << stallDs << "] [capDs=" << capDs << "] [conn=" << ws.get()
+                  << "] [this = " << this << "]";
+        while (true)
+        {
+            if (mImpl->stopping())
+            {
+                reason = "stopping";
+                break;
+            }
+            if (ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::OPEN)
+            {
+                reason = "closed";
+                break;
+            }
+            if (ws->mChunksInFlight.empty() && ws->mCompletionOwed.empty())
+            {
+                reason = "idle";
+                break;
+            }
+            if (ws->mForceReconnect.load(std::memory_order_relaxed) ||
+                mImpl->disconnectEpoch.load(std::memory_order_acquire) != seenDisconnectEpoch)
+            {
+                reason = "forced";
+                break;
+            }
+            // Progress-aware stall check, mirroring the ack-stall watchdog's own hung-conn
+            // definition: this conn is silent only when BOTH the server's acks and our own
+            // send progress have gone quiet past the window, so max() of the two stamps is
+            // the last progress of any kind. A conn still trickling bytes out under the app
+            // cap keeps stamping mLastSendProgressDs and is NOT cut here. Both stamps zero
+            // means it never progressed at all -- that one is left to the cap below.
+            const dstime nowDs = SteadyTime::ds();
+            const dstime lastProgressDs =
+                std::max(ws->mLastInboundFrameDs.load(std::memory_order_relaxed),
+                         ws->mLastSendProgressDs.load(std::memory_order_relaxed));
+            if (lastProgressDs && SteadyTime::difference(nowDs, lastProgressDs) > stallDs)
+            {
+                reason = "stalled";
+                loudExit = true;
+                break;
+            }
+            if (SteadyTime::difference(nowDs, drainStartDs) > capDs)
+            {
+                reason = "budget";
+                loudExit = true;
+                break;
+            }
+            // throttledByServer() lazily clears mPausedByServerUntil, so it must be evaluated
+            // with lk HELD -- sampled here exactly as the main loop does at its throttle check.
+            const bool throttled = throttledByServer();
+            {
+                ScopedUnlock unlock(lk);
+                ws->curlRecv();
+                if (!throttled)
+                {
+                    ws->curlSend();
+                }
+                SteadyTime::sleep_ds(2);
+            }
+        }
+        const dstime waitedDs = SteadyTime::difference(SteadyTime::ds(), drainStartDs);
+        if (loudExit)
+        {
+            LOG_warn << "[WsPool::poolWorkerThread] drain-before-exit: done [reason=" << reason
+                     << "] [waitedDs=" << waitedDs << "] [inflight=" << ws->mChunksInFlight.size()
+                     << "] [owed=" << ws->mCompletionOwed.size() << "] [conn=" << ws.get()
+                     << "] [this = " << this << "]";
+        }
+        else
+        {
+            LOG_debug << "[WsPool::poolWorkerThread] drain-before-exit: done [reason=" << reason
+                      << "] [waitedDs=" << waitedDs << "] [inflight=" << ws->mChunksInFlight.size()
+                      << "] [owed=" << ws->mCompletionOwed.size() << "] [conn=" << ws.get()
+                      << "] [this = " << this << "]";
+        }
+    }
+
     if (ws && ws->readyState.load(std::memory_order_relaxed) != WsConn::ReadyState::CLOSED)
     {
         ScopedUnlock unlock(lk);
@@ -2231,7 +2372,7 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
               << "] [this = " << this << "]";
 }
 
-void WsPool::checkThreads()
+void WsPool::checkThreads(const bool drainShed)
 {
     while (mActiveThreads.size() < mNumberOfConnections)
     {
@@ -2240,6 +2381,14 @@ void WsPool::checkThreads()
     }
     while (mActiveThreads.size() > mNumberOfConnections)
     {
+        // SDK-5360 (macos_9808 followup2): tell the worker WHY it is being shed. Only the
+        // Distress clamp (WsPoolMgr::applyRefreshedUrls) passes drainShed=true; every other
+        // caller -- goodput-gate retreat/trim, the POOLCONNKEEPALIVE idle trim, stop()/start(),
+        // setMaxConnections, pinned invalidation, the ctor/kick paths -- takes the default and
+        // is byte-identical. Published BEFORE `terminate` and under uploadMutex, which the
+        // worker also holds at its loop condition, so the worker can never see terminate=true
+        // without this flag.
+        mActiveThreads.back()->drainBeforeExit = drainShed;
         mActiveThreads.back()->terminate = true;
         auto thr = std::move(mActiveThreads.back());
         mActiveThreads.pop_back();

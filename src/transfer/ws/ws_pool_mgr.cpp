@@ -1061,7 +1061,7 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
 // closure additionally re-validates wsEngine() identity under uploadMutex to guard against
 // engine-replacement mid-flight (race scenario: an engine instance is replaced while a
 // refresh-pools USC reply is in-flight).
-void WsPoolMgr::refreshPools()
+void WsPoolMgr::refreshPools(const bool fromDistress)
 {
     if (!mImpl)
         return;
@@ -1101,6 +1101,10 @@ void WsPoolMgr::refreshPools()
     // refresh slip in behind it. The fail-path exponential backoff (mNextRefreshAttempt)
     // still composes on top; whichever gate is longer wins.
     mLastRefreshStartedDs = now;
+    if (fromDistress)
+    {
+        mPendingDistressClamp.store(true, std::memory_order_release);
+    }
     // Count ADMITTED refreshes (past the throttle/backoff/latch gates), i.e. the ones that
     // actually launch a USC round-trip and can replace pools. This is the "refresh volume"
     // that W1/N4 correlated with peak RSS; surfaced per run so the bench can gate HR54 on
@@ -1161,6 +1165,7 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
     if (apiSizeClasses.empty())
     {
         LOG_warn << "WsUpload: USC returned no upload pools";
+        mPendingDistressClamp.store(false, std::memory_order_release);
         return;
     }
 
@@ -1249,6 +1254,41 @@ void WsPoolMgr::applyRefreshedUrls(std::vector<std::pair<std::string, m_off_t>> 
         }
     }
 
+    // SDK-5360 (Jenkins macos_9808): a pool left RETIRING while it still owns work keeps draining
+    // its bound files (nextEligible reserves them, wsupload_engine.cpp nextEligible) but
+    // shouldScaleUp excludes it from BOTH goodput-gate directions, and unlike markPoolRetiring the
+    // direct mRetiring write above never lowers its conn level -- so the level the gate earned
+    // above base stranded on the endpoint whose Distress asked us to leave it (10 conns / 27 s
+    // observed). When the refresh was launched by that Distress, return such pools to base -- the
+    // policy Impl::start() already applies to a retiring-with-work pool. Scoped to Distress on
+    // purpose: refreshes driven by handshake failures under packet loss must keep the pool's
+    // loss-boost while it drains. Not in the marking loop: a pool marked there may be un-retired by
+    // an exact match.
+    // followup2: the shed workers do NOT close immediately. drainShed=true stamps each of them
+    // so it first drains its OWN connection (drain-before-exit in WsPool::poolWorkerThread)
+    // instead of requeueing its in-flight chunks onto a dead socket and dropping any one-shot
+    // opcode-4 completion frame it still owes -- the two ways the v1 clamp lost work under
+    // packet loss. This is the ONLY call site that passes drainShed=true, so every other shed
+    // path (gate retreat/trim, POOLCONNKEEPALIVE, stop()/start(), setMaxConnections, pinned
+    // invalidation) keeps its pre-existing teardown exactly.
+    if (mPendingDistressClamp.exchange(false, std::memory_order_acq_rel))
+    {
+        for (auto& p: mPools)
+        {
+            if (p && p->mRetiring && !poolHasNoWork(*p) &&
+                p->mNumberOfConnections > mImpl->poolConnectionLimit())
+            {
+                LOG_info
+                    << "WsUpload: distress refresh: clamping retiring-but-draining pool to base"
+                    << " [url=" << p->mUrl
+                    << "] [conns=" << static_cast<unsigned>(p->mNumberOfConnections) << " -> "
+                    << static_cast<unsigned>(mImpl->poolConnectionLimit())
+                    << "] [files=" << p->mNumPoolFiles << "] [inflight=" << p->mNumChunksInFlight
+                    << "]";
+                p->setPoolNumConn(mImpl->poolConnectionLimit(), /*drainShed=*/true);
+            }
+        }
+    }
     bumpAllPools(now);
     LOG_info << "WsUpload: refreshed pools (" << apiSizeClasses.size() << " size classes)";
 }

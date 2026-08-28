@@ -771,6 +771,23 @@ struct ChunkResponse
         return;
     }
 
+    // SDK-5360 (macos_9808 followup2): mark this connection as owing owedFileno's one-shot
+    // opcode-4 completion frame. Idempotent; the vector holds at most one entry per file this
+    // connection finished, so the linear scan is over a handful of elements (hand-rolled rather
+    // than std::find so this TU needs no new include). The caller holds uploadMutex -- the only
+    // lock mCompletionOwed is ever touched under.
+    const auto noteCompletionOwed = [this](const std::uint32_t owedFileno)
+    {
+        for (const std::uint32_t owed: mCompletionOwed)
+        {
+            if (owed == owedFileno)
+            {
+                return;
+            }
+        }
+        mCompletionOwed.push_back(owedFileno);
+    };
+
     switch (event)
     {
         case WsApiServerEvent::ChunkIngested: // non-final
@@ -814,6 +831,13 @@ struct ChunkResponse
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
                 if (handleBytesConfirmedOverflow(uf))
                     break;
+                // SDK-5360 (macos_9808 followup2): a FINAL chunk can be acked with opcode 1,
+                // not only opcode 7. If this credit is what made the file completion-pending,
+                // this connection now owes its completion frame just as it would on opcode 7.
+                if (uf->completionWedgeCandidateLocked())
+                {
+                    noteCompletionOwed(response->fileno);
+                }
             }
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
@@ -851,6 +875,13 @@ struct ChunkResponse
                 if (handleBytesConfirmedOverflow(uf))
                     break;
             }
+            // SDK-5360 (macos_9808 followup2): THIS connection delivered the file's final data.
+            // The server's one-shot opcode-4 completion follows on a SEPARATE frame, so record
+            // the debt: closing this connection before it arrives loses the completion with no
+            // client re-request. Recorded whether or not the final frame carried bytes -- the
+            // opcode is what makes the completion imminent. Cleared by applyInFlightLocked when
+            // the completion lands, or by purgeFileLocked if the file is unbound/failed first.
+            noteCompletionOwed(response->fileno);
             if (mPool->mImpl->mCb.onProgress)
                 mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
@@ -979,7 +1010,7 @@ struct ChunkResponse
                 << "[WsConn::onmessage] response->event == 5 distress -> server requested pool "
                    "refresh -> refresh pools -> mPool->mImpl->poolMgr.refreshPools() [this = "
                 << this << "]";
-            mPool->mImpl->poolMgr.refreshPools();
+            mPool->mImpl->poolMgr.refreshPools(/*fromDistress=*/true);
             break;
 
         case WsApiServerEvent::Throttle:
