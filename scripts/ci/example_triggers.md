@@ -39,6 +39,14 @@ worker is single-tenant, so no explicit pin needed.
 Hits: all OSes. (Multi-second gate-trajectory assertions; macOS is the platform where the
 server-distress race that broke it showed up first — macos_9808.)
 
+## Distress-rotation trim stress n=15 (HR43 timing cell)
+
+    trigger compilation --gtest_filter=SdkWsUploadTest.DistressRotationTrimsRetiringPoolToBase --gtest_repeat=15
+
+Hits: all OSes. (Injects its own Distress (`Modify 1 → 5`) after the 30 s refresh throttle and
+asserts the retiring-but-draining pool is clamped back to base within 5 s — the macos_9808
+product gap. Fails on any tree without the distress-scoped clamp.)
+
 ## MN smoke n=5 ONE batch
 
     trigger compilation --gtest_filter=SdkWsUploadTest.MassNotify --gtest_repeat=5
