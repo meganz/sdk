@@ -6836,7 +6836,8 @@ TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
             (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
         });
     // F10 discipline: ALL hook installs/clears take the hooks mutex (product-side reads
-    // are guarded and always-ticking).
+    // are guarded and always-ticking). Extended (SDK-5360 macos_9808 followup2) to clear the
+    // server-event rule armed just below on EVERY exit path, assert failure included.
     auto resetWsHooks = makeScopedDestructor(
         []()
         {
@@ -6844,7 +6845,16 @@ TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
             globalMegaTestHooks.onWsHandshake = {};
             globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
             globalMegaTestHooks.onWsHandshakeFailureCandidateVeto = {};
+            globalMegaTestHooks.wsUploadServerEventHook.reset();
         });
+
+    // Drop GENUINE server Distress for the whole cell (mirrors the arm in
+    // DistressRotationTrimsRetiringPoolToBase). F1: a USC reply mints a FRESH per-reply session
+    // token, so every admitted refresh rotates the URL and leaves every busy pool mRetiring --
+    // that would retire the observed pool mid-trajectory and fail this cell for a reason
+    // unrelated to the escalation window it guards. This cell arms no primary rule, so the
+    // secondary drop is the only server-event configuration in force.
+    globalMegaTestHooks.wsUploadServerEventHook.configureSecondaryDrop(5 /*Distress*/);
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);

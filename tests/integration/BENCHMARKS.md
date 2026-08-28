@@ -34,6 +34,13 @@ Tests whose failure/flake usually indicates a real bug, not infra noise.
   It drops server event=5 Distress for its duration — macos_9808 failed (settle 10 vs 11) because a
   genuine Distress rotated the size-class URL mid-ramp, retired the observed pool and silenced the
   gate (`ws_pool_mgr.cpp:390`/`:1174`).
+- **Timing cell (HR43)** — `SdkWsUploadTest.EscalationWindowNotPerpetuallyResetByNullCandidate`
+  (~4–6 min): judges the sustained-handshake-failure escalation gate across up to 6 gate
+  evaluations / 240 s of reconnect backoff, so run it ×15 under `taskset -c 0 nice -n 19` and
+  count `[ OK ]` lines per iteration. Like both gate cells it drops server event=5 Distress for
+  its duration (`configureSecondaryDrop(5)`) — a genuine Distress rotates the session URL and
+  leaves the observed pool `mRetiring` mid-trajectory, failing the cell for a reason unrelated to
+  the escalation window it guards.
 - **Timing cell (HR43)** — `SdkWsUploadTest.DistressRotationTrimsRetiringPoolToBase` (~4 min,
   worst ~8 min): judges the same gate machinery across bounded `second_timer` poll loops, so run
   it ×15 under `taskset -c 0 nice -n 19` and count `[ OK ]` lines per iteration. Unlike the gate
