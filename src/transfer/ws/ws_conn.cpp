@@ -415,7 +415,7 @@ void WsConn::closeWS()
 #ifndef NDEBUG
     if (hadPartialFrame)
     {
-        ++mPartialFrameTornDownCount;
+        mPartialFrameTornDownCount.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
     resetBufferedSendState();
@@ -554,7 +554,7 @@ void WsConn::curlRecv()
             else
             {
                 // Count CURLE_AGAIN on recv (per-conn).
-                ++mCurlAgainRecvCount;
+                mCurlAgainRecvCount.fetch_add(1, std::memory_order_relaxed);
             }
 #endif
             WSUPLOAD_TRACE << "[WsConn::curlRecv] res(=" << res
@@ -793,14 +793,16 @@ struct ChunkResponse
         case WsApiServerEvent::ChunkIngested: // non-final
 #ifndef NDEBUG
             // Throttle-recovery latency = pause-start to first chunk-ack on this conn.
-            if (mPauseStartedAtMs)
+            // F07: relaxed atomics -- single writer (this conn's worker), telemetry only.
+            if (const dstime pauseStartedAtMs = mPauseStartedAtMs.load(std::memory_order_relaxed))
             {
-                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - mPauseStartedAtMs;
+                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - pauseStartedAtMs;
                 const auto deltaMs = static_cast<std::uint64_t>(dsToMs(deltaDs));
-                ++mThrottleRecoveryAckSamples;
-                mThrottleRecoveryAckTotalMs += deltaMs;
-                if (deltaMs > mThrottleRecoveryAckMaxMs) mThrottleRecoveryAckMaxMs = deltaMs;
-                mPauseStartedAtMs = 0;
+                mThrottleRecoveryAckSamples.fetch_add(1, std::memory_order_relaxed);
+                mThrottleRecoveryAckTotalMs.fetch_add(deltaMs, std::memory_order_relaxed);
+                if (deltaMs > mThrottleRecoveryAckMaxMs.load(std::memory_order_relaxed))
+                    mThrottleRecoveryAckMaxMs.store(deltaMs, std::memory_order_relaxed);
+                mPauseStartedAtMs.store(0, std::memory_order_relaxed);
             }
 #endif
             WSUPLOAD_TRACE
@@ -1019,7 +1021,8 @@ struct ChunkResponse
 #ifndef NDEBUG
             // Tag opcode=6 in code-counts and anchor pause start for recovery latency.
             if (mPool) ++mPool->mThrottleEventCodeCounts[6];
-            mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
+            mPauseStartedAtMs.store(static_cast<dstime>(SteadyTime::ds()),
+                                    std::memory_order_relaxed);
 #endif
             // Release-safe bench-framework throttle counters. Relaxed memory
             // order — these are pure accumulators read at iter boundaries by
@@ -1181,7 +1184,8 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
             ws->mLastSendProgressDs.store(SteadyTime::ds(), std::memory_order_relaxed);
 #ifndef NDEBUG
         // E-3: accumulate the bytes curl_ws_send accepted on this conn.
-        ws->mTotalCurlWsSendAcceptedBytes += static_cast<std::uint64_t>(sent);
+        ws->mTotalCurlWsSendAcceptedBytes.fetch_add(static_cast<std::uint64_t>(sent),
+                                                    std::memory_order_relaxed);
 #endif
         if (mSendPos == mDataLen)
         {
@@ -1216,7 +1220,7 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     else
     {
         // Count CURLE_AGAIN on send (per-conn).
-        ++ws->mCurlAgainSendCount;
+        ws->mCurlAgainSendCount.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
     WSUPLOAD_TRACE << "[WsBuf::sendWS] res(=" << res << ") != CURLE_OK -> return false [this = " << this

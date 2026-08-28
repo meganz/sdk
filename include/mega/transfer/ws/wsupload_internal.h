@@ -279,24 +279,36 @@ struct WsConn
     }
 
 #ifndef NDEBUG
+    // SDK-5360 followup1 TSAN family F07. Every counter below is written by the OWNING pool
+    // worker from curlRecv()/curlSend()/WsBuf::sendWS -- i.e. with uploadMutex RELEASED
+    // (ScopedUnlock around the blocking cURL calls) -- while
+    // WsPool::addWsUploadStatsForTesting reads them from the engine run thread UNDER
+    // uploadMutex. The lock orders nothing here, so every plain read/write was a data race.
+    // Made std::atomic with RELAXED ordering throughout: these are pure telemetry values,
+    // never synchronisation signals, so relaxed adds no barrier on x86/ARM64 -- the same
+    // discipline already applied to readyState / mForceReconnect / mLastInboundFrameDs /
+    // mLastSendProgressDs / mBackpressured. Each counter has exactly ONE writer thread (the
+    // conn's own worker), so a plain load/compare/store high-water update is race-free even
+    // though it is not a single atomic read-modify-write.
+    //
     // Send-side counters (per-connection). Aggregated to the pool
     // by WsPool::addWsUploadStatsForTesting.
-    std::uint64_t mCurlAgainSendCount{0};
-    std::uint64_t mCurlAgainRecvCount{0};
+    std::atomic<std::uint64_t> mCurlAgainSendCount{0};
+    std::atomic<std::uint64_t> mCurlAgainRecvCount{0};
     // E-3: Σ bytes curl_ws_send accepted on this connection (incremented in
     // WsBuf::sendWS on the CURLE_OK branch). Surfaced via WsUploadStatsForTesting
     // so a deterministic force-close test can measure whole-chunk re-send waste.
-    std::uint64_t mTotalCurlWsSendAcceptedBytes{0};
+    std::atomic<std::uint64_t> mTotalCurlWsSendAcceptedBytes{0};
     // # closeWS() calls that ran while a buffer held a live partial frame (fix #6).
-    std::uint64_t mPartialFrameTornDownCount{0};
-    int mBufferedAmountHighWater{0};
-    unsigned mChunksInFlightHighWater{0};
+    std::atomic<std::uint64_t> mPartialFrameTornDownCount{0};
+    std::atomic<int> mBufferedAmountHighWater{0};
+    std::atomic<unsigned> mChunksInFlightHighWater{0};
     // Throttle-recovery telemetry (per-connection). Set on event=6 receipt,
     // sampled on event=1 chunk-ack to compute pause-to-first-ack latency.
-    dstime mPauseStartedAtMs{0};
-    std::uint64_t mThrottleRecoveryAckSamples{0};
-    std::uint64_t mThrottleRecoveryAckTotalMs{0};
-    std::uint64_t mThrottleRecoveryAckMaxMs{0};
+    std::atomic<dstime> mPauseStartedAtMs{0};
+    std::atomic<std::uint64_t> mThrottleRecoveryAckSamples{0};
+    std::atomic<std::uint64_t> mThrottleRecoveryAckTotalMs{0};
+    std::atomic<std::uint64_t> mThrottleRecoveryAckMaxMs{0};
 #endif
 
     enum class ReadyState : std::uint8_t
@@ -430,9 +442,10 @@ struct WsConn
         mBufs[buf].add(data, len);
         bufferedAmount += len;
 #ifndef NDEBUG
-        // Track per-conn buffered-bytes high-water.
-        if (bufferedAmount > mBufferedAmountHighWater)
-            mBufferedAmountHighWater = bufferedAmount;
+        // Track per-conn buffered-bytes high-water. Single writer (this conn's worker), so the
+        // load/compare/store pair needs no RMW; relaxed because it is a value, not a signal.
+        if (bufferedAmount > mBufferedAmountHighWater.load(std::memory_order_relaxed))
+            mBufferedAmountHighWater.store(bufferedAmount, std::memory_order_relaxed);
 #endif
         WSUPLOAD_TRACE << "[WsConn::senddata] END [bufferedAmount=" << bufferedAmount
                   << "] [this = " << this << "]";

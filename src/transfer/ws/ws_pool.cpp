@@ -230,21 +230,30 @@ void WsPool::addWsUploadStatsForTesting(UploadEngine::WsUploadStatsForTesting& o
     {
         if (!c)
             continue;
-        out.curlAgainSendCount += c->mCurlAgainSendCount;
-        out.curlAgainRecvCount += c->mCurlAgainRecvCount;
-        out.totalCurlWsSendAcceptedBytes += c->mTotalCurlWsSendAcceptedBytes;
-        out.partialFrameTornDownCount += c->mPartialFrameTornDownCount;
-        if (static_cast<std::uint64_t>(c->mBufferedAmountHighWater) > out.bufferedAmountHighWater)
-            out.bufferedAmountHighWater =
-                static_cast<std::uint64_t>(c->mBufferedAmountHighWater);
-        if (static_cast<std::uint64_t>(c->mChunksInFlightHighWater) > out.chunksInFlightHighWater)
-            out.chunksInFlightHighWater =
-                static_cast<std::uint64_t>(c->mChunksInFlightHighWater);
+        // F07: these per-conn Debug counters are written by the owning worker with uploadMutex
+        // RELEASED, so they are relaxed atomics; read them as such here.
+        out.curlAgainSendCount += c->mCurlAgainSendCount.load(std::memory_order_relaxed);
+        out.curlAgainRecvCount += c->mCurlAgainRecvCount.load(std::memory_order_relaxed);
+        out.totalCurlWsSendAcceptedBytes +=
+            c->mTotalCurlWsSendAcceptedBytes.load(std::memory_order_relaxed);
+        out.partialFrameTornDownCount +=
+            c->mPartialFrameTornDownCount.load(std::memory_order_relaxed);
+        const auto bufferedHighWater =
+            static_cast<std::uint64_t>(c->mBufferedAmountHighWater.load(std::memory_order_relaxed));
+        if (bufferedHighWater > out.bufferedAmountHighWater)
+            out.bufferedAmountHighWater = bufferedHighWater;
+        const auto inFlightHighWater =
+            static_cast<std::uint64_t>(c->mChunksInFlightHighWater.load(std::memory_order_relaxed));
+        if (inFlightHighWater > out.chunksInFlightHighWater)
+            out.chunksInFlightHighWater = inFlightHighWater;
         // Per-conn throttle-recovery aggregates.
-        out.throttleRecoveryAckSamples += c->mThrottleRecoveryAckSamples;
-        out.throttleRecoveryAckTotalMs += c->mThrottleRecoveryAckTotalMs;
-        if (c->mThrottleRecoveryAckMaxMs > out.throttleRecoveryAckMaxMs)
-            out.throttleRecoveryAckMaxMs = c->mThrottleRecoveryAckMaxMs;
+        out.throttleRecoveryAckSamples +=
+            c->mThrottleRecoveryAckSamples.load(std::memory_order_relaxed);
+        out.throttleRecoveryAckTotalMs +=
+            c->mThrottleRecoveryAckTotalMs.load(std::memory_order_relaxed);
+        const auto throttleAckMaxMs = c->mThrottleRecoveryAckMaxMs.load(std::memory_order_relaxed);
+        if (throttleAckMaxMs > out.throttleRecoveryAckMaxMs)
+            out.throttleRecoveryAckMaxMs = throttleAckMaxMs;
     }
     // Peak concurrent in-flight connections, max across pools = the ACTUALLY-USED
     // flow count (read of an existing locked counter; test-stats path only).
@@ -1111,9 +1120,12 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
         {
             recordFirstByteSentLocked(*uf);
         }
-        // Per-conn chunks-in-flight high-water.
-        if (ws->mChunksInFlight.size() > ws->mChunksInFlightHighWater)
-            ws->mChunksInFlightHighWater = static_cast<unsigned>(ws->mChunksInFlight.size());
+        // Per-conn chunks-in-flight high-water. Single writer (this conn's worker), so the
+        // load/compare/store pair needs no RMW; relaxed because it is a value, not a signal.
+        if (ws->mChunksInFlight.size() >
+            ws->mChunksInFlightHighWater.load(std::memory_order_relaxed))
+            ws->mChunksInFlightHighWater.store(static_cast<unsigned>(ws->mChunksInFlight.size()),
+                                               std::memory_order_relaxed);
 #endif
         uf->onRequestSent();
         // SDK-6600 wire observer: every frame handed to the transport (fresh, resent and the
@@ -2085,7 +2097,9 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
             // Sample simultaneous throttled conns at throttle wait point.
             {
                 unsigned simul = 0;
-                for (const auto* c: mConns) if (c && c->mPauseStartedAtMs) ++simul;
+                for (const auto* c: mConns)
+                    if (c && c->mPauseStartedAtMs.load(std::memory_order_relaxed))
+                        ++simul;
                 ++mSimultaneousThrottledConnsSamples;
                 mSimultaneousThrottledConnsSum += simul;
                 if (simul > mSimultaneousThrottledConnsMax) mSimultaneousThrottledConnsMax = simul;
