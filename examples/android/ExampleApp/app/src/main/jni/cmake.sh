@@ -61,7 +61,8 @@ for ABI in ${BUILD_ARCHS}; do
 
     BUILD_DIR=build-dir/${ABI}
     LIB_OUTPUT_DIR=../jniLibs/${ABI}
-    mkdir -p "${LIB_OUTPUT_DIR}"
+    JAVA_OUTPUT_DIR=../java/nz/mega/sdk
+    mkdir -p "${LIB_OUTPUT_DIR}" "${JAVA_OUTPUT_DIR}"
 
     echo "* Configuring MEGA SDK - ${ABI}"
 
@@ -76,7 +77,7 @@ for ABI in ${BUILD_ARCHS}; do
     cmake --build "${BUILD_DIR}" -j "${JOBS}" &>>${LOG_FILE}
 
     cp -fv ${BUILD_DIR}/bindings/java/libmega.so ${LIB_OUTPUT_DIR} &>>${LOG_FILE}
-    cp -fv ${BUILD_DIR}/bindings/java/nz/mega/sdk/*.java ../java/nz/mega/sdk &>>${LOG_FILE}
+    cp -fv ${BUILD_DIR}/bindings/java/nz/mega/sdk/*.java ${JAVA_OUTPUT_DIR} &>>${LOG_FILE}
 
     ${STRIP_TOOL} "../jniLibs/${ABI}/libmega.so" &>> ${LOG_FILE}
 
