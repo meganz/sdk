@@ -115,6 +115,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
 
+// stale-data timeout for an active putfa (ds) - same window as TransferSlot::XFERTIMEOUT
+const dstime MegaClient::PUTFATIMEOUT = 600;
+
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
 const char* const MegaClient::SYNCDEBRISFOLDERNAME = "SyncDebris";
@@ -2461,6 +2464,21 @@ void MegaClient::exec()
         if (activefa.size())
         {
             TransferDbCommitter committer(tctable);
+
+            // moves an active putfa back to the queue, to be retried after backoff
+            auto retryfa = [this](list<shared_ptr<HttpReqFA>>::iterator it)
+            {
+                app->notify_network_activity(NetworkActivityChannel::CS,
+                                             NetworkActivityType::REQUEST_ERROR,
+                                             API_EFAILED);
+                shared_ptr<HttpReqFA> fa = std::move(*it);
+                activefa.erase(it);
+                fa->status = REQ_READY;
+                queuedfa.push_back(std::move(fa));
+                btpfa.backoff();
+                faretrying = true;
+            };
+
             auto curfa = activefa.begin();
             while (curfa != activefa.end())
             {
@@ -2573,14 +2591,7 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute. Will retry after backoff";
-                        app->notify_network_activity(NetworkActivityChannel::CS,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     API_EFAILED);
-                        activefa.erase(erasePos);
-                        fa->status = REQ_READY;
-                        queuedfa.push_back(fa);
-                        btpfa.backoff();
-                        faretrying = true;
+                        retryfa(erasePos);
                         break;
 
                     case REQ_INFLIGHT:
@@ -2595,13 +2606,28 @@ void MegaClient::exec()
                                     // this also removes it from slots and fileAttributesUploading
                                     activefa.erase(erasePos);
                                     uploadFAPtr->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                                    break;
                                 }
                             }
                             else
                             {
                                 LOG_debug << "activefa for " << fa->th.uploadHandle() << " has been orphaned, discarding";
                                 activefa.erase(erasePos);
+                                break;
                             }
+                        }
+
+                        // stale-data watchdog: a request whose connection died silently (no curl
+                        // completion ever arrives) would otherwise stay here for ever, holding one
+                        // of the MAXPUTFA slots. Once every slot is stuck, queuedfa grows past
+                        // MAXQUEUEDFA and dispatchTransfers() stops all uploads for good.
+                        if (EVER(fa->lastdata) && Waiter::ds >= fa->lastdata + PUTFATIMEOUT)
+                        {
+                            LOG_warn << "Timeout setting file attribute: no data moved for "
+                                     << (PUTFATIMEOUT / 10) << " seconds - " << fa->th
+                                     << ". Will retry after backoff";
+                            fa->disconnect(); // frees the connection; retryfa frees the slot
+                            retryfa(erasePos);
                         }
                         break;
 
@@ -3884,6 +3910,24 @@ int MegaClient::preparewait()
         if (faretrying)
         {
             btpfa.update(&nds);
+        }
+
+        // detect stuck file attribute puts
+        for (const auto& fa: activefa)
+        {
+            if (fa->status == REQ_INFLIGHT && EVER(fa->lastdata))
+            {
+                dstime timeout = fa->lastdata + PUTFATIMEOUT;
+
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
         }
 
         // retry failed file attribute gets
