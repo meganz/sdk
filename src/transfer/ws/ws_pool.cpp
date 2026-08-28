@@ -2168,13 +2168,22 @@ void WsPool::poolWorkerThread(WsPoolThread* th)
         // (0-2 ms measured), converting every accrued byte to wire bytes exactly once.
         // Guards: capped-mode only (uncapped byte-identical); !mPinned (pinned churn risks
         // invalidatePinnedSessionUrl + InvalidPinned* failover timing); in-flight must be empty
-        // (a conn awaiting acks is the ack-stall watchdog's jurisdiction — 45 s — not ours);
+        // (a conn awaiting acks is the ack-stall watchdog's jurisdiction — 45 s — not ours) and
+        // the conn must owe no completion (mCompletionOwed, see the guard below);
         // pool must have work (idle pools are POOLCONNKEEPALIVE's business). Threshold must
         // stay under kBudgetWaiterStaleDs (10 s): the reconnect is sub-second on success, so
         // the pool's budget-FIFO ticket survives (re-ask cadence <=1 s).
+        // SDK-5360 (macos_9808 followup2): a conn that owes a file's one-shot opcode-4 completion
+        // is NOT idle. The opcode-7 ack has just emptied mChunksInFlight and the send side has been
+        // idle since the final bytes left, so this predicate fired on the very next loop pass and
+        // closed the socket the completion was about to arrive on (~1 s later) -- attributed to
+        // the millisecond in both loss5 arms; every such loss is a 60 s tail-completion wedge and
+        // a byte-0 restart. mCompletionOwed clears on the completion or on purgeFileLocked, so the
+        // hold is bounded by the tail watchdog and touches only the conn that carried the final
+        // data.
         if (mImpl->mIdleRetire && mImpl->mMaxUploadSpeed > 0 && !mPinned &&
             ws->readyState.load(std::memory_order_relaxed) == WsConn::ReadyState::OPEN &&
-            ws->mChunksInFlight.empty())
+            ws->mChunksInFlight.empty() && ws->mCompletionOwed.empty())
         {
             const bool poolHasWork = mNumPoolFiles || mUploadingFile || !mToResend.empty();
             // S16 R1 constraint: two-sided idle — inbound freshness does not prove a live
