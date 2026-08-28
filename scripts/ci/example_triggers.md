@@ -49,7 +49,7 @@ product gap. Fails on any tree without the distress-scoped clamp.)
 
 ## MN smoke n=5 ONE batch
 
-    trigger compilation --gtest_filter=SdkWsUploadTest.MassNotify --gtest_repeat=5
+    trigger compilation --gtest_filter=SyncTest.BasicSync_MassNotifyFromLocalFolderTree --gtest_repeat=5
 
 Hits: all OSes. Runs the MassNotify cell five times to catch livelock
 regressions.
