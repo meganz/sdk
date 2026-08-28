@@ -12296,6 +12296,20 @@ public class MegaApiJava {
     }
 
     /**
+     * Cause one or all syncs' local folder tree to be rescanned
+     * <p>
+     * The scanning will start, and the usual scanning callbacks notify about when scanning is
+     * going on, or is resolved.
+     *
+     * @param backupId      Identifier of the single Sync, or INVALID_HANDLE to rescan all.
+     * @param reFingerprint If true, files on disk will be re-fingerprinted in case of changes
+     *                      not detectable by mtime etc.
+     */
+    public void rescanSync(long backupId, boolean reFingerprint) {
+        megaApi.rescanSync(backupId, reFingerprint);
+    }
+
+    /**
      * Check if it's possible to start synchronizing a folder node. Return SyncError errors.
      *
      * Possible return values for this function are:
