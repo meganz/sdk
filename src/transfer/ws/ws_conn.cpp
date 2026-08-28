@@ -671,6 +671,16 @@ struct ChunkResponse
     WsUploadFile* uf = mPool->findFile(response->fileno, *mPool->mImpl);
     if (!uf)
     {
+        // SDK-5360 (macos_9808 followup2) attribution instrumentation. The one-shot opcode-4
+        // completion frame is never re-requested by the client, so a completion that resolves
+        // to no bound file is silently and permanently lost -- the origin of the
+        // tail-completion wedge. Log it loudly so a wedge can be told apart from a completion
+        // the server never sent. LOG ONLY: the drop itself is unchanged.
+        if (event == WsApiServerEvent::UploadCompleted)
+        {
+            LOG_warn << "[WsConn::onmessage] completion frame DROPPED for unbound file [fileno="
+                     << response->fileno << "] [conn=" << this << "] [pool=" << mPool << "]";
+        }
         WSUPLOAD_TRACE << "[WsConn::onmessage] !uf -> return [this = " << this << "]";
         return; // file cancelled or moved
     }
@@ -809,6 +819,12 @@ struct ChunkResponse
             break;
 
         case WsApiServerEvent::FinalDataIngested:
+            // SDK-5360 (macos_9808 followup2) attribution instrumentation: record WHICH conn
+            // delivered a file's final data. The file completion is a SEPARATE, later, one-shot
+            // opcode-4 frame, so this line plus the opcode-4 arrival line below are what let a
+            // wedge be attributed to the conn that owed the completion. LOG ONLY.
+            LOG_debug << "[WsConn::onmessage] final-data-ingested [fileno=" << chunk.fileno
+                      << "] [pos=" << chunk.pos << "] [conn=" << this << "] [pool=" << mPool << "]";
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 7 final data ingested (server "
                          "knows file is complete) [chunk.len="
                       << chunk.len << "] [this = " << this << "]";
@@ -871,6 +887,13 @@ struct ChunkResponse
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 4 upload completed -> "
                          "mPool->applyInFlight(response->fileno) [this = "
                       << this << "]";
+            // SDK-5360 (macos_9808 followup2) attribution instrumentation: the one-shot
+            // completion frame actually arriving, and on which conn. Paired with the opcode-7
+            // line above it distinguishes "completion lost" from "completion never sent". LOG
+            // ONLY. Logged BEFORE applyInFlightLocked so the line is emitted even if the
+            // completion bookkeeping fails a validation check further down.
+            LOG_debug << "[WsConn::onmessage] upload-completed frame [fileno=" << response->fileno
+                      << "] [conn=" << this << "] [pool=" << mPool << "]";
             mPool->applyInFlightLocked(response->fileno);
             uf->maybeReportThroughput(mPool->mImpl->currentTime);
 
