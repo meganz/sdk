@@ -948,6 +948,7 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     constexpr size_t kFileSize = 8u * 1024u * 1024u; // 8 MiB
     constexpr unsigned kDefaultPoolConnLimit = 8u;    // connections[PUT]
     constexpr unsigned kSyntheticKnee = 12u;          // where the synthetic curve goes flat
+    constexpr unsigned kGateChainStepCap = 8u; // mirrors ws_pool.cpp:1479
 
     const std::string namePrefix =
         "ws_gate_knee_" +
@@ -1167,10 +1168,15 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
         settleSample = lastObservedState.activeThreads;
         WaitMillisec(200);
     }
-    // +4 tolerance: a confirmed probe doubles the next chained step (amendment A2), so one
-    // judged geometric overshoot past the knee is legal before the failed probe retreats to
-    // the remembered best. The SETTLE assertions below are the true knee proof.
-    EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + 4)
+    // DERIVED ceiling, not a tuned tolerance (C2). A confirmed probe doubles the next chained
+    // step (amendment A2), so the ladder is 8 -> 9 -> 10 -> 12 -> 16 and lands on exactly
+    // knee+4 -- i.e. the literal 4 this replaces had ZERO headroom. The real bound: the flat
+    // synthetic curve above the knee means no level above it can ever CONFIRM
+    // (ws_pool.cpp:1452-1456), and a single widen is hard-capped at kGateChainStepCap
+    // (ws_pool.cpp:1477-1483), so the highest reachable level is knee + ONE capped widen.
+    // Assumes the default MEGA_WS_GATE_STEP=1 (HR58 default env) -- a larger step would raise
+    // the ladder but not this cap.
+    EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + kGateChainStepCap)
         << "Gate climbed far past the synthetic knee (gain-judge failed to stop the ramp)"
         << poolDiag();
     // A rotated pool freezes wherever the gate left it (macos_9808: settle 10 vs 11), so the
@@ -5820,6 +5826,9 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     auto clearWsHook = makeScopedDestructor(
         []()
         {
+            // ALL hook writes under the hooks mutex, like B9's clearWsHooks (:5154-5162): the
+            // pool workers read this hook from evaluate() concurrently with the reset.
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.wsUploadServerEventHook.reset();
         });
 
@@ -5878,9 +5887,15 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
         120000))
         << "Timed out waiting for Distress injection via hook";
 
-    // Step 4: best-effort observe endpoint or pool switch after distress-triggered refresh.
-    // With synthetic event injection, USC may still return an equivalent host/size class and
-    // the pool can be reused, so this is informational (non-fatal).
+    // Step 4: observe the endpoint/pool switch after the distress-triggered refresh. The
+    // ROTATION ITSELF IS CERTAIN (F1): USC replies are `wss://<host>/ul/<86-char session
+    // token>` and the token is freshly minted on every reply, so the exact-identity un-retire
+    // in applyRefreshedUrls (ws_pool_mgr.cpp:1188/:1199) can never match and the observed pool
+    // is ALWAYS retired behind a new-URL successor (:1244) -- even when USC returns the same
+    // host and size class. This probe stays non-fatal only because what it samples is the
+    // TRANSFER's view (the file may still be draining on the retired pool when the sample is
+    // taken, and pool ids are addresses that can be recycled), not because reuse is possible;
+    // DistressRotationTrimsRetiringPoolToBase is the cell that asserts on the retirement.
     megaApi[0]->setMaxUploadSpeed(-1);
 
     std::uintptr_t observedPoolIdAfterDistress = initialPoolId;
