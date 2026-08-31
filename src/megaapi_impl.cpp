@@ -7347,11 +7347,13 @@ int MegaApiImpl::getBusinessStatus()
 
 int64_t MegaApiImpl::getOverquotaDeadlineTs()
 {
+    SdkMutexGuard g(sdkMutex);
     return client->mOverquotaDeadlineTs;
 }
 
 MegaIntegerList *MegaApiImpl::getOverquotaWarningsTs()
 {
+    SdkMutexGuard g(sdkMutex);
     return new MegaIntegerListPrivate(client->mOverquotaWarningTs);
 }
 
