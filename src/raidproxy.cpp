@@ -1018,9 +1018,10 @@ void RaidReq::procdata(uint8_t part, byte* ptr, m_off_t pos, m_off_t len)
                         << " bytes of readahead for part " << static_cast<int>(part)
                         << ", failing the request" << " [this = " << this << "]";
 
-                // Result ignored as in PartFetcher::trigger(): it is only false for a CloudRaid
-                // that is not started, and raidReqDoio drives this call.
-                mCloudRaid->setTransferFailure();
+                // Only false for a CloudRaid that is not started, and raidReqDoio drives this
+                // call.
+                MEGA_ASSERT(mCloudRaid->setTransferFailure(),
+                            "[RaidReq::procdata] Could not flag the transfer as failed");
 
                 // Returning without accounting for the prefix below is safe only while the
                 // request is failing: processRaidReq and raidproxyio check the failure flag
