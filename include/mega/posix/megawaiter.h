@@ -22,67 +22,47 @@
 #ifndef WAIT_CLASS
 #define WAIT_CLASS PosixWaiter
 
+#include "mega/posix/megafdwatchset.h"
 #include "mega/waiter.h"
+
 #include <mutex>
 
-#ifndef USE_POLL
-    #define MEGA_FD_ZERO FD_ZERO
-    #define MEGA_FD_SET FD_SET
-    #define MEGA_FD_ISSET FD_ISSET
-    typedef fd_set mega_fd_set_t;
-#else
-
-    #define MEGA_FD_ZERO PosixWaiter::clear_fdset
-    #define MEGA_FD_SET PosixWaiter::fdset
-    #define MEGA_FD_ISSET PosixWaiter::fdisset
-
-    #define POLLIN_SET  (POLLRDNORM | POLLRDBAND | POLLIN | POLLHUP | POLLERR) // Ready for reading
-    #define POLLOUT_SET (POLLWRBAND | POLLWRNORM | POLLOUT | POLLERR) // Ready for writing
-    #define POLLEX_SET  (POLLPRI) // Exceptional condition
-    typedef std::set<int> mega_fd_set_t ;
-
-#endif
-
-namespace mega {
-struct PosixWaiter : public Waiter
+namespace mega
+{
+struct PosixWaiter: public Waiter
 {
     PosixWaiter();
     ~PosixWaiter();
 
-    int maxfd;
+    void init(dstime) override;
+    int wait() override;
+    void notify() override;
 
-    mega_fd_set_t rfds, wfds, efds;
-    mega_fd_set_t ignorefds;
+    // Register a descriptor for this wait cycle. ExecOnReady::No means the
+    // registrant interprets readiness itself and does not want NEEDEXEC
+    // requested on its behalf.
+    void watchReadable(int fd, ExecOnReady e = ExecOnReady::Yes);
+    void watchWritable(int fd, ExecOnReady e = ExecOnReady::Yes);
 
-#ifdef USE_POLL
+    // Readiness, not registration, and only for the direction registered.
+    // Meaningful after wait() returns.
+    bool isReadable(int fd) const;
+    bool isWritable(int fd) const;
 
-    static void clear_fdset(mega_fd_set_t *s)
-    {
-        s->clear();
-    }
-    static void fdset(int fd, mega_fd_set_t *s)
-    {
-        s->insert(fd);
-    }
-    static bool fdisset(int fd, mega_fd_set_t *s)
-    {
-        return s->find(fd) != s->end();
-    }
-#endif
+    // Deciseconds to a poll()/select() timeout in milliseconds. Static and
+    // public so the clamping is directly testable.
+    static int timeoutMsFor(dstime ds);
 
-    bool fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignorefds) const;
+private:
+    // Drain the wakeup pipe. Returns true if notify() had been called.
+    bool drainPipe();
 
-    void init(dstime);
-    int wait();
-    void bumpmaxfd(int);
+    FdWatchSet mWatched;
 
-    void notify();
-
-protected:
     int m_pipe[2];
     std::mutex mMutex;
     bool alreadyNotified = false;
 };
-} // namespace
+} // namespace mega
 
 #endif

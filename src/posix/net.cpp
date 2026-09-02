@@ -464,14 +464,12 @@ void CurlHttpIO::addcurlevents(Waiter* eventWaiter, direction_t d)
 
         if (info.mode & SockInfo::READ)
         {
-            MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->rfds);
-            ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
+            static_cast<PosixWaiter*>(eventWaiter)->watchReadable(info.fd);
         }
 
         if (info.mode & SockInfo::WRITE)
         {
-            MEGA_FD_SET(info.fd, &((PosixWaiter*)eventWaiter)->wfds);
-            ((PosixWaiter*)eventWaiter)->bumpmaxfd(info.fd);
+            static_cast<PosixWaiter*>(eventWaiter)->watchWritable(info.fd);
         }
 #endif
    }
@@ -521,8 +519,7 @@ void CurlHttpIO::processcurlevents(direction_t d)
 #ifdef WIN32
     mSocketsWaitEvent_curl_call_needed = false;
 #else
-    auto *rfds = &((PosixWaiter *)waiter)->rfds;
-    auto *wfds = &((PosixWaiter *)waiter)->wfds;
+    auto* w = static_cast<PosixWaiter*>(waiter);
 #endif
 
     int dummy = 0;
@@ -547,11 +544,15 @@ void CurlHttpIO::processcurlevents(direction_t d)
                                    | (write ? CURL_CSELECT_OUT : 0), &dummy);
         }
 #else
-        if (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) || ((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)))
+        const bool readable = (info.mode & SockInfo::READ) && w->isReadable(info.fd);
+        const bool writable = (info.mode & SockInfo::WRITE) && w->isWritable(info.fd);
+
+        if (readable || writable)
         {
-            curl_multi_socket_action(curlm[d], info.fd,
-                                     (((info.mode & SockInfo::READ) && MEGA_FD_ISSET(info.fd, rfds)) ? CURL_CSELECT_IN : 0)
-                                     | (((info.mode & SockInfo::WRITE) && MEGA_FD_ISSET(info.fd, wfds)) ? CURL_CSELECT_OUT : 0),
+            curl_multi_socket_action(curlm[d],
+                                     info.fd,
+                                     (readable ? CURL_CSELECT_IN : 0) |
+                                         (writable ? CURL_CSELECT_OUT : 0),
                                      &dummy);
         }
 #endif
