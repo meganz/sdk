@@ -24,6 +24,7 @@
 #include "megautils.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
+#include "tcp_blackhole_listener.h"
 #include "test.h"
 #include "wsupload/headers/WsUploadHelpers.h"
 
@@ -3787,6 +3788,7 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
             std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.onWsUploadBlockingReadForTesting = {};
             globalMegaTestHooks.onWsTeardownWorkerChurn = {};
+            globalMegaTestHooks.onWsEngineQuiesceOutcome = {};
         });
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
@@ -3800,8 +3802,19 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
     // this count explodes to hundreds within one teardown on every platform.
     std::atomic<std::uint64_t> teardownChurn{0};
     std::atomic<bool> teardownChurnReported{false};
+    // SDK-6476 two-sided invariant: a worker blocked in an uninterruptible filesystem read is
+    // NOT a cancellable handshake, so the bounded leak fallback must still be taken here
+    // (LocallogoutCancelsBlackholedHandshake asserts the opposite side for handshakes).
+    std::atomic<bool> quiesceReported{false};
+    std::atomic<bool> quiesced{true};
     {
         std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsEngineQuiesceOutcome =
+            [&quiesceReported, &quiesced](bool q, int /*liveWorkers*/, std::int64_t /*ms*/)
+        {
+            quiesced.store(q);
+            quiesceReported.store(true);
+        };
         globalMegaTestHooks.onWsUploadBlockingReadForTesting = [&blockedReads](std::uint32_t)
         {
             if (blockedReads.fetch_add(1) == 0)
@@ -3850,12 +3863,207 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
         << " worker-loop iterations ran with stopping()==true — the poolWorkerThread "
            "loop is no longer exiting on stopping() and teardown is one barging mutex "
            "away from the SHARED9_i9 starvation wedge";
+    EXPECT_TRUE(quiesceReported.load()) << "quiesce-outcome seam never fired";
+    EXPECT_FALSE(quiesced.load())
+        << "the stuck-read containment (bounded leak fallback) was NOT taken although a worker "
+           "was blocked in a filesystem read for the whole quiesce window";
     LOG_info << "[LocallogoutBoundedWithStuckReadIO] logoutMs=" << logoutMs
-             << " blockedReads=" << blockedReads.load()
-             << " teardownChurn=" << teardownChurn.load();
+             << " blockedReads=" << blockedReads.load() << " teardownChurn=" << teardownChurn.load()
+             << " quiesced=" << quiesced.load();
 
     // Restore a working session for fixture teardown.
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+}
+
+/**
+ * @brief Verify locallogout cancels parallel WS handshakes stuck on a black-holed endpoint and
+ *        destroys the upload engine normally instead of taking the leak fallback (SDK-6476).
+ *
+ * Natural scenario: a resumed upload remembers a session URL whose storage node has become a
+ * black hole (TCP accepts, TLS never answers). Every pinned worker then sits inside
+ * curl_easy_perform for the whole per-attempt handshake timeout (15 s baseline, 45 s
+ * loss-adaptive). If the user logs out meanwhile, wsLocallogoutCleanup waits 3 s for the
+ * workers, gives up and intentionally leaks the entire engine (threads + pools + ~2 MiB per
+ * connection) on every such cycle. With stop-aware handshakes the workers observe stop() within
+ * ~1 s and the engine is destroyed normally.
+ *
+ * - TEST1: Start an upload, pin its session URL to a loopback black hole, logout + resume so
+ *          the restored transfer reconnects through the pinned pool into the black hole.
+ * - TEST2: locallogout while those handshakes are in flight.
+ * - TEST3: Require the quiesce-outcome seam to report quiesced==true with zero live workers
+ *          (normal engine destruction, not the leak fallback) and a bounded logout.
+ *
+ * Fail-first: with the handshake uncancellable (develop), the workers stay inside
+ * curl_easy_perform past the 3 s window, so the seam reports quiesced==false — a 3 s versus
+ * 45 s gap, not timing luck. LocallogoutBoundedWithStuckReadIO asserts the complementary side:
+ * a worker blocked in a filesystem read must still take the leak fallback.
+ */
+TEST_F(SdkWsUploadTest, LocallogoutCancelsBlackholedHandshake)
+{
+    LOG_info << "___TEST SdkWsUploadLocallogoutCancelsBlackholedHandshake___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName =
+        "ws_blackhole_logout_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".bin";
+    ASSERT_TRUE(createFileWithSize(fileName, kWsUploadDefaultFileSize, "B"))
+        << "Couldn't create " << fileName;
+    auto cleanupFile = makeScopedDestructor(
+        [this, &fileName]()
+        {
+            deleteFile(fileName);
+        });
+
+    // Quiesce-outcome capture. Heap-owned behind shared_ptr and captured BY VALUE so a late hook
+    // invocation can never touch a dead stack frame (same discipline as
+    // ClientThreadNotFrozenByHandshakes).
+    struct QuiesceOutcome
+    {
+        std::atomic<bool> fired{false};
+        std::atomic<bool> quiesced{false};
+        std::atomic<int> liveWorkers{-1};
+        std::atomic<std::int64_t> elapsedMs{-1};
+    };
+
+    auto outcome = std::make_shared<QuiesceOutcome>();
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsEngineQuiesceOutcome = {};
+        });
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsEngineQuiesceOutcome =
+            [outcome](bool quiesced, int liveWorkers, std::int64_t elapsedMs)
+        {
+            outcome->quiesced.store(quiesced);
+            outcome->liveWorkers.store(liveWorkers);
+            outcome->elapsedMs.store(elapsedMs);
+            outcome->fired.store(true);
+        };
+    }
+
+    // The black hole: accepts every TCP connection and never answers. Ephemeral port, so the
+    // cell is safe under parallel test instances.
+    sdk_test::TcpBlackholeListener blackhole;
+    ASSERT_TRUE(blackhole.listening()) << "could not open a loopback listener";
+    const std::string blackholeUrl = blackhole.url("wss", "/ul/blackholed-session");
+
+    // Several pinned workers => several concurrent handshakes into the black hole.
+    RequestTracker setConnReq(megaApi[0].get());
+    megaApi[0]->setMaxConnections(4, &setConnReq);
+    ASSERT_EQ(API_OK, setConnReq.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    // Keep the 12 MiB upload alive while its session URL is pinned (InvalidPinned* idiom).
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], 100000};
+
+    TransferTracker ut(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &ut);
+
+    second_timer startTimer;
+    while (!ut.finished && !ut.started && startTimer.elapsed() < 90)
+    {
+        WaitMillisec(100);
+    }
+    ASSERT_TRUE(ut.started) << "Upload did not start in time";
+    ASSERT_FALSE(ut.finished) << "Upload ended too early, with " << ut.waitForResult();
+
+    // TEST1a: wait until the transfer has made progress, then pin the black hole. Progress
+    // implies the engine's onStart bounce (which re-populates ws_session_url from the engine
+    // and re-serializes the transfer) has already run, so a later onStart cannot overwrite the
+    // pinned URL before the logout below; the override is still retried until it reads back.
+    WsUploadTransferSnapshot beforeOverride{};
+    bool gotBeforeOverride = false;
+    second_timer snapshotTimer;
+    while (snapshotTimer.elapsed() < 60)
+    {
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], beforeOverride, 1) &&
+            beforeOverride.found && beforeOverride.wsFileno > 0 &&
+            beforeOverride.progressCompleted > 0)
+        {
+            gotBeforeOverride = true;
+            break;
+        }
+        WaitMillisec(200);
+    }
+    if (!gotBeforeOverride)
+    {
+        GTEST_SKIP() << "No progressing WS upload transfer observable before URL override";
+    }
+
+    WsUploadTransferSnapshot forced{};
+    bool observedOverride = false;
+    second_timer overrideTimer;
+    while (overrideTimer.elapsed() < 15)
+    {
+        ASSERT_TRUE(overrideFirstUploadSessionUrlForTesting(*megaApi[0], blackholeUrl, 5));
+        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], forced, 1) && forced.found &&
+            forced.serializedWsSessionUrl == blackholeUrl)
+        {
+            observedOverride = true;
+            break;
+        }
+        WaitMillisec(100);
+    }
+    ASSERT_TRUE(observedOverride) << "Override did not become observable within 15 s";
+
+    // TEST1b: logout + resume so the restored transfer binds to the pinned (black-holed) pool.
+    // This first logout happens with healthy connections and is not the measured one.
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    const int uploadInterruptedCode = ut.waitForResult();
+    ASSERT_TRUE(uploadInterruptedCode == API_EACCESS || uploadInterruptedCode == API_EINCOMPLETE)
+        << "Upload interrupted with unexpected code: " << uploadInterruptedCode;
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    // The pinned pool eager-connects: every worker's TLS ClientHello is now unanswered. Wait
+    // for the first worker, then (bounded) for a second one as parallel-handshake evidence —
+    // the workers connect a few hundred ms apart, so never sample the count right after the
+    // first accept.
+    ASSERT_TRUE(blackhole.waitForAccept(std::chrono::seconds(60)))
+        << "No pinned worker connected to the black hole after resume";
+    EXPECT_TRUE(blackhole.waitForAccept(std::chrono::seconds(10), 2))
+        << "Expected >=2 parallel handshakes into the black hole (setMaxConnections(4)), got "
+        << blackhole.acceptedCount();
+    WaitMillisec(200); // let the accepted workers proceed into curl_easy_perform's TLS phase
+
+    // TEST2: the measured logout, with the handshakes in flight.
+    std::unique_ptr<char[]> session2(dumpSession());
+    outcome->fired.store(false);
+    const auto logoutStart = std::chrono::steady_clock::now();
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    const auto logoutMs = std::chrono::duration_cast<std::chrono::milliseconds>(
+                              std::chrono::steady_clock::now() - logoutStart)
+                              .count();
+    LOG_info << "[LocallogoutCancelsBlackholedHandshake] logoutMs=" << logoutMs
+             << " accepted=" << blackhole.acceptedCount() << " fired=" << outcome->fired.load()
+             << " quiesced=" << outcome->quiesced.load()
+             << " liveWorkers=" << outcome->liveWorkers.load()
+             << " quiesceElapsedMs=" << outcome->elapsedMs.load();
+
+    // TEST3: normal destruction, not the leak fallback.
+    ASSERT_TRUE(outcome->fired.load())
+        << "quiesce-outcome seam never fired (wsLocallogoutCleanup not reached?)";
+    EXPECT_TRUE(outcome->quiesced.load())
+        << "WS engine workers did not quiesce within the 3 s window while blocked in a "
+           "black-holed handshake: the engine was intentionally LEAKED (SDK-6476) [liveWorkers="
+        << outcome->liveWorkers.load() << " elapsedMs=" << outcome->elapsedMs.load() << "]";
+    EXPECT_EQ(outcome->liveWorkers.load(), 0);
+    EXPECT_LT(logoutMs, 8000) << "locallogout not bounded (took " << logoutMs << " ms)";
+
+    // Release the black hole so any straggler reconnect fails fast, then restore a working
+    // session for fixture teardown.
+    blackhole.close();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session2.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
     (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
 }

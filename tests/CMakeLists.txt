@@ -13,13 +13,20 @@ target_sources(test_tools
     sdk_test_data_provider.h
     sdk_test_utils.h
     stdfs.h
+    tcp_blackhole_listener.h
 
     gtest_common.cpp
     sdk_test_data_provider.cpp
     sdk_test_utils.cpp
+    tcp_blackhole_listener.cpp
 )
 
 target_link_libraries(test_tools PRIVATE MEGA::SDKlib)
+
+if(WIN32)
+    # tcp_blackhole_listener.cpp uses WinSock directly.
+    target_link_libraries(test_tools PRIVATE ws2_32)
+endif()
 
 target_include_directories(test_tools
     PUBLIC
