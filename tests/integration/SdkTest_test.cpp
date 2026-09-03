@@ -4770,6 +4770,70 @@ TEST_F(SdkTestDownload, ConflictFileExistingName)
     CASE_info << "finished";
 }
 
+TEST_F(SdkTestDownload, ExistingToOldNSameCaseCollisionCompletes)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string dirName("dest");
+    const std::string fileName("f.txt");
+    const std::string uploadedContents("uploaded contents");
+    const std::string localOnlyChanges(" plus a local change");
+    const fs::path basePath = fs::current_path();
+    const fs::path target = basePath / dirName / fileName;
+    const fs::path renamed = basePath / dirName / "f.old1.txt";
+
+    const auto readContents = [](const fs::path& p)
+    {
+        std::ifstream in{p, std::ios::binary};
+        return std::string{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    };
+
+    const sdk_test::LocalTempDir d{basePath / dirName};
+    const sdk_test::LocalTempFile f{target, uploadedContents};
+
+    // Upload dest/f.txt
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(), f.getPath(), rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    // Modify local file so it no longer matches the node in the cloud.
+    f.appendData(localOnlyChanges);
+
+    // Download the node back onto the same local path and casing
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / dirName,
+                                                true,
+                                                60s,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN,
+                                                onTransferFinish,
+                                                nullptr,
+                                                nullptr,
+                                                false);
+
+    ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
+    ASSERT_EQ(API_OK, *errCode);
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    EXPECT_EQ(MegaTransfer::STATE_COMPLETED, transfer->getState());
+    ASSERT_TRUE(fs::exists(renamed));
+    EXPECT_EQ(uploadedContents + localOnlyChanges, readContents(renamed));
+    ASSERT_TRUE(fs::exists(target));
+    EXPECT_EQ(uploadedContents, readContents(target));
+
+    CASE_info << "finished";
+}
+
 /**
  * This test tries to download a File node to a local name that is too long for the filesystem.
  *
