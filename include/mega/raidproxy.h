@@ -80,7 +80,8 @@ class PartFetcher
     m_off_t mPos{};                                           // part current position
     m_off_t mRem{};                                           // remaining data for this part
     m_off_t mRemfeed{};                                       // active remaining read length (related to 'rem')
-    map<m_off_t, pair<byte*, unsigned>> mReadahead;           // read-ahead data
+    using ReadAheadChunk = pair<std::unique_ptr<byte[]>, m_off_t>;
+    map<m_off_t, ReadAheadChunk> mReadahead; // read-ahead data
 
     void setposrem();                                         // sets the next read position (pos) and the remaining read length (rem/remfeed)
     bool setremfeed(m_off_t);                                 // sets the remfeed depending on the number of bytes param and the remaining (rem) part data
