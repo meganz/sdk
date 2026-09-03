@@ -20,6 +20,7 @@
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/sc_streaming_parser.h"
+#include "mega/user_attribute.h"
 #include "utils.h"
 
 #include <gtest/gtest.h>
@@ -78,6 +79,26 @@ protected:
         client->mNodeManager.addNode(node, false, false, missingParentNodes);
 
         return node;
+    }
+
+    // Feed one "ua" action packet through the parser. init() must be called once by the caller
+    // before the first packet: it appends to the parser's filter chain and clear() does not reset
+    // it, so re-initializing per packet would register the filters twice.
+    void processUserAttrPacket(const char* uhB64,
+                               const char* attrName,
+                               const char* version,
+                               const char* sn)
+    {
+        const std::string json =
+            std::string(R"({"a":[{"a":"ua","u":")") + uhB64 + R"(","ua":[")" + attrName +
+            R"("],"v":[")" + version +
+            R"("]}],"w":"https://g.api.mega.co.nz/wsc/5lhYq8nqzgIEE8j9OqymmA","sn":")" + sn +
+            R"("})";
+        ASSERT_GT(scStreamingParser->process(json.c_str()), 0);
+        ASSERT_TRUE(scStreamingParser->isFinished());
+        ASSERT_FALSE(scStreamingParser->isFailed());
+        ASSERT_FALSE(scStreamingParser->isPaused());
+        scStreamingParser->clear();
     }
 
     std::shared_ptr<MegaApp> app;
@@ -674,5 +695,57 @@ TEST_F(ScStreamingParserTest, DISABLED_ParseError)
     ASSERT_FALSE(scStreamingParser->isPaused());
     ASSERT_EQ(client->actionpacketsCurrent, false);
     ASSERT_FALSE(isNodeTreeLocked(*client));
+}
+
+// SDK-6291: a catch-up replays an attribute's historical versions, and each one that differs from
+// the cache expires it. The last replayed packet carries the version the cache already holds, which
+// proves the cache is current and must therefore clear that expiry.
+TEST_F(ScStreamingParserTest, UserAttrStaleVersionReplayKeepsAttributeValid)
+{
+    const char* uhB64 = "k-N5-o6LLkE";
+    handle uh = 0;
+    Base64::atob(uhB64, (byte*)&uh, MegaClient::USERHANDLE);
+    User* u = client->finduser(uh, 1);
+    ASSERT_NE(u, nullptr);
+
+    u->setAttribute(ATTR_LAST_PURGE_ACKNOWLEDGED, "1750000000", "Vh");
+    ASSERT_TRUE(u->getAttribute(ATTR_LAST_PURGE_ACKNOWLEDGED)->isValid());
+
+    scStreamingParser->init();
+    ASSERT_NO_FATAL_FAILURE(processUserAttrPacket(uhB64, "^!lpack", "Vold", "Gt-009Sr-XA"));
+    ASSERT_FALSE(u->getAttribute(ATTR_LAST_PURGE_ACKNOWLEDGED)->isValid());
+    ASSERT_NO_FATAL_FAILURE(processUserAttrPacket(uhB64, "^!lpack", "Vh", "P-LLOv0J3u0"));
+
+    const UserAttribute* attr = u->getAttribute(ATTR_LAST_PURGE_ACKNOWLEDGED);
+    ASSERT_NE(attr, nullptr);
+    EXPECT_TRUE(attr->isValid())
+        << "attribute holds the confirmed version Vh but was left expired by the stale replay";
+    EXPECT_EQ(attr->value(), "1750000000");
+    EXPECT_EQ(attr->version(), "Vh");
+}
+
+// SDK-6291: ^!dv is cached with an empty value and version and then deliberately expired, so a
+// resumption from cache can tell the attribute exists without a value yet. Matching that empty
+// version proves nothing, so it must not undo the expiry.
+TEST_F(ScStreamingParserTest, UserAttrEmptyVersionDoesNotHealExpiredAttribute)
+{
+    const char* uhB64 = "k-N5-o6LLkE";
+    handle uh = 0;
+    Base64::atob(uhB64, (byte*)&uh, MegaClient::USERHANDLE);
+    User* u = client->finduser(uh, 1);
+    ASSERT_NE(u, nullptr);
+
+    const std::string empty;
+    u->setAttribute(ATTR_DISABLE_VERSIONS, empty, empty);
+    u->setAttributeExpired(ATTR_DISABLE_VERSIONS);
+    ASSERT_FALSE(u->getAttribute(ATTR_DISABLE_VERSIONS)->isValid());
+
+    scStreamingParser->init();
+    ASSERT_NO_FATAL_FAILURE(processUserAttrPacket(uhB64, "^!dv", "", "Gt-009Sr-XA"));
+
+    const UserAttribute* attr = u->getAttribute(ATTR_DISABLE_VERSIONS);
+    ASSERT_NE(attr, nullptr);
+    EXPECT_FALSE(attr->isValid())
+        << "an empty version proves nothing and must not clear the expiry";
 }
 }

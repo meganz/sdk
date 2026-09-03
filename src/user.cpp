@@ -335,6 +335,14 @@ void User::setAttributeExpired(attr_t at)
     }
 }
 
+void User::setAttributeValid(attr_t at)
+{
+    if (mAttributeManager->setValid(at))
+    {
+        setChanged(at);
+    }
+}
+
 const UserAttribute* User::getAttribute(attr_t at) const
 {
     return mAttributeManager->get(at);

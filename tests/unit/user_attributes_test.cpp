@@ -16,9 +16,11 @@
  * program.
  */
 
+#include "mega/megaapp.h"
 #include "mega/types.h"
 #include "mega/user.h"
 #include "mega/user_attribute.h"
+#include "utils.h"
 
 #include <gmock/gmock-matchers.h>
 #include <gtest/gtest.h>
@@ -300,12 +302,105 @@ TEST_P(InterfacesWithParam, RemoveValueOtherUser)
     ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, std::nullopt));
 }
 
+TEST_P(InterfacesWithParam, RestoreValidAfterExpired)
+{
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
+    mUser.setAttributeExpired(GetParam());
+    ASSERT_FALSE(mUser.getAttribute(GetParam())->isValid());
+
+    mUser.changed = {};
+    auto unchanged = mUser.changed;
+    mUser.setAttributeValid(GetParam());
+    ASSERT_NE(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
+
+    const mega::UserAttribute* attribute = mUser.getAttribute(GetParam());
+    ASSERT_THAT(attribute, testing::NotNull());
+    ASSERT_TRUE(attribute->isValid());
+    ASSERT_NO_FATAL_FAILURE(validateValue(GetParam(), attribute, mValue1));
+    ASSERT_EQ(attribute->version(), mVersion1);
+}
+
+TEST_P(InterfacesWithParam, RestoreValidDoesNotPromoteNotExisting)
+{
+    mUser.cacheNonExistingAttributes();
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
+    mUser.removeAttribute(GetParam()); // -> CACHED_NOT_EXISTING
+    ASSERT_TRUE(mUser.getAttribute(GetParam())->isNotExisting());
+
+    mUser.setAttributeValid(GetParam()); // must refuse: the value was cleared
+    ASSERT_TRUE(mUser.getAttribute(GetParam())->isNotExisting());
+    ASSERT_FALSE(mUser.getAttribute(GetParam())->isValid());
+}
+
+TEST_P(InterfacesWithParam, RestoreValidIsIdempotentAndNoOpWhenNotCached)
+{
+    mUser.setAttributeValid(GetParam()); // absent: must not create it
+    ASSERT_THAT(mUser.getAttribute(GetParam()), testing::IsNull());
+
+    mUser.setAttribute(GetParam(), mValue1, mVersion1);
+    mUser.setAttributeExpired(GetParam());
+    mUser.setAttributeValid(GetParam());
+    mUser.changed = {};
+    auto unchanged = mUser.changed;
+    mUser.setAttributeValid(GetParam()); // already VALID: no state change, no bit set
+    ASSERT_EQ(memcmp(&mUser.changed, &unchanged, sizeof(mUser.changed)), 0);
+    ASSERT_TRUE(mUser.getAttribute(GetParam())->isValid());
+}
+
 INSTANTIATE_TEST_SUITE_P(UserAttributeTests,
                          InterfacesWithParam,
                          testing::Values(mega::ATTR_AVATAR,
                                          mega::ATTR_FIRSTNAME,
                                          mega::ATTR_AUTHRING,
                                          mega::ATTR_ED25519_PUBK));
+
+// SDK-6291: serializeAttributes() writes only VALID attributes, so an unhealed expiry silently
+// removes the attribute from the CACHEDUSER record while a healed one keeps value and version.
+TEST(UserAttributePersistence, HealedAttributeSurvivesSerialization)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+    const std::string email{"foo@bar.com"};
+    const std::string email2{"baz@bar.com"};
+    constexpr mega::attr_t at = mega::ATTR_LAST_PURGE_ACKNOWLEDGED;
+
+    // Unhealed: the record loses the attribute.
+    {
+        mega::User user{email.c_str()};
+        user.userhandle = 13;
+        user.show = mega::VISIBLE;
+        user.setAttribute(at, "1750000000", "Vh");
+        user.setAttributeExpired(at);
+
+        std::string d;
+        ASSERT_TRUE(user.serialize(&d));
+        const auto restored = mega::User::unserialize(client.get(), &d);
+        ASSERT_THAT(restored, testing::NotNull());
+        EXPECT_THAT(restored->getAttribute(at), testing::IsNull());
+    }
+
+    // Healed: value and version are persisted.
+    // Distinct handle AND email, because User::unserialize() interns the user in the client's maps:
+    // a shared handle would merge into the first block's object, and a shared email would make
+    // mapuser() erase that object out from under uhindex.
+    {
+        mega::User user{email2.c_str()};
+        user.userhandle = 14;
+        user.show = mega::VISIBLE;
+        user.setAttribute(at, "1750000000", "Vh");
+        user.setAttributeExpired(at);
+        user.setAttributeValid(at);
+
+        std::string d;
+        ASSERT_TRUE(user.serialize(&d));
+        const auto restored = mega::User::unserialize(client.get(), &d);
+        ASSERT_THAT(restored, testing::NotNull());
+        const mega::UserAttribute* attr = restored->getAttribute(at);
+        ASSERT_THAT(attr, testing::NotNull());
+        EXPECT_EQ(attr->value(), "1750000000");
+        EXPECT_EQ(attr->version(), "Vh");
+    }
+}
 
 // PurgeReason enum values match the documented API reason codes
 TEST(PurgeReasonTest, EnumValuesMatchSpec)
