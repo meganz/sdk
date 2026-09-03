@@ -431,8 +431,16 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 #endif
 
 %apply (char *STRING, size_t LENGTH) {(char *bitmapData, size_t size)};
+// getBitmapData() receives an output buffer provided by the SDK: the Java side
+// must expose a mutable byte[] (not a String). The default (char *, size_t)
+// pattern maps the proxy method to String, which made the director connect()
+// fail at runtime with NoSuchMethodError getBitmapData([B)Z while
+// implementations (e.g. AndroidGfxProcessor) override getBitmapData(byte[]).
+%typemap(jstype) (char *bitmapData, size_t size) "byte[]"
+%typemap(javain) (char *bitmapData, size_t size) %{($javainput == null) ? null : $javainput%}
+%typemap(javadirectorin, descriptor="[B") (char *bitmapData, size_t size) "($jniinput == null) ? null : $jniinput"
 %typemap(directorin, descriptor="[B") (char *bitmapData, size_t size)
-%{ 
+%{
 	jbyteArray jb = (jenv)->NewByteArray($2);
 	MEGAJNI_CHECK(jenv, "bitmap NewByteArray");
 	$input = jb;
