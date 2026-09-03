@@ -202,8 +202,9 @@ bool WsConn::connectWS()
     // engine lock. Safe off the client thread because: (a) wsHandshakeForUpload is a thin
     // wrapper over CurlHttpIO::wsHandshake; httpio is set-once/read-only; (b) curlsh now
     // carries lock callbacks (net.cpp) for the concurrent DNS/SSL-session cache writes; and
-    // (c) the read-mostly client state wsHandshake reads (dnsservers/proxy*/useragent) is set
-    // at init and not mutated during uploads, so concurrent reads are benign. CURLOPT_TIMEOUT_MS
+    // (c) the proxy/DNS/user-agent configuration wsHandshake consumes is published as one
+    // coherent snapshot under CurlHttpIO::mNetConfigMutex (SDK-6476), so a concurrent
+    // setProxySettings()/disconnect() on the client thread cannot tear it. CURLOPT_TIMEOUT_MS
     // inside wsHandshake bounds the blocking call, so no separate baton watchdog is needed.
     // SDK-6476: the engine's mStopping flag is handed down as a stop token and polled inside
     // libcurl, so a handshake stuck on a black-holed endpoint aborts within ~1 s of stop()

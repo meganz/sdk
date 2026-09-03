@@ -102,3 +102,81 @@ TEST(CurlHttpIoConfig, ConfigureWsEasyRacesSetproxyDisabledWithoutWsUpload)
 }
 
 #endif
+
+namespace
+{
+
+// Every reader must observe exactly generation A or generation B — never a mix, and never the
+// transient "proxyip cleared but type/credentials of the previous generation" state setproxy()
+// passes through. The expected tuples are captured single-threaded from the same accessor so the
+// test does not hard-code crackURI's formatting.
+bool sameGeneration(const mega::CurlHttpIO::NetConfigSnapshot& a,
+                    const mega::CurlHttpIO::NetConfigSnapshot& b)
+{
+    return a.proxyip == b.proxyip && a.proxyschema == b.proxyschema &&
+           a.proxyusername == b.proxyusername && a.proxypassword == b.proxypassword &&
+           a.proxytype == b.proxytype && a.useragent == b.useragent && a.dnsservers == b.dnsservers;
+}
+
+} // namespace
+
+TEST(CurlHttpIoConfig, NetConfigSnapshotIsCoherentUnderSetproxy)
+{
+    mega::CurlHttpIO io;
+
+    io.setproxy(kProxyA);
+    const auto generationA = io.netConfigSnapshot();
+    io.setproxy(kProxyB);
+    const auto generationB = io.netConfigSnapshot();
+    ASSERT_FALSE(sameGeneration(generationA, generationB));
+    ASSERT_FALSE(generationA.proxyip.empty());
+    ASSERT_FALSE(generationB.proxyip.empty());
+
+    std::atomic<bool> stop{false};
+    std::atomic<std::size_t> samples{0};
+    std::atomic<std::size_t> incoherent{0};
+    std::vector<std::thread> readers;
+    for (int i = 0; i < 3; ++i)
+    {
+        readers.emplace_back(
+            [&]
+            {
+                while (!stop.load(std::memory_order_acquire))
+                {
+                    const auto snapshot = io.netConfigSnapshot();
+                    samples.fetch_add(1, std::memory_order_relaxed);
+                    if (!sameGeneration(snapshot, generationA) &&
+                        !sameGeneration(snapshot, generationB))
+                    {
+                        incoherent.fetch_add(1, std::memory_order_relaxed);
+                    }
+                }
+            });
+    }
+
+    // Flip generations for at least 1 s AND until the readers have taken >= kMinSamples
+    // snapshots (bounded at 10 s), so the meaningfulness bar below holds regardless of how
+    // slowly an instrumented (TSAN/ASAN) build spins.
+    constexpr std::size_t kMinSamples = 1000;
+    const auto start = std::chrono::steady_clock::now();
+    const auto minEnd = start + std::chrono::milliseconds(1000);
+    const auto maxEnd = start + std::chrono::milliseconds(10000);
+    for (int i = 0;; ++i)
+    {
+        io.setproxy((i & 1) ? kProxyB : kProxyA);
+        const auto now = std::chrono::steady_clock::now();
+        if (now >= maxEnd || (now >= minEnd && samples.load() >= kMinSamples))
+        {
+            break;
+        }
+    }
+
+    stop.store(true, std::memory_order_release);
+    for (auto& reader: readers)
+    {
+        reader.join();
+    }
+
+    EXPECT_GE(samples.load(), kMinSamples);
+    EXPECT_EQ(incoherent.load(), 0u) << "torn proxy configuration observed by a snapshot reader";
+}

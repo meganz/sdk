@@ -105,6 +105,13 @@ class CurlHttpIO: public HttpIO
 protected:
     static std::mutex curlMutex;
 
+    // Guards the proxy/DNS/user-agent configuration members (SDK-6476). The writers
+    // (setuseragent, setdnsservers, setproxy, disconnect's proxy re-derivation) and the
+    // lock-free readers on the HTTP request path (send_request/post) are all serialized by
+    // MegaApiImpl::sdkMutex; WS handshake workers are not, so any reader that can run off
+    // sdkMutex must copy the configuration through netConfigSnapshot(). Strict leaf: never held
+    // across a curl call, a request dispatch or a log line. mutable so const readers can lock.
+    mutable std::mutex mNetConfigMutex;
     string useragent;
     CURLM* curlm[3];
 
@@ -172,7 +179,8 @@ protected:
     static void curlsh_unlock(CURL*, curl_lock_data, void*);
 
     static void send_request(CurlHttpContext*);
-    void request_proxy_ip();
+    // Re-derives proxyip from proxyhost/proxyport. PRECONDITION: caller holds mNetConfigMutex.
+    void request_proxy_ip_locked();
     static struct curl_slist* clone_curl_slist(struct curl_slist*);
     static int debug_callback(CURL*, curl_infotype, char*, size_t, void*);
     const char* pubkeyForUrl(const char* url) const;
@@ -220,6 +228,21 @@ public:
     void setuseragent(string*) override;
     void setproxy(const Proxy&) override;
     std::optional<Proxy> getproxy() const override;
+
+    // Coherent, by-value copy of the configuration configureWsEasy() consumes, taken under
+    // mNetConfigMutex. Safe to call from any thread.
+    struct NetConfigSnapshot
+    {
+        string useragent;
+        string dnsservers;
+        string proxyip;
+        string proxyschema;
+        string proxyusername;
+        string proxypassword;
+        int proxytype{Proxy::AUTO};
+    };
+
+    NetConfigSnapshot netConfigSnapshot() const;
     // It returns false if curl does not have a DNS backend supporting custom DNS lists.
     bool setdnsservers(const char*);
     void disconnect() override;
