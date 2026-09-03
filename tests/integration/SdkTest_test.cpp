@@ -7353,6 +7353,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
     #endif
 
+    // cap the speed so the transfer lasts long enough to be paused several times
+    megaApi[0]->setMaxDownloadSpeed(10 * 1024 * 1024);
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
     LOG_debug << "For raidTests: client max connections set to 2";
 
