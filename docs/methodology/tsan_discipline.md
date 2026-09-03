@@ -44,7 +44,7 @@ Recommended TSAN_OPTIONS (matches the Jenkinsfile lines ~420):
 ## Surface filter vs full sweep
 
 The full TSAN sweep is expensive. For per-commit gates, use the
-8-cell **WS-upload surface filter** (matches the Jenkinsfile
+9-cell **WS-upload surface filter** (matches the Jenkinsfile
 `TSAN_SURFACE_FILTER` — the single source of truth; this list mirrors it):
 
 ```
@@ -56,6 +56,7 @@ SdkWsUploadTest.AckStallForceReconnectsHungConnection        # S11 watchdog (fu8
 SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion # S11 watchdog (fu8)
 SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool      # SDK-6298 T3 (quota x engine)
 SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds # SDK-6298 T14 (quota x legacy OQ)
+SdkWsUploadTest.LocallogoutCancelsBlackholedHandshake         # SDK-6476 stop-aware handshake at logout
 ```
 
 This is the minimum surface that exercises the WS pool + worker thread
