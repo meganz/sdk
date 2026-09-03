@@ -205,6 +205,11 @@ bool WsConn::connectWS()
     // (c) the read-mostly client state wsHandshake reads (dnsservers/proxy*/useragent) is set
     // at init and not mutated during uploads, so concurrent reads are benign. CURLOPT_TIMEOUT_MS
     // inside wsHandshake bounds the blocking call, so no separate baton watchdog is needed.
+    // SDK-6476: the engine's mStopping flag is handed down as a stop token and polled inside
+    // libcurl, so a handshake stuck on a black-holed endpoint aborts within ~1 s of stop()
+    // instead of running to CURLOPT_TIMEOUT_MS (15/45 s) — otherwise locallogout's 3 s quiesce
+    // window is missed and the whole engine is intentionally leaked. Impl outlives this call on
+    // every path (~Impl joins the workers; the leak fallback never destroys it).
     if (mPool->mImpl->mParallelHandshake)
     {
         const std::string url = mPool->mUrl;
@@ -227,8 +232,11 @@ bool WsConn::connectWS()
         }
 
         std::string err;
-        CURL* e = static_cast<CURL*>(
-            mPool->mImpl->client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err));
+        CURL* e =
+            static_cast<CURL*>(mPool->mImpl->client.wsHandshakeForUpload(url,
+                                                                         handshakeTimeoutMs,
+                                                                         &err,
+                                                                         &mPool->mImpl->mStopping));
         if (!e)
         {
             WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) wsHandshakeForUpload -> nullptr"
@@ -288,8 +296,11 @@ bool WsConn::connectWS()
                 return;
             }
             std::string err;
+            // No stop token: this lambda runs on the client thread, i.e. the thread that calls
+            // locallogout, so it can never overlap engine stop (and it already returned above
+            // when the engine is stopping).
             CURL* e = static_cast<CURL*>(
-                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err));
+                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err, nullptr));
 
             {
                 std::lock_guard<std::mutex> g(baton->m);

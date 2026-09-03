@@ -29,6 +29,8 @@
 
 #include <curl/curl.h>
 
+#include <atomic>
+
 namespace mega {
 
 extern std::atomic<bool> g_netLoggingOn;
@@ -259,9 +261,19 @@ public:
     // Configure cURL easy for WebSocket or JSON POST (reuses SDK defaults).
     void configureWsEasy(CURL* easy, bool isPostJson);
 
-    // Do a WS handshake synchronously on the client thread and return an open easy handle.
-    // Returns nullptr on failure and fills err (optional).
-    CURL* wsHandshake(const std::string& url, long timeoutMs, std::string* err);
+    // Perform a WS handshake synchronously on the calling thread and return an open easy
+    // handle. Returns nullptr on failure and fills err (optional). stopFlag (optional) is
+    // polled from libcurl's progress callback while the handshake is in flight: once it reads
+    // true the handshake aborts within ~1 s (inside the locallogout quiesce window) and err is
+    // set to kWsHandshakeCancelledErr. Pass nullptr when nobody can stop the handshake.
+    CURL* wsHandshake(const std::string& url,
+                      long timeoutMs,
+                      std::string* err,
+                      const std::atomic<bool>* stopFlag);
+
+    // err value produced by wsHandshake when the handshake was cancelled through stopFlag.
+    static constexpr const char* kWsHandshakeCancelledErr =
+        "handshake cancelled: WS engine stopping";
 #endif
 
 private:

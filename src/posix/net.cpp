@@ -2536,7 +2536,25 @@ void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
               << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
 }
 
-CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::string* err)
+namespace
+{
+// libcurl progress callback armed on a WS handshake handle (SDK-6476): aborts the blocking
+// curl_easy_perform with CURLE_ABORTED_BY_CALLBACK once the engine's stop flag is set. libcurl
+// calls it on every pass of its internal state machine, on the thread running the handshake
+// (about once per second while a connect/TLS/upgrade is stalled), so it must stay a single
+// atomic load. Return 0 to continue; never CURL_PROGRESSFUNC_CONTINUE (that enables curl's
+// text progress meter).
+int wsHandshakeStopCallback(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
+{
+    const auto* stopFlag = static_cast<const std::atomic<bool>*>(clientp);
+    return (stopFlag && stopFlag->load(std::memory_order_acquire)) ? 1 : 0;
+}
+} // namespace
+
+CURL* CurlHttpIO::wsHandshake(const std::string& url,
+                              long timeoutMs,
+                              std::string* err,
+                              const std::atomic<bool>* stopFlag)
 {
     LOG_debug << "[CurlHttpIO::wsHandshake] BEGIN [url=" << url << "] [timeoutMs=" << timeoutMs
               << "] [this = " << this << "]";
@@ -2565,6 +2583,18 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
     curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, ebuf);
     configureWsEasy(easy, /*isPostJson*/ false);
     curl_easy_setopt(easy, CURLOPT_URL, url.c_str());
+    if (stopFlag)
+    {
+        // Stop-aware handshake (SDK-6476). The progress callback is the only libcurl-sanctioned
+        // way to interrupt a blocking curl_easy_perform: the handle must never be touched from
+        // another thread. NOPROGRESS=0 is mandatory (libcurl hides progress by default and then
+        // never invokes the callback); QUICK_EXIT lets an abort during name resolution return
+        // without joining the resolver thread, as send_request already does.
+        curl_easy_setopt(easy, CURLOPT_XFERINFOFUNCTION, wsHandshakeStopCallback);
+        curl_easy_setopt(easy, CURLOPT_XFERINFODATA, stopFlag);
+        curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(easy, CURLOPT_QUICK_EXIT, 1L);
+    }
     if (timeoutMs > 0)
     {
         // Bound the TCP-connect leg AND the overall handshake (TLS + WS upgrade).
@@ -2580,16 +2610,39 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
     CURLcode rc = curl_easy_perform(easy);
     if (rc != CURLE_OK)
     {
-        if (err)
-            *err = std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
-        LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
-                << curl_easy_strerror(rc) << " (" << ebuf << ")";
+        if (rc == CURLE_ABORTED_BY_CALLBACK && stopFlag)
+        {
+            // Expected cancellation (engine stopping), not a network failure: stay quiet and
+            // hand callers a stable, SDK-owned reason.
+            if (err)
+                *err = kWsHandshakeCancelledErr;
+            LOG_debug << "[wsHandshake] cancelled (engine stopping) url=" << url;
+        }
+        else
+        {
+            if (err)
+                *err =
+                    std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
+            LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
+                    << curl_easy_strerror(rc) << " (" << ebuf << ")";
+        }
         curl_easy_cleanup(easy);
         return nullptr;
     }
 
     // On success, DETACH from shared state before we hand the handle to worker threads.
     curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
+
+    // Disarm the stop callback: the handle now belongs to the WS send/recv path. lib/ws.c never
+    // invokes the progress callback, so this is defensive symmetry with the detaches around it.
+    if (stopFlag)
+    {
+        curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1L);
+        curl_easy_setopt(easy,
+                         CURLOPT_XFERINFOFUNCTION,
+                         static_cast<curl_xferinfo_callback>(nullptr));
+        curl_easy_setopt(easy, CURLOPT_XFERINFODATA, nullptr);
+    }
 
     // Drop the stack-local error buffer before the handle outlives this frame:
     // the worker thread keeps using `easy`, and a later error would otherwise have

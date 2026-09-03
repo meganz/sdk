@@ -79,6 +79,7 @@ target_sources(test_unit
     SharedMemoryZone_test.cpp
     sc_streaming_parser_test.cpp
     TestHooks_test.cpp
+    WsHandshakeCancel_test.cpp
     WsUpload_test.cpp
     WsQuota_test.cpp
     MediaTs_test.cpp
