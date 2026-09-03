@@ -150,6 +150,9 @@ public:
     // What permissions are applicable to a node?
     ErrorOr<accesslevel_t> permissions(NodeHandle handle) const override;
 
+    // True if a node is within the Vault tree.
+    ErrorOr<bool> inVault(NodeHandle handle) const override;
+
     // Remove a node.
     void remove(RemoveCallback callback, NodeHandle handle) override;
 
@@ -193,4 +196,3 @@ public:
 
 } // common
 } // mega
-

@@ -3656,6 +3656,9 @@ public:
     void createPasswordManagerBase(int rtag,
                                    CommandCreatePasswordManagerBase::Completion cbRequest);
 
+    // true if 'node' is within the Vault tree (backup roots / Password Manager base)
+    bool isNodeInVaultTree(const std::shared_ptr<Node>& node) const;
+
     /** @brief The same as updatePasswordNode but for updating a Credit Card Node */
     error updateCreditCardNode(const NodeHandle nh,
                                std::unique_ptr<AttrMap> newData,

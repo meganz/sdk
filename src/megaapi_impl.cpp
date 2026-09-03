@@ -12762,16 +12762,9 @@ int MegaApiImpl::getAccess(const std::variant<MegaNode*, MegaHandle>& nodeOrNode
         n = n->parent.get();
     }
 
-    // Process nodes in Vault first.
-    // The Vault is read-only, except the Password Manager subtree.
+    // The Vault is read-only.
     if (!inInshare && root->type == VAULTNODE)
-    {
-        const NodeHandle pwmBase = client->getPasswordManagerBase();
-        if (pwmBase.isUndef() || !node->hasNHOrHasAncestorWithNH(pwmBase))
-        {
-            return MegaShare::ACCESS_READ;
-        }
-    }
+        return MegaShare::ACCESS_READ;
 
     // For a ROOTNODE or RUBBISHNODE the loop above leaves a == OWNER (no parent
     // and no inshare), so the switch returns OWNER here.
@@ -20377,6 +20370,13 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     break;
                 }
 
+                if (client->isNodeInVaultTree(parent))
+                {
+                    LOG_err << "startUpload: Not allowed to upload into the vault tree";
+                    e = API_EACCESS;
+                    break;
+                }
+
                 if (transfer->fingerprint_error != API_OK)
                 {
                     LOG_debug << "Upload had already failed before queueing";
@@ -21873,6 +21873,12 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                 return API_EARGS;
             }
 
+            if (client->isNodeInVaultTree(node) || client->isNodeInVaultTree(newParent))
+            {
+                LOG_err << "moveNode: Not allowed to move vault nodes into/out of the vault tree";
+                return API_EACCESS;
+            }
+
             // Move to the current parent: compare parent handles, not node->parent.
             // parentHandle() comes from the node record and stays valid even when
             // node->parent is null; newParent from nodebyhandle() may be another
@@ -22096,6 +22102,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     || (target && target->type == FILENODE))
             {
                 return API_EARGS;
+            }
+
+            if (client->isNodeInVaultTree(target))
+            {
+                LOG_err << "copyNode: Not allowed to copy into the vault tree";
+                return API_EACCESS;
             }
 
             if (!megaNode->isForeign() && !megaNode->isPublic())
@@ -28326,7 +28338,8 @@ void MegaApiImpl::addMount(const MegaMount* mount, MegaRequestListener* listener
     request->setFile(mount->getPath());
     request->setListener(listener);
 
-    auto execute = [this](const fuse::MountInfo& info, MegaRequestPrivate& request) {
+    auto execute = [this](const fuse::MountInfo& info, MegaRequestPrivate& request)
+    {
         auto result = client->mFuseService.add(info);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
