@@ -23130,37 +23130,38 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
     std::string pwd;
     pwd.reserve(length);
 
-    std::random_device rd;
-    std::mt19937 gen(rd()); // Mersenne Twister generator
-    const auto appendOneRandom = [&pwd, &gen](const std::string& src)
+    PrnGen rng;
+    std::string pool;
+    const auto useCharClass = [&pwd, &pool, &rng](const std::string& src)
     {
-        std::uniform_int_distribution<> dis(0, static_cast<int>(src.size() - 1));
-        pwd += src[static_cast<size_t>(dis(gen))];
+        pwd += src[rng.genuint32(src.size())]; // Make sure there is at least 1 of this char class.
+        pool += src;
     };
 
-    std::string pool = lowerCase;
-    appendOneRandom(lowerCase);
+    useCharClass(lowerCase);
     if (useUpper)
     {
-        appendOneRandom(upperCase); // Make sure there is at least 1
-        pool += upperCase;
+        useCharClass(upperCase);
     }
     if (useDigits)
     {
-        appendOneRandom(digits);
-        pool += digits;
+        useCharClass(digits);
     }
     if (useSymbols)
     {
-        appendOneRandom(symbols);
-        pool += symbols;
+        useCharClass(symbols);
     }
 
-    std::uniform_int_distribution<> dis(0, static_cast<int>(pool.size() - 1));
-    for (auto i = pwd.size(); i < length; ++i) pwd += pool[static_cast<size_t>(dis(gen))];
+    for (auto i = pwd.size(); i < length; ++i)
+    {
+        pwd += pool[rng.genuint32(pool.size())];
+    }
 
-    // We shuffle to avoid the first mandatory types
-    std::shuffle(std::begin(pwd), std::end(pwd), gen);
+    // We shuffle to avoid the first mandatory types, Fisher-Yates
+    for (size_t i = pwd.size(); i > 1; --i)
+    {
+        std::swap(pwd[i - 1], pwd[rng.genuint32(i)]);
+    }
 
     return pwd;
 }
