@@ -23,6 +23,8 @@
 #include <cryptopp/hex.h>
 
 #include <array>
+#include <cstring>
+#include <deque>
 #include <math.h>
 #include <numeric>
 
@@ -1110,4 +1112,54 @@ TEST(Crypto, CtrCrypt_RegressionVectors)
             << "Case 5: round-trip failed";
         EXPECT_EQ(decMac, expectedMac) << "Case 5: decrypt MAC mismatch";
     }
+}
+
+namespace
+{
+// Feeds genuint32() exact draws; GenerateBlock() is what PrnGen::genblock() dispatches to.
+class ScriptedPrnGen: public PrnGen
+{
+public:
+    explicit ScriptedPrnGen(std::deque<uint32_t> draws):
+        mDraws{std::move(draws)}
+    {}
+
+    void GenerateBlock(byte* out, size_t size) override
+    {
+        ASSERT_EQ(sizeof(uint32_t), size);
+        ASSERT_FALSE(mDraws.empty()) << "genuint32() asked for more draws than scripted";
+        const uint32_t v = mDraws.front();
+        mDraws.pop_front();
+        std::memcpy(out, &v, sizeof(v));
+    }
+
+    size_t remaining() const
+    {
+        return mDraws.size();
+    }
+
+private:
+    std::deque<uint32_t> mDraws;
+};
+}
+
+TEST(Crypto, PrnGenGenuint32Range)
+{
+    // 2^32 % 26 == 22, so the top 22 draws don't fill a whole bucket and must be rejected
+    ScriptedPrnGen rejects{{0xFFFFFFFFu, 0u}};
+    EXPECT_EQ(0u, rejects.genuint32(26));
+    EXPECT_EQ(0u, rejects.remaining()) << "the out-of-range draw should have been rejected";
+
+    ScriptedPrnGen lastAccepted{{4294967273u}};
+    EXPECT_EQ(25u, lastAccepted.genuint32(26));
+
+    ScriptedPrnGen fullPool{{0xFFFFFFFFu, 4294967255u}};
+    EXPECT_EQ(71u, fullPool.genuint32(72));
+
+    // powers of two divide 2^32 evenly, so nothing is ever rejected
+    ScriptedPrnGen exact{{0xFFFFFFFFu}};
+    EXPECT_EQ(63u, exact.genuint32(64));
+
+    ScriptedPrnGen degenerate{{}};
+    EXPECT_EQ(0u, degenerate.genuint32(1)) << "max == 1 should not consume a draw";
 }

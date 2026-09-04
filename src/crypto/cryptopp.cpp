@@ -37,11 +37,24 @@ void PrnGen::genblock(byte* buf, size_t len)
 // random number from 0 ... max-1
 uint32_t PrnGen::genuint32(uint64_t max)
 {
+    static constexpr uint64_t RANGE = uint64_t{1} << 32;
+    assert(max > 0 && max <= RANGE);
+    if (max <= 1)
+    {
+        return 0;
+    }
+
+    const uint64_t effectiveMax = std::min(max, RANGE);
+    const uint64_t limit = RANGE - RANGE % effectiveMax;
+
     uint32_t t;
+    do
+    {
+        genblock((byte*)&t, sizeof t);
+    }
+    while (t >= limit);
 
-    genblock((byte*)&t, sizeof t);
-
-    return (uint32_t)(((uint64_t)t) / ((((uint64_t)(~(uint32_t)0)) + 1) / max));
+    return static_cast<uint32_t>(t % effectiveMax);
 }
 
 std::string PrnGen::genstring(const size_t len)
