@@ -6636,16 +6636,16 @@ protected:
     int dataportBegin;
     int dataPortEnd;
 
-    std::string getListingLineFromNode(MegaNode *child, std::string nameToShow = string());
+    std::string getListingLineFromNode(MegaNode* child, std::string nameToShow = string());
 
-    MegaNode *getBaseFolderNode(std::string path);
-    MegaNode *getNodeByFullFtpPath(std::string path);
-    void getPermissionsString(int permissions, char *permsString);
+    MegaNode* getBaseFolderNode(std::string path);
+    MegaNode* getNodeByFullFtpPath(std::string path);
+    bool isHandleWithinAllowedSubtree(handle h);
+    void getPermissionsString(int permissions, char* permsString);
 
-
-    //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
-    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
+    // virtual methods:
+    virtual void processReceivedData(MegaTCPContext* tcpctx, ssize_t nread, const uv_buf_t* buf);
+    virtual void processAsyncEvent(MegaTCPContext* tcpctx);
     virtual MegaTCPContextPtr initializeContext(uv_stream_t* server_handle);
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);

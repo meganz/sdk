@@ -5,6 +5,8 @@
 
 #include <curl/curl.h>
 
+#include <algorithm>
+#include <cstring>
 #include <future>
 #include <memory>
 #include <string>
@@ -72,6 +74,26 @@ int ftpControlCallback(CURL*, curl_infotype type, char* data, size_t size, void*
     return 0;
 }
 
+// Feeds an in memory buffer to libcurl as the body of an FTP upload (STOR).
+struct FtpUploadSource
+{
+    const std::string* data{nullptr};
+    size_t offset{0};
+};
+
+size_t ftpReadCallback(char* buffer, size_t size, size_t nitems, void* userdata)
+{
+    auto* source = static_cast<FtpUploadSource*>(userdata);
+    const size_t remaining = source->data->size() - source->offset;
+    const size_t chunk = std::min(size * nitems, remaining);
+    if (chunk)
+    {
+        std::memcpy(buffer, source->data->data() + source->offset, chunk);
+        source->offset += chunk;
+    }
+    return chunk;
+}
+
 /**
  * @brief Minimal FTP client, built on the shared EasyCurl RAII wrapper.
  *
@@ -95,6 +117,33 @@ public:
                                           const std::vector<std::string>& commands)
     {
         return perform(baseUrl, false, commands);
+    }
+
+    // Uploads content to url via STOR. The path in url decides the target: a bare
+    // filename on the base url stores into the login directory (the account root),
+    // while a filename under the served folder path stores inside it.
+    static FtpExchange upload(const std::string& url, const std::string& content)
+    {
+        FtpExchange exchange;
+        sdk_test::EasyCurl easyCurl;
+        CURL* curl = easyCurl.curl();
+        FtpUploadSource source{&content, 0};
+
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);
+        curl_easy_setopt(curl, CURLOPT_NOPROXY, "*");
+        curl_easy_setopt(curl, CURLOPT_UPLOAD, 1L);
+        curl_easy_setopt(curl, CURLOPT_READFUNCTION, ftpReadCallback);
+        curl_easy_setopt(curl, CURLOPT_READDATA, &source);
+        curl_easy_setopt(curl, CURLOPT_INFILESIZE_LARGE, static_cast<curl_off_t>(content.size()));
+        curl_easy_setopt(curl, CURLOPT_VERBOSE, 1L);
+        curl_easy_setopt(curl, CURLOPT_DEBUGFUNCTION, ftpControlCallback);
+        curl_easy_setopt(curl, CURLOPT_DEBUGDATA, &exchange.controlLog);
+
+        exchange.curlCode = curl_easy_perform(curl);
+        curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &exchange.ftpCode);
+        return exchange;
     }
 
 private:
@@ -272,6 +321,89 @@ TEST_F(SdkTest, FtpServerRejectsPathTraversalOutsideServedFolder)
 
     EXPECT_EQ(API_OK, doDeleteNode(0, servedNode.get()));
     EXPECT_EQ(API_OK, doDeleteNode(0, outsideNode.get()));
+
+    CASE_info << "finished";
+}
+
+/**
+ * STOR and MKD with a bare name must not write outside the served folder.
+ *
+ * The server must reject the write when cwd is outside every served subtree,
+ * while still accepting a legitimate upload made inside the served folder.
+ */
+TEST_F(SdkTest, FtpServerRejectsWriteToUnservedWorkingDirectory)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    auto rootNode = makeUniqueFrom(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+
+    const std::string servedName = "served_folder";
+    const MegaHandle servedHandle = createFolder(0, servedName.c_str(), rootNode.get());
+    ASSERT_NE(servedHandle, UNDEF);
+    auto servedNode = makeUniqueFrom(megaApi[0]->getNodeByHandle(servedHandle));
+    ASSERT_TRUE(servedNode);
+
+    ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0));
+    const auto ftpServer = makeScopedDestructor(
+        [&api = megaApi]()
+        {
+            api[0]->ftpServerStop();
+        });
+
+    // Only the served folder handle is allowed over FTP; the account root is not.
+    std::unique_ptr<char[]> servedLink{megaApi[0]->ftpServerGetLocalLink(servedNode.get())};
+    ASSERT_TRUE(servedLink);
+    const std::string baseUrl = ftpBaseUrl(servedLink.get());
+    ASSERT_FALSE(baseUrl.empty());
+
+    // Test: a bare filename stored while the client is at the FTP root. cwd is
+    // the Cloud Drive root, which was never served, so it must be rejected and
+    // nothing may be created at the root.
+    const std::string outsideUpload = "escaped_upload.txt";
+    {
+        const FtpExchange stor = FtpTestClient::upload(baseUrl + outsideUpload, "payload");
+        EXPECT_NE(stor.controlLog.find("550"), std::string::npos)
+            << "STOR of a bare name at the account root was not rejected. Control log:\n"
+            << stor.controlLog;
+        EXPECT_EQ(stor.controlLog.find("150 Opening data connection for storing"),
+                  std::string::npos)
+            << "STOR opened a data connection to write outside the served folder. Control log:\n"
+            << stor.controlLog;
+
+        auto escaped =
+            makeUniqueFrom(megaApi[0]->getChildNode(rootNode.get(), outsideUpload.c_str()));
+        EXPECT_FALSE(escaped)
+            << "STOR created a file at the Cloud Drive root from a link serving only a subfolder";
+    }
+
+    // MKD of a bare name at the FTP root must be rejected too.
+    {
+        const FtpExchange mkd = FtpTestClient::runControlCommands(baseUrl, {"MKD escaped_folder"});
+        EXPECT_NE(mkd.controlLog.find("550"), std::string::npos)
+            << "MKD of a bare name at the account root was not rejected. Control log:\n"
+            << mkd.controlLog;
+
+        auto escaped = makeUniqueFrom(megaApi[0]->getChildNode(rootNode.get(), "escaped_folder"));
+        EXPECT_FALSE(escaped)
+            << "MKD created a folder at the Cloud Drive root from a link serving only a subfolder";
+    }
+
+    // An upload made inside the served folder must still be
+    // accepted, proving the check does not block legitimate writes.
+    {
+        const std::string servedPath = servedLink.get();
+        const FtpExchange stor =
+            FtpTestClient::upload(servedPath + "/allowed_upload.txt", "payload");
+        EXPECT_NE(stor.controlLog.find("150 Opening data connection for storing"),
+                  std::string::npos)
+            << "A legitimate STOR inside the served folder was rejected. Control log:\n"
+            << stor.controlLog;
+    }
+
+    EXPECT_EQ(API_OK, doDeleteNode(0, servedNode.get()));
 
     CASE_info << "finished";
 }
