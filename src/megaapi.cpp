@@ -6683,7 +6683,7 @@ void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*sourc
 
 }
 
-bool MegaGfxProcessor::readBitmap(const char* /*path*/)
+bool MegaGfxProcessor::readBitmap(const char*, const char*)
 {
     return false;
 }

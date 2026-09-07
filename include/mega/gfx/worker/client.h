@@ -49,7 +49,8 @@ public:
 
     bool runShutDown();
 
-    bool runGfxTask(const std::string& localpath,
+    bool runGfxTask(const std::string& conceptualname,
+                    const std::string& localpath,
                     const std::vector<GfxDimension>& dimensions,
                     std::vector<std::string>& images);
 

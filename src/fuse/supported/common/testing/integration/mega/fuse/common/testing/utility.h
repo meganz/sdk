@@ -37,8 +37,6 @@ bool makeFile(const common::testing::Path& path, std::size_t size);
 NodeHandle parentID(const common::NodeInfo& info);
 InodeID parentID(const InodeInfo& info);
 
-std::string readFile(const common::testing::Path& path);
-
 std::string toString(NodeHandle handle);
 
 std::uint64_t toUint64(InodeID id);

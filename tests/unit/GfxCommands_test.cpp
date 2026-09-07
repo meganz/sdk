@@ -2,9 +2,12 @@
 #include "mega/gfx/worker/command_serializer.h"
 #include "mega/gfx/worker/commands.h"
 #include "mega/gfx/worker/comms.h"
+#include "mega/utils.h"
 
 #include <chrono>
 
+using mega::CacheableReader;
+using mega::CacheableWriter;
 using mega::GfxDimension;
 using mega::gfx::CommandHello;
 using mega::gfx::CommandHelloResponse;
@@ -15,6 +18,10 @@ using mega::gfx::CommandShutDown;
 using mega::gfx::CommandShutDownResponse;
 using mega::gfx::CommandSupportFormats;
 using mega::gfx::CommandSupportFormatsResponse;
+using mega::gfx::CommandType;
+using mega::gfx::GfxSerializationHelper;
+using mega::gfx::GfxTask;
+using mega::gfx::ICommand;
 using mega::gfx::IReader;
 using std::chrono::milliseconds;
 
@@ -66,6 +73,56 @@ namespace gfx
 }
 }
 
+struct CommandNewGfx0: public ICommand
+{
+    GfxTask Task;
+
+    CommandType type() const override
+    {
+        return CommandType::NEW_GFX;
+    }
+
+    std::string typeStr() const override
+    {
+        return "NEW_GFX";
+    };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
+};
+
+std::string CommandNewGfx0::serialize() const
+{
+    std::string message;
+    CacheableWriter writer(message);
+
+    writer.serializestring_u32(Task.Path);
+    GfxSerializationHelper::serialize(writer, Task.Dimensions);
+
+    return message;
+}
+
+bool CommandNewGfx0::unserialize(const std::string& data)
+{
+    CacheableReader reader(data);
+
+    // Couldn't deserialize image path.
+    if (!reader.unserializestring_u32(Task.Path))
+        return false;
+
+    // Couldn't deserialize image dimensions.
+    if (!GfxSerializationHelper::unserialize(reader, Task.Dimensions))
+        return false;
+
+    // No dimensions specified.
+    if (Task.Dimensions.empty())
+        return false;
+
+    // All done.
+    return true;
+}
+
 class StringReader : public IReader
 {
 public:
@@ -92,19 +149,63 @@ bool StringReader::doRead(void* out, size_t n, milliseconds /*timeout*/)
 
 TEST(GfxCommandSerializer, CommandNewGfxSerializeAndUnserializeSuccessfully)
 {
-    CommandNewGfx sourceCommand;
-    sourceCommand.Task.Path = "c:\\path\\image.png";
-    sourceCommand.Task.Dimensions = std::vector<GfxDimension>{ {250, 0} };
+    // Convenience.
+    auto deserialize = [](auto&& blob) -> std::unique_ptr<CommandNewGfx>
+    {
+        StringReader reader(std::forward<decltype(blob)>(blob));
 
-    auto data = CommandSerializer::serialize(&sourceCommand);
-    ASSERT_NE(data, nullptr);
+        // Try and deserialize the command from blob.
+        auto command = CommandSerializer::unserialize(reader, 5s);
 
-    StringReader reader(std::move(*data));
-    auto command = CommandSerializer::unserialize(reader, 5000ms);
-    ASSERT_NE(command, nullptr);
-    auto targetCommand = dynamic_cast<CommandNewGfx*>(command.get());
-    ASSERT_NE(targetCommand, nullptr);
-    ASSERT_EQ(sourceCommand, *targetCommand);
+        // Couldn't deserialize the command.
+        if (!command)
+            return nullptr;
+
+        auto* pointer = dynamic_cast<CommandNewGfx*>(command.get());
+
+        // Couldn't create an instance of the right command.
+        if (!pointer)
+            return nullptr;
+
+        command.release();
+
+        // Return command instance to caller.
+        return std::unique_ptr<CommandNewGfx>(pointer);
+    }; // deserialize
+
+    // Make sure we can deserialize old NewGfx commands.
+    {
+        CommandNewGfx0 command0;
+
+        command0.Task.Dimensions = std::vector<GfxDimension>{{250, 0}};
+        command0.Task.Path = "image.png";
+
+        auto blob = CommandSerializer::serialize(&command0);
+        ASSERT_NE(blob, nullptr);
+
+        auto command1 = deserialize(std::move(*blob));
+        ASSERT_NE(command1, nullptr);
+
+        ASSERT_EQ(command1->Task.Dimensions, command0.Task.Dimensions);
+        ASSERT_EQ(command1->Task.Name, "image.png");
+        ASSERT_EQ(command1->Task.Path, command0.Task.Path);
+    }
+
+    CommandNewGfx command0;
+
+    command0.Task.Dimensions = std::vector<GfxDimension>{{32, 32}, {64, 64}};
+    command0.Task.Name = "frob.png";
+    command0.Task.Path = "image.png";
+
+    auto blob = CommandSerializer::serialize(&command0);
+    ASSERT_NE(blob, nullptr);
+
+    auto command1 = deserialize(std::move(*blob));
+    ASSERT_NE(command1, nullptr);
+
+    ASSERT_EQ(command1->Task.Dimensions, command0.Task.Dimensions);
+    ASSERT_EQ(command1->Task.Name, command0.Task.Name);
+    ASSERT_EQ(command1->Task.Path, command0.Task.Path);
 }
 
 TEST(GfxCommandSerializer, CommandNewGfxResponseSerializeAndUnserializeSuccessfully)

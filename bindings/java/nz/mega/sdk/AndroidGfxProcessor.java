@@ -31,6 +31,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     Rect size;
     int orientation;
     String srcPath;
+    boolean isVideo;
     Bitmap bitmap;
     byte[] bitmapData;
     static Context context = null;
@@ -61,23 +62,39 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         return null;
     }
 
-    public static boolean isVideoFile(String path) {
+    private static boolean isVideoFile(String path) { return isVideoFile(null, path); }
+
+    // name is the conceptual name the file will have in the cloud; it may differ from the
+    // file name in path and is only used as a fallback when path yields no MIME type.
+    private static boolean isVideoFile(String name, String path) {
+        String mimeType = getMimeType(path);
+        if (mimeType == null && name != null) {
+            mimeType = URLConnection.guessContentTypeFromName(name);
+        }
+        return mimeType != null && mimeType.startsWith("video");
+    }
+
+    private static String getMimeType(String path) {
         try {
             String mimeType = URLConnection.guessContentTypeFromName(path);
             if (mimeType == null) {
                 Uri uri = Uri.parse(path);
                 mimeType = context.getContentResolver().getType(uri);
             }
-            return mimeType != null && mimeType.startsWith("video");
+            return mimeType;
         } catch (Exception e) {
-            return false;
+            return null;
         }
     }
 
     public static Rect getImageDimensions(String path, int orientation) {
+        return getImageDimensions(path, orientation, isVideoFile(path));
+    }
+
+    public static Rect getImageDimensions(String path, int orientation, boolean isVideo) {
         Rect rect = new Rect();
 
-        if (isVideoFile(path)) {
+        if (isVideo) {
             MediaMetadataRetriever retriever = new MediaMetadataRetriever();
 
             try {
@@ -158,16 +175,17 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         }
     }
 
-    public boolean readBitmap(String path) {
+    public boolean readBitmap(String name, String path) {
         try {
-            if (isVideoFile(path)) {
+            isVideo = isVideoFile(name, path);
+            if (isVideo) {
                 srcPath = path;
-                size = getImageDimensions(srcPath, orientation);
+                size = getImageDimensions(srcPath, orientation, isVideo);
                 return (size.right != 0) && (size.bottom != 0);
             } else {
                 srcPath = path;
                 orientation = getExifOrientation(path);
-                size = getImageDimensions(srcPath, orientation);
+                size = getImageDimensions(srcPath, orientation, isVideo);
                 return (size.right != 0) && (size.bottom != 0);
             }
         } catch (Throwable e) {
@@ -241,11 +259,16 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     }
 
     static public Bitmap getBitmap(String path, Rect rect, int orientation, int w, int h) {
+        return getBitmap(path, rect, orientation, w, h, isVideoFile(path));
+    }
+
+    static public Bitmap getBitmap(String path, Rect rect, int orientation, int w, int h,
+                                   boolean isVideo) {
         if (path == null) {
             return null;
         }
 
-        if (isVideoFile(path)) {
+        if (isVideo) {
             Uri uri = Uri.parse(path);
             boolean contentUri = isContentUri(uri);
 
@@ -350,7 +373,6 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         return null;
     }
 
-
     public static int getExifOrientation(String srcPath) {
         InputStream inputStream = getInputStreamFromPath(srcPath);
         if (inputStream == null) {
@@ -437,7 +459,7 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
     public int getBitmapDataSize(int w, int h, int px, int py, int rw, int rh, int hint) {
         try {
             if (bitmap == null)
-                bitmap = getBitmap(srcPath, size, orientation, w, h);
+                bitmap = getBitmap(srcPath, size, orientation, w, h, isVideo);
             else
                 bitmap = Bitmap.createScaledBitmap(bitmap, w, h, true);
 
@@ -481,5 +503,6 @@ public class AndroidGfxProcessor extends MegaGfxProcessor {
         size = null;
         srcPath = null;
         orientation = 0;
+        isVideo = false;
     }
 }

@@ -57,7 +57,7 @@ const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
+bool GfxProviderCG::readbitmap(const std::string& name, const LocalPath& path, int size) {
     // Convenience.
     using mega::detail::AdjustBasePathResult;
     using mega::detail::adjustBasePath;
@@ -82,7 +82,14 @@ bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
 
     w = h = 0;
 
-    NSString *fileExtension = [sourcePath pathExtension];
+    // Make name available to Cocoa.
+    auto* cloudName = [NSString stringWithCString: name.c_str() encoding:NSUTF8StringEncoding];
+
+    // Couldn't make name available to Cocoa.
+    if (cloudName == nil)
+        return false;
+
+    NSString *fileExtension = [cloudName pathExtension];
     if (fileExtension) {
         UTType *type = [UTType typeWithFilenameExtension:fileExtension];
         

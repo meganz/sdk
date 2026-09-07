@@ -1724,7 +1724,7 @@ bool AndroidFileAccess::fstat(m_time_t& modified, m_off_t& size)
 bool AndroidFileAccess::ftouch(m_time_t modified)
 {
     struct timespec times[] = {/* accessed */ {0, UTIME_OMIT},
-                               /* modified */ {modified, 0}}; // times
+                               /* modified */ {static_cast<time_t>(modified), 0}}; // times
 
     retry = false;
 

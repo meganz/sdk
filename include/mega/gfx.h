@@ -55,6 +55,9 @@ public:
 
     // resulting images
     vector<string *> images;
+
+    // conceptual name of the image.
+    std::string name;
 };
 
 class MEGA_API GfxJobQueue
@@ -102,8 +105,10 @@ public:
     // It generates thumbnails for the file at localfilepath. The function will return
     // the same number of thumbnails as the size of dimensions vector. On error it will
     // return a vector of empty strings.
-    virtual std::vector<std::string> generateImages(const LocalPath& localfilepath,
-                                                    const std::vector<GfxDimension>& dimensions) = 0;
+    virtual std::vector<std::string>
+        generateImages(const std::string& conceptualname,
+                       const LocalPath& localfilepath,
+                       const std::vector<GfxDimension>& dimensions) = 0;
 
     // list of supported extensions (NULL if no pre-filtering is needed)
     virtual const char* supportedformats() = 0;
@@ -122,8 +127,10 @@ class MEGA_API IGfxLocalProvider : public IGfxProvider
 public: // read and store bitmap
     virtual ~IGfxLocalProvider() = default;
 
-    virtual std::vector<std::string> generateImages(const LocalPath& localfilepath,
-                                                    const std::vector<GfxDimension>& dimensions) override;
+    virtual std::vector<std::string>
+        generateImages(const std::string& conceptualname,
+                       const LocalPath& localfilepath,
+                       const std::vector<GfxDimension>& dimensions) override;
 
     enum class Hint
     {
@@ -132,7 +139,9 @@ public: // read and store bitmap
     };
 
 private:
-    virtual bool readbitmap(const LocalPath&, int) = 0;
+    virtual bool readbitmap(const std::string& conceptualname,
+                            const LocalPath& localfilepath,
+                            int maxDimension) = 0;
 
     // Resize stored bitmap and store result as JPEG by default or PNG if the bitmap has
     // transparency and the requested width and height is for the thumbnail.
@@ -172,22 +181,24 @@ class MEGA_API GfxProc
     static void *threadEntryPoint(void *param);
     void loop();
 
-    std::vector<GfxDimension> getJobDimensions(GfxJob *job);
+    std::vector<GfxDimension> getJobDimensions(const GfxJob& job) const;
 
     // Caller should give dimensions from high resolution to low resolution
-    std::vector<std::string> generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions);
+    std::vector<std::string> generateImages(const GfxJob& job);
 
-    std::string generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension);
+    std::string generateOneImage(const std::string& conceptualname,
+                                 const LocalPath& localfilepath,
+                                 const GfxDimension& dimension);
 
 public:
     // synchronously processes the results of gendimensionsputfa() (if any) in a thread safe manner
     int checkevents(Waiter*);
 
     // synchronously check whether the filename looks like a supported media type
-    bool isgfx(const LocalPath&);
+    bool isgfx(const std::string& conceptualname) const;
 
     // synchronously check whether the filename looks like a video
-    bool isvideo(const LocalPath&);
+    bool isvideo(const std::string& conceptualname) const;
 
     // synchronously generate all gfx sizes and returns the count
     // asynchronously write to metadata server and attach to PUT transfer or existing node,
@@ -196,7 +207,11 @@ public:
     // handle is uploadhandle or nodehandle
     // - must respect JPEG EXIF rotation tag
     // - must save at 85% quality (120*120 pixel result: ~4 KB)
-    int gendimensionsputfa(const LocalPath&, NodeOrUploadHandle, SymmCipher*, int missingattr);
+    int gendimensionsputfa(const std::string& conceptualname,
+                           const LocalPath& localfilename,
+                           NodeOrUploadHandle th,
+                           SymmCipher* key,
+                           int missing);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;
@@ -222,6 +237,13 @@ public:
     GfxProc(std::unique_ptr<IGfxProvider>);
     virtual ~GfxProc();
 };
+
+// Called to return a list of supported formats such as ".png.jpg"
+using SupportedFormatsCallback = std::function<const char*()>;
+
+// Called to determine if name is one of the formats returned by callback.
+bool isSupportedFormat(SupportedFormatsCallback callback, const std::string& name);
+
 } // namespace
 
 #endif

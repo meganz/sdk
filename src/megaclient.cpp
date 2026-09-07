@@ -4760,10 +4760,16 @@ void MegaClient::dispatchTransfers()
                         {
                             nexttransfer->uploadhandle = mUploadHandle.next();
 
-                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
+                            // Add missing thumbnails if we're uploading a file.
+                            if (auto conceptualname = nexttransfer->thumbnailName())
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                int bitmask = gfx->gendimensionsputfa(nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+                                int bitmask = gfx->gendimensionsputfa(
+                                    *conceptualname,
+                                    nexttransfer->localfilename,
+                                    NodeOrUploadHandle(nexttransfer->uploadhandle),
+                                    nexttransfer->transfercipher(),
+                                    -1);
 
                                 if (bitmask & (1 << GfxProc::THUMBNAIL))
                                 {
@@ -19355,7 +19361,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname());
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname().toPath(false));
 #endif
         }
         else

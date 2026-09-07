@@ -254,8 +254,11 @@ struct MEGA_API Transfer : public FileFingerprint
     // unserialize a Transfer and add it to the transfer map
     static Transfer* unserialize(MegaClient *, string*, transfer_multimap *);
 
-    // examine a file on disk for video/audio attributes to attach to the file, on upload/download
-    void addAnyMissingMediaFileAttributes(Node* node, LocalPath& localpath);
+    // Add any missing media file attributes when downloading a file.
+    void addMissingMediaAttributesOnDownload(Node& node, const LocalPath& path);
+
+    // Add any missing media file attributes when uploading a file.
+    void addMissingMediaAttributesOnUpload(const LocalPath& path);
 
     // whether the Transfer needs to remove itself from the list it's in (for quick shutdown we can skip)
     bool mOptimizedDelete = false;
@@ -272,6 +275,12 @@ struct MEGA_API Transfer : public FileFingerprint
                                                            const m_time_t currentTime);
 
     void adjustNonRaidedProgressIfNowIsRaided();
+
+    // Return a representative media name for this transfer.
+    std::optional<std::string> mediaName() const;
+
+    // Return a representative thumbnail name for this transfer.
+    std::optional<std::string> thumbnailName() const;
 
 private:
     FileDistributor::TargetNameExistsResolution toTargetNameExistsResolution(CollisionResolution resolution);

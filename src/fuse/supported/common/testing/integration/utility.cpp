@@ -74,29 +74,6 @@ InodeID parentID(const InodeInfo& info)
     return info.mParentID;
 }
 
-std::string readFile(const Path& path)
-{
-    std::error_code error;
-
-    auto size = fs::file_size(path, error);
-
-    if (error)
-        return std::string();
-
-    std::ifstream istream(path.path(), std::ios::binary);
-
-    if (!istream)
-        return std::string();
-
-    std::string buffer(static_cast<std::size_t>(size), '\0');
-
-    istream.read(&buffer[0], static_cast<std::streamsize>(size));
-
-    buffer.resize(static_cast<std::size_t>(istream.gcount()));
-
-    return buffer;
-}
-
 std::string toString(NodeHandle handle)
 {
     return toNodeHandle(handle);

@@ -112,15 +112,16 @@ GfxProviderIsolatedProcess::GfxProviderIsolatedProcess(std::unique_ptr<GfxIsolat
     assert(mProcess);
 }
 
-std::vector<std::string> GfxProviderIsolatedProcess::generateImages(
-    const LocalPath& localfilepath,
-    const std::vector<GfxDimension>& dimensions)
+std::vector<std::string>
+    GfxProviderIsolatedProcess::generateImages(const std::string& conceptualname,
+                                               const LocalPath& localfilepath,
+                                               const std::vector<GfxDimension>& dimensions)
 {
     // default return
     std::vector<std::string> images(dimensions.size());
 
     auto gfxclient = GfxClient::create(mEndpointName);
-    gfxclient.runGfxTask(localfilepath.toPath(false), dimensions, images);
+    gfxclient.runGfxTask(conceptualname, localfilepath.toPath(false), dimensions, images);
 
     return images;
 }

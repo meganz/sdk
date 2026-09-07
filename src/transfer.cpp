@@ -693,41 +693,112 @@ static uint32_t* fileAttributeKeyPtr(byte filekey[FILENODEKEYLENGTH])
 }
 #endif
 
-void Transfer::addAnyMissingMediaFileAttributes([[maybe_unused]] Node* node,
-                                                [[maybe_unused]] /*const*/ LocalPath& localpath)
+void Transfer::addMissingMediaAttributesOnDownload([[maybe_unused]] Node& node,
+                                                   [[maybe_unused]] const LocalPath& path)
 {
-    assert(type == PUT || (node && node->type == FILENODE));
+    // Sanity: This method should only be called for a download.
+    assert(type == GET);
+
+    // Sanity: This method should never be called for a directory.
+    assert(node.type == FILENODE);
 
 #ifdef USE_MEDIAINFO
-    string ext;
-    if (((type == PUT && size >= 16) || (node && node->nodekey().size() == FILENODEKEYLENGTH && node->size >= 16)) &&
-        client->fsaccess->getextension(localpath, ext) &&
-        MediaProperties::isMediaFilenameExt(ext) &&
-        !client->mediaFileInfo.mediaCodecsFailed)
-    {
-        // for upload, the key is in the transfer.  for download, the key is in the node.
-        uint32_t* attrKey = fileAttributeKeyPtr((type == PUT) ? filekey.bytes.data() : (byte*)node->nodekey().data());
 
-        if (type == PUT || !node->hasfileattribute(fa_media) || client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node->fileattrstring, attrKey))
-        {
-            // if we don't have the codec id mappings yet, send the request
-            client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
+    // Can't extract metadata if our codecs are busted.
+    if (client->mediaFileInfo.mediaCodecsFailed)
+        return;
 
-            // always get the attribute string; it may indicate this version of the mediaInfo library was unable to interpret the file
-            MediaProperties vp;
-            vp.extractMediaPropertyFileAttributes(localpath, client->fsaccess.get());
+    // We don't have the node's key.
+    if (node.nodekey().size() != FILENODEKEYLENGTH)
+        return;
 
-            if (type == PUT)
-            {
-                client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(vp, attrKey, client, uploadhandle, this);
-            }
-            else
-            {
-                client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(vp, attrKey, client, node->nodeHandle());
-            }
-        }
-    }
-#endif
+    // The node's too small to contain media attributes.
+    if (node.size < 16)
+        return;
+
+    std::string extension;
+
+    // Path doesn't have any extension.
+    if (!client->fsaccess->getextension(path, extension))
+        return;
+
+    // Extension doesn't match a supported media format.
+    if (!MediaProperties::isMediaFilenameExt(extension))
+        return;
+
+    // Convenience.
+    auto nodeKey = reinterpret_cast<const byte*>(node.nodekey().data());
+
+    // Get our hands on the node's file attribute key.
+    auto attributeKey = fileAttributeKeyPtr(const_cast<byte*>(nodeKey));
+
+    // Node already has media attributes.
+    if (node.hasfileattribute(fa_media) &&
+        !client->mediaFileInfo.timeToRetryMediaPropertyExtraction(node.fileattrstring,
+                                                                  attributeKey))
+        return;
+
+    // Make sure we have necessary codec ID mappings.
+    client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
+
+    MediaProperties properties;
+
+    // Always get the attribute string: it may indicate this version of the
+    // mediainfo library was unable to interpret the file.
+    properties.extractMediaPropertyFileAttributes(path, client->fsaccess.get());
+
+    // Attach media file attributes.
+    client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(
+        properties,
+        attributeKey,
+        client,
+        node.nodeHandle());
+
+#endif // USE_MEDIAINFO
+}
+
+void Transfer::addMissingMediaAttributesOnUpload([[maybe_unused]] const LocalPath& path)
+{
+    // Sanity: This should only be called for an upload.
+    assert(type == PUT);
+
+#ifdef USE_MEDIAINFO
+
+    // Can't extract metadata if our codecs are busted.
+    if (client->mediaFileInfo.mediaCodecsFailed)
+        return;
+
+    // File's too small to contain media attributes.
+    if (size < 16)
+        return;
+
+    // Determine a suitable name for media extraction.
+    auto name = mediaName();
+
+    // Couldn't determine a suitable name for extension.
+    if (!name)
+        return;
+
+    // Make sure we have necessary codec ID mappings.
+    client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
+
+    MediaProperties properties;
+
+    // Always get the attribute string: it may indicate this version of the
+    // mediainfo library was unable to interpret the file.
+    properties.extractMediaPropertyFileAttributes(path, client->fsaccess.get());
+
+    // Get our hands on the upload's file attribute key.
+    auto attributeKey = fileAttributeKeyPtr(filekey.bytes.data());
+
+    // Queue extraction and upload of media attributes.
+    client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(properties,
+                                                                      attributeKey,
+                                                                      client,
+                                                                      uploadhandle,
+                                                                      this);
+
+#endif // USE_MEDIAINFO
 }
 
 bool Transfer::isForSupport() const
@@ -845,6 +916,87 @@ void Transfer::adjustNonRaidedProgressIfNowIsRaided()
               << " ultoken: " << (ultoken != NULL);
 
     discardedTempUrlsSize = 0;
+}
+
+std::optional<std::string> Transfer::mediaName() const
+{
+#ifdef USE_MEDIAINFO
+
+    // Graphics processing is disabled.
+    if (client->gfxdisabled)
+        return std::nullopt;
+
+    // True if the extension of file's cloud name is a supported graphics format.
+    auto hasMediaExtension = [](const auto* file)
+    {
+        // Extract the file's extension.
+        auto extension = extensionOf(file->name);
+
+        // File has no extension.
+        if (extension.empty())
+            return false;
+
+        // Check if the extension is a supported media format.
+        return MediaProperties::isMediaFilenameExt(extension);
+    }; // hasMediaExtension
+
+    // Try and find a file with a supported media extension.
+    auto iterator = std::find_if(files.begin(), files.end(), hasMediaExtension);
+
+    // Found a file that has a supported media extension.
+    if (iterator != files.end())
+        return (*iterator)->name;
+
+    // Fallback to the transfer's own name.
+    auto name = localfilename.leafName().toName(*client->fsaccess);
+    auto extension = extensionOf(name);
+
+    // Name doesn't have an extension.
+    if (extension.empty())
+        return std::nullopt;
+
+    // Name has a supported media extension.
+    if (MediaProperties::isMediaFilenameExt(extension))
+        return name;
+
+    // Neither the transfer or any file has a supported media extension.
+    return std::nullopt;
+
+#else // USE_MEDIAINFO
+
+    return std::nullopt;
+
+#endif // ! USE_MEDIAINFO
+}
+
+std::optional<std::string> Transfer::thumbnailName() const
+{
+    // Client doesn't have any graphics processor.
+    if (client->gfxdisabled || !client->gfx)
+        return std::nullopt;
+
+    // True if the extension of file's cloud name is a supported graphics format.
+    auto hasGraphicsExtension = [this](const auto* file)
+    {
+        return client->gfx->isgfx(file->name);
+    }; // hasGraphicsExtension
+
+    // Try and find a file that names a supported graphics format.
+    auto iterator = std::find_if(files.begin(), files.end(), hasGraphicsExtension);
+
+    // Found a file that names a supported graphics format.
+    if (iterator != files.end())
+        return (*iterator)->name;
+
+    // Fallback to the transfer's own name.
+    auto name = localfilename.leafName().toName(*client->fsaccess);
+
+    // Name doesn't denote a supported graphics format.
+    if (!client->gfx->isgfx(name))
+        return std::nullopt;
+
+    // Return the transfer's name to our caller.
+    return name;
 }
 
 FileDistributor::TargetNameExistsResolution Transfer::toTargetNameExistsResolution(CollisionResolution resolution)
@@ -1114,8 +1266,10 @@ void Transfer::complete(TransferDbCommitter& committer)
                     if ((*it)->hprivate && !(*it)->hforeign && (n = client->nodeByHandle((*it)->h)))
                     {
                         auto localname = (*it)->getLocalname();
-                        if (!client->gfxdisabled && client->gfx && client->gfx->isgfx(localname) &&
-                            keys.find(n->nodekey()) == keys.end() &&    // this file hasn't been processed yet
+                        if (!client->gfxdisabled && client->gfx &&
+                            client->gfx->isgfx(localname.toPath(false)) &&
+                            keys.find(n->nodekey()) ==
+                                keys.end() && // this file hasn't been processed yet
                             client->checkaccess(n.get(), OWNER))
                         {
                             keys.insert(n->nodekey());
@@ -1129,11 +1283,14 @@ void Transfer::complete(TransferDbCommitter& committer)
                                 if (!n->hasfileattribute(GfxProc::PREVIEW)) missingattr |= 1 << GfxProc::PREVIEW;
 
                                 if (missingattr)
-                                {
-                                    client->gfx->gendimensionsputfa(localname, NodeOrUploadHandle(n->nodeHandle()), n->nodecipher(), missingattr);
-                                }
+                                    client->gfx->gendimensionsputfa(
+                                        localname.leafName().toPath(false),
+                                        localname,
+                                        NodeOrUploadHandle(n->nodeHandle()),
+                                        n->nodecipher(),
+                                        missingattr);
 
-                                addAnyMissingMediaFileAttributes(n.get(), localname);
+                                addMissingMediaAttributesOnDownload(*n, localname);
                             }
                         }
                     }
@@ -1316,12 +1473,8 @@ void Transfer::complete(TransferDbCommitter& committer)
             return failed(API_EREAD, committer);
         }
 
-
-        if (!client->gfxdisabled)
-        {
-            // prepare file attributes for video/audio files if the file is suitable
-            addAnyMissingMediaFileAttributes(NULL, localfilename);
-        }
+        // prepare file attributes for video/audio files if the file is suitable
+        addMissingMediaAttributesOnUpload(localfilename);
 
         // if this transfer is put on hold, do not complete
         client->checkfacompletion(uploadhandle, this, true);

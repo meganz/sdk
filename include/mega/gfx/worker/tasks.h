@@ -30,8 +30,9 @@ namespace gfx {
 
 struct GfxTask final
 {
-    std::string          Path;
     std::vector<GfxDimension> Dimensions;
+    std::string Name;
+    std::string Path;
 };
 
 /**

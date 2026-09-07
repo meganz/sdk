@@ -154,7 +154,7 @@ class MegaFileServiceStorageInfo;
  * The implementation will receive callbacks from an internal worker thread.
  *
  * Images will be sequentially processed. At first, the SDK will call MegaGfxProcessor::readBitmap
- * with the path of the file. Then, it will call MegaGfxProcessor::getWidth and
+ * with the name and path of the file. Then, it will call MegaGfxProcessor::getWidth and
  * MegaGfxProcessor::getHeight to get the dimensions of the file (in pixels). After that, the SDK
  * will call MegaGfxProcessor::getBitmapDataSize and MegaGfxProcessor::getBitmapData in a loop to
  * get thumbnails/previews of different sizes. Finally, the SDK will call
@@ -167,7 +167,6 @@ class MegaFileServiceStorageInfo;
  * transformation based on the EXIF data.
  *
  * Generated images can be in JPG or PNG format.
- *
  */
 class MegaGfxProcessor
 {
@@ -184,17 +183,27 @@ public:
      * This is the first function that will be called to process an image. No other
      * functions of this interface will be called before this one.
      *
-     * The recommended implementation is to read the file, check if it's an image and
-     * get its dimensions. If everything is OK, the function should return true. If the
-     * file isn't an image or can't be processed, this function should return false.
+     * The recommended implementation is to read the file from path, check if it's an
+     * image and get its dimensions. If everything is OK, the function should return true.
+     * If the file isn't an image or can't be processed, this function should return
+     * false.
      *
      * The SDK will call this function with all files so it's probably a good idea to
-     * check the extension before trying to open them.
+     * check the extension of name before trying to open the file at path.
      *
-     * @param path Path of the file that is going to be processed
-     * @return True if the implementation is able to manage the file, false otherwise.
+     * @param name
+     * Name of the file that is going to be processed.
+     *
+     * Note that name may be different than the name of the file denoted by the path
+     * parameter below.
+     *
+     * @param path
+     * Path of the file that is going to be processed
+     *
+     * @return
+     * True if the implementation is able to manage the file, false otherwise.
      */
-    virtual bool readBitmap(const char* path);
+    virtual bool readBitmap(const char* name, const char* path);
 
     /**
      * @brief Returns the width of the image

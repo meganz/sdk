@@ -50,6 +50,7 @@
 #include <cinttypes>
 #include <cstdint>
 #include <filesystem>
+#include <sdk_test_data_provider.h>
 
 namespace mega
 {
@@ -614,6 +615,129 @@ TEST_F(FileServiceTests, append_succeeds)
 
     // Make sure we received the events we expected.
     ASSERT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
+}
+
+TEST_F(FileServiceTests, attaches_media_file_attributes_on_flush_succeeds)
+{
+    // Generate names for our test files.
+    const auto audioName = randomName() + ".mp3";
+    const auto imageName = randomName() + ".png";
+    const auto videoName = randomName() + ".mp4";
+
+    // Convenience.
+    using TestFile = common::testing::File;
+
+    // Create test files on disk.
+    TestFile audio(0, audioName, mScratchPath);
+    TestFile image(0, imageName, mScratchPath);
+    TestFile video(0, videoName, mScratchPath);
+
+    // Populate test files from Artifactory.
+    ASSERT_TRUE(getFileFromArtifactory("test-data/test_cover_png.mp3", audio.path()));
+    ASSERT_TRUE(getFileFromArtifactory("test-data/logo.png", image.path()));
+    ASSERT_TRUE(getFileFromArtifactory("test-data/sample_video.mp4", video.path()));
+
+    // Create test files in the service.
+    auto audioFile = mClient->fileCreate();
+    auto imageFile = mClient->fileCreate();
+    auto videoFile = mClient->fileCreate();
+
+    // Make sure our test files were created successfully.
+    ASSERT_EQ(audioFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(imageFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(videoFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // So we can tell the service where each file is located.
+    const std::map<FileID, std::string> names = {{audioFile->info().id(), audioName},
+                                                 {imageFile->info().id(), imageName},
+                                                 {videoFile->info().id(), videoName}}; // names
+
+    // So we can tell the service where the file is located.
+    ScopedFileLocationProvider provider(
+        [names](auto id) -> std::optional<FileLocation>
+        {
+            // Try and locate the name for this file.
+            auto iterator = names.find(id);
+
+            // Found a name for this file.
+            if (iterator != names.end())
+                return FileLocation{iterator->second, mRootHandle};
+
+            // ID doesn't denote one of our test files.
+            return std::nullopt;
+        },
+        mClient->fileService());
+
+    // Get our hands on our test data.
+    const auto audioData = readFile(audio.path());
+    const auto imageData = readFile(image.path());
+    const auto videoData = readFile(video.path());
+
+    // Write the data to our test files.
+    ASSERT_EQ(execute(write, audioData.data(), *audioFile, 0, 0, audioData.size()), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, imageData.data(), *imageFile, 0, 0, imageData.size()), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, videoData.data(), *videoFile, 0, 0, videoData.size()), FILE_SUCCESS);
+
+    // Flush each test file's content to the cloud.
+    ASSERT_EQ(execute(flush, *audioFile), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *imageFile), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *videoFile), FILE_SUCCESS);
+
+    // Get our hands on each test file's node handle.
+    const auto audioHandle = audioFile->info().handle();
+    const auto imageHandle = imageFile->info().handle();
+    const auto videoHandle = videoFile->info().handle();
+
+    // Wait for each file to have a preview and thumbnail.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            // Clarity.
+            constexpr auto PREVIEW = 1;
+            constexpr auto THUMBNAIL = 0;
+
+            // Convenience.
+            const NodeHandle handles[] = {audioHandle, imageHandle, videoHandle};
+
+            // Make sure each file has a preview and a thumbnail.
+            for (auto& handle: handles)
+            {
+                // File doesn't have a preview.
+                if (!mClient->hasFileAttribute(handle, PREVIEW))
+                    return false;
+
+                // File doesn't have a thumbnail.
+                if (!mClient->hasFileAttribute(handle, THUMBNAIL))
+                    return false;
+            }
+
+            // Each file has a preview and a thumbnail.
+            return true;
+        },
+        mDefaultTimeout));
+
+    // Make sure each media file has media attributes.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            // Clarity.
+            constexpr auto MEDIA = 8;
+
+            // Convenience.
+            const NodeHandle handles[] = {audioHandle, videoHandle};
+
+            // Make sure each file has media attributes.
+            for (auto& handle: handles)
+            {
+                // File doesn't have a media attribute.
+                if (!mClient->hasFileAttribute(handle, MEDIA))
+                    return false;
+            }
+
+            // Each file has media attributes.
+            return true;
+        },
+        mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, cancel_reads_contained_within_written_range_succeeds)
