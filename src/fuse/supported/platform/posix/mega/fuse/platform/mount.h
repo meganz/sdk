@@ -12,6 +12,7 @@
 #include <mega/fuse/platform/inode_invalidator.h>
 #include <mega/fuse/platform/library.h>
 #include <mega/fuse/platform/mount_forward.h>
+#include <mega/fuse/platform/read_directory_functions_forward.h>
 #include <mega/fuse/platform/request_forward.h>
 #include <mega/fuse/platform/session.h>
 
@@ -30,6 +31,8 @@ class Mount final: public fuse::Mount
 {
     friend class Session;
     friend class SessionBase;
+
+    class UnpinOnException;
 
     void access(Request request, MountInodeID inode, int mask);
 
@@ -90,11 +93,12 @@ class Mount final: public fuse::Mount
               off_t offset,
               fuse_file_info& info);
 
-    void readdir(Request request,
+    void readdir(ReadDirectoryFunctions& functions,
+                 fuse_file_info& info,
                  MountInodeID inode,
-                 std::size_t size,
                  off_t offset,
-                 fuse_file_info& info);
+                 Request request,
+                 std::size_t size);
 
     void release(Request request, MountInodeID inode, fuse_file_info& info);
 

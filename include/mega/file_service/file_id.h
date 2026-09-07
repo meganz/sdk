@@ -41,7 +41,7 @@ public:
 
     FileID& operator=(const FileID& rhs) = default;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     bool operator==(const FileID& rhs) const;
 

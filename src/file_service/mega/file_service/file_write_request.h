@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_request_tags.h>
@@ -21,6 +22,9 @@ struct FileWriteRequest
     {
         return "write";
     }
+
+    // Application-specific data associated with this request.
+    ApplicationData mApplicationData;
 
     // The content the user wants to write.
     const void* mBuffer;

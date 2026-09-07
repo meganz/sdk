@@ -47,6 +47,9 @@ struct Mount::PinnedInodeInfo
     std::uint64_t mPinCount;
 }; /* PinnedInodeInfo */
 
+// Generates a unique ID for a mount.
+static std::uint64_t generateMountID();
+
 void Mount::invalidatePin(PinnedInodeInfo& info, std::unique_lock<std::mutex>&)
 {
     // Convenience.
@@ -73,6 +76,7 @@ Mount::Mount(const MountInfo& info, platform::MountDB& mountDB):
     mContextsLock(),
     mDisabled(),
     mFlags(info.mFlags),
+    mID(generateMountID()),
     mHandle(info.mHandle),
     mPins(),
     mPinsLock(),
@@ -100,78 +104,6 @@ Mount::~Mount()
 InodeRef Mount::get(MountInodeID id, bool memoryOnly) const
 {
     return mMountDB.mContext.mInodeDB.get(map(id), memoryOnly);
-}
-
-void Mount::pin(InodeRef inode, const InodeInfo& info)
-{
-    // Sanity.
-    assert(inode);
-    assert(inode->id() == info.mID);
-
-    // Convenience.
-    auto id = info.mID;
-
-    std::lock_guard<std::mutex> guard(mPinsLock);
-
-    FUSEDebugF("Pinning inode %s", toString(id).c_str());
-
-    // Where should we insert this inode's pin record?
-    auto position = mPins.lower_bound(id);
-
-    // Inode hasn't already been pinned.
-    if (position == mPins.end() || position->first != id)
-    {
-        position = mPins.emplace_hint(position,
-                                      std::piecewise_construct,
-                                      std::forward_as_tuple(id),
-                                      std::forward_as_tuple(std::move(inode), info));
-    }
-
-    // Increase pin count.
-    position->second.mPinCount++;
-
-    FUSEDebugF("Inode %s now has %zu reference(s)",
-               toString(id).c_str(),
-               position->second.mPinCount);
-}
-
-void Mount::unpin(InodeRef inode, std::uint64_t num)
-{
-    assert(inode);
-
-    // The inode to be unpinned, if any.
-    InodeRef ref;
-
-    // Decrease pin count and latch inode if needed.
-    {
-        std::lock_guard<std::mutex> guard(mPinsLock);
-
-        FUSEDebugF("Unpinning inode %s", toString(inode->id()).c_str());
-
-        // Has this indoe been pinned?
-        auto i = mPins.find(inode->id());
-
-        // Sanity.
-        assert(i != mPins.end());
-        assert(i->second.mPinCount >= num);
-
-        // Decrement pin count.
-        i->second.mPinCount -= num;
-
-        FUSEDebugF("Inode %s now has %zu reference(s)",
-                   toString(inode->id()).c_str(),
-                   i->second.mPinCount);
-
-        // Pin still has references.
-        if (i->second.mPinCount)
-            return;
-
-        // Latch inode so we can release it outside of mPinsLock.
-        ref = std::move(i->second.mInode);
-
-        // Inode's no longer pinned.
-        mPins.erase(i);
-    }
 }
 
 void Mount::contextAdded(platform::ContextBadge, platform::Context& context)
@@ -221,6 +153,11 @@ MountFlags Mount::flags() const
 NodeHandle Mount::handle() const
 {
     return mHandle;
+}
+
+std::uint64_t Mount::id() const
+{
+    return mID;
 }
 
 MountInfo Mount::info() const
@@ -273,6 +210,78 @@ std::string Mount::name() const
     return mFlags.mName;
 }
 
+void Mount::pin(InodeRef inode, const InodeInfo& info)
+{
+    // Sanity.
+    assert(inode);
+    assert(inode->id() == info.mID);
+
+    // Convenience.
+    auto id = info.mID;
+
+    std::lock_guard<std::mutex> guard(mPinsLock);
+
+    FUSEDebugF("Pinning inode %s", toString(id).c_str());
+
+    // Where should we insert this inode's pin record?
+    auto position = mPins.lower_bound(id);
+
+    // Inode hasn't already been pinned.
+    if (position == mPins.end() || position->first != id)
+    {
+        position = mPins.emplace_hint(position,
+                                      std::piecewise_construct,
+                                      std::forward_as_tuple(id),
+                                      std::forward_as_tuple(std::move(inode), info));
+    }
+
+    // Increase pin count.
+    position->second.mPinCount++;
+
+    FUSEDebugF("Inode %s now has %zu reference(s)",
+               toString(id).c_str(),
+               position->second.mPinCount);
+}
+
+void Mount::unpin(InodeRef inode, std::uint64_t num)
+{
+    assert(inode);
+
+    // The inode to be unpinned, if any.
+    InodeRef ref;
+
+    // Decrease pin count and latch inode if needed.
+    {
+        std::lock_guard<std::mutex> guard(mPinsLock);
+
+        FUSEDebugF("Unpinning inode %s", toString(inode->id()).c_str());
+
+        // Has this inode been pinned?
+        auto i = mPins.find(inode->id());
+
+        // Sanity.
+        assert(i != mPins.end());
+        assert(i->second.mPinCount >= num);
+
+        // Decrement pin count.
+        i->second.mPinCount -= num;
+
+        FUSEDebugF("Inode %s now has %zu reference(s)",
+                   toString(inode->id()).c_str(),
+                   i->second.mPinCount);
+
+        // Pin still has references.
+        if (i->second.mPinCount)
+            return;
+
+        // Latch inode so we can release it outside of mPinsLock.
+        ref = std::move(i->second.mInode);
+
+        // Inode's no longer pinned.
+        mPins.erase(i);
+    }
+}
+
 bool Mount::writable() const
 {
     std::lock_guard<std::mutex> guard(mLock);
@@ -285,6 +294,14 @@ bool Mount::allowSelfAccess() const
     std::lock_guard<std::mutex> guard(mLock);
 
     return mFlags.mAllowSelfAccess;
+}
+
+std::uint64_t generateMountID()
+{
+    static std::atomic<std::uint64_t> nextID{0};
+
+    // Generate a unique ID for a mount.
+    return nextID.fetch_add(1);
 }
 
 } // fuse

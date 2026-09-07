@@ -100,5 +100,12 @@ std::uint64_t FileInfo::size() const
     return mContext->size();
 }
 
+FileStructureMutex& FileInfo::structureMutex() const
+{
+    assert(mContext);
+
+    return mContext->structureMutex();
+}
+
 } // file_service
 } // mega

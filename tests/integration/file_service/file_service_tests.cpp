@@ -1,5 +1,8 @@
+#include "mega/testhooks.h"
+
 #include <gmock/gmock.h>
 #include <mega/auto_file_handle.h>
+#include <mega/common/client_adapter.h>
 #include <mega/common/database.h>
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
@@ -12,6 +15,7 @@
 #include <mega/common/testing/utility.h>
 #include <mega/common/testing/watchdog.h>
 #include <mega/common/utility.h>
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_event.h>
 #include <mega/file_service/file_event_observer_result.h>
@@ -36,11 +40,13 @@
 #include <mega/file_service/file_stream_result.h>
 #include <mega/file_service/file_touch_event.h>
 #include <mega/file_service/file_truncate_event.h>
+#include <mega/file_service/file_truncate_result.h>
 #include <mega/file_service/file_write_event.h>
 #include <mega/file_service/file_write_result.h>
 #include <mega/file_service/logging.h>
 #include <mega/file_service/source.h>
 #include <mega/file_service/testing/integration/client.h>
+#include <mega/file_service/testing/integration/partial_download_recorder.h>
 #include <mega/file_service/testing/integration/real_client.h>
 #include <mega/file_service/testing/integration/scoped_file_event_observer.h>
 #include <mega/file_service/testing/integration/scoped_file_location_provider.h>
@@ -249,6 +255,9 @@ struct FileServiceTestTraits
 
 class FileServiceTests: public SingleClientTest<FileServiceTestTraits>
 {
+    // Remove all of user's cached files and metadata.
+    bool cleanup();
+
 public:
     // Perform instance-specific setup.
     void SetUp() override;
@@ -275,6 +284,10 @@ public:
     static Watchdog mWatchdog;
 }; // FUSEPartialDownloadTests
 
+// Tag type for ApplicationID.
+struct TestTag
+{};
+
 // For clarity.
 constexpr std::uint64_t operator""_KiB(unsigned long long value)
 {
@@ -287,7 +300,10 @@ constexpr std::uint64_t operator""_MiB(unsigned long long value)
 }
 
 // Append content to the end of the specified file.
-static auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>;
+static auto append(const ApplicationData& applicationData,
+                   const void* buffer,
+                   File file,
+                   std::uint64_t length) -> std::future<FileResultOr<FileWriteResult>>;
 
 // Compare content.
 static bool compare(const std::string& computed,
@@ -311,10 +327,7 @@ static auto fetch(File file) -> std::future<FileResult>;
 static auto fetchBarrier(File file) -> std::future<FileResult>;
 
 // Flush a file's modified content to the cloud.
-static auto flush(File file) -> std::future<FileResult>;
-
-// Purge a file from the service.
-static auto purge(File file) -> std::future<FileResult>;
+static auto flush(File file, bool cancelOnWrite) -> std::future<FileResult>;
 
 // Read some content from the specified file.
 static auto read(File file,
@@ -335,19 +348,25 @@ static auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>;
 static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint64_t>>;
 
 // Remove a file.
-static auto remove(File file) -> std::future<FileResult>;
+static auto remove(File file, bool serviceOnly) -> std::future<FileResult>;
 
 // Update the specified file's modification time.
-static auto touch(File file, std::int64_t modified) -> std::future<FileResult>;
+static auto touch(const ApplicationData& applicationData,
+                  File file,
+                  std::int64_t modified) -> std::future<FileResult>;
 
 // Convert a vector of ranges into a set of ranges.
 static FileRangeSet toSet(const FileRangeVector& ranges);
 
 // Truncate the specified file to a particular size.
-static auto truncate(File file, std::uint64_t newSize) -> std::future<FileResult>;
+static auto truncate(const ApplicationData& applicationData,
+                     File file,
+                     FileTruncateFlags flags,
+                     std::uint64_t newSize) -> std::future<FileResultOr<FileTruncateResult>>;
 
 // Write some content to the specified file.
-static auto write(const void* buffer,
+static auto write(const ApplicationData& applicationData,
+                  const void* buffer,
                   File file,
                   FileWriteFlags flags,
                   std::uint64_t offset,
@@ -363,6 +382,8 @@ NodeHandle FileServiceTests::mRootHandle;
 
 Watchdog FileServiceTests::mWatchdog(logger());
 
+static const ApplicationID applicationID = ApplicationID::generate<TestTag>();
+
 static const ServiceOptions DefaultOptions = []()
 {
     ServiceOptions options;
@@ -371,6 +392,7 @@ static const ServiceOptions DefaultOptions = []()
 }();
 
 static const ReclaimOptions DefaultReclaimOptions;
+
 static const ReclaimOptions DisableReclaim = {
     DefaultReclaimOptions.mAgeThreshold,
     DefaultReclaimOptions.mBatchSize,
@@ -571,6 +593,9 @@ TEST_F(FileServiceTests, append_succeeds)
         ASSERT_FALSE(info.dirty());
     }
 
+    // Convenience.
+    ApplicationData appData{1, applicationID};
+
     // Events that we expect to receive.
     FileEventVector expected;
 
@@ -585,9 +610,13 @@ TEST_F(FileServiceTests, append_succeeds)
     auto size = info.size();
 
     // Try and append the data to the end of the file.
-    expect(FileWriteEvent{FileRange(size, size + computed.size()), info.id()}, serviceObserver);
+    expect(FileWriteEvent{appData, FileRange(size, size + computed.size()), info.id()},
+           serviceObserver);
 
-    ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
+    auto result = execute(append, appData, computed.data(), *file, computed.size());
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(result->mLength, computed.size());
+    ASSERT_EQ(result->mOffset, size);
 
     // The file should now have two ranges.
     ASSERT_THAT(file->ranges(), ElementsAre(range, FileRange(size, size + computed.size())));
@@ -603,9 +632,13 @@ TEST_F(FileServiceTests, append_succeeds)
     size = info.size();
 
     // Append again to make sure contigous ranges are extended.
-    expect(FileWriteEvent{FileRange(size, size + computed.size()), info.id()}, serviceObserver);
+    expect(FileWriteEvent{appData, FileRange(size, size + computed.size()), info.id()},
+           serviceObserver);
 
-    ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
+    result = execute(append, appData, computed.data(), *file, computed.size());
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(result->mLength, computed.size());
+    ASSERT_EQ(result->mOffset, size);
 
     ASSERT_GE(info.modified(), modified);
     ASSERT_EQ(info.size(), size + computed.size());
@@ -668,20 +701,26 @@ TEST_F(FileServiceTests, attaches_media_file_attributes_on_flush_succeeds)
         },
         mClient->fileService());
 
+    // Convenience.
+    ApplicationData appData{1, applicationID};
+
     // Get our hands on our test data.
     const auto audioData = readFile(audio.path());
     const auto imageData = readFile(image.path());
     const auto videoData = readFile(video.path());
 
     // Write the data to our test files.
-    ASSERT_EQ(execute(write, audioData.data(), *audioFile, 0, 0, audioData.size()), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, imageData.data(), *imageFile, 0, 0, imageData.size()), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, videoData.data(), *videoFile, 0, 0, videoData.size()), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, appData, audioData.data(), *audioFile, 0, 0, audioData.size()),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, appData, imageData.data(), *imageFile, 0, 0, imageData.size()),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, appData, videoData.data(), *videoFile, 0, 0, videoData.size()),
+              FILE_SUCCESS);
 
     // Flush each test file's content to the cloud.
-    ASSERT_EQ(execute(flush, *audioFile), FILE_SUCCESS);
-    ASSERT_EQ(execute(flush, *imageFile), FILE_SUCCESS);
-    ASSERT_EQ(execute(flush, *videoFile), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *audioFile, false), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *imageFile, false), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *videoFile, false), FILE_SUCCESS);
 
     // Get our hands on each test file's node handle.
     const auto audioHandle = audioFile->info().handle();
@@ -765,7 +804,8 @@ TEST_F(FileServiceTests, cancel_reads_contained_within_written_range_succeeds)
     ASSERT_NE(waiter2.wait_for(mDefaultTimeout), timeout);
 
     // Perform a write that touches each of our reads.
-    ASSERT_EQ(execute(write, data.data(), *file, 0, 192_KiB, 640_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 192_KiB, 640_KiB),
+              FILE_SUCCESS);
 
     // Wait for any downloads to complete.
     ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
@@ -806,7 +846,8 @@ TEST_F(FileServiceTests, cancel_reads_that_begin_after_truncated_size)
     ASSERT_NE(waiter2.wait_for(mDefaultTimeout), timeout);
 
     // Truncate the file down to 640KiB.
-    ASSERT_EQ(execute(truncate, *file, 640_KiB), FILE_SUCCESS);
+    auto result = execute(truncate, ApplicationData(), *file, 0, 640_KiB);
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Wait for any downloads to complete.
     ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
@@ -821,6 +862,7 @@ TEST_F(FileServiceTests, cancel_reads_that_begin_after_truncated_size)
     ASSERT_TRUE(compare(*computed, mFileContent, 0, 640_KiB));
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 // Disable the test as it is not stable on JENKINS. It is still useful to run locally sometimes
 TEST_F(FileServiceTests, DISABLED_cancel_unused_downloads_succeeds)
 {
@@ -847,6 +889,8 @@ TEST_F(FileServiceTests, DISABLED_cancel_unused_downloads_succeeds)
     // Make sure our downloads don't complete too quickly.
     mClient->setDownloadSpeed(16384);
 
+    const auto scopedRecording = scopedPartialDownloadRecord();
+
     // Kick off four reads.
     auto result = execute(readOnce, *file, 0, 4_MiB, NormalReadTag{});
 
@@ -855,6 +899,9 @@ TEST_F(FileServiceTests, DISABLED_cancel_unused_downloads_succeeds)
 
     // Make sure our reads were given valid data.
     ASSERT_TRUE(compare(*result, data, 0, result->size()));
+
+    // There was partial downloads
+    ASSERT_GT(PartialDownloadRecorder::instance().snapshot().size(), 0);
 
     // Wait until all but one download has been cancelled.
     FileRangeVector downloading;
@@ -875,6 +922,7 @@ TEST_F(FileServiceTests, DISABLED_cancel_unused_downloads_succeeds)
     EXPECT_EQ(downloaded.front().mBegin, 0u);
     EXPECT_LT(downloaded.front().mEnd, 4_MiB);
 }
+#endif
 
 TEST_F(FileServiceTests, cleans_cache_on_logout_succeeds)
 {
@@ -908,7 +956,7 @@ TEST_F(FileServiceTests, cleans_cache_on_logout_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Change the file's modification time.
-    ASSERT_EQ(execute(touch, std::move(*file), now() + 5), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), std::move(*file), now() + 5), FILE_SUCCESS);
 
     // Where is the service storing its database?
     const auto databasePath = client->fileService().databasePath();
@@ -1007,8 +1055,8 @@ TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
     auto serviceObserver = observe(mClient->fileService());
 
     // Remove d0 and by proxy, d0f, d1 and d1f.
-    expect(FileRemoveEvent{file0->info().id()}, serviceObserver);
-    expect(FileRemoveEvent{file1->info().id()}, serviceObserver);
+    expect(FileRemoveEvent{*d0f, file0->info().id()}, serviceObserver);
+    expect(FileRemoveEvent{*d1f, file1->info().id()}, serviceObserver);
 
     ASSERT_EQ(mClient->remove(*d0), API_OK);
 
@@ -1041,7 +1089,7 @@ TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
     auto serviceObserver = observe(mClient->fileService());
 
     // Remove the file from the cloud.
-    expect(FileRemoveEvent{file->info().id()}, serviceObserver);
+    expect(FileRemoveEvent{*handle, file->info().id()}, serviceObserver);
 
     ASSERT_EQ(mClient->remove(*handle), API_OK);
 
@@ -1085,7 +1133,8 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     auto expected = randomBytes(128_KiB);
 
     // Write data to the file.
-    ASSERT_EQ(execute(write, expected.data(), *file, 0, 0, 128_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), expected.data(), *file, 0, 0, 128_KiB),
+              FILE_SUCCESS);
 
     // Try and flush the file to the cloud.
     auto handle = [file = std::move(file)]() mutable -> FileResultOr<NodeHandle>
@@ -1101,7 +1150,7 @@ TEST_F(FileServiceTests, create_flush_succeeds)
         auto modified = info.modified();
 
         // Try and flush the file to the cloud.
-        auto result = execute(flush, *file);
+        auto result = execute(flush, *file, false);
 
         // Couldn't flush the file to the cloud.
         if (result != FILE_SUCCESS)
@@ -1179,7 +1228,7 @@ TEST_F(FileServiceTests, create_succeeds)
         id0 = info0.id();
 
         // Remove the file from storage.
-        ASSERT_EQ(execute(remove, *file), FILE_SUCCESS);
+        ASSERT_EQ(execute(remove, *file, false), FILE_SUCCESS);
     }
 
     // Make sure the file's been purged from storage.
@@ -1215,10 +1264,14 @@ TEST_F(FileServiceTests, create_write_succeeds)
     // Generate some data for us to write to the file.
     auto data = randomBytes(64_KiB);
 
-    // Try and write data to the file.
-    expect(FileWriteEvent{FileRange(128_KiB, 192_KiB), file->info().id()}, serviceObserver);
+    // Convenience.
+    ApplicationData appData{1, applicationID};
 
-    ASSERT_EQ(execute(write, data.data(), *file, 0, 128_KiB, 64_KiB), FILE_SUCCESS);
+    // Try and write data to the file.
+    expect(FileWriteEvent{appData, FileRange(128_KiB, 192_KiB), file->info().id()},
+           serviceObserver);
+
+    ASSERT_EQ(execute(write, appData, data.data(), *file, 0, 128_KiB, 64_KiB), FILE_SUCCESS);
 
     // Make sure the file's size is correct.
     ASSERT_EQ(file->info().size(), 192_KiB);
@@ -1242,9 +1295,10 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(data, *computed);
 
     // Write more data to the file.
-    expect(FileWriteEvent{FileRange(320_KiB, 384_KiB), file->info().id()}, serviceObserver);
+    expect(FileWriteEvent{appData, FileRange(320_KiB, 384_KiB), file->info().id()},
+           serviceObserver);
 
-    ASSERT_EQ(execute(write, data.data(), *file, 0, 320_KiB, 64_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, appData, data.data(), *file, 0, 320_KiB, 64_KiB), FILE_SUCCESS);
 
     // Make sure the file's size is correct.
     ASSERT_EQ(file->info().size(), 384_KiB);
@@ -1349,6 +1403,105 @@ TEST_F(FileServiceTests, file_destroyed_on_client_thread_during_read_callback_su
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 }
 
+TEST_F(FileServiceTests, file_truncated_on_open_when_unexpectedly_smaller_on_disk)
+{
+    // Generate a name for our client.
+    const auto name = "file_service_" + randomName();
+
+    // Create a client we can safely logout.
+    auto client = CreateClient(name);
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(0), API_OK);
+
+    // Create a file for us to open.
+    const auto handle = client->upload(randomBytes(1_MiB), randomName(), "/z");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Tweak service options.
+    client->fileService().serviceOptions(
+        []()
+        {
+            auto options = DefaultOptions;
+
+            // Don't pin files in memory.
+            options.mFileContextReleaseDelay = std::chrono::seconds::zero();
+
+            // Only download what we explicitly request.
+            options.mImmediateDownloadThreshold = 1_MiB;
+            options.mMinimumRangeSize = 0u;
+
+            return options;
+        }());
+
+    // Convenience.
+    const auto id = FileID::from(*handle);
+
+    // Make sure our test file is partly cached.
+    {
+        // Open our test file for reading.
+        auto file = client->fileOpen(id);
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Read a few ranges so that the file is partly cached.
+        read(*file, 0, 256_KiB, StreamReadTag{false});
+        read(*file, 320_KiB, 128_KiB, StreamReadTag{false});
+        read(*file, 480_KiB, 128_KiB, StreamReadTag{false});
+        read(*file, 672_KiB, 128_KiB, StreamReadTag{false});
+
+        // Wait for all of our reads to complete.
+        ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
+
+        // Make sure our ranges are on disk.
+        ASSERT_THAT(file->ranges(),
+                    ElementsAre(FileRange(0, 256_KiB),
+                                FileRange(320_KiB, 448_KiB),
+                                FileRange(480_KiB, 608_KiB),
+                                FileRange(672_KiB, 800_KiB)));
+    }
+
+    // Retrieve the client's session token.
+    const auto session = client->sessionToken();
+    ASSERT_EQ(session.errorOr(API_OK), API_OK);
+
+    // Log the client out, taking care to keep our session alive.
+    ASSERT_EQ(client->logout(true), API_OK);
+
+    // Log the client back in.
+    ASSERT_EQ(client->login(*session), API_OK);
+
+    // Figure out where our file's data is being stored in the cache.
+    const auto path = client->fileService().userFilePath(id);
+
+    // Make sure we could get the file's path.
+    ASSERT_EQ(path.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Truncate the file to 512KiB.
+    std::filesystem::resize_file(Path(*path), 512_KiB);
+
+    // So we can test whether we receive a file truncation event.
+    auto observer = observe(client->fileService());
+
+    // Reopen the test file.
+    auto file = client->fileOpen(id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the file's been truncated.
+    ASSERT_EQ(file->info().size(), 512_KiB);
+
+    // And its ranges updated or removed as necessary.
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(0, 256_KiB),
+                            FileRange(320_KiB, 448_KiB),
+                            FileRange(480_KiB, 512_KiB)));
+
+    // Make sure we receive a file truncation event.
+    observer.expect(FileTruncateEvent{ApplicationData(), FileRange(512_KiB, 1_MiB), id, 512_KiB});
+
+    ASSERT_TRUE(observer.satisfied(mDefaultTimeout));
+}
+
 TEST_F(FileServiceTests, flush_after_modification_succeeds)
 {
     // Flush modifications after one second.
@@ -1356,7 +1509,8 @@ TEST_F(FileServiceTests, flush_after_modification_succeeds)
         []()
         {
             auto options = DefaultOptions;
-            options.mFileFlushDelay = std::chrono::seconds(1);
+            options.mMaximumFileFlushDelay = std::chrono::seconds(2);
+            options.mMinimumFileFlushDelay = std::chrono::seconds(2);
             return options;
         }());
 
@@ -1383,10 +1537,14 @@ TEST_F(FileServiceTests, flush_after_modification_succeeds)
     auto info = file->info();
 
     // True if the file's remote node is up to date.
-    auto flushed = [&]()
+    auto flushed = [&, handle = NodeHandle()]() mutable
     {
         // Our file's modifications haven't been flushed.
         if (info.dirty())
+            return false;
+
+        // File's node handle hasn't changed.
+        if (handle == info.handle())
             return false;
 
         // Get our hands on the file's remote node.
@@ -1396,9 +1554,16 @@ TEST_F(FileServiceTests, flush_after_modification_succeeds)
         if (!node)
             return false;
 
-        // Check if the node's attributes are up to date.
-        return info.modified() == node->mModified &&
-               info.size() == static_cast<std::uint64_t>(node->mSize);
+        // Node's attributes aren't up to date.
+        if (info.modified() != node->mModified ||
+            info.size() != static_cast<std::uint64_t>(node->mSize))
+            return false;
+
+        // Keep track of the file's updated node handle.
+        handle = info.handle();
+
+        // File's been flushed to the cloud.
+        return true;
     }; // match
 
     // Wait for our new file to be flushed to the cloud.
@@ -1408,22 +1573,56 @@ TEST_F(FileServiceTests, flush_after_modification_succeeds)
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // Write some data to our file.
-    ASSERT_EQ(execute(write, "foo", *file, 0, 0, 3), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), "foo", *file, 0, 0, 3), FILE_SUCCESS);
     EXPECT_TRUE(waitFor(flushed, mDefaultTimeout));
 
     // Make sure modification time changes.
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // Append some data to our file.
-    ASSERT_EQ(execute(append, "bar", *file, 3), FILE_SUCCESS);
+    auto result = execute(append, ApplicationData(), "bar", *file, 3);
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
     EXPECT_TRUE(waitFor(flushed, mDefaultTimeout));
 
     // Make sure modification time changes.
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     // Change our file's modification time.
-    ASSERT_EQ(execute(touch, *file, 0), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), *file, 0), FILE_SUCCESS);
     EXPECT_TRUE(waitFor(flushed, mDefaultTimeout));
+}
+
+TEST_F(FileServiceTests, flush_blocks_write_succeeds)
+{
+    // Create a file that we can flush.
+    auto file = mClient->fileCreate();
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // So we can tell the service where the file is located.
+    ScopedFileLocationProvider provider(
+        [fileID = file->info().id()](auto id) -> std::optional<FileLocation>
+        {
+            static const auto name = randomName();
+
+            if (fileID == id)
+                return FileLocation{name, mRootHandle};
+
+            return std::nullopt;
+        },
+        mClient->fileService());
+
+    // Flush our file to the cloud.
+    auto waiter = flush(*file, false);
+
+    // Modifications should block until the flush has completed.
+    auto result = execute(truncate, ApplicationData(), *file, 0, 256_KiB);
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Wait for the flush to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the flush was successful.
+    ASSERT_EQ(waiter.get(), FILE_SUCCESS);
 }
 
 TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
@@ -1444,7 +1643,8 @@ TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Truncate the file so it's considered modified.
-    ASSERT_EQ(execute(truncate, *file, 256_KiB), FILE_SUCCESS);
+    auto result = execute(truncate, ApplicationData(), *file, 0, 256_KiB);
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Retrieve the file's remaining content.
     ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
@@ -1453,7 +1653,7 @@ TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
     client->setUploadSpeed(4096);
 
     // Try and flush our local changes.
-    auto waiter = flush(std::move(*file));
+    auto waiter = flush(std::move(*file), false);
 
     // Give the File Service a little time to begin the flush.
     std::this_thread::sleep_for(std::chrono::milliseconds(256));
@@ -1479,12 +1679,12 @@ TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Initiate truncate and fetch requests.
-    auto truncated = truncate(*file, 256_KiB);
+    auto truncated = truncate(ApplicationData(), *file, 0, 256_KiB);
     auto fetched = fetch(*file);
 
     // Make sure our truncate request completed succesfully.
     ASSERT_NE(truncated.wait_for(mDefaultTimeout), timeout);
-    ASSERT_EQ(truncated.get(), FILE_SUCCESS);
+    ASSERT_EQ(truncated.get().errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure our fetch request completed successfully.
     ASSERT_NE(fetched.wait_for(mDefaultTimeout), timeout);
@@ -1504,7 +1704,8 @@ TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
             [notifier](FileResult result)
             {
                 return notifier->set_value(result);
-            });
+            },
+            true);
 
         // Return waiter to our caller.
         return notifier->get_future();
@@ -1515,6 +1716,112 @@ TEST_F(FileServiceTests, flush_cancel_on_file_destruction_succeeds)
 
     // Make sure the flush was cancelled.
     ASSERT_EQ(waiter.get(), FILE_CANCELLED);
+}
+
+TEST_F(FileServiceTests, flush_cancel_on_write_succeeds)
+{
+    // Create a file that we can flush.
+    auto file = mClient->fileCreate();
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Flush modified files after fifteen seconds.
+    mClient->fileService().serviceOptions(
+        []()
+        {
+            auto options = DefaultOptions;
+            options.mMaximumFileFlushDelay = std::chrono::seconds(15);
+            options.mMinimumFileFlushDelay = std::chrono::seconds(15);
+            return options;
+        }());
+
+    // So we can detect when the file's been flushed.
+    auto observer = observe(mClient->fileService());
+
+    // So we can tell the service where the file is located.
+    ScopedFileLocationProvider provider(
+        [fileID = file->info().id()](auto id) -> std::optional<FileLocation>
+        {
+            static const auto name = randomName();
+
+            if (fileID == id)
+                return FileLocation{name, mRootHandle};
+
+            return std::nullopt;
+        },
+        mClient->fileService());
+
+    // Flush the file to the cloud but allow the flush to be cancelled by a write.
+    auto waiter = flush(*file, true);
+
+    // Modifying the file should cancel the flush.
+    auto result = execute(truncate, ApplicationData(), *file, 0, 256_KiB);
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // Wait for the flush to complete.
+    ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the flush was cancelled.
+    ASSERT_EQ(waiter.get(), FILE_CANCELLED);
+
+    // Make sure our modifications are eventually flushed.
+    auto handle = file->info().handle();
+
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return !(handle = file->info().handle()).isUndef();
+        },
+        mDefaultTimeout));
+
+    ASSERT_FALSE(handle.isUndef());
+}
+
+TEST_F(FileServiceTests, flush_clears_dirty_status_succeeds)
+{
+    // Create a client we can safely logout.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(0), API_OK);
+
+    // Create a file we can safely modify.
+    auto handle = client->upload(randomBytes(512), randomName(), mRootHandle);
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Modify the file so it becomes dirty.
+    {
+        // Open the file for IO.
+        auto file = client->fileOpen(*handle);
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Truncate the file so it becomes dirty.
+        auto truncated = execute(truncate, ApplicationData{}, *file, 0, 256u);
+        ASSERT_EQ(truncated.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+        // Eagerly flush our modifications to the cloud.
+        ASSERT_EQ(execute(flush, *file, false), FILE_SUCCESS);
+
+        // Make sure the file isn't dirty.
+        ASSERT_FALSE(file->info().dirty());
+    }
+
+    // Save this client's session.
+    auto session = client->sessionToken();
+    ASSERT_EQ(session.errorOr(API_OK), API_OK);
+
+    // Log the client out, taking care to keep our session alive.
+    ASSERT_EQ(client->logout(true), API_OK);
+
+    // Log the client back in.
+    ASSERT_EQ(client->login(*session), API_OK);
+
+    // Get information about our file.
+    auto info = client->fileInfo(*handle);
+    ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Make sure the file isn't dirty.
+    ASSERT_FALSE(info->dirty());
 }
 
 TEST_F(FileServiceTests, flush_modified_files_on_startup_succeeds)
@@ -1541,8 +1848,8 @@ TEST_F(FileServiceTests, flush_modified_files_on_startup_succeeds)
     auto data = randomBytes(128);
 
     // Append some data to the file so the file's size changes.
-    auto result = execute(append, data.data(), std::move(*file), data.size());
-    ASSERT_EQ(result, FILE_SUCCESS);
+    auto result = execute(append, ApplicationData(), data.data(), std::move(*file), data.size());
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Dump the client's session.
     auto session = client->sessionToken();
@@ -1556,7 +1863,8 @@ TEST_F(FileServiceTests, flush_modified_files_on_startup_succeeds)
         []()
         {
             auto options = DefaultOptions;
-            options.mFileFlushDelay = std::chrono::seconds(1);
+            options.mMaximumFileFlushDelay = std::chrono::seconds(1);
+            options.mMinimumFileFlushDelay = std::chrono::seconds(1);
             return options;
         }());
 
@@ -1610,10 +1918,10 @@ TEST_F(FileServiceTests, flush_removed_file_fails)
     ASSERT_EQ(mClient->remove(*handle), API_OK);
 
     // Touch the file so that it has been modified.
-    ASSERT_EQ(execute(touch, *file, now() + 1), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), *file, now() + 1), FILE_SUCCESS);
 
     // You shouldn't be able to flush a file that has been removed.
-    ASSERT_EQ(execute(flush, *file), FILE_REMOVED);
+    ASSERT_EQ(execute(flush, *file, false), FILE_REMOVED);
 }
 
 TEST_F(FileServiceTests, reopen_by_handle_after_purge_succeeds)
@@ -1627,9 +1935,10 @@ TEST_F(FileServiceTests, reopen_by_handle_after_purge_succeeds)
     ASSERT_EQ(oldFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     auto content = randomBytes(128_KiB);
-    ASSERT_EQ(execute(write, content.data(), *oldFile, 0, 128_KiB, 128_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *oldFile, 0, 128_KiB, 128_KiB),
+              FILE_SUCCESS);
 
-    ASSERT_EQ(execute(flush, *oldFile), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *oldFile, false), FILE_SUCCESS);
 
     auto newHandle = oldFile->info().handle();
     ASSERT_NE(newHandle, *oldHandle);
@@ -1637,7 +1946,7 @@ TEST_F(FileServiceTests, reopen_by_handle_after_purge_succeeds)
     // Keep the purged file context alive so its tombstone remains in the database.
     auto pinnedFile = *oldFile;
 
-    ASSERT_EQ(execute(purge, std::move(*oldFile)), FILE_SUCCESS);
+    ASSERT_EQ(execute(remove, std::move(*oldFile), true), FILE_SUCCESS);
 
     auto newFile = mClient->fileOpen(newHandle);
     ASSERT_EQ(newFile.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -1660,8 +1969,10 @@ TEST_F(FileServiceTests, flush_succeeds)
     auto content = randomBytes(128_KiB);
 
     // Write content to our file.
-    ASSERT_EQ(execute(write, content.data(), *oldFile, 0, 128_KiB, 128_KiB), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, content.data(), *oldFile, 0, 384_KiB, 128_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *oldFile, 0, 128_KiB, 128_KiB),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *oldFile, 0, 384_KiB, 128_KiB),
+              FILE_SUCCESS);
 
     // Make sure the file's been marked as dirty.
     ASSERT_TRUE(oldFile->info().dirty());
@@ -1681,7 +1992,7 @@ TEST_F(FileServiceTests, flush_succeeds)
         auto id = oldFile->info().id();
 
         // Flush our modifications to the cloud.
-        ASSERT_EQ(execute(flush, *oldFile), FILE_SUCCESS);
+        ASSERT_EQ(execute(flush, *oldFile, false), FILE_SUCCESS);
 
         // Make sure the file's ID hasn't changed.
         ASSERT_EQ(oldFile->info().id(), id);
@@ -1726,7 +2037,7 @@ TEST_F(FileServiceTests, flush_succeeds)
     }
 
     // Remove the file from storage.
-    ASSERT_EQ(execute(purge, std::move(*oldFile)), FILE_SUCCESS);
+    ASSERT_EQ(execute(remove, std::move(*oldFile), true), FILE_SUCCESS);
 
     // newHandle and oldHandle now represent distinct files.
     auto newFile = mClient->fileOpen(newHandle);
@@ -1749,7 +2060,8 @@ TEST_F(FileServiceTests, flush_succeeds)
     ASSERT_EQ(computed, expected);
 
     // Touch the file so that it's considered modified.
-    ASSERT_EQ(execute(touch, *newFile, newFile->info().modified() - 1), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), *newFile, newFile->info().modified() - 1),
+              FILE_SUCCESS);
 
     // Disable versioning.
     //
@@ -1762,7 +2074,7 @@ TEST_F(FileServiceTests, flush_succeeds)
     auto serviceObserver = observe(mClient->fileService());
 
     // Flush our file to the cloud.
-    ASSERT_EQ(execute(flush, *newFile), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *newFile, false), FILE_SUCCESS);
 
     // Make sure our file's handle has changed.
     oldHandle = newHandle;
@@ -1826,31 +2138,34 @@ TEST_F(FileServiceTests, foreign_files_are_read_only)
     auto before = info();
 
     // You shouldn't be able to append data to a foreign file.
-    EXPECT_EQ(execute(append, data.data(), *file, data.size()), FILE_READONLY);
+    auto result = execute(append, ApplicationData(), data.data(), *file, data.size());
+    EXPECT_EQ(result.errorOr(FILE_SUCCESS), FILE_READONLY);
 
     // Make sure the file's information hasn't changed.
     EXPECT_EQ(before, info());
 
     // You shouldn't be able to write data to a foreign file.
-    EXPECT_EQ(execute(write, data.data(), *file, 0, 0, data.size()), FILE_READONLY);
+    EXPECT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 0, data.size()),
+              FILE_READONLY);
 
     // Make sure the file's information hasn't changed.
     EXPECT_EQ(before, info());
 
     // You shouldn't be able to touch a foreign file.
-    EXPECT_EQ(execute(touch, *file, 0l), FILE_READONLY);
+    EXPECT_EQ(execute(touch, ApplicationData(), *file, 0l), FILE_READONLY);
 
     // Make sure the file's information hasn't changed.
     EXPECT_EQ(before, info());
 
     // You shouldn't be able to truncate a foreign file.
-    EXPECT_EQ(execute(truncate, *file, 0ul), FILE_READONLY);
+    auto truncated = execute(truncate, ApplicationData{}, *file, 0, 0ul);
+    EXPECT_EQ(truncated.errorOr(FILE_SUCCESS), FILE_READONLY);
 
     // Make sure the file's information hasn't changed.
     EXPECT_EQ(before, info());
 
     // You should be able to flush a file but it'll be a no-op.
-    EXPECT_EQ(execute(flush, *file), FILE_SUCCESS);
+    EXPECT_EQ(execute(flush, *file, false), FILE_SUCCESS);
 }
 
 TEST_F(FileServiceTests, in_memory_pin_cancel_on_client_logout_succeeds)
@@ -1939,7 +2254,7 @@ TEST_F(FileServiceTests, inactive_file_removed)
     auto observer = observe(mClient->fileService());
 
     // Remove the file from the cloud.
-    observer.expect(FileRemoveEvent{FileID::from(*handle)});
+    observer.expect(FileRemoveEvent{*handle, FileID::from(*handle)});
 
     ASSERT_EQ(mClient->remove(*handle), API_OK);
 
@@ -1963,20 +2278,18 @@ TEST_F(FileServiceTests, inactive_file_removed)
 TEST_F(FileServiceTests, info_directory_fails)
 {
     // Can't get info about a directory.
-    EXPECT_EQ(mClient->fileInfo("/z").errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
-}
-
-TEST_F(FileServiceTests, info_unknown_fails)
-{
-    // Can't get info about a file the service isn't managing.
-    EXPECT_EQ(mClient->fileInfo(mFileHandle).errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_UNKNOWN_FILE);
+    EXPECT_EQ(mClient->fileInfo("/z").errorOr(FILE_SERVICE_SUCCESS),
+              FILE_SERVICE_FILE_IS_A_DIRECTORY);
 }
 
 TEST_F(FileServiceTests, info_succeeds)
 {
     // Convenience.
     using std::chrono::seconds;
+
+    // We should be able to get information about unmanaged files.
+    auto info0 = mClient->fileInfo(mFileHandle);
+    ASSERT_EQ(info0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Open our test file.
     auto file = mClient->fileOpen(mFileHandle);
@@ -1991,13 +2304,11 @@ TEST_F(FileServiceTests, info_succeeds)
     std::this_thread::sleep_for(seconds(1));
 
     // Get our hands on the file's information.
-    auto info = mClient->fileInfo(mFileHandle);
-
-    // Make sure we could get our hands on the file's information.
-    ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    auto info1 = mClient->fileInfo(mFileHandle);
+    ASSERT_EQ(info0, info1);
 
     // Make sure the file's access time hasn't changed.
-    ASSERT_EQ(info->accessed(), accessed);
+    ASSERT_EQ(info1->accessed(), accessed);
 }
 
 TEST_F(FileServiceTests, open_directory_fails)
@@ -2064,7 +2375,7 @@ TEST_F(FileServiceTests, purge_foreign_file_succeeds)
         ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
 
         // Mark the file as removed.
-        ASSERT_EQ(execute(purge, *file), FILE_SUCCESS);
+        ASSERT_EQ(execute(remove, *file, true), FILE_SUCCESS);
     }
 
     // Make sure the file's been purged from the service.
@@ -2475,6 +2786,8 @@ TEST_F(FileServiceTests, read_normal_extends_to_end_of_file_succeeds)
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 1_MiB)));
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+
 TEST_F(FileServiceTests, read_normal_doesnt_fill_downloading_gaps_succeeds)
 {
     // Generate some data for a test file.
@@ -2488,9 +2801,23 @@ TEST_F(FileServiceTests, read_normal_doesnt_fill_downloading_gaps_succeeds)
     auto file = mClient->fileOpen(*handle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
+    // Disable automatic flushing.
+    mClient->fileService().serviceOptions(
+        []()
+        {
+            auto options = DefaultOptions;
+            options.mMinimumFileFlushDelay = std::chrono::seconds::max();
+            options.mMaximumFileFlushDelay = std::chrono::seconds::max();
+            return options;
+        }());
+
     // Write some data to the file to create some gaps.
-    ASSERT_EQ(execute(write, content.data(), *file, 0, 484_KiB, 16_KiB), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, content.data(), *file, 0, 512_KiB, 512_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *file, 0, 484_KiB, 16_KiB),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *file, 0, 500_KiB, 524_KiB),
+              FILE_SUCCESS);
+
+    const auto scopedRecording = scopedPartialDownloadRecord();
 
     // Don't redownload any data in order to fill gaps.
     mClient->fileService().serviceOptions(
@@ -2501,17 +2828,17 @@ TEST_F(FileServiceTests, read_normal_doesnt_fill_downloading_gaps_succeeds)
             return options;
         }());
 
-    // Fill the gap between 468K and 472K.
+    // Fill the gap between 468K and 484K.
     auto waiter0 = readOnce(*file, 468_KiB, 4_KiB, NormalReadTag{});
 
     // Make sure our gap's downloading before changing options.
-    FileRangeVector downloading;
-    FileRangeVector expected = {{468_KiB, 484_KiB}};
+    std::vector<PartialDownloadRecorder::Call> downloading;
+    std::vector<PartialDownloadRecorder::Call> expected = {{*handle, 16_KiB, 468_KiB}};
 
-    ASSERT_TRUE(waitFor(
+    EXPECT_TRUE(waitFor(
         [&]()
         {
-            return (downloading = file->downloading()) == expected;
+            return (downloading = PartialDownloadRecorder::instance().snapshot()) == expected;
         },
         mDefaultTimeout));
 
@@ -2522,20 +2849,20 @@ TEST_F(FileServiceTests, read_normal_doesnt_fill_downloading_gaps_succeeds)
         []()
         {
             auto options = DefaultOptions;
-            options.mMaximumGapDistance = UINT64_MAX;
+            options.mMaximumGapDistance = 32_KiB;
             return options;
         }());
 
-    // Try and fill all gaps between 452K and 1M.
-    auto waiter1 = readOnce(*file, 452_KiB, 572_KiB, NormalReadTag{});
+    // Try and fill all gaps between 452K and 484K.
+    auto waiter1 = readOnce(*file, 452_KiB, 32_KiB, NormalReadTag{});
 
-    // Make sure the gaps are filled by two distinct downloads.
-    expected = {{452_KiB, 468_KiB}, {468_KiB, 484_KiB}};
+    // Make sure the gaps are filled by distinct downloads.
+    expected = {{*handle, 16_KiB, 468_KiB}, {*handle, 16_KiB, 452_KiB}};
 
-    ASSERT_TRUE(waitFor(
+    EXPECT_TRUE(waitFor(
         [&]()
         {
-            return (downloading = file->downloading()) == expected;
+            return (downloading = PartialDownloadRecorder::instance().snapshot()) == expected;
         },
         mDefaultTimeout));
 
@@ -2553,8 +2880,8 @@ TEST_F(FileServiceTests, read_normal_doesnt_fill_downloading_gaps_succeeds)
     ASSERT_EQ(result1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Make sure both reads returned valid data.
-    ASSERT_EQ(content.compare(468 * 1024, result0->size(), *result0), 0);
-    ASSERT_EQ(content.compare(452 * 1024, result1->size(), *result1), 0);
+    EXPECT_EQ(content.compare(468 * 1024, result0->size(), *result0), 0);
+    EXPECT_EQ(content.compare(452 * 1024, result1->size(), *result1), 0);
 }
 
 TEST_F(FileServiceTests, read_normal_fills_gaps_succeeds)
@@ -2570,32 +2897,40 @@ TEST_F(FileServiceTests, read_normal_fills_gaps_succeeds)
     auto file = mClient->fileOpen(*handle);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
-    // Let the service know it can redownload 12K in order to fill gaps.
+    // Disable automatic flushing and set max gap distance to 4K.
     mClient->fileService().serviceOptions(
         []()
         {
             auto options = DefaultOptions;
+            options.mMinimumFileFlushDelay = std::chrono::seconds::max();
+            options.mMaximumFileFlushDelay = std::chrono::seconds::max();
             options.mMaximumGapDistance = 4_KiB;
             return options;
         }());
 
     // Write some data so that there a few small gaps to fill.
-    ASSERT_EQ(execute(write, content.data(), *file, 0, 992_KiB, 4_KiB), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, content.data(), *file, 0, 1000_KiB, 4_KiB), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, content.data(), *file, 0, 1008_KiB, 5_KiB), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, content.data(), *file, 0, 1017_KiB, 4_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *file, 0, 992_KiB, 4_KiB),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *file, 0, 1000_KiB, 4_KiB),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *file, 0, 1008_KiB, 5_KiB),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), content.data(), *file, 0, 1017_KiB, 4_KiB),
+              FILE_SUCCESS);
+
+    const auto scopedRecording = scopedPartialDownloadRecord();
 
     // Read a tiny chunk of data just before the first chunk we wrote above.
     auto waiter0 = readOnce(*file, 984_KiB, 4_KiB, NormalReadTag{});
 
     // Make sure the gaps are filled by a single download.
-    FileRangeVector downloading;
-    FileRangeVector expected = {{984_KiB, 1008_KiB}};
+    std::vector<PartialDownloadRecorder::Call> downloading;
+    std::vector<PartialDownloadRecorder::Call> expected = {{*handle, 24_KiB, 984_KiB}};
 
-    ASSERT_TRUE(waitFor(
+    EXPECT_TRUE(waitFor(
         [&]()
         {
-            return (downloading = file->downloading()) == expected;
+            return (downloading = PartialDownloadRecorder::instance().snapshot()) == expected;
         },
         mDefaultTimeout));
 
@@ -2615,6 +2950,8 @@ TEST_F(FileServiceTests, read_normal_fills_gaps_succeeds)
     ASSERT_THAT(file->ranges(),
                 ElementsAre(FileRange(984_KiB, 1013_KiB), FileRange(1017_KiB, 1021_KiB)));
 }
+
+#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 TEST_F(FileServiceTests, read_normal_succeeds)
 {
@@ -2697,6 +3034,7 @@ TEST_F(FileServiceTests, read_same_range_concurrently_succeeds)
     ASSERT_TRUE(compare(*result1, mFileContent, 0, mFileContent.size()));
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 TEST_F(FileServiceTests, read_small_during_large_succeeds)
 {
     // Generate data for a large test file.
@@ -2725,6 +3063,8 @@ TEST_F(FileServiceTests, read_small_during_large_succeeds)
             return options;
         }());
 
+    const auto scopedRecording = scopedPartialDownloadRecord();
+
     // Kick off two small reads towards the end of the file.
     auto waiter0 = read(*file, 16_MiB - 12_KiB, 4_KiB, StreamReadTag{true});
     auto waiter1 = read(*file, 16_MiB - 4_KiB, 4_KiB, StreamReadTag{true});
@@ -2732,11 +3072,20 @@ TEST_F(FileServiceTests, read_small_during_large_succeeds)
     // Kick off a large read of the entire file.
     auto waiter2 = read(*file, 0, 16_MiB, StreamReadTag{true});
 
-    // Make sure our ranges are being downloaded independently.
-    ASSERT_THAT(file->downloading(),
-                UnorderedElementsAreArray({FileRange(16_MiB - 12_KiB, 16_MiB - 8_KiB),
-                                           FileRange(16_MiB - 4_KiB, 16_MiB),
-                                           FileRange(0, 16_MiB)}));
+    std::vector<PartialDownloadRecorder::Call> downloading;
+
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return (downloading = PartialDownloadRecorder::instance().snapshot()).size() == 3;
+        },
+        mDefaultTimeout));
+
+    ASSERT_THAT(downloading,
+                UnorderedElementsAreArray(
+                    std::vector<PartialDownloadRecorder::Call>{{*handle, 4_KiB, 16_MiB - 12_KiB},
+                                                               {*handle, 4_KiB, 16_MiB - 4_KiB},
+                                                               {*handle, 16_MiB, 0}}));
 
     // Wait for our small reads to complete.
     ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
@@ -2775,6 +3124,7 @@ TEST_F(FileServiceTests, read_small_during_large_succeeds)
     // We should now have a single contiguous range on disk.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 16_MiB)));
 }
+#endif
 
 TEST_F(FileServiceTests, read_small_size_extension_succeeds)
 {
@@ -2980,8 +3330,10 @@ TEST_F(FileServiceTests, read_write_overlap_succeeds)
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Write two 256K ranges within our file.
-    ASSERT_EQ(execute(write, data.data(), *file, 0, 256_KiB, 256_KiB), FILE_SUCCESS);
-    ASSERT_EQ(execute(write, data.data(), *file, 0, 768_KiB, 256_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 256_KiB, 256_KiB),
+              FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 768_KiB, 256_KiB),
+              FILE_SUCCESS);
 
     // Wait for the file to finish downloading.
     ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
@@ -3017,7 +3369,7 @@ TEST_F(FileServiceTests, read_write_sequence)
     auto read0 = readOnce(*file, 0, 1_MiB, StreamReadTag{true});
 
     // Initiate a request to overwrite all of the file's data.
-    auto write = testing::write(expected.data(), *file, 0, 0, expected.size());
+    auto write = testing::write(ApplicationData(), expected.data(), *file, 0, 0, expected.size());
 
     // Initiate a request to read all of the file's new data.
     auto read1 = read(*file, 0, expected.size(), StreamReadTag{true});
@@ -3211,7 +3563,8 @@ TEST_F(FileServiceTests, reclaim_all_succeeds)
         ASSERT_EQ(data.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
         // Modify the file.
-        ASSERT_EQ(execute(write, data->data(), *file, 0, 0, 32_KiB), FILE_SUCCESS);
+        ASSERT_EQ(execute(write, ApplicationData(), data->data(), *file, 0, 0, 32_KiB),
+                  FILE_SUCCESS);
 
         // How much space has this file been allocated?
         auto allocated = file->info().allocatedSize();
@@ -3346,7 +3699,7 @@ TEST_F(FileServiceTests, reclaim_cancel_on_file_destruction_succeeds)
     ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
 
     // Mark the file as modified (to force a flush.)
-    ASSERT_EQ(execute(touch, *file, 0), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), *file, 0), FILE_SUCCESS);
 
     // Reclaim the file's storage.
     waiter = reclaim(std::move(*file));
@@ -3576,7 +3929,8 @@ TEST_F(FileServiceTests, reclaim_modified_succeeds)
         ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
         // Write some data to the file.
-        ASSERT_EQ(execute(write, expected.data(), *file, 0, 256_KiB, 64_KiB), FILE_SUCCESS);
+        ASSERT_EQ(execute(write, ApplicationData(), expected.data(), *file, 0, 256_KiB, 64_KiB),
+                  FILE_SUCCESS);
         ASSERT_TRUE(file->info().dirty());
 
         // Update our expected buffer.
@@ -3608,17 +3962,18 @@ TEST_F(FileServiceTests, reclaim_modified_succeeds)
     ASSERT_EQ(*reclaimed, usedBefore->mAllocatedSize);
 
     // Make sure a new copy of our file has been uploaded to the cloud.
+    ErrorOr<NodeHandle> newHandle;
+
     EXPECT_TRUE(waitFor(
         [&]()
         {
-            return mClient->get(mRootHandle, name);
+            newHandle = mClient->handle(mRootHandle, name);
+            return newHandle && newHandle != *handle;
         },
         mDefaultTimeout));
 
-    // Make sure file's handle is new
-    auto nodeInfo = mClient->get(mRootHandle, name);
-    ASSERT_EQ(nodeInfo.errorOr(API_OK), API_OK);
-    ASSERT_NE(*handle, nodeInfo->mHandle);
+    ASSERT_EQ(newHandle.errorOr(API_OK), API_OK);
+    ASSERT_NE(newHandle, *handle);
 }
 
 TEST_F(FileServiceTests, reclaim_single_succeeds)
@@ -3646,7 +4001,8 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
     ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Write some data to the file.
-    ASSERT_EQ(execute(write, expected.data(), *file, 0, 256_KiB, 64_KiB), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), expected.data(), *file, 0, 256_KiB, 64_KiB),
+              FILE_SUCCESS);
     ASSERT_TRUE(file->info().dirty());
 
     // Update our expected buffer.
@@ -3729,10 +4085,11 @@ TEST_F(FileServiceTests, release_file_within_append_callback_succeeds)
 
         // Try and append to the file.
         file.append(
+            ApplicationData(),
             data.data(),
             [file, notifier](auto result)
             {
-                notifier->set_value(result);
+                notifier->set_value(result.errorOr(FILE_SUCCESS));
             },
             data.size());
 
@@ -3775,7 +4132,7 @@ TEST_F(FileServiceTests, release_within_event_callback_succeeds)
             });
 
         // Try and remove the file.
-        file.remove([](auto) {});
+        file.remove([](auto) {}, false);
 
         // Return the waiter to our caller.
         return notifier->get_future();
@@ -3872,7 +4229,8 @@ TEST_F(FileServiceTests, release_file_within_flush_callback_succeeds)
             [file, notifier](auto result)
             {
                 notifier->set_value(result);
-            });
+            },
+            true);
 
         // Return waiter to our caller.
         return notifier->get_future();
@@ -3896,11 +4254,12 @@ TEST_F(FileServiceTests, release_file_within_purge_callback_succeeds)
     {
         auto notifier = makeSharedPromise<FileResult>();
 
-        file.purge(
+        file.remove(
             [file, notifier](auto result)
             {
                 notifier->set_value(result);
-            });
+            },
+            true);
 
         return notifier->get_future();
     }();
@@ -3961,7 +4320,8 @@ TEST_F(FileServiceTests, release_file_within_remove_callback_succeeds)
             [file, notifier](auto result)
             {
                 notifier->set_value(result);
-            });
+            },
+            false);
 
         return notifier->get_future();
     }();
@@ -3985,6 +4345,7 @@ TEST_F(FileServiceTests, release_file_within_touch_callback_succeeds)
         auto notifier = makeSharedPromise<FileResult>();
 
         file.touch(
+            ApplicationData(),
             [file, notifier](auto result)
             {
                 notifier->set_value(result);
@@ -4013,10 +4374,12 @@ TEST_F(FileServiceTests, release_file_within_truncate_callback_succeeds)
         auto notifier = makeSharedPromise<FileResult>();
 
         file.truncate(
+            ApplicationData(),
             [file, notifier](auto result)
             {
-                notifier->set_value(result);
+                notifier->set_value(result.errorOr(FILE_SUCCESS));
             },
+            0,
             0);
 
         return notifier->get_future();
@@ -4042,6 +4405,7 @@ TEST_F(FileServiceTests, release_file_within_write_callback_succeeds)
         auto notifier = makeSharedPromise<FileResult>();
 
         file.write(
+            {},
             data.data(),
             [file, notifier](auto result)
             {
@@ -4061,6 +4425,44 @@ TEST_F(FileServiceTests, release_file_within_write_callback_succeeds)
     ASSERT_EQ(waiter.get(), FILE_SUCCESS);
 }
 
+TEST_F(FileServiceTests, remove_foreign_file_fails)
+{
+    // Get a public link for our test directory.
+    auto link = mClient->getPublicLink(mRootHandle);
+    ASSERT_EQ(link.errorOr(API_OK), API_OK);
+
+    // Create a client responsible for accessing our test directory.
+    auto client = CreateClient("file_service_" + randomName());
+    ASSERT_TRUE(client);
+
+    // Log the client into our test directory.
+    ASSERT_EQ(client->login(*link), API_OK);
+
+    // Retrieve our file's key data.
+    auto keyData = client->keyData(mFileHandle, true);
+    ASSERT_EQ(keyData.errorOr(API_OK), API_OK);
+
+    // Log out of the test directory.
+    ASSERT_EQ(client->logout(false), API_OK);
+
+    // Log client into a account distinct from mClient.
+    ASSERT_EQ(client->login(1), API_OK);
+
+    // Try and add the file to the client.
+    auto id = client->fileService().add(mFileHandle, *keyData, mFileContent.size());
+    ASSERT_EQ(id.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Try and open the file.
+    auto file = client->fileOpen(*id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // You shouldn't be able to remove an external file from the cloud.
+    ASSERT_EQ(execute(remove, *file, false), FILE_READONLY);
+
+    // But you should be able to purge it from the service.
+    ASSERT_EQ(execute(remove, *file, true), FILE_SUCCESS);
+}
+
 TEST_F(FileServiceTests, remove_local_succeeds)
 {
     // Records the ID of the file created directly below.
@@ -4068,6 +4470,16 @@ TEST_F(FileServiceTests, remove_local_succeeds)
 
     // Records how much storage space our test file occupied.
     FileServiceResultOr<std::uint64_t> usedBefore;
+
+    // Don't automatically flush the file to the cloud.
+    mClient->fileService().serviceOptions(
+        []()
+        {
+            auto options = DefaultOptions;
+            options.mMaximumFileFlushDelay = std::chrono::seconds::max();
+            options.mMinimumFileFlushDelay = std::chrono::seconds::max();
+            return options;
+        }());
 
     // Create and then remove a local file.
     {
@@ -4086,10 +4498,13 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         // Generate some data to write to our file.
         auto data = randomBytes(512_KiB);
 
-        // Write some data to the file.
-        expect(FileWriteEvent{FileRange{0, data.size()}, id}, serviceObserver);
+        // Convenience.
+        ApplicationData appData{3, applicationID};
 
-        ASSERT_EQ(execute(write, data.data(), *file0, 0, 0, data.size()), FILE_SUCCESS);
+        // Write some data to the file.
+        expect(FileWriteEvent{appData, FileRange{0, data.size()}, id}, serviceObserver);
+
+        ASSERT_EQ(execute(write, appData, data.data(), *file0, 0, 0, data.size()), FILE_SUCCESS);
 
         // Figure out how much space our file's using.
         usedBefore = mClient->fileService().storageUsed();
@@ -4098,9 +4513,9 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
         // Remove the file.
-        expect(FileRemoveEvent{id}, serviceObserver);
+        expect(FileRemoveEvent{NodeHandle(), id}, serviceObserver);
 
-        ASSERT_EQ(execute(remove, *file0), FILE_SUCCESS);
+        ASSERT_EQ(execute(remove, *file0, false), FILE_SUCCESS);
 
         // Make sure the file's been marked as removed.
         ASSERT_TRUE(file0->info().removed());
@@ -4162,9 +4577,9 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
         auto serviceObserver = observe(mClient->fileService());
 
         // Remove the file.
-        expect(FileRemoveEvent{id}, serviceObserver);
+        expect(FileRemoveEvent{*handle, id}, serviceObserver);
 
-        ASSERT_EQ(execute(remove, *file0), FILE_SUCCESS);
+        ASSERT_EQ(execute(remove, *file0, false), FILE_SUCCESS);
 
         // Make sure the file's been removed.
         ASSERT_TRUE(waitFor(
@@ -4395,13 +4810,13 @@ TEST_F(FileServiceTests, touch_on_disk_succeeds)
     auto modified = system_clock::to_time_t(system_clock::now() + minutes(5));
 
     // Update the file's modification time.
-    ASSERT_EQ(execute(touch, *file, modified), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), *file, modified), FILE_SUCCESS);
 
     // Make sure the service reports the file's new modification time.
     ASSERT_EQ(file->info().modified(), modified);
 
     // Flush the file to the cloud.
-    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *file, false), FILE_SUCCESS);
 
     // Wait for our file to be present in the cloud.
     ASSERT_TRUE(waitFor(
@@ -4419,13 +4834,13 @@ TEST_F(FileServiceTests, touch_on_disk_succeeds)
     // Set the file's modification time to some time in the past.
     modified -= 1800;
 
-    ASSERT_EQ(execute(touch, *file, modified), FILE_SUCCESS);
+    ASSERT_EQ(execute(touch, ApplicationData(), *file, modified), FILE_SUCCESS);
 
     // Make sure the service reports the file's new modification time.
     ASSERT_EQ(file->info().modified(), modified);
 
     // Flush the file to the cloud.
-    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *file, false), FILE_SUCCESS);
 
     // Wait for the file's new version to be present in the cloud.
     ASSERT_TRUE(waitFor(
@@ -4462,10 +4877,13 @@ TEST_F(FileServiceTests, touch_succeeds)
     auto accessed = info.accessed();
     auto modified = info.modified();
 
-    // Try and update the file's modification time.
-    expect(FileTouchEvent{file->info().id(), modified - 1}, serviceObserver);
+    // Convenience.
+    ApplicationData appData{1, applicationID};
 
-    ASSERT_EQ(execute(touch, *file, modified - 1), FILE_SUCCESS);
+    // Try and update the file's modification time.
+    expect(FileTouchEvent{appData, file->info().id(), modified - 1}, serviceObserver);
+
+    ASSERT_EQ(execute(touch, appData, *file, modified - 1), FILE_SUCCESS);
 
     // Make sure the file's now considered dirty.
     EXPECT_TRUE(info.dirty());
@@ -4479,6 +4897,111 @@ TEST_F(FileServiceTests, touch_succeeds)
 
     // Make sure we received an event.
     ASSERT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
+}
+
+// A file that's been extended by a no-grow truncate must not have that
+// extension uploaded to the cloud.
+//
+// Windows extends a file's allocation size, rounded up to the volume's
+// allocation unit, before it writes any data to that file. Honoring those
+// requests would leave the file padded with zeroes which we would then upload
+// as if the user had written them.
+TEST_F(FileServiceTests, truncate_no_grow_flush_succeeds)
+{
+    // Generate a name for our file.
+    auto name = randomName();
+
+    // Create a new file.
+    auto file = mClient->fileCreate();
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // So we can tell the service where the file is located.
+    ScopedFileLocationProvider provider(
+        [fileID = file->info().id(), &name](auto id) -> std::optional<FileLocation>
+        {
+            if (fileID == id)
+                return FileLocation{name, mRootHandle};
+
+            return std::nullopt;
+        },
+        mClient->fileService());
+
+    // Generate a little data for us to write to the file.
+    auto expected = randomBytes(3);
+
+    // Write our data to the file.
+    ASSERT_EQ(execute(write, ApplicationData(), expected.data(), *file, 0, 0, expected.size()),
+              FILE_SUCCESS);
+
+    // Extend the file's allocation size as Windows would.
+    auto truncated = execute(truncate, ApplicationData(), *file, FILE_TRUNCATE_FLAG_NO_GROW, 4_KiB);
+    ASSERT_EQ(truncated.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // The file's size should be the amount of data we wrote.
+    ASSERT_EQ(file->info().size(), expected.size());
+
+    // And the region beyond what we wrote must not be considered content.
+    //
+    // Were it considered content, the flush below wouldn't download anything
+    // to fill that region and we'd upload its zeroes to the cloud.
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, expected.size())));
+
+    // Flush the file to the cloud.
+    ASSERT_EQ(execute(flush, *file, false), FILE_SUCCESS);
+
+    // Only the data we wrote should've been uploaded.
+    auto node = mClient->get(mRootHandle, name);
+    ASSERT_EQ(node.errorOr(API_OK), API_OK);
+    ASSERT_EQ(node->mSize, static_cast<m_off_t>(expected.size()));
+}
+
+TEST_F(FileServiceTests, truncate_no_grow_succeeds)
+{
+    // Create a file we can safely modify.
+    auto file = mClient->fileCreate();
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Generate some data for us to write to the file.
+    auto data = randomBytes(64_KiB);
+
+    // Write our data to the file.
+    ASSERT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 0, data.size()),
+              FILE_SUCCESS);
+
+    // Convenience.
+    auto info = file->info();
+
+    // Make sure the file's size is what we expect.
+    ASSERT_EQ(info.size(), data.size());
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0, 64_KiB)));
+
+    // Latch the file's modification time.
+    auto modified = info.modified();
+
+    // A no-grow truncate must never extend the file.
+    auto truncated =
+        execute(truncate, ApplicationData(), *file, FILE_TRUNCATE_FLAG_NO_GROW, 128_KiB);
+    ASSERT_EQ(truncated.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // The file's size, ranges and modification time should be unchanged.
+    EXPECT_EQ(info.size(), data.size());
+    EXPECT_THAT(file->ranges(), ElementsAre(FileRange(0, 64_KiB)));
+    EXPECT_EQ(info.modified(), modified);
+
+    // And we should still be able to read back exactly what we wrote.
+    auto computed = execute(read, *file, 0, 128_KiB, NormalReadTag{});
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_EQ(computed->size(), 64_KiB);
+    ASSERT_EQ(computed->compare(data), 0);
+
+    // A no-grow truncate must still be able to reduce the file's size.
+    truncated = execute(truncate, ApplicationData(), *file, FILE_TRUNCATE_FLAG_NO_GROW, 32_KiB);
+    ASSERT_EQ(truncated.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // The file should've been truncated.
+    EXPECT_EQ(info.size(), 32_KiB);
+    EXPECT_THAT(file->ranges(), ElementsAre(FileRange(0, 32_KiB)));
+    EXPECT_GE(info.modified(), modified);
 }
 
 TEST_F(FileServiceTests, truncate_on_disk_succeeds)
@@ -4499,7 +5022,8 @@ TEST_F(FileServiceTests, truncate_on_disk_succeeds)
         mClient->fileService());
 
     // Extend the file's size.
-    ASSERT_EQ(execute(truncate, *file, 64_KiB), FILE_SUCCESS);
+    FileTruncateResult expected{64_KiB, file->info().size()};
+    ASSERT_EQ(execute(truncate, ApplicationData(), *file, 0, 64_KiB), expected);
 
     // Make sure the File Service is aware of the file's new size.
     EXPECT_EQ(file->info().reportedSize(), 64_KiB);
@@ -4509,7 +5033,7 @@ TEST_F(FileServiceTests, truncate_on_disk_succeeds)
         return;
 
     // Flush our file to the cloud.
-    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *file, false), FILE_SUCCESS);
 
     // Make sure the file's been flushed to the cloud.
     ASSERT_FALSE(file->info().handle().isUndef());
@@ -4529,7 +5053,8 @@ TEST_F(FileServiceTests, truncate_on_disk_succeeds)
     ASSERT_EQ(info->mSize, static_cast<m_off_t>(file->info().size()));
 
     // Reduce the file's size.
-    ASSERT_EQ(execute(truncate, *file, 32_KiB), FILE_SUCCESS);
+    expected = {32_KiB, file->info().size()};
+    ASSERT_EQ(execute(truncate, ApplicationData(), *file, 0, 32_KiB), expected);
 
     // Make sure the File Service realizes the file has shrunk.
     EXPECT_EQ(file->info().reportedSize(), 32_KiB);
@@ -4539,7 +5064,7 @@ TEST_F(FileServiceTests, truncate_on_disk_succeeds)
         return;
 
     // Flush our changes to the cloud.
-    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+    ASSERT_EQ(execute(flush, *file, false), FILE_SUCCESS);
 
     // Wait for the file's latest version to be present in the cloud.
     ASSERT_TRUE(waitFor(
@@ -4606,6 +5131,9 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         // Latch the file's current access time.
         auto accessed = info.accessed();
 
+        // Convenience.
+        ApplicationData appData{3, applicationID};
+
         // Latch the file's current modification time.
         auto modified = info.modified();
 
@@ -4613,7 +5141,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         if (dirty)
         {
             // Assume the file's size is increasing.
-            FileTruncateEvent event{std::nullopt, info.id(), newSize};
+            FileTruncateEvent event{appData, std::nullopt, info.id(), newSize};
 
             // File's size is actually decreasing.
             if (newSize < size)
@@ -4623,17 +5151,19 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         }
 
         // Initiate the truncate request.
-        auto result = execute(testing::truncate, *file, newSize);
+        auto result = execute(testing::truncate, appData, *file, 0, newSize);
 
         // Truncate failed.
-        if (result != FILE_SUCCESS)
-            return result;
+        if (!result)
+            return result.error();
 
         // Make sure the file's attributes have been updated.
         EXPECT_EQ(info.dirty(), dirty);
         EXPECT_GE(info.accessed(), accessed);
         EXPECT_GE(info.modified(), modified);
         EXPECT_EQ(info.size(), newSize);
+        EXPECT_EQ(result->mNewSize, newSize);
+        EXPECT_EQ(result->mOldSize, size);
 
         // Make sure we received our expected events.
         EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
@@ -4643,7 +5173,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
             return FILE_FAILED;
 
         // Let the caller know the truncation was successful.
-        return result;
+        return FILE_SUCCESS;
     }; // truncate
 
     // Read a few ranges from the file.
@@ -4709,10 +5239,15 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     auto modified = info.modified();
     auto size = info.size();
 
-    // We should be able to reduce the file's size.
-    expect(FileTruncateEvent{FileRange(size / 2, size), info.id(), size / 2}, serviceObserver);
+    // Convenience.
+    ApplicationData appData{1, applicationID};
 
-    ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
+    // We should be able to reduce the file's size.
+    expect(FileTruncateEvent{appData, FileRange(size / 2, size), info.id(), size / 2},
+           serviceObserver);
+
+    FileTruncateResult expected{size / 2, size};
+    ASSERT_EQ(execute(truncate, appData, *file, 0, size / 2), expected);
 
     // Mak sure the file's become dirty.
     EXPECT_TRUE(info.dirty());
@@ -4728,9 +5263,10 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     modified = info.modified();
 
     // We should be able to grow the file's size.
-    expect(FileTruncateEvent{std::nullopt, info.id(), size}, serviceObserver);
+    expect(FileTruncateEvent{appData, std::nullopt, info.id(), size}, serviceObserver);
 
-    ASSERT_EQ(execute(truncate, *file, size), FILE_SUCCESS);
+    expected = {size, size / 2};
+    ASSERT_EQ(execute(truncate, appData, *file, 0, size), expected);
 
     // Make sure the file's attributes were updated.
     EXPECT_GE(info.modified(), modified);
@@ -4777,7 +5313,8 @@ TEST_F(FileServiceTests, write_cancels_orphan_reads)
     //
     // This should cancel an orphan read that resulted when our read above
     // completed with only a subset of the requested data.
-    ASSERT_EQ(execute(write, expected.data(), *file, 0, 0, expected.size()), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), expected.data(), *file, 0, 0, expected.size()),
+              FILE_SUCCESS);
 
     // Make sure our read completed.
     ASSERT_NE(read.wait_for(mDefaultTimeout), timeout);
@@ -4799,7 +5336,8 @@ TEST_F(FileServiceTests, write_no_grow_succeeds)
     auto data = randomBytes(256_KiB);
 
     // Write some data to our file.
-    ASSERT_EQ(execute(write, data.data(), *file, 0, 0, data.size()), FILE_SUCCESS);
+    ASSERT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 0, data.size()),
+              FILE_SUCCESS);
 
     // Make sure we can read back what we wrote.
     auto computed = execute(read, *file, 0, data.size(), NormalReadTag{});
@@ -4810,7 +5348,13 @@ TEST_F(FileServiceTests, write_no_grow_succeeds)
     ASSERT_EQ(file->info().size(), data.size());
 
     // Write more data to the file but specify it's size shouldn't change.
-    ASSERT_EQ(execute(write, data.data(), *file, FILE_WRITE_FLAG_NO_GROW, 128_KiB, data.size()),
+    ASSERT_EQ(execute(write,
+                      ApplicationData(),
+                      data.data(),
+                      *file,
+                      FILE_WRITE_FLAG_NO_GROW,
+                      128_KiB,
+                      data.size()),
               FILE_SUCCESS);
 
     // Make sure we can read back what we wrote.
@@ -4876,10 +5420,14 @@ TEST_F(FileServiceTests, write_succeeds)
         // Latch the file's current modification time and size.
         auto modified = info.modified();
 
-        // Try and write content to our file.
-        expect(FileWriteEvent{FileRange(offset, offset + length), info.id()}, serviceObserver);
+        // Convenience.
+        ApplicationData appData{4, applicationID};
 
-        auto result = execute(testing::write, content, *file, 0, offset, length);
+        // Try and write content to our file.
+        expect(FileWriteEvent{appData, FileRange(offset, offset + length), info.id()},
+               serviceObserver);
+
+        auto result = execute(testing::write, appData, content, *file, 0, offset, length);
 
         // Write failed.
         if (result != FILE_SUCCESS)
@@ -4973,18 +5521,66 @@ TEST_F(FileServiceTests, write_succeeds)
     ASSERT_EQ(read(2_MiB, 64_KiB), FILE_SUCCESS);
 }
 
+bool FileServiceTests::cleanup()
+{
+    // Save the client's session.
+    auto sessionToken = mClient->sessionToken();
+
+    // Make sure the client was logged in.
+    EXPECT_EQ(sessionToken.errorOr(API_OK), API_OK);
+
+    // Client wasn't logged in.
+    if (HasFailure())
+        return false;
+
+    // Where is the service storing this user's data?
+    auto storagePath = mClient->fileService().userStoragePath();
+
+    // Make sure we could retrieve the user's storage path.
+    EXPECT_EQ(storagePath.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Couldn't retrieve the user's storage path.
+    if (HasFailure())
+        return false;
+
+    // Log the client out but keep our session alive.
+    EXPECT_EQ(mClient->logout(true), API_OK);
+
+    // Couldn't log the client out.
+    if (HasFailure())
+        return false;
+
+    std::error_code errorcode;
+
+    // Purge the user's cached files and metadata.
+    std::filesystem::remove_all(Path(*storagePath), errorcode);
+
+    // Make sure we didn't encounter any errors.
+    EXPECT_FALSE(errorcode);
+
+    // Couldn't remove the user's cached files and metadata.
+    if (HasFailure())
+        return false;
+
+    // Log the client back in.
+    EXPECT_EQ(mClient->login(*sessionToken), API_OK);
+
+    // Let our caller know if we could log the client in.
+    return !HasFailure();
+}
+
 void FileServiceTests::SetUp()
 {
     ScopedWatch watch(mWatchdog, MaxTestRunTime);
 
     SingleClientTest::SetUp();
 
+    // Purge all of the user's cached files and metadata.
+    ASSERT_TRUE(cleanup());
+
     // Make sure the service's options are in a known state.
     mClient->fileService().reclaimOptions(DefaultReclaimOptions);
     mClient->fileService().serviceOptions(DefaultOptions);
-
-    // Make sure the service contains no lingering data.
-    ASSERT_EQ(mClient->fileService().purge(), FILE_SERVICE_SUCCESS);
 
     // Make sure transfers proceed at full speed.
     mClient->setDownloadSpeed(0);
@@ -5040,18 +5636,22 @@ void FileServiceTests::TearDown()
     mWatchdog.disarm();
 }
 
-auto append(const void* buffer, File file, std::uint64_t length) -> std::future<FileResult>
+auto append(const ApplicationData& applicationData,
+            const void* buffer,
+            File file,
+            std::uint64_t length) -> std::future<FileResultOr<FileWriteResult>>
 {
     // So we can signal when the request has completed.
-    auto notifier = makeSharedPromise<FileResult>();
+    auto notifier = makeSharedPromise<FileResultOr<FileWriteResult>>();
 
     // So our caller can wait until the request is completed.
     auto waiter = notifier->get_future();
 
     // Execute an append request.
     file.append(
+        applicationData,
         buffer,
-        [=](FileResult result)
+        [=](auto result)
         {
             notifier->set_value(result);
         },
@@ -5156,7 +5756,7 @@ auto fetchBarrier(File file) -> std::future<FileResult>
     return waiter;
 }
 
-auto flush(File file) -> std::future<FileResult>
+auto flush(File file, bool cancelOnWrite) -> std::future<FileResult>
 {
     // So we can signal when the flush has completed.
     auto notifier = makeSharedPromise<FileResult>();
@@ -5169,28 +5769,10 @@ auto flush(File file) -> std::future<FileResult>
         [file, notifier](auto result)
         {
             notifier->set_value(result);
-        });
+        },
+        cancelOnWrite);
 
     // Return waiter to our caller.
-    return waiter;
-}
-
-auto purge(File file) -> std::future<FileResult>
-{
-    // So we can notify our caller when the file has been purged.
-    auto notifier = makeSharedPromise<FileResult>();
-
-    // So our caller can wait for the file to be purged.
-    auto waiter = notifier->get_future();
-
-    // Try and purge the file.
-    file.purge(
-        [notifier](auto result)
-        {
-            notifier->set_value(result);
-        });
-
-    // Return the waiter to our caller.
     return waiter;
 }
 
@@ -5382,7 +5964,7 @@ auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std::uint6
     return waiter;
 }
 
-auto remove(File file) -> std::future<FileResult>
+auto remove(File file, bool serviceOnly) -> std::future<FileResult>
 {
     // So we can notify our caller when the file has been removed.
     auto notifier = makeSharedPromise<FileResult>();
@@ -5395,13 +5977,16 @@ auto remove(File file) -> std::future<FileResult>
         [notifier](auto result)
         {
             notifier->set_value(result);
-        });
+        },
+        serviceOnly);
 
     // Return the waiter to our caller.
     return waiter;
 }
 
-auto touch(File file, std::int64_t modified) -> std::future<FileResult>
+auto touch(const ApplicationData& applicationData,
+           File file,
+           std::int64_t modified) -> std::future<FileResult>
 {
     // So we can notify our waiter when the request completes.
     auto notifier = makeSharedPromise<FileResult>();
@@ -5411,6 +5996,7 @@ auto touch(File file, std::int64_t modified) -> std::future<FileResult>
 
     // Try and touch the file.
     file.touch(
+        applicationData,
         [notifier](FileResult result)
         {
             notifier->set_value(result);
@@ -5426,27 +6012,33 @@ FileRangeSet toSet(const FileRangeVector& ranges)
     return FileRangeSet(ranges.begin(), ranges.end());
 }
 
-auto truncate(File file, std::uint64_t newSize) -> std::future<FileResult>
+auto truncate(const ApplicationData& applicationData,
+              File file,
+              FileTruncateFlags flags,
+              std::uint64_t newSize) -> std::future<FileResultOr<FileTruncateResult>>
 {
     // So we can notify our waiter when the request completes.
-    auto notifier = makeSharedPromise<FileResult>();
+    auto notifier = makeSharedPromise<FileResultOr<FileTruncateResult>>();
 
     // So our caller can wait until the request completes.
     auto waiter = notifier->get_future();
 
     // Try and truncate the file.
     file.truncate(
-        [notifier](FileResult result)
+        applicationData,
+        [notifier](auto result)
         {
             notifier->set_value(result);
         },
+        flags,
         newSize);
 
     // Return the waiter to our caller.
     return waiter;
 }
 
-auto write(const void* buffer,
+auto write(const ApplicationData& applicationData,
+           const void* buffer,
            File file,
            FileWriteFlags flags,
            std::uint64_t offset,
@@ -5460,7 +6052,12 @@ auto write(const void* buffer,
     // Tracks state necessary for our write.
     struct WriteContext
     {
-        WriteContext(const void* buffer, File file, FileWriteFlags flags, std::uint64_t length):
+        WriteContext(const ApplicationData& applicationData,
+                     const void* buffer,
+                     File file,
+                     FileWriteFlags flags,
+                     std::uint64_t length):
+            mApplicationData(applicationData),
             mBuffer(static_cast<const std::uint8_t*>(buffer)),
             mFile(std::move(file)),
             mFlags(flags),
@@ -5484,12 +6081,16 @@ auto write(const void* buffer,
 
             // Write remaning content, if any.
             mFile.write(
+                mApplicationData,
                 mBuffer,
                 std::bind(&WriteContext::onWrite, this, std::move(context), std::placeholders::_1),
                 mFlags,
                 result->mLength + result->mOffset,
                 mLength);
         }
+
+        // Application-specific data associated with this write.
+        ApplicationData mApplicationData;
 
         // The content we want to write.
         const std::uint8_t* mBuffer;
@@ -5508,13 +6109,14 @@ auto write(const void* buffer,
     }; // WriteContext
 
     // Create a context to track our write state.
-    auto context = std::make_shared<WriteContext>(buffer, file, flags, length);
+    auto context = std::make_shared<WriteContext>(applicationData, buffer, file, flags, length);
 
     // Get our hands on the context's future.
     auto waiter = context->mNotifier.get_future();
 
     // Kick off the write.
     file.write(
+        applicationData,
         buffer,
         std::bind(&WriteContext::onWrite, context.get(), std::move(context), std::placeholders::_1),
         flags,

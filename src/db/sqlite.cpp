@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/common/error_or.h"
 #include "mega/mediats_utils.h"
 
 #include <algorithm>
@@ -29,6 +30,8 @@
 
 #ifdef USE_SQLITE
 namespace mega {
+
+using common::ErrorOr;
 
 static const char* NodeSearchFilterPtrStr = "NodeSearchFilterPtrStr";
 
@@ -1625,6 +1628,9 @@ void SqliteAccountState::finalise()
 
     sqlite3_finalize(mStmtFavourites);
     mStmtFavourites = nullptr;
+
+    sqlite3_finalize(mStmtGetChildrenWithName);
+    mStmtGetChildrenWithName = nullptr;
 }
 
 bool SqliteAccountState::put(Node *node)
@@ -2340,7 +2346,7 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
     result = sqlite3_bind_int64(mStmtNodeTagsBelow, PARAM_HAS_NODE_HANDLE, !handle.isUndef());
 
     // Couldn't bind parameter.
-    if (result != API_OK)
+    if (result != SQLITE_OK)
         return couldntBindParameter(PARAM_HAS_NODE_HANDLE);
 
     // Let the query know which node we're searching below.
@@ -2349,7 +2355,7 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
                                 static_cast<std::int64_t>(handle.as8byte()));
 
     // Couldn't bind parameter.
-    if (result != API_OK)
+    if (result != SQLITE_OK)
         return couldntBindParameter(PARAM_NODE_HANDLE);
 
     // Generate effective pattern.
@@ -2359,7 +2365,7 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
     result = sqlite3_bind_int(mStmtNodeTagsBelow, PARAM_HAS_PATTERN, !pattern.empty());
 
     // Couldn't bind parameter.
-    if (result != API_OK)
+    if (result != SQLITE_OK)
         return couldntBindParameter(PARAM_HAS_PATTERN);
 
     // Let the query know what the pattern is.
@@ -2370,7 +2376,7 @@ auto SqliteAccountState::getNodeTagsBelow(CancelToken cancelToken,
                                SQLITE_STATIC);
 
     // Couldn't bind parameter.
-    if (result != API_OK)
+    if (result != SQLITE_OK)
         return couldntBindParameter(PARAM_PATTERN);
 
     std::set<std::string> tags;
@@ -4870,6 +4876,141 @@ void SqliteAccountState::userMatchFilter(sqlite3_context* context, int argc, sql
                                  return f();
                              });
     }
+}
+
+auto SqliteAccountState::getChildrenWithName(CancelToken cancelToken,
+                                             std::int64_t maxCount,
+                                             const std::string& name,
+                                             NodeHandle parentHandle)
+    -> common::ErrorOr<NodeHandleNodeBlobList>
+{
+    // Convenience.
+    using common::unexpected;
+
+    // No database, no children.
+    if (!db)
+        return unexpected(API_EINTERNAL);
+
+    // Clarity.
+    enum ParameterIndex
+    {
+        PARAM_NAME = 1,
+        PARAM_PARENT_HANDLE,
+        PARAM_MAX_COUNT
+    }; // ParameterIndex
+
+    // Transmit to global error handler on return.
+    int result{};
+
+    // Transmits our result to the global error handler on return/.
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            // Remove any active progress handler.
+            sqlite3_progress_handler(db, -1, nullptr, nullptr);
+            // Transmit result to global error handler.
+            errorHandler(result, "Get children with name", true);
+            // Make sure the query's in a sane state.
+            sqlite3_reset(mStmtGetChildrenWithName);
+        });
+
+    // Caller wants to be able to abort the query.
+    if (cancelToken.exists())
+        sqlite3_progress_handler(db,
+                                 NUM_VIRTUAL_MACHINE_INSTRUCTIONS,
+                                 &SqliteAccountState::progressHandler,
+                                 static_cast<void*>(&cancelToken));
+
+    // Convenience.
+    auto& stmt = mStmtGetChildrenWithName;
+
+    // Prepare query as needed.
+    if (!stmt)
+    {
+        const char* query = "select counter "
+                            "     , node "
+                            "     , nodehandle "
+                            "  from nodes "
+                            " where name = ? "
+                            "   and parenthandle = ? "
+                            " limit ?";
+
+        // Try and prepare our query.
+        result = sqlite3_prepare_v2(db, query, -1, &stmt, nullptr);
+
+        // Couldn't prepare query.
+        if (result != SQLITE_OK)
+            return unexpected(API_EINTERNAL);
+    }
+
+    // Bind name parameter.
+    result = sqlite3_bind_text(stmt,
+                               PARAM_NAME,
+                               name.c_str(),
+                               static_cast<int>(name.size()),
+                               SQLITE_STATIC);
+
+    // Couldn't bind name parameter.
+    if (result != SQLITE_OK)
+        return unexpected(API_EINTERNAL);
+
+    // Bind parent handle parameter.
+    result = sqlite3_bind_int64(stmt,
+                                PARAM_PARENT_HANDLE,
+                                static_cast<std::int64_t>(parentHandle.as8byte()));
+
+    // Couldn't bind parent handle parameter.
+    if (result != SQLITE_OK)
+        return unexpected(API_EINTERNAL);
+
+    // Bind limit.
+    result = sqlite3_bind_int64(stmt, PARAM_MAX_COUNT, maxCount);
+
+    // Couldn't bind max count parameter.
+    if (result != SQLITE_OK)
+        return unexpected(API_EINTERNAL);
+
+    // Tracks which children we've loaded from the database.
+    NodeHandleNodeBlobList children;
+
+    // Load each child from the database.
+    while (result != SQLITE_DONE)
+    {
+        // Try and retrieve a row from the database.
+        result = sqlite3_step(stmt);
+
+        // Couldn't get a row from the database.
+        if (result != SQLITE_DONE && result != SQLITE_ROW)
+            return unexpected(API_EINTERNAL);
+
+        NodeSerialized blob;
+
+        // Extract node counter.
+        auto* data = static_cast<const char*>(sqlite3_column_blob(stmt, 0));
+        auto size = static_cast<std::size_t>(sqlite3_column_bytes(stmt, 0));
+
+        if (data && size)
+            blob.mNodeCounter.assign(data, size);
+
+        // Extract node data.
+        data = static_cast<const char*>(sqlite3_column_blob(stmt, 1));
+        size = static_cast<std::size_t>(sqlite3_column_bytes(stmt, 1));
+
+        // No blob or empty blob.
+        if (!data || !size)
+            continue;
+
+        // Extract node handle.
+        auto handle = static_cast<std::uint64_t>(sqlite3_column_int64(stmt, 2));
+
+        blob.mNode.assign(data, size);
+
+        // Add the child's blob to our list.
+        children.emplace_back(NodeHandle().set6byte(handle), std::move(blob));
+    }
+
+    // Return children to our caller.
+    return children;
 }
 
 std::string OrderByClause::get(int order)

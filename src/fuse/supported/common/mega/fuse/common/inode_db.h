@@ -187,6 +187,9 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
     // Add a new inode to the index.
     InodeRef add(InodePtr (InodeDB::*build)(const common::NodeInfo&), const common::NodeInfo& info);
 
+    // Add a new inode to the index based on a node's description.
+    InodeRef add(const common::NodeInfo& info, const AnyLockSet& locks);
+
     // Add a new file to the database.
     auto addFile(const std::string& name, NodeHandle parentHandle, common::Transaction& transaction)
         -> file_service::FileServiceResultOr<file_service::FileInfo>;
@@ -215,14 +218,6 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
     // Are we discarding node events?
     bool discard() const;
 
-    // Load an inode from the client.
-    InodeRef get(common::Client& client, NodeHandle handle, const AnyLockSet& locks) const;
-
-    // Load an inode from the file cache by handle.
-    InodeRef get(file_service::FileService& fileService,
-                 NodeHandle handle,
-                 const AnyLockSet& locks) const;
-
     // Load an inode from the file cache by ID.
     InodeRef get(file_service::FileService& fileService, InodeID id, const AnyLockSet& locks) const;
 
@@ -231,9 +226,6 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
                  const AnyLockSet& locks,
                  common::ScopedQuery query,
                  common::Transaction transaction) const;
-
-    // Specify what cloud node is associated with the specified file.
-    void handle(FileInode& file, NodeHandle& oldHandle, NodeHandle newHandle);
 
     // Check if parent contains the named child.
     InodeID hasChild(const DirectoryInode& parent, const std::string& name) const;
@@ -255,6 +247,10 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
     using NodeHandleInodeIDPair = std::pair<NodeHandle, InodeID>;
     using NodeHandleInodeIDPairVector = std::vector<NodeHandleInodeIDPair>;
 
+    // What ID is associated with the specified node handle?
+    InodeID map(NodeHandle handle) const;
+
+    // Query which inodes have been modified.
     auto modified() const -> NodeHandleInodeIDPairVector;
 
     // Move (or rename) an inode.
@@ -292,6 +288,12 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
 
     // Unlink a file.
     Error unlink(FileInodeRef file);
+
+    // Update a file's node handle in memory.
+    void updateHandleInMemory(FileInode& file, NodeHandle newHandle, NodeHandle oldHandle);
+
+    // Update a file's node handle in the database.
+    void updateHandleInDatabase(InodeID id, NodeHandle handle, common::Transaction& transaction);
 
     // Tracks which inode is associated with what node handle.
     mutable ToInodeRawPtrMap<NodeHandle> mByHandle;
@@ -340,6 +342,9 @@ public:
     // Called by the client when its view of the cloud is current.
     void current();
 
+    // Retrieve the database associated with this instance.
+    common::Database& database() const;
+
     // Discard node events.
     void discard(bool discard);
 
@@ -348,9 +353,6 @@ public:
 
     // Retrieve the File Service associated with this database.
     file_service::FileService& fileService() const;
-
-    // Retrieve an inode by handle.
-    InodeRef get(NodeHandle handle, bool inMemoryOnly = false) const;
 
     // Retrieve an inode by ID.
     InodeRef get(InodeID id, bool inMemoryOnly = false) const;

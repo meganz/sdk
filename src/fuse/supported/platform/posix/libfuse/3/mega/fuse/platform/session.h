@@ -16,6 +16,12 @@ class Session: public SessionBase
 
     void populateOperations(fuse_lowlevel_ops& operations) override;
 
+    static void readdirplus(fuse_req_t request,
+                            fuse_ino_t inode,
+                            size_t size,
+                            off_t offset,
+                            struct fuse_file_info* info);
+
     static void rename(fuse_req_t request,
                        fuse_ino_t sourceParent,
                        const char* sourceName,

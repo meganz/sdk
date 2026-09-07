@@ -52,7 +52,7 @@ struct IsFileRequestHelper<Key, std::variant<First, Rest...>>: common::IsOneOf<K
 {}; // IsFileRequestHelper<Key, std::variant<First, Rest...>>
 
 template<typename T>
-using IsFileRequest = IsFileRequestHelper<T, FileRequest>;
+using IsFileRequest = std::disjunction<IsFileRemoveRequest<T>, IsFileRequestHelper<T, FileRequest>>;
 
 template<typename T>
 constexpr auto IsFileRequestV = IsFileRequest<T>::value;

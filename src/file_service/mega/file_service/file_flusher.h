@@ -82,7 +82,16 @@ class FileFlusher
     template<typename Period, typename Rep>
     void schedule(FileID id, std::size_t retries, std::chrono::duration<Rep, Period> period)
     {
-        schedule(id, retries, Clock::now() + period);
+        using std::chrono::duration_cast;
+
+        // Capture current time.
+        const auto now = Clock::now();
+
+        // Compute maximum sane flush delay.
+        const auto max = duration_cast<decltype(period)>(TimePoint::max() - now);
+
+        // Schedule flush for at most max units in the future.
+        schedule(id, retries, now + std::min(period, max));
     }
 
     // Schedule a file to be flushed at a given time.
@@ -103,7 +112,7 @@ public:
     template<typename Period, typename Rep>
     void schedule(FileID id, std::chrono::duration<Rep, Period> period)
     {
-        schedule(id, 0, Clock::now() + period);
+        schedule(id, 0, period);
     }
 
     // Schedule a file to be flushed at a given time.

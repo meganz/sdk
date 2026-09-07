@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_append_request_forward.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_request_tags.h>
@@ -21,6 +22,9 @@ struct FileAppendRequest
     {
         return "append";
     }
+
+    // Application-specific data associated with this request.
+    ApplicationData mApplicationData;
 
     // What data does the user want to append to the file?
     const void* mBuffer;

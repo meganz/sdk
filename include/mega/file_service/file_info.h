@@ -6,6 +6,7 @@
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_service_context_badge_forward.h>
+#include <mega/file_service/file_structure_mutex_forward.h>
 
 #include <cstdint>
 #include <optional>
@@ -98,6 +99,9 @@ public:
 
     // How large is this file conceptually?
     std::uint64_t size() const;
+
+    // Retrieve a reference to this file's structure mutex.
+    FileStructureMutex& structureMutex() const;
 
     // Invoke function while holding a lock on this file's info.
     template<typename Function,

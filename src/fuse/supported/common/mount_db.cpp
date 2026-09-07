@@ -623,6 +623,16 @@ void MountDB::disable(NodeHandle handle)
     }
 }
 
+void MountDB::each(std::function<void(platform::Mount&)> function, const Mount& mount)
+{
+    each(
+        [function = std::move(function), id = mount.id()](auto& mount)
+        {
+            if (id != mount.id())
+                function(mount);
+        });
+}
+
 void MountDB::each(std::function<void(platform::Mount&)> function)
 {
     // Sanity.

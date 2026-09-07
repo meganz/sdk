@@ -8,6 +8,8 @@ target_include_directories(FileServiceHeaderPaths INTERFACE
 target_link_libraries(SDKlib PRIVATE FileServiceHeaderPaths)
 
 target_sources(SDKlib PRIVATE
+                      include/mega/file_service/application_data.h
+                      include/mega/file_service/application_data_forward.h
                       include/mega/file_service/file.h
                       include/mega/file_service/file_callbacks.h
                       include/mega/file_service/file_context_badge_forward.h
@@ -57,10 +59,15 @@ target_sources(SDKlib PRIVATE
                       include/mega/file_service/file_service_result_or_forward.h
                       include/mega/file_service/file_stream_result.h
                       include/mega/file_service/file_stream_result_forward.h
+                      include/mega/file_service/file_structure_mutex.h
+                      include/mega/file_service/file_structure_mutex_forward.h
                       include/mega/file_service/file_touch_event.h
                       include/mega/file_service/file_touch_event_forward.h
                       include/mega/file_service/file_truncate_event.h
                       include/mega/file_service/file_truncate_event_forward.h
+                      include/mega/file_service/file_truncate_flags.h
+                      include/mega/file_service/file_truncate_result.h
+                      include/mega/file_service/file_truncate_result_forward.h
                       include/mega/file_service/file_write_event.h
                       include/mega/file_service/file_write_event_forward.h
                       include/mega/file_service/file_write_flags.h
@@ -134,6 +141,7 @@ target_sources(SDKlib PRIVATE
                       src/file_service/mega/file_service/file_truncate_request_forward.h
                       src/file_service/mega/file_service/file_write_request.h
                       src/file_service/mega/file_service/file_write_request_forward.h
+                      src/file_service/mega/file_service/flush_utilities.h
                       src/file_service/mega/file_service/from_file_id_map.h
                       src/file_service/mega/file_service/logger.h
                       src/file_service/mega/file_service/logging.h
@@ -163,6 +171,7 @@ target_sources(SDKlib PRIVATE
                       src/file_service/file_service_queries.cpp
                       src/file_service/file_service_result.cpp
                       src/file_service/file_storage.cpp
+                      src/file_service/flush_utilities.cpp
                       src/file_service/logger.cpp
                       src/file_service/memory_buffer.cpp
                       src/file_service/read_tag.cpp

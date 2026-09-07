@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_truncate_event_forward.h>
@@ -16,13 +17,17 @@ struct FileTruncateEvent
 {
     bool operator==(const FileTruncateEvent& rhs) const
     {
-        return mID == rhs.mID && mSize == rhs.mSize && mRange == rhs.mRange;
+        return mApplicationData == rhs.mApplicationData && mID == rhs.mID && mSize == rhs.mSize &&
+               mRange == rhs.mRange;
     }
 
     bool operator!=(const FileTruncateEvent& rhs) const
     {
         return !(*this == rhs);
     }
+
+    // Application-specific data associated with this event.
+    ApplicationData mApplicationData;
 
     // The portion of the file, if any, that has been "cut off."
     std::optional<FileRange> mRange;

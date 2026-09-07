@@ -96,6 +96,9 @@ public:
     // Deinitialize the file service.
     void deinitialize(bool cleanCache, bool isDestructing);
 
+    // Ask the service what file is associated with the specified handle.
+    auto id(NodeHandle handle) -> FileServiceResultOr<FileID>;
+
     // Retrieve information about a file managed by the file service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
@@ -110,15 +113,6 @@ public:
 
     // Retrieve the file service's current options.
     auto serviceOptions() -> ServiceOptions;
-
-    // Purge all files from storage.
-    //
-    // This function is intended to be used by integration tests.
-    //
-    // If you do happen to call it in a different context, be aware that
-    // this function will block the caller until all file (or file info)
-    // references have been dropped.
-    auto purge() -> FileServiceResult;
 
     // Start a background task to reclaim storage space immediately
     auto reclaim(ReclaimCallback callback,
@@ -145,6 +139,9 @@ public:
 
     // Find out where the service is storing a particular file.
     auto userFilePath(FileID id) const -> FileServiceResultOr<LocalPath>;
+
+    // Where is the service storing this user's data?
+    auto userStoragePath() const -> FileServiceResultOr<LocalPath>;
 }; // FileService
 
 } // file_service

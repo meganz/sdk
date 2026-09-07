@@ -25,7 +25,13 @@ void Upload::begin(BoundCallback callback)
         assert(bind);
 
         // Try and bind a name to our uploaded content.
-        bind(BindContext{std::move(bound), std::nullopt, NodeHandle()});
+        bind(
+            [&]()
+            {
+                BindContext context{};
+                context.mCallback = std::move(bound);
+                return context;
+            }());
     }; // uploaded
 
     UploadCallback wrapper =

@@ -6,6 +6,7 @@
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/platform.h>
+#include <mega/fuse/platform/read_directory_functions.h>
 #include <mega/fuse/platform/request.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/session_base.h>
@@ -22,6 +23,23 @@ namespace platform
 {
 
 using namespace common;
+
+struct ReadDirFunctions: ReadDirectoryFunctions
+{
+    // Called to add a directory entry to buffer.
+    std::size_t addEntry(const struct stat& attributes,
+                         char* buffer,
+                         const std::string& name,
+                         off_t offset,
+                         Request request,
+                         std::size_t size) override
+    {
+        return fuse_add_direntry(request.get(), buffer, size, name.c_str(), &attributes, offset);
+    }
+
+    // Called to pin an inode in memory.
+    void pin(const InodeInfo&, InodeRef&, Mount&) override {};
+}; // ReadDirectoryFunctions
 
 SessionBase::Arguments::Arguments([[maybe_unused]] const std::string& name):
     mArguments(),
@@ -283,6 +301,8 @@ void SessionBase::readdir(fuse_req_t request,
                           off_t offset,
                           fuse_file_info* info)
 {
+    ReadDirFunctions functions;
+
     MountInodeID inode_(inode);
 
     FUSEDebugF("readdir: info: %p, inode: %s, offset: %d, size: %zu, request: %p",
@@ -292,7 +312,8 @@ void SessionBase::readdir(fuse_req_t request,
                size,
                request);
 
-    mount(request).execute(&Mount::readdir, true, Request(request), inode_, size, offset, *info);
+    mount(request)
+        .execute(&Mount::readdir, true, functions, *info, inode_, offset, Request(request), size);
 }
 
 void SessionBase::release(fuse_req_t request, fuse_ino_t inode, fuse_file_info* info)

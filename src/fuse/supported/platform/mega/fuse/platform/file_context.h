@@ -68,9 +68,13 @@ public:
     Error touch(m_time_t modified);
 
     // Truncate the file to a specific size.
-    void truncate(std::function<void(Error)> callback, m_off_t size);
+    //
+    // When noGrow is true the file is truncated if and only if it is larger
+    // than size. This represents Windows' notion of a file's allocation
+    // size, which must never extend the file itself.
+    void truncate(std::function<void(Error)> callback, m_off_t size, bool noGrow);
 
-    Error truncate(m_off_t size);
+    Error truncate(m_off_t size, bool noGrow);
 
     // Write data to the file.
     void write(std::function<void(common::ErrorOr<std::size_t>)> callback,

@@ -8907,6 +8907,7 @@ void MegaClient::sc_sqac(JSON& json)
                 }
 
                 // Invalidate cached storage info.
+                mClientAdapter.invalidateStorageInfo();
                 mLastKnownCapacity = -1;
 
 #ifdef MEGA_USE_WSUPLOAD

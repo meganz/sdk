@@ -3,6 +3,7 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
 #include <mega/common/platform/date_time.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
 #include <mega/fuse/common/file_inode.h>
@@ -56,6 +57,7 @@ static bool newAttributeIsAllowed(UINT32 newValue, UINT32 currentValue)
 }
 
 NTSTATUS Mount::canDelete(PVOID context)
+try
 {
     // Mount isn't writable.
     if (!writable())
@@ -92,8 +94,15 @@ NTSTATUS Mount::canDelete(PVOID context)
     // Entity can be deleted.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute canDelete request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 void Mount::cleanup(PVOID context, const std::wstring& path, ULONG flags)
+try
 {
     // Nothing to do if we're not deleting the entity.
     if (!(flags & FspCleanupDelete))
@@ -117,6 +126,10 @@ void Mount::cleanup(PVOID context, const std::wstring& path, ULONG flags)
                  fromWideString(path).c_str(),
                  static_cast<int>(result));
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute cleanup request: %p: %s", context, exceptionMessage().c_str());
+}
 
 void Mount::close(PVOID context)
 {
@@ -135,6 +148,7 @@ NTSTATUS Mount::create(const std::wstring& path,
                        UINT32 access,
                        PVOID& context,
                        FSP_FSCTL_FILE_INFO& info)
+try
 {
     // Reject if the originating process is self
     if (isSelfForbidden())
@@ -222,8 +236,15 @@ NTSTATUS Mount::create(const std::wstring& path,
     // File's been created.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute create request: %s", exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::flush(PVOID context, FSP_FSCTL_FILE_INFO& info)
+try
 {
     // Caller wants to flush the entire volume.
     if (!context)
@@ -244,8 +265,15 @@ NTSTATUS Mount::flush(PVOID context, FSP_FSCTL_FILE_INFO& info)
     // Let the caller know if the flush was successful.
     return translate(result);
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute flush request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::getDirInfoByName(PVOID context, const std::wstring& name, FSP_FSCTL_DIR_INFO& info)
+try
 {
     // Sanity.
     assert(context);
@@ -269,8 +297,17 @@ NTSTATUS Mount::getDirInfoByName(PVOID context, const std::wstring& name, FSP_FS
     // Let the caller know the request was successful.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute getDirInfoByName request: %p: %s",
+               context,
+               exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::getFileInfo(PVOID context, FSP_FSCTL_FILE_INFO& info)
+try
 {
     // Sanity.
     assert(context);
@@ -284,10 +321,17 @@ NTSTATUS Mount::getFileInfo(PVOID context, FSP_FSCTL_FILE_INFO& info)
     // Let the caller know their request was successful.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute getFileInfo request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::getSecurity(PVOID context,
                             PSECURITY_DESCRIPTOR descriptor,
                             SIZE_T& descriptorLength)
+try
 {
     // Get our hands on the file's context.
     auto* context_ = reinterpret_cast<Context*>(context);
@@ -297,6 +341,12 @@ NTSTATUS Mount::getSecurity(PVOID context,
 
     // Retrieve the inode's security descriptor.
     return getSecurity(descriptor, descriptorLength, context_->inode()->info());
+}
+catch (...)
+{
+    FUSEErrorF("Couldn't execute getSecurity request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS Mount::getSecurity(PSECURITY_DESCRIPTOR descriptor,
@@ -334,6 +384,7 @@ NTSTATUS Mount::getSecurityByName(const std::wstring& path,
                                   PUINT32 attributes,
                                   PSECURITY_DESCRIPTOR descriptor,
                                   SIZE_T* descriptorLength)
+try
 {
     // Reject if the originating process is self
     if (isSelfForbidden())
@@ -360,8 +411,15 @@ NTSTATUS Mount::getSecurityByName(const std::wstring& path,
     // Let the caller know the request was successful.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute getSecurityByName request:%s", exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::getVolumeInfo(FSP_FSCTL_VOLUME_INFO& info)
+try
 {
     // Convenience.
     auto& client = mMountDB.client();
@@ -394,6 +452,12 @@ NTSTATUS Mount::getVolumeInfo(FSP_FSCTL_VOLUME_INFO& info)
     // Return control to caller.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute getVolumeInfo request: %s", exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 InodeDB& Mount::inodeDB() const
 {
@@ -405,6 +469,7 @@ NTSTATUS Mount::open(const std::wstring& path,
                      UINT32 access,
                      PVOID& context,
                      FSP_FSCTL_FILE_INFO& info)
+try
 {
     // Reject if the originating process is self
     if (isSelfForbidden())
@@ -471,11 +536,18 @@ NTSTATUS Mount::open(const std::wstring& path,
     // Let the caller know the file's opened.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute open request: %s", exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::overwrite(UINT32 attributes,
                           PVOID context,
                           FSP_FSCTL_FILE_INFO& info,
                           BOOLEAN replaceAttributes)
+try
 {
     // Sanity.
     assert(context);
@@ -502,7 +574,7 @@ NTSTATUS Mount::overwrite(UINT32 attributes,
         return STATUS_ACCESS_DENIED;
 
     // Try and truncate the file.
-    auto result = context_->truncate(0);
+    auto result = context_->truncate(0, false);
 
     // Can't truncate the file.
     if (result != API_OK)
@@ -514,8 +586,15 @@ NTSTATUS Mount::overwrite(UINT32 attributes,
     // File's been overwritten.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute overwrite request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, ULONG& /*numRead*/)
+try
 {
     // Sanity.
     assert(context);
@@ -566,6 +645,12 @@ NTSTATUS Mount::read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, U
     // Let the caller know their read is underway.
     return STATUS_PENDING;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute read request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::readDirectory(PVOID context,
                               const std::string& /*pattern*/,
@@ -573,6 +658,7 @@ NTSTATUS Mount::readDirectory(PVOID context,
                               PVOID buffer,
                               ULONG length,
                               ULONG& /*numWritten*/)
+try
 {
     // Get our hands on the directory's context.
     auto* context_ = reinterpret_cast<DirectoryContext*>(context);
@@ -583,31 +669,45 @@ NTSTATUS Mount::readDirectory(PVOID context,
     // Actually reads the directory.
     auto read = [=](Activity&, const Task&)
     {
-        auto numWritten = 0ul;
+        // Allocate space for our response.
         auto response = std::make_unique<FSP_FSCTL_TRANSACT_RSP>();
 
-        // Populate directory entries.
-        context_->get(marker, buffer, length, *this, numWritten);
+        // Try and populate response with directory entries.
+        try
+        {
+            auto numWritten = 0ul;
 
-        // Populate response.
-        std::memset(response.get(), 0, sizeof(*response));
+            // Populate directory entries.
+            context_->get(marker, buffer, length, *this, numWritten);
 
-        response->Hint = hint;
-        response->Kind = FspFsctlTransactQueryDirectoryKind;
-        response->Size = sizeof(*response);
-        response->IoStatus.Information = static_cast<UINT32>(numWritten);
+            // Populate response.
+            std::memset(response.get(), 0, sizeof(*response));
 
-        // Notify File Explorer
-        //
-        // NOTE: This is called here (after directory entries are read) because:
-        // - It ensures the folder is actually opened before notification.
-        // - Placing this in open() (for both files and directories, it has timing
-        //   problem if only called for openning directories) increases CPU usage (~2%+)
-        //   when opening large folders, so this is more efficient.
-        mMountDB.notifyFileExplorerSetter();
+            response->Hint = hint;
+            response->Kind = FspFsctlTransactQueryDirectoryKind;
+            response->Size = sizeof(*response);
+            response->IoStatus.Information = static_cast<UINT32>(numWritten);
 
-        // Send response to caller.
-        mDispatcher.reply(*response, STATUS_SUCCESS);
+            // Notify File Explorer
+            //
+            // NOTE: This is called here (after directory entries are read) because:
+            // - It ensures the folder is actually opened before notification.
+            // - Placing this in open() (for both files and directories, it has timing
+            //   problem if only called for openning directories) increases CPU usage (~2%+)
+            //   when opening large folders, so this is more efficient.
+            mMountDB.notifyFileExplorerSetter();
+
+            // Send response to caller.
+            mDispatcher.reply(*response, STATUS_SUCCESS);
+        }
+        catch (...)
+        {
+            FUSEErrorF("Couldn't execute readDirectory request: %p: %s",
+                       context,
+                       exceptionMessage().c_str());
+
+            mDispatcher.reply(*response, STATUS_UNSUCCESSFUL);
+        }
     }; // read
 
     // Schedule the read for execution.
@@ -616,8 +716,17 @@ NTSTATUS Mount::readDirectory(PVOID context,
     // Let the caller know their request is in progress.
     return STATUS_PENDING;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute readDirectory request: %p: %s",
+               context,
+               exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::rename(PVOID context, const std::wstring& targetPath, BOOLEAN replace)
+try
 {
     // Get our hands on this inode's context.
     auto* context_ = reinterpret_cast<Context*>(context);
@@ -629,39 +738,17 @@ NTSTATUS Mount::rename(PVOID context, const std::wstring& targetPath, BOOLEAN re
     if (!writable())
         return STATUS_ACCESS_DENIED;
 
-    // Convenience.
-    auto name = std::string();
+    // Try and move the source into its new location.
+    auto result = context_->inode()->move(PathAdapter(targetPath), handle(), replace);
 
-    // Try and locate the target inode.
-    auto located = inodeDB().lookup(PathAdapter(targetPath), handle(), &name);
-
-    // Convenience.
-    auto source = context_->inode();
-    auto target = std::move(located.first);
-
-    // Target was found.
-    if (located.second == API_OK)
-    {
-        // But the caller doesn't want to replace it.
-        if (!replace)
-            return STATUS_OBJECT_NAME_COLLISION;
-
-        // Try and replace target with source.
-        auto result = source->replace(std::move(target), false);
-
-        // Let the caller know if source replaced target.
-        return translate(result);
-    }
-
-    // Target directory wasn't found.
-    if (located.second != API_FUSE_ENOTFOUND)
-        return translate(located.second);
-
-    // Try and move source to target.
-    auto result = source->move(std::move(name), target->directory());
-
-    // Let the caller know if source was moved to target.
+    // Let the system know if the source was moved to target.
     return translate(result);
+}
+catch (...)
+{
+    FUSEErrorF("Couldn't execute rename request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
 }
 
 NTSTATUS Mount::setBasicInfo(PVOID context,
@@ -671,6 +758,7 @@ NTSTATUS Mount::setBasicInfo(PVOID context,
                              UINT64 written,
                              UINT64 /*changed*/,
                              FSP_FSCTL_FILE_INFO& info)
+try
 {
     // Get our hands on this inode's context.
     auto* context_ = reinterpret_cast<Context*>(context);
@@ -727,9 +815,18 @@ NTSTATUS Mount::setBasicInfo(PVOID context,
     // Let the caller know if the modification time was changed.
     return translate(result);
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute setBasicInfo request: %p: %s",
+               context,
+               exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS
-Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN, FSP_FSCTL_FILE_INFO& info)
+Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN allocated, FSP_FSCTL_FILE_INFO& info)
+try
 {
     // Sanity.
     assert(context);
@@ -749,7 +846,10 @@ Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN, FSP_FSCTL_FILE_INFO& inf
         return STATUS_ACCESS_DENIED;
 
     // Try and set the file's size.
-    auto result = context_->truncate(static_cast<m_off_t>(size));
+    // If allocated is true, it means that WinFsp is requesting either file-space preallocation
+    // or file truncation. In the former case, the underlying implementation can simply return
+    // success and must not change the actual file size.
+    auto result = context_->truncate(static_cast<m_off_t>(size), allocated);
 
     // Couldn't set the file's size.
     if (result != API_OK)
@@ -761,10 +861,17 @@ Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN, FSP_FSCTL_FILE_INFO& inf
     // Let the caller know the file's size has been changed.
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute setFileSize request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
+}
 
 NTSTATUS Mount::setSecurity(PVOID context,
                             SECURITY_INFORMATION security,
                             PSECURITY_DESCRIPTOR desired)
+try
 {
     auto* context_ = reinterpret_cast<Context*>(context);
 
@@ -795,6 +902,11 @@ NTSTATUS Mount::setSecurity(PVOID context,
 
     return STATUS_SUCCESS;
 }
+catch (...)
+{
+    FUSEErrorF("Couldn't execute setSecurity request: %p: %s", context, exceptionMessage().c_str());
+    return STATUS_UNSUCCESSFUL;
+}
 
 void Mount::stopped(BOOLEAN /*normally*/) {}
 
@@ -806,6 +918,7 @@ NTSTATUS Mount::write(PVOID context,
                       BOOLEAN noGrow,
                       ULONG& /*numWritten*/,
                       FSP_FSCTL_FILE_INFO& /*info*/)
+try
 {
     // Sanity.
     assert(context);
@@ -860,6 +973,12 @@ NTSTATUS Mount::write(PVOID context,
 
     // Let the caller know the write is underway.
     return STATUS_PENDING;
+}
+catch (...)
+{
+    FUSEErrorF("Couldn't execute write request: %p: %s", context, exceptionMessage().c_str());
+
+    return STATUS_UNSUCCESSFUL;
 }
 
 // Check if the request's originating process is this process and forbidden

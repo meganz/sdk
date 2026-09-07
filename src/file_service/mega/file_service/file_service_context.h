@@ -87,7 +87,7 @@ class FileServiceContext: common::NodeEventObserver
     template<typename Lock>
     void deallocateID(FileID id, Lock&& lock, common::Transaction& transaction);
 
-    auto fileContextFromCloud(FileID id) -> FileContextResult;
+    auto fileContextFromCloud(FileInfoContextPtr info) -> FileContextResult;
 
     auto fileContextFromDatabase(FileID id) -> FileContextResult;
 
@@ -101,7 +101,9 @@ class FileServiceContext: common::NodeEventObserver
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
         -> std::shared_ptr<T>;
 
-    auto infoContextFromDatabase(FileID id) -> FileInfoContextPtr;
+    auto infoContextFromCloud(FileID id) -> FileServiceResultOr<FileInfoContextPtr>;
+
+    auto infoContextFromDatabase(FileID id) -> FileServiceResultOr<FileInfoContextPtr>;
 
     template<typename Lock>
     auto infoContextFromIndex(FileID id, Lock&& lock) -> FileInfoContextPtr;
@@ -136,6 +138,8 @@ class FileServiceContext: common::NodeEventObserver
     bool removeFromIndex(FileID id, FromFileIDMap<T>& map);
 
     void purgeRemovedFiles();
+
+    auto sanitizeCacheFile(FileAccess& file, FileInfoContext& info) -> FileServiceResult;
 
     template<typename Lock, typename Transaction>
     auto storageInfo(Lock&& lock,
@@ -182,9 +186,6 @@ class FileServiceContext: common::NodeEventObserver
 
     // Allows us to flush a file at some point in the future.
     FileFlusher mFileFlusher;
-
-    // Signalled when a FileInfoContext has been removed from memory.
-    std::condition_variable_any mInfoContextRemoved;
 
     // Tracks which FileInfoContexts are in memory.
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
@@ -290,6 +291,9 @@ public:
     // Get a reference to this context's file flusher.
     FileFlusher& flusher();
 
+    // Ask the service what file is associated with the specified handle.
+    auto id(NodeHandle handle) -> FileServiceResultOr<FileID>;
+
     // Retrieve information about a file managed by this service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
@@ -304,9 +308,6 @@ public:
 
     // Return a reference to this service's queries.
     FileServiceQueries& queries();
-
-    // Purge all files from storage.
-    auto purge() -> FileServiceResult;
 
     // Reclaim storage space.
     void reclaim(ReclaimCallback callback, const ReclaimOptions& reclaimOptions);
@@ -348,6 +349,9 @@ public:
 
     // Find out where the service is storing a particular file.
     LocalPath userFilePath(FileID id) const;
+
+    // Where is the service storing this user's data?
+    const LocalPath& userStoragePath() const;
 }; // FileServiceContext
 
 } // file_service

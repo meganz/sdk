@@ -23,6 +23,9 @@ struct FileFlushRequest
 
     // Who should we call when the flush completes?
     FileFlushCallback mCallback;
+
+    // Should writes be able to cancel this flush?
+    bool mCancelOnWrite = false;
 }; // FileFlushRequest
 
 } // file_service

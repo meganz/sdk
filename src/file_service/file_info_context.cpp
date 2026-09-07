@@ -1,5 +1,7 @@
+#include <mega/common/concurrent_execution_policy.h>
 #include <mega/common/lock.h>
 #include <mega/common/utility.h>
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_event.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
@@ -40,6 +42,7 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  std::optional<std::uint32_t> duration,
                                  NodeHandle handle,
                                  FileID id,
+                                 bool managed,
                                  std::int64_t modified,
                                  std::uint64_t reportedSize,
                                  FileServiceContext& service,
@@ -53,11 +56,13 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mHandle(handle),
     mID(id),
     mLock(),
+    mManaged(managed),
     mModified(modified),
     mRemoved(false),
     mReportedSize(reportedSize),
     mService(service),
-    mSize(size)
+    mSize(size),
+    mStructureMutex(ConcurrentExecutionPolicy(mService.executor()))
 {
     // Sanity: If the file's duration is specified, it must not be zero.
     assert(!mDuration || *mDuration);
@@ -152,11 +157,23 @@ void FileInfoContext::lock_shared() const
     mLock.lock_shared();
 }
 
-void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
+void FileInfoContext::managed(bool managed)
+{
+    set(&FileInfoContext::mManaged, managed);
+}
+
+bool FileInfoContext::managed() const
+{
+    return get(&FileInfoContext::mManaged);
+}
+
+void FileInfoContext::modified(std::int64_t accessed,
+                               const ApplicationData& applicationData,
+                               std::int64_t modified)
 {
     // Update the file's modification time and return a new event.
     mService.notify(
-        [accessed, modified, this]()
+        [accessed, &applicationData, modified, this]()
         {
             // Make sure no one else is changing this file's information.
             UniqueLock guard(mLock);
@@ -171,7 +188,7 @@ void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
             mModified = modified;
 
             // Return an event to our caller.
-            return FileTouchEvent{mID, mModified};
+            return FileTouchEvent{applicationData, mID, mModified};
         }());
 }
 
@@ -182,9 +199,19 @@ std::int64_t FileInfoContext::modified() const
 
 void FileInfoContext::removed(std::true_type)
 {
-    set(&FileInfoContext::mRemoved, true);
+    // Update removed status and return an event for notification.
+    mService.notify(
+        [&]()
+        {
+            // Make sure no one else is changing this file's information.
+            UniqueLock guard(mLock);
 
-    mService.notify(FileRemoveEvent{mID});
+            // Mark this file as removed.
+            mRemoved = true;
+
+            // Return event to our caller.
+            return FileRemoveEvent{mHandle, mID};
+        }());
 }
 
 bool FileInfoContext::removed() const
@@ -207,11 +234,18 @@ std::uint64_t FileInfoContext::size() const
     return get(&FileInfoContext::mSize);
 }
 
-void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
+FileStructureMutex& FileInfoContext::structureMutex() const
+{
+    return mStructureMutex;
+}
+
+void FileInfoContext::truncated(const ApplicationData& applicationData,
+                                std::int64_t modified,
+                                std::uint64_t size)
 {
     // Update the file's information and return an event for notification.
     mService.notify(
-        [modified, size, this]() mutable
+        [&applicationData, modified, size, this]() mutable
         {
             // Convenience.
             using std::swap;
@@ -232,7 +266,7 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
             swap(mSize, size);
 
             // Assume the file's size hasn't decreased.
-            FileTruncateEvent event{std::nullopt, mID, mSize};
+            FileTruncateEvent event{applicationData, std::nullopt, mID, mSize};
 
             // File's size has decreased.
             if (mSize < size)
@@ -248,11 +282,13 @@ void FileInfoContext::unlock_shared() const
     mLock.unlock_shared();
 }
 
-void FileInfoContext::written(std::int64_t modified, const FileRange& range)
+void FileInfoContext::written(const ApplicationData& applicationData,
+                              std::int64_t modified,
+                              const FileRange& range)
 {
     // Update the file's information and return an event for notification.
     mService.notify(
-        [modified, &range, this]()
+        [&applicationData, modified, &range, this]()
         {
             // Make sure we have exclusive access to our information.
             UniqueLock guard(mLock);
@@ -270,7 +306,7 @@ void FileInfoContext::written(std::int64_t modified, const FileRange& range)
             mSize = std::max(mSize, range.mEnd);
 
             // Return a suitable event.
-            return FileWriteEvent{range, mID};
+            return FileWriteEvent{applicationData, range, mID};
         }());
 }
 

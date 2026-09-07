@@ -1,3 +1,4 @@
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_append_request.h>
 #include <mega/file_service/file_context.h>
@@ -14,6 +15,7 @@
 #include <mega/file_service/file_service_options.h>
 #include <mega/file_service/file_touch_request.h>
 #include <mega/file_service/file_truncate_request.h>
+#include <mega/file_service/file_truncate_result.h>
 #include <mega/file_service/file_write_request.h>
 #include <mega/file_service/logger.h>
 #include <mega/file_service/source.h>
@@ -71,13 +73,18 @@ File& File::operator=(File&& rhs)
     return *this;
 }
 
-void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t length)
+void File::append(const ApplicationData& applicationData,
+                  const void* buffer,
+                  FileAppendCallback callback,
+                  std::uint64_t length)
 {
     assert(buffer || !length);
     assert(callback);
     assert(mContext);
 
-    return mContext->append(mContext, FileAppendRequest{buffer, std::move(callback), length});
+    return mContext->append(
+        mContext,
+        FileAppendRequest{applicationData, buffer, std::move(callback), length});
 }
 
 FileRangeVector File::downloading() const
@@ -110,12 +117,12 @@ void File::fetchBarrier(FileFetchBarrierCallback callback)
     mContext->fetchBarrier(std::move(callback), mContext);
 }
 
-void File::flush(FileFlushCallback callback)
+void File::flush(FileFlushCallback callback, bool cancelOnWrite)
 {
     assert(callback);
     assert(mContext);
 
-    return mContext->flush(mContext, FileFlushRequest{std::move(callback)});
+    return mContext->flush(mContext, FileFlushRequest{std::move(callback), cancelOnWrite});
 }
 
 FileInfo File::info() const
@@ -123,14 +130,6 @@ FileInfo File::info() const
     assert(mContext);
 
     return mContext->info();
-}
-
-void File::purge(FilePurgeCallback callback)
-{
-    assert(callback);
-    assert(mContext);
-
-    return mContext->remove(mContext, FileRemoveRequest{std::move(callback), true});
 }
 
 FileRangeVector File::ranges() const
@@ -164,40 +163,56 @@ void File::reclaim(FileReclaimCallback callback)
     mContext->reclaim(std::move(callback), mContext);
 }
 
-void File::remove(FileRemoveCallback callback)
+void File::remove(FileRemoveCallback callback, FileStructureUniqueLock& lock, bool serviceOnly)
 {
     assert(callback);
     assert(mContext);
 
-    mContext->remove(mContext, FileRemoveRequest{std::move(callback), false});
+    mContext->remove(mContext, lock, FileRemoveRequest{std::move(callback), serviceOnly});
 }
 
-void File::touch(FileTouchCallback callback, std::int64_t modified)
+void File::remove(FileRemoveCallback callback, bool serviceOnly)
 {
     assert(callback);
     assert(mContext);
 
-    mContext->touch(mContext, FileTouchRequest{std::move(callback), modified});
+    mContext->remove(mContext, FileRemoveRequest{std::move(callback), serviceOnly});
 }
 
-void File::truncate(FileTruncateCallback callback, std::uint64_t newSize)
+void File::touch(const ApplicationData& applicationData,
+                 FileTouchCallback callback,
+                 std::int64_t modified)
 {
     assert(callback);
     assert(mContext);
 
-    mContext->truncate(mContext, FileTruncateRequest{std::move(callback), newSize});
+    mContext->touch(mContext, FileTouchRequest{applicationData, std::move(callback), modified});
 }
 
-void File::write(const void* buffer,
+void File::truncate(const ApplicationData& applicationData,
+                    FileTruncateCallback callback,
+                    FileTruncateFlags flags,
+                    std::uint64_t newSize)
+{
+    assert(callback);
+    assert(mContext);
+
+    mContext->truncate(mContext,
+                       FileTruncateRequest{applicationData, std::move(callback), flags, newSize});
+}
+
+void File::write(const ApplicationData& applicationData,
+                 const void* buffer,
                  FileWriteCallback callback,
                  FileWriteFlags flags,
                  std::uint64_t offset,
                  std::uint64_t length)
 {
-    write(buffer, std::move(callback), flags, FileRange(offset, offset + length));
+    write(applicationData, buffer, std::move(callback), flags, FileRange(offset, offset + length));
 }
 
-void File::write(const void* buffer,
+void File::write(const ApplicationData& applicationData,
+                 const void* buffer,
                  FileWriteCallback callback,
                  FileWriteFlags flags,
                  const FileRange& range)
@@ -206,7 +221,8 @@ void File::write(const void* buffer,
     assert(callback);
     assert(mContext);
 
-    mContext->write(mContext, FileWriteRequest{buffer, std::move(callback), flags, range});
+    mContext->write(mContext,
+                    FileWriteRequest{applicationData, buffer, std::move(callback), flags, range});
 }
 
 } // file_service

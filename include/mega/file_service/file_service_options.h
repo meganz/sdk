@@ -48,8 +48,13 @@ struct ServiceOptions
     // How long should we wait before we remove a file context from memory?
     std::chrono::seconds mFileContextReleaseDelay{3};
 
-    // How long should we wait before flushing a file's modifications the cloud?
-    std::chrono::seconds mFileFlushDelay = std::chrono::minutes(15);
+    // Flush delay is computed as follows:
+    //   FlushDelay = FileSize / FileFlushDivisor
+    //
+    // FlushDelay is then clamped so
+    //   MinimumFlushDelay <= FlushDelay
+    //   MaximumFlushDelay >= FlushDelay
+    std::uint64_t mFileFlushDivisor = UINT64_C(1) << 20;
 
     // How long should we wait before retrying a flush?
     common::deciseconds mFileFlushRetryBackoff{20};
@@ -57,8 +62,14 @@ struct ServiceOptions
     // Gaps less distant than this value can be filled by a single download.
     std::uint64_t mMaximumGapDistance = UINT64_C(1) << 20;
 
+    // The maximum amount of time we'll wait before flushing modifications.
+    std::chrono::seconds mMaximumFileFlushDelay = std::chrono::minutes(5);
+
     // How many times should we try and flush a file before we give up?
     std::size_t mMaximumFileFlushRetries = 5u;
+
+    // The minimum amount of time we'll wait before flushing modifications.
+    std::chrono::seconds mMinimumFileFlushDelay = std::chrono::seconds(30);
 
     // How long should we wait before considering normal reads are inactive?
     std::chrono::seconds mNormalReadInactivityDelay = std::chrono::seconds(10);

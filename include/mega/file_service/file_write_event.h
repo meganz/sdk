@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_write_event_forward.h>
@@ -13,8 +14,11 @@ struct FileWriteEvent
 {
     bool operator==(const FileWriteEvent& rhs) const
     {
-        return mID == rhs.mID && mRange == rhs.mRange;
+        return mApplicationData == rhs.mApplicationData && mID == rhs.mID && mRange == rhs.mRange;
     }
+
+    // Application-specific data associated with this event.
+    ApplicationData mApplicationData;
 
     // The portion of the file that was written.
     FileRange mRange;

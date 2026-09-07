@@ -1,17 +1,21 @@
 #include <mega/common/utility.h>
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_read_result.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
+#include <mega/file_service/file_truncate_result.h>
 #include <mega/file_service/file_write_result.h>
 #include <mega/file_service/source.h>
+#include <mega/fuse/common/constants.h>
 #include <mega/fuse/common/file_inode.h>
 #include <mega/fuse/common/file_open_flag.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount.h>
 #include <mega/fuse/platform/file_context.h>
 #include <mega/fuse/platform/mount.h>
+#include <mega/fuse/platform/mount_db.h>
 
 #include <functional>
 
@@ -150,19 +154,34 @@ void FileContext::append(std::function<void(common::ErrorOr<std::size_t>)> callb
     if (!(mFlags & FOF_WRITABLE))
         return callback(API_FUSE_EBADF);
 
-    // Wrap the caller's callback.
-    auto wrapper = [callback = std::move(callback), length](auto result)
+    // Called when our append has completed.
+    auto appended = [](auto& callback, auto id, auto& mount, auto result)
     {
         // Couldn't append data to the file.
-        if (result != FILE_SUCCESS)
+        if (!result)
             return callback(unexpected(API_EWRITE));
 
+        // Invalidate this inode's attributes on all but this mount.
+        mount.mMountDB.each(
+            [&](auto& mount)
+            {
+                mount.invalidateAttributes(id);
+            },
+            mount);
+
         // Appended data to the file.
-        callback(static_cast<std::size_t>(length));
-    }; // wrapper
+        callback(static_cast<std::size_t>(result->mLength));
+    }; // appended
 
     // Try and append data to the end of our file.
-    mFile.append(data, std::move(wrapper), static_cast<std::uint64_t>(length));
+    mFile.append({mount().id(), ApplicationID::generate<FUSETag>()},
+                 data,
+                 std::bind(appended,
+                           std::move(callback),
+                           mInode->id(),
+                           std::ref(mount()),
+                           std::placeholders::_1),
+                 static_cast<std::uint64_t>(length));
 }
 
 common::ErrorOr<std::size_t> FileContext::append(const void* data, m_off_t length)
@@ -200,7 +219,8 @@ void FileContext::flush(std::function<void(Error)> callback)
 
             // File's been flushed to the cloud.
             callback(API_OK);
-        });
+        },
+        false);
 }
 
 Error FileContext::flush()
@@ -258,18 +278,33 @@ ErrorOr<std::string> FileContext::read(m_off_t offset, unsigned int size)
 
 void FileContext::touch(std::function<void(Error)> callback, m_time_t modified)
 {
-    // Try and touch the file.
-    mFile.touch(
-        [callback = std::move(callback)](auto result)
-        {
-            // Couldn't touch the file.
-            if (result != FILE_SUCCESS)
-                return callback(API_EFAILED);
+    // Called when our touch has completed.
+    auto touched = [](auto& callback, auto id, auto& mount, auto result)
+    {
+        // Couldn't touch the file.
+        if (result != FILE_SUCCESS)
+            return callback(API_EFAILED);
 
-            // File's been touched.
-            callback(API_OK);
-        },
-        modified);
+        // Invalidate the inode's attributes on all but this mount.
+        mount.mMountDB.each(
+            [&](auto& mount)
+            {
+                mount.invalidateAttributes(id);
+            },
+            mount);
+
+        // File's been touched.
+        callback(API_OK);
+    }; // touched
+
+    // Try and touch the file.
+    mFile.touch({mount().id(), ApplicationID::generate<FUSETag>()},
+                std::bind(touched,
+                          std::move(callback),
+                          mInode->id(),
+                          std::ref(mount()),
+                          std::placeholders::_1),
+                modified);
 }
 
 Error FileContext::touch(m_time_t modified)
@@ -289,27 +324,59 @@ Error FileContext::touch(m_time_t modified)
     return notifier->get_future().get();
 }
 
-void FileContext::truncate(std::function<void(Error)> callback, m_off_t size)
+void FileContext::truncate(std::function<void(Error)> callback, m_off_t size, bool noGrow)
 {
     // Can't truncate a file that's been opened only for reading.
     if (!(mFlags & FOF_WRITABLE))
         return callback(API_FUSE_EROFS);
 
-    // Try and truncate the file.
-    mFile.truncate(
-        [callback = std::move(callback)](auto result)
-        {
-            // Couldn't truncate the file.
-            if (result != FILE_SUCCESS)
-                return callback(API_EFAILED);
+    // Called the file has been truncated.
+    auto truncated = [](auto& callback, auto id, auto& mount, auto result)
+    {
+        // Couldn't truncate the file.
+        if (!result)
+            return callback(API_EWRITE);
 
-            // File's been truncated.
-            return callback(API_OK);
-        },
-        static_cast<std::uint64_t>(size));
+        // Convenience.
+        const auto newSize = static_cast<m_off_t>(result->mNewSize);
+        const auto oldSize = static_cast<m_off_t>(result->mOldSize);
+
+        // Figure out what region of data needs to be invalidated.
+        const auto from = std::min(newSize, oldSize);
+        const auto to = std::max(newSize, oldSize);
+
+        // Invalidate the inode's attributes and data in all but this mount.
+        mount.mMountDB.each(
+            [&](auto& mount)
+            {
+                mount.invalidateAttributes(id);
+                mount.invalidateData(id, from, to);
+            },
+            mount);
+
+        // File's been truncated.
+        callback(API_OK);
+    }; // truncated
+
+    // Assume the truncate requires no special flags.
+    FileTruncateFlags flags = 0;
+
+    // Caller doesn't want the file's size to grow.
+    if (noGrow)
+        flags |= FILE_TRUNCATE_FLAG_NO_GROW;
+
+    // Try and truncate the file.
+    mFile.truncate({mount().id(), ApplicationID::generate<FUSETag>()},
+                   std::bind(truncated,
+                             std::move(callback),
+                             mInode->id(),
+                             std::ref(mount()),
+                             std::placeholders::_1),
+                   flags,
+                   static_cast<std::uint64_t>(size));
 }
 
-Error FileContext::truncate(m_off_t size)
+Error FileContext::truncate(m_off_t size, bool noGrow)
 {
     // So we can wait for the result of our truncate.
     auto notifier = makeSharedPromise<Error>();
@@ -320,7 +387,8 @@ Error FileContext::truncate(m_off_t size)
         {
             notifier->set_value(result);
         },
-        size);
+        size,
+        noGrow);
 
     // Let our caller know whether the file was truncated.
     return notifier->get_future().get();
@@ -340,16 +408,29 @@ void FileContext::write(std::function<void(ErrorOr<std::size_t>)> callback,
     if ((mFlags & FOF_APPEND))
         return append(std::move(callback), data, length);
 
-    // Wrap the caller's callback.
-    auto wrapper = [callback = std::move(callback), length](auto result)
+    // Called when our write has completed.
+    auto written = [](auto& callback, auto id, auto& mount, auto result)
     {
         // Couldn't write any data to the file.
         if (!result)
             return callback(unexpected(API_EWRITE));
 
+        // Convenience.
+        const auto offset = static_cast<m_off_t>(result->mOffset);
+        const auto length = static_cast<m_off_t>(result->mLength);
+
+        // Invalidate attributes and data in all but this mount.
+        mount.mMountDB.each(
+            [&](auto& mount)
+            {
+                mount.invalidateAttributes(id);
+                mount.invalidateData(id, offset, length);
+            },
+            mount);
+
         // We wrote some or all data to the file.
-        return callback(static_cast<std::size_t>(result->mLength));
-    };
+        callback(static_cast<std::size_t>(result->mLength));
+    }; // written
 
     // Assume the write requires no special flags.
     FileWriteFlags flags = 0;
@@ -363,7 +444,16 @@ void FileContext::write(std::function<void(ErrorOr<std::size_t>)> callback,
         flags |= FILE_WRITE_FLAG_NO_GROW;
 
     // Try and write data to our file.
-    mFile.write(data, std::move(wrapper), flags, offset_, length_);
+    mFile.write({mount().id(), ApplicationID::generate<FUSETag>()},
+                data,
+                std::bind(written,
+                          std::move(callback),
+                          mInode->id(),
+                          std::ref(mount()),
+                          std::placeholders::_1),
+                flags,
+                offset_,
+                length_);
 }
 
 ErrorOr<std::size_t>

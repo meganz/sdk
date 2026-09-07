@@ -1,10 +1,11 @@
 #pragma once
 
-#include <functional>
-
 #include <mega/common/error_or_forward.h>
-
 #include <mega/types.h>
+
+#include <functional>
+#include <optional>
+#include <string>
 
 namespace mega
 {
@@ -21,6 +22,12 @@ struct BindContext
 
     // What should the file's modification time be?
     std::optional<std::int64_t> mModified;
+
+    // What should the file be named?
+    std::optional<std::string> mName;
+
+    // Where should the file be uploaded?
+    std::optional<NodeHandle> mParentHandle;
 
     // What was the handle of the file's previous version?
     NodeHandle mPreviousHandle;

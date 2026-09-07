@@ -454,13 +454,18 @@ bool Query::execute(const char* prefix)
     }
 }
 
-Query::Query(Badge<Database>, Database& db)
-  : mDB(&db)
-  , mHasNext(false)
-  , mFields()
-  , mParameters()
-  , mStatement(nullptr)
+Query::Query(Badge<Database>, Database& db):
+    mDB(&db),
+    mHasNext(false),
+    mFields(),
+    mParameters(),
+    mStatement(nullptr)
 {
+}
+
+void Query::updateDatabase(Badge<Database>, Database& database)
+{
+    mDB = &database;
 }
 
 LocalPath SerializationTraits<LocalPath>::from(const Field& field)

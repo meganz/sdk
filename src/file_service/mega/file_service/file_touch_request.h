@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_request_tags.h>
 #include <mega/file_service/file_touch_request_forward.h>
@@ -21,6 +22,9 @@ struct FileTouchRequest
     {
         return "touch";
     }
+
+    // Application-specific data associated with this request.
+    ApplicationData mApplicationData;
 
     // Who should we call when the file's modification time has been updated?
     FileTouchCallback mCallback;

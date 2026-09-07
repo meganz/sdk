@@ -335,10 +335,13 @@ TEST_F(FUSECommonTests, file_cache_load)
     ASSERT_EQ(client->remove("/x/s/sf0"), API_OK);
 
     // Make sure we can't access sf0.
-    std::error_code error;
-
-    ASSERT_FALSE(fs::exists(sf0Path, error));
-    ASSERT_FALSE(error);
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            std::error_code error;
+            return !fs::exists(sf0Path, error) && !error;
+        },
+        mDefaultTimeout));
 
     // Disable the mount.
     observer->expect({mount.name(), MOUNT_SUCCESS, MOUNT_DISABLED});
@@ -348,8 +351,6 @@ TEST_F(FUSECommonTests, file_cache_load)
 
     // Log out the client.
     ASSERT_EQ(client->logout(false), API_OK);
-
-    std::filebuf x;
 }
 
 TEST_F(FUSECommonTests, reload)

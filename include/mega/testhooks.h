@@ -893,6 +893,11 @@ namespace mega {
         // failed with API_EAGAIN and retried. Returns true to fail the allocation.
         std::function<bool(uint8_t part, m_off_t len)> onRaidReadaheadAllocFailure;
 
+        // Called when a partial download is about to be performed, with the target node
+        // and the requested length and offset.
+        std::function<void(NodeHandle handle, std::uint64_t length, std::uint64_t offset)>
+            onPartialDownload;
+
     private:
         // Helper used by the move ctor/op=; callers MUST already hold the relevant mutex(es).
         // Must mention EVERY field above — missing one leaks on reset.
@@ -961,6 +966,7 @@ namespace mega {
             onFolderUploadPutnodesResult = std::move(other.onFolderUploadPutnodesResult);
             onFolderUploadSimulateMissing = std::move(other.onFolderUploadSimulateMissing);
             onRaidReadaheadAllocFailure = std::move(other.onRaidReadaheadAllocFailure);
+            onPartialDownload = std::move(other.onPartialDownload);
         }
     };
 
@@ -1627,6 +1633,19 @@ namespace mega {
                 (OUT_FAIL_ALLOC) = _fn((PART), (LEN)); \
         } \
         while (0)
+
+#define DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(H, L, O) \
+        do \
+        { \
+            std::function<void(NodeHandle, std::uint64_t, std::uint64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onPartialDownload; \
+            } \
+            if (_fn) \
+                _fn((H), (L), (O)); \
+        } \
+        while (0)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -1684,6 +1703,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN)
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT)
 #define DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(PART, LEN, OUT_FAIL_ALLOC)
+#define DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(H, L, O)
 #endif
 
 } // namespace

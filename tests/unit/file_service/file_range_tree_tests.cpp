@@ -531,6 +531,26 @@ TEST_F(FileRangeGapIteratorTests, all_gaps_within_minimum_bounding_range)
     EXPECT_THAT(gaps(16, 56), ElementsAre(FileRange(24, 32), FileRange(40, 48)));
 }
 
+TEST_F(FileRangeGapIteratorTests, change_during_iteration)
+{
+    // So we can modify the set during gap iteration.
+    auto ranges = mRanges;
+
+    // Fill each gap in ranges.
+    for (auto& gap: file_service::gaps(ranges, 8, 64))
+    {
+        // Fill the gap.
+        auto iterator = ranges.merge(gap);
+
+        // Make sure the gap was filled.
+        ASSERT_LE(iterator->mBegin, gap.mBegin);
+        ASSERT_GE(iterator->mEnd, gap.mEnd);
+    }
+
+    // We should now have a single large range.
+    ASSERT_THAT(ranges, ElementsAre(FileRange(8, 64)));
+}
+
 TEST_F(FileRangeGapIteratorTests, no_gaps)
 {
     EXPECT_THAT(gaps(16, 24), ElementsAre());

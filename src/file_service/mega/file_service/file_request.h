@@ -22,7 +22,6 @@ using FileRequest = std::variant<FileAppendRequest,
                                  FileFlushRequest,
                                  FileReadRequest,
                                  FileReclaimRequest,
-                                 FileRemoveRequest,
                                  FileTouchRequest,
                                  FileTruncateRequest,
                                  FileWriteRequest>;

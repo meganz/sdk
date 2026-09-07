@@ -19,6 +19,7 @@ struct FileServiceQueries
     common::Query mAddFileRange;
     common::Query mGetFile;
     common::Query mGetFileDuration;
+    common::Query mGetFileIDByHandle;
     common::Query mGetFileIDs;
     common::Query mGetFileKeyData;
     common::Query mGetFileRanges;
@@ -38,6 +39,7 @@ struct FileServiceQueries
     common::Query mSetFileModificationTime;
     common::Query mSetFileRemoved;
     common::Query mSetFileSize;
+    common::Query mSetFileSizeAndModificationTime;
     common::Query mSetNextFileID;
 }; // FileServiceQueries
 

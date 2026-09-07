@@ -11,12 +11,17 @@ target_link_libraries(SDKlib PRIVATE CommonHeaderPaths)
 target_sources(SDKlib PRIVATE
                       include/mega/common/activity_monitor.h
                       include/mega/common/activity_monitor_forward.h
+                      include/mega/common/assertions.h
+                      include/mega/common/async_mutex.h
+                      include/mega/common/async_mutex_forward.h
                       include/mega/common/badge.h
                       include/mega/common/badge_forward.h
                       include/mega/common/client.h
                       include/mega/common/client_adapter.h
                       include/mega/common/client_callbacks.h
                       include/mega/common/client_forward.h
+                      include/mega/common/concurrent_execution_policy.h
+                      include/mega/common/concurrent_execution_policy_forward.h
                       include/mega/common/database.h
                       include/mega/common/database_builder.h
                       include/mega/common/database_forward.h
@@ -36,6 +41,8 @@ target_sources(SDKlib PRIVATE
                       include/mega/common/logger.h
                       include/mega/common/logger_forward.h
                       include/mega/common/logging.h
+                      include/mega/common/move_only_function.h
+                      include/mega/common/move_only_function_forward.h
                       include/mega/common/node_event.h
                       include/mega/common/node_event_forward.h
                       include/mega/common/node_event_observer.h
@@ -57,8 +64,12 @@ target_sources(SDKlib PRIVATE
                       include/mega/common/pending_callbacks.h
                       include/mega/common/query.h
                       include/mega/common/query_forward.h
+                      include/mega/common/scoped_async_lock.h
+                      include/mega/common/scoped_async_lock_forward.h
                       include/mega/common/scoped_query.h
                       include/mega/common/scoped_query_forward.h
+                      include/mega/common/sequential_execution_policy.h
+                      include/mega/common/sequential_execution_policy_forward.h
                       include/mega/common/serialization_traits.h
                       include/mega/common/serialization_traits_forward.h
                       include/mega/common/shared_mutex.h
@@ -66,6 +77,8 @@ target_sources(SDKlib PRIVATE
                       include/mega/common/statistics.h
                       include/mega/common/status_flag.h
                       include/mega/common/subsystem_logger.h
+                      include/mega/common/synchronized_value.h
+                      include/mega/common/synchronized_value_forward.h
                       include/mega/common/task_executor.h
                       include/mega/common/task_executor_flags.h
                       include/mega/common/task_executor_flags_forward.h
@@ -96,6 +109,7 @@ target_sources_conditional(SDKlib FLAG WIN32 PRIVATE
 
 target_sources(SDKlib PRIVATE
                       src/common/activity_monitor.cpp
+                      src/common/assertions.cpp
                       src/common/client.cpp
                       src/common/client_adapter.cpp
                       src/common/database.cpp

@@ -1,6 +1,7 @@
 #pragma once
 
 #include <mega/fuse/common/directory_inode_forward.h>
+#include <mega/fuse/common/inode_forward.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/context.h>
 #include <mega/fuse/platform/directory_context_forward.h>
@@ -40,8 +41,8 @@ public:
     // Check if this context represents a directory.
     DirectoryContext* directory() override;
 
-    // Retrieve information about a specific directory entry.
-    InodeInfo get(std::size_t index) const;
+    // Retrieve a reference to a specific directory entry.
+    InodeRef get(std::size_t index) const;
 
     // What inode does this context represent?
     InodeRef inode() const override;

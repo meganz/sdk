@@ -40,9 +40,6 @@ private:
     // Get our hands on the client's high level interface.
     virtual common::Client& client() const = 0;
 
-    // Retrieve the handle associated with the specified child.
-    common::ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const;
-
     using MakeDirectoryCallback = std::function<void(common::ErrorOr<NodeHandle>)>;
 
     // Create a directory in the cloud.
@@ -210,6 +207,8 @@ public:
     auto getPublicLink(common::testing::CloudPath path) -> ErrorOr<PublicLink>;
 
     // Query what a child's node handle is.
+    common::ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const;
+
     common::ErrorOr<NodeHandle> handle(common::testing::CloudPath parentPath,
                                        const std::string& name) const;
 

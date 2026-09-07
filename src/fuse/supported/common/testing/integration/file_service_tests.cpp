@@ -1,11 +1,13 @@
 #include <mega/common/testing/path.h>
 #include <mega/common/utility.h>
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
+#include <mega/file_service/file_truncate_result.h>
 #include <mega/file_service/file_write_flags.h>
 #include <mega/file_service/file_write_result.h>
 #include <mega/file_service/logger.h>
@@ -61,7 +63,8 @@ TEST_F(FUSEFileServiceTests, perceives_file_service_remove_succeeds)
             [notifier](auto result)
             {
                 notifier->set_value(result);
-            });
+            },
+            false);
 
         return notifier->get_future();
     }();
@@ -103,6 +106,7 @@ TEST_F(FUSEFileServiceTests, perceives_file_service_touch_succeeds)
         auto notifier = makeSharedPromise<FileResult>();
 
         file->touch(
+            {},
             [notifier](auto result)
             {
                 notifier->set_value(result);
@@ -175,10 +179,12 @@ TEST_F(FUSEFileServiceTests, perceives_file_service_truncates_succeeds)
         auto notifier = makeSharedPromise<FileResult>();
 
         file->truncate(
+            {},
             [notifier](auto result)
             {
-                notifier->set_value(result);
+                notifier->set_value(result.errorOr(FILE_SUCCESS));
             },
+            0,
             newSize);
 
         return notifier->get_future();
@@ -278,6 +284,7 @@ TEST_F(FUSEFileServiceTests, perceives_file_service_writes_succeeds)
         auto notifier = makeSharedPromise<FileResultOr<FileWriteResult>>();
 
         file->write(
+            {},
             data,
             [notifier](auto result)
             {

@@ -38,6 +38,8 @@ void FileFlusher::flush(FileID id, std::size_t retries)
         return;
     }
 
+    FSDebugF("Attempting to flush file: %s", toString(id).c_str());
+
     // Try and open the file.
     auto file = mService.open(id);
 
@@ -52,23 +54,30 @@ void FileFlusher::flush(FileID id, std::size_t retries)
     auto flushed = std::bind(&FileFlusher::flushed, this, *file, std::placeholders::_1, retries);
 
     // Try and flush the file's modifications to the cloud.
-    file->flush(std::move(flushed));
+    file->flush(std::move(flushed), true);
 }
 
 void FileFlusher::flushed(File& file, FileResult result, std::size_t retries)
 {
-    // File was flushed to the cloud.
-    if (result == FILE_SUCCESS)
-        return;
-
     // Convenience.
     const auto id = file.info().id();
+
+    // File was flushed to the cloud.
+    if (result == FILE_SUCCESS)
+    {
+        FSDebugF("File flushed: %s", toString(id).c_str());
+        return;
+    }
 
     // Couldn't flush the file to the cloud.
     FSWarningF("Couldn't flush file: %s: %s", toString(id).c_str(), toString(result));
 
     // Don't retry if the flush was cancelled.
     if (result == FILE_CANCELLED)
+        return;
+
+    // Or if the file's been removed.
+    if (result == FILE_REMOVED)
         return;
 
     // Grab a snapshot of the service's current options.
@@ -198,6 +207,16 @@ void FileFlusher::schedule(FileID id, std::size_t retries, TimePoint when)
     auto [iterator, added] = mPending.emplace(std::piecewise_construct,
                                               std::forward_as_tuple(id),
                                               std::forward_as_tuple(when, retries));
+
+    // Convenience.
+    using std::chrono::duration_cast;
+    using std::chrono::milliseconds;
+    using std::chrono::steady_clock;
+
+    FSDebugF("%s flush of file %s in %" PRIi64 "ms",
+             added ? "Scheduling" : "Rescheduling",
+             toString(id).c_str(),
+             duration_cast<milliseconds>(when - steady_clock::now()).count());
 
     // File already had a pending flush.
     if (!added)

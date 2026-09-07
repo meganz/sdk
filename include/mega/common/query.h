@@ -158,6 +158,11 @@ struct Query
 
     void reset();
 
+    // Re-point this query at a database. Called by Database when it is moved,
+    // so the queries it owns keep referring to the live instance rather than
+    // the moved-from one.
+    void updateDatabase(Badge<Database> badge, Database& database);
+
 private:
     friend class Field;
     friend class Parameter;

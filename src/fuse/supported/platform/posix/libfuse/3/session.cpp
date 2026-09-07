@@ -1,13 +1,16 @@
 #include <mega/common/task_executor.h>
 #include <mega/common/utility.h>
+#include <mega/fuse/common/inode.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/mount_exception.h>
 #include <mega/fuse/common/mount_inode_id.h>
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/platform/constants.h>
+#include <mega/fuse/platform/directory_context.h>
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/platform.h>
+#include <mega/fuse/platform/read_directory_functions.h>
 #include <mega/fuse/platform/request.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/session.h>
@@ -26,6 +29,34 @@ namespace fuse
 namespace platform
 {
 
+struct ReadDirPlusFunctions: ReadDirectoryFunctions
+{
+    // Called to add a directory entry to buffer.
+    std::size_t addEntry(const struct stat& attributes,
+                         char* buffer,
+                         const std::string& name,
+                         off_t offset,
+                         Request request,
+                         std::size_t size) override
+    {
+        struct fuse_entry_param entry;
+
+        entry.attr = attributes;
+        entry.attr_timeout = AttributeTimeout;
+        entry.entry_timeout = EntryTimeout;
+        entry.generation = 0;
+        entry.ino = attributes.st_ino;
+
+        return fuse_add_direntry_plus(request.get(), buffer, size, name.c_str(), &entry, offset);
+    }
+
+    // Called to pin an inode in memory.
+    void pin(const InodeInfo& info, InodeRef& inode, Mount& mount) override
+    {
+        mount.pin(inode, info);
+    }
+}; // ReadDirectoryFunctions
+
 void Session::populateCapabilities(fuse_conn_info* connection)
 {
     SessionBase::populateCapabilities(connection);
@@ -34,6 +65,7 @@ void Session::populateCapabilities(fuse_conn_info* connection)
 #ifdef FUSE_CAP_NO_EXPORT
     connection->want |= FUSE_CAP_NO_EXPORT;
 #endif // FUSE_CAP_NO_EXPORT
+    connection->want |= FUSE_CAP_READDIRPLUS;
 }
 
 void Session::populateOperations(fuse_lowlevel_ops& operations)
@@ -41,7 +73,29 @@ void Session::populateOperations(fuse_lowlevel_ops& operations)
     SessionBase::populateOperations(operations);
 
     operations.forget = &Session::forget;
+    operations.readdirplus = &Session::readdirplus;
     operations.rename = &Session::rename;
+}
+
+void Session::readdirplus(fuse_req_t request,
+                          fuse_ino_t inode,
+                          size_t size,
+                          off_t offset,
+                          struct fuse_file_info* info)
+{
+    ReadDirPlusFunctions functions;
+
+    MountInodeID inode_(inode);
+
+    FUSEDebugF("readdirplus: info: %p, inode: %s, offset: %d, size: %zu, request: %p",
+               info,
+               toString(inode_).c_str(),
+               offset,
+               size,
+               request);
+
+    mount(request)
+        .execute(&Mount::readdir, true, functions, *info, inode_, offset, Request(request), size);
 }
 
 void Session::rename(fuse_req_t request,

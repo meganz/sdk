@@ -1,4 +1,5 @@
 #include <mega/common/error_or.h>
+#include <mega/common/utility.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
 #include <mega/fuse/common/file_inode.h>
@@ -20,6 +21,7 @@
 #include <mega/fuse/platform/mount.h>
 #include <mega/fuse/platform/mount_db.h>
 #include <mega/fuse/platform/platform.h>
+#include <mega/fuse/platform/read_directory_functions.h>
 #include <mega/fuse/platform/request.h>
 #include <mega/fuse/platform/service_context.h>
 #include <mega/fuse/platform/utility.h>
@@ -42,8 +44,121 @@ namespace platform
 
 using namespace common;
 
+// This class ensures that an inode we previously pinned is unpinned when an
+// exception is thrown. This is useful when processing requests such as
+// lookup, mknod or readdirplus as it's possible an exception is thrown when
+// trying to send a response back to the kernel.
+class Mount::UnpinOnException
+{
+    // The inode that needs to be unpinned.
+    InodeRef mInode;
+
+    // The mount where the inode is pinned.
+    Mount& mMount;
+
+    // So we can tell if we're being destroyed due to an exception.
+    int mUncaughtExceptions;
+
+public:
+    UnpinOnException(InodeRef inode, Mount& mount):
+        mInode(std::move(inode)),
+        mMount(mount),
+        mUncaughtExceptions(std::uncaught_exceptions())
+    {}
+
+    ~UnpinOnException()
+    {
+        // We're being destroyed due to an uncaught exception.
+        if (std::uncaught_exceptions() > mUncaughtExceptions)
+            mMount.unpin(std::move(mInode), 1);
+    }
+}; // UnpinOnException
+
+template<typename Derived>
+class RespondOnExceptionBase
+{
+    Derived& rebind()
+    {
+        return static_cast<Derived&>(*this);
+    }
+
+    // What request were we executing?
+    Request mRequest;
+
+    // What type of request were we executing?
+    const char* mRequestType;
+
+    // So we can tell if we're being destroyed due to an exception.
+    int mUncaughtExceptions;
+
+protected:
+    RespondOnExceptionBase(Request request, const char* requestType):
+        mRequest(std::move(request)),
+        mRequestType(requestType),
+        mUncaughtExceptions(std::uncaught_exceptions())
+    {}
+
+    ~RespondOnExceptionBase()
+    {
+        // Not unwinding due to an uncaught exception.
+        if (std::uncaught_exceptions() == mUncaughtExceptions)
+            return;
+
+        // Leave a log message for debugging.
+        FUSEErrorF("Couldn't execute %s request: %p: %s",
+                   mRequestType,
+                   mRequest.get(),
+                   exceptionMessage().c_str());
+
+        // Ask subclass to respond to the kernel.
+        rebind().reply(mRequest);
+    }
+}; // RespondOnExceptionBase
+
+template<typename ErrorType>
+class RespondOnException;
+
+template<>
+class RespondOnException<int>: RespondOnExceptionBase<RespondOnException<int>>
+{
+    // So RespondOnExceptionBase can call reply(...).
+    friend class RespondOnExceptionBase;
+
+    // What error code should we report to the kernel?
+    const int mErrorCode;
+
+    // Called to send our error code to the kernel.
+    void reply(Request&) {}
+
+public:
+    RespondOnException(int errorCode, Request request, const char* requestType):
+        RespondOnExceptionBase(std::move(request), requestType),
+        mErrorCode(errorCode)
+    {}
+}; // RespondOnException<int>
+
+template<>
+class RespondOnException<void>: RespondOnExceptionBase<RespondOnException<void>>
+{
+    // So RespondOnExceptionBase can call reply(...).
+    friend class RespondOnExceptionBase;
+
+    // Called to respond to the kernel.
+    void reply(Request& request)
+    {
+        request.replyNone();
+    }
+
+public:
+    RespondOnException(Request request, const char* requestType):
+        RespondOnExceptionBase(std::move(request), requestType)
+    {}
+}; // RespondOnException<void>
+
 void Mount::access(Request request, MountInodeID inode, int mask)
 {
+    RespondOnException<int> responder(EIO, request, "access");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -137,6 +252,8 @@ void Mount::doUnlink(Request request,
 
 void Mount::lookup(Request request, MountInodeID parent, const std::string& name)
 {
+    RespondOnException<int> responder(EIO, request, "lookup");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -181,6 +298,9 @@ void Mount::lookup(Request request, MountInodeID parent, const std::string& name
 
     translate(entry, map(info.mID), info);
 
+    // Make sure childRef is unpinned on failure.
+    UnpinOnException unpinner(std::move(childRef), *this);
+
     request.replyEntry(entry);
 }
 
@@ -191,6 +311,8 @@ void Mount::flush(Request request, MountInodeID, fuse_file_info&)
 
 void Mount::forget(Request request, MountInodeID inode, std::size_t num)
 {
+    RespondOnException<void> responder(request, "forget");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -210,6 +332,8 @@ void Mount::forget(Request request, MountInodeID inode, std::size_t num)
 void Mount::forget_multi(Request request, const std::vector<fuse_forget_data>& forgets)
 {
     assert(!forgets.empty());
+
+    RespondOnException<void> responder(request, "forget_multi");
 
     // Reject if the originating process is self
     if (isSelfForbidden(request))
@@ -232,6 +356,8 @@ void Mount::forget_multi(Request request, const std::vector<fuse_forget_data>& f
 
 void Mount::fsync(Request request, MountInodeID, bool, fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "fsync");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -254,6 +380,8 @@ void Mount::fsync(Request request, MountInodeID, bool, fuse_file_info& info)
 
 void Mount::getattr(Request request, MountInodeID inode)
 {
+    RespondOnException<int> responder(EIO, request, "getattr");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -281,6 +409,8 @@ void Mount::getattr(Request request, MountInodeID inode)
 
 void Mount::mkdir(Request request, MountInodeID parent, const std::string& name, mode_t mode)
 {
+    RespondOnException<int> responder(EIO, request, "mkdir");
+
     mknod(request, parent, std::move(name), mode | S_IFDIR);
 }
 
@@ -327,8 +457,14 @@ void Mount::mknod(Request request, MountInodeID parent, const std::string& name,
 
     translate(entry, MountInodeID(info.mID), info);
 
+    // Get our hands on the inode we created.
+    auto inode = std::move(std::get<0>(*result));
+
     // Pin inode in memory.
-    pin(std::move(std::get<0>(*result)), info);
+    pin(inode, info);
+
+    // Make sure we unpin inode on failure.
+    UnpinOnException unpinner(std::move(inode), *this);
 
     // Respond to FUSE.
     request.replyEntry(entry);
@@ -336,6 +472,8 @@ void Mount::mknod(Request request, MountInodeID parent, const std::string& name,
 
 void Mount::open(Request request, MountInodeID inode, fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "open");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -408,6 +546,8 @@ void Mount::open(Request request, MountInodeID inode, fuse_file_info& info)
 
 void Mount::opendir(Request request, MountInodeID inode, fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "opendir");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -444,6 +584,8 @@ void Mount::read(Request request,
                  off_t offset,
                  fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "read");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -471,12 +613,15 @@ void Mount::read(Request request,
                   static_cast<unsigned int>(size));
 }
 
-void Mount::readdir(Request request,
+void Mount::readdir(ReadDirectoryFunctions& functions,
+                    fuse_file_info& info,
                     MountInodeID,
-                    std::size_t size,
                     off_t offset,
-                    fuse_file_info& info)
+                    Request request,
+                    std::size_t size)
 {
+    RespondOnException<int> responder(EIO, request, "readdir");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -491,38 +636,89 @@ void Mount::readdir(Request request,
     // Where we'll be storing directory entries.
     std::string buffer;
 
+    // Assume we'll write at least 4K worth of directory entries.
+    buffer.reserve(std::min<std::size_t>(4096, size));
+
+    // What directory are we listing?
+    const auto id = context->inode()->id();
+
     // Type safety.
     auto m = static_cast<std::size_t>(offset);
     auto n = context->size();
+
+    // Keep track of which inodes we need to unpin on exception.
+    std::vector<UnpinOnException> unpinners;
+
+    // Assume we'll pin at least 32 directory entries.
+    unpinners.reserve(std::min<std::size_t>(32, n));
 
     // Collect directory entries.
     //
     // NOTE: The first two directory entries are always symlinks to the
     // directory itself (.) and to its immediate parent (..).
-    while (m < n)
+    for (; m < n; ++m)
     {
-        // Get information about the current child.
-        auto info = context->get(m);
+        // True if this child is a link to ourselves or our parent.
+        auto isLink = [](auto index)
+        {
+            return index < 2;
+        }; // isLink
+
+        // Get a reference to the current child.
+        auto child = context->get(m);
 
         // Child no longer exists.
-        if (!info.mID)
+        if (!child || child->removed())
         {
             // Either we or our parent no longer exist.
-            if (m++ < 2)
+            if (isLink(m))
                 return request.replyBuffer(std::string());
 
             // Process the next child.
             continue;
         }
 
+        // Get information about the current child.
+        auto info = child->info();
+
+        // Child's no longer below this directory.
+        if (!isLink(m) && info.mParentID != id)
+            continue;
+
+        // Tweak filename for symbolic links.
+        if (isLink(m))
+            info.mName.assign(m + 1, '.');
+
         struct stat attributes;
 
         // Translate info into something meaningful.
         translate(attributes, map(info.mID), info);
 
-        // Try and add the entry to our buffer.
-        if (!request.addDirEntry(attributes, buffer, info.mName, ++m, size - buffer.size()))
+        // How much have we written to the buffer?
+        auto current = buffer.size();
+
+        // How much space does this entry need?
+        auto required = functions.addEntry(attributes, nullptr, info.mName, 0, request, 0);
+
+        // Don't have enough space for this entry.
+        if (current + required > size)
             break;
+
+        // Expand the buffer.
+        buffer.resize(current + required);
+
+        // Add the entry to our buffer.
+        functions.addEntry(attributes, &buffer[current], info.mName, m + 1, request, required);
+
+        // We never pin links to ourselves or our parent.
+        if (isLink(m))
+            continue;
+
+        // Make sure we unpin this child on exception.
+        unpinners.emplace_back(child, *this);
+
+        // Pin the child.
+        functions.pin(info, child, *this);
     }
 
     // Report directory entries to FUSE.
@@ -531,6 +727,8 @@ void Mount::readdir(Request request,
 
 void Mount::release(Request request, MountInodeID, fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "release");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -547,6 +745,8 @@ void Mount::release(Request request, MountInodeID, fuse_file_info& info)
 
 void Mount::releasedir(Request request, MountInodeID, fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "releasedir");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -571,6 +771,8 @@ void Mount::rename(Request request,
                    const std::string& targetName,
                    unsigned int flags)
 {
+    RespondOnException<int> responder(EIO, request, "rename");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -623,11 +825,15 @@ void Mount::rmdir(Request request, MountInodeID parent, const std::string& name)
         return ref->file() ? API_FUSE_ENOTDIR : API_OK;
     }; // predicate
 
+    RespondOnException<int> responder(EIO, request, "rmdir");
+
     doUnlink(request, parent, std::move(predicate), name);
 }
 
 void Mount::setattr(Request request, MountInodeID inode, struct stat& attributes, int changes)
 {
+    RespondOnException<int> responder(EIO, request, "setattr");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -684,7 +890,10 @@ void Mount::setattr(Request request, MountInodeID inode, struct stat& attributes
             return EISDIR;
 
         // Try and truncate the file.
-        auto result = fileRef->truncate(*this, attributes.st_size);
+        //
+        // POSIX has no notion of a file's allocation size so the caller is
+        // always setting the file's size.
+        auto result = fileRef->truncate(*this, attributes.st_size, false);
 
         // Translate result.
         return translate(result);
@@ -759,6 +968,8 @@ void Mount::setattr(Request request, MountInodeID inode, struct stat& attributes
 
 void Mount::statfs(Request request, MountInodeID inode)
 {
+    RespondOnException<int> responder(EIO, request, "statfs");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
@@ -818,6 +1029,8 @@ void Mount::unlink(Request request, MountInodeID parent, const std::string& name
         return API_OK;
     }; // predicate
 
+    RespondOnException<int> responder(EIO, request, "unlink");
+
     doUnlink(request, parent, std::move(predicate), name);
 }
 
@@ -827,6 +1040,8 @@ void Mount::write(Request request,
                   off_t offset,
                   fuse_file_info& info)
 {
+    RespondOnException<int> responder(EIO, request, "write");
+
     // Reject if the originating process is self
     if (isSelfForbidden(request))
         return request.replyError(EPERM);

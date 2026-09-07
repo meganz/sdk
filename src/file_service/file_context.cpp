@@ -31,9 +31,12 @@
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
+#include <mega/file_service/file_structure_mutex.h>
 #include <mega/file_service/file_touch_request.h>
 #include <mega/file_service/file_truncate_request.h>
+#include <mega/file_service/file_truncate_result.h>
 #include <mega/file_service/file_write_request.h>
+#include <mega/file_service/flush_utilities.h>
 #include <mega/file_service/logging.h>
 #include <mega/file_service/read_tag.h>
 #include <mega/file_service/type_traits.h>
@@ -41,6 +44,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <exception>
 #include <iterator>
 #include <utility>
 
@@ -55,6 +59,51 @@ using std::chrono::duration_cast;
 using std::chrono::milliseconds;
 using std::chrono::seconds;
 using std::chrono::steady_clock;
+
+// RAII helper that completes a request when it goes out of scope.
+//
+// Declare it as the FIRST local in an execute() overload so it is destroyed
+// LAST: on the inline path the user's callback then runs only after every
+// lock and ScopedDestructor in that function has unwound (matching the async
+// path, where any cleanup happens before the callback). Call operator()
+// exactly once with the request's result.
+template<typename Request>
+class FileContext::DeferredCompletion
+{
+    FileContext& mContext;
+    std::function<void()> mDeferred;
+    Request& mRequest;
+    bool mOnCurrentThread;
+
+public:
+    DeferredCompletion(FileContext& context, Request& request, bool onCurrentThread):
+        mContext(context),
+        mDeferred([]() {}),
+        mRequest(request),
+        mOnCurrentThread(onCurrentThread)
+    {}
+
+    ~DeferredCompletion()
+    {
+        mDeferred();
+    }
+
+    template<typename Result>
+    void operator()(Result&& result)
+    {
+        // Asynchronous path: Complete request via executor.
+        if (!mOnCurrentThread)
+            return mContext.completed(std::move(mRequest), std::forward<Result>(result), false);
+
+        // Synchronous path: Defer completion until this object has been
+        // destroyed so that the callback runs on this thread once all locks
+        // have been released.
+        mDeferred = [result = std::forward<Result>(result), this]() mutable
+        {
+            mContext.completed(std::move(mRequest), std::move(result), true);
+        };
+    }
+}; // DeferredCompletion
 
 class FileContext::DownloadContext: private PartialDownloadCallback
 {
@@ -169,7 +218,10 @@ public:
 
 class FileContext::FlushContext
 {
-    // Called when the file's content has been uploaded.
+    // Called to bind a name to our uploaded data.
+    void bind(BindCallback& bind, FlushContextPtr& context, FileStructureUniqueLock structureLock);
+
+    // Called when a name has been bound to our uploaded data.
     void bound(FlushContextPtr& context, ErrorOr<NodeHandle> result);
 
     // Called when the flush has been completed.
@@ -191,11 +243,20 @@ class FileContext::FlushContext
     // What file are we flushing?
     FileContext& mContext;
 
+    // Ensures no other operations can change this file's cloud state.
+    //
+    // Acquired when bind(...) is called.
+    // Released when bound(...) is called.
+    FileStructureUniqueLock mStructureLock;
+
     // What flush requests are we executing?
     std::vector<FileFlushRequest> mRequests;
 
     // The upload that's pushing our content to the cloud.
     UploadPtr mUpload;
+
+    // Should writes cancel this flush?
+    bool mCancelOnWrite;
 
 public:
     FlushContext(FileContext& context, FileFlushRequest request);
@@ -205,7 +266,7 @@ public:
 
     // Cancel the flush.
     template<typename Lock>
-    static void cancel(FlushContextPtr context, Lock&& lock);
+    static void cancel(FlushContextPtr context, Lock&& lock, bool dueToWrite);
 
     // Queue a flush request for execution.
     void queue(FileFlushRequest request);
@@ -246,6 +307,20 @@ public:
     void queue(FileReclaimCallback callback);
 }; // ReclaimContext
 
+class TruncateOnException
+{
+    // What file do we want to truncate?
+    FileBuffer& mFile;
+
+    // What size do we want to truncate the file to?
+    const std::uint64_t mSize;
+
+public:
+    TruncateOnException(FileBuffer& file, std::uint64_t size);
+
+    ~TruncateOnException();
+}; // TruncateOnException
+
 // Retrieve an instance of a request's type tag.
 template<typename Request>
 auto tag(const Request& request)
@@ -254,6 +329,8 @@ auto tag(const Request& request)
 // Wrap a callback to ensure that exceptions are always handled.
 template<typename Callback>
 Callback swallow(Callback callback, const char* name);
+
+thread_local unsigned short FileContext::mCallbackDepth{0};
 
 void FileContext::addRange(const FileRange& range, Transaction& transaction)
 {
@@ -398,7 +475,7 @@ void FileContext::cancel(FileRequest& request)
     std::visit(
         [&](auto& request)
         {
-            completed(std::move(request), FILE_CANCELLED);
+            completed(std::move(request), FILE_CANCELLED, false);
         },
         request);
 }
@@ -418,8 +495,7 @@ void FileContext::cancel()
     cancel(FileRange(0, mInfo->size()));
 
     // Cancel the flush if necessary.
-    if (std::unique_lock lock(mFlushContextLock); mFlushContext)
-        mFlushContext->cancel(mFlushContext, std::move(lock));
+    cancelFlushInProgress(false);
 
     // Cancel reclamation if necessary.
     if (std::unique_lock lock(mReclaimContextLock); mReclaimContext)
@@ -440,7 +516,13 @@ void FileContext::cancel()
         cancel(requests.front());
 }
 
-void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
+void FileContext::cancelFlushInProgress(bool dueToWrite)
+{
+    if (std::unique_lock lock(mFlushContextLock); mFlushContext)
+        mFlushContext->cancel(mFlushContext, std::move(lock), dueToWrite);
+}
+
+void FileContext::completed(BufferPtr buffer, FileReadRequest&& request, bool onCurrentThread)
 {
     // Sanity.
     assert(buffer);
@@ -449,12 +531,17 @@ void FileContext::completed(BufferPtr buffer, FileReadRequest&& request)
     auto [begin, end] = request.mRange;
 
     // Complete the user's request.
-    completed(std::move(request), FileReadResult{*buffer, begin, end - begin}, std::move(buffer));
+    completed(std::move(request),
+              FileReadResult{*buffer, begin, end - begin},
+              onCurrentThread,
+              std::move(buffer));
 }
 
 template<typename Request, typename Result, typename... Captures>
-auto FileContext::completed(Request&& request, Result result, Captures&&... captures)
-    -> std::enable_if_t<IsFileRequestV<Request>>
+auto FileContext::completed(Request&& request,
+                            Result result,
+                            bool onCurrentThread,
+                            Captures&&... captures) -> std::enable_if_t<IsFileRequestV<Request>>
 {
     // Sanity.
     assert(request.mCallback);
@@ -463,7 +550,8 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
     static_assert(std::is_rvalue_reference_v<decltype(request)>);
 
     // Called to complete the user's request.
-    auto wrapper = [=](auto& callback, auto& cookie, auto&, auto& tag, auto&&...) mutable
+    auto wrapper =
+        [=](auto& callback, auto& cookie, bool isWorker, auto&, auto& tag, auto&&...) mutable
     {
         // Determine the callback's concrete type.
         using Callback = std::remove_reference_t<decltype(callback)>;
@@ -484,21 +572,51 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
         // Let the context know the request has completed.
         executed(tag);
 
-        // See if we can't execute any queued requests.
-        context->execute();
+        // Already running on a FileService worker,
+        if (isWorker)
+            return context->execute();
+
+        // Inline path: No need to drain an empty request queue.
+        if (!context->hasPendingRequests())
+            return;
+
+        // Inline path: Drain request queue on a worker thread.
+        context->mService.executor().execute(
+            [context](auto&)
+            {
+                context->execute();
+            },
+            true);
     }; // wrapper
 
-    // Convenience.
-    auto& executor = mService.executor();
+    // Here simply to reduce duplication.
+    auto bindWrapper = [&](bool isWorker)
+    {
+        return std::bind(std::move(wrapper),
+                         swallow(std::move(request.mCallback), request.name()),
+                         weak_from_this(),
+                         isWorker,
+                         std::placeholders::_1,
+                         tag(request),
+                         std::forward<Captures>(captures)...);
+    }; // makeWrapper
 
-    // Queue the user's request for completion.
-    executor.execute(std::bind(std::move(wrapper),
-                               swallow(std::move(request.mCallback), request.name()),
-                               weak_from_this(),
-                               std::placeholders::_1,
-                               tag(request),
-                               std::forward<Captures>(captures)...),
-                     true);
+    // Complete via worker.
+    if (mCallbackDepth >= MAX_CALLBACK_DEPTH || !onCurrentThread)
+    {
+        mService.executor().execute(bindWrapper(true), true);
+        return;
+    }
+
+    // Complete on the calling thread.
+    //
+    // Make sure we maintain this thread's callback depth.
+    auto incrementer = makeScopedIncrementer(mCallbackDepth);
+
+    // Execute the user's callback directly.
+    Task task;
+
+    bindWrapper(false)(task);
 }
 
 std::size_t FileContext::completed(const FileRange& range)
@@ -513,22 +631,19 @@ std::size_t FileContext::completed(const FileRange& range)
             auto buffer = displace(mBuffer, request.mRange.mBegin);
 
             // Complete the request.
-            completed(std::move(buffer), std::move(request));
+            completed(std::move(buffer), std::move(request), false);
         },
         range);
 }
 
-void FileContext::completed(FileWriteRequest&& request)
+bool FileContext::completeReadIfOnDisk(std::unique_lock<std::recursive_mutex>& lock,
+                                       FileReadRequest& request,
+                                       bool onCurrentThread)
 {
-    // Convenience.
-    auto [begin, end] = request.mRange;
+    // Sanity: mLock should be held on entry.
+    assert(lock.mutex() == &mLock);
+    assert(lock.owns_lock());
 
-    // Complete the user's request.
-    completed(std::move(request), FileWriteResult{begin, end - begin});
-}
-
-bool FileContext::completeReadIfOnDisk(FileReadRequest& request)
-{
     // Convenience.
     auto& range = request.mRange;
 
@@ -545,10 +660,17 @@ bool FileContext::completeReadIfOnDisk(FileReadRequest& request)
     // Clamp request's range as needed.
     range.mEnd = std::min(iterator->mEnd, range.mEnd);
 
-    // Queue the request for completion.
-    completed(displace(mBuffer, range.mBegin), std::move(request));
+    // Displace the file's buffer as necessary.
+    auto buffer = displace(mBuffer, range.mBegin);
 
-    // Let our caller know the request was completed.
+    // Caller wants to complete on this thread.
+    if (onCurrentThread)
+        lock.unlock();
+
+    // Complete the request.
+    completed(std::move(buffer), std::move(request), onCurrentThread);
+
+    // Let the caller know we've completed the request.
     return true;
 }
 
@@ -576,48 +698,66 @@ std::size_t FileContext::dispatch(Dispatcher&& dispatcher, const FileRange& rang
     return satisfied;
 }
 
-bool FileContext::executable(std::unique_lock<std::mutex>& lock,
-                             bool queuing,
-                             const FileRequest& request)
+bool FileContext::executable(std::unique_lock<std::mutex>& lock, const FileRequest& request)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
 
     return std::visit(
-        [&lock, queuing, this](auto&& request)
+        [&lock, this](auto&& request)
         {
-            return this->executable(lock, queuing, tag(request));
+            return this->executable(false /*checkOnly*/, lock, tag(request));
         },
         request);
 }
 
-bool FileContext::executable([[maybe_unused]] std::unique_lock<std::mutex>& lock,
-                             bool,
+bool FileContext::executableCheck(std::unique_lock<std::mutex>& lock, const FileRequest& request)
+{
+    assert(lock.mutex() == &mRequestsLock);
+    assert(lock.owns_lock());
+
+    return std::visit(
+        [&lock, this](auto&& request)
+        {
+            return this->executable(true /*checkOnly*/, lock, tag(request));
+        },
+        request);
+}
+
+bool FileContext::executable(bool checkOnly,
+                             [[maybe_unused]] std::unique_lock<std::mutex>& lock,
                              FileReadRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
 
-    return mReadWriteState.read();
+    return mReadWriteState.read(checkOnly);
 }
 
-bool FileContext::executable([[maybe_unused]] std::unique_lock<std::mutex>& lock,
-                             bool,
+bool FileContext::executable(bool checkOnly,
+                             [[maybe_unused]] std::unique_lock<std::mutex>& lock,
                              FileWriteRequestTag)
 {
     assert(lock.mutex() == &mRequestsLock);
     assert(lock.owns_lock());
 
-    return mReadWriteState.write();
+    // Writes may be able to cancel any flush in progress.
+    //
+    // Flushes queued after this write are unaffected and will execute after
+    // this write has completed.
+    if (!checkOnly)
+        cancelFlushInProgress(true);
+
+    return mReadWriteState.write(checkOnly);
 }
 
 void FileContext::execute(FileAppendRequest& request)
 {
+    // An immediate append runs the user's callback on the calling thread.
+    DeferredCompletion complete(*this, request, true);
+
     // Convenience.
     auto size = mInfo->size();
-
-    // Assume there's no range for us to grow.
-    FileRange range(size, size + request.mLength);
 
     // Schedules a flush when exiting this function, if needed.
     ScopedDestructor flusher;
@@ -625,48 +765,62 @@ void FileContext::execute(FileAppendRequest& request)
     // Acquire lock.
     std::lock_guard guard(mLock);
 
+    // Caller doesn't actually want to write anything.
+    if (!request.mLength)
+        return complete(FileWriteResult{size, 0ul});
+
+    // Caller hasn't passed us a valid buffer.
+    if (!request.mBuffer)
+        return complete(FILE_INVALID_ARGUMENTS);
+
     // Disambiguate.
     using file_service::write;
 
     // Try and write the user's data to disk.
     auto [length, _] = mBuffer->write(request.mBuffer, size, request.mLength);
 
-    // Couldn't write all of the user's data to disk.
-    if (length < request.mLength)
-        return completed(std::move(request), FILE_FAILED);
-
-    // Convenience.
-    auto& database = mService.database();
-
-    // Acquire database lock.
-    UniqueLock databaseLock(database);
-
-    // Start a transaction so we can safely modify the database.
-    auto transaction = database.transaction();
+    // Couldn't write any of the user's data to disk.
+    if (length == 0)
+        return complete(FILE_FAILED);
 
     // Compute the file's new modification time.
-    auto modified = now();
+    const auto modified = now();
 
-    // Update ranges on disk and in memory.
-    updateRanges(range, transaction);
+    // Compute range based on how much data we wrote to disk.
+    const FileRange range = {size, size + length};
 
-    // Update the file's access and modification time.
-    updateAccessAndModificationTimes(modified, modified, transaction);
+    // Try and update the file's metadata.
+    {
+        // Convenience.
+        auto& database = mService.database();
 
-    // Persist our changes.
-    transaction.commit();
+        // Try and remove the data we wrote if we encounter an exception.
+        TruncateOnException truncater(*mBuffer, size);
+
+        // Acquire database lock.
+        UniqueLock databaseLock(database);
+
+        // Start a transaction so we can safely modify the database.
+        auto transaction = database.transaction();
+
+        // Update ranges in the database.
+        const auto effectiveRange = updateRangeInDatabase(range, transaction, modified);
+
+        // Persist our changes.
+        transaction.commit();
+
+        // Update ranges in memory.
+        updateRangeInMemory(effectiveRange);
+    }
 
     // Schedule our modifications for flushing.
     flusher = scopedScheduleFlush();
 
-    // Tweak range.
-    range.mBegin = size;
-
     // Update the file's attributes.
-    mInfo->written(modified, range);
+    mInfo->written(request.mApplicationData, modified, range);
 
     // Queue the user's request for execution.
-    completed(std::move(request), FILE_SUCCESS);
+    complete(FileWriteResult{size, length});
 }
 
 void FileContext::execute(FileFetchRequest& request)
@@ -692,11 +846,14 @@ void FileContext::execute(FileFetchRequest& request)
                                    FileRange(0, mInfo->size())});
 }
 
+// A flush must never complete on the calling thread. It is issued by reclaim() while holding
+// mReclaimContextLock and its callback (ReclaimContext::flushed) re-acquires that non-recursive
+// lock, so completing inline would self-deadlock.
 void FileContext::execute(FileFlushRequest request)
 {
     // The file hasn't been modified.
     if (!mInfo->dirty())
-        return completed(std::move(request), FILE_SUCCESS);
+        return completed(std::move(request), FILE_SUCCESS, false);
 
     // Acquire flush context lock.
     std::unique_lock lock(mFlushContextLock);
@@ -737,7 +894,7 @@ void FileContext::execute(FileReadRequest& request, const NormalReadTag&)
 
     // The user doesn't actually need to read anything.
     if (request.mRange.empty())
-        return completed(mBuffer, std::move(request));
+        return completed(mBuffer, std::move(request), true);
 
     // Get a snapshot of the current service options.
     const auto options = mService.serviceOptions();
@@ -756,9 +913,14 @@ void FileContext::execute(FileReadRequest& request, const NormalReadTag&)
     // Acquire lock.
     std::unique_lock lock(mLock);
 
-    // Request can be satisfied by data already on disk.
-    if (completeReadIfOnDisk(request))
+    // Request can be satisfied by data already on disk. On an immediate
+    // execution a cache hit completes on this thread: the lock is released
+    // inside the call, so we must return right away.
+    if (completeReadIfOnDisk(lock, request, true))
         return;
+
+    // Sanity: lock must remain held.
+    assert(lock.owns_lock());
 
     // Copy the request's range so it can be queued.
     auto range = request.mRange;
@@ -841,6 +1003,11 @@ void FileContext::execute(FileReadRequest& request, const NormalReadTag&)
 
 void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
 {
+    // Stream reading does not complete on the current thread because it may execute
+    // on the HTTP server's libuv event loop thread.
+    // This can be enabled if that behavior changes.
+    constexpr bool onCurrentThread = false;
+
     assert(std::holds_alternative<StreamReadTag>(request.mReadTag));
 
     // Make sure the user's read is within the file.
@@ -848,7 +1015,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
 
     // The user doesn't actually need to read anything.
     if (request.mRange.empty())
-        return completed(mBuffer, std::move(request));
+        return completed(mBuffer, std::move(request), onCurrentThread);
 
     // Get a snapshot of the current service options.
     const auto options = mService.serviceOptions();
@@ -1025,8 +1192,14 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
         auto range = request.mRange;
 
         // Request can't be satisfied by data on disk.
-        if (!completeReadIfOnDisk(request))
+        //
+        // Never complete inline here: this loop continues to inspect and
+        // mutate lock-protected state after a hit, so the lock must stay held.
+        if (!completeReadIfOnDisk(lock, request, false))
             queueReadRequest(std::move(request));
+
+        // Sanity: lock must remain held.
+        assert(lock.owns_lock());
 
         // A large download is already in progress.
         if (!largeDownloads.empty())
@@ -1068,8 +1241,12 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     assert(range.length() <= immediateThreshold);
 
     // Request can be satisfied by data already on disk.
-    if (completeReadIfOnDisk(request))
+    // And the lock is released inside the call.
+    if (completeReadIfOnDisk(lock, request, onCurrentThread))
         return;
+
+    // Sanity: lock must remain held.
+    assert(lock.owns_lock());
 
     // Queue the request for later completion.
     queueReadRequest(std::move(request));
@@ -1111,6 +1288,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
 }
 
 // When this request is executed, any pending downloads will have completed.
+// Reclaim requests always complete via a worker.
 void FileContext::execute(FileReclaimRequest& request)
 {
     // Make sure no one is messing with our range maps.
@@ -1120,7 +1298,7 @@ void FileContext::execute(FileReclaimRequest& request)
     if (!mDownloadCategories.mLarge.mInProgress.empty() ||
         !mDownloadCategories.mNormal.mInProgress.empty() ||
         !mDownloadCategories.mSmall.mInProgress.empty())
-        return completed(std::move(request), UINT64_C(0));
+        return completed(std::move(request), UINT64_C(0), false);
 
     // Sanity: no pending read.
     assert(mPendingReadRequests.empty());
@@ -1142,7 +1320,7 @@ void FileContext::execute(FileReclaimRequest& request)
 
     // Couldn't reduce the file's size.
     if (!mBuffer->truncate(0))
-        return completed(std::move(request), FILE_FAILED);
+        return completed(std::move(request), FILE_FAILED, false);
 
     // Remove all written ranges from memory.
     mOnDisk.clear();
@@ -1157,46 +1335,10 @@ void FileContext::execute(FileReclaimRequest& request)
     auto reclaimed = request.mAllocatedSize - mInfo->allocatedSize();
 
     // Let waiters know how much space we reclaimed.
-    completed(std::move(request), reclaimed);
+    completed(std::move(request), reclaimed, false);
 }
 
-void FileContext::execute(FileRemoveRequest& request)
-{
-    // File's already been removed.
-    if (mInfo->removed())
-        return completed(std::move(request), FILE_SUCCESS);
-
-    // Cancel any pending downloads.
-    cancel(FileRange(0, mInfo->size()));
-
-    // Cancel any scheduled flushes.
-    mService.flusher().cancel(mInfo->id());
-
-    // Convenience.
-    auto handle = mInfo->handle();
-    auto serviceOnly = request.mServiceOnly;
-
-    // We only need to remove the file from the service.
-    if (handle.isUndef() || serviceOnly)
-        return completed(std::move(request), setRemoved());
-
-    // Called when the file's been removed.
-    auto removed = [this](auto&&, auto&& request, auto result) mutable
-    {
-        // File was removed from the cloud.
-        if (result == API_OK)
-            return completed(std::move(request), setRemoved());
-
-        // Couldn't remove the file from the cloud.
-        completed(std::move(request), fileResultFromError(result));
-    }; // removed
-
-    // Ask the client to remove our file.
-    mService.client().remove(
-        std::bind(std::move(removed), mMonitor.begin(), std::move(request), std::placeholders::_1),
-        handle);
-}
-
+// Touch requests always complete via a worker.
 void FileContext::execute(FileTouchRequest& request)
 {
     // Compute the file's new access time.
@@ -1219,7 +1361,7 @@ void FileContext::execute(FileTouchRequest& request)
 
     // Couldn't update the file's modification time.
     if (!mFile->ftouch(modified))
-        return completed(std::move(request), FILE_FAILED);
+        return completed(std::move(request), FILE_FAILED, false);
 
     // Update the file's access and modification time.
     updateAccessAndModificationTimes(accessed, modified, transaction);
@@ -1231,126 +1373,315 @@ void FileContext::execute(FileTouchRequest& request)
     flusher = scopedScheduleFlush();
 
     // Update file attributes.
-    mInfo->modified(accessed, modified);
+    mInfo->modified(accessed, request.mApplicationData, modified);
 
     // Queue the user's request for completion.
-    completed(std::move(request), FILE_SUCCESS);
+    completed(std::move(request), FILE_SUCCESS, false);
 }
 
+// Truncate requests always complete via a worker.
 void FileContext::execute(FileTruncateRequest& request)
 {
     // Convenience.
-    auto newSize = request.mSize;
-    auto oldSize = mInfo->size();
+    const auto newSize = request.mSize;
+    const auto oldSize = mInfo->size();
 
     // User isn't changing this file's size.
     if (newSize == oldSize)
-        return completed(std::move(request), FILE_SUCCESS);
+        return completed(std::move(request), FileTruncateResult{newSize, newSize}, false);
+
+    // We currently use truncate to implement the Windows SetFileSize callback with
+    // AllocationSize. This callback is intended for preallocating disk space. For File Service,
+    // however, there is no need to perform actual preallocation, so we only need to
+    // return success. At the same time, we must not modify the file's actual size,
+    // otherwise the file content would be incorrectly extended.
+    if (newSize > oldSize && (request.mFlags & FILE_TRUNCATE_FLAG_NO_GROW))
+        return completed(std::move(request), FileTruncateResult{oldSize, oldSize}, false);
+
+    // Cancels any downloads that would be cut-off or overtaken.
+    ScopedDestructor canceller;
 
     // Schedules a flush when exiting this function, if needed.
     ScopedDestructor flusher;
 
-    // Grow or shrink the file as necessary.
-    auto [databaseLock, transaction] =
-        newSize > oldSize ? grow(newSize, oldSize) : shrink(newSize, oldSize);
+    // Grow or shink this file's size as required.
+    auto [lock, modified] = [&]()
+    {
+        // User's extending this file's size.
+        if (newSize > oldSize)
+            return grow(request);
 
-    // Compute the file's new modification time.
-    auto modified = now();
+        // User's reducing this file's size.
+        return shrink(request);
+    }();
 
-    // Update the file's access and modification times in the database.
-    updateAccessAndModificationTimes(modified, modified, transaction);
+    // Cancel downloads that would be cut-off or overtaken.
+    canceller = [=]()
+    {
+        const auto from = std::min(newSize, oldSize);
+        const auto to = std::max(newSize, oldSize);
 
-    // Persist our changes.
-    transaction.commit();
+        cancel(FileRange(from, to));
+    };
 
     // Schedule our modifications for flushing.
     flusher = scopedScheduleFlush();
 
-    // Update the file's attributes.
-    mInfo->truncated(modified, newSize);
-
     // Queue the user's request to for completion.
-    completed(std::move(request), FILE_SUCCESS);
+    completed(std::move(request), FileTruncateResult{newSize, oldSize}, false);
 }
 
 void FileContext::execute(FileWriteRequest& request)
 {
-    // Convenience.
-    auto& range = request.mRange;
+    DeferredCompletion complete(*this, request, true);
+
+    // Caller hasn't passed us a valid buffer.
+    if (!request.mBuffer)
+        return complete(FILE_INVALID_ARGUMENTS);
 
     // Caller doesn't want to extend the file's size.
     if (request.mFlags & FILE_WRITE_FLAG_NO_GROW)
     {
+        // Convenience.
+        auto& [begin, end] = request.mRange;
+
         // Make sure written range doesn't extend past the end of the file.
-        range.mEnd = std::min(mInfo->size(), range.mEnd);
+        end = std::min(mInfo->size(), end);
 
         // Make sure written range doesn't begin after it ends.
-        range.mBegin = std::min(range.mBegin, range.mEnd);
+        begin = std::min(begin, end);
     }
 
     // Caller doesn't actually want to write anything.
-    if (range.empty())
-        return completed(std::move(request));
+    if (auto [begin, end] = request.mRange; begin == end)
+        return complete(FileWriteResult{begin, end - begin});
 
-    // Caller hasn't passed us a valid buffer.
-    if (!request.mBuffer)
-        return completed(std::move(request), FILE_INVALID_ARGUMENTS);
+    // Cancel downloads within the written range on return.
+    ScopedDestructor canceller;
 
-    // Cancel any downloads contained within range when returning.
-    auto canceller = makeScopedDestructor(
-        [&]()
-        {
-            cancel(range);
-        }); // canceller
-
-    // Schedules a flush when exiting this function, if needed.
+    // Flushes our modifications to the cloud on return.
     ScopedDestructor flusher;
 
     // Acquire lock.
     std::lock_guard guard(mLock);
 
-    // Disambiguate.
-    using file_service::write;
-
-    // Try and write the caller's content to storage.
-    auto [count, _] = mBuffer->write(request.mBuffer, range.mBegin, range.length());
-
-    // Compute actual end of the written range.
-    range.mEnd = range.mBegin + count;
-
-    // Couldn't write any content to storage.
-    if (!count)
-        return completed(std::move(request), FILE_FAILED);
-
-    // Convenience.
+    // Get and cache a reference to our database.
     auto& database = mService.database();
 
-    // Acquire database lock.
-    UniqueLock databaseLock(database);
+    // Update range metadata in the database.
+    auto updateRangeInDatabase = [&database, this](auto range)
+    {
+        // So we have exclusive access to the database.
+        std::unique_lock lockDatabase(database);
 
-    // Start a transaction so we can safely modify the database.
-    auto transaction = database.transaction();
+        // So we can safely update the database.
+        auto transaction = database.transaction();
 
-    // Update ranges on disk and in memory.
-    updateRanges(range, transaction);
+        // Update metadata in the database.
+        range = this->updateRangeInDatabase(range, transaction);
 
-    // Compute the file's new modification time.
-    auto modified = now();
+        // Persist database changes.
+        transaction.commit();
+
+        // Return effective range.
+        return range;
+    };
+
+    // Update range metadata.
+    auto updateRange = [&](auto begin, auto end)
+    {
+        // How much data should we say was written to disk?
+        std::uint64_t count = 0;
+
+        // A range on disk contains all or part of our range.
+        if (auto i = mOnDisk.contains(begin); i != mOnDisk.end())
+        {
+            // Range on disk contains all of our range.
+            if (i->mEnd >= end)
+                return end - begin;
+
+            // How much of our data does this range contain?
+            count = i->mEnd - begin;
+        }
+
+        // Try and update range metadata.
+        try
+        {
+            // Convenience.
+            FileRange range(begin, end);
+
+            // Update metadata in the database.
+            const auto effectiveRange = updateRangeInDatabase(range);
+
+            // Update metadata in memory.
+            updateRangeInMemory(effectiveRange);
+
+            // Metadata has been updated.
+            return end - begin;
+        }
+        catch (...)
+        {
+            auto exception = std::current_exception();
+
+            FSWarningF("Couldn't update range metadata in database: %s: %s",
+                       toString(mInfo->id()).c_str(),
+                       exceptionMessage().c_str());
+
+            // We wrote data into a gap and couldn't add a new range.
+            if (count == 0)
+                std::rethrow_exception(exception);
+
+            // We wrote data into an existing range.
+            return count;
+        }
+    }; // updateRange
 
     // Update the file's access and modification times in the database.
-    updateAccessAndModificationTimes(modified, modified, transaction);
+    auto updateTimesInDatabase = [&]()
+    {
+        // Latch the file's current dirty status and modification time.
+        const auto oldDirty = mInfo->dirty();
+        const auto oldModified = mInfo->modified();
 
-    // Persist our changes.
-    transaction.commit();
+        // Try and update the file's modification time.
+        try
+        {
+            // Compute the file's new modification time.
+            const auto modified = now();
 
-    // Schedule our modifications for flushing.
-    flusher = scopedScheduleFlush();
+            // No need to update dirty status or modification time.
+            if (oldDirty && oldModified == modified)
+                return modified;
 
-    // Update the file's attributes.
-    mInfo->written(modified, range);
+            // Make sure we have exclusive access to the database.
+            std::unique_lock lockDatabase(database);
 
-    // Queue the user's request for completion.
-    completed(std::move(request));
+            // So we can safely update the database.
+            auto transaction = database.transaction();
+
+            // Try and update the modification time in the database.
+            updateAccessAndModificationTimes(modified, modified, transaction);
+
+            // Persist our database changes.
+            transaction.commit();
+
+            // Return updated modification time to our caller.
+            return modified;
+        }
+        catch (...)
+        {
+            // Couldn't update the file's modification time.
+            return oldModified;
+        }
+    }; // updateModificationTimeInDatabase
+
+    // Write data to disk and update metadata as needed.
+    auto write = [&]()
+    {
+        // Translate request's buffer into a byte buffer.
+        auto* buffer = static_cast<const std::uint8_t*>(request.mBuffer);
+
+        // Return the function that'll actually do the writing.
+        return [&, buffer](auto offset, auto length) mutable
+        {
+            // Try and write data to disk.
+            auto [count, _] = mBuffer->write(buffer, offset, length);
+
+            // Couldn't write any data to disk.
+            if (count == 0)
+                return count;
+
+            // Update range metadata.
+            count = updateRange(offset, offset + count);
+
+            // Bump buffer.
+            buffer += count;
+
+            // Return number of bytes written to disk.
+            return count;
+        };
+    }();
+
+    // Called when the write has completed.
+    auto writeCompleted = [&]()
+    {
+        // Convenience.
+        const auto& range = request.mRange;
+
+        // Cancel any downloads within the written range.
+        canceller = [=]()
+        {
+            cancel(range);
+        };
+
+        // Flush our modifications to the cloud.
+        flusher = scopedScheduleFlush();
+
+        // Update the file's access and modification times.
+        const auto modified = updateTimesInDatabase();
+
+        // Update file attributes.
+        mInfo->written(request.mApplicationData, modified, range);
+
+        // Complete the request.
+        complete(FileWriteResult{range.mBegin, range.length()});
+    }; // writeCompleted
+
+    // Called when we're unable to write data to disk.
+    auto writeFailed = [&](auto offset)
+    {
+        // Update request to reflect the amount of data written to disk.
+        request.mRange.mEnd = offset;
+
+        // Couldn't write any data to disk.
+        if (request.mRange.empty())
+            return complete(FILE_FAILED);
+
+        // Partially complete the request.
+        writeCompleted();
+    }; // writeFailed
+
+    // Where in our file should we write the data?
+    auto offset = request.mRange.mBegin;
+
+    // Write data to disk by filling gaps and extending ranges.
+    for (auto& gap: gaps(mOnDisk, request.mRange))
+    {
+        // Writing into an existing range.
+        if (const auto length = gap.mBegin - offset; length > 0)
+        {
+            // Couldn't write all data to disk.
+            if (const auto count = write(offset, length); count < length)
+                return writeFailed(count + offset);
+
+            // Bump offset.
+            offset += length;
+        }
+
+        // How much data do we need to write to disk?
+        const auto length = gap.length();
+
+        // Couldn't write all data to disk.
+        if (const auto count = write(offset, length); count < length)
+            return writeFailed(count + offset);
+
+        // Bump offset.
+        offset += length;
+    }
+
+    // Do we still have to write any data to disk?
+    const auto length = request.mRange.mEnd - offset;
+
+    // All data has been written to disk.
+    if (length == 0)
+        return writeCompleted();
+
+    // Couldn't write remaining data to disk.
+    if (const auto count = write(offset, length); count < length)
+        return writeFailed(count + offset);
+
+    // All data has been written to disk.
+    writeCompleted();
 }
 
 void FileContext::execute(FileRequest& request)
@@ -1377,7 +1708,7 @@ void FileContext::execute()
             return;
 
         // Request isn't executable.
-        if (!executable(lock, false, mRequests.front()))
+        if (!executable(lock, mRequests.front()))
             return;
 
         // Pop the request off the queue.
@@ -1385,11 +1716,29 @@ void FileContext::execute()
 
         mRequests.pop_front();
 
+        // Execute on the current thread if this is the last request or the next
+        // one isn't ready yet: no worker hand-off needed.
+        //
+        // Otherwise dispatch to a worker so the next executable request isn't
+        // delayed waiting for this one to complete.
+        bool executeInline = mRequests.empty() || !executableCheck(lock, mRequests.front());
+
         // Release lock.
         lock.unlock();
 
-        // Execute the request.
-        execute(request);
+        if (executeInline)
+        {
+            execute(request);
+            continue;
+        }
+
+        mService.executor().execute(
+            [context = weak_from_this(), request = std::move(request)](const Task&) mutable
+            {
+                if (auto ptr = context.lock())
+                    ptr->execute(request);
+            },
+            true);
     }
 }
 
@@ -1401,26 +1750,24 @@ try
     //
     // completed(...) needs to be called here as it expects a request to hold some lock.
     if (auto result = reject(request); result != FILE_SUCCESS)
-        return completed(std::forward<Request>(request), result);
+        return completed(std::forward<Request>(request), result, false);
 
     // Otherwise execute the request.
+    //
+    // Each overload decides what an immediate execution means for its request
+    // type: requests that can be satisfied synchronously (a read whose data is
+    // already on disk, a write, an append) run the user's callback on this
+    // thread, skipping a worker hand-off, the other overloads ignore the
+    // argument and always complete via a worker.
     execute(request);
-}
-catch (std::exception& exception)
-{
-    // Encountered an unhandled exception while executing request.
-    FSErrorF("Unable to execute %s request: %s", request.name(), exception.what());
-
-    // Try and fail the request.
-    completed(std::move(request), FILE_FAILED);
 }
 catch (...)
 {
-    // Encountered an unknown exception while executing request.
-    FSErrorF("Unable to execute %s request: %s", request.name(), "Unknown exception");
+    // Encountered an unhandled exception while executing request.
+    FSErrorF("Unable to execute %s request: %s", request.name(), exceptionMessage().c_str());
 
     // Try and fail the request.
-    completed(std::move(request), FILE_FAILED);
+    completed(std::move(request), FILE_FAILED, false);
 }
 
 template<typename Request>
@@ -1435,7 +1782,7 @@ auto FileContext::executeOrQueue(Request&& request) -> std::enable_if_t<IsFileRe
     // Request isn't executable so queue it for later execution.
     //
     // If executable(...) returns true, request will have acquired a read (or write) lock.
-    if (std::unique_lock lock(mRequestsLock); !executable(lock, true, request))
+    if (std::unique_lock lock(mRequestsLock); !executable(lock, request))
         return queue(std::move(lock), std::forward<Request>(request));
 
     // Otherwise execute the request.
@@ -1499,7 +1846,7 @@ void FileContext::failed(const FileRange& range, FileResult result)
         auto& request = const_cast<FileReadRequest&>(*iterator);
 
         // Fail the request.
-        completed(std::move(request), result);
+        completed(std::move(request), result, false);
 
         // Remove read from our set of pending reads.
         mPendingReadRequests.erase(iterator);
@@ -1510,30 +1857,59 @@ void FileContext::failed(const FileRange& range, FileResult result)
 #pragma pop_macro("small")
 #endif // _WIN32
 
-auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize)
-    -> std::pair<UniqueLock<Database>, Transaction>
+auto FileContext::grow(const FileTruncateRequest& request)
+    -> std::pair<std::unique_lock<std::recursive_mutex>, std::int64_t>
 {
-    // Make sure we have exclusive access to mOnDisk.
-    std::lock_guard guard(mLock);
-
     // Convenience.
-    auto& database = mService.database();
+    const auto newSize = request.mSize;
+    const auto oldSize = mInfo->size();
 
-    // Acquire database lock.
-    UniqueLock databaseLock(database);
-
-    // So we can safely modify the database.
-    auto transaction = database.transaction();
+    // Make sure we have exclusive access to mOnDisk.
+    std::unique_lock lock(mLock);
 
     // Couldn't extend the file's size.
     if (!mBuffer->truncate(newSize))
         throw FSError1("Couldn't extend file size");
 
-    // Update the file's ranges on disk and in memory.
-    updateRanges(FileRange(oldSize, newSize), transaction);
+    // Compute the file's new modification time.
+    const auto modified = now();
 
-    // Return the transaction to our caller.
-    return std::make_pair(std::move(databaseLock), std::move(transaction));
+    // Update ranges on disk and in memory.
+    {
+        // Convenience.
+        auto& database = mService.database();
+
+        // Acquire database lock.
+        UniqueLock databaseLock(database);
+
+        // So we can safely modify the database.
+        auto transaction = database.transaction();
+
+        // Keeps the line below short.
+        const FileRange range(oldSize, newSize);
+
+        // Update the file's ranges in the database.
+        const auto effectiveRange = updateRangeInDatabase(range, transaction, modified);
+
+        // Persist our changes.
+        transaction.commit();
+
+        // Update the file's ranges in memory.
+        updateRangeInMemory(effectiveRange);
+    }
+
+    // Update the file's attributes.
+    mInfo->truncated(request.mApplicationData, modified, newSize);
+
+    // Return lock and modification time to our caller.
+    return std::make_pair(std::move(lock), modified);
+}
+
+bool FileContext::hasPendingRequests() const
+{
+    std::lock_guard guard(mRequestsLock);
+
+    return !mRequests.empty();
 }
 
 std::chrono::steady_clock::time_point FileContext::lastNormalReadActivityTime() const
@@ -1604,24 +1980,14 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
 
 ScopedDestructor FileContext::scopedScheduleFlush()
 {
-    // Retrieve the service's current flush delay.
-    const auto delay = mService.serviceOptions().mFileFlushDelay;
-
-    // Convenience.
-    constexpr auto zero = decltype(delay)::zero();
-
-    // Automatic flushing has been disabled.
-    if (delay == zero)
-        return makeScopedDestructor([] {});
-
-    // Compute when this file's modifications should be flushed.
-    const auto when = std::chrono::steady_clock::now() + delay;
-
     // Return scoped destructor to our caller.
     return makeScopedDestructor(
-        [when, this]()
+        [this]()
         {
-            mService.flusher().schedule(mInfo->id(), when);
+            const auto options = mService.serviceOptions();
+            const auto delay = computeFlushDelay(options, mInfo->size());
+
+            mService.flusher().schedule(mInfo->id(), delay);
         });
 }
 
@@ -1652,73 +2018,129 @@ try
     return FILE_SUCCESS;
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
     // Let debuggers know why we couldn't remove the file.
     FSErrorF("Unable to mark file %s as removed: %s",
              toString(mInfo->id()).c_str(),
-             exception.what());
+             exceptionMessage().c_str());
 
     // Let our caller know we couldn't remove the file.
     return FILE_FAILED;
 }
 
-auto FileContext::shrink(std::uint64_t newSize, std::uint64_t oldSize)
-    -> std::pair<UniqueLock<Database>, Transaction>
+auto FileContext::shrink(const FileTruncateRequest& request)
+    -> std::pair<std::unique_lock<std::recursive_mutex>, std::int64_t>
 {
-    // Cancel any downloads in progress that would be "cut off."
-    cancel(FileRange(oldSize, newSize));
-
-    // So we have exclusive access to mOnDisk.
-    std::lock_guard guard(mLock);
+    // Convenience.
+    const auto newSize = request.mSize;
+    const auto oldSize = mInfo->size();
 
     // Convenience.
     auto& database = mService.database();
 
-    // Acquire database lock.
-    UniqueLock databaseLock(database);
+    // Called to add a reduced range to the database.
+    std::function<void(Transaction&)> addRangeToDatabase = [](auto&) {};
 
-    // So we can safely modify the database.
-    auto transaction = database.transaction();
+    // Called to add a reduced range to memory.
+    std::function<void()> addRangeToMemory = []() {};
 
-    // Couldn't reduce the file's size.
-    if (!mBuffer->truncate(newSize))
-        throw FSError1("Couldn't reduce file size");
+    // Called to remove affected ranges from the database.
+    std::function<void(Transaction&)> removeFromDatabase = [](auto&) {};
 
-    // What ranges end after our file's new size?
-    auto begin = mOnDisk.endsAfter(newSize);
+    // Called to remove affected ranges from memory.
+    std::function<void()> removeFromMemory = []() {};
 
-    // No ranges end after our new size.
-    if (begin == mOnDisk.end())
-        return std::make_pair(std::move(databaseLock), std::move(transaction));
+    // So we have exclusive access to mOnDisk.
+    std::unique_lock lock(mLock);
 
-    // Convenience.
-    FileRange range(begin->mBegin, oldSize);
-
-    // Remove affected ranges from the database.
-    removeRanges(range, transaction);
-
-    // Update the file's size in the database.
-    updateSize(newSize, transaction);
-
-    // Remove affected ranges from memory.
-    mOnDisk.remove(begin, mOnDisk.end());
-
-    // First range has been "cut" by the file's new size.
-    if (range.mBegin < newSize)
+    // Figure out what changs we need to make.
+    do
     {
+        // What ranges end after our file's new size?
+        auto begin = mOnDisk.endsAfter(newSize);
+
+        // No ranges end after our new size.
+        if (begin == mOnDisk.end())
+            break;
+
+        // Convenience.
+        FileRange range(begin->mBegin, oldSize);
+
+        // Remove affected ranges from the database.
+        removeFromDatabase = [range, this](auto& transaction)
+        {
+            removeRanges(range, transaction);
+        };
+
+        // Remove affected ranges from memory.
+        removeFromMemory = [begin, this]()
+        {
+            mOnDisk.remove(begin, mOnDisk.end());
+        };
+
+        // No range needs to be reduced.
+        if (range.mBegin >= newSize)
+            break;
+
         // Adjust the range's end point.
         range.mEnd = newSize;
 
-        // Readd the range to the database.
-        addRange(range, transaction);
+        // Add reduced range to the database.
+        addRangeToDatabase = [range, this](auto& transaction)
+        {
+            addRange(range, transaction);
+        };
 
-        // Readd the range to memory.
-        mOnDisk.add(range);
+        // Add reduced range to memory.
+        addRangeToMemory = [range, this]()
+        {
+            mOnDisk.add(range);
+        };
+    }
+    while (0);
+
+    // Compute the file's new modification time.
+    const auto modified = now();
+
+    // Update the database as needed.
+    {
+        // Acquire database lock.
+        UniqueLock databaseLock(database);
+
+        // So we can safely modify the database.
+        auto transaction = database.transaction();
+
+        // Remove affected ranges from the database.
+        removeFromDatabase(transaction);
+
+        // Add reduced range to the database.
+        addRangeToDatabase(transaction);
+
+        // Update the file's access time, modification time and size in the database.
+        updateSizeAndTime(modified, modified, newSize, transaction);
+
+        // Persist our changes.
+        transaction.commit();
     }
 
-    // Return the transaction to our caller.
-    return std::make_pair(std::move(databaseLock), std::move(transaction));
+    // Remove affected ranges from memory.
+    removeFromMemory();
+
+    // Add reduced range to memory.
+    addRangeToMemory();
+
+    // Update the file's attributes.
+    mInfo->truncated(request.mApplicationData, modified, newSize);
+
+    // Try and reduce the file's physical size.
+    if (mBuffer->truncate(newSize))
+        updateSize(newSize);
+    else
+        FSWarningF("Couldn't reduce file size: %s", toString(mInfo->id()).c_str());
+
+    // Return lock and modification time to our caller.
+    return std::make_pair(std::move(lock), modified);
 }
 
 void FileContext::updateAccessTime(std::int64_t accessed, Transaction& transaction)
@@ -1764,7 +2186,9 @@ void FileContext::touchNormalReadActivity()
     mLastNormalReadActivityTime.store(std::chrono::steady_clock::now().time_since_epoch());
 }
 
-FileRange FileContext::updateRanges(FileRange range, Transaction& transaction)
+FileRange FileContext::updateRangeInDatabase(FileRange range,
+                                             Transaction& transaction,
+                                             std::optional<std::int64_t> modified)
 try
 {
     // Convenience.
@@ -1813,28 +2237,33 @@ try
     // Add our new range to the database.
     addRange(range, transaction);
 
-    // Update the file's size in the database.
-    updateSize(std::max(mInfo->size(), to), transaction);
-
-    // Remove obsolete ranges from memory.
-    mOnDisk.remove(begin, end);
-
-    // Add our new range to memory.
-    mOnDisk.add(range);
+    // Update the file's size in the database. When the caller supplies a
+    // modification time, fold the access/modification/dirty update into the
+    // same UPDATE (both touch the same files row) to save a statement.
+    if (modified)
+        updateSizeAndTime(*modified, *modified, std::max(mInfo->size(), to), transaction);
+    else
+        updateSize(std::max(mInfo->size(), to), transaction);
 
     // Return effective range to our caller.
     return range;
 }
-
-catch (std::runtime_error& exception)
+catch (...)
 {
+    auto exception = std::current_exception();
+
     // Let debuggers know what went wrong.
     FSErrorF("Couldn't update range in database: %s: %s",
              toString(range).c_str(),
-             exception.what());
+             exceptionMessage().c_str());
 
     // Propagate the original exception.
-    throw;
+    std::rethrow_exception(exception);
+}
+
+void FileContext::updateRangeInMemory(const FileRange range)
+{
+    mOnDisk.merge(range);
 }
 
 void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
@@ -1858,6 +2287,58 @@ void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
 
     query.param(":allocated_size").set(allocatedSize);
     query.param(":id").set(mInfo->id());
+    query.param(":reported_size").set(reportedSize);
+    query.param(":size").set(size);
+
+    query.execute();
+}
+
+FileResult FileContext::updateSize(std::uint64_t size)
+try
+{
+    withTransaction(mService.database(),
+                    [&](auto& transaction)
+                    {
+                        updateSize(size, transaction);
+                    });
+
+    return FILE_SUCCESS;
+}
+catch (...)
+{
+    FSWarningF("Couldn't update size: %s: %s",
+               toString(mInfo->id()).c_str(),
+               exceptionMessage().c_str());
+
+    return FILE_FAILED;
+}
+
+void FileContext::updateSizeAndTime(std::int64_t accessed,
+                                    std::int64_t modified,
+                                    std::uint64_t size,
+                                    Transaction& transaction)
+{
+    // Query the file's current allocated and reported size on disk.
+    auto sizes = mFile->getFileSize();
+
+    // Couldn't retrieve the file's current sizes.
+    if (!sizes)
+        throw FSErrorF("Couldn't get file sizes: %s", toString(mInfo->id()).c_str());
+
+    // Clarity.
+    auto [allocatedSize, reportedSize] = *sizes;
+
+    // Update the file's allocated and reported sizes in memory.
+    mInfo->allocatedSize(allocatedSize);
+    mInfo->reportedSize(reportedSize);
+
+    // Update the file's sizes and access/modification times in a single UPDATE.
+    auto query = transaction.query(mService.queries().mSetFileSizeAndModificationTime);
+
+    query.param(":accessed").set(accessed);
+    query.param(":allocated_size").set(allocatedSize);
+    query.param(":id").set(mInfo->id());
+    query.param(":modified").set(modified);
     query.param(":reported_size").set(reportedSize);
     query.param(":size").set(size);
 
@@ -1900,6 +2381,9 @@ FileContext::FileContext(Activity activity,
     mDownloadMonitor(),
     mMonitor()
 {
+    // Sanity: we should never open an unmanaged file.
+    assert(mInfo->managed());
+
     // Estimated bitrate based on the file's duration, if any.
     const auto fileBitrate = mInfo->bitrate().value_or(0);
 
@@ -2077,12 +2561,104 @@ void FileContext::reclaim(FileReclaimCallback callback, FileContextPtr)
                                           std::placeholders::_1);
 
     // Make sure this file's data has been flushed to the cloud.
-    executeOrQueue(FileFlushRequest{std::move(flushed)});
+    executeOrQueue(FileFlushRequest{std::move(flushed), true});
 }
 
-void FileContext::remove(FileContextPtr, FileRemoveRequest request)
+void FileContext::remove(FileContextPtr context,
+                         FileStructureUniqueLock& lock,
+                         FileRemoveRequest request)
 {
-    executeOrQueue(std::move(request));
+    // Convenience.
+    auto& callback = request.mCallback;
+
+    // Sanity: callback should never be null.
+    assert(callback);
+
+    // Sanity: context should refer to this context instance.
+    assert(context.get() == this);
+
+    // Sanity: lock should be acquired.
+    assert(lock.owns_lock());
+
+    // Sanity: lock should refer this context's structure mutex.
+    assert(lock.mutex() == &mInfo->structureMutex());
+
+    // Make sure unhandled exceptions don't escape from the caller's callback.
+    callback = swallow(std::move(callback), "remove");
+
+    // Immediately reject the request if necessary.
+    if (auto result = reject(request); result != FILE_SUCCESS)
+        return callback(result);
+
+    // File's already been removed.
+    if (mInfo->removed())
+        return callback(FILE_SUCCESS);
+
+    // Cancel any pending downloads.
+    cancel(FileRange(0, mInfo->size()));
+
+    // Cancel any scheduled flushes.
+    mService.flusher().cancel(mInfo->id());
+
+    // Convenience.
+    const auto handle = mInfo->handle();
+
+    // We only need to remove the file from the service.
+    if (handle.isUndef() || request.mServiceOnly)
+        return callback(setRemoved());
+
+    // Called when the file's been removed.
+    auto removed = [this](auto& activity, auto& callback, auto result) mutable
+    {
+        auto fileResult = result == API_OK ? setRemoved() : fileResultFromError(result);
+
+        callback(fileResult);
+
+        // Release our activity now that the caller's callback has finished:
+        // when the callback is destroyed it may drop the last reference to
+        // this context, whose destruction waits until all activities have
+        // completed. Nothing may touch this context beyond this point.
+        activity = Activity();
+    }; // removed
+
+    // Ask the client to remove our file.
+    mService.client().remove(
+        std::bind(std::move(removed), mMonitor.begin(), std::move(callback), std::placeholders::_1),
+        handle);
+}
+
+void FileContext::remove(FileContextPtr context, FileRemoveRequest request)
+{
+    // Cleaner than a lambda.
+    class LockCallback
+    {
+        FileContextPtr mContext;
+        FileRemoveRequest mRequest;
+
+    public:
+        LockCallback(FileContextPtr context, FileRemoveRequest request):
+            mContext(std::move(context)),
+            mRequest(std::move(request))
+        {}
+
+        void operator()(FileStructureUniqueLock&& lock)
+        {
+            mContext->remove(mContext, lock, std::move(mRequest));
+        }
+    };
+
+    // Sanity: callback should never be null.
+    assert(request.mCallback);
+
+    // Sanity: context should refer to this file instance.
+    assert(context.get() == this);
+
+    // Immediately reject the request if necessary.
+    if (auto result = reject(request); result != FILE_SUCCESS)
+        return request.mCallback(result);
+
+    // Remove the file after acquiring a lock on this file's structure mutex.
+    mInfo->structureMutex().lock(LockCallback(std::move(context), std::move(request)));
 }
 
 bool FileContext::removed() const
@@ -2185,6 +2761,10 @@ try
     if (replaced())
         return Abort();
 
+    // Downloaded data is outside of the file's range.
+    if (offset >= mContext.mInfo->size())
+        return Abort();
+
     // Downloaded data is outside of this range.
     if (offset >= mIterator->first.mEnd)
         return Abort();
@@ -2255,11 +2835,14 @@ try
         // Begin a transaction so we can safely modify the database.
         auto transaction = database.transaction();
 
-        // Update ranges on disk and in memory.
-        mContext.updateRanges(written, transaction);
+        // Update ranges in the database.
+        const auto effectiveRange = mContext.updateRangeInDatabase(written, transaction);
 
         // Persist database changes.
         transaction.commit();
+
+        // Update ranges in memory.
+        mContext.updateRangeInMemory(effectiveRange);
     }
 
     // Bump end of written range.
@@ -2299,8 +2882,12 @@ try
     return Abort();
 }
 
-catch (std::runtime_error&)
+catch (...)
 {
+    FSWarningF("Couldn't write downloaded data to disk: %s: %s",
+               toString(mContext.mInfo->id()).c_str(),
+               exceptionMessage().c_str());
+
     return Abort();
 }
 
@@ -2545,7 +3132,7 @@ void FileContext::FetchContext::completed(FileResult result)
 
     // Execute queued requests.
     for (auto& request: requests)
-        mContext.completed(std::move(request), result);
+        mContext.completed(std::move(request), result, false);
 }
 
 FileContext::FetchContext::FetchContext(FileContext& context, FileFetchRequest request):
@@ -2588,6 +3175,73 @@ void FileContext::FetchContext::queue(FileFetchRequest request)
     mRequests.emplace_back(std::move(request));
 }
 
+void FileContext::FlushContext::bind(BindCallback& bind,
+                                     FlushContextPtr& context,
+                                     FileStructureUniqueLock structureLock)
+{
+    // Sanity: context should reference this instance.
+    assert(context.get() == this);
+
+    // Try and determine this file's current location.
+    auto location = this->location();
+
+    // Acquire context lock.
+    std::unique_lock contextLock(mContext.mFlushContextLock);
+
+    // Couldn't determine the file's current location.
+    if (!location)
+    {
+        // Assume we couldn't get the file's location due to some error.
+        auto result = FILE_FAILED;
+
+        // Couldn't get the file's location because it's been removed.
+        if (location.error() == FILE_SERVICE_FILE_DOESNT_EXIST)
+            result = FILE_REMOVED;
+
+        // Let waiters know why we couldn't upload the file.
+        return completed(std::move(context), std::move(contextLock), result);
+    }
+
+    // Convenience.
+    auto& info = *mContext.mInfo;
+
+    // File's been marked as removed.
+    if (info.removed())
+        return completed(std::move(context), std::move(contextLock), FILE_REMOVED);
+
+    // Flush has been cancelled.
+    if (mRequests.empty())
+        return;
+
+    // Binding can't be cancelled.
+    mCancelOnWrite = false;
+
+    // Save structure lock for later release.
+    mStructureLock = std::move(structureLock);
+
+    // Release context lock.
+    contextLock.unlock();
+
+    // So we can use our bound method as a callback.
+    BoundCallback bound =
+        std::bind(&FlushContext::bound, this, std::move(context), std::placeholders::_1);
+
+    // Bind a name to our file's uploaded data.
+    bind(
+        [&bound, &info, &location]()
+        {
+            BindContext context;
+
+            context.mCallback = std::move(bound);
+            context.mModified = info.modified();
+            context.mName = std::move(location->mName);
+            context.mParentHandle = location->mParentHandle;
+            context.mPreviousHandle = info.handle();
+
+            return context;
+        }());
+}
+
 void FileContext::FlushContext::bound(FlushContextPtr& context, ErrorOr<NodeHandle> result)
 {
     // Acquire flush context lock.
@@ -2626,12 +3280,12 @@ void FileContext::FlushContext::bound(FlushContextPtr& context, ErrorOr<NodeHand
         // File's flushed.
         completed(std::move(context), std::move(lock), FILE_SUCCESS);
     }
-    catch (std::exception& exception)
+    catch (...)
     {
         // Let debuggers know why the flush failed.
         FSErrorF("Couldn't update file handle: %s: %s",
                  toString(mContext.mInfo->id()).c_str(),
-                 exception.what());
+                 exceptionMessage().c_str());
 
         // Couldn't flush the file's content.
         completed(std::move(context), std::move(lock), FILE_FAILED);
@@ -2652,10 +3306,13 @@ void FileContext::FlushContext::completed(FlushContextPtr context, Lock&& lock, 
         mContext.mFlushContext = nullptr;
     }
 
-    // Steal queued requests.
+    // Latch queued requests.
     auto requests = std::exchange(mRequests, decltype(mRequests)());
 
-    // Release lock.
+    // Latch structure lock.
+    auto structureLock = std::exchange(mStructureLock, decltype(mStructureLock)());
+
+    // Release context lock.
     lock.unlock();
 
     // Cancel any scheduled flushes if this flush was successful.
@@ -2664,7 +3321,7 @@ void FileContext::FlushContext::completed(FlushContextPtr context, Lock&& lock, 
 
     // Execute queued requests.
     for (auto& request: requests)
-        mContext.completed(std::move(request), result);
+        mContext.completed(std::move(request), result, false);
 }
 
 FileServiceResultOr<FileLocation> FileContext::FlushContext::location() const
@@ -2686,33 +3343,25 @@ FileServiceResultOr<FileLocation> FileContext::FlushContext::location() const
 
 void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result)
 {
-    // Acquire flush context lock.
-    std::unique_lock lock(mContext.mFlushContextLock);
-
     // Couldn't upload the file's data.
     if (!result)
-        return completed(std::move(context), std::move(lock), fileResultFromError(result.error()));
+        return completed(std::move(context),
+                         std::unique_lock(mContext.mFlushContextLock),
+                         fileResultFromError(result.error()));
 
-    // The file's been removed.
-    if (mContext.mInfo->removed())
-        return completed(std::move(context), std::move(lock), FILE_REMOVED);
+    // Convenience.
+    auto& client = mContext.mService.client();
+    auto& structureMutex = mContext.mInfo->structureMutex();
 
-    // Upload's been cancelled.
-    if (mRequests.empty())
-        return;
+    // So we can use our bind method as a lock callback.
+    auto locked = std::bind(&FlushContext::bind,
+                            this,
+                            std::move(*result),
+                            std::move(context),
+                            std::placeholders::_1);
 
-    // Release the lock.
-    lock.unlock();
-
-    // So we can use our bound method as a callback.
-    BoundCallback bound =
-        std::bind(&FlushContext::bound, this, std::move(context), std::placeholders::_1);
-
-    // Convenience;
-    auto& info = *mContext.mInfo;
-
-    // Bind a name to our file's uploaded data.
-    (*result)(BindContext{std::move(bound), info.modified(), info.handle()});
+    // Acquire structure lock and try and bind a name to our uploaded data.
+    structureMutex.lock(client.onClientThread(std::move(locked)));
 }
 
 FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
@@ -2720,7 +3369,8 @@ FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest r
     mActivity(context.mMonitor.begin()),
     mContext(context),
     mRequests(),
-    mUpload()
+    mUpload(),
+    mCancelOnWrite(request.mCancelOnWrite)
 {
     mRequests.emplace_back(std::move(request));
 }
@@ -2763,6 +3413,14 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
     if (mRequests.empty())
         return;
 
+    // Convenience.
+    auto& file = *mContext.mFile;
+    auto& info = *mContext.mInfo;
+
+    // Make sure the file isn't larger than it should be.
+    if (!file.ftruncate(static_cast<m_off_t>(info.size())))
+        return completed(std::move(context), std::move(lock), FILE_FAILED);
+
     // Where is this file's data stored?
     auto path = service.userFilePath(id);
 
@@ -2781,11 +3439,15 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
 }
 
 template<typename Lock>
-void FileContext::FlushContext::cancel(FlushContextPtr context, Lock&& lock)
+void FileContext::FlushContext::cancel(FlushContextPtr context, Lock&& lock, bool dueToWrite)
 {
     assert(context);
     assert(lock.mutex() == &context->mContext.mFlushContextLock);
     assert(lock.owns_lock());
+
+    // Flush can't be cancelled by a write.
+    if (dueToWrite && !context->mCancelOnWrite)
+        return;
 
     auto upload = std::exchange(context->mUpload, nullptr);
 
@@ -2804,6 +3466,11 @@ void FileContext::FlushContext::queue(FileFlushRequest request)
 {
     // Acquire flush context lock.
     std::lock_guard guard(mContext.mFlushContextLock);
+
+    // This flush can only be cancelled by a write if:
+    // - Each flush queued on this context can be cancelled by a write.
+    // - This file's data isn't being bound to a name.
+    mCancelOnWrite = mCancelOnWrite && request.mCancelOnWrite;
 
     // Queue the request.
     mRequests.emplace_back(std::move(request));
@@ -2871,9 +3538,6 @@ void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult
     if (mCallbacks.empty())
         return;
 
-    // Release reclaim context lock.
-    lock.unlock();
-
     // So we can use this context's completed method as a callback.
     auto callback = [context = std::move(context), this](auto result) mutable
     {
@@ -2881,6 +3545,14 @@ void FileContext::ReclaimContext::flushed(ReclaimContextPtr& context, FileResult
     }; // callback
 
     // Queue the reclaim request for execution.
+    //
+    // The reclaim context lock must be held until the request is queued: it's
+    // what keeps this queueing ordered against FileContext::cancel(). If the
+    // lock were released first, cancel() could steal our callbacks and latch
+    // the request queue in between, and a request queued after that latch is
+    // never executed or cancelled. Its callback would then pin this context
+    // (and its activity) forever, deadlocking ~FileContext when it waits for
+    // all activity to complete.
     mContext.queue(std::unique_lock(mContext.mRequestsLock),
                    FileReclaimRequest{mAllocatedSize, std::move(callback)});
 }
@@ -2894,6 +3566,24 @@ void FileContext::ReclaimContext::queue(FileReclaimCallback callback)
     mCallbacks.emplace_back(swallow(std::move(callback), "reclaim"));
 }
 
+TruncateOnException::TruncateOnException(FileBuffer& file, std::uint64_t size):
+    mFile(file),
+    mSize(size)
+{}
+
+TruncateOnException::~TruncateOnException()
+{
+    // Try and truncate the file to size.
+    if (std::uncaught_exceptions() > 0)
+        mFile.truncate(mSize);
+}
+
+template<typename Request>
+auto tag(const Request&) -> std::enable_if_t<IsFileRequestV<Request>, typename Request::Type>
+{
+    return typename Request::Type();
+}
+
 template<typename Callback>
 Callback swallow(Callback callback, const char* name)
 {
@@ -2904,22 +3594,12 @@ Callback swallow(Callback callback, const char* name)
             // Try and execute the user's callback.
             std::invoke(callback, std::forward<decltype(arguments)>(arguments)...);
         }
-        catch (std::exception& exception)
-        {
-            // User's callback threw an exception we can log.
-            FSErrorF("User %s callback threw an exception: %s", name, exception.what());
-        }
         catch (...)
         {
-            FSErrorF("User %s callback threw an unknown exception", name);
+            // Let debuggers know what went wrong.
+            FSErrorF("User %s callback threw an exception: %s", name, exceptionMessage().c_str());
         }
     };
-}
-
-template<typename Request>
-auto tag(const Request&) -> std::enable_if_t<IsFileRequestV<Request>, typename Request::Type>
-{
-    return typename Request::Type();
 }
 
 } // file_service

@@ -22,6 +22,21 @@ namespace fuse
 
 using namespace common;
 
+void DirectoryInode::doLock() const
+{
+    mMutex.lock();
+}
+
+bool DirectoryInode::doTryLock() const
+{
+    return mMutex.try_lock();
+}
+
+void DirectoryInode::doUnlock() const
+{
+    mMutex.unlock();
+}
+
 template<typename Maker>
 ErrorOr<MakeInodeResult> DirectoryInode::make(Maker&& maker, const std::string& name)
 {
@@ -60,7 +75,8 @@ void DirectoryInode::remove(RefBadge, InodeDBLock lock)
 }
 
 DirectoryInode::DirectoryInode(InodeID id, const NodeInfo& info, InodeDB& inodeDB):
-    Inode(id, info, inodeDB)
+    Inode(id, info, inodeDB),
+    mMutex()
 {}
 
 DirectoryInode::~DirectoryInode() {}
@@ -86,6 +102,10 @@ InodeRef DirectoryInode::get(const std::string& name) const
     return mInodeDB.child(*this, name);
 }
 
+void DirectoryInode::handle(Badge<InodeDB>, NodeHandle, Transaction&) {}
+
+void DirectoryInode::handle(NodeHandle) {}
+
 NodeHandle DirectoryInode::handle() const
 {
     return mID.toHandle();
@@ -96,7 +116,7 @@ bool DirectoryInode::hasChild(const std::string& name) const
     InodeLock guard(*this);
 
     // Ask the Inode DB if we contain a child with this name.
-    return mInodeDB.hasChild(*this, name);
+    return static_cast<bool>(mInodeDB.hasChild(*this, name));
 }
 
 ErrorOr<bool> DirectoryInode::hasChildren() const
@@ -227,53 +247,73 @@ Error DirectoryInode::move(const std::string& name,
     if (name.size() > MaxNameLength || newName.size() > MaxNameLength)
         return API_FUSE_ENAMETOOLONG;
 
-    // Easy management of multiple locks.
-    AnyLockSet locks;
-
-    // Lock parents.
-    locks.emplace(*this);
-    locks.emplace(*newParent);
-    locks.lock();
-
-    // Does the child we're moving exist?
-    auto source = get(name);
-
-    // Child doesn't exist.
-    if (!source)
-        return API_ENOENT;
-
-    // Does our new parent already have a child with our desired name?
-    auto target = newParent->get(newName);
-
-    // Release parent locks.
-    locks.unlock();
-
-    locks.emplace(*source);
-
-    // New parent contains a child with the desired name.
-    if (target)
+    // Loop until we hit a steady state.
+    while (true)
     {
-        // But the caller doesn't want to replace it.
-        if ((flags & FILE_MOVE_NO_REPLACE))
-            return API_EEXIST;
+        // Easy management of multiple locks.
+        AnyLockSet locks;
 
-        locks.emplace(*target);
-
-        // Reacquire locks.
+        // Lock parents.
+        locks.emplace(*this);
+        locks.emplace(*newParent);
         locks.lock();
 
-        // Perform replace.
-        return source->replace(InodeBadge(), std::move(target), newName, newParent);
+        // Does the child we're moving exist?
+        auto source = get(name);
+
+        // Child doesn't exist.
+        if (!source)
+            return API_ENOENT;
+
+        // Does our new parent already have a child with our desired name?
+        auto target = newParent->get(newName);
+
+        // Release parent locks.
+        locks.unlock();
+
+        locks.emplace(*source);
+
+        // New parent contains a child with the desired name.
+        if (target)
+        {
+            // But the caller doesn't want to replace it.
+            if ((flags & FILE_MOVE_NO_REPLACE))
+                return API_EEXIST;
+
+            locks.emplace(*target);
+
+            // Reacquire locks.
+            locks.lock();
+
+            // Source has changed.
+            if (get(name) != source)
+                continue;
+
+            // Target has changed.
+            if (newParent->get(newName) != target)
+                continue;
+
+            // Perform replace.
+            return source->replace(InodeBadge(), std::move(target), newName, newParent);
+        }
+
+        // The caller wanted to replace the target.
+        if ((flags & FILE_MOVE_EXCHANGE))
+            return API_ENOENT;
+
+        locks.lock();
+
+        // Source has changed.
+        if (get(name) != source)
+            continue;
+
+        // Target has changed.
+        if (newParent->get(newName))
+            continue;
+
+        // Perform move.
+        return source->move(InodeBadge(), newName, std::move(newParent));
     }
-
-    // The caller wanted to replace the target.
-    if ((flags & FILE_MOVE_EXCHANGE))
-        return API_ENOENT;
-
-    locks.lock();
-
-    // Perform move.
-    return source->move(InodeBadge(), newName, std::move(newParent));
 }
 
 Error DirectoryInode::move(InodeBadge, const std::string& name, DirectoryInodeRef parent)

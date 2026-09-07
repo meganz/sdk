@@ -9,6 +9,8 @@ namespace file_service
 
 #define DEFINE_FILE_SERVICE_RESULTS(expander) \
     expander(ALREADY_INITIALIZED, "The File Service has already been initialized") \
+    expander(COULDNT_TOUCH_FILE, "The File Serivce couldn't touch the file") \
+    expander(COULDNT_TRUNCATE_FILE, "The File Service couldn't truncate the file") \
     expander(FILE_ALREADY_EXISTS, "The file you're trying to create already exists") \
     expander(FILE_DOESNT_EXIST, "The file you're trying to open doesn't exist") \
     expander(FILE_IS_A_DIRECTORY, "The file you're trying to open is a directory") \

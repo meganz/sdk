@@ -2,6 +2,7 @@
 #include <mega/common/client_adapter.h>
 #include <mega/common/error_or.h>
 #include <mega/common/logging.h>
+#include <mega/common/move_only_function.h>
 #include <mega/common/node_event.h>
 #include <mega/common/node_event_observer.h>
 #include <mega/common/node_event_queue.h>
@@ -20,6 +21,7 @@
 #include <mega/megaclient.h>
 #include <mega/node.h>
 #include <mega/scoped_helpers.h>
+#include <mega/testhooks.h>
 
 #include <atomic>
 #include <cassert>
@@ -327,6 +329,7 @@ ClientAdapter::ClientAdapter(MegaClient& client):
     mDeinitialized{false},
     mLock(),
     mPendingCallbacks(),
+    mStorageInfo(),
     mTaskQueue()
 {
 }
@@ -433,6 +436,9 @@ void ClientAdapter::deinitialize()
 
     // Wait for any calls to complete.
     mActivities.waitUntilIdle();
+
+    // Clear any cached storage info.
+    mStorageInfo = std::nullopt;
 
     // Cancel any pending callbacks.
     mPendingCallbacks.cancel();
@@ -589,7 +595,7 @@ void ClientAdapter::each(std::function<void(NodeInfo)> function,
     }
 }
 
-Task ClientAdapter::execute(std::function<void(const Task&)> function)
+Task ClientAdapter::execute(MoveOnlyFunction<void(const Task&)> function)
 {
     // Sanity.
     assert(function);
@@ -773,6 +779,11 @@ void ClientAdapter::initialize()
     mDeinitialized = false;
 }
 
+void ClientAdapter::invalidateStorageInfo()
+{
+    mStorageInfo = std::nullopt;
+}
+
 bool ClientAdapter::isClientThread() const
 {
     return mOnClientThread;
@@ -918,11 +929,55 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
 
     // Ask the client to make our new directory.
     execute(std::bind(std::move(make),
-                      wrap(std::move(callback)),
+                      makeCancellable(std::move(callback)),
                       std::ref(mClient),
                       name,
                       parent,
                       std::placeholders::_1));
+}
+
+void ClientAdapter::move(MoveCallback callback,
+                         const std::string& name,
+                         NodeHandle source,
+                         NodeHandle target)
+{
+    // Sanity.
+    assert(callback);
+    assert(!source.isUndef());
+    assert(!target.isUndef());
+
+    // Actually moves and renames the node.
+    auto move = [=](MoveCallback& callback, const Task& task)
+    {
+        // Client's being torn down.
+        if (task.cancelled())
+            return callback(API_EINCOMPLETE);
+
+        // Try and get our hands on the source and target nodes.
+        const auto source_ = mClient.nodeByHandle(source);
+        const auto target_ = mClient.nodeByHandle(target);
+
+        // Source or target node doesn't exist.
+        if (!source_ || !target_)
+            return callback(API_ENOENT);
+
+        // Ask the client to move the node.
+        auto result = mClient.rename(source_,
+                                     target_,
+                                     SYNCDEL_NONE,
+                                     source_->parentHandle(),
+                                     name.c_str(),
+                                     false,
+                                     std::bind(callback, std::placeholders::_2));
+
+        // Client detected an immediate error.
+        if (result != API_OK)
+            callback(result);
+    }; // move
+
+    // Perform the move and rename on the client thread.
+    execute(
+        std::bind(std::move(move), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 void ClientAdapter::move(MoveCallback callback,
@@ -964,9 +1019,8 @@ void ClientAdapter::move(MoveCallback callback,
             callback(result);
     }; // move
 
-    execute(std::bind(std::move(move),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(move), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 ErrorOr<NodeHandle> ClientAdapter::parentHandle(NodeHandle handle) const
@@ -1053,6 +1107,9 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
         return unexpected(API_EKEY);
 
+    // Record the partial downloads. Minimize the overhead when it is disabled on production
+    DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(handle, length, offset);
+
     // Return explicit partial download to caller.
     return std::make_shared<ClientPartialDownload>(callback,
                                                    *this,
@@ -1133,9 +1190,8 @@ void ClientAdapter::remove(RemoveCallback callback, NodeHandle handle)
     }; // task
 
     // Ask the client to remove the node.
-    execute(std::bind(std::move(remove),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(remove), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 void ClientAdapter::rename(RenameCallback callback,
@@ -1178,9 +1234,8 @@ void ClientAdapter::rename(RenameCallback callback,
     }; // rename
 
     // Ask the client to rename the node.
-    execute(std::bind(std::move(rename),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(rename), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 std::string ClientAdapter::sessionID() const
@@ -1197,6 +1252,17 @@ std::string ClientAdapter::sessionID() const
 
 void ClientAdapter::storageInfo(StorageInfoCallback callback)
 {
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return callback(unexpected(LOCAL_LOGGED_OUT));
+
+    // Have already retrieved the user's storage info.
+    if (auto storageInfo = mStorageInfo.get())
+        return callback(*storageInfo);
+
     // Actually retrieves the user's storage info.
     auto getStorageInfo = [=](StorageInfoCallback& callback,
                               const Task& task) {
@@ -1205,15 +1271,19 @@ void ClientAdapter::storageInfo(StorageInfoCallback callback)
             return callback(unexpected(API_EINCOMPLETE));
 
         // Forward result to user callback.
-        auto retrieved = [=](StorageInfoCallback& callback,
-                            const StorageInfo& info,
-                            Error result) {
+        auto retrieved =
+            [=](StorageInfoCallback& callback, const StorageInfo& storageInfo, Error result)
+        {
             if (result != API_OK)
                 return callback(unexpected(result));
 
-            callback(info);
+            // Update our cached storage info.
+            mStorageInfo.set(storageInfo);
+
+            // Pass the user's storage info to the caller.
+            callback(storageInfo);
         }; // retrieved
-        
+
         // Ask the client for our storage statistics.
         mClient.getstorageinfo(
           std::bind(std::move(retrieved),
@@ -1224,7 +1294,7 @@ void ClientAdapter::storageInfo(StorageInfoCallback callback)
 
     // Ask the client to retrieve our storage statistics.
     execute(std::bind(std::move(getStorageInfo),
-                      wrap(std::move(callback)),
+                      makeCancellable(std::move(callback)),
                       std::placeholders::_1));
 }
 
@@ -1288,9 +1358,8 @@ void ClientAdapter::touch(TouchCallback callback,
     }; // touch
 
     // Ask the client to update the node's modification time.
-    execute(std::bind(std::move(touch),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(touch), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 bool ClientAdapter::try_lock() const
@@ -1453,29 +1522,23 @@ auto child(MegaClient& client, NodeHandle parent, const std::string& name)
     if (parent_->type == FILENODE)
         return unexpected(API_FUSE_ENOTDIR);
 
-    std::shared_ptr<Node> candidate;
+    // Try and get the children associated with name.
+    auto children = client.mNodeManager.getChildrenWithName({}, name, parent, 2);
 
-    // Try and locate unique child.
-    for (auto child : client.getChildren(parent_.get()))
-    {
-        // Child's name isn't a match.
-        if (!child->hasName(name))
-            continue;
+    // Couldn't get children associated with name.
+    if (!children)
+        return unexpected(children.error());
 
-        // Already seen an instance of this name.
-        if (candidate)
-            return unexpected(API_FUSE_EDUPLICATE);
-
-        // Remember that we've seen this name.
-        candidate = child;
-    }
-
-    // Couldn't find the named child.
-    if (!candidate)
+    // Couldn't find any children with the specified name.
+    if (children->empty())
         return unexpected(API_FUSE_ENOTFOUND);
 
-    // Return child (if any) to caller.
-    return candidate;
+    // Parent has multiple children with this name.
+    if (children->size() > 1)
+        return unexpected(API_FUSE_EDUPLICATE);
+
+    // Pass child node to our caller.
+    return std::move(children->front());
 }
 
 void describe(NodeInfo& destination,
@@ -2015,8 +2078,16 @@ void ClientUpload::bind(std::string& attributes,
         if (task.cancelled())
             return bound(std::move(context.mCallback), empty, false, API_EINCOMPLETE);
 
+        // Update the file's name and parent handle.
+        name = context.mName.value_or(name);
+        h = context.mParentHandle.value_or(h);
+
+        // Caller gave us a bogus name or parent handle.
+        if (name.empty() || h.isUndef())
+            return bound(std::move(context.mCallback), empty, false, API_EARGS);
+
         // Convenience.
-        auto callback = mClient.wrap(std::move(context.mCallback));
+        auto callback = mClient.makeCancellable(std::move(context.mCallback));
         auto modified = context.mModified ? &*context.mModified : nullptr;
 
         // Ask the client to bind a name to our data.
