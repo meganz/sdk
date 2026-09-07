@@ -16,6 +16,12 @@
 
 #include <gmock/gmock.h>
 
+#include <atomic>
+#include <memory>
+#include <mutex>
+#include <optional>
+#include <thread>
+
 using namespace sdk_test;
 using namespace testing;
 
@@ -52,6 +58,79 @@ struct ScopedLegacyBuggySparseCrcHook
     explicit ScopedLegacyBuggySparseCrcHook(const bool) {}
 
     void setEnabled(const bool) {}
+#endif
+};
+
+/**
+ * @brief Holds the client thread inside File::sendPutnodesOfUpload() for a while.
+ *
+ * resolve_upsync() has set upsyncStarted on the sync thread by then (src/sync.cpp), so the row
+ * sits in "waiting for putnodes" while the sync thread — a different thread — keeps visiting it.
+ * That opens the window deterministically instead of racing a network round trip.
+ */
+struct ScopedPutnodesHold
+{
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    explicit ScopedPutnodesHold(const std::chrono::milliseconds hold):
+        mState{std::make_shared<State>()}
+    {
+        mState->hold = hold;
+
+        std::lock_guard<std::mutex> guard{::mega::globalMegaTestHooks.mMutex};
+        mState->previous = ::mega::globalMegaTestHooks.onUploadPutnodesStarted;
+        // DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED copies the std::function under mMutex and
+        // calls the copy outside it, so a call can still be sleeping here when this object
+        // goes away. The state is captured by value, and lives as long as that copy.
+        ::mega::globalMegaTestHooks.onUploadPutnodesStarted = [state = mState](int tag)
+        {
+            if (state->previous)
+                state->previous(tag);
+            if (state->armed.exchange(false))
+            {
+                ++state->holds;
+                std::this_thread::sleep_for(state->hold);
+            }
+        };
+    }
+
+    ~ScopedPutnodesHold()
+    {
+        std::lock_guard<std::mutex> guard{::mega::globalMegaTestHooks.mMutex};
+        ::mega::globalMegaTestHooks.onUploadPutnodesStarted = mState->previous;
+    }
+
+    // Hold the next putnodes only; re-arm before each save. The hook is process-wide and this
+    // does not match on a tag, so it pins the intended transfer only while nothing else is
+    // uploading -- a concurrent putnodes would consume the arm and silently leave the window shut.
+    void arm()
+    {
+        mState->armed = true;
+    }
+
+    size_t holds() const
+    {
+        return mState->holds;
+    }
+
+private:
+    struct State
+    {
+        std::function<void(int)> previous;
+        std::chrono::milliseconds hold{0};
+        std::atomic<bool> armed{false};
+        std::atomic<size_t> holds{0};
+    };
+
+    std::shared_ptr<State> mState;
+#else
+    explicit ScopedPutnodesHold(std::chrono::milliseconds) {}
+
+    void arm() {}
+
+    size_t holds() const
+    {
+        return 0;
+    }
 #endif
 };
 } // namespace
@@ -2489,4 +2568,190 @@ TEST_F(SdkTestSyncUploadsOperations, CloneCandidateMacObsolescenceOnTruncateToEm
 
     LOG_debug << logPre << "Test completed successfully";
 }
+
+/**
+ * @test SdkTestSyncUploadsOperations.ReplacementPutnodesInFlightMustNotDebrisLocalFile
+ *
+ * Regression test for a defect where a file saved twice in quick succession landed in the
+ * local sync debris instead of being uploaded.
+ *
+ * While the replacement upload waits for its putnodes the row has no cloud node -- the replaced
+ * one is already in the cloud debris, the new one does not exist yet. syncItem() used to run on
+ * it anyway and read that as a remote deletion. See the row.itemProcessed assignment in
+ * Sync::syncItem_checkMoves().
+ *
+ * Reaching that state needs all four of:
+ *   - versioning disabled, so the replaced cloud node goes to the cloud debris instead of
+ *     becoming a version;
+ *   - the save overwriting the file in place, so the fsid does not change and the row stays a
+ *     replacement instead of a delete plus an add -- an editor that saves via a temp file and a
+ *     rename would not reproduce this;
+ *   - a file over MAXFULL (8 KiB), so only the sparse CRC windows feed the fingerprint and a
+ *     byte changed outside them is invisible to it;
+ *   - an mtime delta within FS_MTIME_TOLERANCE_SECS, which FileFingerprint::operator== reports
+ *     as unchanged.
+ *
+ * So the engine knows the content changed -- the MAC differs, which is why it uploads at all --
+ * while the fingerprint comparison in syncItem() still says it did not.
+ *
+ * ScopedPutnodesHold parks the client thread while each replacement putnodes is in flight, so
+ * the sync thread is guaranteed to visit the row inside that window instead of the test having
+ * to win a race against the network.
+ */
+TEST_F(SdkTestSyncUploadsOperations, ReplacementPutnodesInFlightMustNotDebrisLocalFile)
+{
+    static const std::string logPre{"ReplacementPutnodesInFlightMustNotDebrisLocalFile: "};
+
+    // Long enough for the sync thread to visit the row several times while the putnodes is held.
+    static constexpr std::chrono::milliseconds PUTNODES_HOLD{5000};
+
+    // Declared before the cleanup guard so it is destroyed after it: the hook must stay
+    // installed until cleanDefaultListeners() has removed the sync.
+    ScopedPutnodesHold putnodesHold{PUTNODES_HOLD};
+
+    const auto previousVersionsDisabled = std::make_shared<std::optional<bool>>();
+    const auto cleanup = setCleanupFunction(
+        [this, previousVersionsDisabled]()
+        {
+            if (previousVersionsDisabled->has_value())
+            {
+                EXPECT_EQ(API_OK, doSetFileVersionsOption(0, previousVersionsDisabled->value()))
+                    << "Could not restore file versioning; the shared account is left with it "
+                       "disabled";
+            }
+            cleanDefaultListeners();
+        });
+
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED to hold the putnodes in flight";
+#else
+
+    LOG_debug << logPre << "1. Disabling file versioning";
+    {
+        RequestTracker rt{megaApi[0].get()};
+        megaApi[0]->getFileVersionsOption(&rt);
+        const auto readError = rt.waitForResult();
+        // Only API_ENOENT means "never set", and then versioning is on (see
+        // MegaApi::getFileVersionsOption). Any other error leaves the current value unknown.
+        ASSERT_TRUE(readError == API_OK || readError == API_ENOENT)
+            << "Could not read the file versioning setting: " << readError;
+        const bool wasDisabled = readError == API_OK && rt.request && rt.request->getFlag();
+
+        // Recorded before the change: a set that reports an error may still have been applied,
+        // and leaving the shared account unrestored is worse than a redundant restore.
+        *previousVersionsDisabled = wasDisabled;
+        ASSERT_EQ(API_OK, doSetFileVersionsOption(0, true)) << "Could not disable file versioning";
+    }
+
+    // The size from the reported occurrence; anything over MAXFULL would do.
+    static constexpr size_t FILE_SIZE = 20158;
+    static constexpr int REPLACEMENT_SAVES = 3;
+    // 0x41 sits between the first two sparse CRC windows, so edits from there leave the
+    // fingerprint alone -- the same offset SyncFingerprintCollisionTest relies on.
+    static constexpr size_t FIRST_UNSAMPLED_OFFSET = 0x41;
+    static const std::string FILE_NAME{"replaced_in_place.txt"};
+
+    std::string content(FILE_SIZE, '\0');
+    for (size_t i = 0; i < FILE_SIZE; ++i)
+    {
+        content[i] = static_cast<char>('a' + (i % 26));
+    }
+
+    LOG_debug << logPre << "2. Checking the edits below really do collide in the fingerprint";
+    {
+        std::string edited = content;
+        for (int save = 0; save < REPLACEMENT_SAVES; ++save)
+        {
+            auto& byte = edited[FIRST_UNSAMPLED_OFFSET + static_cast<size_t>(save)];
+            byte = static_cast<char>(byte ^ 0x20);
+        }
+
+        const fs::path probeDir = makeProcessTempDir("fingerprint_collision_probe");
+        const auto probeMtime = fs::file_time_type::clock::now();
+        // LocalTempFile so the probes are removed even when an assertion below returns early.
+        const sdk_test::LocalTempFile probeA{probeDir / "a", content, probeMtime};
+        const sdk_test::LocalTempFile probeB{probeDir / "b", edited, probeMtime};
+
+        const std::unique_ptr<char[]> fpA{
+            megaApi[0]->getFingerprint(path_u8string(probeA.getPath()).c_str())};
+        const std::unique_ptr<char[]> fpB{
+            megaApi[0]->getFingerprint(path_u8string(probeB.getPath()).c_str())};
+        ASSERT_TRUE(fpA && fpB) << "Could not fingerprint the probe files";
+        ASSERT_STREQ(fpA.get(), fpB.get())
+            << "These edits no longer collide in the sparse fingerprint -- MAXFULL or the sparse "
+               "window layout changed. Pick offsets the CRC does not read.";
+    }
+
+    const auto filePath = fs::absolute(getLocalTmpDir() / "dir1" / FILE_NAME);
+    const auto localDebrisPath = getLocalTmpDir() / DEBRISFOLDER;
+
+    auto mtime = fs::file_time_type::clock::now();
+
+    LOG_debug << logPre << "3. Creating " << FILE_NAME << " and waiting for the first upload";
+    // Not createTestFileInternal(): its transfer tracker allows a single onTransferStart /
+    // onTransferFinish per path, and the saves below upload this same path again.
+    sdk_test::createFile(filePath, content, mtime);
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+
+    const std::string cloudPath = SYNC_REMOTE_PATH + "/dir1/" + FILE_NAME;
+
+    for (int save = 0; save < REPLACEMENT_SAVES; ++save)
+    {
+        // Same size, same sparse CRC, mtime exactly one tolerance later: the fingerprint still
+        // matches what was synced, the content does not, so a replacement upload starts.
+        auto& flipped = content[FIRST_UNSAMPLED_OFFSET + static_cast<size_t>(save)];
+        flipped = static_cast<char>(flipped ^ 0x20);
+        mtime += std::chrono::seconds(FS_MTIME_TOLERANCE_SECS);
+
+        LOG_debug << logPre << "4." << save << " Saving " << FILE_NAME << " again";
+        putnodesHold.arm();
+        sdk_test::createFile(filePath, content, mtime);
+
+        const auto [readMtime, savedMtime] =
+            mFsAccess->getmtimelocal(LocalPath::fromAbsolutePath(path_u8string(filePath)));
+        ASSERT_TRUE(readMtime) << "Could not read back the mtime just written";
+
+        // Whichever happens first ends the wait: the debris move (the defect), or the upload.
+        bool movedToDebris = false;
+        bool reachedCloud = false;
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(60);
+        while (!movedToDebris && !reachedCloud && std::chrono::steady_clock::now() < deadline)
+        {
+            // Not the debris folder's existence: createDebrisTmpLockOnce() also runs for the
+            // case-insensitivity probe and for downloads. The file leaving its place is precise.
+            movedToDebris = !fs::exists(filePath);
+            if (movedToDebris)
+            {
+                break;
+            }
+
+            const auto cloudNode = getNodeByPath(cloudPath);
+            reachedCloud = cloudNode && cloudNode->getModificationTime() == savedMtime;
+            if (!reachedCloud)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds(50));
+            }
+        }
+
+        ASSERT_FALSE(movedToDebris)
+            << logPre << "save " << save
+            << ": the sync engine took its own replacement of the cloud node for a remote "
+               "deletion and moved the local file to the sync debris [local file present: "
+            << fs::exists(filePath) << ", local debris created: " << fs::exists(localDebrisPath)
+            << "]";
+        ASSERT_TRUE(reachedCloud) << logPre << "save " << save
+                                  << ": the replacement never reached the cloud";
+    }
+
+    // Without the hold the test would be racing the network, and could pass on the unfixed
+    // engine simply by being too slow to look.
+    ASSERT_EQ(putnodesHold.holds(), static_cast<size_t>(REPLACEMENT_SAVES))
+        << "The putnodes hold did not fire for every save";
+
+    LOG_debug << logPre << "5. Checking the sync settles";
+    ASSERT_TRUE(fs::exists(filePath));
+    ASSERT_NO_FATAL_FAILURE(waitForSyncToMatchCloudAndLocalExhaustive());
+#endif
+}
+
 #endif // ENABLE_SYNC
