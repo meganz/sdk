@@ -21,6 +21,10 @@
 
 #include "mega.h"
 
+#if USE_OPENSSL
+#include <openssl/evp.h>
+#endif
+
 namespace mega {
 #ifndef htobe64
 #define htobe64(x) (((uint64_t)htonl((uint32_t)((x) >> 32))) | (((uint64_t)htonl((uint32_t)x)) << 32))
@@ -740,17 +744,130 @@ SymmCipher& SymmCipher::operator=(const SymmCipher& ref)
     return *this;
 }
 
-// encryption: data must be NUL-padded to BLOCKSIZE
-// decryption: data must be padded to BLOCKSIZE
-// len must be < 2^31
-void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt, bool initmac)
+namespace detail
 {
-    assert(!(pos & (KEYLENGTH - 1)));
 
-    byte ctr[BLOCKSIZE];
+#if USE_OPENSSL
+
+namespace
+{
+
+// Discardable output buffer for EVP-CBC one-shot; only the last 16 bytes
+// (the CBC-MAC) are kept. thread_local avoids cross-thread contention.
+thread_local std::vector<byte> tlsCbcMacScratch;
+
+struct EvpCipherCtxDeleter
+{
+    void operator()(EVP_CIPHER_CTX* c) const noexcept
+    {
+        EVP_CIPHER_CTX_free(c);
+    }
+};
+
+using EvpCipherCtxPtr = std::unique_ptr<EVP_CIPHER_CTX, EvpCipherCtxDeleter>;
+
+// CBC-MAC via one AES-CBC call. `mac` is IV in and MAC out.
+void cbcMacViaEvp(const byte* key, const byte* input, unsigned paddedLen, byte* mac)
+{
+    if (tlsCbcMacScratch.size() < paddedLen)
+    {
+        tlsCbcMacScratch.resize(paddedLen);
+    }
+    EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
+    EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_cbc(), nullptr, key, mac);
+    EVP_CIPHER_CTX_set_padding(ctx.get(), 0);
+    int outlen = 0;
+    EVP_EncryptUpdate(ctx.get(),
+                      tlsCbcMacScratch.data(),
+                      &outlen,
+                      input,
+                      static_cast<int>(paddedLen));
+    memcpy(mac, tlsCbcMacScratch.data() + paddedLen - SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE);
+}
+
+void ctrCryptViaEvp(const byte* key,
+                    const byte ctrIv[SymmCipher::BLOCKSIZE],
+                    byte* data,
+                    unsigned paddedLen)
+{
+    EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
+    EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ctr(), nullptr, key, ctrIv);
+    int outlen = 0;
+    EVP_EncryptUpdate(ctx.get(), data, &outlen, data, static_cast<int>(paddedLen));
+}
+
+} // anonymous namespace
+
+// Bit-exact with ctrCryptViaCryptopp (cross-checked in Crypto_test).
+void ctrCryptViaOpenssl(SymmCipher& self,
+                        byte* data,
+                        unsigned len,
+                        m_off_t pos,
+                        SymmCipher::ctr_iv ctriv,
+                        byte* mac,
+                        bool encrypt,
+                        bool initmac)
+{
+    assert(!(pos & (SymmCipher::KEYLENGTH - 1)));
+
+    byte ctr[SymmCipher::BLOCKSIZE];
 
     MemAccess::set<int64_t>(ctr, static_cast<int64_t>(ctriv));
-    setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
+    SymmCipher::setint64(pos / SymmCipher::BLOCKSIZE, ctr + sizeof ctriv);
+
+    if (mac && initmac)
+    {
+        memcpy(mac, ctr, sizeof ctriv);
+        memcpy(mac + sizeof ctriv, ctr, sizeof ctriv);
+    }
+
+    const unsigned paddedLen =
+        (len + SymmCipher::BLOCKSIZE - 1) & ~static_cast<unsigned>(SymmCipher::BLOCKSIZE - 1);
+    if (paddedLen == 0)
+    {
+        return;
+    }
+
+    if (encrypt)
+    {
+        // Encrypt contract: data[len..paddedLen) is zero-padded by the caller.
+        if (mac)
+            cbcMacViaEvp(self.key, data, paddedLen, mac);
+        ctrCryptViaEvp(self.key, ctr, data, paddedLen);
+    }
+    else
+    {
+        ctrCryptViaEvp(self.key, ctr, data, paddedLen);
+        if (mac)
+        {
+            // Reference impl only mixes `remaining` bytes of the last partial
+            // block into the MAC; zero-fill the CTR-decrypted slack to match.
+            if (paddedLen > len)
+                memset(data + len, 0, paddedLen - len);
+            cbcMacViaEvp(self.key, data, paddedLen, mac);
+        }
+    }
+}
+
+#endif // USE_OPENSSL
+
+// Reference impl. Always compiled: fallback when USE_OPENSSL=OFF,
+// cross-validation target for ctrCryptViaOpenssl otherwise.
+void ctrCryptViaCryptopp(SymmCipher& self,
+                         byte* data,
+                         unsigned len,
+                         m_off_t pos,
+                         SymmCipher::ctr_iv ctriv,
+                         byte* mac,
+                         bool encrypt,
+                         bool initmac)
+{
+    assert(!(pos & (SymmCipher::KEYLENGTH - 1)));
+
+    byte ctr[SymmCipher::BLOCKSIZE];
+
+    MemAccess::set<int64_t>(ctr, static_cast<int64_t>(ctriv));
+    SymmCipher::setint64(pos / SymmCipher::BLOCKSIZE, ctr + sizeof ctriv);
 
     if (mac && initmac)
     {
@@ -762,7 +879,8 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     // CryptoPP's CTR mode pipelines multiple AES blocks via AES-NI, giving
     // significantly higher throughput than the per-block ecb_encrypt loop.
 
-    const unsigned paddedLen = (len + BLOCKSIZE - 1) & ~static_cast<unsigned>(BLOCKSIZE - 1);
+    const unsigned paddedLen =
+        (len + SymmCipher::BLOCKSIZE - 1) & ~static_cast<unsigned>(SymmCipher::BLOCKSIZE - 1);
 
     if (encrypt)
     {
@@ -773,23 +891,23 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
             long remaining = len;
             while (remaining > 0)
             {
-                xorblock(p, mac);
-                ecb_encrypt(mac);
-                p += BLOCKSIZE;
-                remaining -= BLOCKSIZE;
+                SymmCipher::xorblock(p, mac);
+                self.ecb_encrypt(mac);
+                p += SymmCipher::BLOCKSIZE;
+                remaining -= SymmCipher::BLOCKSIZE;
             }
         }
 
         // Phase 2: Bulk CTR encryption via CryptoPP's pipelined CTR mode
         CTR_Mode<AES>::Encryption ctrMode;
-        ctrMode.SetKeyWithIV(key, KEYLENGTH, ctr, BLOCKSIZE);
+        ctrMode.SetKeyWithIV(self.key, SymmCipher::KEYLENGTH, ctr, SymmCipher::BLOCKSIZE);
         ctrMode.ProcessData(data, data, paddedLen);
     }
     else
     {
         // Phase 1: Bulk CTR decryption (produces plaintext)
         CTR_Mode<AES>::Encryption ctrMode;
-        ctrMode.SetKeyWithIV(key, KEYLENGTH, ctr, BLOCKSIZE);
+        ctrMode.SetKeyWithIV(self.key, SymmCipher::KEYLENGTH, ctr, SymmCipher::BLOCKSIZE);
         ctrMode.ProcessData(data, data, paddedLen);
 
         // Phase 2: CBC-MAC on decrypted plaintext
@@ -797,20 +915,40 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
         {
             byte* p = data;
             unsigned remaining = len;
-            while (remaining >= static_cast<unsigned>(BLOCKSIZE))
+            while (remaining >= static_cast<unsigned>(SymmCipher::BLOCKSIZE))
             {
-                xorblock(p, mac);
-                ecb_encrypt(mac);
-                p += BLOCKSIZE;
-                remaining -= BLOCKSIZE;
+                SymmCipher::xorblock(p, mac);
+                self.ecb_encrypt(mac);
+                p += SymmCipher::BLOCKSIZE;
+                remaining -= SymmCipher::BLOCKSIZE;
             }
             if (remaining > 0)
             {
-                xorblock(p, mac, static_cast<int>(remaining));
-                ecb_encrypt(mac);
+                SymmCipher::xorblock(p, mac, static_cast<int>(remaining));
+                self.ecb_encrypt(mac);
             }
         }
     }
+}
+
+} // namespace detail
+
+// encryption: data must be NUL-padded to BLOCKSIZE
+// decryption: data must be padded to BLOCKSIZE
+// len must be < 2^31
+void SymmCipher::ctr_crypt(byte* data,
+                           unsigned len,
+                           m_off_t pos,
+                           ctr_iv ctriv,
+                           byte* mac,
+                           bool encrypt,
+                           bool initmac)
+{
+#if USE_OPENSSL
+    detail::ctrCryptViaOpenssl(*this, data, len, pos, ctriv, mac, encrypt, initmac);
+#else
+    detail::ctrCryptViaCryptopp(*this, data, len, pos, ctriv, mac, encrypt, initmac);
+#endif
 }
 
 static void rsaencrypt(const Integer* key, Integer* m)
