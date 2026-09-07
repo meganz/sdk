@@ -65,11 +65,6 @@ DirectoryInode::DirectoryInode(InodeID id, const NodeInfo& info, InodeDB& inodeD
 
 DirectoryInode::~DirectoryInode() {}
 
-bool DirectoryInode::cached() const
-{
-    return false;
-}
-
 InodeRefVector DirectoryInode::children() const
 {
     InodeLock guard(*this);
@@ -93,7 +88,7 @@ InodeRef DirectoryInode::get(const std::string& name) const
 
 NodeHandle DirectoryInode::handle() const
 {
-    return static_cast<NodeHandle>(mID);
+    return mID.toHandle();
 }
 
 bool DirectoryInode::hasChild(const std::string& name) const
@@ -139,7 +134,7 @@ InodeInfo DirectoryInode::info() const
         info.mIsDirectory = true;
         info.mModified = mModified;
         info.mName = mName;
-        info.mParentID = InodeID(mParentHandle);
+        info.mParentID = InodeID::from(mParentHandle);
         info.mPermissions = mPermissions;
         info.mSize = 4096;
 
@@ -179,7 +174,7 @@ InodeInfo DirectoryInode::info() const
             info_.mIsDirectory = true;
             info_.mModified = mModified;
             info_.mName = std::move(lastName);
-            info_.mParentID = InodeID(mParentHandle);
+            info_.mParentID = InodeID::from(mParentHandle);
             info_.mPermissions = mPermissions;
             info_.mSize = 4096;
 

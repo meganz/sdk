@@ -15,8 +15,6 @@
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
-#include <mega/file_service/file_event_observer.h>
-#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_fetch_request_forward.h>
 #include <mega/file_service/file_flush_request_forward.h>
 #include <mega/file_service/file_forward.h>
@@ -38,6 +36,8 @@
 #include <mega/file_service/file_touch_request_forward.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request_forward.h>
+#include <mega/file_service/read_tag.h>
+#include <mega/scoped_helpers.h>
 #include <mega/types.h>
 
 #include <chrono>
@@ -77,6 +77,10 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
 
+    // Add a download and the download begins when the return value is out of scope
+    std::optional<ScopedDestructor> addScopedDownload(FileRangeMap<DownloadContextPtr>& map,
+                                                      const FileRange& range);
+
     // Cancel all downloads contained within the specified range.
     auto cancel(const FileRangeMap<DownloadContextPtr>& downloading,
                 const FileRange& range) -> std::list<DownloadContextPtr>;
@@ -103,6 +107,10 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Called when a file write request has been completed.
     void completed(FileWriteRequest&& request);
 
+    // Complete the request on disk if can and update request accordingly
+    // Return true if it is completed, otherwise false
+    bool completeReadIfOnDisk(FileReadRequest& request);
+
     // Dispatch all read requests within range.
     template<typename Dispatcher>
     void dispatch(Dispatcher&& dispatcher, const FileRange& range);
@@ -128,6 +136,12 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
 
     // Try and execute a read request.
     void execute(FileReadRequest& request);
+
+    // Try and execute a normal read request.
+    void execute(FileReadRequest& request, const NormalReadTag&);
+
+    // Try and execute a stream read request.
+    void execute(FileReadRequest& request, const StreamReadTag&);
 
     // Try and execute a reclaim request.
     void execute(FileReclaimRequest& request);
@@ -169,6 +183,9 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     auto grow(std::uint64_t newSize, std::uint64_t oldSize)
         -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;
 
+    // Queue read request for later completion
+    void queueReadRequest(FileReadRequest&& request);
+
     // Queue a request for later execution.
     template<typename Request>
     auto queue(std::unique_lock<std::mutex> lock, Request&& request)
@@ -182,7 +199,7 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
     // Mark the file as removed.
-    FileResult setRemoved(bool replaced);
+    FileResult setRemoved();
 
     // Decrease this file's size.
     auto shrink(std::uint64_t newSize, std::uint64_t oldSize)
@@ -217,8 +234,11 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // What ranges are currently being downloaded?
     struct
     {
+        // For StreamRead
         FileRangeMap<DownloadContextPtr> mLarge;
         FileRangeMap<DownloadContextPtr> mSmall;
+        // For NormalRead
+        FileRangeMap<DownloadContextPtr> mNormal;
     } mDownloading;
 
     // How we get and set our file's attributes.
@@ -291,9 +311,6 @@ public:
 
     ~FileContext();
 
-    // Notify an observer when this file's information changes.
-    FileEventObserverID addObserver(FileEventObserver observer);
-
     // Append data to the end of this file.
     void append(FileContextPtr context, FileAppendRequest request);
 
@@ -339,9 +356,6 @@ public:
 
     // Remove this file.
     void remove(FileContextPtr context, FileRemoveRequest request);
-
-    // Remove a previously added observer.
-    void removeObserver(FileEventObserverID id);
 
     // Check if this file has been removed.
     bool removed() const;

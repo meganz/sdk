@@ -322,7 +322,7 @@ TEST_P(FUSEPlatformTests, futimes_fails_when_read_only)
     ASSERT_EQ(errno, EROFS);
 }
 
-TEST_P(FUSEPlatformTests, futimes_success)
+TEST_P(FUSEPlatformTests, futimes_succeeds)
 {
     // Open file for writing.
     auto sf0 = open(MountPathW() / "sf0", O_RDWR);
@@ -330,7 +330,7 @@ TEST_P(FUSEPlatformTests, futimes_success)
 
     for (auto i = 0; i < 2; ++i)
     {
-        struct timeval times[] = {{i, i}, {i, i}}; // times
+        struct timeval times[] = {{i, 0}, {i, 0}}; // times
 
         // Try and set the modification time.
         ASSERT_FALSE(futimes(sf0, times));
@@ -349,8 +349,26 @@ TEST_P(FUSEPlatformTests, futimes_success)
             },
             mDefaultTimeout));
 
-        // Truncate the file.
-        ASSERT_FALSE(ftruncate(sf0, 0));
+        // Flush the file to the cloud.
+        ASSERT_FALSE(fsync(sf0));
+
+        // Convenience.
+        using common::ErrorOr;
+        using common::NodeInfo;
+
+        ErrorOr<NodeInfo> info;
+
+        // Make sure the file's new modification time is visible via the cloud.
+        EXPECT_TRUE(waitFor(
+            [&]()
+            {
+                info = ClientW()->get("/x/s/sf0");
+                return info && info->mModified == i;
+            },
+            mDefaultTimeout));
+
+        ASSERT_EQ(info.errorOr(API_OK), API_OK);
+        ASSERT_EQ(info->mModified, i);
     }
 }
 

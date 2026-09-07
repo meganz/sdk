@@ -19,9 +19,10 @@ namespace platform
 {
 
 using namespace common;
+using namespace file_service;
 
-ServiceContext::ServiceContext(const ServiceFlags&, Service& service)
-  : fuse::ServiceContext(service)
+ServiceContext::ServiceContext(FileService& fileService, const ServiceFlags&, Service& service):
+    fuse::ServiceContext(fileService, service)
 {
 }
 
@@ -32,11 +33,6 @@ ServiceContext::~ServiceContext()
 MountResult ServiceContext::add(const MountInfo&)
 {
     return MOUNT_UNSUPPORTED;
-}
-
-bool ServiceContext::cached(NormalizedPath) const
-{
-    return false;
 }
 
 void ServiceContext::current()

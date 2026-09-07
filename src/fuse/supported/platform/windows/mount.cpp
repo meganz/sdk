@@ -472,7 +472,10 @@ NTSTATUS Mount::open(const std::wstring& path,
     return STATUS_SUCCESS;
 }
 
-NTSTATUS Mount::overwrite(PVOID context, FSP_FSCTL_FILE_INFO& info)
+NTSTATUS Mount::overwrite(UINT32 attributes,
+                          PVOID context,
+                          FSP_FSCTL_FILE_INFO& info,
+                          BOOLEAN replaceAttributes)
 {
     // Sanity.
     assert(context);
@@ -483,8 +486,23 @@ NTSTATUS Mount::overwrite(PVOID context, FSP_FSCTL_FILE_INFO& info)
     // Sanity.
     assert(context_);
 
+    // What are the file's current attributes?
+    UINT32 oldAttributes = platform::attributes(context_->info(), *this);
+
+    // Caller wants to merge rather than replace the file's attributes.
+    if (!replaceAttributes)
+        attributes |= oldAttributes;
+
+    // Normalize attributes for comparison.
+    if (!attributes)
+        attributes |= FILE_ATTRIBUTE_NORMAL;
+
+    // Make sure we aren't changing any disallowed attributes.
+    if (!newAttributeIsAllowed(attributes, oldAttributes))
+        return STATUS_ACCESS_DENIED;
+
     // Try and truncate the file.
-    auto result = context_->truncate(0, false);
+    auto result = context_->truncate(0);
 
     // Can't truncate the file.
     if (result != API_OK)
@@ -713,7 +731,7 @@ NTSTATUS Mount::setBasicInfo(PVOID context,
 }
 
 NTSTATUS
-Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN allocated, FSP_FSCTL_FILE_INFO& info)
+Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN, FSP_FSCTL_FILE_INFO& info)
 {
     // Sanity.
     assert(context);
@@ -733,7 +751,7 @@ Mount::setFileSize(PVOID context, UINT64 size, BOOLEAN allocated, FSP_FSCTL_FILE
         return STATUS_ACCESS_DENIED;
 
     // Try and set the file's size.
-    auto result = context_->truncate(static_cast<m_off_t>(size), allocated);
+    auto result = context_->truncate(static_cast<m_off_t>(size));
 
     // Couldn't set the file's size.
     if (result != API_OK)
@@ -905,7 +923,7 @@ void Mount::invalidateEntry(const std::string& /*name*/, InodeID /*parent*/) {}
 
 InodeID Mount::map(MountInodeID id) const
 {
-    return InodeID(id);
+    return InodeID::from(id);
 }
 
 MountInodeID Mount::map(InodeID id) const

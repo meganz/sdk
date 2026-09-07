@@ -28507,15 +28507,6 @@ void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event)
     fireOnFuseEvent(handlers[event.mType], event);
 }
 
-bool MegaApiImpl::isCached(const char* path)
-{
-    assert(path);
-
-    SdkMutexGuard guard(sdkMutex);
-
-    return client->mFuseService.cached(LocalPath::fromPlatformEncodedAbsolute(path));
-}
-
 bool MegaApiImpl::isFUSESupported()
 {
     SdkMutexGuard guard(sdkMutex);

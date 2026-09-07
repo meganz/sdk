@@ -9,6 +9,8 @@
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_location_provider.h>
+#include <mega/file_service/file_location_provider_id.h>
 #include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_context_pointer.h>
 #include <mega/file_service/file_service_forward.h>
@@ -75,11 +77,15 @@ public:
              const common::NodeKeyData& keyData,
              std::uint64_t size) -> FileServiceResultOr<FileID>;
 
+    // Add a location provider to the service.
+    auto addLocationProvider(FileLocationProvider provider)
+        -> FileServiceResultOr<FileLocationProviderID>;
+
     // Notify observer when a file changes.
     auto addObserver(FileEventObserver observer) -> FileServiceResultOr<FileEventObserverID>;
 
     // Create a new file.
-    auto create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
+    auto create() -> FileServiceResultOr<File>;
 
     // Where is the service storing its database?
     auto databasePath() const -> FileServiceResultOr<LocalPath>;
@@ -94,7 +100,6 @@ public:
     auto initialize(common::Client& client) -> FileServiceResult;
 
     // Open a file for reading or writing.
-    auto open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
     auto open(FileID id) -> FileServiceResultOr<File>;
 
     // Update the file service's options.
@@ -121,6 +126,9 @@ public:
 
     // Retrieve the file service's current reclaim options.
     auto reclaimOptions() -> ReclaimOptions;
+
+    // Remove a previously added location provider.
+    auto removeLocationProvider(FileLocationProviderID id) -> FileServiceResult;
 
     // Remove a previously added file observer.
     auto removeObserver(FileEventObserverID id) -> FileServiceResult;

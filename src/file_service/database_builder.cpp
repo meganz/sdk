@@ -14,12 +14,14 @@ static void downgrade21(Query& query);
 static void downgrade32(Query& query);
 static void downgrade43(Query& query);
 static void downgrade54(Query& query);
+static void downgrade65(Query& query);
 
 static void upgrade01(Query& query);
 static void upgrade12(Query& query);
 static void upgrade23(Query& query);
 static void upgrade34(Query& query);
 static void upgrade45(Query& query);
+static void upgrade56(Query& query);
 
 const DatabaseVersionVector& DatabaseBuilder::versions() const
 {
@@ -27,13 +29,15 @@ const DatabaseVersionVector& DatabaseBuilder::versions() const
                                                    {&downgrade21, &upgrade12},
                                                    {&downgrade32, &upgrade23},
                                                    {&downgrade43, &upgrade34},
-                                                   {&downgrade54, &upgrade45}}; // versions
+                                                   {&downgrade54, &upgrade45},
+                                                   {&downgrade65, &upgrade56}}; // versions
 
     return versions;
 }
 
 DatabaseBuilder::DatabaseBuilder(Database& database):
-    common::DatabaseBuilder(database)
+    common::DatabaseBuilder(database),
+    mDisabler(database)
 {}
 
 void downgrade10(Query& query)
@@ -109,6 +113,73 @@ void downgrade43(Query& query)
 void downgrade54(Query& query)
 {
     query = "drop index if exists idx_files_storage_sizes";
+
+    query.execute();
+}
+
+void downgrade65(Query& query)
+{
+    query = "create table files_new ( "
+            "  accessed integer "
+            "  constraint nn_files_accessed "
+            "             not null, "
+            "  allocated_size integer "
+            "  constraint nn_files_allocated_size "
+            "             not null, "
+            "  dirty integer "
+            "  constraint nn_files_dirty "
+            "             not null, "
+            "  handle integer "
+            "  constraint uq_files_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_files_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_files_modified "
+            "             not null, "
+            "  name text, "
+            "  parent_handle integer, "
+            "  removed integer "
+            "  constraint nn_files_removed "
+            "             not null, "
+            "  reported_size integer "
+            "  constraint nn_files_reported_size "
+            "             not null, "
+            "  size integer "
+            "  constraint nn_files_size "
+            "             not null, "
+            "  constraint pk_files "
+            "             primary key (id), "
+            "  constraint uq_files_handle "
+            "             unique (handle), "
+            "  constraint uq_files_name_parent_handle "
+            "             unique (name, parent_handle) "
+            ")";
+
+    query.execute();
+
+    query = "insert into files_new "
+            "select accessed "
+            "     , allocated_size "
+            "     , dirty "
+            "     , handle "
+            "     , id "
+            "     , modified "
+            "     , null "
+            "     , null "
+            "     , removed "
+            "     , reported_size "
+            "     , size "
+            "  from files";
+
+    query.execute();
+
+    query = "drop table files";
+
+    query.execute();
+
+    query = "alter table files_new rename to files";
 
     query.execute();
 }
@@ -301,6 +372,67 @@ void upgrade45(Query& query)
     // Index for mGetStorageInfo query
     query = "create index if not exists idx_files_storage_sizes "
             "  on files (removed, accessed, id, allocated_size, reported_size, size)";
+
+    query.execute();
+}
+
+void upgrade56(Query& query)
+{
+    query = "create table files_new ( "
+            "  accessed integer "
+            "  constraint nn_files_accessed "
+            "             not null, "
+            "  allocated_size integer "
+            "  constraint nn_files_allocated_size "
+            "             not null, "
+            "  dirty integer "
+            "  constraint nn_files_dirty "
+            "             not null, "
+            "  handle integer "
+            "  constraint uq_files_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_files_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_files_modified "
+            "             not null, "
+            "  removed integer "
+            "  constraint nn_files_removed "
+            "             not null, "
+            "  reported_size integer "
+            "  constraint nn_files_reported_size "
+            "             not null, "
+            "  size integer "
+            "  constraint nn_files_size "
+            "             not null, "
+            "  constraint pk_files "
+            "             primary key (id), "
+            "  constraint uq_files_handle "
+            "             unique (handle) "
+            ")";
+
+    query.execute();
+
+    query = "insert into files_new "
+            "select accessed "
+            "     , allocated_size "
+            "     , dirty "
+            "     , handle "
+            "     , id "
+            "     , modified "
+            "     , removed "
+            "     , reported_size "
+            "     , size "
+            "  from files";
+
+    query.execute();
+
+    query = "drop table files";
+
+    query.execute();
+
+    query = "alter table files_new rename to files";
 
     query.execute();
 }

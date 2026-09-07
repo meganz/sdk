@@ -1,7 +1,8 @@
 #pragma once
 
 #include <mega/common/error_or_forward.h>
-#include <mega/fuse/common/file_io_context_forward.h>
+#include <mega/file_service/file.h>
+#include <mega/fuse/common/file_inode_forward.h>
 #include <mega/fuse/common/file_open_flag_forward.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/context.h>
@@ -18,13 +19,19 @@ namespace platform
 class FileContext: public Context
 {
     // How we actually perform IO operations.
-    FileIOContextRef mContext;
+    file_service::File mFile;
 
     // Controls how we perform IO.
     FileOpenFlags mFlags;
 
+    // What inode is this context associated with?
+    FileInodeRef mInode;
+
 public:
-    FileContext(FileIOContextRef context, fuse::Mount& mount, FileOpenFlags flags);
+    FileContext(fuse::Mount& mount,
+                file_service::File file,
+                FileOpenFlags flags,
+                FileInodeRef inode);
 
     ~FileContext();
 
@@ -44,7 +51,7 @@ public:
     Error touch(m_time_t modified);
 
     // Truncate the file to a specific size.
-    Error truncate(m_off_t size, bool dontGrow);
+    Error truncate(m_off_t size);
 
     // Write data to the file.
     common::ErrorOr<std::size_t>

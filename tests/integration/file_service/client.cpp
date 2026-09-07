@@ -63,9 +63,9 @@ auto Client::fileAdd(const PublicLink& link) -> FileServiceResultOr<FileID>
     return fileService().add(handle, keyData, size);
 }
 
-auto Client::fileCreate(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
+auto Client::fileCreate() -> FileServiceResultOr<File>
 {
-    return fileService().create(parent, name);
+    return fileService().create();
 }
 
 auto Client::fileInfo(CloudPath path) const -> FileServiceResultOr<FileInfo>
@@ -81,12 +81,6 @@ auto Client::fileInfo(FileID id) const -> FileServiceResultOr<FileInfo>
 auto Client::fileOpen(FileID id) const -> FileServiceResultOr<File>
 {
     return fileService().open(id);
-}
-
-auto Client::fileOpen(CloudPath parentPath, const std::string& name) const
-    -> FileServiceResultOr<File>
-{
-    return fileService().open(parentPath.resolve(*this).valueOr(NodeHandle()), name);
 }
 
 auto Client::fileOpen(CloudPath path) const -> FileServiceResultOr<File>

@@ -40,12 +40,10 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
                                  std::optional<std::uint32_t> duration,
                                  NodeHandle handle,
                                  FileID id,
-                                 std::optional<FileLocation> location,
                                  std::int64_t modified,
                                  std::uint64_t reportedSize,
                                  FileServiceContext& service,
                                  std::uint64_t size):
-    FileSizeInfo(),
     mInstanceLogger("FileInfoContext", *this, logger()),
     mAccessed(accessed),
     mActivity(std::move(activity)),
@@ -54,7 +52,6 @@ FileInfoContext::FileInfoContext(std::int64_t accessed,
     mDuration(duration),
     mHandle(handle),
     mID(id),
-    mLocation(std::move(location)),
     mLock(),
     mModified(modified),
     mRemoved(false),
@@ -83,11 +80,6 @@ std::int64_t FileInfoContext::accessed(std::int64_t accessed)
 std::int64_t FileInfoContext::accessed() const
 {
     return get(&FileInfoContext::mAccessed);
-}
-
-FileEventObserverID FileInfoContext::addObserver(FileEventObserver observer)
-{
-    return mService.addObserver(mID, std::move(observer));
 }
 
 void FileInfoContext::allocatedSize(std::uint64_t allocatedSize)
@@ -155,31 +147,9 @@ FileID FileInfoContext::id() const
     return mID;
 }
 
-void FileInfoContext::location(const FileLocation& to)
+void FileInfoContext::lock_shared() const
 {
-    mService.notify(
-        [&]()
-        {
-            // Make sure no one else is modifying the location.
-            std::lock_guard guard(mLock);
-
-            // Sanity.
-            assert(mLocation);
-
-            // Latch the file's current location.
-            auto from = std::move(*mLocation);
-
-            // Update the file's current location.
-            mLocation = to;
-
-            // Return a moved event.
-            return FileMoveEvent{std::move(from), to, mID};
-        }());
-}
-
-std::optional<FileLocation> FileInfoContext::location() const
-{
-    return get(&FileInfoContext::mLocation);
+    mLock.lock_shared();
 }
 
 void FileInfoContext::modified(std::int64_t accessed, std::int64_t modified)
@@ -210,16 +180,11 @@ std::int64_t FileInfoContext::modified() const
     return get(&FileInfoContext::mModified);
 }
 
-void FileInfoContext::removed(bool replaced)
+void FileInfoContext::removed(std::true_type)
 {
     set(&FileInfoContext::mRemoved, true);
 
-    mService.notify(FileRemoveEvent{mID, replaced});
-}
-
-void FileInfoContext::removeObserver(FileEventObserverID id)
-{
-    mService.removeObserver(mID, id);
+    mService.notify(FileRemoveEvent{mID});
 }
 
 bool FileInfoContext::removed() const
@@ -276,6 +241,11 @@ void FileInfoContext::truncated(std::int64_t modified, std::uint64_t size)
             // Return event to our caller.
             return event;
         }());
+}
+
+void FileInfoContext::unlock_shared() const
+{
+    mLock.unlock_shared();
 }
 
 void FileInfoContext::written(std::int64_t modified, const FileRange& range)

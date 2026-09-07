@@ -109,6 +109,9 @@ public:
     // Check whether a node is a directory.
     ErrorOr<bool> isDirectory(NodeHandle handle) const;
 
+    // Are we running on the client's thread?
+    virtual bool isClientThread() const = 0;
+
     // Check whether a node is a file.
     virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
 
@@ -117,6 +120,9 @@ public:
 
     // Retrieve the specified node's key data.
     virtual ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const = 0;
+
+    // Acquire exclusive access to the node tree.
+    virtual void lock() const = 0;
 
     // What logger is this client using?
     Logger& logger() const;
@@ -219,6 +225,12 @@ public:
                        m_time_t modified) = 0;
 
     Error touch(NodeHandle handle, m_time_t modified);
+
+    // Try and acquire exclusive access to the node tree.
+    virtual bool try_lock() const = 0;
+
+    // Relinquish exclusive access to the node tree.
+    virtual void unlock() const = 0;
 
     // Upload a file to the cloud.
     virtual UploadPtr upload(const LocalPath& logicalPath,

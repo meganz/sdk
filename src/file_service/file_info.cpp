@@ -10,6 +10,16 @@ namespace mega
 namespace file_service
 {
 
+void FileInfo::lock_shared() const
+{
+    mContext->lock_shared();
+}
+
+void FileInfo::unlock_shared() const
+{
+    mContext->unlock_shared();
+}
+
 FileInfo::FileInfo(FileContextBadge, FileInfoContextPtr context):
     mInstanceLogger("FileInfo", *this, logger()),
     mContext(std::move(context))
@@ -26,11 +36,6 @@ FileInfo::FileInfo(const FileInfo& other):
 {}
 
 FileInfo::~FileInfo() = default;
-
-FileEventObserverID FileInfo::addObserver(FileEventObserver observer)
-{
-    return mContext->addObserver(std::move(observer));
-}
 
 FileInfo& FileInfo::operator=(const FileInfo& rhs)
 {
@@ -75,19 +80,9 @@ FileID FileInfo::id() const
     return mContext->id();
 }
 
-std::optional<FileLocation> FileInfo::location() const
-{
-    return mContext->location();
-}
-
 std::int64_t FileInfo::modified() const
 {
     return mContext->modified();
-}
-
-void FileInfo::removeObserver(FileEventObserverID id)
-{
-    mContext->removeObserver(id);
 }
 
 bool FileInfo::removed() const

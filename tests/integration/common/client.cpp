@@ -137,7 +137,7 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
             return notifier->set_value(unexpected(result.error()));
 
         // Bind the file.
-        (*result)(std::move(bound), handle.valueOr(NodeHandle()));
+        (*result)(BindContext{std::move(bound), std::nullopt, handle.valueOr(NodeHandle())});
     }; // uploaded
 
     // Try and upload the file.

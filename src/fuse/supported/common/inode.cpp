@@ -21,7 +21,6 @@ namespace common
 {
 
 using fuse::Inode;
-using fuse::toString;
 
 void LockableTraits<Inode>::acquiring(const Inode& inode)
 {
@@ -232,7 +231,7 @@ NodeHandle Inode::parentHandle(CachedOnlyTag) const
 
 NodeHandle Inode::parentHandle() const
 {
-    return NodeHandle(info().mParentID);
+    return info().mParentID.toHandle();
 }
 
 accesslevel_t Inode::permissions() const
@@ -243,7 +242,7 @@ accesslevel_t Inode::permissions() const
 ErrorOr<LocalPath> Inode::path(NodeHandle parentHandle) const
 {
     // For convenience.
-    return path(static_cast<InodeID>(parentHandle));
+    return path(InodeID::from(parentHandle));
 }
 
 ErrorOr<LocalPath> Inode::path(InodeID parentID) const
@@ -315,7 +314,7 @@ void Inode::removed(bool removed) const
         FUSEDebugF("Setting removed flag on %s [%s] (%s)",
                    mName.c_str(),
                    toString(mID).c_str(),
-                   toString(InodeID(mParentHandle)).c_str());
+                   toString(InodeID::from(mParentHandle)).c_str());
 
         // Remove the inode from the cache.
         mInodeDB.cache().remove(*this);
@@ -328,7 +327,7 @@ void Inode::removed(bool removed) const
     FUSEDebugF("Clearing removed flag on %s [%s] (%s)",
                mName.c_str(),
                toString(mID).c_str(),
-               toString(InodeID(mParentHandle)).c_str());
+               toString(InodeID::from(mParentHandle)).c_str());
 
     // Add the inode to the cache.
     mInodeDB.cache().add(*this);

@@ -100,6 +100,7 @@ target_sources(SDKlib PRIVATE
                       src/common/client_adapter.cpp
                       src/common/database.cpp
                       src/common/database_builder.cpp
+                      src/common/database_utilities.cpp
                       src/common/date_time.cpp
                       src/common/directory.cpp
                       src/common/logger.cpp

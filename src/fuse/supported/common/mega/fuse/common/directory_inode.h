@@ -31,9 +31,6 @@ public:
 
     ~DirectoryInode();
 
-    // Is this inode in the file cache?
-    bool cached() const override;
-
     // Retrieve a list of this directory's children.
     InodeRefVector children() const;
 

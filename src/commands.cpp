@@ -2058,7 +2058,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 client->mFileService.initialize(client->mClientAdapter);
 
                 // Initialize FUSE subsystem.
-                client->mFuseService.initialize();
+                client->mFuseService.initialize(client->mFileService);
 
                 client->openStatusTable(true);
                 client->loadJourneyIdCacheValues();

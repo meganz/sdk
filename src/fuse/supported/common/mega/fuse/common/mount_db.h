@@ -6,7 +6,6 @@
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/query.h>
 #include <mega/common/task_executor_flags_forward.h>
-#include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/file_explorer_view.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
@@ -187,9 +186,6 @@ public:
 
     // Query file explorer view.
     FileExplorerView fileExplorerView() const;
-
-    // Retrieve a reference to the file cache.
-    FileCache& fileCache();
 
     // Update an existing mount's flags.
     MountResult flags(const std::string& name, const MountFlags& flags);

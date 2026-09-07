@@ -7,14 +7,20 @@
 #include <mega/common/query.h>
 #include <mega/common/scoped_query.h>
 #include <mega/common/transaction.h>
+#include <mega/file_service/file.h>
+#include <mega/file_service/file_event.h>
+#include <mega/file_service/file_event_observer_result.h>
+#include <mega/file_service/file_info.h>
+#include <mega/file_service/file_location.h>
+#include <mega/file_service/file_range.h>
+#include <mega/file_service/file_service.h>
+#include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
 #include <mega/fuse/common/any_lock.h>
 #include <mega/fuse/common/any_lock_set.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/file_cache.h>
-#include <mega/fuse/common/file_info.h>
 #include <mega/fuse/common/file_inode.h>
-#include <mega/fuse/common/file_io_context.h>
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
@@ -26,6 +32,7 @@
 
 #include <cassert>
 #include <chrono>
+#include <exception>
 #include <map>
 #include <tuple>
 
@@ -38,35 +45,22 @@ using namespace common;
 
 class InodeDB::EventObserver
 {
-    // Called when a node's been added.
-    void added(const NodeEvent& event);
+    // So we know if we're unwinding due to an exception.
+    int mUncaughtExceptions;
+
+protected:
+    explicit EventObserver(InodeDB& inodeDB);
+
+    ~EventObserver();
 
     // Retrieve a reference to the database.
     Database& database() const;
 
-    // Retrieve a reference to the file cache.
-    FileCache& fileCache() const;
-
-    // Retrieve a reference to the file extension DB.
-    FileExtensionDB& fileExtensionDB() const;
-
-    // Called when a node's been modified.
-    void modified(const NodeEvent& event);
-
     // Retrieve a reference to the mount DB.
     MountDB& mountDB() const;
 
-    // Called when a node's been moved or renamed.
-    void moved(const NodeEvent& event);
-
-    // Called when a node's permissions have changed.
-    void permissions(const NodeEvent& event);
-
     // Retrieve a reference to the InodeDB's queries.
     auto queries() const -> Queries&;
-
-    // Called when a node's been removed.
-    void removed(const NodeEvent& event);
 
     // The InodeDB we're processing events for.
     InodeDB& mInodeDB;
@@ -79,21 +73,56 @@ class InodeDB::EventObserver
 
     // So we can perform queries.
     Transaction mTransaction;
+}; // EventObserver
+
+class InodeDB::FileEventObserver: EventObserver
+{
+public:
+    explicit FileEventObserver(InodeDB& inodeDB);
+
+    // Called when a file has been flushed.
+    void operator()(const file_service::FileFlushEvent& event);
+
+    // Called when a file has been removed.
+    void operator()(const file_service::FileRemoveEvent& event);
+
+    // Called when a file's modification time has been updated.
+    void operator()(const file_service::FileTouchEvent& event);
+
+    // Called when a file has been truncated.
+    void operator()(const file_service::FileTruncateEvent& event);
+
+    // Called when a file has been written.
+    void operator()(const file_service::FileWriteEvent& event);
+}; // FileEventObserver
+
+class InodeDB::NodeEventObserver: EventObserver
+{
+    // Called when a node's been added.
+    void added(const NodeEvent& event);
+
+    // Called when a node's been modified.
+    void modified(const NodeEvent& event);
+
+    // Called when a node's been moved or renamed.
+    void moved(const NodeEvent& event);
+
+    // Called when a node's permissions have changed.
+    void permissions(const NodeEvent& event);
+
+    // Called when a node's been removed.
+    void removed(const NodeEvent& event);
 
 public:
-    EventObserver(InodeDB& inodeDB);
-
-    ~EventObserver();
+    NodeEventObserver(InodeDB& inodeDB);
 
     // Process the specified node events.
     void operator()(NodeEventQueue& events);
-}; // EventObserver
+}; // NodeEventObserver
 
 InodeDB::Queries::Queries(Database& database):
     mAddInode(database.query()),
     mGetChildrenByParentHandle(database.query()),
-    mGetExtensionAndInodeIDByHandle(database.query()),
-    mGetExtensionAndInodeIDByNameAndParentHandle(database.query()),
     mGetHandleByID(database.query()),
     mGetInodeByHandle(database.query()),
     mGetInodeByID(database.query()),
@@ -110,7 +139,6 @@ InodeDB::Queries::Queries(Database& database):
     mSetNameParentHandleByID(database.query())
 {
     mAddInode = "insert into inodes values ( "
-                "  :extension, "
                 "  :handle, "
                 "  :id, "
                 "  :modified, "
@@ -118,23 +146,11 @@ InodeDB::Queries::Queries(Database& database):
                 "  :parent_handle "
                 ")";
 
-    mGetChildrenByParentHandle = "select extension "
-                                 "     , handle "
+    mGetChildrenByParentHandle = "select handle "
                                  "     , id "
                                  "     , name "
                                  "  from inodes "
                                  " where parent_handle = :parent_handle";
-
-    mGetExtensionAndInodeIDByHandle = "select extension "
-                                      "     , id "
-                                      "  from inodes "
-                                      " where handle = :handle";
-
-    mGetExtensionAndInodeIDByNameAndParentHandle = "select extension "
-                                                   "     , id "
-                                                   "  from inodes "
-                                                   " where name = :name "
-                                                   "   and parent_handle = :parent_handle";
 
     mGetHandleByID = "select handle from inodes where id = :id";
 
@@ -192,7 +208,7 @@ InodeDB::Queries::Queries(Database& database):
 InodeRef InodeDB::add(InodePtr (InodeDB::*build)(const NodeInfo&), const NodeInfo& info)
 {
     // Convenience.
-    auto id = InodeID(info.mHandle);
+    auto id = InodeID::from(info.mHandle);
     auto handle = info.mHandle;
 
     // Sanity.
@@ -213,49 +229,55 @@ InodeRef InodeDB::add(InodePtr (InodeDB::*build)(const NodeInfo&), const NodeInf
     return InodeRef(h->second->accessed());
 }
 
-InodeID InodeDB::addFile(const FileExtension& extension,
-                         const std::string& name,
-                         NodeHandle parentHandle,
-                         Transaction& transaction)
+auto InodeDB::addFile(const std::string& name, NodeHandle parentHandle, Transaction& transaction)
+    -> file_service::FileServiceResultOr<file_service::FileInfo>
 {
-    auto query = transaction.query(mQueries.mGetNextInodeID);
+    // Add the file to the cache.
+    auto file = fileService().create();
 
-    // Allocate a new inode ID.
-    query.execute();
+    // Couldn't add the file to the service.
+    if (!file)
+        return unexpected(file.error());
 
-    auto id = query.field("next").get<InodeID>();
-
-    // Make sure we haven't wrapped around.
-    assert(id);
-
-    // Mark ID as having been allocated.
-    query = transaction.query(mQueries.mIncrementNextInodeID);
-
-    query.execute();
+    // Convenience.
+    auto info = file->info();
 
     // Add the file to the database.
-    query = transaction.query(mQueries.mAddInode);
+    auto query = transaction.query(mQueries.mAddInode);
 
-    query.param(":extension").set(extension.get());
     query.param(":handle").set(nullptr);
-    query.param(":id").set(id);
+    query.param(":id").set(info.id());
     query.param(":modified").set(false);
     query.param(":name").set(name);
     query.param(":parent_handle").set(parentHandle);
     query.execute();
 
-    // Return new ID to caller.
-    return id;
+    // Return the file's info to our caller.
+    return info;
 }
 
 InodePtr InodeDB::buildDirectory(const NodeInfo& info)
 {
-    return std::make_unique<DirectoryInode>(InodeID(info.mHandle), info, *this);
+    return std::make_unique<DirectoryInode>(InodeID::from(info.mHandle), info, *this);
 }
 
 InodePtr InodeDB::buildFile(const NodeInfo& info)
 {
-    return std::make_unique<FileInode>(InodeID(info.mHandle), info, *this);
+    // Convenience.
+    auto id = InodeID::from(info.mHandle);
+
+    // Instantiate a new file inode.
+    auto inode = std::make_unique<FileInode>(id, info, *this);
+
+    // Make sure the file's known to the File Service.
+    auto file = fileService().open(id);
+
+    // Inject this file's local info.
+    if (file)
+        inode->fileInfo(file->info());
+
+    // Return the inode to our caller.
+    return inode;
 }
 
 InodeRef InodeDB::child(const DirectoryInode& parent, const std::string& name) const
@@ -344,8 +366,14 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
     // Insert dummy for purposes of duplicate detection.
     storage.emplace_back();
 
+    // Convenience.
+    auto& client = this->client();
+
+    // Acquire necessary locks.
+    auto guard = lockAll(client, mContext.mDatabase, *this);
+
     // What children are present in the cloud?
-    client().each(
+    client.each(
         [&](NodeInfo description)
         {
             // Have we seen a child with this name before?
@@ -378,8 +406,6 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         },
         parent.handle());
 
-    auto guard = lockAll(mContext.mDatabase, *this);
-
     auto transaction = mContext.mDatabase.transaction();
     auto query = transaction.query(mQueries.mGetChildrenByParentHandle);
 
@@ -390,14 +416,10 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
     // What children need to be loaded?
     struct PendingChild
     {
-        PendingChild(FileExtension extension, std::string name, InodeID id):
-            mExtension(std::move(extension)),
+        PendingChild(std::string name, InodeID id):
             mName(std::move(name)),
             mID(id)
         {}
-
-        // The child's extension.
-        FileExtension mExtension;
 
         // The child's name.
         std::string mName;
@@ -437,9 +459,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         }
 
         // Child exists only locally.
-        pending.emplace_back(fileExtensionDB().get(query.field("extension").get<std::string>()),
-                             std::move(name),
-                             id);
+        pending.emplace_back(std::move(name), id);
     }
 
     InodeRefVector children;
@@ -451,7 +471,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
     storage.pop_front();
 
     // Prepare query.
-    query = transaction.query(mQueries.mGetExtensionAndInodeIDByHandle);
+    query = transaction.query(mQueries.mGetInodeIDByHandle);
 
     // Instantiate cloud children.
     while (!storage.empty())
@@ -488,11 +508,10 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
                     return self.add(&InodeDB::buildFile, info);
 
                 // Convenience.
-                auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
                 auto id = query.field("id").get<InodeID>();
 
                 // Try and get our hands on the file's info.
-                auto fileInfo = fileCache().info(extension, id);
+                auto fileInfo = fileService().info(id);
 
                 // File's been removed from the cache.
                 if (!fileInfo)
@@ -508,7 +527,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
                 auto ptr = std::make_unique<FileInode>(id, info, self);
 
                 // Inject file info.
-                ptr->fileInfo(std::move(fileInfo));
+                ptr->fileInfo(std::move(*fileInfo));
 
                 // Establish reference to new child.
                 auto ref = InodeRef(ptr->accessed());
@@ -529,7 +548,6 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         auto& child = pending.back();
 
         // Pop child's name and ID.
-        auto extension = std::move(child.mExtension);
         auto name = std::move(child.mName);
         auto id = child.mID;
 
@@ -549,7 +567,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         }
 
         // Try and get our hands on the file's info.
-        auto fileInfo = fileCache().info(extension, id);
+        auto fileInfo = fileService().info(id);
 
         // File's been removed from the cache.
         if (!fileInfo)
@@ -571,7 +589,7 @@ InodeRefVector InodeDB::children(const DirectoryInode& parent) const
         auto ptr = std::make_unique<FileInode>(id, info, self);
 
         // Inject file info.
-        ptr->fileInfo(std::move(fileInfo));
+        ptr->fileInfo(std::move(*fileInfo));
 
         // Add child to vector.
         children.emplace_back(ptr.get());
@@ -604,15 +622,16 @@ void InodeDB::current()
 
 bool InodeDB::discard() const
 {
-    InodeDBLock guard(*this);
-
     return mDiscard;
 }
 
-InodeRef InodeDB::get(Client& client, NodeHandle handle) const
+InodeRef InodeDB::get(Client& client,
+                      NodeHandle handle,
+                      [[maybe_unused]] const AnyLockSet& locks) const
 {
     // Sanity.
     assert(!handle.isUndef());
+    assert(locks.owns_lock());
 
     // Does the client know anything about this node?
     auto info = client.get(handle);
@@ -620,9 +639,6 @@ InodeRef InodeDB::get(Client& client, NodeHandle handle) const
     // Client knows nothing.
     if (!info)
         return InodeRef();
-
-    // Acquire lock.
-    InodeDBLock guard(*this);
 
     // Has another thread loaded this inode?
     auto h = mByHandle.find(handle);
@@ -645,7 +661,9 @@ InodeRef InodeDB::get(Client& client, NodeHandle handle) const
     return ref;
 }
 
-InodeRef InodeDB::get(FileCache& fileCache, NodeHandle handle, AnyLockSet locks) const
+InodeRef InodeDB::get(file_service::FileService& fileService,
+                      NodeHandle handle,
+                      const AnyLockSet& locks) const
 {
     // Make sure we're holding the lock.
     assert(locks.owns_lock());
@@ -661,10 +679,12 @@ InodeRef InodeDB::get(FileCache& fileCache, NodeHandle handle, AnyLockSet locks)
     if (!query)
         return InodeRef();
 
-    return get(fileCache, std::move(locks), std::move(query), std::move(transaction));
+    return get(fileService, locks, std::move(query), std::move(transaction));
 }
 
-InodeRef InodeDB::get(FileCache& fileCache, InodeID id, AnyLockSet locks) const
+InodeRef InodeDB::get(file_service::FileService& fileService,
+                      InodeID id,
+                      const AnyLockSet& locks) const
 {
     // Make sure we're holding the lock.
     assert(locks.owns_lock());
@@ -680,11 +700,11 @@ InodeRef InodeDB::get(FileCache& fileCache, InodeID id, AnyLockSet locks) const
     if (!query)
         return InodeRef();
 
-    return get(fileCache, std::move(locks), std::move(query), std::move(transaction));
+    return get(fileService, locks, std::move(query), std::move(transaction));
 }
 
-InodeRef InodeDB::get(FileCache& fileCache,
-                      AnyLockSet locks,
+InodeRef InodeDB::get(file_service::FileService& fileService,
+                      [[maybe_unused]] const AnyLockSet& locks,
                       ScopedQuery query,
                       Transaction transaction) const
 {
@@ -695,13 +715,12 @@ InodeRef InodeDB::get(FileCache& fileCache,
     assert(query);
 
     // Convenience.
-    auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
     auto id = query.field("id").get<InodeID>();
 
     // If the inode's in the cache, it must be a file.
     //
     // Try and determine the file's local state.
-    auto fileInfo = fileCache.info(extension, id);
+    auto fileInfo = fileService.info(id);
 
     // The file's state is no longer accessible.
     if (!fileInfo)
@@ -728,11 +747,6 @@ InodeRef InodeDB::get(FileCache& fileCache,
 
     if (!query.field("parent_handle").null())
         info.mParentHandle = query.field("parent_handle").get<NodeHandle>();
-
-    // Release query, transaction and lock so we can call the client.
-    query.reset();
-    transaction.rollback();
-    locks.unlock();
 
     // File's local state is present.
     do
@@ -779,9 +793,6 @@ InodeRef InodeDB::get(FileCache& fileCache,
             }
         }
 
-        // Reacquire lock.
-        locks.lock();
-
         // Has another thread loaded this inode?
         auto i = mByID.find(id);
 
@@ -793,7 +804,7 @@ InodeRef InodeDB::get(FileCache& fileCache,
         auto ptr = std::make_unique<FileInode>(id, std::move(info), const_cast<InodeDB&>(*this));
 
         // Inject local file state.
-        ptr->fileInfo(std::move(fileInfo));
+        ptr->fileInfo(std::move(*fileInfo));
 
         // Add the inode to the index.
         i = mByID.emplace(id, std::move(ptr)).first;
@@ -826,9 +837,6 @@ InodeRef InodeDB::get(FileCache& fileCache,
         return InodeRef(i->second->accessed());
     }
     while (0);
-
-    // Reacquire lock.
-    locks.lock();
 
     // Prune stale entry from file cache.
     transaction = mContext.mDatabase.transaction();
@@ -903,7 +911,7 @@ InodeID InodeDB::hasChild(const DirectoryInode& parent, const std::string& name)
     if (childHandle)
     {
         // Assume the child's inode ID is its node handle.
-        auto id = InodeID(*childHandle);
+        auto id = InodeID::from(*childHandle);
 
         auto transaction = mContext.mDatabase.transaction();
         auto query = transaction.query(mQueries.mGetInodeIDByHandle);
@@ -1032,7 +1040,7 @@ ErrorOr<MakeInodeResult> InodeDB::makeDirectory(const platform::Mount&,
     return std::make_tuple(std::move(ref), std::move(info));
 }
 
-ErrorOr<MakeInodeResult> InodeDB::makeFile(const platform::Mount& mount,
+ErrorOr<MakeInodeResult> InodeDB::makeFile(const platform::Mount&,
                                            const std::string& name,
                                            DirectoryInodeRef parent)
 {
@@ -1043,23 +1051,22 @@ ErrorOr<MakeInodeResult> InodeDB::makeFile(const platform::Mount& mount,
     auto lock = lockAll(mContext.mDatabase, *this);
     auto transaction = mContext.mDatabase.transaction();
 
-    // Add the new file to the database.
-    auto extension = fileExtensionDB().getFromPath(name);
-    auto id = addFile(extension, name, parent->handle(), transaction);
-
     // Add a new file to the cache.
-    auto fileInfo = fileCache().create(extension, id);
+    auto fileInfo = addFile(name, parent->handle(), transaction);
 
     // Couldn't add a new file to the cache.
     if (!fileInfo)
-        return unexpected(fileInfo.error());
+        return unexpected(API_EFAILED);
+
+    // Convenience.
+    auto id = fileInfo->id();
 
     // Create a description of our new file.
     NodeInfo info;
 
     info.mIsDirectory = false;
     info.mName = name;
-    info.mModified = (*fileInfo)->modified();
+    info.mModified = fileInfo->modified();
     info.mParentHandle = parent->handle();
     info.mPermissions = FULL;
     info.mSize = 0;
@@ -1067,9 +1074,7 @@ ErrorOr<MakeInodeResult> InodeDB::makeFile(const platform::Mount& mount,
     // Make an inode to represent the new file.
     auto ref = ([&]() {
         // Instantiate a new inode to represent the file.
-        auto ptr = std::make_unique<FileInode>(id,
-                                          info,
-                                          const_cast<InodeDB&>(*this));
+        auto ptr = std::make_unique<FileInode>(id, info, const_cast<InodeDB&>(*this));
 
         // Sanity.
         assert(!mByID.count(id));
@@ -1089,9 +1094,6 @@ ErrorOr<MakeInodeResult> InodeDB::makeFile(const platform::Mount& mount,
 
     // Release lock.
     lock.unlock();
-
-    // Make sure our new file is flushed to the cloud.
-    fileCache().context(ref)->modified(mount);
 
     // Let the mounts know a new file has been created.
     mContext.mMountDB.each(
@@ -1201,6 +1203,60 @@ Error InodeDB::move(FileInodeRef source,
     return API_OK;
 }
 
+auto InodeDB::onFileEvent(const file_service::FileEvent& event)
+    -> file_service::FileEventObserverResult
+{
+    FileEventObserver observer(*this);
+
+    // Handle the event.
+    std::visit(observer, event);
+
+    // Let the File Service know we still want to receive file events.
+    return file_service::FILE_EVENT_OBSERVER_KEEP;
+}
+
+auto InodeDB::onFileLocation(file_service::FileID id) -> std::optional<file_service::FileLocation>
+{
+    // Convenience.
+    using namespace file_service;
+
+    // ID references an inode currently in memory.
+    if (auto ref = get(id, true))
+    {
+        // Inode hasn't been marked as removed.
+        if (!ref->removed())
+            return FileLocation{ref->name(), ref->parentHandle()};
+
+        // Inode's been marked as removed.
+        return std::nullopt;
+    }
+
+    // Acquire necessary locks.
+    auto guard = lockAll(mContext.mDatabase, *this);
+
+    // Try and locate the matching inode in the database.
+    auto transaction = mContext.mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetInodeByID);
+
+    query.param(":id").set(id);
+    query.execute();
+
+    // ID doesn't reference any inode in the database.
+    if (!query)
+        return std::nullopt;
+
+    // ID references an inode that's in the cloud.
+    if (!query.field("handle").null())
+        return std::nullopt;
+
+    // Latch the inode's name and location.
+    auto name = query.field("name").get<std::string>();
+    auto parentHandle = query.field("parent_handle").get<NodeHandle>();
+
+    // Pass the inode's location to the File Service.
+    return FileLocation{name, parentHandle};
+}
+
 void InodeDB::remove(const DirectoryInode& inode, InodeDBLock)
 {
     // Leave a record of what we've done.
@@ -1267,10 +1323,6 @@ void InodeDB::remove(const FileInode& inode, InodeDBLock lock)
         // Let any waiters know an inode's been removed from memory.
         return mCV.notify_all();
     }
-
-    // Purge the file from the cache if needed.
-    if (auto info = inode.fileInfo())
-        fileCache().remove(info->extension(), id);
 
     // Purge inode from the database.
     auto locks = lockAll(mContext.mDatabase, *this);
@@ -1446,9 +1498,6 @@ Error InodeDB::unlink(FileInodeRef file)
     // Mark the file as having been removed.
     file->removed(true);
 
-    // Try and cancel any pending uploads.
-    fileCache().remove(file->extension(), file->id());
-
     // Let the mounts know the file's been removed.
     mContext.mMountDB.each(
         [&](Mount& mount)
@@ -1467,21 +1516,55 @@ InodeDB::InodeDB(platform::ServiceContext& context):
     mByParentHandleAndName(),
     mCV(),
     mContext(context),
-    mDiscard(false),
+    mDiscard{false},
+    mFileEventObserverID(),
+    mFileLocationProviderID(),
     mQueries(context.mDatabase)
 {
+    // Clarity.
+    auto observer = std::bind(&InodeDB::onFileEvent, this, std::placeholders::_1);
+
+    // Let the File Service know we want to receive file events.
+    auto observerID = fileService().addObserver(std::move(observer));
+
+    // Sanity: Adding our observer should never fail.
+    assert(observerID);
+
+    // Make sure we keep track of our observer's ID.
+    //
+    // We'll need it later when we want to tell the File Service we're no
+    // longer interested in receiving file events.
+    mFileEventObserverID = observerID.value();
+
+    // Clarity.
+    auto provider = std::bind(&InodeDB::onFileLocation, this, std::placeholders::_1);
+
+    // Let the File Service know that we can provide file locations.
+    auto providerID = fileService().addLocationProvider(std::move(provider));
+
+    // Sanity: Adding a location provier should never fail.
+    assert(providerID);
+
+    // Keep track of our provider's ID.
+    mFileLocationProviderID = providerID.value();
+
     FUSEDebug1("Inode DB constructed");
 }
 
 InodeDB::~InodeDB()
 {
+    // Let the File Service know we aren't providing file locations anymore.
+    fileService().removeLocationProvider(mFileLocationProviderID);
+
+    // Let the File Service know we don't want to reecive file events.
+    fileService().removeObserver(mFileEventObserverID);
+
     FUSEDebug1("Inode DB destroyed");
 }
 
 void InodeDB::add(const FileInode& inode)
 {
     // Convenience.
-    auto extension = inode.extension();
     auto handle = inode.handle();
     auto id = inode.id();
 
@@ -1493,7 +1576,6 @@ void InodeDB::add(const FileInode& inode)
     auto query = transaction.query(mQueries.mAddInode);
 
     // Add the inode to the database.
-    query.param(":extension").set(extension.get());
     query.param(":handle").set(handle);
     query.param(":id").set(id);
     query.param(":modified").set(false);
@@ -1558,8 +1640,6 @@ Client& InodeDB::client() const
 
 void InodeDB::discard(bool discard)
 {
-    InodeDBLock guard(*this);
-
     mDiscard = discard;
 }
 
@@ -1584,70 +1664,99 @@ bool InodeDB::exists(InodeID id) const
     return !!query;
 }
 
-FileCache& InodeDB::fileCache() const
+file_service::FileService& InodeDB::fileService() const
 {
-    return mContext.mFileCache;
-}
-
-FileExtensionDB& InodeDB::fileExtensionDB() const
-{
-    return mContext.mFileExtensionDB;
+    return mContext.mFileService;
 }
 
 InodeRef InodeDB::get(NodeHandle handle, bool inMemoryOnly) const
 {
+    // Sanity: handle should never be undefined.
     assert(!handle.isUndef());
 
-    // Acquire database lock.
-    auto lock = lockAll(mContext.mDatabase, *this);
+    // Convenience.
+    auto& client = this->client();
+
+    // Sanity: Event handlers should only get an inode from memory.
+    assert(inMemoryOnly || !client.isClientThread());
 
     // Check if the inode's already in memory.
-    auto h = mByHandle.find(handle);
+    //
+    // NOTE: The reason we're only acquiring a lock on *this here is that we
+    // might have been called from a node event handler which already
+    // indirectly holds a lock on the client.
+    {
+        // Acquire lock.
+        std::lock_guard guard(*this);
 
-    // Inode's in memory (match on current handle.)
-    if (h != mByHandle.end())
-        return InodeRef(h->second->accessed());
+        // Check if the inode's already in memory.
+        auto h = mByHandle.find(handle);
+
+        // Inode's in memory (match on current handle.)
+        if (h != mByHandle.end())
+            return InodeRef(h->second->accessed());
+    }
 
     // Inode's not in memory and we don't want to load it.
     if (inMemoryOnly)
         return InodeRef();
 
+    // Acquire necessary locks.
+    auto lock = lockAll(client, mContext.mDatabase, *this);
+
     // Check if the inode's in the file cache.
-    if (auto ptr = get(fileCache(), handle, std::move(lock)))
+    if (auto ptr = get(fileService(), handle, lock))
         return ptr;
 
     // Inode's not in memory and not in the cache.
-    return get(client(), handle);
+    return get(client, handle, lock);
 }
 
 InodeRef InodeDB::get(InodeID id, bool inMemoryOnly) const
 {
+    // Sanity: id should never be undefined.
     assert(id);
 
-    // Acquire database lock.
-    auto lock = lockAll(mContext.mDatabase, *this);
+    // Convenience.
+    auto& client = this->client();
+
+    // Sanity: Event handlers should only get an inode from memory.
+    assert(inMemoryOnly || !client.isClientThread());
 
     // Check if the inode's already in memory.
-    auto i = mByID.find(id);
+    //
+    // NOTE: The reason we're only acquiring a lock on *this here is that we
+    // might have been called from a node event handler which already
+    // indirectly holds a lock on the client.
+    {
+        // Acquire lock.
+        std::lock_guard guard(*this);
 
-    // Inode's already in memory.
-    if (i != mByID.end())
-        return InodeRef(i->second->accessed());
+        // Check if the inode's already in memory.
+        auto i = mByID.find(id);
+
+        // Inode's already in memory.
+        if (i != mByID.end())
+            return InodeRef(i->second->accessed());
+    }
 
     // Inode's not in memory and we don't want to load it.
     if (inMemoryOnly)
         return InodeRef();
 
+    // Acquire necessary locks.
+    auto locks = lockAll(client, mContext.mDatabase, *this);
+
     // Check if the inode's in the file cache.
-    if (auto ptr = get(fileCache(), id, std::move(lock)))
+    if (auto ptr = get(fileService(), id, locks))
         return ptr;
 
     // A synthetic inode should've been in the file cache.
-    if (id.synthetic())
+    if (synthetic(id))
         return InodeRef();
 
     // See if the inode exists in the cloud.
-    return get(client(), NodeHandle(id));
+    return get(client, id.toHandle(), locks);
 }
 
 template<typename Path>
@@ -1803,13 +1912,162 @@ void InodeDB::updated(NodeEventQueue& events)
 {
     // Processing node events.
     if (!discard())
-        return EventObserver(*this)(events);
+        return NodeEventObserver(*this)(events);
 
     // Discarding node events.
     FUSEDebugF("Discarding %zu node event(s)", events.size());
 }
 
-void InodeDB::EventObserver::added(const NodeEvent& event)
+InodeDB::EventObserver::EventObserver(InodeDB& inodeDB):
+    mUncaughtExceptions(std::uncaught_exceptions()),
+    mInodeDB(inodeDB),
+    mDatabaseLock(database(), std::defer_lock),
+    mInodeDBLock(mInodeDB, std::defer_lock),
+    mTransaction()
+{
+    // Acquire necessary locks.
+    std::lock(mDatabaseLock, mInodeDBLock);
+
+    // Establish a transaction for future queries.
+    mTransaction = database().transaction();
+}
+
+InodeDB::EventObserver::~EventObserver()
+{
+    // Only commit changes if we're not unwinding due to an exception.
+    if (std::uncaught_exceptions() == mUncaughtExceptions)
+        mTransaction.commit();
+}
+
+Database& InodeDB::EventObserver::database() const
+{
+    return mInodeDB.mContext.mDatabase;
+}
+
+MountDB& InodeDB::EventObserver::mountDB() const
+{
+    return mInodeDB.mContext.mMountDB;
+}
+
+auto InodeDB::EventObserver::queries() const -> Queries&
+{
+    return mInodeDB.mQueries;
+}
+
+InodeDB::FileEventObserver::FileEventObserver(InodeDB& inodeDB):
+    EventObserver(inodeDB)
+{}
+
+void InodeDB::FileEventObserver::operator()(const file_service::FileFlushEvent& event)
+{
+    // Event relates to an inode that's in memory.
+    if (auto ref = mInodeDB.get(event.mID, true))
+    {
+        // Translate generic inode reference into a file inode reference.
+        auto fileRef = ref->file();
+
+        // Sanity: Translation should never fail as only files can be flushed.
+        assert(fileRef);
+
+        // inject the inode's new handle.
+        fileRef->handle(event.mHandle);
+    }
+
+    // update the inode's handle in the database.
+    auto query = mTransaction.query(queries().mSetHandleNameParentHandleByID);
+
+    query.param(":id").set(event.mID);
+    query.param(":handle").set(event.mHandle);
+    query.param(":name").set(nullptr);
+    query.param(":parent_handle").set(nullptr);
+
+    query.execute();
+}
+
+void InodeDB::FileEventObserver::operator()(const file_service::FileRemoveEvent& event)
+{
+    // Convenience.
+    auto id = event.mID;
+
+    // Event relates to an inode that's in memory.
+    if (auto ref = mInodeDB.get(id, true))
+    {
+        // Inode's already been marked for removal.
+        if (ref->removed())
+            return;
+
+        // Mark the inode as removed.
+        ref->removed(true);
+
+        // Convenience.
+        auto name = ref->name(CachedOnly);
+        auto parentHandle = InodeID::from(ref->parentHandle(CachedOnly));
+
+        // Let the mounts know this file has been removed.
+        return mountDB().each(
+            [&](auto& mount)
+            {
+                mount.invalidateEntry(name, id, parentHandle);
+            });
+    }
+
+    // Remove the inode from the database.
+    auto query = mTransaction.query(queries().mRemoveInodeByID);
+
+    query.param(":id").set(id);
+
+    query.execute();
+}
+
+void InodeDB::FileEventObserver::operator()(const file_service::FileTouchEvent& event)
+{
+    mInodeDB.mContext.mMountDB.each(
+        [&](auto& mount)
+        {
+            // Invalidate the file's attributes.
+            mount.invalidateAttributes(event.mID);
+        });
+}
+
+void InodeDB::FileEventObserver::operator()(const file_service::FileTruncateEvent& event)
+{
+    mInodeDB.mContext.mMountDB.each(
+        [&](auto& mount)
+        {
+            // Invalidate the file's attributes.
+            mount.invalidateAttributes(event.mID);
+
+            // No need to invalidate any of the file's data.
+            if (!event.mRange)
+                return;
+
+            // Convenience.
+            auto offset = static_cast<m_off_t>(event.mRange->mBegin);
+            auto length = static_cast<m_off_t>(event.mRange->length());
+
+            // Invalidate the region that's been truncated.
+            mount.invalidateData(event.mID, offset, length);
+        });
+}
+
+void InodeDB::FileEventObserver::operator()(const file_service::FileWriteEvent& event)
+{
+    mInodeDB.mContext.mMountDB.each(
+        [&](auto& mount)
+        {
+            // Invalidate the file's attributes.
+            mount.invalidateAttributes(event.mID);
+
+            // Convenience.
+            auto offset = static_cast<m_off_t>(event.mRange.mBegin);
+            auto length = static_cast<m_off_t>(event.mRange.length());
+
+            // Invalidate the region that's been written.
+            mount.invalidateData(event.mID, offset, length);
+        });
+}
+
+void InodeDB::NodeEventObserver::added(const NodeEvent& event)
 {
     // Convenience.
     auto handle = event.handle();
@@ -1847,7 +2105,7 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
     }
 
     // Does the node replace an inode that's not in memory?
-    auto query = mTransaction.query(queries().mGetExtensionAndInodeIDByNameAndParentHandle);
+    auto query = mTransaction.query(queries().mGetInodeIDByNameAndParentHandle);
 
     query.param(":name").set(name);
     query.param(":parent_handle").set(parentHandle);
@@ -1857,7 +2115,6 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
     if (query)
     {
         // Convenience.
-        auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
         auto id = query.field("id").get<InodeID>();
 
         FUSEDebugF("%s (%s) [%s] replaces cold inode %s",
@@ -1871,35 +2128,17 @@ void InodeDB::EventObserver::added(const NodeEvent& event)
 
         query.param(":id").set(id);
         query.execute();
-
-        // Purge the inode's content from the cache.
-        fileCache().remove(extension, id);
     }
 
     // Invalidate any associated directory entries.
     mountDB().each(
         [&](Mount& mount)
         {
-            mount.invalidateEntry(name, InodeID(parentHandle));
+            mount.invalidateEntry(name, InodeID::from(parentHandle));
         });
 }
 
-Database& InodeDB::EventObserver::database() const
-{
-    return mInodeDB.mContext.mDatabase;
-}
-
-FileCache& InodeDB::EventObserver::fileCache() const
-{
-    return mInodeDB.fileCache();
-}
-
-FileExtensionDB& InodeDB::EventObserver::fileExtensionDB() const
-{
-    return mInodeDB.fileExtensionDB();
-}
-
-void InodeDB::EventObserver::modified(const NodeEvent& event)
+void InodeDB::NodeEventObserver::modified(const NodeEvent& event)
 {
     // Convenience.
     auto handle = event.handle();
@@ -1926,7 +2165,7 @@ void InodeDB::EventObserver::modified(const NodeEvent& event)
         });
 }
 
-void InodeDB::EventObserver::moved(const NodeEvent& event)
+void InodeDB::NodeEventObserver::moved(const NodeEvent& event)
 {
     // Convenience.
     auto handle = event.handle();
@@ -1952,7 +2191,7 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
     }
 
     // Is an inode at this location in the database?
-    auto query = mTransaction.query(queries().mGetExtensionAndInodeIDByNameAndParentHandle);
+    auto query = mTransaction.query(queries().mGetInodeIDByNameAndParentHandle);
 
     query.param(":name").set(name);
     query.param(":parent_handle").set(parentHandle);
@@ -1962,7 +2201,6 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
     if (query)
     {
         // Convenience.
-        auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
         auto id = query.field("id").get<InodeID>();
 
         FUSEDebugF("%s (%s) [%s] replaces cold inode %s",
@@ -1976,9 +2214,6 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
 
         query.param(":id").set(id);
         query.execute();
-
-        // Purge the inode from the cache.
-        fileCache().remove(extension, id);
     }
 
     // Has an inode changed location?
@@ -1987,7 +2222,7 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
         // Convenience.
         auto id_ = ref->id();
         auto& name_ = ref->name(CachedOnly);
-        auto parentID_ = InodeID(ref->parentHandle(CachedOnly));
+        auto parentID_ = InodeID::from(ref->parentHandle(CachedOnly));
 
         FUSEDebugF("%s (%s) [%s] has moved to %s [%s]",
                    name_.c_str(),
@@ -2007,7 +2242,7 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
                 mount.invalidatePin(ref->id());
 
                 // Invalidate target.
-                mount.invalidateEntry(name, InodeID(parentHandle));
+                mount.invalidateEntry(name, InodeID::from(parentHandle));
             });
     }
 
@@ -2015,26 +2250,16 @@ void InodeDB::EventObserver::moved(const NodeEvent& event)
     mountDB().each(
         [&](Mount& mount)
         {
-            mount.invalidateEntry(name, InodeID(parentHandle));
+            mount.invalidateEntry(name, InodeID::from(parentHandle));
         });
 }
 
-MountDB& InodeDB::EventObserver::mountDB() const
-{
-    return mInodeDB.mContext.mMountDB;
-}
-
-void InodeDB::EventObserver::permissions(const NodeEvent&)
+void InodeDB::NodeEventObserver::permissions(const NodeEvent&)
 {
     // TODO: To be improved later.
 }
 
-auto InodeDB::EventObserver::queries() const -> Queries&
-{
-    return mInodeDB.mQueries;
-}
-
-void InodeDB::EventObserver::removed(const NodeEvent& event)
+void InodeDB::NodeEventObserver::removed(const NodeEvent& event)
 {
     // Convenience.
     auto handle = event.handle();
@@ -2069,11 +2294,11 @@ void InodeDB::EventObserver::removed(const NodeEvent& event)
         return mountDB().each(
             [&](Mount& mount)
             {
-                mount.invalidateEntry(name, id, InodeID(parentHandle));
+                mount.invalidateEntry(name, id, InodeID::from(parentHandle));
             });
     }
 
-    auto query = mTransaction.query(queries().mGetExtensionAndInodeIDByHandle);
+    auto query = mTransaction.query(queries().mGetInodeIDByHandle);
 
     query.param(":handle").set(handle);
     query.execute();
@@ -2082,7 +2307,6 @@ void InodeDB::EventObserver::removed(const NodeEvent& event)
     if (query)
     {
         // Convenience.
-        auto extension = fileExtensionDB().get(query.field("extension").get<std::string>());
         auto id = query.field("id").get<InodeID>();
 
         FUSEDebugF("%s (%s) [%s] matches cold inode %s",
@@ -2096,53 +2320,35 @@ void InodeDB::EventObserver::removed(const NodeEvent& event)
 
         query.param(":id").set(id);
         query.execute();
-
-        // Purge the inode's content from the cache.
-        fileCache().remove(extension, id);
     }
 
     // Invalidate any associated directory entries.
     mountDB().each(
         [&](Mount& mount)
         {
-            mount.invalidateEntry(name, InodeID(parentHandle));
+            mount.invalidateEntry(name, InodeID::from(parentHandle));
         });
 }
 
-InodeDB::EventObserver::EventObserver(InodeDB& inodeDB):
-    mInodeDB(inodeDB),
-    mDatabaseLock(database(), std::defer_lock),
-    mInodeDBLock(mInodeDB, std::defer_lock),
-    mTransaction()
-{
-    // Acquire necessary locks.
-    std::lock(mDatabaseLock, mInodeDB);
+InodeDB::NodeEventObserver::NodeEventObserver(InodeDB& inodeDB):
+    EventObserver(inodeDB)
+{}
 
-    // Establish a transaction for future queries.
-    mTransaction = database().transaction();
-}
-
-InodeDB::EventObserver::~EventObserver()
-{
-    mInodeDB.unlock();
-    mDatabaseLock.unlock();
-}
-
-void InodeDB::EventObserver::operator()(NodeEventQueue& events)
+void InodeDB::NodeEventObserver::operator()(NodeEventQueue& events)
 {
     // Convenience.
-    using EventHandler = void (EventObserver::*)(const NodeEvent&);
+    using EventHandler = void (NodeEventObserver::*)(const NodeEvent&);
 
     using std::chrono::duration_cast;
     using std::chrono::high_resolution_clock;
     using std::chrono::milliseconds;
 
     // For quick dispatch.
-    static EventHandler handlers[NUM_NODE_EVENT_TYPES] = {&EventObserver::added,
-                                                          &EventObserver::modified,
-                                                          &EventObserver::moved,
-                                                          &EventObserver::permissions,
-                                                          &EventObserver::removed}; // handlers
+    static EventHandler handlers[NUM_NODE_EVENT_TYPES] = {&NodeEventObserver::added,
+                                                          &NodeEventObserver::modified,
+                                                          &NodeEventObserver::moved,
+                                                          &NodeEventObserver::permissions,
+                                                          &NodeEventObserver::removed}; // handlers
 
     FUSEDebugF("Processing %zu node event(s)", events.size());
 
@@ -2169,9 +2375,6 @@ void InodeDB::EventObserver::operator()(NodeEventQueue& events)
         // Handle the event.
         (this->*handler)(event);
     }
-
-    // Persist database changes.
-    mTransaction.commit();
 
     // Log some helpful statistics.
     auto elapsed = high_resolution_clock::now() - began;

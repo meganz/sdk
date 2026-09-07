@@ -5360,11 +5360,11 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
-    // Deinitialize the File Service.
-    mFileService.deinitialize(removecaches, destructorRunning);
-
     // Deinitialize the FUSE Service.
     mFuseService.deinitialize();
+
+    // Deinitialize the File Service.
+    mFileService.deinitialize(removecaches, destructorRunning);
 
     purgenodesusersabortsc(false);
     userid = 0;

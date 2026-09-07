@@ -1,14 +1,13 @@
 #pragma once
 
-#include <cstdint>
-#include <sstream>
-#include <string>
-
 #include <mega/common/query_forward.h>
+#include <mega/file_service/file_id.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/mount_inode_id_forward.h>
-
 #include <mega/types.h>
+
+#include <cstdint>
+#include <string>
 
 namespace mega
 {
@@ -16,61 +15,27 @@ namespace common
 {
 
 template<>
-struct SerializationTraits<fuse::InodeID>
-{
-    static fuse::InodeID from(const Field& field);
-
-    static void to(Parameter& parameter, const fuse::InodeID& value);
-}; // SerializationTraits<fuse::InodeID>
+struct SerializationTraits<fuse::InodeID>: SerializationTraits<file_service::FileID>
+{}; // SerializationTraits<fuse::InodeID>
 
 } // common
 
 namespace fuse
 {
 
-class InodeID
+class InodeID: public file_service::FileID
 {
-    std::uint64_t mValue;
+    explicit InodeID(std::uint64_t id);
 
 public:
-    InodeID();
+    using FileID::FileID;
 
-    explicit InodeID(MountInodeID id);
+    InodeID(file_service::FileID id);
 
-    explicit InodeID(NodeHandle handle);
+    using FileID::from;
 
-    explicit InodeID(std::uint64_t value);
-
-    InodeID(const InodeID& other) = default;
-
-    explicit operator NodeHandle() const;
-
-    operator bool() const;
-
-    InodeID& operator=(const InodeID& rhs) = default;
-
-    bool operator==(const InodeID& rhs) const;
-
-    bool operator==(const NodeHandle& rhs) const;
-
-    bool operator<(const InodeID& rhs) const;
-
-    bool operator!=(const InodeID& rhs) const;
-
-    bool operator!=(const NodeHandle& rhs) const;
-
-    bool operator!() const;
-
-    static InodeID fromFileName(const std::string& name);
-
-    std::uint64_t get() const;
-
-    bool synthetic() const;
+    static InodeID from(MountInodeID id);
 }; // InodeID
-
-std::string toFileName(InodeID id);
-
-std::string toString(InodeID id);
 
 } // fuse
 } // mega

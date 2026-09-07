@@ -13,6 +13,7 @@
 #include <mega/file_service/displaced_buffer.h>
 #include <mega/file_service/file_access.h>
 #include <mega/file_service/file_append_request.h>
+#include <mega/file_service/file_buffer.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_fetch_request.h>
@@ -27,11 +28,13 @@
 #include <mega/file_service/file_remove_request.h>
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_service_context.h>
+#include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
 #include <mega/file_service/file_touch_request.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request.h>
 #include <mega/file_service/logging.h>
-#include <mega/file_service/sparse_file_buffer.h>
+#include <mega/file_service/read_tag.h>
 #include <mega/file_service/type_traits.h>
 #include <mega/filesystem.h>
 
@@ -169,10 +172,8 @@ class FileContext::FlushContext
     template<typename Lock>
     void completed(FlushContextPtr context, Lock&& lock, FileResult result);
 
-    // Called to check that our upload target is valid.
-    //
-    // Populates mHandle, mName and mParentHandle.
-    Error resolve(Client& client);
+    // Called to determine where our file should be uploaded.
+    FileServiceResultOr<FileLocation> location() const;
 
     // Called when the file's data has been uploaded.
     void uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result);
@@ -185,12 +186,6 @@ class FileContext::FlushContext
 
     // What file are we flushing?
     FileContext& mContext;
-
-    // The file's current node handle.
-    NodeHandle mHandle;
-
-    // Where is this file stored in the cloud?
-    FileLocation mLocation;
 
     // What flush requests are we executing?
     std::vector<FileFlushRequest> mRequests;
@@ -267,6 +262,42 @@ void FileContext::addRange(const FileRange& range, Transaction& transaction)
     query.execute();
 }
 
+std::optional<ScopedDestructor>
+    FileContext::addScopedDownload(FileRangeMap<DownloadContextPtr>& map, const FileRange& range)
+{
+    // Sanity: Range shouldn't be zero length.
+    assert(!range.empty());
+
+    // Where will our download be located in map?
+    auto [iterator, added] = map.tryAdd(range, nullptr);
+
+    // Sanity: Adding should always succeed as ranges never overlap.
+    assert(added);
+
+    if (!added)
+        return std::nullopt;
+
+    // Instantiate a download context for range.
+    auto context =
+        std::make_shared<DownloadContext>(mDownloadMonitor.begin(), *this, map, iterator);
+
+    // Make sure our context's linked into map.
+    iterator->second = context;
+
+    // Try and create a download for our range.
+    auto download = context->download();
+
+    // Couldn't create a download for our range.
+    if (!download)
+        return std::nullopt;
+
+    // Make sure we begin our download.
+    return ScopedDestructor{[download = std::move(download)]()
+                            {
+                                download->begin();
+                            }};
+}
+
 auto FileContext::cancel(const FileRangeMap<DownloadContextPtr>& downloading,
                          const FileRange& range) -> std::list<DownloadContextPtr>
 {
@@ -315,7 +346,7 @@ auto FileContext::cancel(const FileRange& range) -> std::future<void>
     std::list<DownloadContextPtr> downloads;
 
     // Figure out which downloads we need to cancel, if any.
-    for (auto* map: {&mDownloading.mLarge, &mDownloading.mSmall})
+    for (auto* map: {&mDownloading.mLarge, &mDownloading.mSmall, &mDownloading.mNormal})
         downloads.splice(downloads.end(), cancel(*map, range));
 
     // No downloads need to be cancelled.
@@ -485,6 +516,31 @@ void FileContext::completed(FileWriteRequest&& request)
     completed(std::move(request), FileWriteResult{begin, end - begin});
 }
 
+bool FileContext::completeReadIfOnDisk(FileReadRequest& request)
+{
+    // Convenience.
+    auto& range = request.mRange;
+
+    // A request's range should never be zero.
+    assert(range.length());
+
+    // Can any range on disk partially satisfy request?
+    auto iterator = mOnDisk.contains(range.mBegin);
+
+    // No range on disk can partially satisfy request.
+    if (iterator == mOnDisk.end())
+        return false;
+
+    // Clamp request's range as needed.
+    range.mEnd = std::min(iterator->mEnd, range.mEnd);
+
+    // Queue the request for completion.
+    completed(displace(mBuffer, range.mBegin), std::move(request));
+
+    // Let our caller know the request was completed.
+    return true;
+}
+
 template<typename Dispatcher>
 void FileContext::dispatch(Dispatcher&& dispatcher, const FileRange& range)
 {
@@ -647,6 +703,86 @@ void FileContext::execute(FileFlushRequest request)
 
 void FileContext::execute(FileReadRequest& request)
 {
+    std::visit(
+        [&](auto& tag)
+        {
+            execute(request, tag);
+        },
+        request.mReadTag);
+}
+
+void FileContext::execute(FileReadRequest& request, const NormalReadTag&)
+{
+    assert(std::holds_alternative<NormalReadTag>(request.mReadTag));
+
+    // Make sure the user's read is within the file.
+    request.mRange = clamp(request.mRange, 0, mInfo->size());
+
+    // The user doesn't actually need to read anything.
+    if (request.mRange.empty())
+        return completed(mBuffer, std::move(request));
+
+    // Get a snapshot of the current service options.
+    const auto options = mService.serviceOptions();
+
+    // Convenience.
+    const auto minimumRangeSize = options.mMinimumRangeSize;
+
+    // Begins a download, if needed, when exiting this function.
+    std::optional<ScopedDestructor> downloader;
+
+    // Acquire lock.
+    std::unique_lock lock(mLock);
+
+    // Update the file's access time.
+    withTransaction(mService.database(),
+                    std::bind(&FileContext::updateAccessTime,
+                              this,
+                              mInfo->accessed(now()),
+                              std::placeholders::_1));
+
+    // Convenience.
+    auto range = request.mRange;
+
+    // Request can be satisfied by data already on disk.
+    if (completeReadIfOnDisk(request))
+        return;
+
+    // Queue the request for later completion.
+    queueReadRequest(std::move(request));
+
+    // Extend the range's length so our download is worthwhile.
+    auto length = std::max(minimumRangeSize, range.length());
+
+    // Make sure the range doesn't extend beyond the end of the file.
+    length = std::min(length, mInfo->size() - range.mBegin);
+
+    // Update the range's end point.
+    range.mEnd = range.mBegin + length;
+
+    // Find all gaps in range that aren't covered by a normal download.
+    auto current = gaps(mDownloading.mNormal, range);
+    auto end = current.end();
+
+    // Range is already covered by normal downloads.
+    if (current == end)
+        return;
+
+    // Bump beginning of range.
+    range.mBegin = current->mBegin;
+    range.mEnd = current->mEnd;
+
+    // Sanity: range should never be empty.
+    assert(!range.empty());
+
+    // Try and add a normal download that'll cover request.
+    downloader = addScopedDownload(mDownloading.mNormal, range);
+}
+
+void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
+{
+    assert(std::holds_alternative<StreamReadTag>(request.mReadTag));
+
     // Make sure the user's read is within the file.
     request.mRange = clamp(request.mRange, 0, mInfo->size());
 
@@ -667,8 +803,8 @@ void FileContext::execute(FileReadRequest& request)
     // Cancels a download, if needed, when exiting this function.
     ScopedDestructor canceller;
 
-    // Begins a download, if needed, when exiting this function.
-    ScopedDestructor downloader;
+    // Begins a download afterwards, if needed, when exiting this function
+    std::optional<ScopedDestructor> downloader;
 
     // Acquire lock.
     std::unique_lock lock(mLock);
@@ -679,68 +815,6 @@ void FileContext::execute(FileReadRequest& request)
                               this,
                               mInfo->accessed(now()),
                               std::placeholders::_1));
-
-    // Add a download for a given range to the specified map.
-    auto addDownload = [&](auto& map, const auto& range)
-    {
-        // Sanity: Range shouldn't be zero length.
-        assert(!range.empty());
-
-        // Where will our download be located in map?
-        auto [iterator, added] = map.tryAdd(range, nullptr);
-
-        // Sanity: Adding should always succeed as ranges never overlap.
-        assert(added);
-
-        // Instantiate a download context for range.
-        auto context =
-            std::make_shared<DownloadContext>(mDownloadMonitor.begin(), *this, map, iterator);
-
-        // Make sure our context's linked into map.
-        iterator->second = context;
-
-        // Try and create a download for our range.
-        auto download = context->download();
-
-        // Couldn't create a download for our range.
-        if (!download)
-            return;
-
-        // Sanity: We should only begin one download for any given request.
-        assert(!downloader);
-
-        // Make sure we begin our download.
-        downloader = [download = std::move(download)]()
-        {
-            download->begin();
-        };
-    }; // addDownload
-
-    // Complete request if it can be satisfied by data on disk.
-    auto completeIfOnDisk = [this](auto& request)
-    {
-        // Convenience.
-        auto& range = request.mRange;
-
-        // A request's range should never be zero.
-        assert(range.length());
-
-        // Can any range on disk partially satisfy request?
-        auto iterator = mOnDisk.contains(range.mBegin);
-
-        // No range on disk can partially satisfy request.
-        if (iterator == mOnDisk.end())
-            return false;
-
-        // Clamp request's range as needed.
-        range.mEnd = std::min(iterator->mEnd, range.mEnd);
-
-        // Queue the request for completion.
-        completed(displace(mBuffer, range.mBegin), std::move(request));
-
-        // Let our caller know the request was completed.
-        return true;
-    }; // completeIfOnDisk
 
     // True if range is covered by a download in map.
     auto downloading = [&](auto& map, auto& range)
@@ -778,7 +852,7 @@ void FileContext::execute(FileReadRequest& request)
         assert(request.mRange.length());
 
         // Request isn't a jump candidate.
-        if (!request.mIsJumpCandidate)
+        if (!isJumpCandidate(request.mReadTag))
             return nullptr;
 
         // Request isn't a large read.
@@ -860,16 +934,6 @@ void FileContext::execute(FileReadRequest& request)
         return true;
     }; // isSmallPrefix
 
-    // Queue a request for later completion.
-    auto queueRequest = [this](auto&& request)
-    {
-        // We should never queue a request for zero bytes.
-        assert(request.mRange.length());
-
-        // Queue the request for later completion.
-        mPendingReadRequests.emplace(request);
-    }; // queueRequest
-
     // Sanity: We should only ever have one large download at most.
     assert(mDownloading.mLarge.size() <= 1);
 
@@ -900,8 +964,8 @@ void FileContext::execute(FileReadRequest& request)
         auto range = request.mRange;
 
         // Request can't be satisfied by data on disk.
-        if (!completeIfOnDisk(request))
-            queueRequest(std::move(request));
+        if (!completeReadIfOnDisk(request))
+            queueReadRequest(std::move(request));
 
         // A large download is already in progress.
         if (!mDownloading.mLarge.empty())
@@ -925,7 +989,7 @@ void FileContext::execute(FileReadRequest& request)
 
         // Try and download the file's remaining data if necessary.
         if (range.length())
-            addDownload(mDownloading.mLarge, range);
+            downloader = addScopedDownload(mDownloading.mLarge, range);
 
         // Nothing more to do.
         return;
@@ -938,11 +1002,11 @@ void FileContext::execute(FileReadRequest& request)
     assert(range.length() <= immediateThreshold);
 
     // Request can be satisfied by data already on disk.
-    if (completeIfOnDisk(request))
+    if (completeReadIfOnDisk(request))
         return;
 
     // Queue the request for later completion.
-    queueRequest(std::move(request));
+    queueReadRequest(std::move(request));
 
     // Request can be satisfied by an existing large download.
     if (auto download = downloading(mDownloading.mLarge, range);
@@ -973,8 +1037,11 @@ void FileContext::execute(FileReadRequest& request)
     // Sanity: range should never be empty.
     assert(!range.empty());
 
+    // Sanity: a range only has a download
+    assert(!downloader);
+
     // Try and add a small download that'll cover request.
-    addDownload(mDownloading.mSmall, range);
+    downloader = addScopedDownload(mDownloading.mSmall, range);
 }
 
 // When this request is executed, any pending downloads will have completed.
@@ -984,7 +1051,8 @@ void FileContext::execute(FileReclaimRequest& request)
     std::lock_guard guard(mLock);
 
     // All downloads should be completed.
-    if (!mDownloading.mLarge.empty() || !mDownloading.mSmall.empty())
+    if (!mDownloading.mLarge.empty() || !mDownloading.mSmall.empty() ||
+        !mDownloading.mSmall.empty())
         return completed(std::move(request), UINT64_C(0));
 
     // Sanity: no pending read.
@@ -1036,19 +1104,18 @@ void FileContext::execute(FileRemoveRequest& request)
 
     // Convenience.
     auto handle = mInfo->handle();
-    auto replaced = request.mReplaced;
     auto serviceOnly = request.mServiceOnly;
 
     // We only need to remove the file from the service.
     if (handle.isUndef() || serviceOnly)
-        return completed(std::move(request), setRemoved(replaced));
+        return completed(std::move(request), setRemoved());
 
     // Called when the file's been removed.
-    auto removed = [replaced, this](auto&&, auto&& request, auto result) mutable
+    auto removed = [this](auto&&, auto&& request, auto result) mutable
     {
         // File was removed from the cloud.
         if (result == API_OK)
-            return completed(std::move(request), setRemoved(replaced));
+            return completed(std::move(request), setRemoved());
 
         // Couldn't remove the file from the cloud.
         completed(std::move(request), fileResultFromError(result));
@@ -1074,14 +1141,21 @@ void FileContext::execute(FileTouchRequest& request)
     // Start a transaction so we can safely modify the database.
     auto transaction = database.transaction();
 
+    // Convenience.
+    auto modified = request.mModified;
+
+    // Couldn't update the file's modification time.
+    if (!mFile->ftouch(modified))
+        return completed(std::move(request), FILE_FAILED);
+
     // Update the file's access and modification time.
-    updateAccessAndModificationTimes(accessed, request.mModified, transaction);
+    updateAccessAndModificationTimes(accessed, modified, transaction);
 
     // Persist our changes.
     transaction.commit();
 
     // Update file attributes.
-    mInfo->modified(accessed, request.mModified);
+    mInfo->modified(accessed, modified);
 
     // Queue the user's request for completion.
     completed(std::move(request), FILE_SUCCESS);
@@ -1296,12 +1370,24 @@ void FileContext::failed(const FileRange& range, FileResult result)
         // Convenience.
         auto begin = iterator->mRange.mBegin;
 
-        // Request can be satisfied by a large download.
-        if (mDownloading.mLarge.contains(begin))
-            continue;
-
-        // Request can be satisfied by a small download.
-        if (mDownloading.mSmall.contains(begin))
+        const auto isContained = std::visit(
+            overloaded{[&](const NormalReadTag&)
+                       {
+                           // Request can be satisfied by a normal
+                           // download.
+                           return mDownloading.mNormal.contains(begin) !=
+                                  mDownloading.mNormal.end();
+                       },
+                       [&](const StreamReadTag&)
+                       {
+                           // Request can be satisfied by a large or small
+                           // download.
+                           return mDownloading.mLarge.contains(begin) !=
+                                      mDownloading.mLarge.end() ||
+                                  mDownloading.mSmall.contains(begin) != mDownloading.mSmall.end();
+                       }},
+            iterator->mReadTag);
+        if (isContained)
             continue;
 
         // Dirty but necessary.
@@ -1330,11 +1416,24 @@ auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize)
     // So we can safely modify the database.
     auto transaction = database.transaction();
 
+    // Couldn't extend the file's size.
+    if (!mBuffer->truncate(newSize))
+        throw FSError1("Couldn't extend file size");
+
     // Update the file's ranges on disk and in memory.
     updateRanges(FileRange(oldSize, newSize), transaction);
 
     // Return the transaction to our caller.
     return std::make_pair(std::move(databaseLock), std::move(transaction));
+}
+
+void FileContext::queueReadRequest(FileReadRequest&& request)
+{
+    // We should never queue a request for zero bytes.
+    assert(request.mRange.length());
+
+    // Queue the request for later completion.
+    mPendingReadRequests.emplace(std::move(request));
 }
 
 template<typename Request>
@@ -1389,7 +1488,7 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
     query.execute();
 }
 
-FileResult FileContext::setRemoved(bool replaced)
+FileResult FileContext::setRemoved()
 try
 {
     // Convenience.
@@ -1410,7 +1509,7 @@ try
     transaction.commit();
 
     // Mark the file as removed in memory.
-    mInfo->removed(replaced);
+    mInfo->removed(std::true_type{});
 
     // Let the caller know the file was removed.
     return FILE_SUCCESS;
@@ -1583,11 +1682,26 @@ catch (std::runtime_error& exception)
 
 void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
 {
+    // Query the file's current allocated and reported size on disk.
+    auto sizes = mFile->getFileSize();
+
+    // Couldn't retrieve the file's current sizes.
+    if (!sizes)
+        throw FSErrorF("Couldn't get file sizes: %s", toString(mInfo->id()).c_str());
+
+    // Clarity.
+    auto [allocatedSize, reportedSize] = *sizes;
+
+    // Update the file's allocated and reported sizes in memory.
+    mInfo->allocatedSize(allocatedSize);
+    mInfo->reportedSize(reportedSize);
+
+    // Update the file's sizes in the database.
     auto query = transaction.query(mService.queries().mSetFileSize);
 
-    query.param(":allocated_size").set(mInfo->allocatedSize());
+    query.param(":allocated_size").set(allocatedSize);
     query.param(":id").set(mInfo->id());
-    query.param(":reported_size").set(mInfo->reportedSize());
+    query.param(":reported_size").set(reportedSize);
     query.param(":size").set(size);
 
     query.execute();
@@ -1603,7 +1717,7 @@ FileContext::FileContext(Activity activity,
     mInstanceLogger("FileContext", *this, logger()),
     mActivity(std::move(activity)),
     mAverageLargeDownloadBitrate(256),
-    mBuffer(std::make_shared<SparseFileBuffer>(*file, *info)),
+    mBuffer(std::make_shared<FileBuffer>(*file)),
     mDownloading(),
     mInfo(std::move(info)),
     mFetchContext(),
@@ -1645,11 +1759,6 @@ FileContext::~FileContext()
     mService.removeFromIndex(FileContextBadge(), mInfo->id());
 }
 
-FileEventObserverID FileContext::addObserver(FileEventObserver observer)
-{
-    return mInfo->addObserver(std::move(observer));
-}
-
 void FileContext::append(FileContextPtr, FileAppendRequest request)
 {
     executeOrQueue(std::move(request));
@@ -1668,6 +1777,10 @@ FileRangeVector FileContext::downloading() const
 
     // What small ranges are being downloaded?
     for (const auto& [range, _]: mDownloading.mSmall)
+        downloading.emplace_back(range);
+
+    // What normal ranges are being downloaded?
+    for (const auto& [range, _]: mDownloading.mNormal)
         downloading.emplace_back(range);
 
     // Let our caller know which ranges are being downloaded.
@@ -1782,11 +1895,6 @@ void FileContext::reclaim(FileReclaimCallback callback, FileContextPtr)
 void FileContext::remove(FileContextPtr, FileRemoveRequest request)
 {
     executeOrQueue(std::move(request));
-}
-
-void FileContext::removeObserver(FileEventObserverID id)
-{
-    mInfo->removeObserver(id);
 }
 
 bool FileContext::removed() const
@@ -2305,25 +2413,21 @@ void FileContext::FlushContext::completed(FlushContextPtr context, Lock&& lock, 
         mContext.completed(std::move(request), result);
 }
 
-Error FileContext::FlushContext::resolve(Client& client)
+FileServiceResultOr<FileLocation> FileContext::FlushContext::location() const
 {
-    // File's never been flushed before.
-    if (mHandle.isUndef())
-        return client.get(mLocation.mParentHandle).errorOr(API_OK);
+    // Has the file already been uploaded to the cloud?
+    auto handle = mContext.mInfo->handle();
 
-    // Check if the file's node still exists.
-    auto node = client.get(mHandle);
+    // File hasn't been uploaded to the cloud.
+    if (handle.isUndef())
+        return mContext.mService.location(mContext.mInfo->id());
 
-    // File's node no longer exists.
-    if (!node)
-        return node.error();
+    // File's still present in the cloud.
+    if (auto info = mContext.mService.client().get(handle))
+        return FileLocation{std::move(info->mName), info->mParentHandle};
 
-    // Latch the node's current name and parent.
-    mLocation.mName = std::move(node->mName);
-    mLocation.mParentHandle = node->mParentHandle;
-
-    // Let the caller know the node still exists.
-    return API_OK;
+    // File's no longer present in the cloud.
+    return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 }
 
 void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<UploadResult> result)
@@ -2350,16 +2454,17 @@ void FileContext::FlushContext::uploaded(FlushContextPtr& context, ErrorOr<Uploa
     BoundCallback bound =
         std::bind(&FlushContext::bound, this, std::move(context), std::placeholders::_1);
 
+    // Convenience;
+    auto& info = *mContext.mInfo;
+
     // Bind a name to our file's uploaded data.
-    (*result)(std::move(bound), mHandle);
+    (*result)(BindContext{std::move(bound), info.modified(), info.handle()});
 }
 
 FileContext::FlushContext::FlushContext(FileContext& context, FileFlushRequest request):
     mInstanceLogger("FileContext::FlushContext", *this, logger()),
     mActivity(context.mMonitor.begin()),
     mContext(context),
-    mHandle(context.mInfo->handle()),
-    mLocation(context.mInfo->location().value()),
     mRequests(),
     mUpload()
 {
@@ -2377,31 +2482,41 @@ void FileContext::FlushContext::operator()(FlushContextPtr& context, FileResult 
 
     // Convenience.
     auto& service = mContext.mService;
-    auto& client = service.client();
-    auto& info = *mContext.mInfo;
 
-    // Check whether the file or its intended parent still exists.
-    result = fileResultFromError(resolve(client));
+    const auto id = mContext.mInfo->id();
+
+    // Try and determine where this file should be located.
+    auto location = this->location();
 
     // Acquire context lock.
     std::unique_lock lock(mutex);
 
-    // File or its intended parent no longer exists.
-    if (result != FILE_SUCCESS)
+    // Couldn't determine where the file is located.
+    if (!location)
+    {
+        // Assume we couldn't get the file's location due to some error.
+        result = FILE_FAILED;
+
+        // Couldn't get the file's location because it's been removed.
+        if (location.error() == FILE_SERVICE_FILE_DOESNT_EXIST)
+            result = FILE_REMOVED;
+
+        // Let waiters know why we couldn't upload the file.
         return completed(std::move(context), std::move(lock), result);
+    }
 
     // No requests? Flush must have been cancelled.
     if (mRequests.empty())
         return;
 
     // Where is this file's data stored?
-    auto path = service.userFilePath(info.id());
+    auto path = service.userFilePath(id);
 
     // Convenience.
-    auto& [name, parent] = mLocation;
+    auto& [name, parent] = *location;
 
     // Instantiate an upload.
-    mUpload = client.upload(path, name, parent, path);
+    mUpload = service.client().upload(path, name, parent, path);
 
     // So we can use our uploaded method as a callback.
     UploadCallback callback =

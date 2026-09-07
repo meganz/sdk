@@ -2,7 +2,6 @@
 
 #include "utility.h"
 
-#include <mega/common/node_info_forward.h>
 #include <mega/common/testing/printers.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_event_type_forward.h>
@@ -17,9 +16,7 @@ namespace mega
 namespace fuse
 {
 
-template<typename T>
-auto operator<<(std::ostream& ostream, const T& value) ->
-    typename testing::EnableIfInfoLike<T, std::ostream>::type&;
+std::ostream& operator<<(std::ostream& ostream, const InodeInfo& value);
 
 void PrintTo(const MountEventType type, std::ostream* ostream);
 

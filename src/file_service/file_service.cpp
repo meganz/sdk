@@ -91,6 +91,17 @@ auto FileService::add(NodeHandle handle,
     return unexpected(FILE_SERVICE_UNINITIALIZED);
 }
 
+auto FileService::addLocationProvider(FileLocationProvider provider)
+    -> FileServiceResultOr<FileLocationProviderID>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->addLocationProvider(std::move(provider));
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
+}
+
 auto FileService::addObserver(FileEventObserver observer)
     -> FileServiceResultOr<FileEventObserverID>
 {
@@ -123,14 +134,14 @@ catch (std::runtime_error& exception)
     return FILE_SERVICE_UNEXPECTED;
 }
 
-auto FileService::create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
+auto FileService::create() -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);
 
     if (!mContext)
         return unexpected(FILE_SERVICE_UNINITIALIZED);
 
-    return mContext->create(parent, name);
+    return mContext->create();
 }
 
 auto FileService::databasePath() const -> FileServiceResultOr<LocalPath>
@@ -181,16 +192,6 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
     return mContext->info(id);
-}
-
-auto FileService::open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
-{
-    SharedLock guard(mContextLock);
-
-    if (!mContext)
-        return unexpected(FILE_SERVICE_UNINITIALIZED);
-
-    return mContext->open(parent, name);
 }
 
 auto FileService::open(FileID id) -> FileServiceResultOr<File>
@@ -320,6 +321,18 @@ auto FileService::reclaimOptions() -> ReclaimOptions
 
     // Return a snapshot of our current reclamation options.
     return mReclaimOptions;
+}
+
+auto FileService::removeLocationProvider(FileLocationProviderID id) -> FileServiceResult
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return FILE_SERVICE_UNINITIALIZED;
+
+    mContext->removeLocationProvider(id);
+
+    return FILE_SERVICE_SUCCESS;
 }
 
 auto FileService::removeObserver(FileEventObserverID id) -> FileServiceResult

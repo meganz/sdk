@@ -11,7 +11,6 @@
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/platform/service_context.h>
 
-#include <algorithm>
 #include <cassert>
 
 namespace mega
@@ -22,6 +21,7 @@ namespace platform
 {
 
 using namespace common;
+using namespace file_service;
 
 static Database dbInit(const Client& client);
 
@@ -31,13 +31,13 @@ static MountResult dbOperation(void (DatabaseBuilder::*op)(std::size_t),
 
 static LocalPath dbPath(const Client& client);
 
-ServiceContext::ServiceContext(const ServiceFlags& flags, Service& service):
-    fuse::ServiceContext(service),
+ServiceContext::ServiceContext(FileService& fileService,
+                               const ServiceFlags& flags,
+                               Service& service):
+    fuse::ServiceContext(fileService, service),
     mDatabase(dbInit(service.mClient)),
     mExecutor(flags.mServiceExecutorFlags, logger()),
-    mFileExtensionDB(),
     mInodeDB(*this),
-    mFileCache(*this),
     mInodeCache(flags.mInodeCacheFlags),
     mUnmounter(*this),
     mMountDB(*this)
@@ -57,9 +57,6 @@ ServiceContext::~ServiceContext()
     // Tear down any enabled mounts.
     mMountDB.deinitialize();
 
-    // Cancel any pending uploads.
-    mFileCache.cancel();
-
     // Wait for all inodes to be purged from memory.
     mInodeDB.clear();
 }
@@ -67,28 +64,6 @@ ServiceContext::~ServiceContext()
 MountResult ServiceContext::add(const MountInfo& info)
 {
     return mMountDB.add(info);
-}
-
-bool ServiceContext::cached(NormalizedPath path) const
-{
-    LocalPath relativePath;
-
-    // What mount contains this path?
-    auto mount = mMountDB.contains(path, false, &relativePath);
-
-    // No mount contains this path.
-    if (!mount)
-        return false;
-
-    // Try to locate the inode associated with this path.
-    auto result = mInodeDB.lookup(relativePath, mount->mHandle);
-
-    // Couldn't find the inode.
-    if (result.second != API_OK)
-        return false;
-
-    // Let the caller know whether the inode is cached or not.
-    return result.first->cached();
 }
 
 void ServiceContext::current()

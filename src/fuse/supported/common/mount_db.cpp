@@ -160,7 +160,6 @@ void MountDB::enable()
 try
 {
     inodeDB().current();
-    fileCache().current();
 
     // What mounts should we try and enable?
     std::vector<std::string> mounts;
@@ -766,9 +765,6 @@ try
     // Release lock.
     lock.unlock();
 
-    // Flush any files modified by this mount.
-    fileCache().flush(*mount, inodeDB().modified(mount->handle()));
-
     // Mount's enabled.
     return MOUNT_SUCCESS;
 }
@@ -823,11 +819,6 @@ void MountDB::fileExplorerView(FileExplorerView view)
 FileExplorerView MountDB::fileExplorerView() const
 {
     return mFileExplorerView;
-}
-
-FileCache& MountDB::fileCache()
-{
-    return mContext.mFileCache;
 }
 
 MountResult MountDB::flags(const std::string& currentName, const MountFlags& flags)

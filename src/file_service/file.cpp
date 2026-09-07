@@ -71,13 +71,6 @@ File& File::operator=(File&& rhs)
     return *this;
 }
 
-FileEventObserverID File::addObserver(FileEventObserver observer)
-{
-    assert(mContext);
-
-    return mContext->addObserver(std::move(observer));
-}
-
 void File::append(const void* buffer, FileAppendCallback callback, std::uint64_t length)
 {
     assert(buffer || !length);
@@ -137,7 +130,7 @@ void File::purge(FilePurgeCallback callback)
     assert(callback);
     assert(mContext);
 
-    return mContext->remove(mContext, FileRemoveRequest{std::move(callback), false, true});
+    return mContext->remove(mContext, FileRemoveRequest{std::move(callback), true});
 }
 
 FileRangeVector File::ranges() const
@@ -147,23 +140,20 @@ FileRangeVector File::ranges() const
     return mContext->ranges();
 }
 
-void File::read(FileReadCallback callback,
-                std::uint64_t offset,
-                std::uint64_t length,
-                bool isJumpCandidate)
+void File::read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length, ReadTag tag)
 {
     assert(callback);
     assert(mContext);
 
-    read(std::move(callback), FileRange(offset, offset + length), isJumpCandidate);
+    read(std::move(callback), FileRange(offset, offset + length), tag);
 }
 
-void File::read(FileReadCallback callback, const FileRange& range, bool isJumpCandidate)
+void File::read(FileReadCallback callback, const FileRange& range, ReadTag tag)
 {
     assert(callback);
     assert(mContext);
 
-    mContext->read(mContext, FileReadRequest{std::move(callback), range, isJumpCandidate});
+    mContext->read(mContext, FileReadRequest{std::move(callback), range, tag});
 }
 
 void File::reclaim(FileReclaimCallback callback)
@@ -174,19 +164,12 @@ void File::reclaim(FileReclaimCallback callback)
     mContext->reclaim(std::move(callback), mContext);
 }
 
-void File::remove(FileRemoveCallback callback, bool replaced)
+void File::remove(FileRemoveCallback callback)
 {
     assert(callback);
     assert(mContext);
 
-    mContext->remove(mContext, FileRemoveRequest{std::move(callback), replaced, false});
-}
-
-void File::removeObserver(FileEventObserverID id)
-{
-    assert(mContext);
-
-    mContext->removeObserver(id);
+    mContext->remove(mContext, FileRemoveRequest{std::move(callback), false});
 }
 
 void File::touch(FileTouchCallback callback, std::int64_t modified)

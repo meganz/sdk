@@ -7,6 +7,7 @@ target_sources(test_integration PRIVATE
                                 file_service/mega/file_service/testing/integration/client_forward.h
                                 file_service/mega/file_service/testing/integration/real_client.h
                                 file_service/mega/file_service/testing/integration/scoped_file_event_observer.h
+                                file_service/mega/file_service/testing/integration/scoped_file_location_provider.h
 )
 
 target_sources(test_integration PRIVATE

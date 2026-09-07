@@ -21,7 +21,6 @@
 #include <mega/file_service/file_id_vector.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_location.h>
-#include <mega/file_service/file_move_event.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_range_set.h>
 #include <mega/file_service/file_range_tree_utilities.h>
@@ -44,6 +43,7 @@
 #include <mega/file_service/testing/integration/client.h>
 #include <mega/file_service/testing/integration/real_client.h>
 #include <mega/file_service/testing/integration/scoped_file_event_observer.h>
+#include <mega/file_service/testing/integration/scoped_file_location_provider.h>
 #include <mega/file_service/utility.h>
 
 #include <chrono>
@@ -76,15 +76,9 @@ void PrintTo(const FileFlushEvent& event, std::ostream* ostream)
              << "}";
 }
 
-void PrintTo(const FileMoveEvent& event, std::ostream* ostream)
-{
-    *ostream << "Move {from: " << event.mFrom << ", to: " << event.mTo
-             << ", id: " << toString(event.mID) << "}";
-}
-
 void PrintTo(const FileRemoveEvent& event, std::ostream* ostream)
 {
-    *ostream << "Remove {id: " << toString(event.mID) << ", replaced: " << event.mReplaced << "}";
+    *ostream << "Remove {id: " << toString(event.mID) << "}";
 }
 
 void PrintTo(const FileTouchEvent& event, std::ostream* ostream)
@@ -324,8 +318,10 @@ static auto read(File file, std::uint64_t offset, std::uint64_t length)
     -> std::future<FileResultOr<std::string>>;
 
 // As above but a partial read is allowed.
-static auto readOnce(File file, std::uint64_t offset, std::uint64_t length)
-    -> std::future<FileResultOr<std::string>>;
+static auto readOnce(File file,
+                     std::uint64_t offset,
+                     std::uint64_t length,
+                     ReadTag readTag) -> std::future<FileResultOr<std::string>>;
 
 // Reclaim a file's storage.
 static auto reclaim(File file) -> std::future<FileResultOr<std::uint64_t>>;
@@ -571,7 +567,6 @@ TEST_F(FileServiceTests, append_succeeds)
     FileEventVector expected;
 
     // Store events emitted for our file.
-    auto fileObserver = observe(*file);
     auto serviceObserver = observe(mClient->fileService());
 
     // Generate some data for us to append to the file.
@@ -582,9 +577,7 @@ TEST_F(FileServiceTests, append_succeeds)
     auto size = info.size();
 
     // Try and append the data to the end of the file.
-    expect(FileWriteEvent{FileRange(size, size + computed.size()), info.id()},
-           fileObserver,
-           serviceObserver);
+    expect(FileWriteEvent{FileRange(size, size + computed.size()), info.id()}, serviceObserver);
 
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
 
@@ -602,9 +595,7 @@ TEST_F(FileServiceTests, append_succeeds)
     size = info.size();
 
     // Append again to make sure contigous ranges are extended.
-    expect(FileWriteEvent{FileRange(size, size + computed.size()), info.id()},
-           fileObserver,
-           serviceObserver);
+    expect(FileWriteEvent{FileRange(size, size + computed.size()), info.id()}, serviceObserver);
 
     ASSERT_EQ(execute(append, computed.data(), *file, computed.size()), FILE_SUCCESS);
 
@@ -615,7 +606,7 @@ TEST_F(FileServiceTests, append_succeeds)
                 ElementsAre(range, FileRange(size - computed.size(), size + computed.size())));
 
     // Make sure we received the events we expected.
-    ASSERT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+    ASSERT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 }
 
 TEST_F(FileServiceTests, cancel_reads_contained_within_written_range_succeeds)
@@ -633,9 +624,9 @@ TEST_F(FileServiceTests, cancel_reads_contained_within_written_range_succeeds)
     mClient->setDownloadSpeed(65536);
 
     // Begin download of three disjoint ranges.
-    auto waiter0 = readOnce(*file, 0, 256_KiB);
-    auto waiter1 = readOnce(*file, 384_KiB, 128_KiB);
-    auto waiter2 = readOnce(*file, 768_KiB, 256_KiB);
+    auto waiter0 = readOnce(*file, 0, 256_KiB, StreamReadTag{true});
+    auto waiter1 = readOnce(*file, 384_KiB, 128_KiB, StreamReadTag{true});
+    auto waiter2 = readOnce(*file, 768_KiB, 256_KiB, StreamReadTag{true});
 
     // Wait for each of our reads to provide some data.
     ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
@@ -674,9 +665,9 @@ TEST_F(FileServiceTests, cancel_reads_that_begin_after_truncated_size)
     mClient->setDownloadSpeed(65536);
 
     // Begin the download of three ranges.
-    auto waiter0 = readOnce(*file, 0, 512_KiB);
-    auto waiter1 = readOnce(*file, 512_KiB, 256_KiB);
-    auto waiter2 = readOnce(*file, 768_KiB, 256_KiB);
+    auto waiter0 = readOnce(*file, 0, 512_KiB, StreamReadTag{true});
+    auto waiter1 = readOnce(*file, 512_KiB, 256_KiB, StreamReadTag{true});
+    auto waiter2 = readOnce(*file, 768_KiB, 256_KiB, StreamReadTag{true});
 
     // Wait for each of our reads to provide some data.
     ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
@@ -827,14 +818,11 @@ TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
     ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // So we can receive file events.
-    auto fileObserver0 = observe(*file0);
-    auto fileObserver1 = observe(*file1);
     auto serviceObserver = observe(mClient->fileService());
 
     // Remove d0 and by proxy, d0f, d1 and d1f.
-    expect(FileRemoveEvent{file0->info().id(), false}, fileObserver0, serviceObserver);
-
-    expect(FileRemoveEvent{file1->info().id(), false}, fileObserver1, serviceObserver);
+    expect(FileRemoveEvent{file0->info().id()}, serviceObserver);
+    expect(FileRemoveEvent{file1->info().id()}, serviceObserver);
 
     ASSERT_EQ(mClient->remove(*d0), API_OK);
 
@@ -850,7 +838,7 @@ TEST_F(FileServiceTests, cloud_file_removed_when_parent_removed)
     EXPECT_TRUE(file1->info().removed());
 
     // Make sure we received remove events.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver0, fileObserver1, serviceObserver));
+    EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 }
 
 TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
@@ -864,11 +852,10 @@ TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // So we can receive file events.
-    auto fileObserver = observe(*file);
     auto serviceObserver = observe(mClient->fileService());
 
     // Remove the file from the cloud.
-    expect(FileRemoveEvent{file->info().id(), false}, fileObserver, serviceObserver);
+    expect(FileRemoveEvent{file->info().id()}, serviceObserver);
 
     ASSERT_EQ(mClient->remove(*handle), API_OK);
 
@@ -883,134 +870,7 @@ TEST_F(FileServiceTests, cloud_file_removed_when_removed_in_cloud)
     EXPECT_TRUE(file->info().removed());
 
     // And that we received a remove event.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
-}
-
-TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_cloud_add)
-{
-    // So we have a stable name.
-    auto name = randomName();
-
-    // Create a test file in the cloud.
-    auto handle = mClient->upload(randomBytes(512), name, mRootHandle);
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    // Open our test file.
-    auto file = mClient->fileOpen(*handle);
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto fileObserver = observe(*file);
-    auto serviceObserver = observe(mClient->fileService());
-
-    // Add a directory with the same name and parent as our file.
-    expect(FileRemoveEvent{file->info().id(), true}, fileObserver, serviceObserver);
-
-    auto directory = mClient->makeDirectory(name, mRootHandle);
-    ASSERT_EQ(directory.errorOr(API_OK), API_OK);
-
-    // Make sure our file's been marked as removed.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return file->info().removed();
-        },
-        mDefaultTimeout));
-
-    EXPECT_TRUE(file->info().removed());
-
-    // And that we received a remove event.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
-}
-
-TEST_F(FileServiceTests, cloud_file_removed_when_replaced_by_new_version)
-{
-    // So we have a stable name.
-    auto name = randomName();
-
-    // Create an initial version of name in the cloud.
-    auto handle0 = mClient->upload(randomBytes(512), name, mRootHandle);
-    ASSERT_EQ(handle0.errorOr(API_OK), API_OK);
-
-    // Open our file.
-    auto file = mClient->fileOpen(*handle0);
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto fileObserver = observe(*file);
-    auto serviceObserver = observe(mClient->fileService());
-
-    // Upload a new version of our file.
-    expect(FileRemoveEvent{file->info().id(), true}, fileObserver, serviceObserver);
-
-    auto handle1 = mClient->upload(randomBytes(512), name, mRootHandle);
-    ASSERT_EQ(handle1.errorOr(API_OK), API_OK);
-
-    // Make sure the client sees our new file wl.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return mClient->get(*handle1);
-        },
-        mDefaultTimeout));
-
-    auto info0 = mClient->get(*handle0);
-    auto info1 = mClient->get(*handle1);
-
-    // For a better log message in Jenkins.
-    EXPECT_EQ(info0.errorOr(API_OK), API_OK);
-    EXPECT_EQ(info1.errorOr(API_OK), API_OK);
-
-    if (HasFailure())
-        return;
-
-    // Make sure version relationship has been updated correctly.
-    EXPECT_EQ(info0->mParentHandle, info1->mHandle);
-
-    // Make sure our file has been marked as removed.
-    EXPECT_TRUE(file->info().removed());
-
-    // And that we received a remove event.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
-}
-
-TEST_F(FileServiceTests, create_fails_when_file_already_exists)
-{
-    // Generate a name for a local file.
-    auto name = randomName();
-
-    // Create a local file for us to collide with.
-    auto file0 = mClient->fileCreate(mRootHandle, name);
-    ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // You can't create a file if it already exists in the cloud.
-    auto file1 = mClient->fileCreate(mRootHandle, mFileName);
-    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_ALREADY_EXISTS);
-
-    // You can't create a file if it already exists locally.
-    file1 = mClient->fileCreate(mRootHandle, name);
-    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_FILE_ALREADY_EXISTS);
-}
-
-TEST_F(FileServiceTests, create_fails_when_name_is_empty)
-{
-    // Files must have a valid name.
-    auto file = mClient->fileCreate(mRootHandle, std::string());
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_INVALID_NAME);
-}
-
-TEST_F(FileServiceTests, create_fails_when_parent_doesnt_exist)
-{
-    // Files must have a valid parent.
-    auto file = mClient->fileCreate(NodeHandle(), randomName());
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_PARENT_DOESNT_EXIST);
-}
-
-TEST_F(FileServiceTests, create_fails_when_parent_is_a_file)
-{
-    // A file's parent must be a directory.
-    auto file = mClient->fileCreate(mFileHandle, randomName());
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_PARENT_IS_A_FILE);
+    EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 }
 
 TEST_F(FileServiceTests, create_flush_succeeds)
@@ -1019,10 +879,21 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     auto name = randomName();
 
     // Create a new file.
-    auto file = mClient->fileCreate(mRootHandle, name);
+    auto file = mClient->fileCreate();
 
     // Make sure the file was created.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // So we can tell the service where the file is located.
+    ScopedFileLocationProvider provider(
+        [fileID = file->info().id(), &name](auto id) -> std::optional<FileLocation>
+        {
+            if (fileID == id)
+                return FileLocation{name, mRootHandle};
+
+            return std::nullopt;
+        },
+        mClient->fileService());
 
     // Generate some data for us to write to the file.
     auto expected = randomBytes(128_KiB);
@@ -1034,7 +905,6 @@ TEST_F(FileServiceTests, create_flush_succeeds)
     auto handle = [file = std::move(file)]() mutable -> FileResultOr<NodeHandle>
     {
         // So we can receive file events.
-        auto fileObserver = observe(*file);
         auto serviceObserver = observe(mClient->fileService());
 
         // Convenience.
@@ -1058,9 +928,9 @@ TEST_F(FileServiceTests, create_flush_succeeds)
         EXPECT_EQ(info.modified(), modified);
 
         // Make sure we received the events we expected.
-        expect(FileFlushEvent{info.handle(), info.id()}, fileObserver, serviceObserver);
+        expect(FileFlushEvent{info.handle(), info.id()}, serviceObserver);
 
-        EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+        EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 
         // One or more of our expectations failed.
         if (HasFailure())
@@ -1098,7 +968,7 @@ TEST_F(FileServiceTests, create_succeeds)
     // Create a file and latch its ID.
     {
         // Try and create a file.
-        auto file = mClient->fileCreate(mRootHandle, randomName());
+        auto file = mClient->fileCreate();
 
         // Make sure the file was created.
         ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
@@ -1131,14 +1001,14 @@ TEST_F(FileServiceTests, create_succeeds)
     ASSERT_EQ(info.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
 
     // Try and create a new file.
-    auto file1 = mClient->fileCreate(mRootHandle, randomName());
+    auto file1 = mClient->fileCreate();
     ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure our original file's ID was recycled.
     EXPECT_EQ(file1->info().id(), id0);
 
     // Create a new file.
-    auto file2 = mClient->fileCreate(mRootHandle, randomName());
+    auto file2 = mClient->fileCreate();
     ASSERT_EQ(file2.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Make sure it has a newly generated ID.
@@ -1148,22 +1018,19 @@ TEST_F(FileServiceTests, create_succeeds)
 TEST_F(FileServiceTests, create_write_succeeds)
 {
     // Create a new file.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
 
     // Make sure the file was created.
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // So we can track what events were emitted for our file.
-    auto fileObserver = observe(*file);
     auto serviceObserver = observe(mClient->fileService());
 
     // Generate some data for us to write to the file.
     auto data = randomBytes(64_KiB);
 
     // Try and write data to the file.
-    expect(FileWriteEvent{FileRange(128_KiB, 192_KiB), file->info().id()},
-           fileObserver,
-           serviceObserver);
+    expect(FileWriteEvent{FileRange(128_KiB, 192_KiB), file->info().id()}, serviceObserver);
 
     ASSERT_EQ(execute(write, data.data(), *file, 128_KiB, 64_KiB), FILE_SUCCESS);
 
@@ -1189,9 +1056,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(data, *computed);
 
     // Write more data to the file.
-    expect(FileWriteEvent{FileRange(320_KiB, 384_KiB), file->info().id()},
-           fileObserver,
-           serviceObserver);
+    expect(FileWriteEvent{FileRange(320_KiB, 384_KiB), file->info().id()}, serviceObserver);
 
     ASSERT_EQ(execute(write, data.data(), *file, 320_KiB, 64_KiB), FILE_SUCCESS);
 
@@ -1208,7 +1073,7 @@ TEST_F(FileServiceTests, create_write_succeeds)
     ASSERT_EQ(data, *computed);
 
     // Make sure we received the events we were expecting.
-    ASSERT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+    ASSERT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 }
 
 TEST_F(FileServiceTests, fetch_succeeds)
@@ -1285,7 +1150,7 @@ TEST_F(FileServiceTests, file_destroyed_on_client_thread_during_read_callback_su
             },
             0,
             mFileContent.size(),
-            true);
+            StreamReadTag{true});
 
         // Return a waiter to our caller.
         return notifier->get_future();
@@ -1323,6 +1188,9 @@ TEST_F(FileServiceTests, flush_cancel_on_client_logout_succeeds)
 
     // Try and flush our local changes.
     auto waiter = flush(std::move(*file));
+
+    // Give the File Service a little time to begin the flush.
+    std::this_thread::sleep_for(std::chrono::milliseconds(256));
 
     // Log out the client.
     EXPECT_EQ(client->logout(true), API_OK);
@@ -1469,7 +1337,6 @@ TEST_F(FileServiceTests, flush_succeeds)
     // Flush our modifications to the cloud.
     {
         // So we can receive file events.
-        auto fileObserver = observe(*oldFile);
         auto serviceObserver = observe(mClient->fileService());
 
         // Latch the file's ID.
@@ -1485,9 +1352,9 @@ TEST_F(FileServiceTests, flush_succeeds)
         ASSERT_FALSE(oldFile->info().dirty());
 
         // Make sure we received a flush event.
-        expect(FileFlushEvent{oldFile->info().handle(), id}, fileObserver, serviceObserver);
+        expect(FileFlushEvent{oldFile->info().handle(), id}, serviceObserver);
 
-        EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+        EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
     }
 
     // Latch the file's new handle.
@@ -1554,7 +1421,6 @@ TEST_F(FileServiceTests, flush_succeeds)
     mClient->useVersioning(false);
 
     // So we can receive file events.
-    auto fileObserver = observe(*newFile);
     auto serviceObserver = observe(mClient->fileService());
 
     // Flush our file to the cloud.
@@ -1567,9 +1433,9 @@ TEST_F(FileServiceTests, flush_succeeds)
     ASSERT_NE(oldHandle, newHandle);
 
     // Make sure we received a flush event.
-    expect(FileFlushEvent{newHandle, newFile->info().id()}, fileObserver, serviceObserver);
+    expect(FileFlushEvent{newHandle, newFile->info().id()}, serviceObserver);
 
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+    EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 
     // Make sure our updated file is in the cloud.
     EXPECT_TRUE(waitFor(
@@ -1713,66 +1579,13 @@ TEST_F(FileServiceTests, in_memory_pin_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Begin downloading the entire file.
-    auto waiter = readOnce(std::move(*file), 0, mFileContent.size());
+    auto waiter = readOnce(std::move(*file), 0, mFileContent.size(), StreamReadTag{true});
 
     // Wait for the download to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 
     // Make sure our read completed successfully.
     ASSERT_EQ(waiter.get().errorOr(FILE_SUCCESS), FILE_SUCCESS);
-}
-
-TEST_F(FileServiceTests, inactive_file_moved)
-{
-    // For later reference.
-    auto name0 = randomName();
-
-    // Create a file in the cloud that we can move freely.
-    auto handle = mClient->upload(randomBytes(512), name0, mRootHandle);
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    // Open the file so that the service is aware of it.
-    ASSERT_EQ(mClient->fileOpen(*handle).errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto observer = observe(mClient->fileService());
-
-    auto name1 = randomName();
-
-    // Move the file in the cloud.
-    observer.expect(FileMoveEvent{FileLocation{name0, mRootHandle},
-                                  FileLocation{name1, mRootHandle},
-                                  FileID::from(*handle)});
-
-    ASSERT_EQ(mClient->move(name1, *handle, mRootHandle), API_OK);
-
-    // Wait for the client to recognize the move.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return !mClient->get(mRootHandle, name0) && mClient->get(mRootHandle, name1);
-        },
-        mDefaultTimeout));
-
-    EXPECT_EQ(mClient->get(mRootHandle, name0).errorOr(API_OK), API_FUSE_ENOTFOUND);
-    EXPECT_EQ(mClient->get(mRootHandle, name1).errorOr(API_OK), API_OK);
-
-    if (HasFailure())
-        return;
-
-    // Reopen the file.
-    auto file = mClient->fileOpen(*handle);
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Make sure the file's location has been updated.
-    auto location = file->info().location();
-    ASSERT_TRUE(location);
-
-    EXPECT_EQ(location->mName, name1);
-    EXPECT_EQ(location->mParentHandle, mRootHandle);
-
-    // And that we received a move event.
-    EXPECT_TRUE(observer.satisfied(mDefaultTimeout));
 }
 
 TEST_F(FileServiceTests, inactive_file_removed)
@@ -1788,7 +1601,7 @@ TEST_F(FileServiceTests, inactive_file_removed)
     auto observer = observe(mClient->fileService());
 
     // Remove the file from the cloud.
-    observer.expect(FileRemoveEvent{FileID::from(*handle), false});
+    observer.expect(FileRemoveEvent{FileID::from(*handle)});
 
     ASSERT_EQ(mClient->remove(*handle), API_OK);
 
@@ -1806,51 +1619,6 @@ TEST_F(FileServiceTests, inactive_file_removed)
         return;
 
     // Make sure we received a removed event.
-    EXPECT_TRUE(observer.satisfied(mDefaultTimeout));
-}
-
-TEST_F(FileServiceTests, inactive_file_replaced)
-{
-    // For later reference.
-    auto name0 = randomName();
-    auto name1 = randomName();
-
-    // Create a file that we can move.
-    auto handle = mClient->upload(randomBytes(512), name0, mRootHandle);
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    FileID id;
-
-    // Get the ID of a new local file.
-    {
-        // Create a new local file.
-        auto file = mClient->fileCreate(mRootHandle, name1);
-        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-        // Latch the new file's ID.
-        id = file->info().id();
-    }
-
-    // So we can receive file events.
-    auto observer = observe(mClient->fileService());
-
-    // Move our cloud file such that it replaces our inactive local file.
-    observer.expect(FileRemoveEvent{id, true});
-
-    ASSERT_EQ(mClient->move(name1, *handle, mRootHandle), API_OK);
-
-    // Wait for the client to recognize the move.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return !mClient->get(mRootHandle, name0) && mClient->get(mRootHandle, name1);
-        },
-        mDefaultTimeout));
-
-    EXPECT_EQ(mClient->get(mRootHandle, name0).errorOr(API_OK), API_FUSE_ENOTFOUND);
-    EXPECT_EQ(mClient->get(mRootHandle, name1).errorOr(API_OK), API_OK);
-
-    // Make sure we received a remove event for our inactive file.
     EXPECT_TRUE(observer.satisfied(mDefaultTimeout));
 }
 
@@ -1892,257 +1660,6 @@ TEST_F(FileServiceTests, info_succeeds)
 
     // Make sure the file's access time hasn't changed.
     ASSERT_EQ(info->accessed(), accessed);
-}
-
-TEST_F(FileServiceTests, local_file_removed_when_parent_removed)
-{
-    // Create a directory tree for us to play with.
-    auto d0 = mClient->makeDirectory(randomName(), mRootHandle);
-    ASSERT_EQ(d0.errorOr(API_OK), API_OK);
-
-    auto d1 = mClient->makeDirectory(randomName(), *d0);
-    ASSERT_EQ(d1.errorOr(API_OK), API_OK);
-
-    // Make sure the directories are visible to our client.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return mClient->get(*d0) && mClient->get(*d1);
-        },
-        mDefaultTimeout));
-
-    // For better log messages on Jenkins.
-    EXPECT_EQ(mClient->get(*d0).errorOr(API_OK), API_OK);
-    EXPECT_EQ(mClient->get(*d1).errorOr(API_OK), API_OK);
-
-    if (HasFailure())
-        return;
-
-    // Create a couple test files.
-    auto d0f = mClient->fileCreate(*d0, randomName());
-    ASSERT_EQ(d0f.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    auto d1f = mClient->fileCreate(*d1, randomName());
-    ASSERT_EQ(d1f.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto fileObserver0 = observe(*d0f);
-    auto fileObserver1 = observe(*d1f);
-    auto serviceObserver = observe(mClient->fileService());
-
-    // Remove d0 and by proxy, d0f, d1 and d1f.
-    expect(FileRemoveEvent{d0f->info().id(), false}, fileObserver0, serviceObserver);
-
-    expect(FileRemoveEvent{d1f->info().id(), false}, fileObserver1, serviceObserver);
-
-    ASSERT_EQ(mClient->remove(*d0), API_OK);
-
-    // Make sure the directories are no longer visible to our client.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return !mClient->get(*d0) && !mClient->get(*d1);
-        },
-        mDefaultTimeout));
-
-    // Better log messages.
-    EXPECT_EQ(mClient->get(*d0).errorOr(API_OK), API_ENOENT);
-    EXPECT_EQ(mClient->get(*d1).errorOr(API_OK), API_ENOENT);
-
-    if (HasFailure())
-        return;
-
-    // Make sure our files have been marked as removed.
-    EXPECT_TRUE(d0f->info().removed());
-    EXPECT_TRUE(d1f->info().removed());
-
-    // And that we received remove events.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver0, fileObserver1, serviceObserver));
-}
-
-TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_add)
-{
-    // Generate a name for our file.
-    auto name = randomName();
-
-    // Create a local file.
-    auto file = mClient->fileCreate(mRootHandle, name);
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto fileObserver = observe(*file);
-    auto serviceObserver = observe(mClient->fileService());
-
-    // Add a directory with the same name and parent as our file.
-    expect(FileRemoveEvent{file->info().id(), true}, fileObserver, serviceObserver);
-
-    auto directory = mClient->makeDirectory(name, mRootHandle);
-    ASSERT_EQ(directory.errorOr(API_OK), API_OK);
-
-    // Make sure our client's aware of the new directory.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return mClient->get(*directory);
-        },
-        mDefaultTimeout));
-
-    // For better messages on Jenkins.
-    EXPECT_EQ(mClient->get(*directory).errorOr(API_OK), API_OK);
-
-    if (HasFailure())
-        return;
-
-    // Make sure our file has been marked as removed.
-    ASSERT_TRUE(file->info().removed());
-
-    // And that we received a remove event.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
-}
-
-TEST_F(FileServiceTests, local_file_removed_when_replaced_by_cloud_move)
-{
-    // So we have a stable name.
-    auto fileName0 = randomName();
-
-    // Create a local test file.
-    auto file0 = mClient->fileCreate(mRootHandle, fileName0);
-    ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // As above.
-    auto fileName1 = randomName();
-
-    // Add a new file to the cloud.
-    auto handle0 = mClient->upload(randomBytes(512), fileName1, mRootHandle);
-    ASSERT_EQ(handle0.errorOr(API_OK), API_OK);
-
-    // Open the file.
-    auto file1 = mClient->fileOpen(*handle0);
-    ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto fileObserver0 = observe(*file0);
-    auto fileObserver1 = observe(*file1);
-    auto serviceObserver = observe(mClient->fileService());
-
-    // Move file1 so it replaces file0.
-    expect(FileRemoveEvent{file0->info().id(), true}, fileObserver0, serviceObserver);
-
-    expect(FileMoveEvent{FileLocation{fileName1, mRootHandle},
-                         FileLocation{fileName0, mRootHandle},
-                         file1->info().id()},
-           fileObserver1,
-           serviceObserver);
-
-    ASSERT_EQ(mClient->move(fileName0, *handle0, mRootHandle), API_OK);
-
-    // Make sure the client recognizes the move.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return !mClient->get(mRootHandle, fileName1) && mClient->get(mRootHandle, fileName0);
-        },
-        mDefaultTimeout));
-
-    EXPECT_EQ(mClient->get(mRootHandle, fileName1).errorOr(API_OK), API_FUSE_ENOTFOUND);
-    EXPECT_EQ(mClient->get(mRootHandle, fileName0).errorOr(API_OK), API_OK);
-
-    if (HasFailure())
-        return;
-
-    // Make sure file0 has been marked as removed.
-    EXPECT_TRUE(file0->info().removed());
-
-    // And that we received a remove event.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver0, fileObserver1, serviceObserver));
-}
-
-TEST_F(FileServiceTests, location_updated_when_moved_in_cloud)
-{
-    // Generate a name for our file.
-    auto name = randomName();
-
-    // Upload a file that we can move.
-    auto handle = mClient->upload(randomBytes(512), name, mRootHandle);
-
-    // Make sure we could upload the file.
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    // Try and open the file.
-    auto file = mClient->fileOpen(*handle);
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // So we can receive file events.
-    auto fileObserver = observe(*file);
-    auto serviceObserver = observe(mClient->fileService());
-
-    // Make sure we could open the file.
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Make sure the file's location is correct.
-    auto location = file->info().location();
-    ASSERT_TRUE(location);
-
-    EXPECT_EQ(location->mName, name);
-    ASSERT_EQ(location->mParentHandle, mRootHandle);
-
-    // Expected new location.
-    FileLocation newLocation{randomName(), mRootHandle};
-
-    // Sanity.
-    ASSERT_NE(location, newLocation);
-
-    // Move the file in the cloud.
-    expect(FileMoveEvent{*location, newLocation, file->info().id()}, fileObserver, serviceObserver);
-
-    ASSERT_EQ(mClient->move(newLocation.mName, *handle, mRootHandle), API_OK);
-
-    // Our file's location should change.
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            return file->info().location() == newLocation;
-        },
-        mDefaultTimeout));
-
-    // Make sure the file's location has updated.
-    EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
-}
-
-TEST_F(FileServiceTests, open_by_path_fails_when_file_is_a_directory)
-{
-    EXPECT_EQ(mClient->fileOpen("/", "z").errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_FILE_IS_A_DIRECTORY);
-}
-
-TEST_F(FileServiceTests, open_by_path_fails_when_file_is_unknown)
-{
-    EXPECT_EQ(mClient->fileOpen("/z", "q").errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_FILE_DOESNT_EXIST);
-}
-
-TEST_F(FileServiceTests, open_by_path_fails_when_name_is_empty)
-{
-    EXPECT_EQ(mClient->fileOpen("/z", "").errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_INVALID_NAME);
-}
-
-TEST_F(FileServiceTests, open_by_path_fails_when_parent_is_a_file)
-{
-    EXPECT_EQ(mClient->fileOpen(mFileHandle, "x").errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_PARENT_IS_A_FILE);
-}
-
-TEST_F(FileServiceTests, open_by_path_fails_when_parent_is_unknown)
-{
-    EXPECT_EQ(mClient->fileOpen("/bogus", "x").errorOr(FILE_SERVICE_SUCCESS),
-              FILE_SERVICE_PARENT_DOESNT_EXIST);
-}
-
-TEST_F(FileServiceTests, open_by_path_succeeds)
-{
-    auto file = mClient->fileOpen("/z", mFileName);
-    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-    EXPECT_EQ(file->info().handle(), mFileHandle);
 }
 
 TEST_F(FileServiceTests, open_directory_fails)
@@ -2255,7 +1772,7 @@ TEST_F(FileServiceTests, read_cancel_on_file_destruction_succeeds)
     mClient->setDownloadSpeed(4096);
 
     // Begin the read, taking care to drop our file reference.
-    auto waiter = readOnce(std::move(*file), 768_KiB, 256_KiB);
+    auto waiter = readOnce(std::move(*file), 768_KiB, 256_KiB, StreamReadTag{true});
 
     // Wait for the read to complete.
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
@@ -2520,7 +2037,7 @@ TEST_F(FileServiceTests, read_large_succeeds)
         }());
 
     // Kick off a single large read.
-    auto result = execute(readOnce, *file, 32_KiB, 128_KiB + 1);
+    auto result = execute(readOnce, *file, 32_KiB, 128_KiB + 1, StreamReadTag{true});
 
     // Make sure our read succeeded.
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
@@ -2560,7 +2077,7 @@ TEST_F(FileServiceTests, read_large_with_alignment_succeeds)
         }());
 
     // Kick off a single large read.
-    auto result = execute(readOnce, *file, 96_KiB, 128_KiB + 1);
+    auto result = execute(readOnce, *file, 96_KiB, 128_KiB + 1, StreamReadTag{true});
 
     // Make sure our read succeeded.
     ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
@@ -2745,8 +2262,8 @@ TEST_F(FileServiceTests, read_small_size_extension_succeeds)
         }());
 
     // Perform two small reads.
-    auto waiter0 = readOnce(*file, 0, 4_KiB);
-    auto waiter1 = readOnce(*file, 68_KiB, 4_KiB);
+    auto waiter0 = readOnce(*file, 0, 4_KiB, StreamReadTag{true});
+    auto waiter1 = readOnce(*file, 68_KiB, 4_KiB, StreamReadTag{true});
 
     // Wait for both of our reads to complete.
     ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
@@ -2905,6 +2422,54 @@ TEST_F(FileServiceTests, read_succeeds)
     ASSERT_FALSE(file->info().dirty());
 }
 
+TEST_F(FileServiceTests, read_with_normaltag_succeeds)
+{
+    // Try and open our test file.
+    auto file = mClient->fileOpen(mFileHandle);
+
+    // Make sure we could open our test file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Minimum range size
+    mClient->fileService().serviceOptions(
+        [&]()
+        {
+            auto options = DefaultOptions;
+            options.mMinimumRangeSize = 4_KiB;
+            return options;
+        }());
+
+    // Kick off a single read.
+    auto result = execute(readOnce, *file, 32_KiB, 1_KiB, NormalReadTag{});
+
+    // Make sure our read succeeded.
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // And returned valid data.
+    ASSERT_TRUE(compare(*result, mFileContent, 32_KiB, result->size()));
+
+    // Wait for the read's range to finish downloading.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
+
+    // Make sure the file's ranges match what we've downloaded. 4KiB minimum range
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(32_KiB, 32_KiB + 4_KiB)));
+
+    // Kick off another single read.
+    result = execute(readOnce, *file, 0_KiB, 128_KiB + 1, NormalReadTag{});
+
+    // Make sure our read succeeded.
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+    // And returned valid data.
+    ASSERT_TRUE(compare(*result, mFileContent, 0_KiB, result->size()));
+
+    // Wait for the read's range to finish downloading.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
+
+    // Make sure the file's ranges match what we've downloaded.
+    ASSERT_THAT(file->ranges(), ElementsAre(FileRange(0_KiB, 128_KiB + 1)));
+}
+
 TEST_F(FileServiceTests, read_write_overlap_succeeds)
 {
     // Generate some data for us to write to our file.
@@ -2920,7 +2485,8 @@ TEST_F(FileServiceTests, read_write_overlap_succeeds)
     mClient->setDownloadSpeed(262144);
 
     // Begin a read of the entire file.
-    ASSERT_EQ(execute(readOnce, *file, 0, mFileContent.size()).errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    auto result = execute(readOnce, *file, 0, mFileContent.size(), StreamReadTag{true});
+    ASSERT_EQ(result.errorOr(FILE_SUCCESS), FILE_SUCCESS);
 
     // Write two 256K ranges within our file.
     ASSERT_EQ(execute(write, data.data(), *file, 256_KiB, 256_KiB), FILE_SUCCESS);
@@ -2957,7 +2523,7 @@ TEST_F(FileServiceTests, read_write_sequence)
     mClient->setDownloadSpeed(4096);
 
     // Initiate a requset to read all of the file's data.
-    auto read0 = readOnce(*file, 0, 1_MiB);
+    auto read0 = readOnce(*file, 0, 1_MiB, StreamReadTag{true});
 
     // Initiate a request to overwrite all of the file's data.
     auto write = testing::write(expected.data(), *file, 0, expected.size());
@@ -3490,6 +3056,81 @@ TEST_F(FileServiceTests, reclaim_after_delay_and_period_succeeds)
     EXPECT_GE(reclaimOptions.mReclaimTarget, *usedAfterPeriod);
 }
 
+TEST_F(FileServiceTests, reclaim_modified_succeeds)
+{
+    // Generate data for us to write to the cloud.
+    auto expected = randomBytes(512_KiB);
+
+    // Create a file that we can modify.
+    const auto name = randomName();
+    auto handle = mClient->upload(expected, name, mRootHandle);
+
+    // Make sure we could create our test file.
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Find out how much space the service is currently using.
+    auto usedBefore = mClient->fileService().storageInfo();
+    ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(usedBefore->mAllocatedSize, 0);
+
+    // Read and write file in the scope (so file object is not alive outside)
+    {
+        // Open the file for IO.
+        auto file = mClient->fileOpen(*handle);
+
+        // Make sure we could open our file.
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Read some data from the file.
+        auto computed = execute(read, *file, 0, 64_KiB);
+        ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+        // Write some data to the file.
+        ASSERT_EQ(execute(write, expected.data(), *file, 256_KiB, 64_KiB), FILE_SUCCESS);
+        ASSERT_TRUE(file->info().dirty());
+
+        // Update our expected buffer.
+        expected.replace(256_KiB, 64_KiB, expected, 0, 64_KiB);
+    }
+
+    // Find out how much space the service is currently using.
+    usedBefore = mClient->fileService().storageInfo();
+    ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_GE(usedBefore->mAllocatedSize, 64_KiB + 64_KiB);
+
+    // Try and reclaim storage.
+    // So we'll reclaim all files currently in storage immediately
+    mClient->fileService().reclaimOptions(
+        []()
+        {
+            auto options = DefaultReclaimOptions;
+            options.mAgeThreshold = std::chrono::minutes(0);
+            options.mBatchSize = SIZE_MAX;
+            options.mReclaimTarget = 0;
+            options.mReclaimThreshold = 0;
+            return options;
+        }());
+
+    auto reclaimed = execute(reclaimAll, mClient);
+
+    // Make sure reclamation succeeded.
+    ASSERT_EQ(reclaimed.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_EQ(*reclaimed, usedBefore->mAllocatedSize);
+
+    // Make sure a new copy of our file has been uploaded to the cloud.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            return mClient->get(mRootHandle, name);
+        },
+        mDefaultTimeout));
+
+    // Make sure file's handle is new
+    auto nodeInfo = mClient->get(mRootHandle, name);
+    ASSERT_EQ(nodeInfo.errorOr(API_OK), API_OK);
+    ASSERT_NE(*handle, nodeInfo->mHandle);
+}
+
 TEST_F(FileServiceTests, reclaim_single_succeeds)
 {
     // Generate data for us to write to the cloud.
@@ -3516,18 +3157,33 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
 
     // Write some data to the file.
     ASSERT_EQ(execute(write, expected.data(), *file, 256_KiB, 64_KiB), FILE_SUCCESS);
+    ASSERT_TRUE(file->info().dirty());
 
     // Update our expected buffer.
     expected.replace(256_KiB, 64_KiB, expected, 0, 64_KiB);
 
     // Find out how much space the service is currently using.
-    auto usedBefore = mClient->fileService().storageUsed();
+    auto usedBefore = mClient->fileService().storageInfo();
     ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+    ASSERT_GE(usedBefore->mAllocatedSize, 64_KiB + 64_KiB + 64_KiB);
+
+    // So we'll reclaim all files currently in storage.
+    mClient->fileService().reclaimOptions(
+        []()
+        {
+            auto options = DefaultReclaimOptions;
+            options.mAgeThreshold = std::chrono::minutes(0);
+            options.mBatchSize = SIZE_MAX;
+            options.mReclaimThreshold = 0;
+            options.mReclaimTarget = 0;
+            return options;
+        }());
 
     // Try and reclaim the file's storage.
     {
         // For later comparison.
         auto allocatedBefore = file->info().allocatedSize();
+        ASSERT_GE(allocatedBefore, 64_KiB + 64_KiB + 64_KiB);
 
         // Try and reclaim storage.
         auto reclaimed = execute(reclaim, *file);
@@ -3539,7 +3195,7 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
         auto allocatedAfter = file->info().allocatedSize();
 
         // Make sure we actually reclaimed space.
-        ASSERT_LT(allocatedAfter, allocatedBefore);
+        ASSERT_EQ(allocatedAfter, 0);
         ASSERT_EQ(*reclaimed, allocatedBefore - allocatedAfter);
 
         // Make sure our file's attributes were updated correctly.
@@ -3555,7 +3211,6 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
     // Make sure we actually reclaimed space.
     auto usedAfter = mClient->fileService().storageUsed();
     ASSERT_EQ(usedAfter.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-    ASSERT_LT(*usedAfter, *usedBefore);
 
     // Make sure we can read all of the file's data.
     computed = execute(read, *file, 0, 512_KiB);
@@ -3570,7 +3225,7 @@ TEST_F(FileServiceTests, reclaim_single_succeeds)
 TEST_F(FileServiceTests, release_file_within_append_callback_succeeds)
 {
     // Create a file we can modify.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and append some data to the end of the file.
@@ -3619,7 +3274,7 @@ TEST_F(FileServiceTests, release_within_event_callback_succeeds)
         auto notifier = makeSharedPromise<void>();
 
         // Add an observer.
-        file.addObserver(
+        mClient->fileService().addObserver(
             [file, notifier](auto)
             {
                 // Let waiters know we received an event.
@@ -3630,7 +3285,7 @@ TEST_F(FileServiceTests, release_within_event_callback_succeeds)
             });
 
         // Try and remove the file.
-        file.remove([](auto) {}, false);
+        file.remove([](auto) {});
 
         // Return the waiter to our caller.
         return notifier->get_future();
@@ -3700,8 +3355,21 @@ TEST_F(FileServiceTests, release_file_within_fetch_barrier_callback_succeeds)
 TEST_F(FileServiceTests, release_file_within_flush_callback_succeeds)
 {
     // Open a file for us to fetch.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // So we can tell the service where the file is located.
+    ScopedFileLocationProvider provider(
+        [fileID = file->info().id()](auto id) -> std::optional<FileLocation>
+        {
+            static const auto name = randomName();
+
+            if (fileID == id)
+                return FileLocation{name, mRootHandle};
+
+            return std::nullopt;
+        },
+        mClient->fileService());
 
     // Try and flush the file.
     auto waiter = [file = std::move(*file)]() mutable
@@ -3730,7 +3398,7 @@ TEST_F(FileServiceTests, release_file_within_flush_callback_succeeds)
 TEST_F(FileServiceTests, release_file_within_purge_callback_succeeds)
 {
     // Create a file we can purge.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and purge the file.
@@ -3803,8 +3471,7 @@ TEST_F(FileServiceTests, release_file_within_remove_callback_succeeds)
             [file, notifier](auto result)
             {
                 notifier->set_value(result);
-            },
-            false);
+            });
 
         return notifier->get_future();
     }();
@@ -3819,7 +3486,7 @@ TEST_F(FileServiceTests, release_file_within_remove_callback_succeeds)
 TEST_F(FileServiceTests, release_file_within_touch_callback_succeeds)
 {
     // Create a file we can safely modify.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and alter the file's modification time.
@@ -3847,7 +3514,7 @@ TEST_F(FileServiceTests, release_file_within_touch_callback_succeeds)
 TEST_F(FileServiceTests, release_file_within_truncate_callback_succeeds)
 {
     // Create a file we can safely modify.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and truncate the file.
@@ -3875,7 +3542,7 @@ TEST_F(FileServiceTests, release_file_within_truncate_callback_succeeds)
 TEST_F(FileServiceTests, release_file_within_write_callback_succeeds)
 {
     // Create a file we can safely modify.
-    auto file = mClient->fileCreate(mRootHandle, randomName());
+    auto file = mClient->fileCreate();
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // Try and write the file.
@@ -3913,17 +3580,13 @@ TEST_F(FileServiceTests, remove_local_succeeds)
 
     // Create and then remove a local file.
     {
-        // Generate a name for our file.
-        auto name = randomName();
-
         // Create a local file.
-        auto file0 = mClient->fileCreate(mRootHandle, name);
+        auto file0 = mClient->fileCreate();
 
         // Make sure we could create the file.
         ASSERT_EQ(file0.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
         // So we can receive file events.
-        auto fileObserver = observe(*file0);
         auto serviceObserver = observe(mClient->fileService());
 
         // Latch the file's ID.
@@ -3933,7 +3596,7 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         auto data = randomBytes(512_KiB);
 
         // Write some data to the file.
-        expect(FileWriteEvent{FileRange{0, data.size()}, id}, fileObserver, serviceObserver);
+        expect(FileWriteEvent{FileRange{0, data.size()}, id}, serviceObserver);
 
         ASSERT_EQ(execute(write, data.data(), *file0, 0, data.size()), FILE_SUCCESS);
 
@@ -3944,7 +3607,7 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
         // Remove the file.
-        expect(FileRemoveEvent{id, false}, fileObserver, serviceObserver);
+        expect(FileRemoveEvent{id}, serviceObserver);
 
         ASSERT_EQ(execute(remove, *file0), FILE_SUCCESS);
 
@@ -3952,22 +3615,13 @@ TEST_F(FileServiceTests, remove_local_succeeds)
         ASSERT_TRUE(file0->info().removed());
 
         // Make sure we received a remove event.
-        EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+        EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 
         // Make sure we can't get a new reference to a removed file.
         ASSERT_EQ(mClient->fileInfo(id).errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_UNKNOWN_FILE);
 
         ASSERT_EQ(mClient->fileOpen(id).errorOr(FILE_SERVICE_SUCCESS),
                   FILE_SERVICE_FILE_DOESNT_EXIST);
-
-        // Make sure we can create another file at the same location.
-        auto file1 = mClient->fileCreate(mRootHandle, name);
-
-        // Make sure we could create our file.
-        ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-        // Mark that file for removal, too.
-        ASSERT_EQ(execute(remove, *file1), FILE_SUCCESS);
     }
 
     // Make sure the file's been removed.
@@ -4014,11 +3668,10 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
         ASSERT_EQ(usedBefore.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
         // So we can receive file events.
-        auto fileObserver = observe(*file0);
         auto serviceObserver = observe(mClient->fileService());
 
         // Remove the file.
-        expect(FileRemoveEvent{id, false}, fileObserver, serviceObserver);
+        expect(FileRemoveEvent{id}, serviceObserver);
 
         ASSERT_EQ(execute(remove, *file0), FILE_SUCCESS);
 
@@ -4032,7 +3685,7 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
             mDefaultTimeout));
 
         // Make sure we received a remove event.
-        EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+        EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 
         EXPECT_EQ(mClient->get(*handle).errorOr(API_OK), API_ENOENT);
         EXPECT_TRUE(file0->info().removed());
@@ -4042,13 +3695,6 @@ TEST_F(FileServiceTests, remove_cloud_succeeds)
 
         ASSERT_EQ(mClient->fileOpen(id).errorOr(FILE_SERVICE_SUCCESS),
                   FILE_SERVICE_FILE_DOESNT_EXIST);
-
-        // Make sure we can create a new file at the same location.
-        auto file1 = mClient->fileCreate(mRootHandle, name);
-        ASSERT_EQ(file1.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-        // Mark that file for removal, too.
-        ASSERT_EQ(execute(remove, *file1), FILE_SUCCESS);
     }
 
     // Make sure the file's been removed.
@@ -4207,6 +3853,70 @@ TEST_F(FileServiceTests, stream_succeeds)
     ASSERT_TRUE(compare(*computed, mFileContent, 0, mFileContent.size()));
 }
 
+TEST_F(FileServiceTests, touch_on_disk_succeeds)
+{
+    // Create a file we can modify.
+    auto handle = mClient->upload(randomBytes(512), randomName(), mRootHandle);
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Open our file.
+    auto file = mClient->fileOpen(*handle);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Convenience.
+    using std::chrono::minutes;
+    using std::chrono::system_clock;
+
+    // Compute a new modification time.
+    auto modified = system_clock::to_time_t(system_clock::now() + minutes(5));
+
+    // Update the file's modification time.
+    ASSERT_EQ(execute(touch, *file, modified), FILE_SUCCESS);
+
+    // Make sure the service reports the file's new modification time.
+    ASSERT_EQ(file->info().modified(), modified);
+
+    // Flush the file to the cloud.
+    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+
+    // Wait for our file to be present in the cloud.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            return mClient->get(file->info().handle());
+        },
+        mDefaultTimeout));
+
+    // Make sure the file's modification time was updated on disk.
+    auto info = mClient->get(file->info().handle());
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mModified, modified);
+
+    // Set the file's modification time to some time in the past.
+    modified -= 1800;
+
+    ASSERT_EQ(execute(touch, *file, modified), FILE_SUCCESS);
+
+    // Make sure the service reports the file's new modification time.
+    ASSERT_EQ(file->info().modified(), modified);
+
+    // Flush the file to the cloud.
+    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+
+    // Wait for the file's new version to be present in the cloud.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            return mClient->get(file->info().handle());
+        },
+        mDefaultTimeout));
+
+    // Make sure the file's modification time was updated on disk.
+    info = mClient->get(file->info().handle());
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mModified, modified);
+}
+
 TEST_F(FileServiceTests, touch_succeeds)
 {
     // Open a file for modification.
@@ -4216,7 +3926,6 @@ TEST_F(FileServiceTests, touch_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // So we can keep track of our file's events.
-    auto fileObserver = observe(*file);
     auto serviceObserver = observe(mClient->fileService());
 
     // Get our hands on the file's attributes.
@@ -4230,7 +3939,7 @@ TEST_F(FileServiceTests, touch_succeeds)
     auto modified = info.modified();
 
     // Try and update the file's modification time.
-    expect(FileTouchEvent{file->info().id(), modified - 1}, fileObserver, serviceObserver);
+    expect(FileTouchEvent{file->info().id(), modified - 1}, serviceObserver);
 
     ASSERT_EQ(execute(touch, *file, modified - 1), FILE_SUCCESS);
 
@@ -4245,7 +3954,82 @@ TEST_F(FileServiceTests, touch_succeeds)
     EXPECT_EQ(info.modified(), modified - 1);
 
     // Make sure we received an event.
-    ASSERT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+    ASSERT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
+}
+
+TEST_F(FileServiceTests, truncate_on_disk_succeeds)
+{
+    // Create a file we can modify.
+    auto file = mClient->fileCreate();
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // So we can tell the File Service where the file should be uploaded.
+    ScopedFileLocationProvider provider(
+        [fileID = file->info().id()](auto id) -> std::optional<FileLocation>
+        {
+            if (fileID == id)
+                return FileLocation{randomName(), mRootHandle};
+
+            return std::nullopt;
+        },
+        mClient->fileService());
+
+    // Extend the file's size.
+    ASSERT_EQ(execute(truncate, *file, 64_KiB), FILE_SUCCESS);
+
+    // Make sure the File Service is aware of the file's new size.
+    EXPECT_EQ(file->info().reportedSize(), 64_KiB);
+    EXPECT_EQ(file->info().size(), 64_KiB);
+
+    if (HasFailure())
+        return;
+
+    // Flush our file to the cloud.
+    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+
+    // Make sure the file's been flushed to the cloud.
+    ASSERT_FALSE(file->info().handle().isUndef());
+
+    // Wait for the file to be present in the cloud.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            return mClient->get(file->info().handle());
+        },
+        mDefaultTimeout));
+
+    // Make sure the file's physical size was correct.
+    auto info = mClient->get(file->info().handle());
+
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, static_cast<m_off_t>(file->info().size()));
+
+    // Reduce the file's size.
+    ASSERT_EQ(execute(truncate, *file, 32_KiB), FILE_SUCCESS);
+
+    // Make sure the File Service realizes the file has shrunk.
+    EXPECT_EQ(file->info().reportedSize(), 32_KiB);
+    EXPECT_EQ(file->info().size(), 32_KiB);
+
+    if (HasFailure())
+        return;
+
+    // Flush our changes to the cloud.
+    ASSERT_EQ(execute(flush, *file), FILE_SUCCESS);
+
+    // Wait for the file's latest version to be present in the cloud.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            return mClient->get(file->info().handle());
+        },
+        mDefaultTimeout));
+
+    // Make sure the file's physical size was correct.
+    info = mClient->get(file->info().handle());
+
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, static_cast<m_off_t>(file->info().size()));
 }
 
 TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
@@ -4284,7 +4068,6 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         FileEventVector expected;
 
         // So we can receive events.
-        auto fileObserver = observe(*file);
         auto serviceObserver = observe(mClient->fileService());
 
         // Get our hands on the file's attributes.
@@ -4312,7 +4095,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
             if (newSize < size)
                 event.mRange.emplace(newSize, size);
 
-            expect(event, fileObserver, serviceObserver);
+            expect(event, serviceObserver);
         }
 
         // Initiate the truncate request.
@@ -4329,7 +4112,7 @@ TEST_F(FileServiceTests, truncate_with_ranges_succeeds)
         EXPECT_EQ(info.size(), newSize);
 
         // Make sure we received our expected events.
-        EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+        EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 
         // One of the above expectations wasn't met.
         if (HasFailure())
@@ -4387,7 +4170,6 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
 
     // So we can receive file events.
-    auto fileObserver = observe(*file);
     auto serviceObserver = observe(mClient->fileService());
 
     // Get our hands on the file's attributes.
@@ -4404,9 +4186,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     auto size = info.size();
 
     // We should be able to reduce the file's size.
-    expect(FileTruncateEvent{FileRange(size / 2, size), info.id(), size / 2},
-           fileObserver,
-           serviceObserver);
+    expect(FileTruncateEvent{FileRange(size / 2, size), info.id(), size / 2}, serviceObserver);
 
     ASSERT_EQ(execute(truncate, *file, size / 2), FILE_SUCCESS);
 
@@ -4424,7 +4204,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     modified = info.modified();
 
     // We should be able to grow the file's size.
-    expect(FileTruncateEvent{std::nullopt, info.id(), size}, fileObserver, serviceObserver);
+    expect(FileTruncateEvent{std::nullopt, info.id(), size}, serviceObserver);
 
     ASSERT_EQ(execute(truncate, *file, size), FILE_SUCCESS);
 
@@ -4451,7 +4231,7 @@ TEST_F(FileServiceTests, truncate_without_ranges_succeeds)
     EXPECT_EQ(result->find_first_not_of('\0', length), npos);
 
     // Make sure we received the events we expected.
-    ASSERT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+    ASSERT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 }
 
 TEST_F(FileServiceTests, write_cancels_orphan_reads)
@@ -4467,7 +4247,7 @@ TEST_F(FileServiceTests, write_cancels_orphan_reads)
     //
     // We're not using the read(...) helper function in this case because we
     // don't really care if we get all of the data we've asked for.
-    auto read = readOnce(*file, 0, 1_MiB);
+    auto read = readOnce(*file, 0, 1_MiB, StreamReadTag{true});
 
     // Write our generated data to the file.
     //
@@ -4527,7 +4307,6 @@ TEST_F(FileServiceTests, write_succeeds)
     auto write = [&](const void* content, std::uint64_t offset, std::uint64_t length)
     {
         // So we can receive events.
-        auto fileObserver = observe(*file);
         auto serviceObserver = observe(mClient->fileService());
 
         // Get our hands on the file's information.
@@ -4540,9 +4319,7 @@ TEST_F(FileServiceTests, write_succeeds)
         auto modified = info.modified();
 
         // Try and write content to our file.
-        expect(FileWriteEvent{FileRange(offset, offset + length), info.id()},
-               fileObserver,
-               serviceObserver);
+        expect(FileWriteEvent{FileRange(offset, offset + length), info.id()}, serviceObserver);
 
         auto result = execute(testing::write, content, *file, offset, length);
 
@@ -4572,7 +4349,7 @@ TEST_F(FileServiceTests, write_succeeds)
         EXPECT_EQ(info.size(), size);
 
         // Make sure we received the events we wanted.
-        EXPECT_TRUE(satisfied(mDefaultTimeout, fileObserver, serviceObserver));
+        EXPECT_TRUE(satisfied(mDefaultTimeout, serviceObserver));
 
         // One or more of our expectations weren't satisfied.
         if (HasFailure())
@@ -4911,7 +4688,7 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
                 std::bind(&ReadContext::onRead, this, std::move(context), std::placeholders::_1),
                 result->mOffset + count,
                 mLength,
-                false);
+                StreamReadTag{false});
         }
 
         // Where we'll store content.
@@ -4941,14 +4718,16 @@ auto read(File file, std::uint64_t offset, std::uint64_t length)
         std::bind(&ReadContext::onRead, context.get(), std::move(context), std::placeholders::_1),
         offset,
         length,
-        true);
+        StreamReadTag{true});
 
     // Return waiter to our caller.
     return waiter;
 }
 
-auto readOnce(File file, std::uint64_t offset, std::uint64_t length)
-    -> std::future<FileResultOr<std::string>>
+auto readOnce(File file,
+              std::uint64_t offset,
+              std::uint64_t length,
+              ReadTag readTag) -> std::future<FileResultOr<std::string>>
 {
     // So we can signal when the read has completed.
     auto notifier = makeSharedPromise<FileResultOr<std::string>>();
@@ -4981,7 +4760,7 @@ auto readOnce(File file, std::uint64_t offset, std::uint64_t length)
         },
         offset,
         length,
-        true);
+        readTag);
 
     // Return the waiter to our caller.
     return waiter;
@@ -5041,8 +4820,7 @@ auto remove(File file) -> std::future<FileResult>
         [notifier](auto result)
         {
             notifier->set_value(result);
-        },
-        false);
+        });
 
     // Return the waiter to our caller.
     return waiter;

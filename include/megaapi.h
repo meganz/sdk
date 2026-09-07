@@ -25456,18 +25456,6 @@ class MegaApi
 
         /**
          * @brief
-         * Check whether the specified file is in FUSE's cache.
-         *
-         * @param path
-         * Identifies the file we want to check.
-         *
-         * @return
-         * True if the file is in FUSE's cache.
-         */
-        bool isCachedByPath(const char* path);
-
-        /**
-         * @brief
          * Query whether FUSE is supported on this platform.
          *
          * @return

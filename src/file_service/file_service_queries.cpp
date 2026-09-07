@@ -15,10 +15,8 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileKeyData(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
-    mGetFileByNameAndParentHandle(database.query()),
     mGetFileDuration(database.query()),
     mGetFileIDs(database.query()),
-    mGetFileIDsByParentHandle(database.query()),
     mGetFileKeyData(database.query()),
     mGetFileRanges(database.query()),
     mGetFreeFileID(database.query()),
@@ -33,7 +31,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFiles(database.query()),
     mSetFileAccessTime(database.query()),
     mSetFileHandle(database.query()),
-    mSetFileLocation(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileRemoved(database.query()),
     mSetFileSize(database.query()),
@@ -46,8 +43,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  :handle, "
                "  :id, "
                "  :modified, "
-               "  :name, "
-               "  :parent_handle, "
                "  :removed, "
                "  :reported_size, "
                "  :size "
@@ -81,10 +76,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "        or (:id is not null and id = :id)) "
                "   and (:removed is null or removed = :removed)";
 
-    mGetFileByNameAndParentHandle = "select * "
-                                    "  from files "
-                                    " where name = :name and parent_handle = :parent_handle";
-
     mGetFileDuration = "select duration "
                        "  from file_durations "
                        " where id = :id";
@@ -93,11 +84,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                   "  from files "
                   " where (:dirty is null or dirty = :dirty) "
                   "   and (:removed is null or removed = :removed)";
-
-    mGetFileIDsByParentHandle = "select id "
-                                "  from files "
-                                " where parent_handle = :parent_handle "
-                                "   and (:removed is null or removed = :removed)";
 
     mGetFileKeyData = "select * from file_key_data where id = :id";
 
@@ -184,11 +170,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      "   set handle = :handle "
                      " where id = :id";
 
-    mSetFileLocation = "update files "
-                       "   set name = :name "
-                       "     , parent_handle = :parent_handle "
-                       " where id = :id";
-
     mSetFileModificationTime = "update files "
                                "   set accessed = :accessed "
                                "     , dirty = 1 "
@@ -197,8 +178,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mSetFileRemoved = "update files "
                       "   set handle = null "
-                      "     , name = null "
-                      "     , parent_handle = null "
                       "     , removed = 1 "
                       " where id = :id";
 

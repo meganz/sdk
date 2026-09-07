@@ -208,6 +208,8 @@ public:
 
     bool fstat(m_time_t& modified, m_off_t& fileSize) override;
 
+    bool ftouch(m_time_t modified) override;
+
     bool ftruncate(m_off_t newSize) override;
 
     bool sysread(void* buffer,

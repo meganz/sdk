@@ -1,11 +1,13 @@
 #pragma once
 
+#include <cstdint>
+
 namespace mega
 {
 namespace file_service
 {
 
-struct FileMoveEvent;
+enum class FileLocationProviderID : std::uint64_t;
 
 } // file_service
 } // mega

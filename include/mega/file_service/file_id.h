@@ -29,12 +29,17 @@ namespace file_service
 
 class FileID
 {
-    explicit FileID(std::uint64_t id);
-
     std::uint64_t mID;
+
+protected:
+    explicit FileID(std::uint64_t id);
 
 public:
     FileID();
+
+    FileID(const FileID& other) = default;
+
+    FileID& operator=(const FileID& rhs) = default;
 
     operator bool() const;
 

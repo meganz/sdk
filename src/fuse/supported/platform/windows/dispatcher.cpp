@@ -365,7 +365,7 @@ NTSTATUS Dispatcher::overwrite(FSP_FILE_SYSTEM* filesystem,
                context,
                replaceAttributes);
 
-    auto result = dispatcher.mMount.overwrite(context, *info);
+    auto result = dispatcher.mMount.overwrite(attributes, context, *info, replaceAttributes);
 
     FUSEDebugF("overwrite: context: %p, result: %lx: %s",
                context,

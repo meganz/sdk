@@ -686,6 +686,16 @@ bool PosixFileAccess::fstat(m_time_t& modified, m_off_t& size)
     return true;
 }
 
+bool PosixFileAccess::ftouch(m_time_t modified)
+{
+    struct timespec times[] = {/* accessed */ {0, UTIME_OMIT},
+                               /* modified */ {modified, 0}}; // times
+
+    retry = false;
+
+    return futimens(fd, times) == 0;
+}
+
 bool PosixFileAccess::ftruncate(m_off_t size)
 {
     retry = false;

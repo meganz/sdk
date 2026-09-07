@@ -12,11 +12,18 @@
 #include <mega/common/query_forward.h>
 #include <mega/common/scoped_query_forward.h>
 #include <mega/common/transaction_forward.h>
+#include <mega/file_service/file_event_forward.h>
+#include <mega/file_service/file_event_observer_id.h>
+#include <mega/file_service/file_event_observer_result_forward.h>
+#include <mega/file_service/file_info.h>
+#include <mega/file_service/file_location_forward.h>
+#include <mega/file_service/file_location_provider_id.h>
+#include <mega/file_service/file_service_forward.h>
+#include <mega/file_service/file_service_result_forward.h>
+#include <mega/file_service/file_service_result_or_forward.h>
 #include <mega/fuse/common/any_lock_set_forward.h>
 #include <mega/fuse/common/directory_inode_forward.h>
 #include <mega/fuse/common/directory_inode_results.h>
-#include <mega/fuse/common/file_cache_forward.h>
-#include <mega/fuse/common/file_extension_db_forward.h>
 #include <mega/fuse/common/file_inode_forward.h>
 #include <mega/fuse/common/inode_cache_forward.h>
 #include <mega/fuse/common/inode_db_forward.h>
@@ -27,6 +34,7 @@
 #include <mega/fuse/platform/service_context_forward.h>
 #include <mega/types.h>
 
+#include <atomic>
 #include <condition_variable>
 #include <map>
 #include <mutex>
@@ -91,6 +99,8 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
 
     // Clarity.
     class EventObserver;
+    class FileEventObserver;
+    class NodeEventObserver;
 
     // So we can use an inode's name and parent handle as a key.
     using NodeHandleStringPtrPair = std::pair<NodeHandle, const std::string*>;
@@ -130,12 +140,6 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
 
         // What inodes are present under the specified node handle?
         common::Query mGetChildrenByParentHandle;
-
-        // What extension and ID is associated with the given node handle?
-        common::Query mGetExtensionAndInodeIDByHandle;
-
-        // Get an inode's extension and ID based on a name and parent handle.
-        common::Query mGetExtensionAndInodeIDByNameAndParentHandle;
 
         // What inode is associated with the specified inode?
         common::Query mGetHandleByID;
@@ -184,10 +188,8 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
     InodeRef add(InodePtr (InodeDB::*build)(const common::NodeInfo&), const common::NodeInfo& info);
 
     // Add a new file to the database.
-    InodeID addFile(const FileExtension& extension,
-                    const std::string& name,
-                    NodeHandle parentHandle,
-                    common::Transaction& transaction);
+    auto addFile(const std::string& name, NodeHandle parentHandle, common::Transaction& transaction)
+        -> file_service::FileServiceResultOr<file_service::FileInfo>;
 
     // Instantiate a new directory inode.
     InodePtr buildDirectory(const common::NodeInfo& info);
@@ -214,17 +216,19 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
     bool discard() const;
 
     // Load an inode from the client.
-    InodeRef get(common::Client& client, NodeHandle handle) const;
+    InodeRef get(common::Client& client, NodeHandle handle, const AnyLockSet& locks) const;
 
     // Load an inode from the file cache by handle.
-    InodeRef get(FileCache& fileCache, NodeHandle handle, AnyLockSet locks) const;
+    InodeRef get(file_service::FileService& fileService,
+                 NodeHandle handle,
+                 const AnyLockSet& locks) const;
 
     // Load an inode from the file cache by ID.
-    InodeRef get(FileCache& fileCache, InodeID id, AnyLockSet locks) const;
+    InodeRef get(file_service::FileService& fileService, InodeID id, const AnyLockSet& locks) const;
 
     // Load an inode from the file cache.
-    InodeRef get(FileCache& fileCache,
-                 AnyLockSet locks,
+    InodeRef get(file_service::FileService& FileService,
+                 const AnyLockSet& locks,
                  common::ScopedQuery query,
                  common::Transaction transaction) const;
 
@@ -258,6 +262,12 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
 
     // Move (or rename) a file.
     Error move(FileInodeRef source, const std::string& targetName, DirectoryInodeRef targetParent);
+
+    // Called when we've received a file event from the File Service.
+    auto onFileEvent(const file_service::FileEvent& event) -> file_service::FileEventObserverResult;
+
+    // Called when the File Service wants to know where an inode is located.
+    auto onFileLocation(file_service::FileID id) -> std::optional<file_service::FileLocation>;
 
     // Remove a directory inode from the index.
     void remove(const DirectoryInode& inode, InodeDBLock lock);
@@ -299,7 +309,13 @@ class InodeDB final: public common::Lockable<InodeDB>, public common::NodeEventO
     platform::ServiceContext& mContext;
 
     // Whether we should discard node events.
-    bool mDiscard;
+    std::atomic<bool> mDiscard;
+
+    // The ID of our file event observer.
+    file_service::FileEventObserverID mFileEventObserverID;
+
+    // The ID of our file location provider.
+    file_service::FileLocationProviderID mFileLocationProviderID;
 
     // What queries do we perform?
     mutable Queries mQueries;
@@ -330,11 +346,8 @@ public:
     // Check if an inode is in the database.
     bool exists(InodeID id) const;
 
-    // Retrieve the file cache associated with this database.
-    FileCache& fileCache() const;
-
-    // Retrieve the file extension DB associated with this database.
-    FileExtensionDB& fileExtensionDB() const;
+    // Retrieve the File Service associated with this database.
+    file_service::FileService& fileService() const;
 
     // Retrieve an inode by handle.
     InodeRef get(NodeHandle handle, bool inMemoryOnly = false) const;

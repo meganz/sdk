@@ -2,7 +2,6 @@
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
 #include <mega/fuse/common/file_inode.h>
-#include <mega/fuse/common/file_io_context.h>
 #include <mega/fuse/common/file_move_flag.h>
 #include <mega/fuse/common/file_open_flag.h>
 #include <mega/fuse/common/inode.h>
@@ -676,7 +675,7 @@ void Mount::setattr(Request request, MountInodeID inode, struct stat& attributes
             return EISDIR;
 
         // Try and truncate the file.
-        auto result = fileRef->truncate(*this, attributes.st_size, false);
+        auto result = fileRef->truncate(*this, attributes.st_size);
 
         // Translate result.
         return translate(result);
@@ -927,14 +926,14 @@ void Mount::invalidateEntry(const std::string& name, InodeID parent)
 InodeID Mount::map(MountInodeID id) const
 {
     if (id.get() != FUSE_ROOT_ID)
-        return InodeID(id);
+        return InodeID::from(id);
 
-    return InodeID(handle());
+    return InodeID::from(handle());
 }
 
 MountInodeID Mount::map(InodeID id) const
 {
-    if (id == handle())
+    if (id == InodeID::from(handle()))
         return MountInodeID(FUSE_ROOT_ID);
 
     return MountInodeID(id);

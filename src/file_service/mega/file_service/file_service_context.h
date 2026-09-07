@@ -17,6 +17,9 @@
 #include <mega/file_service/file_info_context_badge_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_location_forward.h>
+#include <mega/file_service/file_location_provider.h>
+#include <mega/file_service/file_location_provider_id.h>
 #include <mega/file_service/file_range_set.h>
 #include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_context_forward.h>
@@ -32,6 +35,7 @@
 #include <atomic>
 #include <chrono>
 #include <condition_variable>
+#include <map>
 #include <memory>
 #include <optional>
 #include <vector>
@@ -156,6 +160,12 @@ class FileServiceContext: common::NodeEventObserver
     std::condition_variable_any mInfoContextRemoved;
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
 
+    // Who can we ask to learn where a local file should exist in the cloud?
+    std::map<FileLocationProviderID, FileLocationProvider> mLocationProviders;
+
+    // Serializes access to mLocationProviders.
+    common::SharedMutex mLocationProvidersLock;
+
     // This lock serializes access to the context's members.
     //
     // Note that if we want to run some query on the database, we must
@@ -208,11 +218,11 @@ public:
              const common::NodeKeyData& keyData,
              std::uint64_t size) -> FileServiceResultOr<FileID>;
 
+    // Add a location provider to the service.
+    FileLocationProviderID addLocationProvider(FileLocationProvider provider);
+
     // Notify observer when a file changes.
     FileEventObserverID addObserver(FileEventObserver observer);
-
-    // Notify observer when a specific file changes.
-    FileEventObserverID addObserver(FileID id, FileEventObserver observer);
 
     // Let the service know it should clean the cache on destruction.
     void cleanCacheOnDestruction();
@@ -221,7 +231,7 @@ public:
     common::Client& client();
 
     // Create a new file.
-    auto create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
+    auto create() -> FileServiceResultOr<File>;
 
     // Retrieve a reference to this service's database.
     common::Database& database();
@@ -238,11 +248,13 @@ public:
     // Retrieve information about a file managed by this service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
 
+    // Where should the specified file be located in the cloud?
+    auto location(FileID id) -> FileServiceResultOr<FileLocation>;
+
     // Emit a file event.
     void notify(const FileEvent& event);
 
     // Open a file for reading or writing.
-    auto open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
     auto open(FileID id) -> FileServiceResultOr<File>;
 
     // Return a reference to this service's queries.
@@ -254,11 +266,11 @@ public:
     // Reclaim storage space.
     void reclaim(ReclaimCallback callback, const ReclaimOptions& reclaimOptions);
 
+    // Remove a previously added file observer.
+    void removeLocationProvider(FileLocationProviderID id);
+
     // Remove an observer.
     void removeObserver(FileEventObserverID id);
-
-    // Remove an observer from a specific file.
-    void removeObserver(FileID id, FileEventObserverID observerID);
 
     // Retrieve the file service's current reclaim options.
     ReclaimOptions reclaimOptions();

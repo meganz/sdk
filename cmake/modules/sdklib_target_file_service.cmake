@@ -30,8 +30,8 @@ target_sources(SDKlib PRIVATE
                       include/mega/file_service/file_info_forward.h
                       include/mega/file_service/file_location.h
                       include/mega/file_service/file_location_forward.h
-                      include/mega/file_service/file_move_event.h
-                      include/mega/file_service/file_move_event_forward.h
+                      include/mega/file_service/file_location_provider.h
+                      include/mega/file_service/file_location_provider_id.h
                       include/mega/file_service/file_range.h
                       include/mega/file_service/file_range_forward.h
                       include/mega/file_service/file_range_vector.h
@@ -64,6 +64,7 @@ target_sources(SDKlib PRIVATE
                       include/mega/file_service/file_write_event.h
                       include/mega/file_service/file_write_event_forward.h
                       include/mega/file_service/file_write_result.h
+                      include/mega/file_service/read_tag.h
                       include/mega/file_service/sink.h
                       include/mega/file_service/sink_forward.h
                       include/mega/file_service/source.h
@@ -124,8 +125,6 @@ target_sources(SDKlib PRIVATE
                       src/file_service/mega/file_service/file_request_tags.h
                       src/file_service/mega/file_service/file_service_context.h
                       src/file_service/mega/file_service/file_service_queries.h
-                      src/file_service/mega/file_service/file_size_info.h
-                      src/file_service/mega/file_service/file_size_info_forward.h
                       src/file_service/mega/file_service/file_storage.h
                       src/file_service/mega/file_service/file_touch_request.h
                       src/file_service/mega/file_service/file_touch_request_forward.h
@@ -137,7 +136,6 @@ target_sources(SDKlib PRIVATE
                       src/file_service/mega/file_service/logger.h
                       src/file_service/mega/file_service/logging.h
                       src/file_service/mega/file_service/memory_buffer.h
-                      src/file_service/mega/file_service/sparse_file_buffer.h
                       src/file_service/mega/file_service/type_traits.h
 )
 
@@ -164,6 +162,6 @@ target_sources(SDKlib PRIVATE
                       src/file_service/file_storage.cpp
                       src/file_service/logger.cpp
                       src/file_service/memory_buffer.cpp
-                      src/file_service/sparse_file_buffer.cpp
+                      src/file_service/read_tag.cpp
                       src/file_service/utility.cpp
 )

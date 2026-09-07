@@ -1329,21 +1329,27 @@ TEST_P(FUSEPlatformTests, set_file_time_succeeds)
     EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
     EXPECT_EQ(computed.mByPath, expected);
 
-    // Make sure our changes have hit the cloud.
+    // Flush our changes to the cloud.
     EXPECT_TRUE(FlushFileBuffers(handle.get()));
     EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
 
+    // Convenience.
+    using common::ErrorOr;
+    using common::NodeInfo;
+
+    ErrorOr<NodeInfo> info;
+
+    // Make sure the file's new modification time is visible in the cloud.
     EXPECT_TRUE(waitFor(
         [&]()
         {
-            auto info = ClientW()->get("/x/s/sf0");
-            return info && expected == *info;
+            info = ClientW()->get("/x/s/sf0");
+            return info && DateTime(info->mModified) == next;
         },
         mDefaultTimeout));
 
-    auto info = ClientW()->get("/x/s/sf0");
-    ASSERT_TRUE(info);
-    EXPECT_EQ(expected, *info);
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    EXPECT_EQ(DateTime(info->mModified), next);
 }
 
 TEST_P(FUSEPlatformTests, truncate_fails_when_read_only)

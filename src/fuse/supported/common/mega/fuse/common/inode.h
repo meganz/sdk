@@ -91,9 +91,6 @@ public:
     // Update this inode's access time.
     Inode* accessed() const;
 
-    // Is this inode in the file cache?
-    virtual bool cached() const = 0;
-
     // Check if this inode represents a directory.
     //
     // If the inode does represent a directory, a more specialized

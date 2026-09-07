@@ -556,6 +556,9 @@ struct MEGA_API FileAccess
     // Updates mtime and size.
     bool fstat();
 
+    // Update the file's modification time.
+    virtual bool ftouch(m_time_t modified) = 0;
+
     // Truncate a file.
     virtual bool ftruncate(m_off_t size = 0) = 0;
 

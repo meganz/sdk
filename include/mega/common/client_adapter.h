@@ -109,11 +109,17 @@ public:
     // Initialize the client.
     void initialize() override;
 
+    // Is this the client thread?
+    bool isClientThread() const override;
+
     // Check whether a node is a file.
     ErrorOr<bool> isFile(NodeHandle handle) const override;
 
     // Retrieve the specified node's key data.
     ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const override;
+
+    // Acquire exclusive access to the node tree.
+    void lock() const override;
 
     // Make a new directory in the cloud.
     void makeDirectory(MakeDirectoryCallback callback,
@@ -127,9 +133,6 @@ public:
     void move(MoveCallback callback,
               NodeHandle source,
               NodeHandle target) override;
-
-    // Is this the client thread?
-    bool isClientThread() const;
 
     // Query who a node's parent is.
     ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const override;
@@ -175,6 +178,12 @@ public:
     void touch(TouchCallback callback,
                NodeHandle handle,
                m_time_t modified) override;
+
+    // Try and acquire exclusive access to the node tree.
+    bool try_lock() const override;
+
+    // Relinquish exclusive access to the node tree.
+    void unlock() const override;
 
     // Called when nodes have been updated in the cloud.
     void updated(const sharedNode_vector& nodes);

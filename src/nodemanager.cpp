@@ -1825,11 +1825,11 @@ void NodeManager::notifyPurge()
             mClient.app->nodes_updated(&nodesToReport, static_cast<int>(nodesToReport.size()));
         }
 
-        LockGuard g(mMutex);
-
         // Let the client adapter know that nodes have been updated.
         mClient.mClientAdapter.updated(nodesToReport);
         mClient.mPublicClientAdapter.updated(nodesToReport);
+
+        LockGuard g(mMutex);
 
         TransferDbCommitter committer(mClient.tctable);
 

@@ -36,7 +36,7 @@ public:
     auto fileAdd(const PublicLink& link) -> FileServiceResultOr<FileID>;
 
     // Create a new file that is to be managed by the File Service.
-    auto fileCreate(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
+    auto fileCreate() -> FileServiceResultOr<File>;
 
     // Retrieve information about a file managed by the File Service.
     auto fileInfo(FileID id) const -> FileServiceResultOr<FileInfo>;
@@ -45,9 +45,6 @@ public:
 
     // Open a file managed by the File Service.
     auto fileOpen(FileID id) const -> FileServiceResultOr<File>;
-
-    auto fileOpen(common::testing::CloudPath parentPath, const std::string& name) const
-        -> FileServiceResultOr<File>;
 
     auto fileOpen(common::testing::CloudPath path) const -> FileServiceResultOr<File>;
 

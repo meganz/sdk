@@ -9,6 +9,7 @@ target_include_directories(test_integration PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 target_sources(test_integration PRIVATE
                                 client.cpp
                                 common_tests.cpp
+                                file_service_tests.cpp
                                 mount_event_observer.cpp
                                 mount_tests.cpp
                                 parameters.cpp
