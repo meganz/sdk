@@ -416,7 +416,7 @@ void SessionBase::write(fuse_req_t request,
                            true,
                            Request(request),
                            inode_,
-                           std::string(data, size),
+                           std::make_shared<std::string>(data, size),
                            offset,
                            *info);
 }

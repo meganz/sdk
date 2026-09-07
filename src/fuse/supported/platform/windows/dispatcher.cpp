@@ -719,7 +719,7 @@ FSP_FSCTL_TRANSACT_REQ& Dispatcher::request() const
 void Dispatcher::start(const NormalizedPath& path)
 {
     // Try and start the dispatcher.
-    auto result = FspFileSystemStartDispatcher(mFilesystem, 0);
+    auto result = FspFileSystemStartDispatcher(mFilesystem, 4u);
 
     // Couldn't start the dispatcher.
     if (!NT_SUCCESS(result))

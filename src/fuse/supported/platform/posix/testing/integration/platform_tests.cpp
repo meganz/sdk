@@ -857,22 +857,31 @@ TEST_P(FUSEPlatformTests, read_write_succeeds)
         auto offset = static_cast<m_off_t>(id * BYTES_PER_THREAD);
 
         // Write data to w, read it back on r.
-        for (auto i = 0u; !terminate && i < NUM_ITERATIONS; ++i)
+        for (auto i = 0u; i < NUM_ITERATIONS; ++i)
         {
             // Generate some data to write to w.
-            auto written = randomBytes(BYTES_PER_THREAD);
+            auto data = randomBytes(BYTES_PER_THREAD);
 
-            // Write the data to w.
-            w.write(&written[0], written.size(), offset);
+            // Try and write the data to w.
+            auto written = w.write(&data[0], data.size(), offset);
 
-            auto read = std::string(written.size(), '\0');
+            // Terminate if we couldn't write all of our data to disk.
+            EXPECT_EQ(data.size(), written);
+
+            if (HasFailure())
+                return terminate = true, void();
+
+            auto read = std::string(data.size(), '\0');
 
             // Try and read the data back.
             read.resize(r.read(&read[0], read.size(), offset));
 
+            // Terminate if we couldn't read back the data we wrote.
+            EXPECT_EQ(data, read);
+
             // Terminate if we couldn't read back what we wrote.
-            if (read != written)
-                terminate = true;
+            if (HasFailure())
+                return terminate = true, void();
         }
     }; // loop
 

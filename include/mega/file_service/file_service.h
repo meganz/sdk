@@ -87,6 +87,9 @@ public:
     // Create a new file.
     auto create() -> FileServiceResultOr<File>;
 
+    // Called by the client when its view of the cloud is current.
+    void current();
+
     // Where is the service storing its database?
     auto databasePath() const -> FileServiceResultOr<LocalPath>;
 

@@ -437,47 +437,47 @@ void testAdd(AddFunction&& add)
 
     // Before: __AA____
     // Adding: _BB_____
-    //  After: _BAA____
+    //  After: __AA____
     std::tie(iterator, added) = std::invoke(add, set, FileRange(1, 3));
 
-    EXPECT_TRUE(added);
+    EXPECT_FALSE(added);
     ASSERT_NE(iterator, set.end());
-    EXPECT_EQ(iterator->mBegin, 1);
-    EXPECT_EQ(iterator->mEnd, 2);
-    EXPECT_EQ(set.size(), 2u);
+    EXPECT_EQ(iterator->mBegin, 2);
+    EXPECT_EQ(iterator->mEnd, 4);
+    EXPECT_EQ(set.size(), 1u);
 
-    // Before: _BAA____
+    // Before: __AA____
     // Adding: ___CC___
-    //  After: _BAA____
+    //  After: __AA____
     std::tie(iterator, added) = std::invoke(add, set, FileRange(3, 5));
 
     EXPECT_FALSE(added);
     ASSERT_NE(iterator, set.end());
     EXPECT_EQ(iterator->mBegin, 2);
     EXPECT_EQ(iterator->mEnd, 4);
-    EXPECT_EQ(set.size(), 2u);
+    EXPECT_EQ(set.size(), 1u);
 
-    // Before: _BAA____
+    // Before: __AA____
     // Adding: DDDDD___
-    //  After: DBAA____
+    //  After: __AA____
     std::tie(iterator, added) = std::invoke(add, set, FileRange(0, 5));
 
-    EXPECT_TRUE(added);
+    EXPECT_FALSE(added);
     ASSERT_NE(iterator, set.end());
-    EXPECT_EQ(iterator->mBegin, 0);
-    EXPECT_EQ(iterator->mEnd, 1);
-    EXPECT_EQ(set.size(), 3u);
+    EXPECT_EQ(iterator->mBegin, 2);
+    EXPECT_EQ(iterator->mEnd, 4);
+    EXPECT_EQ(set.size(), 1u);
 
-    // Before: DBAA____
+    // Before: __AA____
     // Adding: ____CC__
-    //  After: DBAACC__
+    //  After: __AACC__
     std::tie(iterator, added) = std::invoke(add, set, FileRange(4, 6));
 
     EXPECT_TRUE(added);
     ASSERT_NE(iterator, set.end());
     EXPECT_EQ(iterator->mBegin, 4);
     EXPECT_EQ(iterator->mEnd, 6);
-    EXPECT_EQ(set.size(), 4u);
+    EXPECT_EQ(set.size(), 2u);
 }
 
 struct FileRangeGapIteratorTests: ::testing::Test

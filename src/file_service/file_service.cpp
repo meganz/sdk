@@ -134,6 +134,14 @@ catch (std::runtime_error& exception)
     return FILE_SERVICE_UNEXPECTED;
 }
 
+void FileService::current()
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        mContext->current();
+}
+
 auto FileService::create() -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);

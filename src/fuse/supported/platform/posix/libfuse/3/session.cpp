@@ -110,6 +110,12 @@ Session::Session(Mount& mount):
     FUSEDebugF("Session constructed: %s", path.c_str());
 }
 
+Session::~Session()
+{
+    // Release the reusable receive buffer (allocated by fuse_session_receive_buf).
+    free(mBuffer.mem);
+}
+
 int Session::descriptor() const
 {
     assert(mSession);
@@ -122,20 +128,12 @@ void Session::dispatch()
     // Sanity.
     assert(mSession);
 
-    struct fuse_buf buffer
-    {};
-
-    // Make sure our buffer is always released.
-    auto releaser = makeScopedDestructor(
-        [&buffer]()
-        {
-            free(buffer.mem);
-        }); // releaser
-
-    // Try and read a request from libfuse.
+    // Try and read a request from libfuse into our reusable buffer. Reusing
+    // mBuffer lets fuse_session_receive_buf keep its allocation across calls
+    // instead of allocating (and freeing) the full channel buffer per request.
     while (true)
     {
-        auto result = fuse_session_receive_buf(mSession.get(), &buffer);
+        auto result = fuse_session_receive_buf(mSession.get(), &mBuffer);
 
         // Ignore zero length requests.
         if (!result)
@@ -158,7 +156,7 @@ void Session::dispatch()
     }
 
     // Dispatch the request.
-    fuse_session_process_buf(mSession.get(), &buffer);
+    fuse_session_process_buf(mSession.get(), &mBuffer);
 }
 
 void Session::invalidateData(MountInodeID id, off_t offset, off_t length)

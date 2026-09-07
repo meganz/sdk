@@ -36,14 +36,32 @@ struct ReclaimOptions
 
 struct ServiceOptions
 {
-    // How fast do we think the user's download speed is?
+    // How fast do we think the user's download speed is for streaming?
     std::uint64_t mEstimatedDownloadBitrate = 50 * 1000 * 8;
+
+    // How fast do we think the user's download speed is for normal read?
+    std::uint64_t mEstimatedNormalDownloadBitrate = 5 * 1024 * 1024 * 8;
 
     // How long do we think it'll take before a download yields its first byte of data?
     std::chrono::milliseconds mEstimatedTimeToFirstByte = std::chrono::seconds(1);
 
     // How long should we wait before we remove a file context from memory?
     std::chrono::seconds mFileContextReleaseDelay{3};
+
+    // How long should we wait before flushing a file's modifications the cloud?
+    std::chrono::seconds mFileFlushDelay = std::chrono::minutes(15);
+
+    // How long should we wait before retrying a flush?
+    common::deciseconds mFileFlushRetryBackoff{20};
+
+    // Gaps less distant than this value can be filled by a single download.
+    std::uint64_t mMaximumGapDistance = UINT64_C(1) << 20;
+
+    // How many times should we try and flush a file before we give up?
+    std::size_t mMaximumFileFlushRetries = 5u;
+
+    // How long should we wait before considering normal reads are inactive?
+    std::chrono::seconds mNormalReadInactivityDelay = std::chrono::seconds(10);
 
     // Reads less than or equal to this value will be downloaded immediately.
     std::uint64_t mImmediateDownloadThreshold = 1ul << 20;
@@ -67,8 +85,17 @@ struct ServiceOptions
     // What is the minimum amount of data we should request from the cloud?
     std::uint64_t mMinimumRangeSize = UINT64_C(1) << 16;
 
+    // What is the minimum length of the range to update the speed statistics, 5MB
+    std::uint64_t mSpeedStatThreshold = UINT64_C(5) << 20;
+
     // How long should we wait between retries?
     common::deciseconds mRangeRetryBackoff{20};
+
+    // How long can we wait on an existing download before we split its range?
+    std::chrono::seconds mRangeSplitThreshold{2};
+
+    // How long should we wait before persisting a file's access time again on the read path?
+    std::chrono::seconds mAccessTimeUpdateInterval = std::chrono::minutes(1);
 }; // ServiceOptions
 
 } // file_service

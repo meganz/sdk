@@ -190,19 +190,23 @@ void File::truncate(FileTruncateCallback callback, std::uint64_t newSize)
 
 void File::write(const void* buffer,
                  FileWriteCallback callback,
+                 FileWriteFlags flags,
                  std::uint64_t offset,
                  std::uint64_t length)
 {
-    write(buffer, std::move(callback), FileRange(offset, offset + length));
+    write(buffer, std::move(callback), flags, FileRange(offset, offset + length));
 }
 
-void File::write(const void* buffer, FileWriteCallback callback, const FileRange& range)
+void File::write(const void* buffer,
+                 FileWriteCallback callback,
+                 FileWriteFlags flags,
+                 const FileRange& range)
 {
     assert(buffer || range.mEnd - range.mBegin == 0);
     assert(callback);
     assert(mContext);
 
-    mContext->write(mContext, FileWriteRequest{buffer, std::move(callback), range});
+    mContext->write(mContext, FileWriteRequest{buffer, std::move(callback), flags, range});
 }
 
 } // file_service

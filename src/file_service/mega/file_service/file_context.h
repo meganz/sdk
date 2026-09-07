@@ -40,6 +40,7 @@
 #include <mega/scoped_helpers.h>
 #include <mega/types.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
 #include <future>
@@ -58,6 +59,25 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Tracks state necessary for download.
     class DownloadContext;
 
+    // Convenience.
+    using DownloadContextPtr = std::shared_ptr<DownloadContext>;
+    using DownloadContextPtrList = std::list<DownloadContextPtr>;
+
+    // Bundles state related to a particular download category.
+    struct DownloadCategory
+    {
+        DownloadCategory(bool isStreaming, uint32_t alphaDown, uint32_t alphaUp);
+
+        // Computes the average bitrate of this download category.
+        common::AsymmetricEma mAverager;
+
+        // Tracks this category's active downloads.
+        FileRangeMap<DownloadContextPtr> mInProgress;
+
+        // True if this category represents a streaming transfer.
+        bool mIsStreaming;
+    }; // DownloadCategory
+
     // Tracks state necessary for fetch.
     class FetchContext;
 
@@ -68,7 +88,6 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     class ReclaimContext;
 
     // Convenience.
-    using DownloadContextPtr = std::shared_ptr<DownloadContext>;
     using FetchContextPtr = std::shared_ptr<FetchContext>;
     using FlushContextPtr = std::shared_ptr<FlushContext>;
     using FlushContextWeakPtr = std::weak_ptr<FlushContext>;
@@ -77,14 +96,13 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
 
-    // Add a download and the download begins when the return value is out of scope
-    std::optional<ScopedDestructor> addScopedDownload(FileRangeMap<DownloadContextPtr>& map,
-                                                      const FileRange& range);
+    // Adds a new download for a given range to the specified category.
+    //
+    // Returns an object that will begin the download on destrution.
+    auto addScopedDownload(DownloadCategory& category, const FileRange& range) -> ScopedDestructor;
 
     // Cancel all downloads contained within the specified range.
-    auto cancel(const FileRangeMap<DownloadContextPtr>& downloading,
-                const FileRange& range) -> std::list<DownloadContextPtr>;
-
+    auto cancel(const DownloadCategory& category, const FileRange& range) -> DownloadContextPtrList;
     auto cancel(const FileRange& range) -> std::future<void>;
 
     // Cancel a pending request.
@@ -102,7 +120,7 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
         -> std::enable_if_t<IsFileRequestV<Request>>;
 
     // Called to complete all file read requests within range.
-    void completed(const FileRange& range);
+    std::size_t completed(const FileRange& range);
 
     // Called when a file write request has been completed.
     void completed(FileWriteRequest&& request);
@@ -113,10 +131,7 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
 
     // Dispatch all read requests within range.
     template<typename Dispatcher>
-    void dispatch(Dispatcher&& dispatcher, const FileRange& range);
-
-    // Large download bitrate
-    std::uint64_t downloadBitrate() const;
+    std::size_t dispatch(Dispatcher&& dispatcher, const FileRange& range);
 
     // Check if a request can be executed.
     bool executable(std::unique_lock<std::mutex>& lock, bool queuing, const FileRequest& request);
@@ -183,6 +198,9 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     auto grow(std::uint64_t newSize, std::uint64_t oldSize)
         -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;
 
+    // Return the last normal read activity time, used for cancel unused downloads for normal reads
+    std::chrono::steady_clock::time_point lastNormalReadActivityTime() const;
+
     // Queue read request for later completion
     void queueReadRequest(FileReadRequest&& request);
 
@@ -198,6 +216,9 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
+    // Returns a destructor that will schedule this file for flushing.
+    ScopedDestructor scopedScheduleFlush();
+
     // Mark the file as removed.
     FileResult setRemoved();
 
@@ -208,10 +229,16 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Update this file's access time in the database.
     void updateAccessTime(std::int64_t accessed, common::Transaction& transaction);
 
+    // Update this file's access time in the database if at least interval has elapsed.
+    void bumpAccessTime(std::chrono::seconds interval);
+
     // Update this file's access and modification time in the database.
     void updateAccessAndModificationTimes(std::int64_t accessed,
                                           std::int64_t modified,
                                           common::Transaction& transaction);
+
+    // Update last normal read activity time, used for cancel unused downloads for normal reads
+    void touchNormalReadActivity();
 
     // Called after a range has been written to disk.
     FileRange updateRanges(FileRange range, common::Transaction& transaction);
@@ -225,21 +252,21 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Keep our service alive until we're dead.
     common::Activity mActivity;
 
-    // What's the average bitrate of our large downloads?
-    common::EmaInteger mAverageLargeDownloadBitrate;
-
     // Wraps mFile and unifies logic.
     FileBufferPtr mBuffer;
 
-    // What ranges are currently being downloaded?
+    // Tracks what ranges are currently being downloaded.
     struct
     {
-        // For StreamRead
-        FileRangeMap<DownloadContextPtr> mLarge;
-        FileRangeMap<DownloadContextPtr> mSmall;
-        // For NormalRead
-        FileRangeMap<DownloadContextPtr> mNormal;
-    } mDownloading;
+        // For large streaming transfers.
+        DownloadCategory mLarge;
+
+        // For nonstreaming transfers.
+        DownloadCategory mNormal;
+
+        // For small streaming transfers.
+        DownloadCategory mSmall;
+    } mDownloadCategories;
 
     // How we get and set our file's attributes.
     FileInfoContextPtr mInfo;
@@ -279,6 +306,10 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
 
     // Tracks whether any reads or writes are in progress.
     FileReadWriteState mReadWriteState;
+
+    // Tracks normal reads activity time since epoch, used for cancel unused downloads for normal
+    // reads Practically, duration can be used as type of Atomic
+    std::atomic<std::chrono::steady_clock::duration> mLastNormalReadActivityTime;
 
     // Tracks any reclaim in progress.
     ReclaimContextPtr mReclaimContext;

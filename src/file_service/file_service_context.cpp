@@ -458,6 +458,40 @@ auto FileServiceContext::fileContextFromIndex(FileID id, Lock&& lock)
     return file;
 }
 
+void FileServiceContext::flushModified()
+try
+{
+    // How long should we wait before flushing modified files?
+    const auto delay = serviceOptions().mFileFlushDelay;
+
+    // Acquire necessary locks.
+    UniqueLock lockContexts(mLock);
+    UniqueLock lockDatabase(mDatabase);
+
+    // Figure out which files need to be flushed.
+    auto transaction = mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetModifiedFiles);
+
+    query.execute();
+
+    // When should we flush the modified files to the cloud?
+    const auto when = steady_clock::now() + delay;
+
+    // Flush each modified file to the cloud.
+    for (; query; ++query)
+    {
+        // What file do we need to flush?
+        const auto id = query.field("id").get<FileID>();
+
+        // Schedule the file to be flushed to the cloud.
+        mFileFlusher.schedule(id, when);
+    }
+}
+catch (std::runtime_error& exception)
+{
+    FSErrorF("Unable to flush modified files: %s", exception.what());
+}
+
 template<typename Lock, typename T>
 auto FileServiceContext::getFromIndex(FileID id,
                                       [[maybe_unused]] Lock&& lock,
@@ -973,17 +1007,22 @@ FileServiceContext::FileServiceContext(Client& client,
     mQueries(mDatabase),
     mCacheCleaner(),
     mFileContexts(),
+    mFileFlusher(*this),
     mInfoContextRemoved(),
     mInfoContexts(),
     mLocationProviders(),
     mLocationProvidersLock(),
     mLock(),
+    mOnCurrent(&FileServiceContext::flushModified),
     mReclaimContext(),
     mReclaimContextLock(),
     mReclaimTask(),
     mReclaimTaskLock(),
     mEventEmitter(),
     mService(service),
+    mSpeed(1, // Extreme slow to decreasing,
+           220, // Extreme fast to increasing
+           service.serviceOptions().mEstimatedNormalDownloadBitrate),
     mExecutor(TaskExecutorFlags(), logger()),
     mContextMonitor(),
     mReclaimMonitor()
@@ -1185,9 +1224,19 @@ Client& FileServiceContext::client()
     return mClient;
 }
 
+void FileServiceContext::current()
+{
+    // Execute "nodes current" handler, if any.
+    if (auto onCurrent = std::exchange(mOnCurrent, nullptr))
+        (this->*onCurrent)();
+}
+
 auto FileServiceContext::create() -> FileServiceResultOr<File>
 try
 {
+    // How long should we wait before flushing a new file?
+    const auto flushDelay = serviceOptions().mFileFlushDelay;
+
     // Acquire context and database locks.
     UniqueLock lockContexts(mLock);
     UniqueLock lockDatabase(mDatabase);
@@ -1251,6 +1300,9 @@ try
     mFileContexts.emplace(id, file);
     mInfoContexts.emplace(id, std::move(info));
 
+    // Make sure the new file is flushed to the cloud.
+    mFileFlusher.schedule(id, flushDelay);
+
     // Return a file instance to our caller.
     return File(FileServiceContextBadge{}, std::move(file));
 }
@@ -1280,6 +1332,11 @@ bool FileServiceContext::deinitializing() const
 TaskExecutor& FileServiceContext::executor()
 {
     return mExecutor;
+}
+
+FileFlusher& FileServiceContext::flusher()
+{
+    return mFileFlusher;
 }
 
 auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>
@@ -1399,6 +1456,9 @@ try
     {
         return mInfoContexts.empty();
     }; // idle
+
+    // Cancel any scheduled flushes.
+    mFileFlusher.cancel();
 
     // Make sure we have exclusive access to the context.
     UniqueLock lockContexts(mLock);
@@ -1597,6 +1657,16 @@ ServiceOptions FileServiceContext::serviceOptions()
     return mService.serviceOptions();
 }
 
+uint64_t FileServiceContext::speed() const
+{
+    return mSpeed.getValue();
+}
+
+void FileServiceContext::speed(uint64_t newSample)
+{
+    mSpeed.update(newSample);
+}
+
 auto FileServiceContext::storageInfo(const ReclaimOptions* options)
     -> FileServiceResultOr<StorageInfo>
 try
@@ -1644,6 +1714,25 @@ LocalPath FileServiceContext::userFilePath(FileID id) const
     return mStorage.userFilePath(id);
 }
 
+FileServiceContext::Averager::Averager(uint32_t alphaDown, uint32_t alphaUp, uint64_t seed):
+    mAverager(alphaDown, alphaUp),
+    mMutex{}
+{
+    mAverager.update(seed);
+}
+
+void FileServiceContext::Averager::update(uint64_t newSample)
+{
+    const std::lock_guard g{mMutex};
+    mAverager.update(newSample);
+}
+
+uint64_t FileServiceContext::Averager::getValue() const
+{
+    const std::lock_guard g{mMutex};
+    return mAverager.getValue();
+}
+
 FileServiceContext::EventProcessor::EventProcessor(FileServiceContext& service):
     mService(service),
     mServiceLock(service.mLock),
@@ -1679,6 +1768,9 @@ FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
 
 bool FileServiceContext::EventProcessor::mark(FileID id)
 {
+    // Cancel this file's scheduled flush, if any.
+    mService.mFileFlusher.cancel(id);
+
     // Check if the file's in memory.
     auto info = this->info(id);
 

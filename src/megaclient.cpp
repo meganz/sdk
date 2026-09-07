@@ -5750,6 +5750,7 @@ void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChangin
         }
         statecurrent = true;
         app->nodes_current();
+        mFileService.current();
         mFuseService.current();
         LOG_debug << "Cloud node tree up to date";
 #ifdef ENABLE_SYNC

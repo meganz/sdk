@@ -18,6 +18,7 @@
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_fetch_request.h>
 #include <mega/file_service/file_flush_request.h>
+#include <mega/file_service/file_flusher.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
@@ -41,6 +42,7 @@
 #include <cassert>
 #include <chrono>
 #include <iterator>
+#include <utility>
 
 namespace mega
 {
@@ -68,8 +70,8 @@ class FileContext::DownloadContext: private PartialDownloadCallback
     // Called when our download's encountered a failure.
     virtual auto failed(Error result, int retries) -> std::variant<Abort, Retry> override;
 
-    // True if this is a large download.
-    bool isLargeDownload() const;
+    // Will this download satisfy any pending read requests?
+    bool hasPendingReadRequests() const;
 
     // True if this download has been replaced.
     bool replaced() const;
@@ -83,14 +85,14 @@ class FileContext::DownloadContext: private PartialDownloadCallback
     // Callbacks to execute when this range's fetch completes.
     std::vector<FileFetchCallback> mCallbacks;
 
+    // What category does this download belong to?
+    DownloadCategory& mCategory;
+
     // Which file is responsible for this context?
     FileContext& mContext;
 
     // The download that's retrieving this file range's data.
     PartialDownloadPtr mDownload;
-
-    // Which of our file's download maps are present in?
-    FileRangeMap<DownloadContextPtr>& mDownloading;
 
     // What is our position in mMap?
     FileRangeMap<DownloadContextPtr>::Iterator mIterator;
@@ -102,10 +104,12 @@ class FileContext::DownloadContext: private PartialDownloadCallback
     std::uint64_t mRetries;
 
 public:
-    DownloadContext(Activity activity,
+    DownloadContext(DownloadCategory& category,
                     FileContext& context,
-                    FileRangeMap<DownloadContextPtr>& downloading,
                     FileRangeMap<DownloadContextPtr>::Iterator iterator);
+
+    // What is this download's estimated bitrate?
+    std::uint64_t bitrate() const;
 
     // Cancel this range's download.
     void cancel();
@@ -262,24 +266,23 @@ void FileContext::addRange(const FileRange& range, Transaction& transaction)
     query.execute();
 }
 
-std::optional<ScopedDestructor>
-    FileContext::addScopedDownload(FileRangeMap<DownloadContextPtr>& map, const FileRange& range)
+auto FileContext::addScopedDownload(DownloadCategory& category,
+                                    const FileRange& range) -> ScopedDestructor
 {
     // Sanity: Range shouldn't be zero length.
     assert(!range.empty());
 
     // Where will our download be located in map?
-    auto [iterator, added] = map.tryAdd(range, nullptr);
+    auto [iterator, added] = category.mInProgress.tryAdd(range, nullptr);
 
     // Sanity: Adding should always succeed as ranges never overlap.
     assert(added);
 
     if (!added)
-        return std::nullopt;
+        return ScopedDestructor();
 
     // Instantiate a download context for range.
-    auto context =
-        std::make_shared<DownloadContext>(mDownloadMonitor.begin(), *this, map, iterator);
+    auto context = std::make_shared<DownloadContext>(category, *this, iterator);
 
     // Make sure our context's linked into map.
     iterator->second = context;
@@ -289,7 +292,7 @@ std::optional<ScopedDestructor>
 
     // Couldn't create a download for our range.
     if (!download)
-        return std::nullopt;
+        return ScopedDestructor();
 
     // Make sure we begin our download.
     return ScopedDestructor{[download = std::move(download)]()
@@ -298,14 +301,17 @@ std::optional<ScopedDestructor>
                             }};
 }
 
-auto FileContext::cancel(const FileRangeMap<DownloadContextPtr>& downloading,
-                         const FileRange& range) -> std::list<DownloadContextPtr>
+auto FileContext::cancel(const DownloadCategory& category,
+                         const FileRange& range) -> DownloadContextPtrList
 {
+    // Convenience.
+    const auto& inProgress = category.mInProgress;
+
     // Do any ranges end after range?
-    auto begin = downloading.endsAfter(range.mBegin);
+    auto begin = inProgress.endsAfter(range.mBegin);
 
     // No ranges end after range.
-    if (begin == downloading.end() || begin->first.mBegin >= range.mEnd)
+    if (begin == inProgress.end() || begin->first.mBegin >= range.mEnd)
         return {};
 
     // A range overlaps the beginning of range.
@@ -313,16 +319,16 @@ auto FileContext::cancel(const FileRangeMap<DownloadContextPtr>& downloading,
         begin->second->range(begin->first.mBegin, range.mBegin);
 
     // Do any ranges end after range?
-    auto end = downloading.endsAfter(range.mEnd);
+    auto end = inProgress.endsAfter(range.mEnd);
 
     // A range overlaps the ending of range.
-    if (end != downloading.end() && end->first.mBegin < range.mEnd)
+    if (end != inProgress.end() && end->first.mBegin < range.mEnd)
         end->second->range(range.mEnd, end->first.mEnd);
 
     // Recompute begin and end;
-    std::tie(begin, end) = downloading.find(range);
+    std::tie(begin, end) = inProgress.find(range);
 
-    std::list<DownloadContextPtr> downloads;
+    DownloadContextPtrList downloads;
 
     // Populate a list of the downloads that need to be cancelled.
     std::transform(begin, end, std::back_inserter(downloads), Select<1>());
@@ -342,12 +348,17 @@ auto FileContext::cancel(const FileRange& range) -> std::future<void>
     // Make sure we have exclusive access to mDownloading.
     std::unique_lock lock(mLock);
 
+    // Convenience.
+    const DownloadCategory* categories[] = {&mDownloadCategories.mLarge,
+                                            &mDownloadCategories.mNormal,
+                                            &mDownloadCategories.mSmall}; // categories
+
     // Tracks which downloads we need to cancel.
     std::list<DownloadContextPtr> downloads;
 
     // Figure out which downloads we need to cancel, if any.
-    for (auto* map: {&mDownloading.mLarge, &mDownloading.mSmall, &mDownloading.mNormal})
-        downloads.splice(downloads.end(), cancel(*map, range));
+    for (auto* category: categories)
+        downloads.splice(downloads.end(), cancel(*category, range));
 
     // No downloads need to be cancelled.
     if (downloads.empty())
@@ -490,9 +501,9 @@ auto FileContext::completed(Request&& request, Result result, Captures&&... capt
                      true);
 }
 
-void FileContext::completed(const FileRange& range)
+std::size_t FileContext::completed(const FileRange& range)
 {
-    dispatch(
+    return dispatch(
         [this](auto end, auto& request)
         {
             // Clamp the read as necessary.
@@ -542,14 +553,17 @@ bool FileContext::completeReadIfOnDisk(FileReadRequest& request)
 }
 
 template<typename Dispatcher>
-void FileContext::dispatch(Dispatcher&& dispatcher, const FileRange& range)
+std::size_t FileContext::dispatch(Dispatcher&& dispatcher, const FileRange& range)
 {
     // What requests might we be able to satisfy?
     auto i = mPendingReadRequests.lower_bound(range.mBegin);
     auto j = mPendingReadRequests.lower_bound(range.mEnd);
 
+    // Tracks how many requests we've satisfied.
+    std::size_t satisfied = 0;
+
     // Dispatch as many requests as we can.
-    while (i != j)
+    for (; i != j; ++satisfied)
     {
         // Dispatch the request.
         dispatcher(range.mEnd, const_cast<FileReadRequest&>(*i));
@@ -557,12 +571,9 @@ void FileContext::dispatch(Dispatcher&& dispatcher, const FileRange& range)
         // Move to the next request.
         i = mPendingReadRequests.erase(i);
     }
-}
 
-std::uint64_t FileContext::downloadBitrate() const
-{
-    // Bitrate should always be larger than zero.get_speed
-    return std::max<uint64_t>(1, mAverageLargeDownloadBitrate.getValue());
+    // Let our caller know how many requests were satisfied.
+    return satisfied;
 }
 
 bool FileContext::executable(std::unique_lock<std::mutex>& lock,
@@ -608,6 +619,9 @@ void FileContext::execute(FileAppendRequest& request)
     // Assume there's no range for us to grow.
     FileRange range(size, size + request.mLength);
 
+    // Schedules a flush when exiting this function, if needed.
+    ScopedDestructor flusher;
+
     // Acquire lock.
     std::lock_guard guard(mLock);
 
@@ -641,6 +655,9 @@ void FileContext::execute(FileAppendRequest& request)
 
     // Persist our changes.
     transaction.commit();
+
+    // Schedule our modifications for flushing.
+    flusher = scopedScheduleFlush();
 
     // Tweak range.
     range.mBegin = size;
@@ -726,57 +743,100 @@ void FileContext::execute(FileReadRequest& request, const NormalReadTag&)
     const auto options = mService.serviceOptions();
 
     // Convenience.
-    const auto minimumRangeSize = options.mMinimumRangeSize;
+    const auto maxGapDistance = options.mMaximumGapDistance;
+    const auto splitThreshold = options.mRangeSplitThreshold;
 
-    // Begins a download, if needed, when exiting this function.
+    // Begin a download if necessary when exiting this function.
     std::optional<ScopedDestructor> downloader;
+
+    // We don't update the access time in database on every read.
+    // And this can be performed outside mLock.
+    bumpAccessTime(options.mAccessTimeUpdateInterval);
 
     // Acquire lock.
     std::unique_lock lock(mLock);
-
-    // Update the file's access time.
-    withTransaction(mService.database(),
-                    std::bind(&FileContext::updateAccessTime,
-                              this,
-                              mInfo->accessed(now()),
-                              std::placeholders::_1));
-
-    // Convenience.
-    auto range = request.mRange;
 
     // Request can be satisfied by data already on disk.
     if (completeReadIfOnDisk(request))
         return;
 
+    // Copy the request's range so it can be queued.
+    auto range = request.mRange;
+
+    // For easier access.
+    auto& [begin, end] = range;
+
     // Queue the request for later completion.
     queueReadRequest(std::move(request));
 
-    // Extend the range's length so our download is worthwhile.
-    auto length = std::max(minimumRangeSize, range.length());
+    // Convenience.
+    auto& category = mDownloadCategories.mNormal;
+    auto& inProgress = category.mInProgress;
 
-    // Make sure the range doesn't extend beyond the end of the file.
-    length = std::min(length, mInfo->size() - range.mBegin);
+    // Request is contained within an existing download.
+    if (auto i = inProgress.contains(begin); i != inProgress.end())
+    {
+        // For the sake of clarity.
+        auto [otherRange, context] = *i;
 
-    // Update the range's end point.
-    range.mEnd = range.mBegin + length;
+        // Which is likely to satisfy our request shortly.
+        if (context->timeUntil(begin) <= splitThreshold)
+            return;
 
-    // Find all gaps in range that aren't covered by a normal download.
-    auto current = gaps(mDownloading.mNormal, range);
-    auto end = current.end();
+        // Fragment the download's range.
+        context->range(otherRange.mBegin, begin);
+    }
 
-    // Range is already covered by normal downloads.
-    if (current == end)
-        return;
+    // Assume our new download extends until the end of the file.
+    end = mInfo->size();
 
-    // Bump beginning of range.
-    range.mBegin = current->mBegin;
-    range.mEnd = current->mEnd;
+    // Compute effective range.
+    FileRange effectiveRange;
 
-    // Sanity: range should never be empty.
-    assert(!range.empty());
+    // Adds a download for the specified range.
+    auto download = [&](auto range)
+    {
+        // Sanity: Downloads should never be zero length.
+        assert(!range.empty());
 
-    // Try and add a normal download that'll cover request.
-    downloader = addScopedDownload(mDownloading.mNormal, range);
+        // Try and download our effective range.
+        downloader = addScopedDownload(category, range);
+    }; // download
+
+    // Iterate over each on-disk gap contained within our range.
+    for (auto& diskGap: gaps(mOnDisk, range))
+    {
+        // Iterate over each undownloaded gap within that gap.
+        for (auto& downloadGap: gaps(inProgress, diskGap))
+        {
+            // Effective range begins from the first undownloaded gap.
+            if (effectiveRange.empty())
+            {
+                effectiveRange = downloadGap;
+
+                // Gap is adjacent to an existing download.
+                if (inProgress.beginsAt(downloadGap.mEnd))
+                    return download(effectiveRange);
+
+                // Step to the next gap.
+                continue;
+            }
+
+            // Gap is too distant from its predecessor.
+            if (downloadGap.mBegin - effectiveRange.mEnd > maxGapDistance)
+                return download(effectiveRange);
+
+            // Bump the end of the effective range.
+            effectiveRange.mEnd = downloadGap.mEnd;
+
+            // Gap is adjacent to an existing download.
+            if (inProgress.beginsAt(downloadGap.mEnd))
+                return download(effectiveRange);
+        }
+    }
+
+    // Try and download our range.
+    download(effectiveRange);
 }
 
 void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
@@ -806,15 +866,17 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     // Begins a download afterwards, if needed, when exiting this function
     std::optional<ScopedDestructor> downloader;
 
+    // Convenience.
+    auto& largeCategory = mDownloadCategories.mLarge;
+    auto& largeDownloads = largeCategory.mInProgress;
+    auto& smallCategory = mDownloadCategories.mSmall;
+    auto& smallDownloads = smallCategory.mInProgress;
+
+    // Update access time in database
+    bumpAccessTime(options.mAccessTimeUpdateInterval);
+
     // Acquire lock.
     std::unique_lock lock(mLock);
-
-    // Update the file's access time.
-    withTransaction(mService.database(),
-                    std::bind(&FileContext::updateAccessTime,
-                              this,
-                              mInfo->accessed(now()),
-                              std::placeholders::_1));
 
     // True if range is covered by a download in map.
     auto downloading = [&](auto& map, auto& range)
@@ -860,7 +922,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
             return nullptr;
 
         // No large range download is in progress.
-        if (mDownloading.mLarge.empty())
+        if (largeDownloads.empty())
             return nullptr;
 
         // Request can be completely satisfied by data on disk.
@@ -869,7 +931,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
             return nullptr;
 
         // Get a reference to the large download in progress.
-        auto iterator = mDownloading.mLarge.begin();
+        auto iterator = largeDownloads.begin();
 
         // Left extend the begin of from the disk cache
         auto effectiveBegin = leftExtendOnDisk(iterator->first.mBegin);
@@ -910,7 +972,6 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     auto isSmallPrefix = [&](auto& request)
     {
         // Convenience.
-        auto& largeDownloads = mDownloading.mLarge;
         auto& range = request.mRange;
 
         // Does request overlap an existing large download?
@@ -935,7 +996,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     }; // isSmallPrefix
 
     // Sanity: We should only ever have one large download at most.
-    assert(mDownloading.mLarge.size() <= 1);
+    assert(largeDownloads.size() <= 1);
 
     // Request is a jump.
     if (auto context = isJump(request))
@@ -968,12 +1029,17 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
             queueReadRequest(std::move(request));
 
         // A large download is already in progress.
-        if (!mDownloading.mLarge.empty())
+        if (!largeDownloads.empty())
             return;
 
         // Extend range to the left if possible.
+
+        // Compute bitrate.
+        auto bitrate = std::max<std::uint64_t>(1, largeCategory.mAverager.getValue());
+
         // divide 8 from bits to Bytes, divide 1000 from Ms to seconds
-        uint64_t backwardBytes = backwardDistanceInMs * downloadBitrate() / 8 / 1000;
+        uint64_t backwardBytes = backwardDistanceInMs * bitrate / 8 / 1000;
+
         range.mBegin -= std::min(backwardBytes, range.mBegin);
 
         // Round down to the nearest boundary.
@@ -989,7 +1055,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
 
         // Try and download the file's remaining data if necessary.
         if (range.length())
-            downloader = addScopedDownload(mDownloading.mLarge, range);
+            downloader = addScopedDownload(largeCategory, range);
 
         // Nothing more to do.
         return;
@@ -1009,7 +1075,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     queueReadRequest(std::move(request));
 
     // Request can be satisfied by an existing large download.
-    if (auto download = downloading(mDownloading.mLarge, range);
+    if (auto download = downloading(largeDownloads, range);
         download && download->timeUntil(range.mBegin) <= seconds(1))
         return;
 
@@ -1023,7 +1089,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     range.mEnd = range.mBegin + length;
 
     // Find all gaps in range that aren't covered by a small download.
-    auto current = gaps(mDownloading.mSmall, range);
+    auto current = gaps(smallDownloads, range);
     auto end = current.end();
 
     // Range is already covered by small downloads.
@@ -1041,7 +1107,7 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
     assert(!downloader);
 
     // Try and add a small download that'll cover request.
-    downloader = addScopedDownload(mDownloading.mSmall, range);
+    downloader = addScopedDownload(smallCategory, range);
 }
 
 // When this request is executed, any pending downloads will have completed.
@@ -1051,8 +1117,9 @@ void FileContext::execute(FileReclaimRequest& request)
     std::lock_guard guard(mLock);
 
     // All downloads should be completed.
-    if (!mDownloading.mLarge.empty() || !mDownloading.mSmall.empty() ||
-        !mDownloading.mSmall.empty())
+    if (!mDownloadCategories.mLarge.mInProgress.empty() ||
+        !mDownloadCategories.mNormal.mInProgress.empty() ||
+        !mDownloadCategories.mSmall.mInProgress.empty())
         return completed(std::move(request), UINT64_C(0));
 
     // Sanity: no pending read.
@@ -1102,6 +1169,9 @@ void FileContext::execute(FileRemoveRequest& request)
     // Cancel any pending downloads.
     cancel(FileRange(0, mInfo->size()));
 
+    // Cancel any scheduled flushes.
+    mService.flusher().cancel(mInfo->id());
+
     // Convenience.
     auto handle = mInfo->handle();
     auto serviceOnly = request.mServiceOnly;
@@ -1135,6 +1205,9 @@ void FileContext::execute(FileTouchRequest& request)
     // Convenience.
     auto& database = mService.database();
 
+    // Schedules a flush when exiting this function, if needed.
+    ScopedDestructor flusher;
+
     // Acquire database lock.
     UniqueLock databaseLock(database);
 
@@ -1154,6 +1227,9 @@ void FileContext::execute(FileTouchRequest& request)
     // Persist our changes.
     transaction.commit();
 
+    // Schedule our modifications for flushing.
+    flusher = scopedScheduleFlush();
+
     // Update file attributes.
     mInfo->modified(accessed, modified);
 
@@ -1171,6 +1247,9 @@ void FileContext::execute(FileTruncateRequest& request)
     if (newSize == oldSize)
         return completed(std::move(request), FILE_SUCCESS);
 
+    // Schedules a flush when exiting this function, if needed.
+    ScopedDestructor flusher;
+
     // Grow or shrink the file as necessary.
     auto [databaseLock, transaction] =
         newSize > oldSize ? grow(newSize, oldSize) : shrink(newSize, oldSize);
@@ -1184,6 +1263,9 @@ void FileContext::execute(FileTruncateRequest& request)
     // Persist our changes.
     transaction.commit();
 
+    // Schedule our modifications for flushing.
+    flusher = scopedScheduleFlush();
+
     // Update the file's attributes.
     mInfo->truncated(modified, newSize);
 
@@ -1196,10 +1278,18 @@ void FileContext::execute(FileWriteRequest& request)
     // Convenience.
     auto& range = request.mRange;
 
-    auto length = range.mEnd - range.mBegin;
+    // Caller doesn't want to extend the file's size.
+    if (request.mFlags & FILE_WRITE_FLAG_NO_GROW)
+    {
+        // Make sure written range doesn't extend past the end of the file.
+        range.mEnd = std::min(mInfo->size(), range.mEnd);
+
+        // Make sure written range doesn't begin after it ends.
+        range.mBegin = std::min(range.mBegin, range.mEnd);
+    }
 
     // Caller doesn't actually want to write anything.
-    if (!length)
+    if (range.empty())
         return completed(std::move(request));
 
     // Caller hasn't passed us a valid buffer.
@@ -1213,6 +1303,9 @@ void FileContext::execute(FileWriteRequest& request)
             cancel(range);
         }); // canceller
 
+    // Schedules a flush when exiting this function, if needed.
+    ScopedDestructor flusher;
+
     // Acquire lock.
     std::lock_guard guard(mLock);
 
@@ -1220,13 +1313,13 @@ void FileContext::execute(FileWriteRequest& request)
     using file_service::write;
 
     // Try and write the caller's content to storage.
-    std::tie(length, std::ignore) = mBuffer->write(request.mBuffer, range.mBegin, length);
+    auto [count, _] = mBuffer->write(request.mBuffer, range.mBegin, range.length());
 
     // Compute actual end of the written range.
-    range.mEnd = range.mBegin + length;
+    range.mEnd = range.mBegin + count;
 
     // Couldn't write any content to storage.
-    if (!length)
+    if (!count)
         return completed(std::move(request), FILE_FAILED);
 
     // Convenience.
@@ -1249,6 +1342,9 @@ void FileContext::execute(FileWriteRequest& request)
 
     // Persist our changes.
     transaction.commit();
+
+    // Schedule our modifications for flushing.
+    flusher = scopedScheduleFlush();
 
     // Update the file's attributes.
     mInfo->written(modified, range);
@@ -1356,8 +1452,20 @@ void FileContext::executed(FileWriteRequestTag)
     mReadWriteState.writeCompleted();
 }
 
+// Because Microsoft redefine small to be "char."
+#ifdef _WIN32
+#pragma push_macro("small")
+#undef small
+#endif // _WIN32
+
 void FileContext::failed(const FileRange& range, FileResult result)
 {
+    // Convenience.
+    const auto& large = mDownloadCategories.mLarge.mInProgress;
+    const auto& normal = mDownloadCategories.mNormal.mInProgress;
+    const auto& small = mDownloadCategories.mSmall.mInProgress;
+
+    // What pending read requests are within range?
     auto current = mPendingReadRequests.lower_bound(range.mBegin);
     auto end = mPendingReadRequests.upper_bound(range.mEnd);
 
@@ -1368,26 +1476,23 @@ void FileContext::failed(const FileRange& range, FileResult result)
         auto iterator = current++;
 
         // Convenience.
-        auto begin = iterator->mRange.mBegin;
+        const auto begin = iterator->mRange.mBegin;
 
-        const auto isContained = std::visit(
-            overloaded{[&](const NormalReadTag&)
-                       {
-                           // Request can be satisfied by a normal
-                           // download.
-                           return mDownloading.mNormal.contains(begin) !=
-                                  mDownloading.mNormal.end();
-                       },
-                       [&](const StreamReadTag&)
-                       {
-                           // Request can be satisfied by a large or small
-                           // download.
-                           return mDownloading.mLarge.contains(begin) !=
-                                      mDownloading.mLarge.end() ||
-                                  mDownloading.mSmall.contains(begin) != mDownloading.mSmall.end();
-                       }},
-            iterator->mReadTag);
-        if (isContained)
+        // True if begin is contained within an existing download.
+        auto contained = overloaded{[&](const NormalReadTag&)
+                                    {
+                                        // begin is contained within an existing normal download.
+                                        return normal.contains(begin) != normal.end();
+                                    },
+                                    [&](const StreamReadTag&)
+                                    {
+                                        // begin is contained within an existing streaming download.
+                                        return large.contains(begin) != large.end() ||
+                                               small.contains(begin) != small.end();
+                                    }};
+
+        // begin is contained within an existing download.
+        if (std::visit(contained, iterator->mReadTag))
             continue;
 
         // Dirty but necessary.
@@ -1400,6 +1505,10 @@ void FileContext::failed(const FileRange& range, FileResult result)
         mPendingReadRequests.erase(iterator);
     }
 }
+
+#ifdef _WIN32
+#pragma pop_macro("small")
+#endif // _WIN32
 
 auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize)
     -> std::pair<UniqueLock<Database>, Transaction>
@@ -1425,6 +1534,11 @@ auto FileContext::grow(std::uint64_t newSize, std::uint64_t oldSize)
 
     // Return the transaction to our caller.
     return std::make_pair(std::move(databaseLock), std::move(transaction));
+}
+
+std::chrono::steady_clock::time_point FileContext::lastNormalReadActivityTime() const
+{
+    return std::chrono::steady_clock::time_point(mLastNormalReadActivityTime.load());
 }
 
 void FileContext::queueReadRequest(FileReadRequest&& request)
@@ -1486,6 +1600,29 @@ void FileContext::removeRanges(const FileRange& range, Transaction& transaction)
     query.param(":id").set(mInfo->id());
 
     query.execute();
+}
+
+ScopedDestructor FileContext::scopedScheduleFlush()
+{
+    // Retrieve the service's current flush delay.
+    const auto delay = mService.serviceOptions().mFileFlushDelay;
+
+    // Convenience.
+    constexpr auto zero = decltype(delay)::zero();
+
+    // Automatic flushing has been disabled.
+    if (delay == zero)
+        return makeScopedDestructor([] {});
+
+    // Compute when this file's modifications should be flushed.
+    const auto when = std::chrono::steady_clock::now() + delay;
+
+    // Return scoped destructor to our caller.
+    return makeScopedDestructor(
+        [when, this]()
+        {
+            mService.flusher().schedule(mInfo->id(), when);
+        });
 }
 
 FileResult FileContext::setRemoved()
@@ -1594,6 +1731,21 @@ void FileContext::updateAccessTime(std::int64_t accessed, Transaction& transacti
     query.execute();
 }
 
+void FileContext::bumpAccessTime(std::chrono::seconds interval)
+{
+    const auto currentAccessTime = now();
+    const auto previousAccessTime = mInfo->accessed();
+
+    if (currentAccessTime - previousAccessTime < interval.count())
+        return;
+
+    withTransaction(mService.database(),
+                    std::bind(&FileContext::updateAccessTime,
+                              this,
+                              mInfo->accessed(currentAccessTime),
+                              std::placeholders::_1));
+}
+
 void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
                                                    std::int64_t modified,
                                                    Transaction& transaction)
@@ -1605,6 +1757,11 @@ void FileContext::updateAccessAndModificationTimes(std::int64_t accessed,
     query.param(":id").set(mInfo->id());
 
     query.execute();
+}
+
+void FileContext::touchNormalReadActivity()
+{
+    mLastNormalReadActivityTime.store(std::chrono::steady_clock::now().time_since_epoch());
 }
 
 FileRange FileContext::updateRanges(FileRange range, Transaction& transaction)
@@ -1707,6 +1864,8 @@ void FileContext::updateSize(std::uint64_t size, Transaction& transaction)
     query.execute();
 }
 
+// Note: normal read hydration is highly sensitive to alphaLow.
+// The value below was determined experimentally.
 FileContext::FileContext(Activity activity,
                          FileAccessPtr file,
                          FileInfoContextPtr info,
@@ -1716,9 +1875,10 @@ FileContext::FileContext(Activity activity,
     enable_shared_from_this(),
     mInstanceLogger("FileContext", *this, logger()),
     mActivity(std::move(activity)),
-    mAverageLargeDownloadBitrate(256),
     mBuffer(std::make_shared<FileBuffer>(*file)),
-    mDownloading(),
+    mDownloadCategories{/*mLarge*/ {true, 256, 256},
+                        /*mNormal*/ {false, 2, 200}, /*very slow to down, fast to up*/
+                        /*mSmall*/ {true, 256, 256}},
     mInfo(std::move(info)),
     mFetchContext(),
     mFetchContextLock(),
@@ -1746,8 +1906,14 @@ FileContext::FileContext(Activity activity,
     // Estimated bitrate provided by the service.
     const auto serviceBitrate = serviceOptions().mEstimatedDownloadBitrate;
 
-    // Prime average bitrate based on of the two bitrates above.
-    mAverageLargeDownloadBitrate.update(std::max(fileBitrate, serviceBitrate));
+    // Prime normal averager based on the service's bitrate.
+    mDownloadCategories.mNormal.mAverager.update(mService.speed());
+
+    // Prime streaming averagers based on the largest of the two bitrates above.
+    const auto bitrate = std::max(fileBitrate, serviceBitrate);
+
+    mDownloadCategories.mSmall.mAverager.update(bitrate);
+    mDownloadCategories.mLarge.mAverager.update(bitrate);
 }
 
 FileContext::~FileContext()
@@ -1766,22 +1932,22 @@ void FileContext::append(FileContextPtr, FileAppendRequest request)
 
 FileRangeVector FileContext::downloading() const
 {
+    // Convenience.
+    const DownloadCategory* categories[] = {&mDownloadCategories.mLarge,
+                                            &mDownloadCategories.mNormal,
+                                            &mDownloadCategories.mSmall}; // categories
+
     FileRangeVector downloading;
 
     // So we have exclusive access to the range trees.
     std::lock_guard guard(mLock);
 
-    // What large ranges are being downloaded?
-    for (const auto& [range, _]: mDownloading.mLarge)
-        downloading.emplace_back(range);
-
-    // What small ranges are being downloaded?
-    for (const auto& [range, _]: mDownloading.mSmall)
-        downloading.emplace_back(range);
-
-    // What normal ranges are being downloaded?
-    for (const auto& [range, _]: mDownloading.mNormal)
-        downloading.emplace_back(range);
+    // What ranges are being downloaded?
+    for (const auto* category: categories)
+    {
+        for (const auto& [range, _]: category->mInProgress)
+            downloading.emplace_back(range);
+    }
 
     // Let our caller know which ranges are being downloaded.
     return downloading;
@@ -1864,7 +2030,29 @@ FileRangeVector FileContext::ranges() const
 
 void FileContext::read(FileContextPtr, FileReadRequest request)
 {
-    executeOrQueue(std::move(request));
+    // Stream read request.
+    if (std::holds_alternative<StreamReadTag>(request.mReadTag))
+        return executeOrQueue(std::move(request));
+
+    // Normal read request.
+
+    // Updates activity time
+    touchNormalReadActivity();
+
+    // Wrap the user's callback so we can update our normal read activity time when their request
+    // completes.
+    auto wrapper = [context = weak_from_this(),
+                    callback = std::move(request.mCallback)](FileResultOr<FileReadResult> result)
+    {
+        if (auto c = context.lock())
+            c->touchNormalReadActivity();
+
+        callback(std::move(result));
+    };
+    FileReadRequest wrappedRequest{std::move(wrapper),
+                                   std::move(request.mRange),
+                                   std::move(request.mReadTag)};
+    executeOrQueue(std::move(wrappedRequest));
 }
 
 void FileContext::reclaim(FileReclaimCallback callback, FileContextPtr)
@@ -1917,6 +2105,14 @@ void FileContext::write(FileContextPtr, FileWriteRequest request)
     executeOrQueue(std::move(request));
 }
 
+FileContext::DownloadCategory::DownloadCategory(bool isStreaming,
+                                                uint32_t alphaDown,
+                                                uint32_t alphaUp):
+    mAverager(alphaDown, alphaUp),
+    mInProgress(),
+    mIsStreaming(isStreaming)
+{}
+
 void FileContext::DownloadContext::completed(Error error)
 {
     // Used to keep this context alive until we exit this function.
@@ -1934,8 +2130,8 @@ void FileContext::DownloadContext::completed(Error error)
         // Update mRange so it tracks the data we haven't downloaded.
         mRange = {mRange.mEnd, mIterator->first.mEnd};
 
-        // Remove ourselves from our file's map of downloading ranges.
-        mDownloading.remove(mIterator);
+        // Remove ourselves from our category's map of downloading ranges.
+        mCategory.mInProgress.remove(mIterator);
     }
 
     // Translate SDK error code to a file result.
@@ -1961,20 +2157,29 @@ try
     // Convenience.
     auto* bytebuffer = static_cast<const std::uint8_t*>(buffer);
     auto& onDisk = mContext.mOnDisk;
+    auto options = mContext.mService.serviceOptions();
 
-    // Acquire lock.
-    std::lock_guard guard(mContext.mLock);
+    // Acquire context lock.
+    std::unique_lock lock(mContext.mLock);
 
     // Reset retry counter.
     mRetries = 0;
 
-    // Update our file's average large download bitrate.
-    const auto fileBitrate = mContext.mInfo->bitrate().value_or(0);
-    if (isLargeDownload())
+    // Assume this isn't a streaming download.
+    auto bitrate = speed.mCircularMean * 8;
+
+    // Actually a streaming download.
+    if (mCategory.mIsStreaming)
     {
-        mContext.mAverageLargeDownloadBitrate.update(
-            std::max(fileBitrate, speed.mCircularMean << 3));
+        bitrate = std::max(bitrate, mContext.mInfo->bitrate().value_or(0));
     }
+
+    // Update our download category's average bitrate.
+    mCategory.mAverager.update(bitrate);
+
+    // Update service speed if only the range is large enough
+    if (mIterator->first.length() > options.mSpeedStatThreshold)
+        mContext.mService.speed(bitrate);
 
     // Download's been replaced.
     if (replaced())
@@ -2037,25 +2242,31 @@ try
     written = current == end ? range : written;
 
     // Convenience.
-    auto& database = mContext.mService.database();
-
-    // Acquire database lock.
-    std::lock_guard databaseLock(database);
-
-    // Begin a transaction so we can safely modify the database.
-    auto transaction = database.transaction();
+    auto& service = mContext.mService;
 
     // Update ranges on disk and in memory.
-    mContext.updateRanges(written, transaction);
+    {
+        // Convenience.
+        auto& database = service.database();
 
-    // Persist database changes.
-    transaction.commit();
+        // Acquire database lock.
+        std::lock_guard databaseLock(database);
+
+        // Begin a transaction so we can safely modify the database.
+        auto transaction = database.transaction();
+
+        // Update ranges on disk and in memory.
+        mContext.updateRanges(written, transaction);
+
+        // Persist database changes.
+        transaction.commit();
+    }
 
     // Bump end of written range.
     mRange.mEnd = written.mEnd;
 
     // Dispatch requests we can now satisfy.
-    mContext.completed(written);
+    auto satisfied = mContext.completed(written);
 
     // Couldn't write all of the data to disk.
     if (current != end)
@@ -2065,8 +2276,27 @@ try
     if (gaps(onDisk, mRange.mEnd, mIterator->first.mEnd).empty())
         return Abort();
 
-    // Continue the download.
-    return Continue();
+    // Don't cancel a download if the FileContext has any pending reads.
+    if (!mContext.mPendingReadRequests.empty())
+    {
+        satisfied = true;
+        mContext.touchNormalReadActivity();
+    }
+
+    // Don't cancel streaming downloads.
+    satisfied = satisfied || mCategory.mIsStreaming;
+
+    // Don't cancel if there is recent normal read activity
+    satisfied =
+        satisfied || (std::chrono::steady_clock::now() - mContext.lastNormalReadActivityTime() <
+                      options.mNormalReadInactivityDelay);
+
+    // Download is useful
+    if (satisfied)
+        return Continue();
+
+    // Cancel the download as it is not useful
+    return Abort();
 }
 
 catch (std::runtime_error&)
@@ -2099,31 +2329,51 @@ auto FileContext::DownloadContext::failed(Error result, int) -> std::variant<Abo
     return options.mRangeRetryBackoff * (1 << mRetries++);
 }
 
-bool FileContext::DownloadContext::isLargeDownload() const
+bool FileContext::DownloadContext::hasPendingReadRequests() const
 {
-    return &mDownloading == &mContext.mDownloading.mLarge;
+    // Acquire context lock.
+    std::lock_guard guard(mContext.mLock);
+
+    // Download's been replaced.
+    if (replaced())
+        return false;
+
+    // Convenience.
+    auto& pending = mContext.mPendingReadRequests;
+
+    // One or more reads may be waiting for this download's data.
+    if (auto i = pending.lower_bound(mRange.mEnd); i != pending.end())
+        return i->mRange.mBegin < mIterator->first.mEnd;
+
+    // No reads are waiting for this download's data.
+    return false;
 }
 
 bool FileContext::DownloadContext::replaced() const
 {
-    return mIterator == mDownloading.end();
+    return mIterator == mCategory.mInProgress.end();
 }
 
-FileContext::DownloadContext::DownloadContext(Activity activity,
+FileContext::DownloadContext::DownloadContext(DownloadCategory& category,
                                               FileContext& context,
-                                              FileRangeMap<DownloadContextPtr>& downloading,
                                               FileRangeMap<DownloadContextPtr>::Iterator iterator):
     PartialDownloadCallback(),
     mInstanceLogger("FileContext::DownloadContext", *this, logger()),
-    mActivity(std::move(activity)),
+    mActivity(context.mDownloadMonitor.begin()),
     mCallbacks(),
+    mCategory(category),
     mContext(context),
     mDownload(),
-    mDownloading(downloading),
     mIterator(iterator),
     mRange(iterator->first.mBegin, iterator->first.mBegin),
     mRetries(0)
 {}
+
+std::uint64_t FileContext::DownloadContext::bitrate() const
+{
+    // Bitrate should always be larger than zero.
+    return std::max<uint64_t>(1, mCategory.mAverager.getValue());
+}
 
 void FileContext::DownloadContext::cancel()
 {
@@ -2206,13 +2456,13 @@ void FileContext::DownloadContext::range(const FileRange& range)
     // Keep ourselves alive.
     auto context = std::move(mIterator->second);
 
-    // Remove ourselves from our file's map of downloading ranges.
-    mDownloading.remove(mIterator);
+    // Remove ourselves from our category's map of downloading ranges.
+    mCategory.mInProgress.remove(mIterator);
 
     [[maybe_unused]] auto added = false;
 
     // Add ourselves back into our file's map of downloading ranges.
-    std::tie(mIterator, added) = mDownloading.tryAdd(range, std::move(context));
+    std::tie(mIterator, added) = mCategory.mInProgress.tryAdd(range, std::move(context));
 
     // Sanity: The context should always be placed back into the map.
     assert(added);
@@ -2242,10 +2492,10 @@ void FileContext::DownloadContext::replaced([[maybe_unused]] const DownloadConte
     mRange = {mRange.mEnd, mIterator->first.mEnd};
 
     // Remove this download from its map.
-    mDownloading.remove(mIterator);
+    mCategory.mInProgress.remove(mIterator);
 
     // End iterator is a sentinel that this download has been replaced.
-    mIterator = mDownloading.end();
+    mIterator = mCategory.mInProgress.end();
 }
 
 milliseconds FileContext::DownloadContext::timeUntil(std::uint64_t position) const
@@ -2264,7 +2514,7 @@ milliseconds FileContext::DownloadContext::timeUntil(std::uint64_t position) con
         return milliseconds(0);
 
     // Compute estimated bitrate.
-    const auto bitrate = mContext.downloadBitrate();
+    const auto bitrate = this->bitrate();
 
     // Sanity: Bitrate should never be zero.
     assert(bitrate);
@@ -2407,6 +2657,10 @@ void FileContext::FlushContext::completed(FlushContextPtr context, Lock&& lock, 
 
     // Release lock.
     lock.unlock();
+
+    // Cancel any scheduled flushes if this flush was successful.
+    if (result == FILE_SUCCESS)
+        mContext.mService.flusher().cancel(mContext.mInfo->id());
 
     // Execute queued requests.
     for (auto& request: requests)

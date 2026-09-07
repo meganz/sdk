@@ -63,6 +63,7 @@ target_sources(SDKlib PRIVATE
                       include/mega/file_service/file_truncate_event_forward.h
                       include/mega/file_service/file_write_event.h
                       include/mega/file_service/file_write_event_forward.h
+                      include/mega/file_service/file_write_flags.h
                       include/mega/file_service/file_write_result.h
                       include/mega/file_service/read_tag.h
                       include/mega/file_service/sink.h
@@ -100,6 +101,7 @@ target_sources(SDKlib PRIVATE
                       src/file_service/mega/file_service/file_fetch_request_forward.h
                       src/file_service/mega/file_service/file_flush_request.h
                       src/file_service/mega/file_service/file_flush_request_forward.h
+                      src/file_service/mega/file_service/file_flusher.h
                       src/file_service/mega/file_service/file_id_vector.h
                       src/file_service/mega/file_service/file_info_context.h
                       src/file_service/mega/file_service/file_info_context_badge.h
@@ -148,6 +150,7 @@ target_sources(SDKlib PRIVATE
                       src/file_service/file_buffer.cpp
                       src/file_service/file_context.cpp
                       src/file_service/file_event_emitter.cpp
+                      src/file_service/file_flusher.cpp
                       src/file_service/file_id.cpp
                       src/file_service/file_info.cpp
                       src/file_service/file_info_context.cpp

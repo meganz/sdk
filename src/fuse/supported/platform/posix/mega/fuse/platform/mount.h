@@ -117,7 +117,7 @@ class Mount final: public fuse::Mount
 
     void write(Request request,
                MountInodeID inode,
-               const std::string& data,
+               std::shared_ptr<std::string> data,
                off_t offset,
                fuse_file_info& info);
 

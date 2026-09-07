@@ -242,11 +242,14 @@ void Mount::fsync(Request request, MountInodeID, bool, fuse_file_info& info)
     // Sanity.
     assert(context);
 
-    // Try and flush any modifications made to the file.
-    auto result = context->flush();
+    // Called when our flush has completed.
+    auto flushed = [request](auto&, auto result) mutable
+    {
+        request.replyError(translate(result));
+    }; // flushed
 
-    // Let FUSE know if the file was flushed.
-    request.replyError(translate(result));
+    // Try and flush any modifications made to the file.
+    context->flush(std::bind(std::move(flushed), mActivities.begin(), std::placeholders::_1));
 }
 
 void Mount::getattr(Request request, MountInodeID inode)
@@ -451,15 +454,21 @@ void Mount::read(Request request,
     // Sanity.
     assert(context);
 
+    // Called when our read has completed.
+    auto read = [request](auto&, auto result) mutable
+    {
+        // Couldn't read the file.
+        if (!result)
+            return request.replyError(translate(result.error()));
+
+        // Pass read data to FUSE.
+        request.replyBuffer(std::move(*result));
+    }; // read
+
     // Try and read the file.
-    auto result = context->read(offset, static_cast<unsigned int>(size));
-
-    // Couldn't read the file.
-    if (!result)
-        return request.replyError(translate(result.error()));
-
-    // Pass read data to FUSE.
-    request.replyBuffer(std::move(*result));
+    context->read(std::bind(std::move(read), mActivities.begin(), std::placeholders::_1),
+                  offset,
+                  static_cast<unsigned int>(size));
 }
 
 void Mount::readdir(Request request,
@@ -814,7 +823,7 @@ void Mount::unlink(Request request, MountInodeID parent, const std::string& name
 
 void Mount::write(Request request,
                   MountInodeID,
-                  const string& data,
+                  std::shared_ptr<std::string> data,
                   off_t offset,
                   fuse_file_info& info)
 {
@@ -822,22 +831,33 @@ void Mount::write(Request request,
     if (isSelfForbidden(request))
         return request.replyError(EPERM);
 
+    // Caller's passed us a bogus offset.
+    if (offset < 0)
+        return request.replyError(EINVAL);
+
     // Get our hands on the context.
     auto* context = reinterpret_cast<FileContext*>(info.fh);
 
     // Sanity.
     assert(context);
-    assert(offset >= 0);
+
+    // Called when our write has completed.
+    auto written = [data, request](auto&, auto result) mutable
+    {
+        // Couldn't write any data to the file.
+        if (!result)
+            return request.replyError(translate(result.error()));
+
+        // Let FUSE know how much data was written to the file.
+        request.replyWritten(*result);
+    }; // written
 
     // Try and write the file.
-    auto result = context->write(data.c_str(), static_cast<m_off_t>(data.length()), offset, false);
-
-    // Couldn't write the file.
-    if (!result)
-        return request.replyError(translate(result.error()));
-
-    // Let FUSE know whether the data was written.
-    request.replyWritten(*result);
+    context->write(std::bind(std::move(written), mActivities.begin(), std::placeholders::_1),
+                   data->data(),
+                   static_cast<m_off_t>(data->length()),
+                   offset,
+                   false);
 }
 
 // Check if the request's originating process is this process and forbidden.

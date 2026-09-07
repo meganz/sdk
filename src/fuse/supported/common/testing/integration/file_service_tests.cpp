@@ -6,7 +6,9 @@
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
+#include <mega/file_service/file_write_flags.h>
 #include <mega/file_service/file_write_result.h>
+#include <mega/file_service/logger.h>
 #include <mega/fuse/common/testing/test_base.h>
 #include <mega/fuse/common/testing/utility.h>
 
@@ -21,7 +23,16 @@ namespace testing
 {
 
 struct FUSEFileServiceTests: TestBase
-{}; // FUSEFileServiceTests
+{
+    bool DoSetUp(const Parameters& parameters) override
+    {
+        // Make sure we see everything the File Service logs.
+        file_service::logger().logLevel(logMax);
+
+        // Perform the usual per-test initialization.
+        return TestBase::DoSetUp(parameters);
+    }
+}; // FUSEFileServiceTests
 
 // Convenience.
 using common::DateTime;
@@ -272,6 +283,7 @@ TEST_F(FUSEFileServiceTests, perceives_file_service_writes_succeeds)
             {
                 notifier->set_value(result);
             },
+            0,
             offset,
             length);
 

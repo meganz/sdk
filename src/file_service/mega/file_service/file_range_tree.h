@@ -176,19 +176,10 @@ public:
         // Get a reference to our node's range.
         auto& range = const_cast<FileRange&>(key(node->mValue));
 
-        // Some range ends after our range begins.
-        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin))
-        {
-            // Convenience.
-            auto& other = key(iterator->mValue);
-
-            // Other range contains the leading part of our range.
-            if (other.mBegin <= range.mBegin)
-                return std::make_pair<Iterator>(&*iterator, false);
-
-            // Our range may contain the leading part of the other range.
-            range.mEnd = std::min(range.mEnd, other.mBegin);
-        }
+        // Our range intersects with some other range.
+        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin);
+            iterator && key(iterator->mValue).mBegin < range.mEnd)
+            return std::make_pair<Iterator>(&*iterator, false);
 
         // Make sure the range is sane.
         assert(range.mEnd > range.mBegin);
@@ -512,23 +503,16 @@ public:
     template<typename... Parameters>
     auto tryAdd(FileRange range, Parameters&&... arguments) -> std::pair<Iterator, bool>
     {
-        // Some range ends after our range begins.
-        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin))
-        {
-            // Convenience.
-            auto tempFunctor = KeyFunctionType();
-            auto& other = tempFunctor(iterator->mValue);
+        // Convenience.
+        KeyFunctionType key;
 
-            // The other range contains the leading part of our range.
-            if (other.mBegin <= range.mBegin)
-                return std::make_pair<Iterator>(&*iterator, false);
-
-            // Our range may contain the leading part of the other range.
-            range.mEnd = std::min(range.mEnd, other.mBegin);
-        }
-
-        // Make sure the range is sane.
+        // Sanity: a range should always end after it begins.
         assert(range.mEnd > range.mBegin);
+
+        // Check if any range ends after our range begins.
+        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin);
+            iterator && key(iterator->mValue).mBegin < range.mEnd)
+            return std::make_pair<Iterator>(&*iterator, false);
 
         // Construct a node to represent our range in the tree.
         auto node = construct(range, std::forward<Parameters>(arguments)...);

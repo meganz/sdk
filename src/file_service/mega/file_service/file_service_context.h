@@ -7,10 +7,12 @@
 #include <mega/common/node_event_observer.h>
 #include <mega/common/node_key_data.h>
 #include <mega/common/shared_mutex.h>
+#include <mega/common/statistics.h>
 #include <mega/common/task_executor.h>
 #include <mega/file_service/file_context_badge_forward.h>
 #include <mega/file_service/file_context_pointer.h>
 #include <mega/file_service/file_event_emitter.h>
+#include <mega/file_service/file_flusher.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_id_vector.h>
@@ -50,6 +52,20 @@ namespace file_service
 
 class FileServiceContext: common::NodeEventObserver
 {
+    class Averager
+    {
+        common::AsymmetricEma mAverager;
+
+        mutable std::mutex mMutex;
+
+    public:
+        Averager(uint32_t alphaDown, uint32_t alphaUp, uint64_t seed);
+
+        void update(uint64_t newSample);
+
+        uint64_t getValue() const;
+    };
+
     // Processes client node events.
     class EventProcessor;
 
@@ -77,6 +93,9 @@ class FileServiceContext: common::NodeEventObserver
 
     template<typename Lock>
     auto fileContextFromIndex(FileID id, Lock&& lock) -> FileContextResult;
+
+    // Flush all modified files to the cloud.
+    void flushModified();
 
     template<typename Lock, typename T>
     auto getFromIndex(FileID id, Lock&& lock, FromFileIDMap<std::weak_ptr<T>>& map)
@@ -146,8 +165,10 @@ class FileServiceContext: common::NodeEventObserver
     // synchronize calls to the filesystem.
     FileStorage mStorage;
 
+    // The database containing this service's metadata.
     common::Database mDatabase;
 
+    // Contains queries prepared for execution on mDatabase.
     FileServiceQueries mQueries;
 
     // Responsible for cleaning the service's cache on destruction.
@@ -156,8 +177,16 @@ class FileServiceContext: common::NodeEventObserver
     // mStorage members directly above during destruction.
     ScopedDestructor mCacheCleaner;
 
+    // Tracks which FileContexts are in memory.
     FromFileIDMap<FileContextWeakPtr> mFileContexts;
+
+    // Allows us to flush a file at some point in the future.
+    FileFlusher mFileFlusher;
+
+    // Signalled when a FileInfoContext has been removed from memory.
     std::condition_variable_any mInfoContextRemoved;
+
+    // Tracks which FileInfoContexts are in memory.
     FromFileIDMap<FileInfoContextWeakPtr> mInfoContexts;
 
     // Who can we ask to learn where a local file should exist in the cloud?
@@ -171,6 +200,9 @@ class FileServiceContext: common::NodeEventObserver
     // Note that if we want to run some query on the database, we must
     // explicitly lock mDatabase, too.
     common::SharedMutex mLock;
+
+    // How should we handle the "nodes current" event?
+    void (FileServiceContext::*mOnCurrent)();
 
     // Tracks any reclaim in progress.
     ReclaimContextPtr mReclaimContext;
@@ -189,6 +221,13 @@ class FileServiceContext: common::NodeEventObserver
 
     // What service does this context belong to?
     FileService& mService;
+
+    // A global speed statistic. It is per pread speed and doesn't represent the whole network
+    // speed. The purpose of this speed is each FileContext can seed with a reasonable good
+    // archievable network speed eistimation. Espeically for a very low speed network, starts with
+    // unexpected higher number can/may block read requests on a download to wait for the data
+    // arrive. In another words, the time to the first byte can be unexpected long.
+    Averager mSpeed;
 
     // Lets us execute tasks on a thread pool.
     common::TaskExecutor mExecutor;
@@ -233,6 +272,9 @@ public:
     // Create a new file.
     auto create() -> FileServiceResultOr<File>;
 
+    // Called by the client when its view of the cloud is current.
+    void current();
+
     // Retrieve a reference to this service's database.
     common::Database& database();
 
@@ -244,6 +286,9 @@ public:
 
     // Get a reference to this context's task executor.
     common::TaskExecutor& executor();
+
+    // Get a reference to this context's file flusher.
+    FileFlusher& flusher();
 
     // Retrieve information about a file managed by this service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
@@ -286,6 +331,12 @@ public:
 
     // Retrieve the service's current options.
     ServiceOptions serviceOptions();
+
+    // Retrieve the service's speed
+    uint64_t speed() const;
+
+    // Update the service's speed
+    void speed(uint64_t newSample);
 
     // How much storage space is the service using?
     // Get storage size information in detail such as reclaimable storage size

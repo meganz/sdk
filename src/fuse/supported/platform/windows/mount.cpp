@@ -526,23 +526,15 @@ NTSTATUS Mount::read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, U
     // Sanity.
     assert(context_);
 
-    // Get our hands on the request's "hint."
-    auto hint = mDispatcher.request().Hint;
-
-    // Actually reads the file.
-    auto read = [=](Activity&, const Task&)
+    // Called when our read has completed.
+    auto read = [context_, this](auto&, auto buffer, auto hint, auto result)
     {
         auto response = std::make_unique<FSP_FSCTL_TRANSACT_RSP>();
-
-        std::memset(response.get(), 0, sizeof(response));
 
         // Prepare for response.
         response->Hint = hint;
         response->Kind = FspFsctlTransactReadKind;
         response->Size = sizeof(*response);
-
-        // Try and read the file.
-        auto result = context_->read(static_cast<m_off_t>(offset), length);
 
         // Couldn't read the file.
         if (!result)
@@ -555,15 +547,21 @@ NTSTATUS Mount::read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, U
         if (!response->IoStatus.Information)
             return mDispatcher.reply(*response, STATUS_END_OF_FILE);
 
-        // Populate user's buffer.
-        std::memcpy(buffer, result->c_str(), result->size());
+        // Populate caller's buffer.
+        std::memcpy(buffer, result->data(), result->size());
 
-        // Let the caller know their read has been successful.
+        // Let the caller know their read was successful.
         mDispatcher.reply(*response, STATUS_SUCCESS);
     }; // read
 
-    // Schedule the read for execution.
-    mExecutor.execute(std::bind(std::move(read), mActivities.begin(), std::placeholders::_1), true);
+    // Actually perform the read.
+    context_->read(std::bind(read,
+                             mActivities.begin(),
+                             buffer,
+                             mDispatcher.request().Hint,
+                             std::placeholders::_1),
+                   static_cast<m_off_t>(offset),
+                   length);
 
     // Let the caller know their read is underway.
     return STATUS_PENDING;
@@ -821,30 +819,18 @@ NTSTATUS Mount::write(PVOID context,
     // Get our hands on the request's "hint."
     auto hint = mDispatcher.request().Hint;
 
-    // Convenience.
-    auto length_ = static_cast<m_off_t>(length);
-    auto offset_ = static_cast<m_off_t>(offset);
-
-    // Caller wants to write to the end of the file.
-    if (append)
-        offset_ = -1;
-
-    // Actually perform the write.
-    auto write = [=](Activity&, const Task&)
+    // Called when our write has completed.
+    auto written = [=, activity = mActivities.begin()](auto result)
     {
+        // Allocate a response object.
         auto response = std::make_unique<FSP_FSCTL_TRANSACT_RSP>();
 
-        // Prepare for response.
-        std::memset(response.get(), 0, sizeof(*response));
-
+        // Populate response object.
         response->Hint = hint;
         response->Kind = FspFsctlTransactWriteKind;
         response->Size = sizeof(*response);
 
-        // Try and write the data to the file.
-        auto result = context_->write(buffer, length_, offset_, noGrow);
-
-        // Couldn't write the data to the file.
+        // Couldn't write data to the file.
         if (!result)
             return mDispatcher.reply(*response, result.error());
 
@@ -853,11 +839,24 @@ NTSTATUS Mount::write(PVOID context,
 
         // Let the caller know the write was successful.
         mDispatcher.reply(*response, STATUS_SUCCESS);
-    }; // write
+    }; // written
 
-    // Schedule write for execution.
-    mExecutor.execute(std::bind(std::move(write), mActivities.begin(), std::placeholders::_1),
-                      true);
+    // Caller wants to append data to the end of the file.
+    if (append)
+    {
+        // Try and append data to the end of the file.
+        context_->append(std::move(written), buffer, static_cast<m_off_t>(length));
+
+        // Let our caller know the request is in progress.
+        return STATUS_PENDING;
+    }
+
+    // Try and write data to the file.
+    context_->write(std::move(written),
+                    buffer,
+                    static_cast<m_off_t>(length),
+                    static_cast<m_off_t>(offset),
+                    noGrow);
 
     // Let the caller know the write is underway.
     return STATUS_PENDING;

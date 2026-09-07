@@ -24,6 +24,7 @@ struct FileServiceQueries
     common::Query mGetFileRanges;
     common::Query mGetFreeFileID;
     common::Query mGetNextFileID;
+    common::Query mGetModifiedFiles;
     common::Query mGetReclaimableFiles;
     common::Query mGetStorageInfo;
     common::Query mGetStorageUsed;

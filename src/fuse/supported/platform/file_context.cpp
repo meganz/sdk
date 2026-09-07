@@ -30,11 +30,11 @@ class ReadContext
     // Where we'll store the data we've read.
     std::string mBuffer;
 
+    // Who should we call when the read is complete?
+    std::function<void(ErrorOr<std::string>)> mCallback;
+
     // The file we're reading data from.
     file_service::File mFile;
-
-    // How we'll transmit our result to any waiters.
-    std::promise<FileResultOr<std::string>> mNotifier;
 
     // Called when we've received file data.
     void data(std::shared_ptr<ReadContext>& context,
@@ -50,10 +50,10 @@ class ReadContext
         {
             // But we were able to read *some* data.
             if (!mBuffer.empty())
-                return mNotifier.set_value(std::move(mBuffer));
+                return mCallback(std::move(mBuffer));
 
             // Couldn't read any data from the file.
-            return mNotifier.set_value(unexpected(result.error()));
+            return mCallback(unexpected(API_EREAD));
         }
 
         // Convenience.
@@ -61,7 +61,7 @@ class ReadContext
 
         // We've read all the file could give us.
         if (!length)
-            return mNotifier.set_value(std::move(mBuffer));
+            return mCallback(std::move(mBuffer));
 
         // What is the buffer's current size?
         auto size = mBuffer.size();
@@ -83,10 +83,10 @@ class ReadContext
 
             // We were able to copy some data into our buffer.
             if (!mBuffer.empty())
-                return mNotifier.set_value(std::move(mBuffer));
+                return mCallback(std::move(mBuffer));
 
             // Couldn't copy any data into our buffer.
-            return mNotifier.set_value(unexpected(FILE_FAILED));
+            return mCallback(unexpected(API_EREAD));
         }
 
         // Read remaining data.
@@ -94,10 +94,10 @@ class ReadContext
     }
 
 public:
-    ReadContext(file_service::File file):
+    ReadContext(std::function<void(ErrorOr<std::string>)> callback, file_service::File file):
         mBuffer(),
-        mFile(std::move(file)),
-        mNotifier()
+        mCallback(std::move(callback)),
+        mFile(std::move(file))
     {}
 
     // Try and read data from our file.
@@ -116,12 +116,6 @@ public:
                    offset,
                    length,
                    NormalReadTag{});
-    }
-
-    // Return the waiter associated with this context.
-    auto waiter()
-    {
-        return mNotifier.get_future();
     }
 }; // ReadContext
 
@@ -142,30 +136,87 @@ FileContext::~FileContext()
     FUSEDebugF("File Context %s destroyed", toString(mFile.info().id()).c_str());
 }
 
+void FileContext::append(std::function<void(common::ErrorOr<std::size_t>)> callback,
+                         const void* data,
+                         m_off_t length)
+{
+    // Sanity: callback should never be null.
+    assert(callback);
+
+    // Sanity: data should never be null unless length is zero.
+    assert(data || length == 0);
+
+    // File isn't opened for writing.
+    if (!(mFlags & FOF_WRITABLE))
+        return callback(API_FUSE_EBADF);
+
+    // Wrap the caller's callback.
+    auto wrapper = [callback = std::move(callback), length](auto result)
+    {
+        // Couldn't append data to the file.
+        if (result != FILE_SUCCESS)
+            return callback(unexpected(API_EWRITE));
+
+        // Appended data to the file.
+        callback(static_cast<std::size_t>(length));
+    }; // wrapper
+
+    // Try and append data to the end of our file.
+    mFile.append(data, std::move(wrapper), static_cast<std::uint64_t>(length));
+}
+
+common::ErrorOr<std::size_t> FileContext::append(const void* data, m_off_t length)
+{
+    // So we know when our append has completed.
+    auto notifier = makeSharedPromise<ErrorOr<std::size_t>>();
+
+    // Called when our append has completed.
+    append(
+        [notifier](auto result)
+        {
+            notifier->set_value(result);
+        },
+        data,
+        length);
+
+    // Let our caller know if the append was successful.
+    return notifier->get_future().get();
+}
+
 FileContext* FileContext::file()
 {
     return this;
 }
 
+void FileContext::flush(std::function<void(Error)> callback)
+{
+    // Try and flush the file's changes to the cloud.
+    mFile.flush(
+        [callback = std::move(callback)](auto result)
+        {
+            // Couldn't flush the file to the cloud.
+            if (result != FILE_SUCCESS)
+                return callback(API_EFAILED);
+
+            // File's been flushed to the cloud.
+            callback(API_OK);
+        });
+}
+
 Error FileContext::flush()
 {
     // So we can wait for the result of our flush.
-    auto notifier = makeSharedPromise<FileResult>();
+    auto notifier = makeSharedPromise<Error>();
 
-    // Try and flush the file's changes to the cloud.
-    mFile.flush(
+    // Try and flush the file to the cloud.
+    flush(
         [notifier](auto result)
         {
-            // Assume the flush was successful.
             notifier->set_value(result);
         });
 
-    // Couldn't flush the file's changes to the cloud.
-    if (notifier->get_future().get() != FILE_SUCCESS)
-        return API_EFAILED;
-
-    // File's changes have been flushed to the cloud.
-    return API_OK;
+    // Let our caller know whether the file was flushed to the cloud.
+    return notifier->get_future().get();
 }
 
 InodeRef FileContext::inode() const
@@ -173,134 +224,167 @@ InodeRef FileContext::inode() const
     return mInode;
 }
 
-ErrorOr<std::string> FileContext::read(m_off_t offset, unsigned int size)
+void FileContext::read(std::function<void(ErrorOr<std::string>)> callback,
+                       m_off_t offset,
+                       unsigned int size)
 {
-    // Clamp reads to at most 1MiB.
-    //
-    // libfuse will read in 64KiB chunks by default.
-    // WinFSP will read in chunks between 64KiB and 1MiB in size.
-    size = std::min(1u << 20, size);
+    // Sanity: callback should always have a target.
+    assert(callback);
 
     // Instantiate a context to manage our read.
-    auto context = std::make_shared<ReadContext>(mFile);
-
-    // Get our hands on the context's waiter.
-    auto waiter = context->waiter();
+    auto context = std::make_shared<ReadContext>(std::move(callback), mFile);
 
     // Try and read data from our file.
     context->read(context, static_cast<std::uint64_t>(offset), size);
+}
 
-    // Context will manage its own lifetime.
-    context.reset();
+ErrorOr<std::string> FileContext::read(m_off_t offset, unsigned int size)
+{
+    // So we can wait for our read to complete.
+    auto notifier = makeSharedPromise<ErrorOr<std::string>>();
 
-    // Retrieve the result of our read.
-    auto result = waiter.get();
+    // Try and read data from the file.
+    read(
+        [notifier](auto result)
+        {
+            notifier->set_value(std::move(result));
+        },
+        offset,
+        size);
 
-    // Couldn't read any data from our file.
-    if (!result)
-        return unexpected(API_EREAD);
+    // Return the read's result to our caller.
+    return notifier->get_future().get();
+}
 
-    // Return read data to our caller.
-    return std::move(*result);
+void FileContext::touch(std::function<void(Error)> callback, m_time_t modified)
+{
+    // Try and touch the file.
+    mFile.touch(
+        [callback = std::move(callback)](auto result)
+        {
+            // Couldn't touch the file.
+            if (result != FILE_SUCCESS)
+                return callback(API_EFAILED);
+
+            // File's been touched.
+            callback(API_OK);
+        },
+        modified);
 }
 
 Error FileContext::touch(m_time_t modified)
 {
     // So we can wait for the result of our touch.
-    auto notifier = makeSharedPromise<FileResult>();
+    auto notifier = makeSharedPromise<Error>();
 
     // Try and touch the file.
-    mFile.touch(
+    touch(
         [notifier](auto result)
         {
             notifier->set_value(result);
         },
         modified);
 
-    // Couldn't touch the file.
-    if (notifier->get_future().get() != FILE_SUCCESS)
-        return API_EWRITE;
-
-    // File's been touched.
-    return API_OK;
+    // Let our caller know whether the file was touched.
+    return notifier->get_future().get();
 }
 
-Error FileContext::truncate(m_off_t offset)
+void FileContext::truncate(std::function<void(Error)> callback, m_off_t size)
 {
     // Can't truncate a file that's been opened only for reading.
     if (!(mFlags & FOF_WRITABLE))
-        return API_FUSE_EROFS;
-
-    // So we can wait for the result of our truncate.
-    auto notifier = makeSharedPromise<FileResult>();
+        return callback(API_FUSE_EROFS);
 
     // Try and truncate the file.
     mFile.truncate(
+        [callback = std::move(callback)](auto result)
+        {
+            // Couldn't truncate the file.
+            if (result != FILE_SUCCESS)
+                return callback(API_EFAILED);
+
+            // File's been truncated.
+            return callback(API_OK);
+        },
+        static_cast<std::uint64_t>(size));
+}
+
+Error FileContext::truncate(m_off_t size)
+{
+    // So we can wait for the result of our truncate.
+    auto notifier = makeSharedPromise<Error>();
+
+    // Try and truncate the file.
+    truncate(
         [notifier](auto result)
         {
             notifier->set_value(result);
         },
-        static_cast<std::uint64_t>(offset));
+        size);
 
-    // Couldn't truncate the file.
-    if (notifier->get_future().get() != FILE_SUCCESS)
-        return API_EWRITE;
-
-    // File has been truncated.
-    return API_OK;
+    // Let our caller know whether the file was truncated.
+    return notifier->get_future().get();
 }
 
-ErrorOr<std::size_t> FileContext::write(const void* data, m_off_t length, m_off_t offset, bool)
+void FileContext::write(std::function<void(ErrorOr<std::size_t>)> callback,
+                        const void* data,
+                        m_off_t length,
+                        m_off_t offset,
+                        bool noGrow)
 {
     // File's only open for reading.
     if (!(mFlags & FOF_WRITABLE))
-        return API_FUSE_EBADF;
+        return callback(API_FUSE_EBADF);
 
-    // File's open for appending.
+    // Data should be written to the end of the file.
     if ((mFlags & FOF_APPEND))
+        return append(std::move(callback), data, length);
+
+    // Wrap the caller's callback.
+    auto wrapper = [callback = std::move(callback), length](auto result)
     {
-        // So we can wait for the result of our append.
-        auto notifier = makeSharedPromise<FileResult>();
+        // Couldn't write any data to the file.
+        if (!result)
+            return callback(unexpected(API_EWRITE));
 
-        // Try and append our data to the file.
-        mFile.append(
-            data,
-            [notifier](auto result)
-            {
-                notifier->set_value(result);
-            },
-            static_cast<std::uint64_t>(length));
+        // We wrote some or all data to the file.
+        return callback(static_cast<std::size_t>(result->mLength));
+    };
 
-        // Couldn't append data to our file.
-        if (notifier->get_future().get() != FILE_SUCCESS)
-            return unexpected(API_EWRITE);
+    // Assume the write requires no special flags.
+    FileWriteFlags flags = 0;
 
-        // Our data's been appended to the file.
-        return static_cast<std::size_t>(length);
-    }
+    // Convenience.
+    auto length_ = static_cast<std::uint64_t>(length);
+    auto offset_ = static_cast<std::uint64_t>(offset);
 
+    // Caller doesn't want the file's size to grow.
+    if (noGrow)
+        flags |= FILE_WRITE_FLAG_NO_GROW;
+
+    // Try and write data to our file.
+    mFile.write(data, std::move(wrapper), flags, offset_, length_);
+}
+
+ErrorOr<std::size_t>
+    FileContext::write(const void* data, m_off_t length, m_off_t offset, bool noGrow)
+{
     // So we can wait for the result of our write.
-    auto notifier = makeSharedPromise<FileResultOr<FileWriteResult>>();
+    auto notifier = makeSharedPromise<ErrorOr<std::size_t>>();
 
     // Try and write the data to our file.
-    mFile.write(
-        data,
+    write(
         [notifier](auto result)
         {
             notifier->set_value(result);
         },
-        static_cast<std::uint64_t>(offset),
-        static_cast<std::uint64_t>(length));
+        data,
+        length,
+        offset,
+        noGrow);
 
-    // Wait for our write to complete.
-    auto result = notifier->get_future().get();
-
-    // Couldn't write any data to our file.
-    if (!result)
-        return unexpected(API_EWRITE);
-
-    // Let our caller know how many bytes of data we wrote to the file.
-    return static_cast<std::size_t>(result->mLength);
+    // Let our caller know how bytes were written to the file.
+    return notifier->get_future().get();
 }
 
 } // platform

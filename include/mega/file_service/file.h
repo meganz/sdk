@@ -9,6 +9,7 @@
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_context_badge_forward.h>
+#include <mega/file_service/file_write_flags.h>
 #include <mega/file_service/read_tag.h>
 
 namespace mega
@@ -98,10 +99,14 @@ public:
     // Write data to this file.
     void write(const void* buffer,
                FileWriteCallback callback,
+               FileWriteFlags flags,
                std::uint64_t offset,
                std::uint64_t length);
 
-    void write(const void* buffer, FileWriteCallback callback, const FileRange& range);
+    void write(const void* buffer,
+               FileWriteCallback callback,
+               FileWriteFlags flags,
+               const FileRange& range);
 }; // File
 
 } // file_service

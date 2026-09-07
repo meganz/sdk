@@ -21,6 +21,7 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mGetFileRanges(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
+    mGetModifiedFiles(database.query()),
     mGetReclaimableFiles(database.query()),
     mGetStorageInfo(database.query()),
     mGetStorageUsed(database.query()),
@@ -97,6 +98,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
                      " limit 1";
 
     mGetNextFileID = "select next from file_id";
+
+    mGetModifiedFiles = "select id "
+                        "  from files "
+                        " where dirty = 1";
 
     // Files marked for removal will be purged when closed.
     mGetReclaimableFiles = "select allocated_size "
