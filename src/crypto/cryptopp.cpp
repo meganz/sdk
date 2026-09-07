@@ -752,10 +752,6 @@ namespace detail
 namespace
 {
 
-// Discardable output buffer for EVP-CBC one-shot; only the last 16 bytes
-// (the CBC-MAC) are kept. thread_local avoids cross-thread contention.
-thread_local std::vector<byte> tlsCbcMacScratch;
-
 struct EvpCipherCtxDeleter
 {
     void operator()(EVP_CIPHER_CTX* c) const noexcept
@@ -766,23 +762,82 @@ struct EvpCipherCtxDeleter
 
 using EvpCipherCtxPtr = std::unique_ptr<EVP_CIPHER_CTX, EvpCipherCtxDeleter>;
 
+// EVP_aes_128_*() are legacy static ciphers; on OpenSSL 3 each
+// EVP_EncryptInit_ex with one re-runs a provider fetch (~200 ns). Fetch once.
+// BoringSSL has no EVP_CIPHER_fetch and reports OPENSSL_VERSION_NUMBER as
+// 1.1.1, so it takes the legacy branch.
+#if !defined(OPENSSL_IS_BORINGSSL) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+// Never freed on purpose: releasing after OPENSSL_cleanup() would touch a
+// torn-down provider.
+const EVP_CIPHER* aes128Cbc()
+{
+    static EVP_CIPHER* const c = EVP_CIPHER_fetch(nullptr, "AES-128-CBC", nullptr);
+    return c;
+}
+
+const EVP_CIPHER* aes128Ctr()
+{
+    static EVP_CIPHER* const c = EVP_CIPHER_fetch(nullptr, "AES-128-CTR", nullptr);
+    return c;
+}
+
+#else
+
+const EVP_CIPHER* aes128Cbc()
+{
+    return EVP_aes_128_cbc();
+}
+
+const EVP_CIPHER* aes128Ctr()
+{
+    return EVP_aes_128_ctr();
+}
+
+#endif
+
 // CBC-MAC via one AES-CBC call. `mac` is IV in and MAC out.
+// The chaining state lives in the EVP_CIPHER_CTX, not in the output buffer,
+// so we can overwrite a small block-aligned output slice in a loop and keep
+// only the last block as the MAC. Sizing out[] as SLICE + BLOCKSIZE also
+// satisfies EVP_EncryptUpdate's documented `inl + block_size - 1` contract.
 void cbcMacViaEvp(const byte* key, const byte* input, unsigned paddedLen, byte* mac)
 {
-    if (tlsCbcMacScratch.size() < paddedLen)
-    {
-        tlsCbcMacScratch.resize(paddedLen);
-    }
     EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
-    EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_cbc(), nullptr, key, mac);
+    if (!ctx)
+    {
+        LOG_err << "cbcMacViaEvp: EVP_CIPHER_CTX_new returned nullptr";
+        assert(false);
+        return;
+    }
+
+    if (EVP_EncryptInit_ex(ctx.get(), aes128Cbc(), nullptr, key, mac) != 1)
+    {
+        LOG_err << "cbcMacViaEvp: EVP_EncryptInit_ex failed";
+        assert(false);
+        return;
+    }
+
     EVP_CIPHER_CTX_set_padding(ctx.get(), 0);
+
+    constexpr unsigned SLICE = 4096;
+    static_assert(SLICE % SymmCipher::BLOCKSIZE == 0, "slice must be block-aligned");
+    byte out[SLICE + SymmCipher::BLOCKSIZE];
+
     int outlen = 0;
-    EVP_EncryptUpdate(ctx.get(),
-                      tlsCbcMacScratch.data(),
-                      &outlen,
-                      input,
-                      static_cast<int>(paddedLen));
-    memcpy(mac, tlsCbcMacScratch.data() + paddedLen - SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE);
+    for (unsigned done = 0; done < paddedLen;)
+    {
+        const unsigned n = std::min(SLICE, paddedLen - done);
+        if (EVP_EncryptUpdate(ctx.get(), out, &outlen, input + done, static_cast<int>(n)) != 1)
+        {
+            LOG_err << "cbcMacViaEvp: EVP_EncryptUpdate failed";
+            assert(false);
+            return;
+        }
+        done += n;
+    }
+
+    memcpy(mac, out + outlen - SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE);
 }
 
 void ctrCryptViaEvp(const byte* key,
@@ -791,9 +846,27 @@ void ctrCryptViaEvp(const byte* key,
                     unsigned paddedLen)
 {
     EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
-    EVP_EncryptInit_ex(ctx.get(), EVP_aes_128_ctr(), nullptr, key, ctrIv);
+    if (!ctx)
+    {
+        LOG_err << "ctrCryptViaEvp: EVP_CIPHER_CTX_new returned nullptr";
+        assert(false);
+        return;
+    }
+
+    if (EVP_EncryptInit_ex(ctx.get(), aes128Ctr(), nullptr, key, ctrIv) != 1)
+    {
+        LOG_err << "ctrCryptViaEvp: EVP_EncryptInit_ex failed";
+        assert(false);
+        return;
+    }
+
     int outlen = 0;
-    EVP_EncryptUpdate(ctx.get(), data, &outlen, data, static_cast<int>(paddedLen));
+    if (EVP_EncryptUpdate(ctx.get(), data, &outlen, data, static_cast<int>(paddedLen)) != 1)
+    {
+        LOG_err << "ctrCryptViaEvp: EVP_EncryptUpdate failed";
+        assert(false);
+        return;
+    }
 }
 
 } // anonymous namespace
