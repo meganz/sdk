@@ -87,6 +87,10 @@ HttpReqFA::HttpReqFA(NodeOrUploadHandle cth,
 
     binary = true;
 
+    // as for transfer chunks: have curl abort the request if it stalls (<30 B/s for 60s), in
+    // addition to the stale-data watchdog in MegaClient::exec (MegaClient::PUTFATIMEOUT)
+    minspeed = true;
+
     getURLForFACmd = [this, cth, ctype, ctag, getIP, client]()
     {
         std::weak_ptr<HttpReqFA> weakSelf(shared_from_this());

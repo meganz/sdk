@@ -2050,6 +2050,10 @@ public:
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
 
+    // an active putfa that has moved no data for this long (ds) is considered stuck: it is
+    // disconnected, so that its MAXPUTFA slot and connection are freed, and requeued for retry
+    static const dstime PUTFATIMEOUT;
+
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
 

@@ -55,6 +55,7 @@ target_sources(test_integration
     backup_sync_operations_test.cpp
     sdk_test_lockless_cs_channel.cpp
     sdk_test_pitag.cpp
+    sdk_test_putfa.cpp
     sdk_test_sc_channel.cpp
     SdkTestFolderController_test.cpp
     SdkTestGetChildrenLexicographic_test.cpp
