@@ -39486,13 +39486,24 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
             delete baseFolderNode;
             return NULL;
         }
+        // The served subtree root is the base folder identified by the first path segment.
+        // getNodeByFullFtpPath resolves the remainder with getNodeByPath, which honours "..",
+        // so an absolute path with embedded parent segments can resolve outside the served
+        // folder. Reject any resolved node that escapes the served subtree.
+        const MegaHandle servedHandle = baseFolderNode->getHandle();
         delete baseFolderNode;
 
-        return getNodeByFullFtpPath(path);
+        MegaNode* toret = getNodeByFullFtpPath(path);
+        if (isNodeOutsideServedSubtree(megaApi, toret, servedHandle))
+        {
+            delete toret;
+            return NULL;
+        }
+        return toret;
     }
-    else //it should only enter here if path == ""
+    else // it should only enter here if path == ""
     {
-        MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+        MegaNode* n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
         if (!n)
         {
             return NULL;
@@ -39501,6 +39512,25 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         delete n;
         return toret;
     }
+}
+
+bool MegaFTPServer::isHandleWithinAllowedSubtree(handle h)
+{
+    // Commands that write to the current working directory (STOR, MKD) use
+    // ftpctx->cwd directly, without routing through getNodeByFtpPath, so they
+    // never reach the served subtree check there. PASS and "CWD /" set cwd to
+    // the account root regardless of which handle was served, so a bare name
+    // would otherwise be created at the Cloud Drive root. Authorize the target
+    // only when it or one of its ancestors is a served handle, matching the
+    // per mode semantics of isHandleAllowed and the walk done in cdup
+    auto n = makeUniqueFrom(megaApi->getNodeByHandle(h));
+    bool allowed = false;
+    while (n && !allowed)
+    {
+        allowed = isHandleAllowed(n->getHandle());
+        n = makeUniqueFrom(megaApi->getNodeByHandle(n->getParentHandle()));
+    }
+    return allowed;
 }
 
 std::string MegaFTPServer::shortenpath(std::string path)
@@ -40336,7 +40366,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             ftpctx->ftpDataServer->newNameToUpload = ftpctx->arg1;
             if (seppos == string::npos)
             {
-                ftpctx->ftpDataServer->newParentNodeHandle = ftpctx->cwd;
+                if (isHandleWithinAllowedSubtree(ftpctx->cwd))
+                {
+                    ftpctx->ftpDataServer->newParentNodeHandle = ftpctx->cwd;
+                }
+                else
+                {
+                    ftpctx->ftpDataServer->newNameToUpload =
+                        ""; // cwd is outside the served subtree
+                }
             }
             else
             {
@@ -40525,10 +40563,23 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
                 if (newNameFolder.size())
                 {
-                    MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-                    ftpctx->megaApi->createFolder(newNameFolder.c_str(),newParentNode ? newParentNode : nodecwd, ftpctx);
+                    MegaNode* nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+                    // newParentNode, when present, was validated by getNodeByFtpPath. The cwd
+                    // fallback bypasses that path, so authorize it against the served subtree.
+                    MegaNode* parentForCreate = newParentNode ? newParentNode : nodecwd;
+                    if (parentForCreate &&
+                        isHandleWithinAllowedSubtree(parentForCreate->getHandle()))
+                    {
+                        ftpctx->megaApi->createFolder(newNameFolder.c_str(),
+                                                      parentForCreate,
+                                                      ftpctx);
+                        delayresponse = true;
+                    }
+                    else
+                    {
+                        response = "550 Not Found";
+                    }
                     delete nodecwd;
-                    delayresponse = true;
                 }
                 else
                 {
