@@ -1,12 +1,17 @@
+#include <mega/common/assertions.h>
 #include <mega/common/badge.h>
+#include <mega/common/database.h>
 #include <mega/common/error_or.h>
+#include <mega/common/lock.h>
 #include <mega/common/node_info.h>
+#include <mega/common/transaction.h>
+#include <mega/file_service/file.h>
+#include <mega/file_service/file_service.h>
+#include <mega/file_service/file_service_result.h>
+#include <mega/file_service/file_service_result_or.h>
 #include <mega/fuse/common/client.h>
 #include <mega/fuse/common/directory_inode.h>
-#include <mega/fuse/common/file_cache.h>
-#include <mega/fuse/common/file_info.h>
 #include <mega/fuse/common/file_inode.h>
-#include <mega/fuse/common/file_io_context.h>
 #include <mega/fuse/common/file_open_flag.h>
 #include <mega/fuse/common/inode_badge.h>
 #include <mega/fuse/common/inode_db.h>
@@ -24,74 +29,126 @@ namespace fuse
 
 using namespace common;
 
+using file_service::FileInfo;
+using file_service::FileStructureUniqueLock;
+
+void FileInode::doLock() const
+{
+    // Acquire a lock on this inode's structure mutex.
+    mLock = mMutex.lock().get();
+}
+
+bool FileInode::doTryLock() const
+{
+    // Try and acquire a lock on this file's structure mutex.
+    auto lock = mMutex.tryLock();
+
+    // Couldn't acquire a lock on this file's structure mutex.
+    if (!lock)
+        return false;
+
+    // Save the lock for later use and release.
+    mLock = std::move(lock);
+
+    // Let our caller know the lock was acquired.
+    return true;
+}
+
+void FileInode::doUnlock() const
+{
+    // Release the lock held on this file's structure mutex.
+    std::exchange(mLock, {}).unlock();
+}
+
 void FileInode::remove(RefBadge, InodeDBLock lock)
 {
     // Remove this file from the inode database.
     mInodeDB.remove(*this, std::move(lock));
 }
 
-FileInode::FileInode(InodeID id, const NodeInfo& info, InodeDB& inodeDB):
-    Inode(id, info, inodeDB),
-    mHandle(info.mHandle),
-    mInfo(),
-    mInfoLock()
+FileInode::FileInode(const FileInfo& fileInfo,
+                     InodeID id,
+                     const NodeInfo& nodeInfo,
+                     InodeDB& inodeDB):
+    Inode(id, nodeInfo, inodeDB),
+    mHandle(nodeInfo.mHandle),
+    mInfo(fileInfo),
+    mLock(),
+    mMutex(mInfo.structureMutex())
 {}
 
 FileInode::~FileInode() {}
-
-bool FileInode::cached() const
-{
-    return fileInfo();
-}
-
-FileExtension FileInode::extension() const
-{
-    // Retrieve extension from file info, if present.
-    {
-        std::lock_guard<std::mutex> guard(mInfoLock);
-
-        if (mInfo)
-            return mInfo->extension();
-    }
-
-    // Compute extension based on current file name.
-    return mInodeDB.fileExtensionDB().getFromPath(name());
-}
 
 FileInodeRef FileInode::file()
 {
     return FileInodeRef(this);
 }
 
-void FileInode::fileInfo(FileInfoRef info)
+const FileInfo& FileInode::fileInfo() const
 {
-    // Sanity.
-    assert(info);
-
-    std::lock_guard<std::mutex> guard(mInfoLock);
-
-    // A file's info should only be injected once.
-    assert(!mInfo);
-
-    mInfo = std::move(info);
+    return mInfo;
 }
 
-FileInfoRef FileInode::fileInfo() const
+void FileInode::handle(Badge<InodeDB>, NodeHandle handle, Transaction& transaction)
 {
-    std::lock_guard<std::mutex> guard(mInfoLock);
+    // Sanity.
+    assert(!handle.isUndef());
 
-    return mInfo;
+    // Handle isn't being changed.
+    if (mHandle == handle)
+        return;
+
+    // Update the inode's handle in the database.
+    mInodeDB.updateHandleInDatabase(mID, handle, transaction);
+
+    // Update the inode's handle association in memory.
+    mInodeDB.updateHandleInMemory(*this, handle, mHandle);
+
+    // Remember which cloud node this inode is associated with.
+    mHandle = handle;
+
+    // Make sure the file isn't marked as removed.
+    removed(false);
 }
 
 void FileInode::handle(NodeHandle handle)
 {
-    InodeDBLock guard(mInodeDB);
-
     // Sanity.
     assert(!handle.isUndef());
 
-    // Update the database.
-    mInodeDB.handle(*this, mHandle, handle);
+    DatabaseLock lockDatabase(mInodeDB.database(), std::defer_lock);
+    InodeDBLock lockInodeDB(mInodeDB, std::defer_lock);
+
+    // Acquire necessary locks.
+    std::lock(lockDatabase, lockInodeDB);
+
+    // Handle isn't being changed.
+    if (mHandle == handle)
+        return;
+
+    // Update the inode's handle in the database.
+    {
+        // Take ownership of database lock.
+        auto lock = std::move(lockDatabase);
+
+        // So we can safely update the database.
+        auto transaction = mInodeDB.database().transaction();
+
+        // Update the inode's handle in the database.
+        mInodeDB.updateHandleInDatabase(mID, handle, transaction);
+
+        // Persist database changes.
+        transaction.commit();
+    }
+
+    // Update the inode's handle assocation in memory.
+    mInodeDB.updateHandleInMemory(*this, handle, mHandle);
+
+    // Remember which cloud node this inode is associated with.
+    mHandle = handle;
+
+    // Make sure the file isn't marked as removed.
+    removed(false);
 }
 
 NodeHandle FileInode::handle() const
@@ -103,22 +160,26 @@ NodeHandle FileInode::handle() const
 
 void FileInode::info(const NodeInfo& info)
 {
-    InodeDBLock guard(mInodeDB);
-
     // Sanity.
     assert(!info.mHandle.isUndef());
     assert(!info.mIsDirectory);
 
+    DatabaseLock lockDatabase(mInodeDB.database(), std::defer_lock);
+    InodeDBLock lockInodeDB(mInodeDB, std::defer_lock);
+
+    // Acquire necessary locks.
+    std::lock(lockDatabase, lockInodeDB);
+
     // Update this inode's cached description.
-    Inode::info(info, guard);
+    Inode::info(info, lockInodeDB);
 
     // Update this inode's handle.
-    mInodeDB.handle(*this, mHandle, info.mHandle);
+    handle(info.mHandle);
 }
 
 InodeInfo FileInode::info() const
 {
-    // Retrieve a reference to this inode's local state, if any.
+    // Retrieve a reference to this inode's local state.
     auto fileInfo = this->fileInfo();
 
     // Acquire lock.
@@ -133,12 +194,16 @@ InodeInfo FileInode::info() const
         info.mIsDirectory = false;
         info.mName = mName;
         info.mModified = mModified;
-        info.mParentID = InodeID(mParentHandle);
+        info.mParentID = InodeID::from(mParentHandle);
         info.mPermissions = mPermissions;
 
-        // Latch local state, if any.
-        if (fileInfo)
-            fileInfo->get(info.mModified, info.mSize);
+        // Latch local state.
+        fileInfo.whileLocked(
+            [&](auto& self)
+            {
+                info.mModified = self.modified();
+                info.mSize = static_cast<m_off_t>(self.size());
+            });
 
         return info;
     }
@@ -165,10 +230,6 @@ InodeInfo FileInode::info() const
             // Release the lock so we can call the client.
             lock.unlock();
 
-            // Retrieve this inode's local state, if any.
-            if (!fileInfo)
-                fileInfo = this->fileInfo();
-
             // Try and retrieve our description.
             auto info_ = client.get(info.mHandle);
 
@@ -184,13 +245,17 @@ InodeInfo FileInode::info() const
             // We no longer exist.
             if (!info_)
             {
-                // Latch local state, if any.
-                if (fileInfo)
-                    fileInfo->get(info.mModified, info.mSize);
-
                 // Mark ourselves as removed if necessary.
                 if (info_.error() == API_ENOENT)
                     removed(true);
+
+                // Latch local state.
+                fileInfo.whileLocked(
+                    [&](auto& self)
+                    {
+                        info.mModified = self.modified();
+                        info.mSize = static_cast<m_off_t>(self.size());
+                    });
 
                 // Return our description to the caller.
                 return InodeInfo(mID, std::move(info));
@@ -200,8 +265,12 @@ InodeInfo FileInode::info() const
             info = std::move(*info_);
 
             // Latch local state, if any.
-            if (fileInfo)
-                fileInfo->get(info.mModified, info.mSize);
+            fileInfo.whileLocked(
+                [&](auto& self)
+                {
+                    info.mModified = self.modified();
+                    info.mSize = static_cast<m_off_t>(self.size());
+                });
 
             // Update our cached attributes.
             const_cast<FileInode*>(this)->Inode::info(info, lock);
@@ -230,11 +299,13 @@ InodeInfo FileInode::info() const
             info.mPermissions != mPermissions || info.mName != mName)
             continue;
 
-        // Sanity.
-        assert(fileInfo);
-
         // Latch local state.
-        fileInfo->get(info.mModified, info.mSize);
+        fileInfo.whileLocked(
+            [&](auto& self)
+            {
+                info.mModified = self.modified();
+                info.mSize = static_cast<m_off_t>(self.size());
+            });
 
         // Latch current permissions.
         if (permissions != ACCESS_UNKNOWN)
@@ -263,6 +334,11 @@ Error FileInode::move(InodeBadge, const std::string& name, DirectoryInodeRef par
     return mInodeDB.move(FileInodeRef(this), name, std::move(parent));
 }
 
+FileStructureUniqueLock& FileInode::structureLock() const
+{
+    return mLock;
+}
+
 ErrorOr<platform::FileContextPtr> FileInode::open(Mount& mount, FileOpenFlags flags)
 {
     // Are we opening the file for writing?
@@ -272,12 +348,6 @@ ErrorOr<platform::FileContextPtr> FileInode::open(Mount& mount, FileOpenFlags fl
     if (writable && permissions() != FULL)
         return unexpected(API_FUSE_EROFS);
 
-    // Get a reference to ourself.
-    auto ref = FileInodeRef(this);
-
-    // Get a reference to our file context.
-    auto context = mInodeDB.fileCache().context(std::move(ref));
-
     // Does the user want to truncate the file?
     auto truncate = (flags & FOF_TRUNCATE) > 0;
 
@@ -285,14 +355,29 @@ ErrorOr<platform::FileContextPtr> FileInode::open(Mount& mount, FileOpenFlags fl
     assert(!truncate || writable);
 
     // Try and open the file for IO.
-    auto result = context->open(mount, truncate);
+    auto file = mInodeDB.fileService().open(id());
 
     // Couldn't open the file.
-    if (result != API_OK)
+    if (!file)
+        return unexpected(API_EFAILED);
+
+    // Convenience.
+    using FileContext = platform::FileContext;
+
+    // Wrap the file in a context.
+    auto context =
+        std::make_unique<FileContext>(mount, std::move(*file), flags, FileInodeRef(this));
+
+    // Caller doesn't want to truncate the file.
+    if (!truncate)
+        return context;
+
+    // Couldn't truncate the file.
+    if (auto result = context->truncate(0, false); result != API_OK)
         return unexpected(result);
 
-    // File's open.
-    return std::make_unique<platform::FileContext>(std::move(context), mount, flags);
+    // Return a file context to our caller.
+    return context;
 }
 
 Error FileInode::replace(InodeBadge,
@@ -317,46 +402,30 @@ Error FileInode::replace(InodeBadge,
                             std::move(otherParent));
 }
 
-Error FileInode::touch(const Mount& mount, m_time_t modified)
+Error FileInode::touch(Mount& mount, m_time_t modified)
 {
     // Lock the file so no one else can alter us.
     InodeLock lock(*this);
 
-    // Get our hands on our context.
-    auto context = mInodeDB.fileCache().context(FileInodeRef(this));
-
-    // Try and open the file for IO.
-    auto result = context->open(mount, false);
-
-    // Try and update the file's modification time.
-    if (result == API_OK)
-        result = context->touch(mount, modified);
-
-    // Return result to caller.
-    return result;
-}
-
-Error FileInode::truncate(const Mount& mount, m_off_t size, bool dontGrow)
-{
-    // Lock the file so no one else can alter us.
-    InodeLock lock(*this);
-
-    // Get our hands on our context.
-    auto context = mInodeDB.fileCache().context(FileInodeRef(this));
-
-    // Open the file for IO.
-    auto result = context->open(mount, !size);
+    // Update the file's modification time.
+    if (auto context = open(mount, 0x0))
+        return (*context)->touch(modified);
 
     // Couldn't open the file for IO.
-    if (result != API_OK)
-        return result;
+    return API_EWRITE;
+}
 
-    // Truncate the file if necessary.
-    if (size)
-        result = context->truncate(mount, size, dontGrow);
+Error FileInode::truncate(Mount& mount, m_off_t size, bool noGrow)
+{
+    // Lock the file so no one else can alter us.
+    InodeLock lock(*this);
 
-    // Return result to caller.
-    return result;
+    // Truncate the file.
+    if (auto context = open(mount, FOF_WRITABLE))
+        return (*context)->truncate(size, noGrow);
+
+    // Couldn't open the file for IO.
+    return API_EWRITE;
 }
 
 Error FileInode::unlink(InodeBadge)

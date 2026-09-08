@@ -1,15 +1,12 @@
 #pragma once
 
-#include <chrono>
-#include <cstddef>
-#include <mutex>
-
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
-#include <mega/log_level_forward.h>
 #include <mega/common/node_event_queue_forward.h>
 #include <mega/common/normalized_path_forward.h>
+#include <mega/common/shared_mutex.h>
 #include <mega/common/task_queue_forward.h>
+#include <mega/file_service/file_service_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
@@ -18,8 +15,11 @@
 #include <mega/fuse/common/service_context_forward.h>
 #include <mega/fuse/common/service_flags.h>
 #include <mega/fuse/common/service_forward.h>
-
+#include <mega/log_level_forward.h>
 #include <mega/types.h>
+
+#include <cstddef>
+#include <mutex>
 
 namespace mega
 {
@@ -40,9 +40,6 @@ public:
 
     // Add a mount to the database.
     MountResult add(const MountInfo& info);
-
-    // Check if a file exists in the cache.
-    bool cached(common::NormalizedPath path) const;
 
     // Called by the client when its view of the cloud is current.
     void current();
@@ -87,7 +84,7 @@ public:
     MountInfoVector get(bool onlyEnabled) const;
 
     // Initialize the service.
-    MountResult initialize();
+    MountResult initialize(file_service::FileService& fileService);
 
     // How verbose should our logging be?
     void logLevel(LogLevel level);
@@ -134,7 +131,7 @@ private:
     ServiceFlags mFlags;
 
     // Serializes access to mFlags.
-    mutable std::mutex mFlagsLock;
+    mutable common::SharedMutex mFlagsLock;
 }; // Service
 
 } // fuse

@@ -83,6 +83,21 @@ auto makeScopedDestructor(Function function, Arguments&&... arguments)
     return makeScopedDestructor(std::move(destructor));
 }
 
+// Increment the value of place.
+//
+// Returns an object that will decrement place's value on destruction.
+template<typename T, std::enable_if_t<std::is_integral_v<T>>* = nullptr>
+auto makeScopedIncrementer(T& place)
+{
+    ++place;
+
+    return makeScopedDestructor(
+        [&place]()
+        {
+            --place;
+        });
+}
+
 // Changes the length (size) of a sequence and returns an object that will
 // restore that sequence's original length when destroyed.
 template<typename T>

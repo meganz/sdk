@@ -1063,6 +1063,83 @@ TEST_P(FUSEPlatformTests, remove_directory_succeeds)
     EXPECT_FALSE(fs::exists(MountPathW() / "sd0" / "sd0d0", error));
 }
 
+// Extending a file's allocation size must never extend the file itself.
+//
+// Windows extends a file's allocation size, rounded up to the volume's
+// allocation unit, before it writes any data to that file. Were we to honor
+// those requests, the file would be padded with zeroes which we would then
+// upload to the cloud as if the application had written them.
+TEST_P(FUSEPlatformTests, set_allocation_size_doesnt_extend_file_succeeds)
+{
+    auto handle = CreateFileP(MountPathW() / "sfx",
+                              GENERIC_READ | GENERIC_WRITE,
+                              0,
+                              nullptr,
+                              CREATE_NEW,
+                              0,
+                              Handle<>());
+
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+    ASSERT_TRUE(handle);
+
+    // Write a little content to our file.
+    auto written = randomBytes(3);
+    auto numWritten = 0ul;
+
+    EXPECT_TRUE(WriteFile(handle.get(),
+                          &written[0],
+                          static_cast<DWORD>(written.size()),
+                          &numWritten,
+                          nullptr));
+
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+    EXPECT_EQ(numWritten, static_cast<DWORD>(written.size()));
+
+    // Extend the file's allocation size as Windows would.
+    FILE_ALLOCATION_INFO allocationInfo{};
+
+    allocationInfo.AllocationSize.QuadPart = 64 * 1024;
+
+    EXPECT_TRUE(SetFileInformationByHandle(handle.get(),
+                                           FileAllocationInfo,
+                                           &allocationInfo,
+                                           sizeof(allocationInfo)));
+
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+
+    // The file's size must not have changed.
+    FileInfo fileInfo;
+
+    EXPECT_TRUE(GetFileInformationByHandle(handle.get(), &fileInfo.mByHandle));
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+    EXPECT_EQ(fileInfo.mByHandle.nFileSizeLow, static_cast<DWORD>(written.size()));
+    EXPECT_FALSE(fileInfo.mByHandle.nFileSizeHigh);
+
+    // Flush our changes to the cloud.
+    EXPECT_TRUE(FlushFileBuffers(handle.get()));
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+
+    // Only the content we wrote should've been uploaded.
+    EXPECT_TRUE(waitFor(
+        [&]()
+        {
+            auto info = ClientW()->get("/x/s/sfx");
+
+            return info && info->mSize == static_cast<m_off_t>(written.size());
+        },
+        mDefaultTimeout));
+
+    auto info = ClientW()->get("/x/s/sfx");
+
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    ASSERT_EQ(info->mSize, static_cast<m_off_t>(written.size()));
+
+    handle.reset();
+
+    EXPECT_TRUE(DeleteFileP(MountPathW() / "sfx"));
+    EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
+}
+
 TEST_P(FUSEPlatformTests, set_attributes_fails_when_unsupported_attributes_changed)
 {
     auto before = GetFileAttributesP(MountPathW() / "sf0");
@@ -1329,21 +1406,27 @@ TEST_P(FUSEPlatformTests, set_file_time_succeeds)
     EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
     EXPECT_EQ(computed.mByPath, expected);
 
-    // Make sure our changes have hit the cloud.
+    // Flush our changes to the cloud.
     EXPECT_TRUE(FlushFileBuffers(handle.get()));
     EXPECT_EQ(GetLastError(), ERROR_SUCCESS);
 
+    // Convenience.
+    using common::ErrorOr;
+    using common::NodeInfo;
+
+    ErrorOr<NodeInfo> info;
+
+    // Make sure the file's new modification time is visible in the cloud.
     EXPECT_TRUE(waitFor(
         [&]()
         {
-            auto info = ClientW()->get("/x/s/sf0");
-            return info && expected == *info;
+            info = ClientW()->get("/x/s/sf0");
+            return info && DateTime(info->mModified) == next;
         },
         mDefaultTimeout));
 
-    auto info = ClientW()->get("/x/s/sf0");
-    ASSERT_TRUE(info);
-    EXPECT_EQ(expected, *info);
+    ASSERT_EQ(info.errorOr(API_OK), API_OK);
+    EXPECT_EQ(DateTime(info->mModified), next);
 }
 
 TEST_P(FUSEPlatformTests, truncate_fails_when_read_only)

@@ -1,10 +1,11 @@
+#include <mega/common/logging.h>
+#include <mega/common/move_only_function.h>
+#include <mega/common/task_queue.h>
+
 #include <algorithm>
 #include <atomic>
 #include <cassert>
 #include <stdexcept>
-
-#include <mega/common/logging.h>
-#include <mega/common/task_queue.h>
 
 namespace mega
 {
@@ -31,7 +32,7 @@ class TaskContext
     bool execute(StatusFlags desired, const Task& task);
 
     // What will the task do when executed?
-    std::function<void(const Task&)> mFunction;
+    MoveOnlyFunction<void(const Task&)> mFunction;
 
     // How should this task log exceptions?
     Logger& mLogger;
@@ -43,7 +44,7 @@ class TaskContext
     std::chrono::steady_clock::time_point mWhen;
 
 public:
-    TaskContext(std::function<void(const Task&)> function,
+    TaskContext(MoveOnlyFunction<void(const Task&)> function,
                 Logger& logger,
                 std::chrono::steady_clock::time_point when);
 
@@ -51,10 +52,10 @@ public:
     bool operator<(const TaskContext& rhs) const;
 
     // Try and abort the task.
-    bool abort(const Task& task);
+    bool abort(Task task);
 
     // Try and cancel the task.
-    bool cancel(const Task& task);
+    bool cancel(Task task);
 
     // Has the task been aborted?
     bool aborted() const;
@@ -63,7 +64,7 @@ public:
     bool cancelled() const;
 
     // Try and complete the task.
-    bool complete(const Task& task);
+    bool complete(Task task);
 
     // Has the task been completed?
     bool completed() const;
@@ -72,13 +73,20 @@ public:
     std::chrono::steady_clock::time_point when() const;
 }; // TaskContext
 
-Task::Task(std::function<void(const Task&)> function,
+Task::Task(MoveOnlyFunction<void(const Task&)> function,
            Logger& logger,
-           std::chrono::steady_clock::time_point when)
-  : mContext(std::make_shared<TaskContext>(std::move(function),
-                                           logger,
-                                           when))
+           std::chrono::steady_clock::time_point when):
+    mContext(std::make_shared<TaskContext>(std::move(function), logger, when))
+{}
+
+bool Task::operator==(const Task& rhs) const
 {
+    return mContext == rhs.mContext;
+}
+
+bool Task::operator!=(const Task& rhs) const
+{
+    return !(*this == rhs);
 }
 
 Task::operator bool() const
@@ -269,7 +277,7 @@ bool TaskContext::execute(StatusFlags desired, const Task& task)
     return true;
 }
 
-TaskContext::TaskContext(std::function<void(const Task&)> function,
+TaskContext::TaskContext(MoveOnlyFunction<void(const Task&)> function,
                          Logger& logger,
                          std::chrono::steady_clock::time_point when):
     mFunction(std::move(function)),
@@ -283,12 +291,12 @@ bool TaskContext::operator<(const TaskContext& rhs) const
     return mWhen > rhs.mWhen;
 }
 
-bool TaskContext::abort(const Task& task)
+bool TaskContext::abort(Task task)
 {
     return execute(SF_ABORTED | SF_CANCELLED | SF_COMPLETED, task);
 }
 
-bool TaskContext::cancel(const Task& task)
+bool TaskContext::cancel(Task task)
 {
     return execute(SF_CANCELLED | SF_COMPLETED, task);
 }
@@ -303,7 +311,7 @@ bool TaskContext::cancelled() const
     return (mStatus & SF_CANCELLED);
 }
 
-bool TaskContext::complete(const Task& task)
+bool TaskContext::complete(Task task)
 {
     return execute(SF_COMPLETED, task);
 }

@@ -5,7 +5,7 @@ namespace mega
 namespace file_service
 {
 
-struct FileMoveEvent;
+struct ApplicationData;
 
 } // file_service
 } // mega

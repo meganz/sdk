@@ -28,12 +28,8 @@ Transaction::Transaction(Badge<Database>, Database& database)
 {
     try
     {
-        // Instantiate a query so we can manipulate the database.
-        auto query = database.query();
-
-        // Try and start a new transaction.
-        query = "savepoint txn";
-        query.execute();
+        // Start a new transaction (cached savepoint statement).
+        database.begin({});
 
         // Transaction's now in progress.
         mInProgress = true;
@@ -86,12 +82,8 @@ try
     if (!mInProgress)
         throw LogError1(logger(), "Can't commit an inactive transaction");
 
-    // So we can manipulate the database.
-    auto query = mDB->query();
-
-    // Try and release the transaction.
-    query = "release savepoint txn";
-    query.execute();
+    // Release the transaction (cached savepoint statement).
+    mDB->commit({});
 
     // Transaction's been committed.
     mInProgress = false;
@@ -152,15 +144,8 @@ try
     if (!mInProgress)
         throw LogError1(logger(), "Can't rollback an inactive transaction");
 
-    auto query = mDB->query();
-
-    // Try and roll back the transaction.
-    query = "rollback transaction to savepoint txn";
-    query.execute();
-
-    // Try and release the transaction.
-    query = "release savepoint txn";
-    query.execute();
+    // Roll back to and release the savepoint (cached statements).
+    mDB->rollback({});
 
     // Transaction's been rolled back.
     mInProgress = false;

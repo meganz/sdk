@@ -69,9 +69,12 @@ target_sources(test_unit
     DateSection_test.cpp
     SqliteNodesPerf_test.cpp
     SqliteDateSectionsPerf_test.cpp
+    async_mutex_tests.cpp
+    async_mutex_traits_test.cpp
     file_access_tests.cpp
     jsonsplitter_test.cpp
     megaclient_test.cpp
+    move_only_function_tests.cpp
     SharedMemoryZone_test.cpp
     sc_streaming_parser_test.cpp
     TestHooks_test.cpp

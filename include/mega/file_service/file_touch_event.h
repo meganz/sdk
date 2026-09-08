@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_touch_event_forward.h>
 
@@ -14,13 +15,17 @@ struct FileTouchEvent
 {
     bool operator==(const FileTouchEvent& rhs) const
     {
-        return mID == rhs.mID && mModified == rhs.mModified;
+        return mApplicationData == rhs.mApplicationData && mID == rhs.mID &&
+               mModified == rhs.mModified;
     }
 
     bool operator!=(const FileTouchEvent& rhs) const
     {
         return !(*this == rhs);
     }
+
+    // Application-specific data associated with this event.
+    ApplicationData mApplicationData;
 
     // The ID of the file that has been touched.
     FileID mID;

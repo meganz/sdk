@@ -4760,10 +4760,16 @@ void MegaClient::dispatchTransfers()
                         {
                             nexttransfer->uploadhandle = mUploadHandle.next();
 
-                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
+                            // Add missing thumbnails if we're uploading a file.
+                            if (auto conceptualname = nexttransfer->thumbnailName())
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                int bitmask = gfx->gendimensionsputfa(nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+                                int bitmask = gfx->gendimensionsputfa(
+                                    *conceptualname,
+                                    nexttransfer->localfilename,
+                                    NodeOrUploadHandle(nexttransfer->uploadhandle),
+                                    nexttransfer->transfercipher(),
+                                    -1);
 
                                 if (bitmask & (1 << GfxProc::THUMBNAIL))
                                 {
@@ -5360,11 +5366,11 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
-    // Deinitialize the File Service.
-    mFileService.deinitialize(removecaches, destructorRunning);
-
     // Deinitialize the FUSE Service.
     mFuseService.deinitialize();
+
+    // Deinitialize the File Service.
+    mFileService.deinitialize(removecaches, destructorRunning);
 
     purgenodesusersabortsc(false);
     userid = 0;
@@ -5750,6 +5756,7 @@ void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChangin
         }
         statecurrent = true;
         app->nodes_current();
+        mFileService.current();
         mFuseService.current();
         LOG_debug << "Cloud node tree up to date";
 #ifdef ENABLE_SYNC
@@ -8900,6 +8907,7 @@ void MegaClient::sc_sqac(JSON& json)
                 }
 
                 // Invalidate cached storage info.
+                mClientAdapter.invalidateStorageInfo();
                 mLastKnownCapacity = -1;
 
 #ifdef MEGA_USE_WSUPLOAD
@@ -19354,7 +19362,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname());
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname().toPath(false));
 #endif
         }
         else

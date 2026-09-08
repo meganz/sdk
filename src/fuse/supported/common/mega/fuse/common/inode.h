@@ -1,8 +1,9 @@
 #pragma once
 
+#include <mega/common/badge_forward.h>
 #include <mega/common/error_or_forward.h>
-#include <mega/common/lockable.h>
 #include <mega/common/node_info_forward.h>
+#include <mega/common/transaction_forward.h>
 #include <mega/fuse/common/directory_inode_forward.h>
 #include <mega/fuse/common/file_inode_forward.h>
 #include <mega/fuse/common/inode_badge_forward.h>
@@ -22,33 +23,21 @@
 
 namespace mega
 {
-namespace common
-{
-
-template<>
-struct LockableTraits<fuse::Inode>
-{
-    using LockType = std::recursive_mutex;
-
-    static void acquiring(const fuse::Inode& inode);
-
-    static void acquired(const fuse::Inode& inode);
-
-    static void couldntAcquire(const fuse::Inode& inode);
-
-    static void released(const fuse::Inode& inode);
-
-    static void tryAcquire(const fuse::Inode& inode);
-}; // LockableTraits<fuse::Inode>
-
-} // common
-
 namespace fuse
 {
 
 // Represents a filesystem entity.
-class Inode: public common::Lockable<Inode>
+class Inode
 {
+    // Called to acquire a lock on this inode.
+    virtual void doLock() const = 0;
+
+    // Called to try and acquire a lock on this inode.
+    virtual bool doTryLock() const = 0;
+
+    // Called to release a lock on this inode.
+    virtual void doUnlock() const = 0;
+
     // Update this inode's name and parent.
     void moved(InodeDBLock& lock, const std::string& name, NodeHandle parentHandle);
 
@@ -64,8 +53,23 @@ class Inode: public common::Lockable<Inode>
 protected:
     Inode(InodeID id, const common::NodeInfo& info, InodeDB& inodeDB);
 
+    // Called when a thread is waiting to acquire a lock on inode.
+    static void acquiring(const fuse::Inode& inode);
+
+    // Called after a thread has acquired a lock on an inode.
+    static void acquired(const fuse::Inode& inode);
+
+    // Called when a thread couldn't acquire a lock on an inode.
+    static void couldntAcquire(const fuse::Inode& inode);
+
     // Update an inode's cached description.
     void info(const common::NodeInfo& info, InodeDBLock& lock);
+
+    // Called when a thread has released a lock on an inode.
+    static void released(const fuse::Inode& inode);
+
+    // Called when a thread is trying to acquire a lock on an inode.
+    static void tryAcquire(const fuse::Inode& inode);
 
     // The inode's identifier.
     const InodeID mID;
@@ -91,9 +95,6 @@ public:
     // Update this inode's access time.
     Inode* accessed() const;
 
-    // Is this inode in the file cache?
-    virtual bool cached() const = 0;
-
     // Check if this inode represents a directory.
     //
     // If the inode does represent a directory, a more specialized
@@ -112,6 +113,13 @@ public:
     // returned.
     virtual FileInodeRef file();
 
+    // Update what cloud node is associated with this inode.
+    virtual void handle(common::Badge<InodeDB> badge,
+                        NodeHandle handle,
+                        common::Transaction& transaction) = 0;
+
+    virtual void handle(NodeHandle handle) = 0;
+
     // What cloud node, if any, is associated with this inode?
     virtual NodeHandle handle() const = 0;
 
@@ -124,8 +132,15 @@ public:
     // Retrieve a description of the entity this inode represents.
     virtual InodeInfo info() const = 0;
 
+    // Acquire a lock on this inode.
+    void lock() const;
+
     // Move (or rename) this inode (assuming locks are held.)
     virtual Error move(InodeBadge badge, const std::string& name, DirectoryInodeRef parent) = 0;
+
+    // Move (or rename) this inode by path.
+    template<typename Path>
+    Error move(const Path& path, NodeHandle rootHandle, bool replace);
 
     // Move (or rename) this inode.
     Error move(const std::string& name, DirectoryInodeRef parent);
@@ -168,14 +183,17 @@ public:
                           const std::string& otherName,
                           DirectoryInodeRef otherParent) = 0;
 
-    // Replace other with this inode (assuming locks are not held.)
-    Error replace(InodeRef other, bool replaceDirectories);
+    // Try and acquire a lock on this inode.
+    bool try_lock() const;
 
     // Unlink this inode (without taking any locks.)
     virtual Error unlink(InodeBadge badge) = 0;
 
     // Unlink this inode (taking appriopriate locks.)
     Error unlink();
+
+    // Release a lock previously acquired on this node.
+    void unlock() const;
 
     // Decrements this inode's reference counter.
     //

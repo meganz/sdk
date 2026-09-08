@@ -1,27 +1,26 @@
 #include <mega/common/activity_monitor.h>
 #include <mega/common/instance_logger.h>
 #include <mega/common/shared_mutex.h>
-#include <mega/file_service/file_event_observer.h>
-#include <mega/file_service/file_event_observer_id.h>
+#include <mega/file_service/application_data_forward.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info_context_forward.h>
-#include <mega/file_service/file_location.h>
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_service_context_forward.h>
-#include <mega/file_service/file_size_info.h>
+#include <mega/file_service/file_structure_mutex.h>
 #include <mega/types.h>
 
 #include <cstddef>
 #include <mutex>
 #include <optional>
 #include <type_traits>
+#include <utility>
 
 namespace mega
 {
 namespace file_service
 {
 
-class FileInfoContext: public FileSizeInfo
+class FileInfoContext
 {
     // Retrieve one of our properties in a thread-safe manner.
     template<typename T>
@@ -55,11 +54,11 @@ class FileInfoContext: public FileSizeInfo
     // The unique identifier for this file.
     const FileID mID;
 
-    // Where is this file located in the cloud?
-    std::optional<FileLocation> mLocation;
-
     // Serializes access to our members.
     mutable common::SharedMutex mLock;
+
+    // Is this file managed by the service?
+    bool mManaged;
 
     // The time the file was last modified.
     std::int64_t mModified;
@@ -76,6 +75,9 @@ class FileInfoContext: public FileSizeInfo
     // How large is this file conceptually?
     std::uint64_t mSize;
 
+    // Serializes operations that alter this file's location.
+    mutable FileStructureMutex mStructureMutex;
+
 public:
     FileInfoContext(std::int64_t accessed,
                     common::Activity activity,
@@ -84,7 +86,7 @@ public:
                     std::optional<std::uint32_t> duration,
                     NodeHandle handle,
                     FileID id,
-                    std::optional<FileLocation> location,
+                    bool managed,
                     std::int64_t modified,
                     std::uint64_t reportedSize,
                     FileServiceContext& service,
@@ -98,14 +100,11 @@ public:
     // When was this file last accessed?
     std::int64_t accessed() const;
 
-    // Notify observer when a file changes.
-    FileEventObserverID addObserver(FileEventObserver observer);
-
     // Update this file's allocated size.
-    void allocatedSize(std::uint64_t allocatedSize) override;
+    void allocatedSize(std::uint64_t allocatedSize);
 
     // How much disk space has been allocated to this file?
-    std::uint64_t allocatedSize() const override;
+    std::uint64_t allocatedSize() const;
 
     // What is the estimated bitrate of this file?
     //
@@ -129,41 +128,53 @@ public:
     // What is this file's identifier?
     auto id() const -> FileID;
 
-    // Specify where this file is located in the cloud.
-    void location(const FileLocation& location);
+    // Acquire a read lock on this instance.
+    void lock_shared() const;
 
-    // Where is this file located in the cloud?
-    std::optional<FileLocation> location() const;
+    // Specify whether this file is managed by the service.
+    void managed(bool managed);
+
+    // Is this file managed by the service?
+    bool managed() const;
 
     // Update the file's access and modification time.
-    void modified(std::int64_t accessed, std::int64_t modified);
+    void modified(std::int64_t accessed,
+                  const ApplicationData& applicationData,
+                  std::int64_t modified);
 
     // When was this file last modified?
     auto modified() const -> std::int64_t;
 
     // Specify whether this file has been removed.
-    void removed(bool replaced);
+    void removed(std::true_type);
 
     // Has this file been removed?
     bool removed() const;
 
-    // Remove a previously added observer.
-    void removeObserver(FileEventObserverID id);
-
     // Update this file's reported size.
-    void reportedSize(std::uint64_t reportedSize) override;
+    void reportedSize(std::uint64_t reportedSize);
 
     // How large does the filesystem say this file is?
-    std::uint64_t reportedSize() const override;
+    std::uint64_t reportedSize() const;
 
     // How large is this file conceptually?
-    std::uint64_t size() const override;
+    std::uint64_t size() const;
+
+    // Retrieve a reference to this file's structure mutex.
+    FileStructureMutex& structureMutex() const;
 
     // Signal that the file has been truncated.
-    void truncated(std::int64_t modified, std::uint64_t size);
+    void truncated(const ApplicationData& applicationData,
+                   std::int64_t modified,
+                   std::uint64_t size);
+
+    // Release a read lock held on this instance.
+    void unlock_shared() const;
 
     // Signal that data has been written to the file.
-    void written(std::int64_t modified, const FileRange& range);
+    void written(const ApplicationData& applicationData,
+                 std::int64_t modified,
+                 const FileRange& range);
 }; // FileInfoContext
 
 } // file_service

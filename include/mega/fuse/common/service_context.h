@@ -1,12 +1,11 @@
 #pragma once
 
-#include <cstddef>
-
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/node_event_queue_forward.h>
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/task_queue_forward.h>
+#include <mega/file_service/file_service_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
@@ -15,8 +14,9 @@
 #include <mega/fuse/common/service_context_forward.h>
 #include <mega/fuse/common/service_flags.h>
 #include <mega/fuse/common/service_forward.h>
-
 #include <mega/types.h>
+
+#include <cstddef>
 
 namespace mega
 {
@@ -26,16 +26,13 @@ namespace fuse
 class ServiceContext
 {
 protected:
-    explicit ServiceContext(Service& service);
+    explicit ServiceContext(file_service::FileService& fileService, Service& service);
 
 public:
     virtual ~ServiceContext();
 
     // Add a mount to the database.
     virtual MountResult add(const MountInfo& info) = 0;
-
-    // Check if a file exists in the cache.
-    virtual bool cached(common::NormalizedPath path) const = 0;
 
     // Retrieve the client that owns this context.
     common::Client& client() const;
@@ -103,6 +100,10 @@ public:
     virtual MountResult upgrade(const LocalPath& path,
                                 std::size_t target) = 0;
 
+    // So we can easily access the File Service.
+    file_service::FileService& mFileService;
+
+    // Which service owns this context?
     Service& mService;
 }; // ServiceContext
 

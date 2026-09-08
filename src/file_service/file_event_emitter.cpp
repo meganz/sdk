@@ -171,39 +171,16 @@ void FileEventEmitter::transmit(const FileEvent& event, FileEventObserverMap& ma
 
 void FileEventEmitter::transmit(const FileEvent& event)
 {
-    // Retrieve the ID of the file that has changed.
-    auto id = std::visit(
-        [](auto& event)
-        {
-            return event.mID;
-        },
-        event);
-
     // Make sure no other thread is messing with our observer maps.
     std::lock_guard guard(mObserversLock);
 
     // Transmit our event to any service-wide observers.
     transmit(event, mServiceObservers);
-
-    // Are any observers monitoring this specific file?
-    auto iterator = mFileObservers.find(id);
-
-    // No observers are monitoring this specific file.
-    if (iterator == mFileObservers.end())
-        return;
-
-    // Transmit our event to all observers monitoring this file.
-    transmit(event, iterator->second);
-
-    // No observers are monitoring this file anymore.
-    if (iterator->second.empty())
-        mFileObservers.erase(iterator);
 }
 
 FileEventEmitter::FileEventEmitter():
     mInstanceLogger("FileEventEmitter", *this, logger()),
     mCV(),
-    mFileObservers(),
     mObserversLock(),
     mPendingEvents(),
     mPendingEventsLock(),
@@ -227,15 +204,6 @@ FileEventEmitter::~FileEventEmitter()
     mWorker.join();
 }
 
-FileEventObserverID FileEventEmitter::addObserver(FileID id, FileEventObserver observer)
-{
-    // Make sure no one else is messing with our observer maps.
-    std::lock_guard guard(mObserversLock);
-
-    // Add the observer to the file's observer map.
-    return addObserver(std::move(observer), mFileObservers[id]);
-}
-
 FileEventObserverID FileEventEmitter::addObserver(FileEventObserver observer)
 {
     // Make sure no one else is messing with our observer maps.
@@ -257,33 +225,6 @@ void FileEventEmitter::notify(FileEvent event)
     mCV.notify_one();
 }
 
-void FileEventEmitter::removeObserver(FileID id, FileEventObserverID observerID)
-{
-    // Make sure no one else is changing our observer maps.
-    std::lock_guard guard(mObserversLock);
-
-    // Get a reference to this file's observer map.
-    auto iterator = mFileObservers.find(id);
-
-    // No observers are watching this file.
-    if (iterator == mFileObservers.end())
-        return;
-
-    // An observer is trying to remove itself.
-    if (shouldDeferRemove(observerID))
-    {
-        // Observer will be removed higher in the call stack.
-        return;
-    }
-
-    // Remove the observer from this file's observer map.
-    iterator->second.erase(observerID);
-
-    // File no longer has any observers.
-    if (iterator->second.empty())
-        mFileObservers.erase(iterator);
-}
-
 void FileEventEmitter::removeObserver(FileEventObserverID id)
 {
     // Make sure no one is changing our observer maps.
@@ -298,29 +239,6 @@ void FileEventEmitter::removeObserver(FileEventObserverID id)
 
     // Remove the observer from the service-wide observer map.
     mServiceObservers.erase(id);
-}
-
-void FileEventEmitter::removeObservers(FileID id)
-{
-    // Make sure no one is changing our observer maps.
-    std::lock_guard guard(mObserversLock);
-
-    // Check if any observers are watching the specified file.
-    auto iterator = mFileObservers.find(id);
-
-    // No observers are watching the file.
-    if (iterator == mFileObservers.end())
-        return;
-
-    // An observer is trying to remove the map that contains it.
-    if (shouldDeferRemoveAll(iterator->second))
-    {
-        // Map will be removed higher in the call stack.
-        return;
-    }
-
-    // Remove all observers watching this file.
-    mFileObservers.erase(iterator);
 }
 
 void FileEventEmitter::removeObservers()

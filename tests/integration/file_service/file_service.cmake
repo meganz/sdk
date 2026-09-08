@@ -5,8 +5,10 @@ target_link_libraries(test_integration PRIVATE MEGA::FileServiceHeaderPaths)
 target_sources(test_integration PRIVATE
                                 file_service/mega/file_service/testing/integration/client.h
                                 file_service/mega/file_service/testing/integration/client_forward.h
+                                file_service/mega/file_service/testing/integration/partial_download_recorder.h
                                 file_service/mega/file_service/testing/integration/real_client.h
                                 file_service/mega/file_service/testing/integration/scoped_file_event_observer.h
+                                file_service/mega/file_service/testing/integration/scoped_file_location_provider.h
 )
 
 target_sources(test_integration PRIVATE
@@ -16,4 +18,5 @@ target_sources(test_integration PRIVATE
                                 file_service/file_service_tests.cpp
                                 file_service/file_services_queries_tests.cpp
                                 file_service/real_client.cpp
+                                file_service/partial_download_recorder.cpp
 )

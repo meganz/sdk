@@ -25,7 +25,7 @@ public:
     // Try and begin a read operation.
     //
     // Returns false if the read must be queued.
-    bool read();
+    bool read(bool checkOnly);
 
     // Signal that a read operation has completed.
     void readCompleted();
@@ -33,7 +33,7 @@ public:
     // Try and begin a write operation.
     //
     // Returns false if the write must be queued.
-    bool write();
+    bool write(bool checkOnly);
 
     // Signal that a write operation has completed.
     void writeCompleted();

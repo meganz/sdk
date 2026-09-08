@@ -57,7 +57,9 @@ class MEGA_API GfxProviderFreeImage : public IGfxLocalProvider
     FIBITMAP* dib;
 
 public:
-    bool readbitmap(const LocalPath&, int) override;
+    bool readbitmap(const std::string& conceptualname,
+                    const LocalPath& localname,
+                    int size) override;
     bool resizebitmap(int, int, string*, Hint hint) override;
     void freebitmap() override;
 
@@ -79,7 +81,7 @@ protected:
 #ifdef HAVE_FFMPEG
     const char* supportedformatsFfmpeg();
     bool isFfmpegFile(const string &ext);
-    bool readbitmapFfmpeg(const LocalPath&, int);
+    bool readbitmapFfmpeg(const std::string& conceptualName, const LocalPath& imagePath, int size);
 #endif
 
 #ifdef HAVE_PDFIUM

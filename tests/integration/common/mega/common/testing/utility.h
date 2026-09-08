@@ -165,6 +165,8 @@ std::string randomBytes(std::size_t length);
 
 std::string randomName();
 
+std::string readFile(const common::testing::Path& path);
+
 template<typename Predicate, typename Result = decltype(std::declval<Predicate>()())>
 auto waitUntil(Predicate&& predicate,
                std::chrono::steady_clock::time_point when,

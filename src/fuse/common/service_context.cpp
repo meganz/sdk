@@ -8,9 +8,11 @@ namespace fuse
 {
 
 using namespace common;
+using namespace file_service;
 
-ServiceContext::ServiceContext(Service& service)
-  : mService(service)
+ServiceContext::ServiceContext(FileService& fileService, Service& service):
+    mFileService(fileService),
+    mService(service)
 {
 }
 

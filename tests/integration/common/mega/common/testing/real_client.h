@@ -95,6 +95,9 @@ protected:
              const char* privateAuth,
              const char* publicAuth) override;
 
+    // Deinitialize the client.
+    void deinitialize();
+
     // Get (or create) a public link for the specified node.
     void getPublicLink(GetPublicLinkCallback callback, NodeHandle handle) override;
 

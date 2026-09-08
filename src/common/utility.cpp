@@ -1,6 +1,7 @@
-#include <cassert>
-
 #include <mega/common/utility.h>
+
+#include <cassert>
+#include <exception>
 
 namespace mega
 {
@@ -10,6 +11,44 @@ namespace common
 std::chrono::minutes defaultTimeout()
 {
     return std::chrono::minutes(5);
+}
+
+std::string exceptionMessage(const char* defaultMessage)
+{
+    // Sanity: defaultMessage should never be null.
+    assert(defaultMessage != nullptr);
+
+    // Just in case it is null.
+    if (defaultMessage == nullptr)
+        defaultMessage = "unknown";
+
+    try
+    {
+        // Get a reference to the current exception.
+        auto exception = std::current_exception();
+
+        // We haven't been called with an active exception.
+        if (exception == nullptr)
+            return "no active exception";
+
+        // Rethrow the exception so we can get its dynamic type.
+        std::rethrow_exception(exception);
+    }
+    catch (std::exception& exception)
+    {
+        // Exception is a subclass of std::exception.
+        return exception.what();
+    }
+    catch (...)
+    {
+        // Exception is of an unknown type.
+        return defaultMessage;
+    }
+}
+
+std::string exceptionMessage()
+{
+    return exceptionMessage("unknown");
 }
 
 std::string format(const char* format, ...)

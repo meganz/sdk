@@ -9,6 +9,8 @@
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_forward.h>
+#include <mega/file_service/file_location_provider.h>
+#include <mega/file_service/file_location_provider_id.h>
 #include <mega/file_service/file_service_callbacks.h>
 #include <mega/file_service/file_service_context_pointer.h>
 #include <mega/file_service/file_service_forward.h>
@@ -75,17 +77,27 @@ public:
              const common::NodeKeyData& keyData,
              std::uint64_t size) -> FileServiceResultOr<FileID>;
 
+    // Add a location provider to the service.
+    auto addLocationProvider(FileLocationProvider provider)
+        -> FileServiceResultOr<FileLocationProviderID>;
+
     // Notify observer when a file changes.
     auto addObserver(FileEventObserver observer) -> FileServiceResultOr<FileEventObserverID>;
 
     // Create a new file.
-    auto create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
+    auto create() -> FileServiceResultOr<File>;
+
+    // Called by the client when its view of the cloud is current.
+    void current();
 
     // Where is the service storing its database?
     auto databasePath() const -> FileServiceResultOr<LocalPath>;
 
     // Deinitialize the file service.
     void deinitialize(bool cleanCache, bool isDestructing);
+
+    // Ask the service what file is associated with the specified handle.
+    auto id(NodeHandle handle) -> FileServiceResultOr<FileID>;
 
     // Retrieve information about a file managed by the file service.
     auto info(FileID id) -> FileServiceResultOr<FileInfo>;
@@ -94,7 +106,6 @@ public:
     auto initialize(common::Client& client) -> FileServiceResult;
 
     // Open a file for reading or writing.
-    auto open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>;
     auto open(FileID id) -> FileServiceResultOr<File>;
 
     // Update the file service's options.
@@ -102,15 +113,6 @@ public:
 
     // Retrieve the file service's current options.
     auto serviceOptions() -> ServiceOptions;
-
-    // Purge all files from storage.
-    //
-    // This function is intended to be used by integration tests.
-    //
-    // If you do happen to call it in a different context, be aware that
-    // this function will block the caller until all file (or file info)
-    // references have been dropped.
-    auto purge() -> FileServiceResult;
 
     // Start a background task to reclaim storage space immediately
     auto reclaim(ReclaimCallback callback,
@@ -121,6 +123,9 @@ public:
 
     // Retrieve the file service's current reclaim options.
     auto reclaimOptions() -> ReclaimOptions;
+
+    // Remove a previously added location provider.
+    auto removeLocationProvider(FileLocationProviderID id) -> FileServiceResult;
 
     // Remove a previously added file observer.
     auto removeObserver(FileEventObserverID id) -> FileServiceResult;
@@ -134,6 +139,9 @@ public:
 
     // Find out where the service is storing a particular file.
     auto userFilePath(FileID id) const -> FileServiceResultOr<LocalPath>;
+
+    // Where is the service storing this user's data?
+    auto userStoragePath() const -> FileServiceResultOr<LocalPath>;
 }; // FileService
 
 } // file_service

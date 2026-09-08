@@ -4,6 +4,7 @@
 #include <mega/common/client_forward.h>
 #include <mega/common/error_or_forward.h>
 #include <mega/common/logger_forward.h>
+#include <mega/common/move_only_function_forward.h>
 #include <mega/common/node_event_observer_forward.h>
 #include <mega/common/node_info_forward.h>
 #include <mega/common/node_key_data_forward.h>
@@ -32,6 +33,41 @@ namespace common
 // A high-level interface to MEGA's cloud storage.
 class Client
 {
+    // Wraps a function so it executes on the client's thread.
+    template<typename Function>
+    class ClientFunction
+    {
+        // What client should execute our function?
+        Client* mClient;
+
+        // What function do we want to execute?
+        Function mFunction;
+
+    public:
+        template<typename EffectiveFunction>
+        ClientFunction(Client& client, EffectiveFunction&& function):
+            mClient(&client),
+            mFunction(std::forward<EffectiveFunction>(function))
+        {}
+
+        template<typename... Arguments>
+        auto operator()(Arguments&&... arguments)
+            -> std::enable_if_t<std::is_invocable_v<Function, Arguments...>>
+        {
+            // Package arguments for easy capture.
+            auto args = std::make_tuple(std::forward<Arguments>(arguments)...);
+
+            // Bind our function so it will execute on the client's thread.
+            auto function = [args = std::move(args), function = mFunction](auto&) mutable
+            {
+                std::apply(function, std::move(args));
+            }; // function
+
+            // Execute our function on the client's thread.
+            mClient->execute(std::move(function));
+        }
+    }; // ClientFunction<Function>
+
 protected:
     explicit Client(Logger& logger);
 
@@ -79,7 +115,7 @@ public:
                       NodeHandle handle) const = 0;
 
     // Execute some function on the client's thread.
-    virtual Task execute(std::function<void(const Task&)> function) = 0;
+    virtual Task execute(MoveOnlyFunction<void(const Task&)> function) = 0;
 
     // Query whether a node exists in the cloud.
     virtual ErrorOr<bool> exists(NodeHandle handle) const = 0;
@@ -109,6 +145,9 @@ public:
     // Check whether a node is a directory.
     ErrorOr<bool> isDirectory(NodeHandle handle) const;
 
+    // Are we running on the client's thread?
+    virtual bool isClientThread() const = 0;
+
     // Check whether a node is a file.
     virtual ErrorOr<bool> isFile(NodeHandle handle) const = 0;
 
@@ -117,6 +156,9 @@ public:
 
     // Retrieve the specified node's key data.
     virtual ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const = 0;
+
+    // Acquire exclusive access to the node tree.
+    virtual void lock() const = 0;
 
     // What logger is this client using?
     Logger& logger() const;
@@ -141,10 +183,10 @@ public:
     virtual bool mountable(const NormalizedPath& path) const = 0;
 
     // Rename source to name and move it to target.
-    void move(MoveCallback callback,
-              const std::string& name,
-              NodeHandle source,
-              NodeHandle target);
+    virtual void move(MoveCallback callback,
+                      const std::string& name,
+                      NodeHandle source,
+                      NodeHandle target) = 0;
 
     Error move(const std::string& name,
                NodeHandle source,
@@ -157,6 +199,17 @@ public:
 
     Error move(NodeHandle source,
                NodeHandle target);
+
+    // Wrap a function so that it's executed on the client thread.
+    template<typename Function>
+    auto onClientThread(Function&& function)
+    {
+        // Convenience.
+        using Wrapper = ClientFunction<std::decay_t<Function>>;
+
+        // Wrap the caller's function so it executes on the client thread.
+        return Wrapper(*this, std::forward<Function>(function));
+    }
 
     // Query who a node's parent is.
     virtual ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const = 0;
@@ -219,6 +272,12 @@ public:
                        m_time_t modified) = 0;
 
     Error touch(NodeHandle handle, m_time_t modified);
+
+    // Try and acquire exclusive access to the node tree.
+    virtual bool try_lock() const = 0;
+
+    // Relinquish exclusive access to the node tree.
+    virtual void unlock() const = 0;
 
     // Upload a file to the cloud.
     virtual UploadPtr upload(const LocalPath& logicalPath,

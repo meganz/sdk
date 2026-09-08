@@ -4619,9 +4619,6 @@ class MegaApiImpl : public MegaApp
         // Called when FUSE wants to broadcast a mount event.
         void onFuseEvent(const fuse::MountEvent& event) override;
 
-        // Query whether a file is in FUSE's file cache.
-        bool isCached(const char* path);
-
         // Query whether FUSE is supported on this platform.
         bool isFUSESupported();
 

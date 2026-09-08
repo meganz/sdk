@@ -16,6 +16,16 @@ bool DateTime::operator==(const DateTime& rhs) const
     return mValue == rhs.mValue;
 }
 
+bool DateTime::operator<(const DateTime& rhs) const
+{
+    return mValue < rhs.mValue;
+}
+
+bool DateTime::operator>(const DateTime& rhs) const
+{
+    return mValue > rhs.mValue;
+}
+
 bool DateTime::operator!=(const DateTime& rhs) const
 {
     return mValue != rhs.mValue;

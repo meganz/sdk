@@ -2,15 +2,18 @@
 
 #include <mega/auto_file_handle.h>
 #include <mega/common/instance_logger.h>
+#include <mega/file_service/application_data_forward.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_pointer.h>
-#include <mega/file_service/file_event_observer.h>
-#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_forward.h>
 #include <mega/file_service/file_info_forward.h>
 #include <mega/file_service/file_range_forward.h>
 #include <mega/file_service/file_range_vector.h>
 #include <mega/file_service/file_service_context_badge_forward.h>
+#include <mega/file_service/file_structure_mutex_forward.h>
+#include <mega/file_service/file_truncate_flags.h>
+#include <mega/file_service/file_write_flags.h>
+#include <mega/file_service/read_tag.h>
 
 namespace mega
 {
@@ -42,11 +45,11 @@ public:
 
     File& operator=(File&& rhs);
 
-    // Notify an observer when this file's information changes.
-    FileEventObserverID addObserver(FileEventObserver observer);
-
     // Append data to the end of this file.
-    void append(const void* buffer, FileAppendCallback callback, std::uint64_t length);
+    void append(const ApplicationData& applicationData,
+                const void* buffer,
+                FileAppendCallback callback,
+                std::uint64_t length);
 
     // What ranges are currently being downloaded?
     FileRangeVector downloading() const;
@@ -61,13 +64,10 @@ public:
     void fetchBarrier(FileFetchBarrierCallback callback);
 
     // Flush this file's local modifications to the cloud.
-    void flush(FileFlushCallback callback);
+    void flush(FileFlushCallback callback, bool cancelOnWrite);
 
     // Retrieve information about this file.
     FileInfo info() const;
-
-    // Purge this file from the service.
-    void purge(FilePurgeCallback callback);
 
     // What ranges of this file are currently in storage?
     FileRangeVector ranges() const;
@@ -81,37 +81,46 @@ public:
     // get much less. The information passed to the callback will specify
     // how much data you've received and it's your responsibility to request
     // the rest, if necessary
-    void read(FileReadCallback callback,
-              std::uint64_t offset,
-              std::uint64_t length,
-              bool isJumpCandidate);
+    void read(FileReadCallback callback, std::uint64_t offset, std::uint64_t length, ReadTag tag);
 
-    void read(FileReadCallback callback, const FileRange& range, bool isJumpCandidate);
+    void read(FileReadCallback callback, const FileRange& range, ReadTag tag);
 
     // Reclaim this file's storage.
     void reclaim(FileReclaimCallback callback);
 
     // Remove the file.
     //
-    // Like purge above but the cloud file is removed, too.
-    void remove(FileRemoveCallback callback, bool replaced);
-
-    // Remove a previously added observer.
-    void removeObserver(FileEventObserverID id);
+    // If serviceOnly is true, the file will only be removed from the cache.
+    //
+    // If serviceOnly is false and the file exists in the cloud, the file
+    // will be removed from the cloud and from the cache.
+    void remove(FileRemoveCallback callback, FileStructureUniqueLock& lock, bool serviceOnly);
+    void remove(FileRemoveCallback callback, bool serviceOnly);
 
     // Update the file's modification time.
-    void touch(FileTouchCallback callback, std::int64_t modified);
+    void touch(const ApplicationData& applicationData,
+               FileTouchCallback callback,
+               std::int64_t modified);
 
     // Truncate this file to a specified size.
-    void truncate(FileTruncateCallback callback, std::uint64_t newSize);
+    void truncate(const ApplicationData& applicationData,
+                  FileTruncateCallback callback,
+                  FileTruncateFlags flags,
+                  std::uint64_t newSize);
 
     // Write data to this file.
-    void write(const void* buffer,
+    void write(const ApplicationData& applicationData,
+               const void* buffer,
                FileWriteCallback callback,
+               FileWriteFlags flags,
                std::uint64_t offset,
                std::uint64_t length);
 
-    void write(const void* buffer, FileWriteCallback callback, const FileRange& range);
+    void write(const ApplicationData& applicationData,
+               const void* buffer,
+               FileWriteCallback callback,
+               FileWriteFlags flags,
+               const FileRange& range);
 }; // File
 
 } // file_service

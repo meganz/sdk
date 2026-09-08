@@ -23,11 +23,7 @@ class Request
 public:
     explicit Request(fuse_req_t request);
 
-    bool addDirEntry(const struct stat& attributes,
-                     std::string& buffer,
-                     const std::string& name,
-                     const std::size_t offset,
-                     const std::size_t size);
+    fuse_req_t get() const;
 
     gid_t group() const;
 

@@ -1,8 +1,10 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_request_tags.h>
+#include <mega/file_service/file_write_flags.h>
 #include <mega/file_service/file_write_request_forward.h>
 
 namespace mega
@@ -21,11 +23,17 @@ struct FileWriteRequest
         return "write";
     }
 
+    // Application-specific data associated with this request.
+    ApplicationData mApplicationData;
+
     // The content the user wants to write.
     const void* mBuffer;
 
     // The callback the user wants us to invoke.
     FileWriteCallback mCallback;
+
+    // Flags controlling this write's behavior.
+    FileWriteFlags mFlags;
 
     // Where the user wants us to write content.
     FileRange mRange;

@@ -89,6 +89,12 @@ public:
         return false;
     }
 
+    virtual bool ftouch(::mega::m_time_t) override
+    {
+        throw NotImplemented{__func__};
+        return false;
+    }
+
     virtual bool ftruncate(m_off_t = 0) override
     {
         throw NotImplemented{__func__};

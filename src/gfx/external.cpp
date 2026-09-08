@@ -29,11 +29,14 @@ void GfxProviderExternal::setProcessor(MegaGfxProcessor* gfxProcessor)
     processor = gfxProcessor;
 }
 
-bool GfxProviderExternal::readbitmap(const LocalPath& localname, int /*size*/)
+bool GfxProviderExternal::readbitmap(const std::string& conceptualname,
+                                     const LocalPath& localname,
+                                     int)
 {
     if(!processor) return false;
 
-    bool result = processor->readBitmap(localname.platformEncoded().c_str());
+    bool result =
+        processor->readBitmap(conceptualname.c_str(), localname.platformEncoded().c_str());
     if(!result) return false;
 
     w = processor->getWidth();

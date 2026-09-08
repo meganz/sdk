@@ -306,6 +306,10 @@ public:
         // Link in the user's node.
         *link = &node;
 
+        // Make sure node's child links are null.
+        LT::left(node) = nullptr;
+        LT::right(node) = nullptr;
+
         // Make sure the user's node knows who its parent is.
         LT::parent(node) = parent;
 

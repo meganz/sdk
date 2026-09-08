@@ -78,7 +78,7 @@ TEST_F(ServerClientTest, RunGfxTaskSuccessfully)
     ASSERT_TRUE(getFileFromArtifactory("test-data/" + testImage, testImageLocalPath));
     std::vector<std::string> images;
     EXPECT_TRUE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
-                    .runGfxTask(testImageLocalPath.string(), dimensions, images));
+                    .runGfxTask(testImage, testImageLocalPath.string(), dimensions, images));
     EXPECT_EQ(images.size(), 2);
     EXPECT_GT(images[0].size(), 4500); // Use > as the size is different between MacOS and other platforms
     EXPECT_GT(images[1].size(), 650); // Use > as the above
@@ -180,10 +180,9 @@ TEST_F(ServerClientTest, RunCommandsReturnFalseWhileServerIsNotRunning)
     // could be any dimensions
     std::vector<GfxDimension> dimensions;
     std::vector<std::string> images;
+    const char* name = "anyimagename.jpg";
+    const char* path = name;
 
-    EXPECT_FALSE(
-        GfxClient(
-            std::make_unique<GfxCommunicationsClient>(mEndpointName)
-        ).runGfxTask("anyimagename.jpg", dimensions, images)
-    );
+    EXPECT_FALSE(GfxClient(std::make_unique<GfxCommunicationsClient>(mEndpointName))
+                     .runGfxTask(name, path, dimensions, images));
 }

@@ -72,18 +72,16 @@ MediaFileInfo::MediaFileInfo()
     LOG_debug << "MediaInfo version: " << GetMediaInfoVersion();
 }
 
-void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client, const LocalPath& ifSuitableFilename)
+void MediaFileInfo::requestCodecMappingsOneTime(MegaClient* client,
+                                                const std::string& conceptualname)
 {
     if (!mediaCodecsReceived && !mediaCodecsRequested)
     {
-        if (!ifSuitableFilename.empty())
+        if (!conceptualname.empty())
         {
-            string ext;
-            if (!client->fsaccess->getextension(ifSuitableFilename, ext)
-                || !MediaProperties::isMediaFilenameExt(ext))
-            {
+            if (auto extension = extensionOf(conceptualname);
+                extension.empty() || !MediaProperties::isMediaFilenameExt(extension))
                 return;
-            }
         }
 
         LOG_debug << "Requesting code mappings";
@@ -750,7 +748,11 @@ bool MediaFileInfo::timeToRetryMediaPropertyExtraction(const std::string& fileat
     return false;
 }
 
-bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filename, FileAccess* fa, unsigned maxBytesToRead, unsigned maxSeconds)
+bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi,
+                                 const LocalPath& filename,
+                                 FileAccess* fa,
+                                 unsigned maxBytesToRead,
+                                 unsigned maxSeconds)
 {
     if (!fa->fopen(filename, OPEN_RDONLY, FSLogging::logOnError))
     {
@@ -841,7 +843,8 @@ bool mediaInfoOpenFileWithLimits(MediaInfoLib::MediaInfo& mi, LocalPath& filenam
     return true;
 }
 
-void MediaProperties::extractMediaPropertyFileAttributes(LocalPath& localFilename, FileSystemAccess* fsa)
+void MediaProperties::extractMediaPropertyFileAttributes(const LocalPath& localFilename,
+                                                         FileSystemAccess* fsa)
 {
     if (auto tmpfa = fsa->newfileaccess())
     {

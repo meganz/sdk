@@ -551,6 +551,32 @@ void RealClient::get(GetCallback callback,
     mClient->waiter->notify();
 }
 
+void RealClient::deinitialize()
+{
+    // Client's already been deinitialized.
+    if (!mClient)
+        return;
+
+    // Try and log the client out.
+    logout(false);
+
+    LOG_verbose << "Waiting for client thread to stop";
+
+    // Let the client thread know it needs to terminate.
+    mClientTerminate = true;
+
+    // Wake the client up if it's sleeping.
+    mClient->waiter->notify();
+
+    // Wait for the client thread to terminate.
+    mClientThread.join();
+
+    // Destroy client.
+    mClient.reset();
+
+    LOG_verbose << "Client destroyed";
+}
+
 void RealClient::getPublicLink(GetPublicLinkCallback callback, NodeHandle handle)
 {
     // Sanity.
@@ -662,24 +688,7 @@ RealClient::RealClient(const std::string& clientName,
 
 RealClient::~RealClient()
 {
-    // Try and log the client out.
-    logout(false);
-
-    LOG_verbose << "Waiting for client thread to stop";
-
-    // Let the client thread know it needs to terminate.
-    mClientTerminate = true;
-
-    // Wake the client up if it's sleeping.
-    mClient->waiter->notify();
-
-    // Wait for the client thread to terminate.
-    mClientThread.join();
-
-    // Destroy client.
-    mClient.reset();
-
-    LOG_verbose << "Client destroyed";
+    deinitialize();
 }
 
 auto RealClient::contact(const std::string& email) const -> ContactPtr

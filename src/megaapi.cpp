@@ -6254,13 +6254,6 @@ MegaMountList* MegaApi::listMounts(bool enabled)
     return pImpl->listMounts(enabled);
 }
 
-bool MegaApi::isCachedByPath(const char* path)
-{
-    assert(path);
-
-    return pImpl->isCached(path);
-}
-
 bool MegaApi::isFUSESupported()
 {
     return pImpl->isFUSESupported();
@@ -6690,7 +6683,7 @@ void MegaLogger::log(const char* /*time*/, int /*loglevel*/, const char* /*sourc
 
 }
 
-bool MegaGfxProcessor::readBitmap(const char* /*path*/)
+bool MegaGfxProcessor::readBitmap(const char*, const char*)
 {
     return false;
 }

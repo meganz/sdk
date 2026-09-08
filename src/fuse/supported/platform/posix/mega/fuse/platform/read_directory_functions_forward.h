@@ -4,9 +4,11 @@ namespace mega
 {
 namespace fuse
 {
+namespace platform
+{
 
-class FileExtension;
-class FileExtensionDB;
+class ReadDirectoryFunctions;
 
+} // platform
 } // fuse
 } // mega

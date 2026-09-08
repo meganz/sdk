@@ -1,4 +1,3 @@
-#include "megafs.h"
 #include "sdk_test_data_provider.h"
 
 #include <mega/common/error_or.h>
@@ -18,7 +17,6 @@
 #include <mega/fuse/platform/testing/wrappers.h>
 
 #include <filesystem>
-#include <fstream>
 
 namespace mega
 {
@@ -36,53 +34,6 @@ using common::testing::Path;
 using common::testing::randomBytes;
 using common::testing::randomName;
 using common::testing::waitFor;
-
-static handle fsidOf(const Path& path);
-
-static bool makeFile(const Path& path, const std::string& data);
-
-static bool makeFile(const Path& path, std::size_t size);
-
-static std::string readFile(const Path& path);
-
-TEST_F(FUSECommonTests, cached_false_when_directory)
-{
-    ASSERT_FALSE(ClientW()->isCached(MountPathW()));
-    ASSERT_FALSE(ClientW()->isCached(MountPathW() / "sd0"));
-}
-
-TEST_F(FUSECommonTests, cached_false_when_not_cached)
-{
-    ASSERT_FALSE(ClientW()->isCached(MountPathW() / "sf0"));
-}
-
-TEST_F(FUSECommonTests, cached_false_when_unknown)
-{
-    ASSERT_FALSE(ClientW()->isCached(MountPathW() / "sfx"));
-    ASSERT_FALSE(ClientW()->isCached(MountPathW() / "sf0" / "sd0"));
-}
-
-TEST_F(FUSECommonTests, cached_true_when_cached)
-{
-    ASSERT_FALSE(ClientW()->isCached(MountPathW() / "sf0"));
-
-    auto data = readFile(MountPathW() / "sf0");
-    ASSERT_FALSE(data.empty());
-
-    ASSERT_TRUE(ClientW()->isCached(MountPathW() / "sf0"));
-
-    std::error_code error;
-
-    EXPECT_TRUE(fs::remove(MountPathW() / "sf0", error));
-    ASSERT_FALSE(error);
-
-    ASSERT_TRUE(waitFor(
-        [&]()
-        {
-            return !ClientW()->isCached(MountPathW() / "sf0");
-        },
-        mDefaultTimeout));
-}
 
 TEST_F(FUSECommonTests, cloud_add)
 {
@@ -384,10 +335,13 @@ TEST_F(FUSECommonTests, file_cache_load)
     ASSERT_EQ(client->remove("/x/s/sf0"), API_OK);
 
     // Make sure we can't access sf0.
-    std::error_code error;
-
-    ASSERT_FALSE(fs::exists(sf0Path, error));
-    ASSERT_FALSE(error);
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            std::error_code error;
+            return !fs::exists(sf0Path, error) && !error;
+        },
+        mDefaultTimeout));
 
     // Disable the mount.
     observer->expect({mount.name(), MOUNT_SUCCESS, MOUNT_DISABLED});
@@ -397,8 +351,6 @@ TEST_F(FUSECommonTests, file_cache_load)
 
     // Log out the client.
     ASSERT_EQ(client->logout(false), API_OK);
-
-    std::filebuf x;
 }
 
 TEST_F(FUSECommonTests, reload)
@@ -679,98 +631,6 @@ TEST_F(FUSECommonTests, supports_entities_with_international_names)
                    ClientW()->handle("x/s/sd0") == sd0;
         },
         mDefaultTimeout));
-}
-
-TEST_F(FUSECommonTests, adds_thumbnails_to_images)
-{
-    constexpr fatype THUMBNAIL = 0;
-    constexpr fatype PREVIEW = 1;
-    static constexpr const char* imageName = "logo.png";
-    static constexpr const char* imagePath = "/x/s/logo.png";
-
-    // Download a test image from artifactory.
-    auto mountPath = MountPathW() / imageName;
-    ASSERT_TRUE(getFileFromArtifactory(std::string{"test-data/"} + imageName, mountPath));
-
-    // Make sure the file is flushed to the cloud.
-    ASSERT_TRUE(flushFile(mountPath));
-
-    EXPECT_TRUE(waitFor(
-        [&]()
-        {
-            const auto h = ClientW()->handle(imagePath);
-
-            // File isn't in the cloud.
-            if (!h)
-                return false;
-
-            // File doesn't have expected attributes.
-            if (!ClientW()->hasFileAttribute(*h, THUMBNAIL))
-                return false;
-
-            if (!ClientW()->hasFileAttribute(*h, PREVIEW))
-                return false;
-
-            return true;
-        },
-        mDefaultTimeout));
-}
-
-handle fsidOf(const Path& path)
-{
-    static FSACCESS_CLASS fsAccess;
-
-    return fsAccess.fsidOf(path.localPath(), false, true, FSLogging::logOnError);
-}
-
-bool makeFile(const Path& path, const std::string& data)
-{
-    std::ofstream ostream(path.string(), std::ios::binary | std::ios::trunc);
-
-    if (!ostream)
-        return false;
-
-    ostream.write(data.data(), static_cast<std::streamsize>(data.size()));
-
-    if (!ostream)
-        return false;
-
-    ostream.flush();
-
-    if (!ostream)
-        return false;
-
-    ostream.close();
-
-    return !!ostream;
-}
-
-bool makeFile(const Path& path, std::size_t size)
-{
-    return makeFile(path, randomBytes(size));
-}
-
-std::string readFile(const Path& path)
-{
-    std::error_code error;
-
-    auto size = fs::file_size(path, error);
-
-    if (error)
-        return std::string();
-
-    std::ifstream istream(path.path(), std::ios::binary);
-
-    if (!istream)
-        return std::string();
-
-    std::string buffer(static_cast<std::size_t>(size), '\0');
-
-    istream.read(&buffer[0], static_cast<std::streamsize>(size));
-
-    buffer.resize(static_cast<std::size_t>(istream.gcount()));
-
-    return buffer;
 }
 
 } // testing

@@ -84,13 +84,19 @@ struct CommandShutDownResponse : public ICommand
     bool unserialize(const std::string& data) override;
 };
 
-struct CommandNewGfx : public ICommand
+struct CommandNewGfx: public ICommand
 {
     GfxTask Task;
 
-    CommandType type() const override { return CommandType::NEW_GFX; }
+    CommandType type() const override
+    {
+        return CommandType::NEW_GFX;
+    }
 
-    std::string typeStr() const override { return "NEW_GFX"; };
+    std::string typeStr() const override
+    {
+        return "NEW_GFX";
+    };
 
     std::string serialize() const override;
 
@@ -171,6 +177,55 @@ struct CommandSupportFormatsResponse : public ICommand
     std::string serialize() const override;
 
     bool unserialize(const std::string& data) override;
+};
+
+class GfxSerializationHelper
+{
+    static constexpr size_t MAX_VECT_SIZE = 100;
+
+public:
+    static void serialize(CacheableWriter& writer, const GfxDimension& source);
+    static void serialize(CacheableWriter& writer, const std::string& source);
+
+    template<typename T>
+    static void serialize(CacheableWriter& writer, const std::vector<T>& target)
+    {
+        auto vecSize = target.size();
+        assert(vecSize < std::numeric_limits<uint32_t>::max());
+        writer.serializeu32(static_cast<uint32_t>(vecSize));
+        for (const auto& entry: target)
+        {
+            GfxSerializationHelper::serialize(writer, entry);
+        }
+    }
+
+    static bool unserialize(CacheableReader& reader, GfxDimension& target);
+    static bool unserialize(CacheableReader& reader, std::string& target);
+
+    template<typename T>
+    static bool unserialize(CacheableReader& reader,
+                            std::vector<T>& target,
+                            const size_t maxVectSize = MAX_VECT_SIZE)
+    {
+        uint32_t vecSize = 0;
+        if (!reader.unserializeu32(vecSize))
+        {
+            return false;
+        }
+        if (vecSize > maxVectSize)
+        {
+            return false;
+        }
+        target.resize(vecSize);
+        for (auto& entry: target)
+        {
+            if (!GfxSerializationHelper::unserialize(reader, entry))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 };
 
 } //namespace gfx

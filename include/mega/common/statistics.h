@@ -99,43 +99,73 @@ public:
     }
 }; // Averager<T, N>
 
-// Exponential Moving Average
-class EmaInteger
+/**
+ * @brief Asymmetric Exponential Moving Average (EMA) for integer metrics.
+ *
+ * Designed for tracking highly erratic metrics (like network throughput or I/O latencies)
+ * using efficient 8-bit fixed-point integer math, bypassing floating-point overhead.
+ *
+ * Asymmetry allows the filter to react at different speeds depending on whether the
+ * signal is dropping or recovering. This prevents transient drops from permanently
+ * tanking the metric while allowing controlled, steady recovery.
+ *
+ * Scale reference for Alphas (out of 256):
+ *  - 26:  ~0.10 (Highly smoothed, filters out sharp spikes/drops)
+ *  - 64:  = 0.25 (Balanced tracking)
+ *  - 128: = 0.50 (Highly responsive, mirrors incoming jitter)
+ */
+class AsymmetricEma
 {
 public:
-    // alpha: A value between 0 and 256 (where 256 = alpha of 1.0)
-    // 26: Roughly alpha = 0.1 (Very smooth, slow to react).
-    // 64: Exactly alpha = 0.25 (Balanced).
-    // 128: Exactly alpha = 0.5 (Responsive, but shows more jitter).
-    EmaInteger(uint32_t alpha):
-        mAlpha(alpha)
+    AsymmetricEma(uint32_t alphaDown, uint32_t alphaUp):
+        mAlphaDown(std::min(alphaDown, 256u)),
+        mAlphaUp(std::min(alphaUp, 256u))
     {}
 
     void update(uint64_t newSample)
     {
-        // Shift new sample to match our internal fixed-point scale (2^8)
+        // Scale the raw incoming sample up by 256 (2^8) to match our internal fixed-point
+        // resolution. This preserves the fractional component during the EMA multiplication step.
         uint64_t scaledSample = newSample << 8;
 
+        // Cold-start initialization: baseline the average immediately to the first sample.
         if (!mCurrentEma)
         {
             mCurrentEma = scaledSample;
+            return;
+        }
+
+        const auto current = mCurrentEma.value();
+
+        // Standard EMA Formula: New = (Alpha * Sample) + ((1 - Alpha) * Previous)
+        // Since both terms are scaled by 256 internally, their addition creates a temporary
+        // "double-scaled" value (Value * 65536). We add 128 (half of 256) right before
+        // shifting down to turn standard integer truncation into a true mathematical
+        // round-to-nearest.
+        if (scaledSample < current)
+        {
+            mCurrentEma = (mAlphaDown * scaledSample + (256 - mAlphaDown) * current + 128) >> 8;
         }
         else
         {
-            // EMA Formula: Current = (Alpha * Sample) + ((1 - Alpha) * Previous)
-            // We use 256 to represent "1"
-            mCurrentEma = (mAlpha * scaledSample + (256 - mAlpha) * mCurrentEma.value_or(0)) >> 8;
+            mCurrentEma = (mAlphaUp * scaledSample + (256 - mAlphaUp) * current + 128) >> 8;
         }
     }
 
+    /**
+     * @brief Extracts the current smoothed value back into a standard integer.
+     * @return The rounded, unscaled value tracked by the EMA.
+     */
     uint64_t getValue() const
     {
-        // Shift back to get the real integer value
-        return mCurrentEma.value_or(0) >> 8;
+        // Unscale the accumulator by dividing by 256 (>> 8).
+        // Adding 128 enforces round-to-nearest, preventing a systematic downward integer bias.
+        return mCurrentEma ? (*mCurrentEma + 128) >> 8 : 0;
     }
 
 private:
-    uint32_t mAlpha; // Scale of 256
+    uint32_t mAlphaDown; // Scale of 256
+    uint32_t mAlphaUp; // Scale of 256
     std::optional<uint64_t> mCurrentEma{}; // Stored in fixed-point (Value * 256)
 };
 

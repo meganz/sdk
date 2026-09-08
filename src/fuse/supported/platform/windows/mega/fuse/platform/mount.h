@@ -62,7 +62,10 @@ class Mount: public fuse::Mount
                   PVOID& context,
                   FSP_FSCTL_FILE_INFO& info);
 
-    NTSTATUS overwrite(PVOID context, FSP_FSCTL_FILE_INFO& info);
+    NTSTATUS overwrite(UINT32 attributes,
+                       PVOID context,
+                       FSP_FSCTL_FILE_INFO& info,
+                       BOOLEAN replaceAttributes);
 
     NTSTATUS read(PVOID context, PVOID buffer, UINT64 offset, ULONG length, ULONG& numRead);
 

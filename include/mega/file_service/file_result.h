@@ -16,7 +16,8 @@ namespace file_service
     expander(FAILED, "The file operation has failed") \
     expander(READONLY, "The operation has failed because the file is read only") \
     expander(REMOVED, "The operation failed because the file has been removed") \
-    expander(SUCCESS, "The file operation has succeeded")
+    expander(SUCCESS, "The file operation has succeeded") \
+    expander(TIMEOUT, "The file operation has timed out")
 
 enum FileResult : unsigned int
 {

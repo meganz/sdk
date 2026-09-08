@@ -1280,7 +1280,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const c
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
-        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, LocalPath());
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, std::string());
         return false;
     }
 
@@ -9818,7 +9818,7 @@ bool MegaApiImpl::hasToForceUpload(const Node& node, const MegaTransferPrivate& 
     const auto hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
     const auto hasThumbnail =
         (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
-    const auto isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
+    const auto isMedia = gfxAccess && (gfxAccess->isgfx(name) || gfxAccess->isvideo(name));
     const auto canForceUpload = transfer.isForceNewUpload();
     const auto isPdf = name.find(".pdf") != string::npos;
 
@@ -11354,7 +11354,7 @@ bool MegaApiImpl::ensureMediaInfo()
     else
     {
         SdkMutexGuard g(sdkMutex);
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
         return false;
     }
 #else
@@ -28505,15 +28505,6 @@ void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event)
 
     // Broadcast the event.
     fireOnFuseEvent(handlers[event.mType], event);
-}
-
-bool MegaApiImpl::isCached(const char* path)
-{
-    assert(path);
-
-    SdkMutexGuard guard(sdkMutex);
-
-    return client->mFuseService.cached(LocalPath::fromPlatformEncodedAbsolute(path));
 }
 
 bool MegaApiImpl::isFUSESupported()

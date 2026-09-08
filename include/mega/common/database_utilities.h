@@ -10,6 +10,20 @@ namespace mega
 namespace common
 {
 
+class ScopedForeignKeyDisabler
+{
+    // Which database are we disabling foreign keys in?
+    Database& mDatabase;
+
+    // True if foreign keys were enabled.
+    bool mEnabled;
+
+public:
+    explicit ScopedForeignKeyDisabler(Database& database);
+
+    ~ScopedForeignKeyDisabler();
+}; // ScopedForeignKeyDisabler
+
 // Call function with a transaction object.
 template<typename Function,
          typename ResultType = std::invoke_result_t<Function, Transaction&>>

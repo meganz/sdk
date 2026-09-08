@@ -1,22 +1,22 @@
 #pragma once
 
-#include <atomic>
-#include <mutex>
-#include <thread>
-
 #include <mega/common/activity_monitor.h>
 #include <mega/common/client.h>
 #include <mega/common/error_or_forward.h>
+#include <mega/common/move_only_function_forward.h>
 #include <mega/common/pending_callbacks.h>
+#include <mega/common/synchronized_value.h>
 #include <mega/common/task_queue.h>
-
 #include <mega/types.h>
+
+#include <atomic>
+#include <mutex>
+#include <optional>
 
 namespace mega
 {
 namespace common
 {
-
 // Wraps MegaClient so it can be used by FUSE.
 class ClientAdapter
   : public Client
@@ -35,6 +35,9 @@ class ClientAdapter
 
     // Tracks callbacks waiting to be called.
     PendingCallbacks mPendingCallbacks;
+
+    // Cached storage information for this account.
+    SynchronizedValue<std::optional<StorageInfo>> mStorageInfo;
 
     // Tracks queued tasks.
     TaskQueue mTaskQueue;
@@ -82,7 +85,7 @@ public:
               NodeHandle handle) const override;
 
     // Execute some function on the client's thread.
-    Task execute(std::function<void(const Task&)> function) override;
+    Task execute(MoveOnlyFunction<void(const Task&)> function) override;
 
     // Query whether a node exists in the cloud.
     ErrorOr<bool> exists(NodeHandle handle) const override;
@@ -109,11 +112,20 @@ public:
     // Initialize the client.
     void initialize() override;
 
+    // Called to invalidate cached storage info, if any.
+    void invalidateStorageInfo();
+
+    // Is this the client thread?
+    bool isClientThread() const override;
+
     // Check whether a node is a file.
     ErrorOr<bool> isFile(NodeHandle handle) const override;
 
     // Retrieve the specified node's key data.
     ErrorOr<NodeKeyData> keyData(NodeHandle handle, bool authorize) const override;
+
+    // Acquire exclusive access to the node tree.
+    void lock() const override;
 
     // Make a new directory in the cloud.
     void makeDirectory(MakeDirectoryCallback callback,
@@ -123,13 +135,16 @@ public:
     // Check if path is "mountable."
     bool mountable(const NormalizedPath& path) const override;
 
+    // Rename source to name and move it to target.
+    void move(MoveCallback callback,
+              const std::string& name,
+              NodeHandle source,
+              NodeHandle target) override;
+
     // Move source to target.
     void move(MoveCallback callback,
               NodeHandle source,
               NodeHandle target) override;
-
-    // Is this the client thread?
-    bool isClientThread() const;
 
     // Query who a node's parent is.
     ErrorOr<NodeHandle> parentHandle(NodeHandle handle) const override;
@@ -176,6 +191,12 @@ public:
                NodeHandle handle,
                m_time_t modified) override;
 
+    // Try and acquire exclusive access to the node tree.
+    bool try_lock() const override;
+
+    // Relinquish exclusive access to the node tree.
+    void unlock() const override;
+
     // Called when nodes have been updated in the cloud.
     void updated(const sharedNode_vector& nodes);
 
@@ -187,8 +208,8 @@ public:
 
     // Wraps the provided callback such that it can be cancelled.
     template<typename T, typename U = IsErrorLike<T>>
-    auto wrap(std::function<void(T)> callback)
-      -> typename std::enable_if<U::value, std::function<void(T)>>::type
+    auto makeCancellable(std::function<void(T)> callback) ->
+        typename std::enable_if<U::value, std::function<void(T)>>::type
     {
         return mPendingCallbacks.wrap(std::move(callback));
     }

@@ -69,11 +69,6 @@ public:
     ErrorOr<NodeHandle> operator()(const std::string& name, NodeHandle parentHandle, Path path);
 }; // Uploader
 
-ErrorOr<NodeHandle> Client::handle(NodeHandle parent, const std::string& name) const
-{
-    return client().handle(parent, name);
-}
-
 void Client::makeDirectory(MakeDirectoryCallback callback,
                            const std::string& name,
                            NodeHandle parentHandle)
@@ -137,7 +132,14 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
             return notifier->set_value(unexpected(result.error()));
 
         // Bind the file.
-        (*result)(std::move(bound), handle.valueOr(NodeHandle()));
+        (*result)(
+            [&]()
+            {
+                BindContext context;
+                context.mCallback = std::move(bound);
+                context.mPreviousHandle = handle.valueOr(NodeHandle());
+                return context;
+            }());
     }; // uploaded
 
     // Try and upload the file.
@@ -266,6 +268,11 @@ auto Client::getPublicLink(CloudPath path) -> ErrorOr<PublicLink>
 
     // Return the link to our caller.
     return waitFor(notifier->get_future());
+}
+
+ErrorOr<NodeHandle> Client::handle(NodeHandle parent, const std::string& name) const
+{
+    return client().handle(parent, name);
 }
 
 ErrorOr<NodeHandle> Client::handle(CloudPath parentPath, const std::string& name) const

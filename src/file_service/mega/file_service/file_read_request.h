@@ -4,6 +4,7 @@
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_read_request_forward.h>
 #include <mega/file_service/file_request_tags.h>
+#include <mega/file_service/read_tag.h>
 
 namespace mega
 {
@@ -28,7 +29,7 @@ struct FileReadRequest
     FileRange mRange;
 
     // True if this is the first of a series of reads.
-    bool mIsJumpCandidate = false;
+    ReadTag mReadTag{StreamReadTag{false}};
 }; // FileReadRequest
 
 } // file_service

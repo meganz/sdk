@@ -23,9 +23,6 @@ struct FileRemoveRequest
     // Who should we call when the file's been removed?
     FileRemoveCallback mCallback;
 
-    // Is this file being removed because it was replaced?
-    bool mReplaced;
-
     // Should we only remove the file from the service?
     bool mServiceOnly;
 }; // FileRemoveRequest

@@ -4,16 +4,8 @@ target_sources(SDKlib PRIVATE
                       directory_inode.h
                       directory_inode_forward.h
                       directory_inode_results.h
-                      file_cache.h
-                      file_cache_forward.h
-                      file_extension_db.h
-                      file_extension_db_forward.h
-                      file_info.h
-                      file_info_forward.h
                       file_inode.h
                       file_inode_forward.h
-                      file_io_context.h
-                      file_io_context_forward.h
                       inode.h
                       inode_badge.h
                       inode_badge_forward.h

@@ -3,82 +3,6 @@
 #include <string>
 #include <cassert>
 
-namespace
-{
-using mega::CacheableWriter;
-using mega::CacheableReader;
-using mega::GfxDimension;
-
-class GfxSerializationHelper
-{
-    static constexpr size_t MAX_VECT_SIZE = 100;
-public:
-    static void serialize(CacheableWriter& writer, const GfxDimension& source)
-    {
-        writer.serializeu32(static_cast<uint32_t>(source.w()));
-        writer.serializeu32(static_cast<uint32_t>(source.h()));
-    }
-    static void serialize(CacheableWriter& writer, const std::string& source)
-    {
-        writer.serializestring_u32(source);
-    }
-    template<typename T>
-    static void serialize(CacheableWriter& writer, const std::vector<T>& target)
-    {
-        auto vecSize = target.size();
-        assert(vecSize < std::numeric_limits<uint32_t>::max());
-        writer.serializeu32(static_cast<uint32_t>(vecSize));
-        for (const auto& entry : target)
-        {
-            GfxSerializationHelper::serialize(writer, entry);
-        }
-    }
-    static bool unserialize(CacheableReader& reader, GfxDimension& target)
-    {
-        uint32_t w = 0;
-        if (!reader.unserializeu32(w))
-        {
-            return false;
-        }
-        uint32_t h = 0;
-        if (!reader.unserializeu32(h))
-        {
-            return false;
-        }
-        target.setW(static_cast<int>(w));
-        target.setH(static_cast<int>(h));
-        return true;
-    }
-    static bool unserialize(CacheableReader& reader, std::string& target)
-    {
-        return reader.unserializestring_u32(target);
-    }
-    template<typename T>
-    static bool unserialize(CacheableReader& reader, std::vector<T>& target, const size_t maxVectSize = MAX_VECT_SIZE)
-    {
-        uint32_t vecSize = 0;
-        if (!reader.unserializeu32(vecSize))
-        {
-            return false;
-        }
-        if (vecSize > maxVectSize)
-        {
-            return false;
-        }
-        target.resize(vecSize);
-        for (auto& entry : target)
-        {
-            if (!GfxSerializationHelper::unserialize(reader, entry))
-            {
-                return false;
-            }
-        }
-        return true;
-    }
-};
-
-}
-
 namespace mega {
 namespace gfx {
 
@@ -130,31 +54,43 @@ bool CommandShutDownResponse::unserialize(const std::string& /*data*/)
 
 std::string CommandNewGfx::serialize() const
 {
-    std::string toret;
-    CacheableWriter writer(toret);
+    std::string message;
+    CacheableWriter writer(message);
+
     writer.serializestring_u32(Task.Path);
     GfxSerializationHelper::serialize(writer, Task.Dimensions);
-    return toret;
+    writer.serializestring_u32(Task.Name);
+
+    return message;
 }
 
 bool CommandNewGfx::unserialize(const std::string& data)
 {
     CacheableReader reader(data);
-    // path
+
+    // Couldn't deserialize image path.
     if (!reader.unserializestring_u32(Task.Path))
-    {
         return false;
-    }
-    // dimensions
+
+    // Couldn't deserialize image dimensions.
     if (!GfxSerializationHelper::unserialize(reader, Task.Dimensions))
-    {
         return false;
-    }
-    // empty dimensions considered an invalid task
-    if (Task.Dimensions.size() == 0)
-    {
+
+    // No dimensions specified.
+    if (Task.Dimensions.empty())
         return false;
+
+    // Couldn't deserialize name or name is empty.
+    if (!reader.unserializestring_u32(Task.Name) || Task.Name.empty())
+    {
+        // Convenience.
+        auto path = LocalPath::fromAbsolutePath(Task.Path);
+
+        // Fallback to name computed from the deserialized path.
+        Task.Name = path.leafName().toPath(false);
     }
+
+    // All done.
     return true;
 }
 
@@ -260,6 +196,39 @@ bool CommandSupportFormatsResponse::unserialize(const std::string& data)
         return false;
     }
     return true;
+}
+
+void GfxSerializationHelper::serialize(CacheableWriter& writer, const GfxDimension& source)
+{
+    writer.serializeu32(static_cast<uint32_t>(source.w()));
+    writer.serializeu32(static_cast<uint32_t>(source.h()));
+}
+
+void GfxSerializationHelper::serialize(CacheableWriter& writer, const std::string& source)
+{
+    writer.serializestring_u32(source);
+}
+
+bool GfxSerializationHelper::unserialize(CacheableReader& reader, GfxDimension& target)
+{
+    uint32_t w = 0;
+    if (!reader.unserializeu32(w))
+    {
+        return false;
+    }
+    uint32_t h = 0;
+    if (!reader.unserializeu32(h))
+    {
+        return false;
+    }
+    target.setW(static_cast<int>(w));
+    target.setH(static_cast<int>(h));
+    return true;
+}
+
+bool GfxSerializationHelper::unserialize(CacheableReader& reader, std::string& target)
+{
+    return reader.unserializestring_u32(target);
 }
 }
 }

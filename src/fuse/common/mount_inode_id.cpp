@@ -10,8 +10,8 @@ namespace mega
 namespace fuse
 {
 
-MountInodeID::MountInodeID(InodeID id)
-  : mValue(id.get())
+MountInodeID::MountInodeID(InodeID id):
+    mValue(id.toU64())
 {
     assert(id);
 }

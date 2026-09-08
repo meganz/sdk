@@ -27,7 +27,7 @@ class Session: public SessionBase
     static void forget(fuse_req_t request, fuse_ino_t inode, unsigned long num);
 
     // Retrieve the next request from FUSE.
-    std::string nextRequest();
+    size_t nextRequest();
 
     void populateOperations(fuse_lowlevel_ops& operations) override;
 
@@ -38,6 +38,14 @@ class Session: public SessionBase
                        const char* targetName);
 
     ChannelPtr mChannel;
+
+    // Receive buffer, reused across dispatch() calls so the full channel buffer
+    // isn't re-allocated and zero-filled on every FUSE request.
+    //
+    // Only ever accessed by the single MountDB dispatcher thread that drives
+    // dispatch(). If request reception ever becomes multi-threaded, this must
+    // become per-receiving-thread rather than a shared member.
+    std::string mBuffer{};
 
 public:
     Session(Mount& mount);

@@ -1014,8 +1014,8 @@ void MegaClient::wsFinalizeUploadCompletion(Transfer& t)
     // The single client-thread completion funnel (direct + verify-retry paths):
     // debit the quota pool(s) before the transfer is retired.
     wsQuotaOnUploadCompleted(t);
-    if (!gfxdisabled)
-        t.addAnyMissingMediaFileAttributes(nullptr, t.localfilename);
+    // prepare file attributes for video/audio files if the file is suitable
+    t.addMissingMediaAttributesOnUpload(t.localfilename);
     checkfacompletion(t.uploadhandle, &t, true);
 }
 
@@ -1435,14 +1435,15 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                   << t.uploadhandle << " [t.localfilename = " << t.localfilename << "]";
 
         // 4) Enqueue thumbnail/preview FAs if applicable
-        if (!gfxdisabled && gfx && gfx->isgfx(t.localfilename))
+        if (auto conceptualname = t.thumbnailName())
         {
-            LOG_debug << "[MegaClient::prepareUploadForWs] !gfxdisabled && gfx && "
-                         "gfx->isgfx(t.localfilename) -> generate and mark pending attributes "
+            LOG_debug << "[MegaClient::prepareUploadForWs] t.thumbnailName() -> generate and mark "
+                         "pending attributes "
                          "[t.localfilename = "
                       << t.localfilename << "]";
             // Keep the behavior: generate and mark pending attributes
-            const int bitmask = gfx->gendimensionsputfa(t.localfilename,
+            const int bitmask = gfx->gendimensionsputfa(*conceptualname,
+                                                        t.localfilename,
                                                         NodeOrUploadHandle(t.uploadhandle),
                                                         t.transfercipher(),
                                                         -1);

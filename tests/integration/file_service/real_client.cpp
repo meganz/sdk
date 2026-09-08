@@ -19,7 +19,11 @@ RealClient::RealClient(const std::string& clientName,
     common::testing::RealClient(clientName, databasePath, storagePath)
 {}
 
-RealClient::~RealClient() {}
+RealClient::~RealClient()
+{
+    // Make sure the client doesn't call us after our destruction.
+    deinitialize();
+}
 
 FileService& RealClient::fileService() const
 {

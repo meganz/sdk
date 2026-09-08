@@ -2,6 +2,7 @@
 
 #include <mega/common/testing/path_forward.h>
 #include <mega/common/testing/real_client.h>
+#include <mega/file_service/file_service_forward.h>
 #include <mega/fuse/common/mount_event_forward.h>
 #include <mega/fuse/common/service_forward.h>
 #include <mega/fuse/common/testing/client.h>
@@ -26,6 +27,9 @@ public:
                const common::testing::Path& storagePath);
 
     ~RealClient();
+
+    // Get our hands on the client's File Service interface.
+    file_service::FileService& fileService() const override;
 
     // Get our hands on the client's FUSE interface.
     Service& fuseService() const override;
