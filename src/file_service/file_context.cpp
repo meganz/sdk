@@ -1080,10 +1080,6 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
         // A request's range should never be zero.
         assert(request.mRange.length());
 
-        // Request isn't a jump candidate.
-        if (!isJumpCandidate(request.mReadTag))
-            return nullptr;
-
         // Request isn't a large read.
         if (request.mRange.length() <= immediateThreshold)
             return nullptr;
@@ -1124,6 +1120,14 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
         if (request.mRange.mBegin < iterator->first.mBegin)
             return nullptr;
 
+        // Only the first read of a series may jump forward.
+        //
+        // Follow-up reads ride on the download in progress: letting them jump
+        // would restart a slow download on every read, or let two readers of
+        // the same file keep stealing the download from each other.
+        if (!isJumpCandidate(request.mReadTag))
+            return nullptr;
+
         // Existing large download will satisfy request shortly.
         if (context->timeUntil(request.mRange.mBegin) <= forwardDistance)
             return nullptr;
@@ -1134,26 +1138,41 @@ void FileContext::execute(FileReadRequest& request, const StreamReadTag&)
 
     // Check if request is a small prefix of a large download.
     //
+    // The large download's leading edge is extended to the left over any
+    // on-disk data adjacent to it, exactly as isJump does. This way a request
+    // that isJump considers "not far enough" to be a jump is always a small
+    // prefix and the gap in front of the cached data gets downloaded.
+    //
     // If true, request will be clamped so it does not overlap the leading
-    // edge of the large download.
+    // edge of the large download or the cached data in front of it.
     auto isSmallPrefix = [&](auto& request)
     {
         // Convenience.
         auto& range = request.mRange;
 
-        // Does request overlap an existing large download?
+        // Is there a large download that begins after request?
         auto iterator = largeDownloads.beginsAfter(range.mBegin);
 
-        // Request doesn't overlap an existing large download.
-        if (iterator == largeDownloads.end() || range.mEnd <= iterator->first.mBegin)
+        // No large download begins after request.
+        if (iterator == largeDownloads.end())
+            return false;
+
+        // Where does the data available to the reader effectively begin?
+        const auto boundary = leftExtendOnDisk(iterator->first.mBegin);
+
+        // Request must straddle the boundary: begin in the gap before the
+        // cached data, end on the cached data or the large download itself.
+        //
+        // A request beginning on the cached data is left to the on-disk path.
+        if (range.mBegin >= boundary || range.mEnd <= boundary)
             return false;
 
         // Request isn't a small prefix of the large download.
-        if (iterator->first.mBegin - range.mBegin > immediateThreshold)
+        if (boundary - range.mBegin > immediateThreshold)
             return false;
 
-        // Translate request into a small read.
-        range.mEnd = iterator->first.mBegin;
+        // Translate request into a small read covering only the gap.
+        range.mEnd = boundary;
 
         // Range should never be empty.
         assert(!range.empty());
