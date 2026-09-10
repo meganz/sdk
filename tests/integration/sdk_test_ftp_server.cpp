@@ -1518,3 +1518,68 @@ TEST_F(SdkTest, FtpServerDownloadsAFile)
     CASE_info << "finished";
 }
 #endif
+
+/**
+ * A data port range handed over the wrong way round has to keep working.
+ *
+ * Nothing validates the two bounds, neither the SDK nor the callers that take
+ * them from a command line, so a range that begins after it ends does reach the
+ * server. It gets one attempt at the port it begins with, which is what it got
+ * before the server started walking the range.
+ */
+TEST_F(SdkTest, FtpServerAcceptsADataPortRangeGivenTheWrongWayRound)
+{
+    CASE_info << "started";
+
+    // Outside the range every other test uses, so a worker running one of those
+    // cannot take this port first.
+    constexpr int dataPortBegin = 1699;
+    constexpr int dataPortEnd = 1698;
+
+    const std::string listedFileName = "reversed_range_café.txt";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    auto rootNode = makeUniqueFrom(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+
+    const std::string servedName = "ftp_reversed_" + std::to_string(m_time());
+    const MegaHandle servedHandle = createFolder(0, servedName.c_str(), rootNode.get());
+    ASSERT_NE(servedHandle, UNDEF);
+    auto servedNode = makeUniqueFrom(megaApi[0]->getNodeByHandle(servedHandle));
+    ASSERT_TRUE(servedNode);
+
+    auto listedFile = sdk_test::uploadFile(megaApi[0].get(),
+                                           sdk_test::LocalTempFile{"ftp_reversed_upload.txt", "t"},
+                                           servedNode.get(),
+                                           listedFileName.c_str());
+    ASSERT_TRUE(listedFile);
+
+    ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0, dataPortBegin, dataPortEnd));
+    const auto ftpServer = makeScopedDestructor(
+        [&api = megaApi]()
+        {
+            api[0]->ftpServerStop();
+        });
+
+    // Generating a local link also allows the handle to be served over FTP.
+    std::unique_ptr<char[]> servedLink{megaApi[0]->ftpServerGetLocalLink(servedNode.get())};
+    ASSERT_TRUE(servedLink);
+
+    // Any listing needs a data channel, so it fails if no port was ever tried.
+    const FtpExchange list = FtpTestClient::list(std::string{servedLink.get()} + "/");
+    ASSERT_EQ(CURLE_OK, list.curlCode)
+        << "LIST failed: " << curl_easy_strerror(list.curlCode) << "\n"
+        << list.controlLog;
+
+    EXPECT_EQ(list.controlLog.find("421 "), std::string::npos)
+        << "The data channel was refused. Control log:\n"
+        << list.controlLog;
+    EXPECT_NE(list.body.find(listedFileName), std::string::npos)
+        << "The file was not listed. Body:\n"
+        << list.body;
+
+    EXPECT_EQ(API_OK, doDeleteNode(0, servedNode.get()));
+
+    CASE_info << "finished";
+}

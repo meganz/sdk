@@ -40144,24 +40144,49 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             if (!ftpctx->ftpDataServer)
             {
-                if (pport > (dataPortEnd))
+                // Another process may be holding some of these ports, so try the
+                // whole range instead of giving up on the first one that is taken.
+                // A range handed over the wrong way round still gets the single
+                // attempt it used to get, since nothing validates it on the way in.
+                const int portsInRange = std::max(1, dataPortEnd - dataportBegin + 1);
+                for (int remaining = portsInRange; remaining > 0 && !ftpctx->ftpDataServer;
+                     remaining--)
                 {
-                    pport = dataportBegin;
-                }
-                ftpctx->pasiveport = pport++;
+                    if (pport > (dataPortEnd))
+                    {
+                        pport = dataportBegin;
+                    }
+                    ftpctx->pasiveport = pport++;
 
-                LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
+                    LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
 #ifdef ENABLE_EVT_TLS
-                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, certificatepath, keypath);
+                    MegaFTPDataServer* fds = new MegaFTPDataServer(megaApi,
+                                                                   basePath,
+                                                                   ftpctx,
+                                                                   useTLS,
+                                                                   certificatepath,
+                                                                   keypath);
 #else
-                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, string(), string());
+                    MegaFTPDataServer* fds = new MegaFTPDataServer(megaApi,
+                                                                   basePath,
+                                                                   ftpctx,
+                                                                   useTLS,
+                                                                   string(),
+                                                                   string());
 #endif
-                bool result = fds->start(ftpctx->pasiveport, localOnly);
-                if (result)
-                {
-                    ftpctx->ftpDataServer = fds;
+                    if (fds->start(ftpctx->pasiveport, localOnly))
+                    {
+                        ftpctx->ftpDataServer = fds;
+                    }
+                    else
+                    {
+                        LOG_warn << "Could not listen on port " << ftpctx->pasiveport
+                                 << ", trying the next one";
+                        delete fds;
+                    }
                 }
-                else
+
+                if (!ftpctx->ftpDataServer)
                 {
                     response = "421 Failed to initialize data channel";
                     break;
