@@ -172,6 +172,19 @@ void Client::nodesCurrent(bool nodesCurrent)
         mNodesCurrentCV.notify_all();
 }
 
+auto Client::attributes(CloudPath path) const -> ErrorOr<NodeAttributes>
+{
+    // Try and resolve the node's handle.
+    auto handle = path.resolve(*this);
+
+    // Node doesn't exist.
+    if (!handle)
+        return unexpected(handle.error());
+
+    // Try and retrieve the node's attributes.
+    return attributes(*handle);
+}
+
 ErrorOr<std::set<std::string>> Client::childNames(CloudPath path) const
 {
     // Try and resolve the parent's handle.
@@ -454,6 +467,19 @@ Error Client::replace(CloudPath source, CloudPath target)
 
     // Replace target with source.
     return client().replace(*sourceHandle, *targetHandle);
+}
+
+Error Client::setAttributes(CloudPath path, const NodeAttributes& attributes)
+{
+    // Try and resolve the node's handle.
+    auto handle = path.resolve(*this);
+
+    // Node doesn't exist.
+    if (!handle)
+        return handle.error();
+
+    // Try and update the node's attributes.
+    return setAttributes(*handle, attributes);
 }
 
 ErrorOr<StorageInfo> Client::storageInfo()

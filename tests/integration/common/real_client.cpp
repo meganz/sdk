@@ -709,6 +709,26 @@ auto RealClient::contact(const std::string& email) const -> ContactPtr
     return nullptr;
 }
 
+auto RealClient::attributes(NodeHandle handle) const -> ErrorOr<NodeAttributes>
+{
+    std::lock_guard<std::mutex> guard(mClientLock);
+
+    // Try and locate the specified node.
+    auto node = mClient->nodeByHandle(handle);
+
+    // Node doesn't exist.
+    if (!node)
+        return unexpected(API_ENOENT);
+
+    NodeAttributes attributes;
+
+    // Translate the node's attributes into a more convenient form.
+    for (const auto& [id, value]: node->attrs.map)
+        attributes.emplace(AttrMap::nameid2string(id), value);
+
+    return attributes;
+}
+
 bool RealClient::hasFileAttribute(NodeHandle handle, fatype type) const
 {
     std::lock_guard<std::mutex> guard(mClientLock);
@@ -916,6 +936,48 @@ auto RealClient::sessionToken() const -> ErrorOr<SessionToken>
         return SessionToken(token);
 
     return unexpected(API_EFAILED);
+}
+
+Error RealClient::setAttributes(NodeHandle handle, const NodeAttributes& attributes)
+{
+    std::unique_lock<std::mutex> lock(mClientLock);
+
+    // Try and locate the specified node.
+    auto node = mClient->nodeByHandle(handle);
+
+    // Node doesn't exist.
+    if (!node)
+        return API_ENOENT;
+
+    attr_map updates;
+
+    // Translate the attributes into the form the client expects.
+    for (const auto& [name, value]: attributes)
+        updates[AttrMap::string2nameid(name)] = value;
+
+    auto notifier = makeSharedPromise<Error>();
+
+    // Called when the node's attributes have been updated.
+    auto updated = [notifier](NodeHandle, Error result)
+    {
+        notifier->set_value(result);
+    }; // updated
+
+    // Ask the client to update the node's attributes.
+    auto result = mClient->setattr(std::move(node), std::move(updates), std::move(updated), false);
+
+    // Couldn't queue the update.
+    if (result != API_OK)
+        return result;
+
+    // Make sure the client's awake to perform our request.
+    mClient->waiter->notify();
+
+    // Release the lock so the client can process our request.
+    lock.unlock();
+
+    // Pass result to caller.
+    return waitFor(notifier->get_future());
 }
 
 m_off_t RealClient::setDownloadSpeed(m_off_t speed)

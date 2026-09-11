@@ -2087,11 +2087,32 @@ void ClientUpload::bind(std::string& attributes,
             return bound(std::move(context.mCallback), empty, false, API_EARGS);
 
         // Convenience.
+        auto& client = mClient.client();
         auto callback = mClient.makeCancellable(std::move(context.mCallback));
         auto modified = context.mModified ? &*context.mModified : nullptr;
 
+        // Which node, if any, is our upload going to replace?
+        //
+        // This is the node that will be sent as "ov" when we bind a name to
+        // our data (see File::sendPutnodesOfUpload) and we need to know
+        // about it so that the attributes a user expects to survive a change
+        // of content (favourite, label, sensitivity, description and tags)
+        // are carried over to the new node, as they are for any other upload.
+        //
+        // Our attributes are computed by sendPutnodesOfUpload(...) so we no
+        // longer need the node once that call returns. Release it here, on
+        // the client thread, even if that call throws: otherwise the node
+        // would be destroyed wherever this upload happens to be destroyed.
+        auto releasePreviousNode = makeScopedDestructor(
+            [this]()
+            {
+                previousNode.reset();
+            });
+
+        previousNode = client.getovnode(client.nodeByHandle(h).get(), &name);
+
         // Ask the client to bind a name to our data.
-        sendPutnodesOfUpload(&mClient.client(),
+        sendPutnodesOfUpload(&client,
                              std::move(uploadHandle),
                              std::move(attributes),
                              std::move(uploadToken),
