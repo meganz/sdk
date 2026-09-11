@@ -2564,8 +2564,8 @@ void FileContext::reclaim(FileReclaimCallback callback, FileContextPtr)
     executeOrQueue(FileFlushRequest{std::move(flushed), true});
 }
 
-void FileContext::remove(FileContextPtr context,
-                         FileStructureUniqueLock& lock,
+void FileContext::remove([[maybe_unused]] FileContextPtr context,
+                         [[maybe_unused]] FileStructureUniqueLock& lock,
                          FileRemoveRequest request)
 {
     // Convenience.
