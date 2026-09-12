@@ -2325,16 +2325,29 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
 {
     if (isPasswordNode())
     {
+        const char* const pwmAttr = getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        assert(pwmAttr); // guaranteed by isPasswordNode(), and dereferenced unconditionally below
+
         AttrMap aux;
-        aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
-        constexpr auto totpNameid = AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+        aux.fromjson(pwmAttr);
+
+        // Every other value of this object is a string that was escaped when it was serialized,
+        // so the fromjson() above unescapes it back. The totp value is a nested JSON object that
+        // preparePasswordManagerNodeData() appends verbatim instead, so that unescaping is one
+        // too many for it and would eat the escapes of the values it holds. Take it from the
+        // parent attribute again, which is what getComplexNestedJsonObject() is for.
+        AttrMap pwmAttrMap;
+        pwmAttrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER)] = pwmAttr;
+        const auto totpData =
+            pwmAttrMap.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                  MegaClient::PWM_ATTR_PASSWORD_TOTP);
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (aux.map.contains(totpNameid))
+        if (totpData)
         {
             AttrMap auxTotp;
             auxTotp.fromjsonObject(
-                aux.map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
+                totpData->map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
             totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
         }
 
