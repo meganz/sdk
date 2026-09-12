@@ -96,6 +96,35 @@ nameid AttrMap::string2nameid(const char* n)
     return makeNameid(n);
 }
 
+bool AttrMap::isValidJsonKey(const string& name)
+{
+    // The size is checked first, because string2nameid() asserts on longer names
+    if (name.empty() || name.size() > 8)
+    {
+        return false;
+    }
+
+    for (const char c: name)
+    {
+        // Everything from DEL up is turned down too. JSON does not ask for DEL to be escaped, so
+        // it alone would not break the serialization, but the public API promises printable
+        // names and DEL is not printable. Above it there are only the bytes of a multi-byte
+        // UTF-8 sequence, which a key cannot hold: string2nameid() sign extends them, so they
+        // do not survive the conversion (see the round trip below), and a key made of some of
+        // them would not be valid UTF-8, which is what a strict JSON parser expects of a string
+        const auto byte = static_cast<unsigned char>(c);
+        if (byte == '"' || byte == '\\' || byte < ' ' || byte >= 0x7F)
+        {
+            return false;
+        }
+    }
+
+    // Belt and braces: every name that gets here is printable ASCII and so round trips as it is.
+    // This keeps the guarantee that the key written for a name is the name itself, whatever
+    // string2nameid() and nameid2string() are changed into later
+    return nameid2string(string2nameid(name)) == name;
+}
+
 // generate binary serialize of attr_map name-value pairs
 void AttrMap::serialize(string* d) const
 {

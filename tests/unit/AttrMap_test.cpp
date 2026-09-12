@@ -208,6 +208,81 @@ TEST(AttrMap, getJsonObjectEscapesValuesExactly)
     EXPECT_EQ(toJsonObject({{"a", "caf\xc3\xa9"}}), "{\"a\":\"caf\xc3\xa9\"}");
 }
 
+TEST(AttrMap, isValidJsonKeyAcceptsUsableNames)
+{
+    for (const std::string& name: {std::string("a"),
+                                   std::string("_custom1"),
+                                   std::string("12345678"),
+                                   std::string("a b"),
+                                   std::string("_~!@#$%")})
+    {
+        EXPECT_TRUE(AttrMap::isValidJsonKey(name)) << "rejected a usable name: " << name;
+    }
+}
+
+TEST(AttrMap, isValidJsonKeyRejectsNamesThatWouldCorruptTheJson)
+{
+    // A key is written without escaping and read back without unescaping
+    EXPECT_FALSE(AttrMap::isValidJsonKey(R"(a"b)"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey(R"(a\b)"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("a\tb"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey(std::string("a\0b", 3)));
+
+    // A nameid holds at most 8 bytes
+    EXPECT_FALSE(AttrMap::isValidJsonKey(""));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("123456789"));
+
+    // string2nameid() sign extends bytes above 0x7F, which borrows from the byte before. Here
+    // that turns '#' into '"' and ']' into '\', so the key would hold the very characters that
+    // the checks above reject, even though the name itself holds neither of them
+    EXPECT_FALSE(AttrMap::isValidJsonKey("_#\xc3\xa9"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("_]\xc3\xa9"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("_\xc3\xa9"));
+}
+
+TEST(AttrMap, isValidJsonKeyRejectsEverythingAboveAscii)
+{
+    // A byte above 0x7F usually does not survive string2nameid(), but a name of exactly 8 bytes
+    // is the exception: the borrow taken from its first byte is shifted out of the nameid, so
+    // such a name does round trip unchanged. The key would still not be valid UTF-8, which a
+    // strict JSON parser expects of a string, so the whole range is turned down explicitly
+    EXPECT_FALSE(AttrMap::isValidJsonKey("\x98.nnl.@7"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("\x84&@vzD>b"));
+
+    // and the ordinary cases, where the round trip would have caught them anyway
+    EXPECT_FALSE(AttrMap::isValidJsonKey("caf\xc3\xa9"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("\xff"));
+}
+
+TEST(AttrMap, isValidJsonKeyRejectsDel)
+{
+    // DEL would not break the JSON, it needs no escaping there, but the public API promises
+    // printable names and DEL is not printable
+    EXPECT_FALSE(AttrMap::isValidJsonKey("_\x7f"));
+    EXPECT_FALSE(AttrMap::isValidJsonKey("_a\x7f"
+                                         "b"));
+}
+
+TEST(AttrMap, isValidJsonKeyDetectsKeysChangedBySignExtension)
+{
+    // The JSON key of an accepted name has to be the name itself. Parsing such a JSON back is
+    // not attempted here, because a broken key desynchronizes JSON::getnameid() and trips its
+    // assert, which is exactly what the check is there to prevent
+    for (const std::string& name: {std::string("a"),
+                                   std::string("_custom1"),
+                                   std::string("_#\xc3\xa9"),
+                                   std::string("_]\xc3\xa9"),
+                                   std::string("_\xc3\xa9")})
+    {
+        AttrMap withOneAttribute;
+        withOneAttribute.map[AttrMap::string2nameid(name)] = "value";
+
+        const std::string expected = "\"" + name + "\":\"value\"";
+        EXPECT_EQ(AttrMap::isValidJsonKey(name), withOneAttribute.getjson() == expected)
+            << "disagreement for name: " << name;
+    }
+}
+
 TEST(AttrMap, applyUpdatesWithNestedFields)
 {
     using namespace std::literals;
