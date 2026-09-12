@@ -208,6 +208,83 @@ TEST(AttrMap, getJsonObjectEscapesValuesExactly)
     EXPECT_EQ(toJsonObject({{"a", "caf\xc3\xa9"}}), "{\"a\":\"caf\xc3\xa9\"}");
 }
 
+TEST(AttrMap, getjsonSkipsTheEmptyNameid)
+{
+    // string2nameid("") is 0, which is also EOO, so such an entry has no key that could be
+    // written. It used to still emit the separator and the opening quote of a key that never
+    // followed, which corrupted every attribute of the object, not only this one. 0 sorts first,
+    // so this also pins that the attribute actually written first gets no leading comma
+    AttrMap withEmptyNameid;
+    withEmptyNameid.map[0] = "no name";
+    withEmptyNameid.map[AttrMap::string2nameid("a")] = "kept";
+
+    EXPECT_EQ(withEmptyNameid.getjson(), R"("a":"kept")");
+
+    AttrMap parsed;
+    parsed.fromjson(withEmptyNameid.getjson().c_str());
+    EXPECT_EQ(parsed.map, toAttrMap({{"a", "kept"}}).map);
+
+    AttrMap onlyEmptyNameid;
+    onlyEmptyNameid.map[0] = "no name";
+    EXPECT_EQ(onlyEmptyNameid.getjson(), "");
+}
+
+TEST(AttrMap, getjsonSkipsNamesThatCannotBeAJsonKey)
+{
+    // Such a name can no longer be stored through MegaApi, but it still reaches an AttrMap by
+    // being parsed back from a node that an older or a different client wrote, and writing it out
+    // again would corrupt every attribute of that node. string2nameid("_#\xc3\xa9") is a real
+    // example: sign extension borrows from the '#' and turns it into a '"'
+    const nameid signExtended = AttrMap::string2nameid("_#\xc3\xa9");
+    ASSERT_EQ(AttrMap::nameid2string(signExtended), "_\"\xc2\xa9") << "test premise changed";
+
+    AttrMap withBrokenNames;
+    withBrokenNames.map[AttrMap::string2nameid("\"")] = "dropped, sorts first";
+    withBrokenNames.map[AttrMap::string2nameid("a")] = "kept";
+    withBrokenNames.map[AttrMap::string2nameid("n")] = "name.txt";
+    withBrokenNames.map[signExtended] = "dropped, sorts last";
+
+    // dropping the first and the last entry must leave no dangling separator either
+    const std::string json = withBrokenNames.getjson();
+    EXPECT_EQ(json, R"("a":"kept","n":"name.txt")");
+
+    // and what was written has to parse back, which a raw broken key would not
+    AttrMap parsed;
+    parsed.fromjson(json.c_str());
+    EXPECT_EQ(parsed.map, toAttrMap({{"a", "kept"}, {"n", "name.txt"}}).map);
+}
+
+TEST(AttrMap, getJsonObjectSkipsNamesThatCannotBeAJsonKey)
+{
+    AttrMap withBrokenNames;
+    withBrokenNames.map[0] = "no name at all";
+    withBrokenNames.map[AttrMap::string2nameid("\"")] = "dropped";
+    withBrokenNames.map[AttrMap::string2nameid("a")] = "kept";
+
+    const std::string json = withBrokenNames.getJsonObject();
+    EXPECT_EQ(json, R"({"a":"kept"})");
+
+    AttrMap parsed;
+    parsed.fromjsonObject(json);
+    EXPECT_EQ(parsed.map, toAttrMap({{"a", "kept"}}).map);
+}
+
+TEST(AttrMap, serializersWriteNothingWhenNoNameIsUsable)
+{
+    // Whatever gets dropped, what comes out has to stay well formed: no lone separator from
+    // getjson(), and no bare "{}" from getJsonObject(), which returns nothing for an empty map too
+    AttrMap onlyBrokenNames;
+    onlyBrokenNames.map[0] = "no name at all";
+    onlyBrokenNames.map[AttrMap::string2nameid("\"")] = "dropped";
+
+    EXPECT_EQ(onlyBrokenNames.getjson(), "");
+    EXPECT_EQ(onlyBrokenNames.getJsonObject(), "");
+
+    const AttrMap empty;
+    EXPECT_EQ(empty.getjson(), "");
+    EXPECT_EQ(empty.getJsonObject(), "");
+}
+
 TEST(AttrMap, isValidJsonKeyAcceptsUsableNames)
 {
     for (const std::string& name: {std::string("a"),
