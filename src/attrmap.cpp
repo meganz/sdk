@@ -196,85 +196,25 @@ void AttrMap::applyUpdates(const attr_map& updates)
 // generate JSON object containing attr_map
 void AttrMap::getjson(string* s) const
 {
-    nameid id;
     char buf[8];
-    const char* ptr;
-    const char* pptr;
 
     // reserve estimated size of final string
     s->erase();
     s->reserve(storagesize(20));
 
-    for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
+    for (const auto& [name_id, value]: map)
     {
         s->append(s->size() ? ",\"" : "\"");
 
-        id = it->first;
-        if (id)
+        if (name_id)
         {
             // no JSON escaping here, as no escape characters are allowed in
             // attribute names
-            s->append(buf, static_cast<size_t>(nameid2string(id, buf)));
+            s->append(buf, static_cast<size_t>(nameid2string(name_id, buf)));
             s->append("\":\"");
 
-            // JSON-escape value
-            pptr = it->second.c_str();
-            ptr = it->second.c_str();
-
-            for (int i = static_cast<int>(it->second.size()); i-- >= 0; ptr++)
-            {
-                if ((i < 0) || ((*(const signed char*)ptr >= 0) && (*ptr < ' ')) || (*ptr == '"') || (*ptr == '\\'))
-                {
-                    if (ptr > pptr)
-                    {
-                        s->append(pptr, static_cast<size_t>(ptr - pptr));
-                    }
-
-                    if (i >= 0)
-                    {
-                        s->append("\\");
-
-                        switch (*ptr)
-                        {
-                            case '"':
-                                s->append("\"");
-                                break;
-
-                            case '\\':
-                                s->append("\\");
-                                break;
-
-                            case '\n':
-                                s->append("n");
-                                break;
-
-                            case '\r':
-                                s->append("r");
-                                break;
-
-                            case '\b':
-                                s->append("b");
-                                break;
-
-                            case '\f':
-                                s->append("f");
-                                break;
-
-                            case '\t':
-                                s->append("t");
-                                break;
-
-                            default:
-                                s->append("u00");
-                                snprintf(buf, sizeof(buf), "%02x", (unsigned char)*ptr);
-                                s->append(buf);
-                        }
-
-                        pptr = ptr + 1;
-                    }
-                }
-            }
-
+            // The value is free text supplied by the caller and must be JSON-escaped.
+            s->append(JSON::escape(value.data(), value.size()));
             s->append("\"");
         }
     }
@@ -283,9 +223,10 @@ void AttrMap::getjson(string* s) const
 std::string AttrMap::getJsonObject() const
 {
     std::string result{"{"};
-    for (auto [k, v]: map)
+    for (const auto& [k, v]: map)
     {
-        result += "\"" + nameid2string(k) + "\":\"" + v + "\",";
+        // See AttrMap::getjson() for why the key doesn't need (and can't easily support) escaping.
+        result += "\"" + nameid2string(k) + "\":\"" + JSON::escape(v.data(), v.size()) + "\",";
     }
 
     result.pop_back();
@@ -317,11 +258,13 @@ void AttrMap::fromjsonObject(const std::string& buf)
     nameid name;
     while ((name = json.getnameid()) != EOO)
     {
-        if (!json.storeobject(&map[name]))
+        string* value = &map[name];
+        if (!json.storeobject(value))
         {
             map.clear();
             return;
         }
+        JSON::unescape(value);
     }
 
     if (!json.leaveobject())
