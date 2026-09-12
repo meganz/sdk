@@ -51,12 +51,18 @@
 #include <mega/file_service/testing/integration/scoped_file_event_observer.h>
 #include <mega/file_service/testing/integration/scoped_file_location_provider.h>
 #include <mega/file_service/utility.h>
+#include <mega/http.h>
+#include <mega/waiter.h>
 
+#include <algorithm>
+#include <atomic>
 #include <chrono>
 #include <cinttypes>
 #include <cstdint>
 #include <filesystem>
+#include <memory>
 #include <sdk_test_data_provider.h>
+#include <vector>
 
 namespace mega
 {
@@ -2659,6 +2665,314 @@ TEST_F(FileServiceTests, read_jump_forward_succeeds)
     // We should have one large contiguous range.
     ASSERT_THAT(file->ranges(), ElementsAre(FileRange(128_KiB + 1, mFileContent.size())));
 }
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+
+// Holds every storage download request that begins at one of the given
+// offsets: the request is reported as in flight but never sent, so the
+// download it belongs to stays in progress for as long as the test needs.
+//
+// The tests below need a large download to still be running while other
+// reads are issued against it. Capping the download speed can't guarantee
+// that: the cap is enforced against a speed meter that is only fed once a
+// direct read delivers data, so a fresh request can complete before the cap
+// ever bites. Holding the request removes the dependency on network speed.
+//
+// After release() the SDK retries the held request on its own: the direct
+// read times out after DirectReadSlot::TIMEOUT_DS with no data, the file
+// service answers with a retry (see FileContext::DownloadContext::failed)
+// and the next request passes through the hook untouched.
+class ScopedHeldDownloads
+{
+public:
+    explicit ScopedHeldDownloads(std::vector<m_off_t> offsets):
+        mHeld(std::make_shared<std::atomic<bool>>(true))
+    {
+        globalMegaTestHooks.onHttpReqPost = [offsets, held = mHeld](HttpReq* req)
+        {
+            // Released, or not a storage download request.
+            if (!held->load() || req->type != REQ_BINARY ||
+                req->posturl.find("/dl/") == std::string::npos)
+                return false;
+
+            // Not one of the downloads we want to hold.
+            if (std::find(offsets.begin(), offsets.end(), req->pos) == offsets.end())
+                return false;
+
+            // Report the request as in flight without ever sending it.
+            req->lastdata = Waiter::ds;
+            req->status = REQ_INFLIGHT;
+
+            return true;
+        };
+    }
+
+    ~ScopedHeldDownloads()
+    {
+        // Remove our hook so it can't affect other tests.
+        globalMegaTestHooks = MegaTestHooks();
+    }
+
+    // Let held downloads proceed on the SDK's next retry.
+    void release()
+    {
+        mHeld->store(false);
+    }
+
+private:
+    // Shared with the hook, which runs on the client's thread.
+    std::shared_ptr<std::atomic<bool>> mHeld;
+}; // ScopedHeldDownloads
+
+// Parameters for a read that begins in the gap just before a cached block
+// sitting directly in front of the large download.
+struct GapReadParameters
+{
+    // How much data the read asks for.
+    std::uint64_t mLength;
+
+    // Where the read ends, used to name the test instance.
+    const char* mName;
+}; // GapReadParameters
+
+// Lets gtest describe the parameters in test listings and failure messages.
+static void PrintTo(const GapReadParameters& parameters, std::ostream* stream)
+{
+    *stream << parameters.mName << " (" << parameters.mLength << " bytes)";
+}
+
+// Reads that begin less than one threshold before cached data but more than
+// one threshold before the large download the cached data adjoins.
+class FileServiceGapReadTests:
+    public FileServiceTests,
+    public ::testing::WithParamInterface<GapReadParameters>
+{}; // FileServiceGapReadTests
+
+TEST_P(FileServiceGapReadTests, read_large_gap_before_adjacent_cache_succeeds)
+{
+    // A viewer streams from the middle of the file while a small read has
+    // cached a block directly in front of the large download. The viewer
+    // then seeks back to just before that block and reads past the large
+    // read threshold. The read begins less than one threshold before cached
+    // data but more than one threshold before the download itself, so it is
+    // neither a jump nor covered by the download: the gap must be fetched.
+    //
+    // Depending on the parameters the read ends inside the cached block or
+    // runs through it into the large download.
+
+    // Convenience.
+    const auto length = GetParam().mLength;
+
+    // Try and open our test file.
+    auto file = mClient->fileOpen(mFileHandle);
+
+    // Make sure we could open our test file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Treat reads larger than 64K as a large read.
+    mClient->fileService().serviceOptions(
+        [&]()
+        {
+            auto options = DefaultOptions;
+
+            // Don't align large reads on any boundary.
+            options.mJumpBackwardAlignment = 0;
+
+            // Don't begin a large read's range earlier than specified.
+            options.mJumpBackwardDistance = chrono::milliseconds{0};
+
+            // Consider reads larger than 64KiB "large."
+            options.mImmediateDownloadThreshold = 1ul << 16;
+
+            return options;
+        }());
+
+    // Hold the large download so it stays in progress until we let it go.
+    ScopedHeldDownloads hold{{512_KiB}};
+
+    // Begin a large read from the middle of the file.
+    auto waiter0 = read(*file, 512_KiB, 64_KiB + 1, StreamReadTag{true});
+
+    // Begin a small read just before the large download.
+    //
+    // The small download is extended to 64KiB and so caches [472KiB, 536KiB).
+    auto waiter1 = read(*file, 472_KiB, 4_KiB, StreamReadTag{true});
+
+    // Wait for our small read to complete.
+    ASSERT_NE(waiter1.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure our small read completed successfully.
+    auto result1 = waiter1.get();
+
+    EXPECT_EQ(result1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_TRUE(result1 && compare(*result1, mFileContent, 472_KiB, 4_KiB));
+
+    // Wait until the cached block sits directly in front of the large download.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            return contains({FileRange(472_KiB, 512_KiB)}, toSet(file->ranges()));
+        },
+        mDefaultTimeout));
+
+    // The large download should still be in progress.
+    ASSERT_TRUE(contains({FileRange(512_KiB, mFileContent.size())}, toSet(file->downloading())));
+
+    // Seek back to 56KiB before the cached block and read past the threshold.
+    auto waiter2 = read(*file, 416_KiB, length, StreamReadTag{true});
+
+    // Let the large download go: the read's tail may lie inside its range.
+    // The read has already been classified by now, so this doesn't change
+    // what the test exercises.
+    hold.release();
+
+    // Wait for the read to complete.
+    ASSERT_NE(waiter2.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure the read completed successfully.
+    auto result2 = waiter2.get();
+
+    ASSERT_EQ(result2.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*result2, mFileContent, 416_KiB, length));
+
+    // Wait for our large read to complete.
+    ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure our large read completed successfully.
+    auto result0 = waiter0.get();
+
+    EXPECT_EQ(result0.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    EXPECT_TRUE(result0 && compare(*result0, mFileContent, 512_KiB, 64_KiB + 1));
+
+    // Wait for all downloads to complete.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
+
+    // Everything from our earliest read onwards should be on disk.
+    EXPECT_THAT(file->ranges(), ElementsAre(FileRange(416_KiB, mFileContent.size())));
+}
+
+// The read ends at 480KiB + 1, inside the cached block, or at 544KiB + 1,
+// inside the large download's range.
+INSTANTIATE_TEST_SUITE_P(FileService,
+                         FileServiceGapReadTests,
+                         ::testing::Values(GapReadParameters{64_KiB + 1, "ending_in_cache"},
+                                           GapReadParameters{128_KiB + 1, "ending_in_download"}),
+                         [](const ::testing::TestParamInfo<GapReadParameters>& info)
+                         {
+                             return std::string(info.param.mName);
+                         });
+
+TEST_F(FileServiceTests, read_large_follow_ups_from_two_streams_succeeds)
+{
+    // Two viewers stream the same file. Viewer B streams from the middle of
+    // the file while viewer A's follow-up read, which isn't a jump candidate,
+    // arrives for the start of the file: nothing on disk or in progress covers
+    // it and the download in progress will never reach it, so it must be
+    // replaced by one that does. Viewer B's next follow-up read is then far
+    // ahead of the new download's progress: it must wait for that download
+    // rather than steal it back, otherwise A and B would keep cancelling each
+    // other's download.
+    //
+    // Both downloads are held while the reads are issued so that what the
+    // test observes doesn't depend on how fast the storage servers answer.
+
+    // Try and open our test file.
+    auto file = mClient->fileOpen(mFileHandle);
+
+    // Make sure we could open our test file.
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Treat reads larger than 64K as a large read.
+    mClient->fileService().serviceOptions(
+        [&]()
+        {
+            auto options = DefaultOptions;
+
+            // Don't align large reads on any boundary.
+            options.mJumpBackwardAlignment = 0;
+
+            // Don't begin a large read's range earlier than specified.
+            options.mJumpBackwardDistance = chrono::milliseconds{0};
+
+            // Consider reads larger than 64KiB "large."
+            options.mImmediateDownloadThreshold = 1ul << 16;
+
+            return options;
+        }());
+
+    // Hold the download B starts at 512KiB and the one A's follow-up replaces
+    // it with at the start of the file.
+    ScopedHeldDownloads hold{{0, 512_KiB}};
+
+    // Viewer B begins streaming from the middle of the file.
+    auto waiter0 = read(*file, 512_KiB, 64_KiB + 1, StreamReadTag{true});
+
+    // A large download should be running from 512KiB to the end of the file.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            return contains({FileRange(512_KiB, mFileContent.size())}, toSet(file->downloading()));
+        },
+        mDefaultTimeout));
+
+    // Viewer A's large follow-up read arrives for the start of the file.
+    auto waiter1 = read(*file, 0, 64_KiB + 1, StreamReadTag{false});
+
+    // It must replace the large download with one running from the start of
+    // the file: that download becomes the only one left in progress.
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            auto downloading = file->downloading();
+
+            return downloading.size() == 1 &&
+                   contains({FileRange(0, mFileContent.size())}, toSet(downloading));
+        },
+        mDefaultTimeout));
+
+    // Viewer B continues where it left off, far ahead of the new download.
+    auto waiter2 = read(*file, 512_KiB + 64_KiB + 1, 64_KiB + 1, StreamReadTag{false});
+
+    // The download is held so B's read can't have completed.
+    EXPECT_EQ(waiter2.wait_for(chrono::seconds(1)), timeout);
+
+    // And B's read must not have replaced the download in progress.
+    ASSERT_TRUE(contains({FileRange(0, mFileContent.size())}, toSet(file->downloading())));
+
+    // Let the download go.
+    hold.release();
+
+    // Wait for every read to complete.
+    ASSERT_NE(waiter0.wait_for(mDefaultTimeout), timeout);
+    ASSERT_NE(waiter1.wait_for(mDefaultTimeout), timeout);
+    ASSERT_NE(waiter2.wait_for(mDefaultTimeout), timeout);
+
+    // Make sure B's first read completed successfully.
+    auto result0 = waiter0.get();
+
+    ASSERT_EQ(result0.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*result0, mFileContent, 512_KiB, 64_KiB + 1));
+
+    // Make sure A's follow-up read completed successfully.
+    auto result1 = waiter1.get();
+
+    ASSERT_EQ(result1.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*result1, mFileContent, 0, 64_KiB + 1));
+
+    // Make sure B's follow-up read completed successfully.
+    auto result2 = waiter2.get();
+
+    ASSERT_EQ(result2.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*result2, mFileContent, 512_KiB + 64_KiB + 1, 64_KiB + 1));
+
+    // Wait for all downloads to complete.
+    ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
+
+    // The whole file should be on disk.
+    EXPECT_THAT(file->ranges(), ElementsAre(FileRange(0, mFileContent.size())));
+}
+
+#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 TEST_F(FileServiceTests, read_large_succeeds)
 {
