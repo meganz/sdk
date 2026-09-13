@@ -741,7 +741,8 @@ public:
      * everything went well.
      *
      * @param errorHandler a function to be called if something went wrong while opening the db
-     * @return true if we ended up with an opened database, false otherwise
+     * @return true if the database already exists on disk or was successfully opened.
+     * Check statecachetable to determine whether opening succeeded.
      */
     bool openOrCreateDb(DBErrorCallback&& errorHandler);
 
