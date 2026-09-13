@@ -35450,8 +35450,6 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl* megaApi,
 #ifdef ENABLE_EVT_TLS
     this->certificatepath = certificatepath;
     this->keypath = keypath;
-    this->closing = false;
-    this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
 #endif
     fsAccess = mega::createFSA();
