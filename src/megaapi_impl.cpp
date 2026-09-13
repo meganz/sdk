@@ -35951,25 +35951,21 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         return;
     }
 
-    // Create an object to save context information
-    auto tcpctx = ((MegaTCPServer*)server_handle->data)->initializeContext(server_handle);
-
-    LOG_debug << "Connection received at port " << tcpctx->server->port << " ! " << tcpctx->server->connections.size();
-
-    // Async handle to perform writes
-    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
-
-    // Accept the connection
-    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
-    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
+    auto tcpctx = ((MegaTCPServer*)server_handle->data)->acceptIncomingConnection(server_handle);
+    if (!tcpctx)
     {
-        LOG_err << "uv_accept failed";
-        onClose((uv_handle_t*)&tcpctx->tcphandle);
         return;
     }
 
     tcpctx->evt_tls = evt_ctx_get_tls(&tcpctx->server->evtctx);
-    assert(tcpctx->evt_tls != NULL);
+    if (!tcpctx->evt_tls)
+    {
+        // Out of memory, or the SSL object or its BIO pair could not be created
+        LOG_err << "Could not create the TLS session for the new connection";
+        closeTCPConnection(tcpctx.get());
+        return;
+    }
+
     tcpctx->evt_tls->data = tcpctx.get();
     if (evt_tls_accept(tcpctx->evt_tls, on_hd_complete))
     {
@@ -35977,8 +35973,6 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
         return;
     }
-
-    tcpctx->server->connections.add(tcpctx);
 
     tcpctx->server->readData(tcpctx.get());
 }
@@ -36000,6 +35994,57 @@ void MegaTCPServer::readData(MegaTCPContext* tcpctx)
 #endif
 }
 
+MegaTCPContextPtr MegaTCPServer::acceptIncomingConnection(uv_stream_t* server_handle)
+{
+    // Create an object to save context information
+    auto tcpctx = initializeContext(server_handle);
+
+    LOG_debug << "Connection received at port " << tcpctx->server->port << "! "
+              << tcpctx->server->connections.size() << " tcpctx = " << tcpctx.get();
+
+    // Take ownership before registering any libuv handle, so the asynchronous
+    // close callbacks can always find and keep the context alive on teardown
+    if (!tcpctx->server->connections.add(tcpctx))
+    {
+        assert(false);
+        LOG_err << "Adding tcpctx to connections failed";
+        return nullptr;
+    }
+
+    // These initialisations cannot fail on an already running loop. The loop
+    // async watcher was created at server start up so uv_async_init does not
+    // allocate anything here, and a tcp handle created with AF_UNSPEC does not
+    // allocate a socket. Tearing down a handle that was never initialised would
+    // be undefined behaviour, so assert rather than run the close machinery
+    [[maybe_unused]] const int asyncInitResult =
+        uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
+    assert(asyncInitResult == 0);
+
+    [[maybe_unused]] const int tcpInitResult =
+        uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
+    assert(tcpInitResult == 0);
+
+    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
+    {
+        LOG_err << "uv_accept failed";
+        closeTCPConnection(tcpctx.get());
+        return nullptr;
+    }
+
+    // The hook runs after uv_accept so that the pending socket is consumed and then closed
+    // like on a real failure, instead of leaving the listening socket unable to accept more
+    bool simulateAcceptFailure = false;
+    DEBUG_TEST_HOOK_TCP_SERVER_SIMULATE_ACCEPT_FAILURE(simulateAcceptFailure);
+    if (simulateAcceptFailure)
+    {
+        LOG_err << "Simulating a failure right after accepting the connection";
+        closeTCPConnection(tcpctx.get());
+        return nullptr;
+    }
+
+    return tcpctx;
+}
+
 void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
     if (status < 0)
@@ -36007,29 +36052,9 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
         return;
     }
 
-    // Create an object to save context information
-    auto tcpctx = ((MegaTCPServer*)server_handle->data)->initializeContext(server_handle);
-
-    LOG_debug << "Connection received at port " << tcpctx->server->port << "! "
-              << tcpctx->server->connections.size() << " tcpctx = " << tcpctx.get();
-
-    // Async handle to perform writes
-    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
-
-    // Accept the connection
-    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
-    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
+    auto tcpctx = ((MegaTCPServer*)server_handle->data)->acceptIncomingConnection(server_handle);
+    if (!tcpctx)
     {
-        LOG_err << "uv_accept failed";
-        onClose((uv_handle_t*)&tcpctx->tcphandle);
-        return;
-    }
-
-    if (!tcpctx->server->connections.add(tcpctx))
-    {
-        assert(false); // Shouldn't happen. It is usually a bug.
-        LOG_err << "Adding tcpctx to connections failed";
-        onClose((uv_handle_t*)&tcpctx->tcphandle);
         return;
     }
 
@@ -36089,7 +36114,9 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
 
 void MegaTCPServer::onClose(uv_handle_t* handle)
 {
-    MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
+    assert(uv_is_closing(handle));
+
+    MegaTCPContext* tcpctx = (MegaTCPContext*)handle->data;
 
     // streaming transfers are automatically stopped when their listener is removed
     tcpctx->megaApi->removeTransferListener(tcpctx);
@@ -36124,9 +36151,15 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
     }
 
     // Now it's safe to release the shared_ptr - this will destroy tcpctx if it's the last reference
-    tcpctx->server->closingConnections.erase(tcpctx);
+    // The server owns every connection from the moment it is accepted, so it must still own this
+    // one here. Otherwise the context was already freed and everything above read freed memory
+    [[maybe_unused]] const bool wasOwnedByServer =
+        tcpctx->server->closingConnections.erase(tcpctx) == 1;
+    assert(wasOwnedByServer);
 
     LOG_debug << "Connection cleanup completed, port = " << port;
+
+    DEBUG_TEST_HOOK_TCP_SERVER_CONNECTION_CLOSED(wasOwnedByServer);
 }
 
 #ifdef ENABLE_EVT_TLS
@@ -41094,22 +41127,27 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
+
+        // The last connection may already be closing, for instance when it could not be set up
+        // after it was accepted. Such a connection can no longer answer, so do not wake it up
+        if (tcpctx->finished)
+        {
+            LOG_verbose << "MegaFTPDataServer::sendData. tcpctx->finished";
+            this->notifyNewConnectionRequired = false;
+            return;
+        }
+
 #ifdef ENABLE_EVT_TLS
         if (tcpctx->evt_tls == NULL)
         {
             LOG_warn << "MegaFTPDataServer::sendData, evt_tls is NULL";
         }
 
-        if (useTLS && (!tcpctx->evt_tls || tcpctx->finished || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
+        if (useTLS && (!tcpctx->evt_tls || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
         {
             if (!tcpctx->evt_tls)
             {
                 LOG_verbose << "MegaFTPDataServer::sendData. no evt_tls";
-            }
-            else if (tcpctx->finished)
-            {
-                LOG_verbose << "MegaFTPDataServer::sendData. tcpctx->finished";
-                this->notifyNewConnectionRequired = false;
             }
             else
             {

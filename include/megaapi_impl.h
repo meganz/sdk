@@ -6187,6 +6187,10 @@ protected:
     static void closeConnection(MegaTCPContext *tcpctx);
     static void closeTCPConnection(MegaTCPContext *tcpctx);
 
+    // Accepts a new client connection, registers it in the pool and wires up its
+    // libuv handles. Returns nullptr when the connection could not be set up
+    MegaTCPContextPtr acceptIncomingConnection(uv_stream_t* server_handle);
+
     void run();
 
     void answer(MegaTCPContext* tcpctx, const char *rsp, size_t rlen);

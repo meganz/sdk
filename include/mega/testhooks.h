@@ -898,6 +898,16 @@ namespace mega {
         std::function<void(NodeHandle handle, std::uint64_t length, std::uint64_t offset)>
             onPartialDownload;
 
+        // Make the setup of a connection that the local TCP server (HTTP, FTP, WebDAV) has just
+        // accepted fail, so the teardown of a connection that never served a request can be
+        // tested. Returns true to make the server drop the connection.
+        std::function<bool()> onTcpServerSimulateAcceptFailure;
+
+        // Called when a local TCP server connection has finished its asynchronous close. The
+        // argument tells whether the server still owned the connection at that point, which is
+        // the invariant that keeps the context alive while its close callbacks are pending.
+        std::function<void(bool wasOwnedByServer)> onTcpServerConnectionClosed;
+
     private:
         // Helper used by the move ctor/op=; callers MUST already hold the relevant mutex(es).
         // Must mention EVERY field above — missing one leaks on reset.
@@ -967,6 +977,8 @@ namespace mega {
             onFolderUploadSimulateMissing = std::move(other.onFolderUploadSimulateMissing);
             onRaidReadaheadAllocFailure = std::move(other.onRaidReadaheadAllocFailure);
             onPartialDownload = std::move(other.onPartialDownload);
+            onTcpServerSimulateAcceptFailure = std::move(other.onTcpServerSimulateAcceptFailure);
+            onTcpServerConnectionClosed = std::move(other.onTcpServerConnectionClosed);
         }
     };
 
@@ -1646,6 +1658,32 @@ namespace mega {
                 _fn((H), (L), (O)); \
         } \
         while (0)
+
+#define DEBUG_TEST_HOOK_TCP_SERVER_SIMULATE_ACCEPT_FAILURE(OUT_FAIL) \
+        do \
+        { \
+            std::function<bool()> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onTcpServerSimulateAcceptFailure; \
+            } \
+            if (_fn) \
+                (OUT_FAIL) = _fn(); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_TCP_SERVER_CONNECTION_CLOSED(WASOWNED) \
+        do \
+        { \
+            std::function<void(bool)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onTcpServerConnectionClosed; \
+            } \
+            if (_fn) \
+                _fn((WASOWNED)); \
+        } \
+        while (0)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -1704,6 +1742,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT)
 #define DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(PART, LEN, OUT_FAIL_ALLOC)
 #define DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(H, L, O)
+#define DEBUG_TEST_HOOK_TCP_SERVER_SIMULATE_ACCEPT_FAILURE(OUT_FAIL)
+#define DEBUG_TEST_HOOK_TCP_SERVER_CONNECTION_CLOSED(WASOWNED)
 #endif
 
 } // namespace
