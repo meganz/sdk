@@ -14944,6 +14944,15 @@ error MegaClient::exportnode(
     int tag,
     std::function<void(Error, handle, handle, string&& encryptionKey)> completion)
 {
+    // A writable link is backed by a share, and only folders get one. Requesting one for a file
+    // makes the API answer the 'l' command with an error in the 'w' field. Checked before the
+    // cached-link shortcut below, so a bad auth key stored by an older build is not replayed.
+    if (writable && n->type == FILENODE)
+    {
+        LOG_err << "Writable public links are only supported for folders";
+        return API_EARGS;
+    }
+
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
             && ( (writable && n->plink->mAuthKey.size()) || (!writable && !n->plink->mAuthKey.size()) )

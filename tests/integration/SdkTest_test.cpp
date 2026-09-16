@@ -4396,11 +4396,14 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // create on existing node, no link yet
     ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
-    // create on existing node, with link already  (different command response)
+    // create on existing node, with link already: served from the cached link, no request sent
     ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on non existent node
     ASSERT_EQ(API_EARGS, doExportNode(0, nullptr, 0, false, false));
+
+    // writable link on a file: a writable link is backed by a share, so it is folder-only
+    ASSERT_EQ(API_EARGS, doExportNode(0, n2.get(), 0, true /*writable*/, false));
 }
 
 
@@ -5967,6 +5970,56 @@ TEST_F(SdkTest, LoginToWritableFolderThenCreateSubfolder)
     userAlerts.reset(megaApi[guestIdx]->getUserAlerts());
     ASSERT_TRUE(userAlerts);
     ASSERT_EQ(userAlerts->size(), 0);
+}
+
+/**
+ * @brief TEST_F SdkTest.SdkTestWritableLinkForFileIsRejected
+ *
+ * - Login 1 account and upload a file
+ * - Ask for a writable link on the file: must fail, and must leave no auth key behind
+ * - Ask for a plain link on the same file: must still work, and must have no auth key
+ *
+ * A writable link is backed by a share and only folders get one, so requesting one for a file
+ * made the API answer with an error code in the 'w' field, which was then stored and reported as
+ * if it were the auth key. The API sends that field for a plain file link as well ("w":"-11"),
+ * which is what the last assertion covers.
+ */
+TEST_F(SdkTest, SdkTestWritableLinkForFileIsRejected)
+{
+    LOG_info << "___TEST WritableLinkForFileIsRejected___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+
+    MegaHandle fileHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            PUBLICFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << PUBLICFILE;
+
+    std::unique_ptr<MegaNode> fileNode{megaApi[0]->getNodeByHandle(fileHandle)};
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+
+    RequestTracker rt(megaApi[0].get());
+    megaApi[0]->exportNode(fileNode.get(), 0, true /*writable*/, false /*megaHosted*/, &rt);
+    ASSERT_EQ(API_EARGS, rt.waitForResult()) << "Writable link accepted for a file node";
+    ASSERT_EQ(nullptr, rt.request->getPrivateKey()) << "Auth key reported for a file node";
+
+    // a plain link on the same file still works, and carries no auth key
+    ASSERT_EQ(API_OK, doExportNode(0, fileNode.get(), 0, false, false));
+    fileNode.reset(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    ASSERT_TRUE(fileNode->isExported());
+    ASSERT_EQ(nullptr, fileNode->getWritableLinkAuthKey()) << "Auth key stored for a file node";
 }
 
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
