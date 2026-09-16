@@ -4597,7 +4597,10 @@ void MegaClient::dispatchTransfers()
                 {
                     (*it)->prepare(*fsaccess);
                 }
-                assert(nexttransfer->localfilename.isAbsolute());
+                // URI paths (Android SAF content://) are a supported local-file state:
+                // isAbsolute() is false for them, so assert the usability predicate
+                // instead (SDK-5360).
+                assert(isUsableLocalFilePath(nexttransfer->localfilename));
 
                 // app-side transfer preparations (populate localname, create thumbnail...)
                 app->transfer_prepare(nexttransfer);
@@ -19236,7 +19239,9 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 // (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause, int tag, m_off_t availableDiskSpace)
 {
-    assert(f->getLocalname().isAbsolute());
+    // URI paths (Android SAF content://) are a supported local-file state: isAbsolute() is
+    // false for them, so assert the usability predicate instead (SDK-5360).
+    assert(isUsableLocalFilePath(f->getLocalname()));
     f->mVersioningOption = vo;
 
     // Dummy to avoid checking later.

@@ -1245,6 +1245,13 @@ bool UploadEngine::Impl::getWsUploadStatsForTesting(
         }
     }
 
+    // SDK-5360: client-owned, CLIENT-lifetime high-water marks (they are never reset, but
+    // they die with the MegaClient, so they are not process-wide). They live on MegaClient
+    // (the preflight map and the client-action FIFO are client-side), survive pool
+    // retirement by construction and are therefore assigned, not accumulated.
+    out.preflightRequestsPeak = client.wsPreflightRequestsPeak();
+    out.clientActionQueuePeak = client.wsClientActionsPeak();
+
     return true;
 #else
     return false;
