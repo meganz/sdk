@@ -6655,6 +6655,14 @@ void MegaClient::activatefa()
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
         queueCommand(fa->getURLForFACmd());
     }
+#ifdef MEGA_USE_WSUPLOAD
+    // queuedfa changed (grown by putfa or drained into activefa): publish the WS
+    // start gate now, not at the end of the next client-action drain. With prompt
+    // starts (bounded preflight lookahead) a stale-open snapshot lets the pools start
+    // hundreds of small files in one exec cycle and overshoot MAXQUEUEDFA by an order
+    // of magnitude, which then closes the gate for seconds while the backlog drains.
+    wsRefreshCanStartAnotherFileSnapshot();
+#endif
 }
 
 // has the limit of concurrent transfer tslots been reached?
