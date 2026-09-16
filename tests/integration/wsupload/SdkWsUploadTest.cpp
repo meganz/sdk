@@ -7305,6 +7305,15 @@ TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
         std::future_status::ready;
 
     ::mega::ws::UploadEngine::WsUploadStatsForTesting stats{};
+    cancelToken->cancel();
+    const auto folderResult = folderTracker.waitForResult(kFolderResultTimeoutS);
+    EXPECT_TRUE(folderResult == API_OK || folderResult == API_EINCOMPLETE)
+        << "Unexpected folder transfer result after cancel: " << folderResult;
+
+    // Read the peaks only after the folder upload has been cancelled and has settled: the
+    // stats snapshot folds per-connection counters that the WS workers write without
+    // synchronisation while sending (test-hook reader; TSAN flags it mid-upload). The two
+    // peaks are monotone, so reading them after quiescing gives the same values.
     const bool gotStats = fetchWsUploadStatsForTesting(*megaApi[0], stats, 30) && stats.found;
 
     // Peaks are monotone per client, so `after >= before` always holds and the delta is the
@@ -7333,11 +7342,6 @@ TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
         << stats.preflightRequestsPeak << " vs " << preflightPeakBefore
         << " before, clientActionQueuePeak delta=" << clientActionPeakDelta
         << ", poolCount=" << stats.poolCount << ")";
-
-    cancelToken->cancel();
-    const auto folderResult = folderTracker.waitForResult(kFolderResultTimeoutS);
-    EXPECT_TRUE(folderResult == API_OK || folderResult == API_EINCOMPLETE)
-        << "Unexpected folder transfer result after cancel: " << folderResult;
 
     std::unique_ptr<MegaNode> remoteFolder{
         megaApi[0]->getChildNode(rootnode.get(), folderName.c_str())};
