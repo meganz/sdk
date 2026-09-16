@@ -64,11 +64,8 @@ AXES: List[Tuple[str, str, bool, str]] = [
     ("throttle_event6_total_ms", "throttle event=6 total ms", False, "throttle"),
     ("chunk_ms_median", "chunk ms median", False, "chunk"),
     ("chunk_ms_p95", "chunk ms p95", False, "chunk"),
-    # Schema-3 axes (SDK-5360 followup9.1). Only SdkBenchmarkTest.QaNestedFolderUpload
-    # measures them; every other cell writes the 0 "not measured by this cell" default
-    # and rows written before schema 3 carry no key at all (compare_axis() then reports
-    # an explicit "axis missing" reason instead of a TBD). NOT primary axes, so an old
-    # baseline JSONL never blocks the HR53 no-TBD close-gate on their account.
+    # Schema-3 axes (SDK-5360): only QaNestedFolderUpload measures them, other cells
+    # write 0 and pre-schema-3 rows have no key. Not primary, so they never gate.
     ("first_progress_after_stage_ms", "stage -> first subtransfer progress ms", False, "latency"),
     ("first_finish_after_stage_ms", "stage -> first subtransfer finish ms", False, "latency"),
     ("preflight_peak", "outstanding preflight requests peak", False, "preflight"),

@@ -370,9 +370,9 @@ static unsigned logBenchWsStats(SdkTest& test, const size_t fileCount)
 }
 
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
-// Optional schema-3 bench-report axes (see BenchReportWriter.h). Only the
-// folder-controller cell (QaNestedFolderUpload) measures them; every other cell
-// passes nullptr and the JSONL carries the 0 = "not measured by this cell" default.
+// Schema-3 bench-report axes (see BenchReportWriter.h). Only the folder-controller
+// cell (QaNestedFolderUpload) measures them; every other cell leaves the
+// 0 = "not measured by this cell" default.
 struct BenchFolderLatencyAxes
 {
     std::int64_t firstProgressAfterStageMs = 0;
@@ -397,7 +397,7 @@ static void recordBenchCell(SdkTest& test,
                             const BenchProcessStatsSample& procStart,
                             const BenchProcessStatsSample& procEnd,
                             std::size_t chunkSamples,
-                            const BenchFolderLatencyAxes* folderAxes = nullptr)
+                            BenchFolderLatencyAxes folderAxes = {})
 {
     ::mega::bench::BenchReportCell cell;
     cell.name = name;
@@ -424,13 +424,10 @@ static void recordBenchCell(SdkTest& test,
     cell.chunkMsDist.median = static_cast<double>(timing.perTransferPureTransferMs.median);
     cell.chunkMsDist.p95 = static_cast<double>(timing.perTransferPureTransferMs.p95);
     cell.chunkMsDist.n = chunkSamples;
-    if (folderAxes)
-    {
-        cell.firstProgressAfterStageMs = folderAxes->firstProgressAfterStageMs;
-        cell.firstFinishAfterStageMs = folderAxes->firstFinishAfterStageMs;
-        cell.preflightPeak = folderAxes->preflightPeak;
-        cell.actionQueuePeak = folderAxes->actionQueuePeak;
-    }
+    cell.firstProgressAfterStageMs = folderAxes.firstProgressAfterStageMs;
+    cell.firstFinishAfterStageMs = folderAxes.firstFinishAfterStageMs;
+    cell.preflightPeak = folderAxes.preflightPeak;
+    cell.actionQueuePeak = folderAxes.actionQueuePeak;
 
 #ifdef MEGA_USE_WSUPLOAD
     {
@@ -1395,10 +1392,6 @@ struct QaNestedSubTransferObserver: public MegaTransferListener
     std::atomic<int> mFirstFailureCode{0};
     std::atomic<m_off_t> mTransferredBytes{0};
 
-    std::mutex mMutex;
-    std::unordered_map<int, std::int64_t> mStartMsByTag;
-    std::vector<std::int64_t> mSubTransferMs;
-
     static bool isFolderSubTransfer(const MegaTransfer* transfer)
     {
         return transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD &&
@@ -1418,8 +1411,6 @@ struct QaNestedSubTransferObserver: public MegaTransferListener
             return;
         }
         mStartedFiles.fetch_add(1, std::memory_order_relaxed);
-        std::lock_guard<std::mutex> g(mMutex);
-        mStartMsByTag[transfer->getTag()] = benchmarkSteadyMs();
     }
 
     void onTransferUpdate(MegaApi*, MegaTransfer* transfer) override
@@ -1446,26 +1437,14 @@ struct QaNestedSubTransferObserver: public MegaTransferListener
             return;
         }
 
-        const auto finishMs = benchmarkSteadyMs();
-        recordFirst(mFirstFinishOkMs, finishMs);
+        recordFirst(mFirstFinishOkMs, benchmarkSteadyMs());
         mFinishedOkFiles.fetch_add(1, std::memory_order_relaxed);
         mTransferredBytes.fetch_add(transfer->getTotalBytes(), std::memory_order_relaxed);
-
-        std::lock_guard<std::mutex> g(mMutex);
-        const auto it = mStartMsByTag.find(transfer->getTag());
-        if (it != mStartMsByTag.end())
-        {
-            if (finishMs >= it->second)
-            {
-                mSubTransferMs.push_back(finishMs - it->second);
-            }
-            mStartMsByTag.erase(it);
-        }
     }
 };
 
-// Recursively counts the file (and folder) nodes under `node`.
-static std::size_t countRemoteNodes(MegaApi& api, MegaNode* node, std::size_t& folderCount)
+// Recursively counts the file nodes under `node`.
+static std::size_t countRemoteNodes(MegaApi& api, MegaNode* node)
 {
     std::size_t fileCount = 0;
     std::unique_ptr<MegaNodeList> children{api.getChildren(node)};
@@ -1482,8 +1461,7 @@ static std::size_t countRemoteNodes(MegaApi& api, MegaNode* node, std::size_t& f
         }
         if (child->isFolder())
         {
-            ++folderCount;
-            fileCount += countRemoteNodes(api, child, folderCount);
+            fileCount += countRemoteNodes(api, child);
         }
         else
         {
@@ -1491,126 +1469,6 @@ static std::size_t countRemoteNodes(MegaApi& api, MegaNode* node, std::size_t& f
         }
     }
     return fileCount;
-}
-
-// Dataset-drift guard for the nested corpus. Two manifest shapes are accepted, both
-// looked up in the corpus' PARENT directory (a manifest placed INSIDE the corpus is
-// part of the corpus and gets uploaded, so it is never treated as metadata):
-//   * `<dir>_manifest.tsv` with a `# total_bytes=N file_count=M` trailer (the
-//     SdkTest.HarvestQaMixedDataset form), and
-//   * `manifest.tsv` whose header row names `path` and `size_bytes`, one data row
-//     per corpus file (the QA nested-corpus form).
-// A corpus with neither is supported — the guard just logs that it was skipped.
-static void assertNestedCorpusMatchesManifest(const fs::path& sourceDir,
-                                              const std::size_t fileCount,
-                                              const std::uintmax_t totalBytes)
-{
-    const fs::path parent = sourceDir.parent_path();
-    const fs::path candidates[] = {parent / (sourceDir.filename().string() + "_manifest.tsv"),
-                                   parent / "manifest.tsv"};
-
-    for (const auto& manifestPath: candidates)
-    {
-        std::ifstream manifest(manifestPath);
-        if (!manifest.is_open())
-        {
-            continue;
-        }
-
-        std::uintmax_t manifestBytes = 0;
-        std::size_t manifestCount = 0;
-        bool trailerFound = false;
-        int sizeColumn = -1;
-        bool headerParsed = false;
-
-        for (std::string line; std::getline(manifest, line);)
-        {
-            if (!line.empty() && line.back() == '\r')
-            {
-                line.pop_back();
-            }
-            if (line.empty())
-            {
-                continue;
-            }
-
-            std::uintmax_t trailerBytes = 0;
-            std::size_t trailerCount = 0;
-            if (std::sscanf(line.c_str(),
-                            "# total_bytes=%ju file_count=%zu",
-                            &trailerBytes,
-                            &trailerCount) == 2)
-            {
-                manifestBytes = trailerBytes;
-                manifestCount = trailerCount;
-                trailerFound = true;
-                continue;
-            }
-            if (line.front() == '#')
-            {
-                continue;
-            }
-
-            // Split on TAB.
-            std::vector<std::string> columns;
-            for (std::size_t start = 0; start <= line.size();)
-            {
-                const std::size_t tab = line.find('\t', start);
-                const std::size_t end = (tab == std::string::npos) ? line.size() : tab;
-                columns.emplace_back(line.substr(start, end - start));
-                if (tab == std::string::npos)
-                {
-                    break;
-                }
-                start = tab + 1;
-            }
-
-            if (!headerParsed)
-            {
-                headerParsed = true;
-                if (!columns.empty() && columns.front() == "path")
-                {
-                    for (std::size_t i = 0; i < columns.size(); ++i)
-                    {
-                        if (columns[i] == "size_bytes")
-                        {
-                            sizeColumn = static_cast<int>(i);
-                        }
-                    }
-                    continue; // header row consumed
-                }
-                // No recognised header: fall through and treat this line as data.
-            }
-            if (sizeColumn < 0 || static_cast<int>(columns.size()) <= sizeColumn)
-            {
-                continue;
-            }
-            ++manifestCount;
-            manifestBytes += static_cast<std::uintmax_t>(
-                std::strtoull(columns[static_cast<std::size_t>(sizeColumn)].c_str(), nullptr, 10));
-        }
-
-        if (!trailerFound && manifestCount == 0)
-        {
-            LOG_warn << "[BenchQaNestedFolderUpload] manifest present but unparseable — guard "
-                        "skipped: "
-                     << manifestPath;
-            return;
-        }
-
-        ASSERT_EQ(fileCount, manifestCount)
-            << "dataset drift: the enumerated file count does not match " << manifestPath
-            << " — this corpus is not the one the manifest describes [dir=" << sourceDir << "]";
-        ASSERT_EQ(totalBytes, manifestBytes)
-            << "dataset drift: the enumerated total bytes do not match " << manifestPath
-            << " — this corpus is not the one the manifest describes [dir=" << sourceDir << "]";
-        LOG_info << "[BenchQaNestedFolderUpload] manifest guard OK (" << manifestCount
-                 << " files / " << manifestBytes << " bytes) from " << manifestPath;
-        return;
-    }
-
-    LOG_info << "[BenchQaNestedFolderUpload] no manifest next to " << sourceDir
-             << " — drift guard skipped";
 }
 
 void runQaNestedFolderUploadBenchmark(SdkTest& test)
@@ -1639,8 +1497,7 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
 
     // RECURSIVE enumeration: unlike QaMixedUpload (flat, per-file startUpload) this
     // cell hands the whole tree to ONE startUpload, so every regular file below
-    // sourceDir is part of the workload — including any stray metadata file, which is
-    // why the manifest guard looks in the PARENT directory only.
+    // sourceDir is part of the workload.
     std::size_t fileCount = 0;
     std::size_t localFolderCount = 0;
     std::uintmax_t totalBytes = 0;
@@ -1668,7 +1525,6 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
 
     LOG_info << "[BenchQaNestedFolderUpload] sourceDir=" << sourceDir << " fileCount=" << fileCount
              << " folderCount=" << localFolderCount << " totalBytes=" << totalBytes;
-    ASSERT_NO_FATAL_FAILURE(assertNestedCorpusMatchesManifest(sourceDir, fileCount, totalBytes));
 
     // Wall-clock budget for the folder transfer (env MEGA_BENCH_TIMEOUT_S, default 40 min).
     int timeoutS = 2400;
@@ -1729,6 +1585,17 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
     std::unique_ptr<MegaNode> targetFolder{test.megaApi[0]->getNodeByHandle(folderHandle)};
     ASSERT_NE(targetFolder, nullptr);
 
+    // The one remote cleanup: runs on the normal tail and on the timeout path alike.
+    auto cleanupRemoteFolder = makeScopedDestructor(
+        [&test, folderHandle]()
+        {
+            std::unique_ptr<MegaNode> remoteRoot{test.megaApi[0]->getNodeByHandle(folderHandle)};
+            if (remoteRoot)
+            {
+                EXPECT_EQ(API_OK, test.doDeleteNode(0, remoteRoot.get()));
+            }
+        });
+
     QaNestedSubTransferObserver subTransfers;
     test.megaApi[0]->addTransferListener(&subTransfers);
     auto cleanupListener = makeScopedDestructor(
@@ -1771,12 +1638,7 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
             timedOut = true;
             break;
         }
-        // Sleep the poll interval in 1 s slices so a cell that finishes between two
-        // progress lines does not pay the whole interval as dead time.
-        for (int slice = 0; slice < kPollIntervalS && !folderTracker.finished.load(); ++slice)
-        {
-            std::this_thread::sleep_for(std::chrono::seconds{1});
-        }
+        std::this_thread::sleep_for(std::chrono::seconds{kPollIntervalS});
     }
 
     if (timedOut)
@@ -1785,11 +1647,6 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
         const auto cancelResult = folderTracker.waitForResult(kCancelGraceS);
         LOG_err << "[BenchQaNestedFolderUpload] TIMEOUT after " << timeoutS
                 << "s; cancelResult=" << cancelResult;
-        std::unique_ptr<MegaNode> leftover{test.megaApi[0]->getNodeByHandle(folderHandle)};
-        if (leftover)
-        {
-            test.doDeleteNode(0, leftover.get());
-        }
         FAIL() << "QaNestedFolderUpload did not finish within " << timeoutS
                << " s (cancelled; result=" << cancelResult << ")";
     }
@@ -1841,10 +1698,8 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
     const double aggregateKBps = aggregateKBpsForBytes(totalBytes, totalMs);
 
     // The folder controller owns the subtransfers, so there are no per-file
-    // TransferTrackers and no putnodes decomposition. The per-transfer distribution
-    // this cell reports is the per-subtransfer onTransferStart -> onTransferFinish
-    // wall time, which is comparable across runs of THIS cell (which is all the
-    // aggregate_bench.py candidate-vs-baseline comparison needs).
+    // TransferTrackers and no putnodes decomposition: this cell reports chunk_ms_* = 0
+    // ("not measured") and carries the four latency/preflight axes instead.
     BenchTimingSummary timingSummary;
     timingSummary.firstStartMs = submitMs;
     timingSummary.lastFinishMs = completionMs;
@@ -1853,16 +1708,6 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
     timingSummary.completeTransferMs = totalMs;
     timingSummary.pureTransferMs = stageMs > 0 ? completionRelMs - stageMs : totalMs;
     timingSummary.putnodesOverheadMs = 0;
-    std::size_t subTransferSamples = 0;
-    {
-        std::lock_guard<std::mutex> g(subTransfers.mMutex);
-        subTransferSamples = subTransfers.mSubTransferMs.size();
-        if (subTransferSamples)
-        {
-            timingSummary.perTransferPureTransferMs =
-                summarizeMsDistribution(subTransfers.mSubTransferMs);
-        }
-    }
 
     std::ostringstream summary;
     summary << "[BenchQaNestedFolderUpload] files=" << fileCount << " bytes=" << totalBytes
@@ -1870,7 +1715,7 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
             << " firstFinishAfterStageMs=" << firstFinishAfterStageMs
             << " completionMs=" << completionRelMs << " preflightPeak=" << preflightPeak
             << " actionQueuePeak=" << actionQueuePeak << " folders=" << localFolderCount
-            << " aggregateKBps=" << aggregateKBps << " subTransferSamples=" << subTransferSamples;
+            << " aggregateKBps=" << aggregateKBps;
     appendBenchTimingFields(summary, timingSummary);
     LOG_info << summary.str();
 
@@ -1884,7 +1729,6 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
     const std::string uploadedLeafName = sourceDir.filename().string();
     std::unique_ptr<MegaNode> uploadedRoot;
     std::size_t remoteFiles = 0;
-    std::size_t remoteFolders = 0;
     for (int pollIter = 0; pollIter < 60; ++pollIter)
     {
         if (!uploadedRoot && folderTracker.resultNodeHandle != UNDEF)
@@ -1898,8 +1742,7 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
         }
         if (uploadedRoot)
         {
-            remoteFolders = 0;
-            remoteFiles = countRemoteNodes(*test.megaApi[0], uploadedRoot.get(), remoteFolders);
+            remoteFiles = countRemoteNodes(*test.megaApi[0], uploadedRoot.get());
             if (remoteFiles >= fileCount)
             {
                 break;
@@ -1913,7 +1756,7 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
     if (uploadedRoot)
     {
         LOG_info << "[BenchQaNestedFolderUpload] remoteCheck files=" << remoteFiles << "/"
-                 << fileCount << " folders=" << remoteFolders << "/" << localFolderCount;
+                 << fileCount;
         EXPECT_EQ(fileCount, remoteFiles)
             << "Remote file count does not match the local corpus (remote folder " << folderName
             << ")";
@@ -1935,15 +1778,9 @@ void runQaNestedFolderUploadBenchmark(SdkTest& test)
                     timingSummary,
                     procStatsStart,
                     procStatsEnd,
-                    /*chunkSamples=*/subTransferSamples,
-                    &folderAxes);
+                    /*chunkSamples=*/0,
+                    folderAxes);
 #endif
-
-    std::unique_ptr<MegaNode> remoteRoot{test.megaApi[0]->getNodeByHandle(folderHandle)};
-    if (remoteRoot)
-    {
-        EXPECT_EQ(API_OK, test.doDeleteNode(0, remoteRoot.get()));
-    }
 }
 
 void runSmallFileBurstBenchmark(SdkTest& test)

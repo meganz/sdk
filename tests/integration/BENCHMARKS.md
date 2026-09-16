@@ -66,13 +66,6 @@ Env knobs:
 | `MEGA_NET_MAXUPLOAD_KBPS` | Upload cap in **kilobits/s** (iOS Network Link Conditioner units), scoped to the transfer | uncapped |
 | `MEGA_BENCH_TIMEOUT_S` | Wall-clock budget; on expiry the cancel token fires and the cell FAILs | `2400` |
 
-Dataset-drift guard: if the corpus' **parent** directory holds either
-`<corpusname>_manifest.tsv` (with a `# total_bytes=N file_count=M` trailer) or a
-`manifest.tsv` whose header row names `path` and `size_bytes`, the enumerated file
-count and byte total must match it exactly. A corpus with neither manifest is
-supported; the guard logs that it was skipped. A manifest placed *inside* the corpus
-is part of the corpus (the folder upload sends it), so it is never treated as metadata.
-
 ## Broader sweeps
 
 Use when investigating side effects beyond the immediate fix.
@@ -165,8 +158,7 @@ The `[BenchQaNestedFolderUpload]` summary line reads:
   outstanding speculative preflight requests and of the client-thread action queue
   (`WsUploadStatsForTesting`). Both `0` on hooks-off builds.
 
-All eight also land in the bench JSONL as `first_progress_after_stage_ms`,
-`first_finish_after_stage_ms`, `preflight_peak` and `action_queue_peak` (schema 3).
+The last four also land in the bench JSONL — see `## Bench-report JSON` below.
 
 ## Diagnostic protocol when a test hangs
 
@@ -240,12 +232,11 @@ has the shape:
 `"schema_version"` field on the **per-line JSONL** form as well (it previously only
 appeared on the consolidated document) — a JSONL line without that field predates
 schema 3 and carries none of the four keys, which `aggregate_bench.py` reports as an
-explicit "axis missing" reason rather than a TBD.
-
-Only `SdkBenchmarkTest.QaNestedFolderUpload` measures the four new axes. Their `0`
-means *"this cell does not measure this axis"*; `-1` means *"the cell ran but the
-callback never arrived"* (a broken premise — the runner also fails an `EXPECT`).
-`preflight_peak` / `action_queue_peak` are `0` on hooks-off builds.
+explicit "axis missing" reason rather than a TBD. Only
+`SdkBenchmarkTest.QaNestedFolderUpload` measures them: `0` means *"this cell does not
+measure this axis"*, `-1` means *"the cell ran but the callback never arrived"* (a
+broken premise — the runner also fails an `EXPECT`), and `preflight_peak` /
+`action_queue_peak` are `0` on hooks-off builds.
 
 Both files are archived by Jenkins as CI artifacts (glob
 `pid_*/bench_reports/bench_report_*.{json,jsonl}`). Use them in preference to

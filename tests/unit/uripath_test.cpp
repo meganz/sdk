@@ -247,70 +247,45 @@ TEST(UriPathTest, trimNonDriveTrailingSeparatorOnSafUriForms)
 }
 
 /**
- * Premise guard for the WS-upload preflight path check (SDK-5360).
+ * Premise + contract of the WS-upload preflight path check (SDK-5360).
  *
- * MegaClient::prepareUploadForWs gates the preflight on LocalPath::isAbsolute(). A SAF
- * URI kept by the Android folder scan is a usable local file path, yet isAbsolute() is
- * false for it because URIs carry PathType::URI_PATH, not ABSOLUTE_PATH. This test pins
- * that asymmetry: it is the reason the check must be isAbsolute() || isURI(). It stays
- * GREEN before and after the fix — turning RED would mean the premise no longer holds.
- */
-TEST(UriPathTest, UriLocalPathIsNotAbsoluteButIsUri)
-{
-    static const std::string uri{auxUriBase + "/document/primary%3ADocuments%2Ffile.txt"};
-    ASSERT_TRUE(LocalPath::isURIPath(uri)) << uri;
-
-    const auto uriPath = LocalPath::fromAbsolutePath(uri);
-    EXPECT_FALSE(uriPath.empty()) << uri;
-    EXPECT_FALSE(uriPath.isAbsolute()) << uri;
-    EXPECT_TRUE(uriPath.isURI()) << uri;
-    EXPECT_EQ(uriPath.toPath(false), uri);
-
-    // Control: a conventional absolute path takes the other branch of the same factory.
-#ifdef WIN32
-    static const std::string absolute{rootDrive + "\\" + auxUriLeaf1 + "\\" + auxUriLeaf2};
-#else
-    static const std::string absolute{pathSep + auxUriLeaf1 + pathSep + auxUriLeaf2};
-#endif
-    const auto absolutePath = LocalPath::fromAbsolutePath(absolute);
-    EXPECT_FALSE(absolutePath.empty()) << absolute;
-    EXPECT_TRUE(absolutePath.isAbsolute()) << absolute;
-    EXPECT_FALSE(absolutePath.isURI()) << absolute;
-}
-
-/**
- * Contract of the shared predicate the WS-upload preflight now uses (SDK-5360, Hunk 2).
- *
- * `isUsableLocalFilePath` is the one place that spells out "a path the filesystem layer
- * can open": non-empty AND (absolute OR URI). It must accept a SAF `content://` URI --
- * the case the old `!isAbsolute()` gate rejected -- and keep rejecting an empty path and
- * a relative one, because those are the inputs for which the preflight must fail the
- * transfer instead of deferring it forever.
+ * A SAF URI kept by the Android folder scan is a usable local file path, yet
+ * LocalPath::isAbsolute() is false for it (URIs carry PathType::URI_PATH, not
+ * ABSOLUTE_PATH). That asymmetry is why the preflight gate is `isUsableLocalFilePath`
+ * -- non-empty AND (absolute OR URI): it must accept the URI the old `isAbsolute()`
+ * gate rejected, and keep rejecting an empty or a relative path, because those are the
+ * inputs for which the preflight must fail the transfer instead of deferring it forever.
  */
 TEST(UriPathTest, WsPreflightPredicateAcceptsUriAndAbsolutePaths)
 {
     static const std::string uri{auxUriBase + "/document/primary%3ADocuments%2Ffile.txt"};
     ASSERT_TRUE(LocalPath::isURIPath(uri)) << uri;
 
-    const auto uriPath = LocalPath::fromAbsolutePath(uri);
-    ASSERT_TRUE(uriPath.isURI()) << uri;
-    ASSERT_FALSE(uriPath.isAbsolute()) << uri;
-    EXPECT_TRUE(isUsableLocalFilePath(uriPath)) << uri;
-
 #ifdef WIN32
     static const std::string absolute{rootDrive + "\\" + auxUriLeaf1 + "\\" + auxUriLeaf2};
 #else
     static const std::string absolute{pathSep + auxUriLeaf1 + pathSep + auxUriLeaf2};
 #endif
+
+    const auto uriPath = LocalPath::fromAbsolutePath(uri);
     const auto absolutePath = LocalPath::fromAbsolutePath(absolute);
-    ASSERT_TRUE(absolutePath.isAbsolute()) << absolute;
-    EXPECT_TRUE(isUsableLocalFilePath(absolutePath)) << absolute;
-
-    EXPECT_FALSE(isUsableLocalFilePath(LocalPath{}));
-
     const auto relativePath = LocalPath::fromRelativePath("b.txt");
-    ASSERT_FALSE(relativePath.empty());
-    ASSERT_FALSE(relativePath.isAbsolute());
-    ASSERT_FALSE(relativePath.isURI());
+
+    // The premise: the same factory routes a URI to the URI branch, where isAbsolute()
+    // is false. Turning RED here would mean the gate no longer needs the || isURI().
+    EXPECT_FALSE(uriPath.empty()) << uri;
+    EXPECT_FALSE(uriPath.isAbsolute()) << uri;
+    EXPECT_TRUE(uriPath.isURI()) << uri;
+    EXPECT_EQ(uriPath.toPath(false), uri);
+    EXPECT_TRUE(absolutePath.isAbsolute()) << absolute;
+    EXPECT_FALSE(absolutePath.isURI()) << absolute;
+    EXPECT_FALSE(relativePath.empty());
+    EXPECT_FALSE(relativePath.isAbsolute());
+    EXPECT_FALSE(relativePath.isURI());
+
+    // The predicate itself.
+    EXPECT_TRUE(isUsableLocalFilePath(uriPath)) << uri;
+    EXPECT_TRUE(isUsableLocalFilePath(absolutePath)) << absolute;
+    EXPECT_FALSE(isUsableLocalFilePath(LocalPath{}));
     EXPECT_FALSE(isUsableLocalFilePath(relativePath));
 }

@@ -35,7 +35,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <fstream>
 #include <future>
 #include <memory>
 #include <optional>
@@ -44,7 +43,6 @@
 #include <string>
 #include <system_error>
 #include <thread>
-#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -7172,13 +7170,8 @@ TEST_F(SdkWsUploadTest, CensusPurgeTruncatedNodes)
     }
 }
 
-/**
- * @brief Listener that resolves a promise on the FIRST finished FILE subtransfer.
- *
- * Per-file outcomes of a folder transfer never reach the folder transfer's own listener,
- * only listeners registered with MegaApi::addTransferListener/addListener — hence this
- * separate listener next to the folder transfer's TransferTracker.
- */
+// Resolves a promise on the FIRST finished FILE subtransfer. Per-file outcomes reach
+// only listeners registered with addTransferListener, never the folder's own listener.
 struct FirstFolderSubTransferFinish: public ::mega::MegaTransferListener
 {
     std::promise<void> firstFinish;
@@ -7205,22 +7198,12 @@ struct FirstFolderSubTransferFinish: public ::mega::MegaTransferListener
 /**
  * @brief The preflight fan-out of a recursive folder upload must stay bounded (SDK-5360).
  *
- * A folder upload submits all N subtransfers in one go, and WsPool::findPreflightReadyCandidate
- * posts a client-thread preflight action for EVERY not-yet-Ready candidate it scans. The
- * preflight actions and the app-visible onStart/onProgress actions share one strictly ordered
- * client-action FIFO, so N queued preflights must all drain before the app sees the first
- * transfer start — on the QA corpus (4,861 files) that is ~50 s of apparent freeze.
- *
- * The cell measures the backlog instead of timing it: upload one folder whose files are spread
- * over THREE size classes (300 x ~100 B, 60 x ~300 KiB, 30 x ~2 MiB, ~78 MB in total), so at
- * least two size-class pools scan concurrently and the bound has to hold across pools, not just
- * for a single one. It waits until the first FILE subtransfer has finished (by then the engine
- * has scanned the list many times) and reads the two high-water marks.
- *
- * The marks are client-lifetime and monotone (never reset), and this fixture may share the
- * client with earlier cells, so the assertion is on the DELTA against a snapshot taken before
- * the upload starts. Bounded scanning keeps the outstanding preflight count in the order of the
- * pool/connection count; unbounded scanning makes it grow with the file count.
+ * A folder upload submits all N subtransfers at once and WsPool::findPreflightReadyCandidate
+ * posts a preflight action for every not-yet-Ready candidate it scans, onto the same strictly
+ * ordered client-action FIFO the app-visible onStart/onProgress callbacks use — so an
+ * unbounded fan-out delays the first visible progress by the whole backlog (~50 s on the
+ * 4,861-file QA corpus). Size-mixed corpus so at least two size-class pools scan at once; the
+ * peaks are client-lifetime and monotone, hence the assertion on the DELTA.
  */
 TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
 {
@@ -7274,46 +7257,26 @@ TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
             fs::remove_all(localFolder, removeEc);
         });
 
-    // Distinct content per file: identical fingerprints would let the API clone the first
-    // node instead of running real uploads. The pattern is a cheap deterministic 4 KiB block
-    // seeded per file and repeated — no per-byte RNG, so writing ~78 MB stays fast.
-    auto writeSeededFile =
-        [](const fs::path& filePath, const std::size_t sizeBytes, const int seed) -> bool
+    struct SizeClass
     {
-        std::string block(4096, '\0');
-        for (std::size_t i = 0; i < block.size(); ++i)
-        {
-            block[i] =
-                static_cast<char>((i * 31u + static_cast<std::size_t>(seed) * 2654435761u) & 0xFFu);
-        }
-
-        std::ofstream out(filePath, std::ios::binary | std::ios::trunc);
-        if (!out.is_open())
-        {
-            return false;
-        }
-        for (std::size_t written = 0; written < sizeBytes;)
-        {
-            const std::size_t n = std::min(block.size(), sizeBytes - written);
-            out.write(block.data(), static_cast<std::streamsize>(n));
-            written += n;
-        }
-        out.close();
-        return !out.fail();
+        const char* prefix;
+        int count;
+        std::size_t sizeBytes;
     };
 
-    int seed = 0;
-    const std::array<std::tuple<const char*, int, std::size_t>, 3> corpus{
-        {{"t", kTinyFiles, kTinySize},
-         {"m", kMediumFiles, kMediumSize},
-         {"l", kLargeFiles, kLargeSize}}};
-    for (const auto& [prefix, count, sizeBytes]: corpus)
+    const SizeClass corpus[] = {{"t", kTinyFiles, kTinySize},
+                                {"m", kMediumFiles, kMediumSize},
+                                {"l", kLargeFiles, kLargeSize}};
+    for (const SizeClass& sizeClass: corpus)
     {
-        for (int i = 0; i < count; ++i)
+        for (int i = 0; i < sizeClass.count; ++i)
         {
-            const fs::path filePath = localFolder / (std::string{prefix} + std::to_string(i));
-            ASSERT_TRUE(writeSeededFile(filePath, sizeBytes, ++seed))
-                << "Could not write " << filePath.string();
+            // Each file is filled with its own (unique) name: identical fingerprints would
+            // let the API clone the first node instead of running real uploads.
+            const std::string name = std::string{sizeClass.prefix} + std::to_string(i);
+            ASSERT_TRUE(
+                createFileWithSize(path_u8string(localFolder / name), sizeClass.sizeBytes, name))
+                << "Could not write " << name << " in " << localFolder.string();
         }
     }
 
@@ -7366,12 +7329,10 @@ TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
 
     EXPECT_LE(preflightPeakDelta, kMaxPreflightPeak)
         << "Speculative preflight fan-out is unbounded: " << preflightPeakDelta
-        << " preflight requests were outstanding at once for a " << kFileCount
-        << "-file folder upload (peak " << stats.preflightRequestsPeak << " vs "
-        << preflightPeakBefore << " before, clientActionQueuePeak=" << stats.clientActionQueuePeak
-        << " delta=" << clientActionPeakDelta << ", poolCount=" << stats.poolCount
-        << "). The whole backlog has to drain through the same client-action FIFO before "
-           "the app sees onStart/onProgress.";
+        << " outstanding at once for a " << kFileCount << "-file folder upload (peak "
+        << stats.preflightRequestsPeak << " vs " << preflightPeakBefore
+        << " before, clientActionQueuePeak delta=" << clientActionPeakDelta
+        << ", poolCount=" << stats.poolCount << ")";
 
     cancelToken->cancel();
     const auto folderResult = folderTracker.waitForResult(kFolderResultTimeoutS);
