@@ -53,4 +53,22 @@ void runSmallFileBurstBenchmark(SdkTest& test);
 // generation is reproduced. Honours MEGA_NET_MAXUPLOAD_KBPS + MEGA_BENCH_UPLOAD_CONNECTIONS.
 void runQaMixedUploadBenchmark(SdkTest& test);
 
+// Drives the QA nested-folder reproduction (SDK-5360): ONE
+// MegaApi::startUpload() of the whole directory tree at
+// MEGA_BENCH_UPLOAD_SOURCE_DIR, so the recursive folder controller submits every
+// subtransfer in one go. That is the shape QaMixedUpload's per-file submission
+// loop never produces, and the shape under which the app sees a multi-second gap
+// between "Transferring files" and the first byte of visible progress.
+//
+// Measurement cell — no timing assertions; the gates live in
+// scripts/ci/aggregate_bench.py over n>=3 runs. Beyond the usual
+// duration/throughput/RSS/CPU axes it emits first_progress_after_stage_ms,
+// first_finish_after_stage_ms, preflight_peak and action_queue_peak (schema 3).
+//
+// Skips when MEGA_BENCH_UPLOAD_SOURCE_DIR is unset. Honours
+// MEGA_BENCH_UPLOAD_CONNECTIONS, MEGA_NET_MAXUPLOAD_KBPS (kilobits/s) and
+// MEGA_BENCH_TIMEOUT_S (wall-clock budget, default 2400 s). Emits a greppable
+// [BenchQaNestedFolderUpload] summary line.
+void runQaNestedFolderUploadBenchmark(SdkTest& test);
+
 } // namespace mega::test::benchmark

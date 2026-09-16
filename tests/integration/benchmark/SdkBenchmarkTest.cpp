@@ -87,4 +87,21 @@ TEST_F(SdkBenchmarkTest, QaMixedUpload)
     runQaMixedUploadBenchmark(*this);
 }
 
+/**
+ * @brief Benchmark / QA reproduction: the directory tree at
+ * MEGA_BENCH_UPLOAD_SOURCE_DIR is uploaded by ONE MegaApi::startUpload() of the
+ * folder itself, so the recursive folder controller submits all subtransfers at
+ * once — the submission shape QaMixedUpload's per-file loop never produces, and
+ * the one under which the app sees a long gap between the "Transferring files"
+ * stage and the first visible byte of progress (SDK-5360). Measurement cell: no
+ * timing assertions, the gates live in scripts/ci/aggregate_bench.py over n>=3.
+ * Skips when the dataset dir is unset. Honours MEGA_BENCH_UPLOAD_CONNECTIONS,
+ * MEGA_NET_MAXUPLOAD_KBPS and MEGA_BENCH_TIMEOUT_S. Emits a greppable
+ * [BenchQaNestedFolderUpload] summary line.
+ */
+TEST_F(SdkBenchmarkTest, QaNestedFolderUpload)
+{
+    runQaNestedFolderUploadBenchmark(*this);
+}
+
 } // namespace mega::test::benchmark

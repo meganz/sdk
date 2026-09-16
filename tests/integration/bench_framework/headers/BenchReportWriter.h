@@ -21,6 +21,10 @@
  *   post-process tooling that consumes the consolidated form.
  *
  * Schema (versioned via `schema_version` field) — see BENCHMARKS.md `## Bench-report JSON`.
+ * Version 3 (SDK-5360 followup9.1) added `first_progress_after_stage_ms`,
+ * `first_finish_after_stage_ms`, `preflight_peak` and `action_queue_peak`, and
+ * introduced `schema_version` on the per-line JSONL form (a line WITHOUT the field
+ * predates this change and carries none of the four new keys).
  *
  * Thread-safety: `setReportDir`, `recordCell`, and `flush` are mutex-guarded.
  */
@@ -56,6 +60,23 @@ struct BenchReportCell
     // removes the need for any log-scraping post-step. 0 if unsampled (Windows).
     std::int64_t rssMaxKb = 0;
     BenchSummaryDistribution chunkMsDist;
+    // Folder-transfer latency axes (SDK-5360 QaNestedFolderUpload). Milliseconds
+    // from the folder transfer's STAGE_TRANSFERRING_FILES notification to,
+    // respectively, the first byte of progress reported by ANY file subtransfer
+    // and the first subtransfer to finish with API_OK. They quantify the
+    // app-visible "nothing is happening" window of a recursive folder upload,
+    // which the per-file cells cannot see because they never build a subtransfer
+    // backlog. Convention: 0 = the cell does not measure this axis (every cell
+    // other than QaNestedFolderUpload); -1 = the cell ran but the callback never
+    // arrived (premise broken — the runner also fails an EXPECT).
+    std::int64_t firstProgressAfterStageMs = 0;
+    std::int64_t firstFinishAfterStageMs = 0;
+    // Process-lifetime high-water marks read from
+    // `UploadEngine::WsUploadStatsForTesting` at cell end: outstanding
+    // speculative preflight requests and queued client-thread actions. 0 on
+    // hooks-off builds and on cells that do not sample them.
+    std::int64_t preflightPeak = 0;
+    std::int64_t actionQueuePeak = 0;
     // Per-iter throttle snapshot drained from
     // `UploadEngine::getAndResetBenchThrottleStats()` before each
     // `recordCell()` so iters are independent.

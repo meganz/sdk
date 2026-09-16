@@ -38,8 +38,40 @@ Use for A/B comparison when changing scheduling, preflight, or transfer path.
 | `SdkTest.SdkTestMultipleUploadsExpanded` | One file per USC size class (up to 160 MB each) | ~16–19 s |
 | `SdkTest.SdkTestUploads` | 5 × 160 MB sequential | ~22–28 s |
 | `SdkTest.SdkTestBenchmarkManySmallUploads` | 500 × 1 MiB sequentially queued | TBD (first-run benchmark) |
+| `SdkBenchmarkTest.QaMixedUpload` | Fixed on-disk dataset (`MEGA_BENCH_UPLOAD_SOURCE_DIR`), **one `startUpload` per file** | dataset-dependent |
+| `SdkBenchmarkTest.QaNestedFolderUpload` | The same dataset dir uploaded as **ONE `startUpload(<folder>)`** — recursive folder controller, all subtransfers submitted at once | dataset-dependent |
 
 Per-transfer metrics are logged by `TransferTracker` completion — grep the log for `upload time`, `KB/s`, `mean speed`.
+
+### `SdkBenchmarkTest.QaNestedFolderUpload` (SDK-5360)
+
+The QA reproduction cell. `QaMixedUpload` submits the corpus file by file, which
+throttles arrivals and never builds a subtransfer backlog; `QaNestedFolderUpload`
+hands the whole tree to a single `MegaApi::startUpload()`, so the recursive folder
+controller submits every subtransfer in one go — the only submission shape under
+which the app sees a long gap between the "Transferring files" stage and the first
+byte of visible progress.
+
+**Measurement cell: no timing assertions.** It asserts only structure (the folder
+transfer succeeds, no subtransfer fails, the remote file count matches the local
+corpus). Regression gating is `scripts/ci/aggregate_bench.py` over n≥3 runs
+(cell key `qanested`, axis groups `latency` / `preflight` alongside the usual ones).
+
+Env knobs:
+
+| Env var | Meaning | Default |
+| --- | --- | --- |
+| `MEGA_BENCH_UPLOAD_SOURCE_DIR` | Corpus root; the directory that is uploaded | unset ⇒ `GTEST_SKIP` |
+| `MEGA_BENCH_UPLOAD_CONNECTIONS` | `setMaxConnections` override | SDK default |
+| `MEGA_NET_MAXUPLOAD_KBPS` | Upload cap in **kilobits/s** (iOS Network Link Conditioner units), scoped to the transfer | uncapped |
+| `MEGA_BENCH_TIMEOUT_S` | Wall-clock budget; on expiry the cancel token fires and the cell FAILs | `2400` |
+
+Dataset-drift guard: if the corpus' **parent** directory holds either
+`<corpusname>_manifest.tsv` (with a `# total_bytes=N file_count=M` trailer) or a
+`manifest.tsv` whose header row names `path` and `size_bytes`, the enumerated file
+count and byte total must match it exactly. A corpus with neither manifest is
+supported; the guard logs that it was skipped. A manifest placed *inside* the corpus
+is part of the corpus (the folder upload sends it), so it is never treated as metadata.
 
 ## Broader sweeps
 
@@ -110,7 +142,31 @@ grep 'mMinFileSize=' "$log" | head -5
 
 # Transfer rates
 grep -E 'mean speed|KB/s|upload time' "$log" | head -20
+
+# Folder-upload starvation window (SdkBenchmarkTest.QaNestedFolderUpload)
+grep '\[BenchQaNestedFolderUpload\]' "$log"            # progress lines + final summary
+grep '\[BenchQaNestedFolderUpload\] files=' "$log"     # the one summary line
 ```
+
+The `[BenchQaNestedFolderUpload]` summary line reads:
+
+```
+[BenchQaNestedFolderUpload] files=.. bytes=.. stageMs=.. firstProgressAfterStageMs=.. \
+  firstFinishAfterStageMs=.. completionMs=.. preflightPeak=.. actionQueuePeak=..
+```
+
+- `stageMs` — `startUpload()` → the folder transfer's `STAGE_TRANSFERRING_FILES`
+  notification (scan + remote tree creation).
+- `firstProgressAfterStageMs` — that stage → the first file subtransfer to report
+  `getTransferredBytes() > 0`. **This is the QA-visible freeze.**
+- `firstFinishAfterStageMs` — that stage → the first file subtransfer to finish `API_OK`.
+- `completionMs` — `startUpload()` → the folder transfer's `onTransferFinish`.
+- `preflightPeak` / `actionQueuePeak` — process-lifetime high-water marks of
+  outstanding speculative preflight requests and of the client-thread action queue
+  (`WsUploadStatsForTesting`). Both `0` on hooks-off builds.
+
+All eight also land in the bench JSONL as `first_progress_after_stage_ms`,
+`first_finish_after_stage_ms`, `preflight_peak` and `action_queue_peak` (schema 3).
 
 ## Diagnostic protocol when a test hangs
 
@@ -148,7 +204,7 @@ so far are durable on disk. Consume with `jq -s` or any JSONL reader.
 
 **`bench_report_<PID>.json`** — consolidated array, only written on explicit
 `flush()` at test tear-down. Identical cell schema, wrapped in a top-level
-`{ "schema_version": 2, "session_pid": <PID>, "cells": [ ... ] }` object. Use
+`{ "schema_version": 3, "session_pid": <PID>, "cells": [ ... ] }` object. Use
 this when post-processing tooling expects a single document.
 
 Each cell (whether a JSONL line or an entry in the consolidated `cells` array)
@@ -172,9 +228,24 @@ has the shape:
   "chunk_ms_mean": 47,
   "chunk_ms_median": 42,
   "chunk_ms_p95": 95,
-  "chunk_n": 1024
+  "chunk_n": 1024,
+  "first_progress_after_stage_ms": 0,
+  "first_finish_after_stage_ms": 0,
+  "preflight_peak": 0,
+  "action_queue_peak": 0
 }
 ```
+
+**Schema 3** (SDK-5360 followup9.1) added the last four keys and put a
+`"schema_version"` field on the **per-line JSONL** form as well (it previously only
+appeared on the consolidated document) — a JSONL line without that field predates
+schema 3 and carries none of the four keys, which `aggregate_bench.py` reports as an
+explicit "axis missing" reason rather than a TBD.
+
+Only `SdkBenchmarkTest.QaNestedFolderUpload` measures the four new axes. Their `0`
+means *"this cell does not measure this axis"*; `-1` means *"the cell ran but the
+callback never arrived"* (a broken premise — the runner also fails an `EXPECT`).
+`preflight_peak` / `action_queue_peak` are `0` on hooks-off builds.
 
 Both files are archived by Jenkins as CI artifacts (glob
 `pid_*/bench_reports/bench_report_*.{json,jsonl}`). Use them in preference to
