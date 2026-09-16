@@ -488,7 +488,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaTransferList::copy;
 %newobject mega::MegaNode::copy;
 %newobject mega::MegaNodeList::copy;
-%newobject mega::MegaChildrenList::copy;
 %newobject mega::MegaShare::copy;
 %newobject mega::MegaShareList::copy;
 %newobject mega::MegaUser::copy;
@@ -523,17 +522,12 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaAchievementsDetails::getAwardEmails;
 %newobject mega::MegaTransfer::getPublicMegaNode;
 
-%newobject mega::MegaApi::getBase64PwKey;
-%newobject mega::MegaApi::getStringHash;
 %newobject mega::MegaApi::handleToBase64;
 %newobject mega::MegaApi::userHandleToBase64;
 %newobject mega::MegaApi::dumpSession;
-%newobject mega::MegaApi::dumpXMPPSession;
 %newobject mega::MegaApi::getMyEmail;
 %newobject mega::MegaApi::getMyUserHandle;
 %newobject mega::MegaApi::getMyUser;
-%newobject mega::MegaApi::getMyXMPPJid;
-%newobject mega::MegaApi::getMyFingerprint;
 %newobject mega::MegaApi::exportMasterKey;
 %newobject mega::MegaApi::getTransfers;
 %newobject mega::MegaApi::getTransferByTag;
@@ -567,7 +561,6 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::getCRC;
 %newobject mega::MegaApi::getNodeByCRC;
 %newobject mega::MegaApi::getRootNode;
-%newobject mega::MegaApi::getInboxNode;
 %newobject mega::MegaApi::getRubbishNode;
 %newobject mega::MegaApi::escapeFsIncompatible;
 %newobject mega::MegaApi::unescapeFsIncompatible;
@@ -622,12 +615,61 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaNode::unserialize;
 %newobject mega::MegaNode::getTags;
 %newobject mega::MegaNode::getCustomAttrNames;
-%newobject mega::MegaNode::copy;
 %newobject mega::MegaNode::getPublicNode;
 %newobject mega::MegaNode::getPublicLink;
 %newobject mega::MegaNode::getCreditCardData;
 %newobject mega::MegaNode::getPasswordData;
 %newobject mega::MegaNode::serialize;
+
+%newobject mega::MegaNode::getBase64Key;
+
+%newobject mega::MegaPushNotificationSettings::getGlobalScheduleTimezone;
+
+%newobject mega::MegaSync::getMegaSyncErrorCode;
+
+%newobject mega::MegaBackgroundMediaUpload::encryptFile;
+%newobject mega::MegaBackgroundMediaUpload::getUploadURL;
+%newobject mega::MegaBackgroundMediaUpload::serialize;
+
+%newobject mega::MegaApi::backupIdToBase64;
+%newobject mega::MegaApi::binaryToBase64;
+%newobject mega::MegaApi::smsVerifiedPhoneNumber;
+%newobject mega::MegaApi::getSequenceNumber;
+%newobject mega::MegaApi::getSequenceTag;
+%newobject mega::MegaApi::buildPublicLink;
+%newobject mega::MegaApi::userAttributeToString;
+%newobject mega::MegaApi::userAttributeToLongName;
+%newobject mega::MegaApi::getPrivateKey;
+%newobject mega::MegaApi::generateRandomCharsPassword;
+%newobject mega::MegaApi::exportSyncConfigs;
+%newobject mega::MegaApi::getOperatingSystemVersion;
+%newobject mega::MegaApi::httpServerGetLocalLink;
+%newobject mega::MegaApi::httpServerGetLocalWebDavLink;
+%newobject mega::MegaApi::ftpServerGetLocalLink;
+%newobject mega::MegaApi::getFileAttribute;
+%newobject mega::MegaApi::getPublicLinkForExportedSet;
+%newobject mega::MegaApi::getMountPath;
+
+%newobject mega::MegaAccountBalance::getCurrency;
+
+%newobject mega::MegaAccountSession::getUserAgent;
+%newobject mega::MegaAccountSession::getIP;
+%newobject mega::MegaAccountSession::getCountry;
+%newobject mega::MegaAccountSession::getDeviceId;
+
+%newobject mega::MegaAccountPurchase::getHandle;
+%newobject mega::MegaAccountPurchase::getCurrency;
+
+%newobject mega::MegaAccountTransaction::getHandle;
+%newobject mega::MegaAccountTransaction::getCurrency;
+
+%newobject mega::MegaAccountFeature::getId;
+
+%newobject mega::MegaAccountSubscription::getId;
+%newobject mega::MegaAccountSubscription::getCycle;
+%newobject mega::MegaAccountSubscription::getPaymentMethod;
+
+%newobject mega::MegaAccountPlan::getId;
 
 typedef long long time_t;
 typedef long long uint64_t;
