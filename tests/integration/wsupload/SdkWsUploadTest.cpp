@@ -3782,14 +3782,6 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
         {
             deleteFile(fileName);
         });
-    auto clearWsHooks = makeScopedDestructor(
-        []()
-        {
-            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
-            globalMegaTestHooks.onWsUploadBlockingReadForTesting = {};
-            globalMegaTestHooks.onWsTeardownWorkerChurn = {};
-            globalMegaTestHooks.onWsEngineQuiesceOutcome = {};
-        });
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
@@ -3807,6 +3799,18 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
     // (LocallogoutCancelsBlackholedHandshake asserts the opposite side for handshakes).
     std::atomic<bool> quiesceReported{false};
     std::atomic<bool> quiesced{true};
+
+    // Declared after every local the hooks capture by reference: locals die in reverse order, so
+    // the hooks are cleared before those atomics are destroyed.
+    auto clearWsHooks = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsUploadBlockingReadForTesting = {};
+            globalMegaTestHooks.onWsTeardownWorkerChurn = {};
+            globalMegaTestHooks.onWsEngineQuiesceOutcome = {};
+        });
+
     {
         std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
         globalMegaTestHooks.onWsEngineQuiesceOutcome =
