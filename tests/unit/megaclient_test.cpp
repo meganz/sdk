@@ -1,3 +1,4 @@
+#include "mega/command.h"
 #include "mega/db.h"
 #include "mega/file.h"
 #include "mega/megaapp.h"

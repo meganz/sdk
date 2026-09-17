@@ -400,4 +400,116 @@ TEST(Commands, CommandEnumerateQuotaItems_mobileOfferWithoutCampaignId)
     ASSERT_TRUE(app.capturedOffer.has_value());
     EXPECT_EQ(0u, app.capturedOffer->campaignId);
 }
+
+// Captures the code reported for a transfer quota query.
+class TransferQuotaCapturingApp: public MegaApp
+{
+public:
+    std::optional<int> capturedCode;
+
+    void querytransferquota_result(int code) override
+    {
+        capturedCode = code;
+    }
+};
+
+// Feeds a `qbq` reply to the command and returns the code reported to the app. A positive code
+// arrives as a plain JSON item, anything <= 0 has already been extracted as an error by the
+// framework, which is the outcome the framework reports for those.
+std::optional<int> reportedQuotaCode(const Command::Result& result, const char* item)
+{
+    TransferQuotaCapturingApp app;
+    auto client = mt::makeClient(app);
+
+    CommandQueryTransferQuota command(client.get(), {}, {}, 1024);
+    command.client = client.get();
+
+    JSON json;
+    json.pos = item;
+
+    command.procresult(result, json);
+    return app.capturedCode;
+}
+
+TEST(Commands, CommandQueryTransferQuota_positiveCodeIsAValueNotAnError)
+{
+    // The API answers the pre-warning codes as bare positive numbers, e.g. `[3]`. JSON's numeric
+    // error parser only recognises 0 and negatives, so they reach procresult as a JSON item and
+    // must be reported as-is (2 and 3 are what the app turns into an overquota pre-warning).
+    EXPECT_EQ(std::optional{2}, reportedQuotaCode(Command::Result(Command::CmdItem), "2]"));
+    EXPECT_EQ(std::optional{3}, reportedQuotaCode(Command::Result(Command::CmdItem), "3]"));
+    EXPECT_EQ(std::optional{1}, reportedQuotaCode(Command::Result(Command::CmdItem), "1]"));
+}
+
+TEST(Commands, CommandQueryTransferQuota_zeroAndNegativeAreErrorCodes)
+{
+    EXPECT_EQ(std::optional{0},
+              reportedQuotaCode(Command::Result(Command::CmdError, Error(API_OK)), "]"));
+    EXPECT_EQ(std::optional{API_EOVERQUOTA},
+              reportedQuotaCode(Command::Result(Command::CmdError, Error(API_EOVERQUOTA)), "]"));
+}
+
+TEST(Commands, CommandQueryTransferQuota_unexpectedReplyIsUndetermined)
+{
+    // A reply we cannot read must not be reported as 0, which the app would take for enough quota.
+    EXPECT_EQ(std::optional{API_EINTERNAL},
+              reportedQuotaCode(Command::Result(Command::CmdItem), R"("unexpected"])"));
+}
+
+TEST(Commands, CommandQueryTransferQuota_completionTakesOverFromTheAppCallback)
+{
+    // Queries the SDK issues itself have no MegaRequest, so MegaApiImpl drops whatever arrives
+    // through querytransferquota_result. They pass a completion instead, and it has to be the only
+    // recipient: reporting to both would raise a spurious app-facing result.
+    TransferQuotaCapturingApp app;
+    auto client = mt::makeClient(app);
+
+    std::optional<int> completionCode;
+    CommandQueryTransferQuota command(client.get(),
+                                      {},
+                                      {},
+                                      1024,
+                                      [&completionCode](int code)
+                                      {
+                                          completionCode = code;
+                                      });
+    command.client = client.get();
+
+    JSON json;
+    json.pos = "3]";
+    command.procresult(Command::Result(Command::CmdItem), json);
+
+    EXPECT_EQ(std::optional{3}, completionCode);
+    EXPECT_FALSE(app.capturedCode.has_value()) << "the app-facing callback must stay silent";
+}
+
+TEST(Commands, CommandGetUserQuota_parseFailureStillReportsToCompletion)
+{
+    // A caller that tracks a request in flight relies on being told how it ended, whatever the
+    // outcome. Returning without reporting would leave it waiting for a reply that never comes.
+    MegaApp app;
+    auto client = mt::makeClient(app);
+
+    std::optional<error> completionError;
+    auto details = std::make_shared<AccountDetails>();
+    CommandGetUserQuota command(client.get(),
+                                details,
+                                false, // storage
+                                true, // transfer
+                                false, // pro
+                                -1, // source
+                                [&completionError](std::shared_ptr<AccountDetails>, Error e)
+                                {
+                                    completionError = static_cast<error>(e);
+                                });
+    command.client = client.get();
+
+    JSON json;
+    json.pos = R"("features":1})"; // not the array the parser expects
+
+    EXPECT_FALSE(command.procresult(Command::Result(Command::CmdObject), json));
+    ASSERT_TRUE(completionError.has_value()) << "the completion was never called";
+    EXPECT_EQ(API_EINTERNAL, *completionError);
+}
+
 } // anonymous

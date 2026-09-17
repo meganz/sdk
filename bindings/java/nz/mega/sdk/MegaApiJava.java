@@ -184,6 +184,11 @@ public class MegaApiJava {
     public final static int STORAGE_STATE_CHANGE = MegaApi.STORAGE_STATE_CHANGE;
     public final static int STORAGE_STATE_PAYWALL = MegaApi.STORAGE_STATE_PAYWALL;
 
+    public final static int TRANSFER_QUOTA_STATE_UNKNOWN = MegaApi.TRANSFER_QUOTA_STATE_UNKNOWN;
+    public final static int TRANSFER_QUOTA_STATE_GREEN = MegaApi.TRANSFER_QUOTA_STATE_GREEN;
+    public final static int TRANSFER_QUOTA_STATE_ORANGE = MegaApi.TRANSFER_QUOTA_STATE_ORANGE;
+    public final static int TRANSFER_QUOTA_STATE_RED = MegaApi.TRANSFER_QUOTA_STATE_RED;
+
     public final static int BUSINESS_STATUS_EXPIRED = MegaApi.BUSINESS_STATUS_EXPIRED;
     public final static int BUSINESS_STATUS_INACTIVE = MegaApi.BUSINESS_STATUS_INACTIVE;
     public final static int BUSINESS_STATUS_ACTIVE = MegaApi.BUSINESS_STATUS_ACTIVE;
@@ -5136,6 +5141,73 @@ public class MegaApiJava {
     }
 
     /**
+     * Check if the available transfer quota is enough to transfer some nodes
+     * <p>
+     * For accounts with no fixed transfer allowance (free accounts, and feature-only plans such as
+     * VPN/PWM), whose per-IP quota no usage ratio describes. A PRO account has an allowance
+     * instead, so it should read MegaAccountDetails::getTransferQuotaState, from
+     * MegaApiJava::queryProTransferQuotaStateLite, MegaApiJava::getAccountDetails or
+     * MegaApiJava::getSpecificAccountDetails.
+     * <p>
+     * The nodes are given already split by ownership, as the API takes them: a node obtained from
+     * a public link goes in publicNodes, one of this account in ownNodes. Only file nodes should be
+     * given; the API decides what to make of anything else. Handles are sent as given: the SDK
+     * sees only handles, so it cannot skip a folder or an invalid one on your behalf. The request
+     * fails with MegaError::API_EARGS if both lists are empty or null, and with
+     * MegaError::API_EACCESS on a PRO account.
+     * <p>
+     * Whatever is already downloading or streaming is counted alongside the given nodes, less the
+     * bytes of it already transferred, so the state describes where the account lands once
+     * everything in progress and everything asked about has finished -- not the given nodes in
+     * isolation. Only for accounts without a fixed allowance: on a PRO account the request fails
+     * with MegaError::API_EACCESS, as these nodes say nothing about an allowance -- use
+     * queryProTransferQuotaStateLite there.
+     * <p>
+     * The associated request type with this request is
+     * MegaRequest::TYPE_ESTIMATE_FREE_TRANSFER_QUOTA_STATE <p>
+     * Valid data in the MegaRequest object received in onRequestFinish when the error code is
+     * MegaError::API_OK:
+     * - MegaRequest::getNumber - Transfer quota state, one of TRANSFER_QUOTA_STATE_GREEN (enough
+     *   transfer quota), TRANSFER_QUOTA_STATE_ORANGE (they can be transferred, but little quota
+     *   would be left afterwards), TRANSFER_QUOTA_STATE_RED (not enough quota to transfer them all)
+     *   or TRANSFER_QUOTA_STATE_UNKNOWN
+     *
+     * @param ownNodes    Handles of this account's file nodes to be transferred; may be null
+     * @param publicNodes Handles of file nodes obtained from a public link; may be null
+     * @param listener    MegaRequestListener to track this request
+     */
+    public void estimateFreeTransferQuotaState(MegaHandleList ownNodes, MegaHandleList publicNodes,
+                                               MegaRequestListenerInterface listener) {
+        megaApi.estimateFreeTransferQuotaState(ownNodes, publicNodes,
+                                               createDelegateRequestListener(listener));
+    }
+
+    /**
+     * Get the transfer info of a PRO account, preferring the local cache
+     * <p>
+     * A PRO account's transfer quota traffic light comes from its allowance, cached for 10 minutes
+     * after each time the allowance is fetched. This serves that cached state without contacting
+     * the servers; when nothing has been cached yet, or the cache has aged out, it queries the API
+     * first. So it is cheap only while the cache is warm: the first call after login always
+     * contacts the servers, as does any call more than 10 minutes after the last one.
+     * <p>
+     * Unlike MegaApiJava::getAccountDetails, which always requests fresh data from the servers,
+     * this method serves the local cache when available. <p> This method is only valid for PRO
+     * accounts. For any other account the request fails with MegaError::API_EACCESS. <p> The
+     * associated request type with this request is
+     * MegaRequest::TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE <p> Valid data in the MegaRequest
+     * object received in onRequestFinish when the error code is MegaError::API_OK:
+     * - MegaRequest::getMegaAccountDetails - A MegaAccountDetails with only the transfer fields
+     *   populated (getTransferMax, getTransferUsed, getTransferOwnUsed, getTransferSrvUsed,
+     *   getTransferQuotaState)
+     *
+     * @param listener MegaRequestListener to track this request
+     */
+    public void queryProTransferQuotaStateLite(MegaRequestListenerInterface listener) {
+        megaApi.queryProTransferQuotaStateLite(createDelegateRequestListener(listener));
+    }
+
+    /**
      * Get details about the MEGA account
      * <p>
      * Only basic data will be available. If you need more data (sessions, transactions, purchases),
@@ -6841,6 +6913,62 @@ public class MegaApiJava {
                               boolean startFirst, MegaCancelToken cancelToken, int collisionCheck, int collisionResolution) {
         megaApi.startDownload(node, localPath, fileName, appData, startFirst, cancelToken, collisionCheck, collisionResolution,
                 false);
+    }
+
+    /**
+     * Download a batch of files and/or folders from MEGA as a single operation
+     * <p>
+     * Unlike MegaApiJava::startDownload, which takes one root node, this method takes every root
+     * node the user selected for one download action, each carrying its own destination, custom
+     * local name, app data, start-first and undelete flags. The SDK therefore knows the whole batch
+     * up front: it scans all the roots in one pass and reports the predicted transfer-quota state
+     * for the batch as a whole through MegaTransferListenerInterface::onTransferQuotaState, instead
+     * of once per root as separate MegaApiJava::startDownload calls would. <p> The whole batch is
+     * one MegaTransfer: a single onTransferStart, one cancel token, and one onTransferFinish for
+     * the batch, with the individual files reported as sub-transfers exactly as for a folder
+     * download. App data is per item rather than per batch, so MegaTransfer::getAppData is NULL for
+     * the batch itself and carries the item's value on each sub-transfer. <p> The quota state is
+     * delivered before any file transfer starts, so an app can warn while the bandwidth is still
+     * unspent, at the cost of the download starting a few seconds later on a slow connection. It is
+     * reported at most once per batch, and not at all when there is nothing to describe or the
+     * batch was cancelled while the answer was awaited, so an app waiting on the prediction must
+     * also treat onTransferFinish as a release condition. <p> If the status of the business account
+     * is expired, onTransferFinish will be called with the error code
+     * MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
+     * "Your business account is overdue, please contact your administrator."
+     * <p>
+     * When the batch contains at least one folder, the SDK mutex will be partially locked until
+     * every file in the batch has started. During that period the only safe way to cancel is
+     * MegaCancelToken::cancel(true), which cancels every transfer sharing the token.
+     *
+     * @param items       MegaDownloadItemList with the files and/or folders to download, each with
+     *     its
+     *                    own destination, custom local name, app data, start-first and undelete
+     * flags. Items with a null node are ignored. It MUST NOT be NULL, and the request fails with
+     * MegaError::API_EARGS if it holds no usable node. The list is copied before this method
+     * returns.
+     * @param cancelToken MegaCancelToken to be able to cancel the download process.
+     *                    This param is required to be able to cancel transfers safely.
+     *                    You preserve the ownership of this param, and must keep it alive until
+     *                    onTransferFinish is received for every transfer sharing it.
+     * @param collisionCheck Indicates collision check on same files, valid values are:
+     *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+     *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+     *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+     *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+     *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+     *
+     * @param collisionResolution Indicates how to save same files, valid values are:
+     *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+     *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+     *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
+     * @param listener    MegaTransferListener to track this transfer
+     */
+    public void startDownloadBatch(MegaDownloadItemList items, MegaCancelToken cancelToken,
+                                   int collisionCheck, int collisionResolution,
+                                   MegaTransferListenerInterface listener) {
+        megaApi.startDownloadBatch(items, cancelToken, collisionCheck, collisionResolution,
+                                   createDelegateTransferListener(listener));
     }
 
     /**

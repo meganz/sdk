@@ -42,6 +42,7 @@
 #include <fstream>
 #include <ios>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -3641,6 +3642,34 @@ void exec_getdiscountcodeinfo(autocomplete::ACState& ac)
         });
 }
 
+void exec_getprotransferstatelite(autocomplete::ACState&)
+{
+    TransferQuotaChecker& checker = client->transferQuotaChecker();
+
+    // Restricted to Pro accounts; others have no allowance-based status to serve.
+    if (!checker.isProAccount())
+    {
+        cout << "Not a Pro account" << endl;
+        return;
+    }
+
+    checker.getProTransferState(
+        [](TransferQuotaChecker::ProTransferQuota quota, Error e)
+        {
+            if (e != API_OK)
+            {
+                cout << "Error: " << e << endl;
+                return;
+            }
+
+            cout << "Cached user quota state: " << quota.status << " (max " << quota.max
+                 << ", own used " << quota.ownUsed << ", served " << quota.srvUsed
+                 << ", per-IP used "
+                 << std::accumulate(quota.hist.begin(), quota.hist.end(), m_off_t{0}) << ")"
+                 << endl;
+        });
+}
+
 void exec_getuserdata(autocomplete::ACState&)
 {
     if (client->loggedin()) client->getuserdata(client->reqtag);
@@ -3649,7 +3678,41 @@ void exec_getuserdata(autocomplete::ACState&)
 
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
-    client->querytransferquota(atoll(ac.words[1].s.c_str()));
+    // Remote paths are queried as nodes of this account (`n`), exported links by the handle of the
+    // link itself (`p`); the byte size stays the `s` adjustment on top of them all.
+    std::vector<handle> ownNodes;
+    std::vector<handle> publicNodes;
+    for (size_t i = 2; i < ac.words.size(); ++i)
+    {
+        const string& word = ac.words[i].s;
+
+        handle ph = UNDEF;
+        byte key[FILENODEKEYLENGTH];
+        if (client->parsepubliclink(word.c_str(), ph, key, TypeOfLink::FILE) == API_OK)
+        {
+            publicNodes.push_back(ph);
+        }
+        else if (auto n = nodeFromRemotePath(word))
+        {
+            // Only file nodes are charged; a folder handle would just be dead weight in the query
+            if (n->type != FILENODE)
+            {
+                cout << word << ": not a file. Skipping" << endl;
+                continue;
+            }
+
+            ownNodes.push_back(n->nodehandle);
+        }
+    }
+
+    // `qbq` asks about nodes, so it needs at least one; `s` alone adjusts nothing.
+    if (ownNodes.empty() && publicNodes.empty())
+    {
+        cout << "Nothing to ask about: give at least one remote path or file link" << endl;
+        return;
+    }
+
+    client->querytransferquota(ownNodes, publicNodes, atoll(ac.words[1].s.c_str()));
 }
 
 void DemoApp::querytransferquota_result(int n)
@@ -5726,9 +5789,13 @@ autocomplete::ACN autocompleteSyntax()
             sequence(flag("-filesize"), param("size")),
             sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("localworkingfolder"), remoteFSFolder(client, &cwd, "remoteworkingfolder")));
 
-    p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+    p->Add(exec_querytransferquota,
+           sequence(text("querytransferquota"),
+                    param("filesize"),
+                    repeat(either(remoteFSPath(client, &cwd), exportedLink(true, false)))));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
+    p->Add(exec_getprotransferstatelite, sequence(text("getprotransferstatelite")));
     p->Add(exec_getuserdata, text("getuserdata"));
     p->Add(exec_getdiscountcodeinfo, sequence(text("getdiscountcodeinfo"), param("code")));
 

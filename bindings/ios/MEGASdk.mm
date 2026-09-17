@@ -28,6 +28,7 @@
 #import "MEGAUser+init.h"
 #import "MEGATransfer+init.h"
 #import "MEGATransferList+init.h"
+#import "MEGAHandleList+init.h"
 #import "MEGANodeList+init.h"
 #import "MEGADateSection+init.h"
 #import "MEGAUserList+init.h"
@@ -50,6 +51,7 @@
 #import "MEGAFileInputStream.h"
 #import "MEGADataInputStream.h"
 #import "MEGACancelToken+init.h"
+#import "MEGADownloadItemList+init.h"
 #import "MEGAPushNotificationSettings+init.h"
 #import "MEGACancelSubscriptionReasonList+init.h"
 #import "MEGAFileServiceReclaimOptions+init.h"
@@ -2111,6 +2113,24 @@ using namespace mega;
     }
 }
 
+- (void)estimateFreeTransferQuotaStateWithOwnNodes:(nullable MEGAHandleList *)ownNodes publicNodes:(nullable MEGAHandleList *)publicNodes delegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->estimateFreeTransferQuotaState(ownNodes.getCPtr, publicNodes.getCPtr, [self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)estimateFreeTransferQuotaStateWithOwnNodes:(nullable MEGAHandleList *)ownNodes publicNodes:(nullable MEGAHandleList *)publicNodes {
+    if (self.megaApi) {
+        self.megaApi->estimateFreeTransferQuotaState(ownNodes.getCPtr, publicNodes.getCPtr);
+    }
+}
+
+- (void)queryProTransferQuotaStateLiteWithDelegate:(id<MEGARequestDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->queryProTransferQuotaStateLite([self createDelegateMEGARequestListener:delegate singleListener:YES]);
+    }
+}
+
 - (void)getRecommendedProLevelWithDelegate:(id<MEGARequestDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->getRecommendedProLevel([self createDelegateMEGARequestListener:delegate singleListener:YES queueType:ListenerQueueTypeCurrent]);
@@ -2668,6 +2688,18 @@ using namespace mega;
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate {
     if (self.megaApi) {
         self.megaApi->startDownload(node.getCPtr, localPath.UTF8String, fileName.UTF8String, appData.UTF8String, startFirst, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, false, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
+    }
+}
+
+- (void)startDownloadBatchWithItems:(MEGADownloadItemList *)items cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution {
+    if (self.megaApi) {
+        self.megaApi->startDownloadBatch(items.getCPtr, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution);
+    }
+}
+
+- (void)startDownloadBatchWithItems:(MEGADownloadItemList *)items cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate {
+    if (self.megaApi) {
+        self.megaApi->startDownloadBatch(items.getCPtr, cancelToken.getCPtr, (int)collisionCheck, (int)collisionResolution, [self createDelegateMEGATransferListener:delegate singleListener:YES]);
     }
 }
 

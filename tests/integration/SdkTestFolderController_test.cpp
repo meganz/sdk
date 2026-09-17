@@ -3,6 +3,8 @@
  * @brief This file defines tests related to the folder controller functionality.
  */
 
+#include "env_var_accounts.h"
+#include "integration_test_utils.h"
 #include "mock_listeners.h"
 #include "SdkTest_test.h"
 
@@ -29,12 +31,8 @@ public:
 
     void removeLocalTree()
     {
-        if (fs::exists(localFolderPath))
-        {
-            std::error_code ignoredEc;
-            fs::remove_all(localFolderPath, ignoredEc);
-        }
-        ASSERT_FALSE(fs::exists(localFolderPath));
+        ASSERT_TRUE(sdk_test::removeLocalTree(localFolderPath))
+            << "Could not remove " << path_u8string(localFolderPath);
     }
 
     const std::string& getLocalFolderName() const
@@ -174,18 +172,14 @@ public:
     // Creates <localFolder>/sub<f>/file<i> and returns the base path.
     fs::path createWideLocalTree(int folders, int filesPerFolder)
     {
-        removeLocalTree();
-        const fs::path basePath = fs::current_path() / getLocalFolderName();
-        for (int f = 0; f < folders; ++f)
-        {
-            const fs::path sub = basePath / ("sub" + std::to_string(f));
-            fs::create_directories(sub);
-            for (int i = 0; i < filesPerFolder; ++i)
-            {
-                EXPECT_TRUE(createFile(path_u8string(sub / ("file" + std::to_string(i))), false));
-            }
-        }
+        const fs::path basePath = localTreeRoot();
+        sdk_test::createWideLocalTree(basePath, folders, filesPerFolder);
         return basePath;
+    }
+
+    fs::path localTreeRoot() const
+    {
+        return fs::current_path() / localFolderName;
     }
 
     // Downloads into the parent of the local tree. The trailing separator is what makes the path
@@ -237,6 +231,20 @@ public:
                                 nullptr /*cancelToken*/))
             << "Failed to upload the folder tree";
         return remoteFolderHandle;
+    }
+
+    // A second MegaApi instance, for the public-link tests. Needs the aux test account
+    // ($MEGA_EMAIL_AUX / $MEGA_PWD_AUX). Mirrors the guest instance SdkTestShares sets up: it is
+    // configured but not logged in, so it can log into a folder link.
+    unsigned setUpGuestInstance()
+    {
+        constexpr unsigned guestIndex = 1;
+        const auto [email, pass] = getEnvVarAccounts().getVarValues(guestIndex);
+        EXPECT_FALSE(email.empty() || pass.empty()) << "No account configured for the guest";
+        mApi.resize(guestIndex + 1);
+        megaApi.resize(guestIndex + 1);
+        configureTestInstance(guestIndex, email, pass);
+        return guestIndex;
     }
 
 private:
@@ -1418,6 +1426,261 @@ TEST_F(SdkTestFolderController, GetChildTransfersReturnsSubTransfers)
             << "getChildTransfers should report nothing for a tag that is no longer known";
     }
 
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Download a folder with nothing inside it. No file transfer ever starts, so the only thing the
+ * download has to produce is the destination folder itself.
+ */
+TEST_F(SdkTestFolderController, DownloadEmptyFolder)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    removeLocalTree();
+    const fs::path basePath = fs::current_path() / getLocalFolderName();
+    ASSERT_TRUE(fs::create_directories(basePath));
+
+    LOG_info << logPre << "uploading the empty folder";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+    std::unique_ptr<MegaNodeList> uploadedChildren{megaApi[0]->getChildren(remoteFolderNode.get())};
+    ASSERT_EQ(0, uploadedChildren->size()) << "The uploaded folder should have no children";
+
+    removeLocalTree();
+
+    DownloadObserver obs;
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+
+    LOG_info << logPre << "downloading the empty folder";
+    startFolderDownload(remoteFolderNode.get(), &listener);
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+        << "Folder download never finished";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(MegaError::API_OK, obs.folderError) << "Folder download should have succeeded";
+        EXPECT_EQ(0u, obs.downloadedFiles) << "An empty folder has no file to download";
+    }
+
+    EXPECT_TRUE(fs::is_directory(basePath)) << "The destination folder was not created";
+    EXPECT_TRUE(fs::is_empty(basePath)) << "The destination folder should be empty";
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Download a folder holding files of its own next to an empty subfolder and nested non-empty ones.
+ * A tree built only from folders-of-files never exercises those shapes: a file directly under the
+ * downloaded root, or a folder that produces no transfer at all.
+ */
+TEST_F(SdkTestFolderController, DownloadMixedTree)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = localTreeRoot();
+    const auto expectedFiles = sdk_test::createMixedLocalTree(basePath);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    // Nothing may be left behind locally, or the collision pre-pass skips every file.
+    removeLocalTree();
+
+    DownloadObserver obs;
+    NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+    observeSubTransfers(subTransferListener, obs);
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+
+    LOG_info << logPre << "downloading the mixed tree";
+    startFolderDownload(remoteFolderNode.get(), &listener);
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+        << "Folder download never finished";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(MegaError::API_OK, obs.folderError) << "Folder download should have succeeded";
+        EXPECT_EQ(0u, obs.failedFiles) << "No file should have failed";
+        EXPECT_EQ(0u, obs.skippedFiles) << "Nothing was left locally, so nothing may be skipped";
+        EXPECT_EQ(expectedFiles.size(), obs.downloadedFiles) << "Wrong number of files downloaded";
+    }
+
+    for (const auto& relative: expectedFiles)
+    {
+        EXPECT_TRUE(fs::is_regular_file(basePath / relative))
+            << "Missing downloaded file: " << path_u8string(basePath / relative);
+    }
+    EXPECT_TRUE(fs::is_directory(basePath / "emptySub"))
+        << "An empty folder must still be created, although it produces no transfer";
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Download a file through its public link, as an instance that is not logged in: the node comes
+ * from getPublicNode rather than from the account's own tree.
+ */
+TEST_F(SdkTestFolderController, DownloadPublicFileLink)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    const std::string fileName = getFilePrefix() + "publicFile";
+    const fs::path filePath = fs::current_path() / fileName;
+    std::error_code ignoredEc;
+    fs::remove(filePath, ignoredEc);
+    ASSERT_TRUE(createFile(path_u8string(filePath), false));
+
+    MegaHandle fileHandle = INVALID_HANDLE;
+    ASSERT_EQ(MegaError::API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            path_u8string(filePath).c_str(),
+                            getRootNode().get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Failed to upload the file to export";
+    std::unique_ptr<MegaNode> fileNode{megaApi[0]->getNodeByHandle(fileHandle)};
+    ASSERT_TRUE(fileNode);
+
+    LOG_info << logPre << "exporting the file";
+    const std::string fileLink =
+        createPublicLink(0, fileNode.get(), 0 /*expireDate*/, maxTimeout, false /*isFreeAccount*/);
+    ASSERT_FALSE(fileLink.empty());
+
+    // Downloaded from a second account rather than from a session-less client: without a session
+    // the transfer DB has no committer on the stack, and startDownload trips the assertion in
+    // DbTable::checkCommitter. That is a pre-existing defect on a flow getPublicNode documents as
+    // supported, and it belongs in its own ticket.
+    const unsigned guestIndex = setUpGuestInstance();
+    auto loginTracker =
+        asyncRequestLogin(guestIndex, mApi[guestIndex].email.c_str(), mApi[guestIndex].pwd.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << "Failed to log the second account in";
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(guestIndex));
+
+    std::unique_ptr<MegaNode> publicNode = getPublicNode(guestIndex, fileLink);
+    ASSERT_TRUE(publicNode) << "Could not get the node behind the public file link";
+    ASSERT_TRUE(publicNode->isPublic());
+
+    // Download it back beside the original, under a name of its own so the two cannot collide.
+    const fs::path downloadPath = fs::current_path() / (fileName + "_downloaded");
+    fs::remove(downloadPath, ignoredEc);
+
+    LOG_info << logPre << "downloading the public file link";
+    ASSERT_EQ(MegaError::API_OK,
+              doStartDownload(guestIndex,
+                              publicNode.get(),
+                              path_u8string(downloadPath).c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                              false /*undelete*/))
+        << "Failed to download the public file link";
+
+    EXPECT_TRUE(fs::is_regular_file(downloadPath))
+        << "The public file was not stored at " << path_u8string(downloadPath);
+    EXPECT_EQ(fs::file_size(filePath), fs::file_size(downloadPath))
+        << "The downloaded file does not have the size of the original";
+
+    ASSERT_NO_FATAL_FAILURE(logout(guestIndex, false, maxTimeout));
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
+    fs::remove(filePath, ignoredEc);
+    fs::remove(downloadPath, ignoredEc);
+}
+
+/**
+ * Download a folder through its public link, from an instance logged into the folder link only.
+ * A foreign folder has no local tree to look its children up in, so the scan walks the node's own
+ * child list instead.
+ */
+TEST_F(SdkTestFolderController, DownloadPublicFolderLink)
+{
+    static const std::string logPre{getLogPrefix()};
+    static constexpr int kFolders{2};
+    static constexpr int kFilesPerFolder{2};
+    static constexpr uint32_t kTotalFiles{kFolders * kFilesPerFolder};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = createWideLocalTree(kFolders, kFilesPerFolder);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    LOG_info << logPre << "exporting the folder";
+    const std::string folderLink = createPublicLink(0,
+                                                    remoteFolderNode.get(),
+                                                    0 /*expireDate*/,
+                                                    maxTimeout,
+                                                    false /*isFreeAccount*/);
+    ASSERT_FALSE(folderLink.empty());
+
+    const unsigned guestIndex = setUpGuestInstance();
+    auto loginTracker = asyncRequestLoginToFolder(guestIndex, folderLink.c_str());
+    ASSERT_EQ(API_OK, loginTracker->waitForResult()) << "Failed to log into the folder link";
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(guestIndex));
+
+    std::unique_ptr<MegaNode> linkRoot{megaApi[guestIndex]->getRootNode()};
+    ASSERT_TRUE(linkRoot) << "The folder link has no root node";
+
+    // Nothing may be left behind locally, or the collision pre-pass skips every file.
+    removeLocalTree();
+
+    const std::string downloadParent = path_u8string(fs::current_path() / "");
+    TransferTracker tracker{megaApi[guestIndex].get()};
+
+    LOG_info << logPre << "downloading the public folder link";
+    megaApi[guestIndex]->startDownload(linkRoot.get(),
+                                       downloadParent.c_str(),
+                                       nullptr /*customName*/,
+                                       nullptr /*appData*/,
+                                       false /*startFirst*/,
+                                       nullptr /*cancelToken*/,
+                                       MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                       MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                       false /*undelete*/,
+                                       &tracker);
+    ASSERT_EQ(API_OK, tracker.waitForResult()) << "Failed to download the public folder link";
+
+    uint32_t filesFound{0};
+    for (int f = 0; f < kFolders; ++f)
+    {
+        for (int i = 0; i < kFilesPerFolder; ++i)
+        {
+            const fs::path expected =
+                basePath / ("sub" + std::to_string(f)) / ("file" + std::to_string(i));
+            EXPECT_TRUE(fs::is_regular_file(expected))
+                << "Missing downloaded file: " << path_u8string(expected);
+            filesFound += fs::is_regular_file(expected) ? 1u : 0u;
+        }
+    }
+    EXPECT_EQ(kTotalFiles, filesFound);
+
+    ASSERT_NO_FATAL_FAILURE(logout(guestIndex, false, maxTimeout));
     EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
     removeLocalTree();
 }

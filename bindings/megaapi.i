@@ -516,6 +516,8 @@ extern "C" jint JNIEXPORT JNICALL JNI_OnLoad(JavaVM *jvm, void *reserved)
 %newobject mega::MegaApi::listAllNodesByPageAtOffset;
 %newobject mega::MegaNodeScopeFilter::copy;
 %newobject mega::MegaListAllNodesFilter::createInstance;
+%newobject mega::MegaDownloadItemList::createInstance;
+%newobject mega::MegaDownloadItemList::copy;
 %newobject mega::MegaListAllNodesFilter::copy;
 %newobject mega::MegaGroupNodesByDateFilter::createInstance;
 %newobject mega::MegaGroupNodesByDateFilter::copy;

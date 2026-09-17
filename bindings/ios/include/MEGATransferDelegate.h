@@ -21,6 +21,7 @@
 #import <Foundation/Foundation.h>
 #import "MEGATransfer.h"
 #import "MEGAError.h"
+#import "MEGATransferQuotaState.h"
 
 NS_ASSUME_NONNULL_BEGIN
 
@@ -111,6 +112,20 @@ NS_ASSUME_NONNULL_BEGIN
  * @param currentFileLeafName The leaft name of the file currently being fingerprinted (can be nil for the first call in a new folder, and when not scanning anymore)
  */
 -(void)onFolderTransferUpdate:(MEGASdk *)api transfer:(MEGATransfer *)transfer stage:(MEGATransferStage)stage folderCount:(NSUInteger)folderCount createdFolderCount:(NSUInteger)createdFolderCount fileCount:(NSUInteger)fileCount currentFolder:(NSString *)currentFolder currentFileLeafName:(NSString *)currentFileLeafName;
+
+/**
+ * @brief This function is called with the predicted transfer-quota state of a batch download.
+ *
+ * Only [MEGASdk startDownloadBatchWithItems:cancelToken:collisionCheck:collisionResolution:delegate:]
+ * reports it, once its roots have been scanned and before any of its files start, so the app can
+ * warn while the bandwidth is still unspent. Every state is reported, green and undetermined
+ * included.
+ *
+ * @param api MEGASdk object that started the transfer.
+ * @param transfer Information about the transfer.
+ * @param state Predicted state once the batch has been downloaded.
+ */
+- (void)onTransferQuotaState:(MEGASdk *)api transfer:(MEGATransfer *)transfer state:(MEGATransferQuotaState)state;
 
 /**
  * @brief This function is called when there is a temporary error processing a transfer.

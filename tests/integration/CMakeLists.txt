@@ -50,6 +50,7 @@ target_sources(test_integration
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp
     SdkTestSyncOverquotaReason_test.cpp
+    SdkTestQueryTransferQuota_test.cpp
     SdkTestSyncVersionedNodeDeletion_test.cpp
     SdkTestCaseInsensitiveCollision_test.cpp
     backup_sync_operations_test.cpp
@@ -58,6 +59,7 @@ target_sources(test_integration
     sdk_test_putfa.cpp
     sdk_test_sc_channel.cpp
     SdkTestFolderController_test.cpp
+    SdkTestFolderBatchController_test.cpp
     SdkTestGetChildrenLexicographic_test.cpp
     SdkTestListAllNodesByPage_test.cpp
     SdkTestTransferResume_test.cpp

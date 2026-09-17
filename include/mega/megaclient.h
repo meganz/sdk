@@ -44,6 +44,7 @@
 #include "sync.h"
 #include "testhooks.h"
 #include "transfer.h"
+#include "transfer_quota_checker.h"
 #include "transferstats.h"
 #include "treeproc.h"
 #include "user.h"
@@ -932,8 +933,13 @@ public:
     // Get user storage information.
     void getstorageinfo(std::function<void(const StorageInfo&, Error)> completion);
 
-    // check if the available bandwidth quota is enough to transfer an amount of bytes
-    void querytransferquota(m_off_t size);
+    // check if the available bandwidth quota is enough to transfer the given ownNodes, the given
+    // publicNodes, and the extra size additional bytes. With no completion the reply is delivered
+    // through MegaApp::querytransferquota_result; with one it is delivered to the callback instead.
+    void querytransferquota(const std::vector<handle>& ownNodes,
+                            const std::vector<handle>& publicNodes,
+                            m_off_t extraSize = 0,
+                            std::function<void(int /*code*/)> completion = {});
 
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
@@ -3174,6 +3180,12 @@ public:
     // otherwise raise a new event. timeleft is the remaining overquota time in deciseconds.
     void notifyStreamOverquota(dstime timeleft);
 
+    // Evaluates the account's transfer-quota (download bandwidth).
+    TransferQuotaChecker& transferQuotaChecker()
+    {
+        return mTransferQuotaChecker;
+    }
+
     // achievements enabled for the account
     bool achievements_enabled;
 
@@ -3294,6 +3306,12 @@ struct MyAccountData
     void setProLevel(AccountType prolevel) { mProLevel = prolevel; }
     AccountType getProLevel() { return mProLevel; };
     void setProUntil(m_time_t prountil) { mProUntil = prountil; }
+
+    // A paid plan with a fixed transfer allowance (excludes feature-only plans like VPN/PWM).
+    bool isProPlan() const
+    {
+        return isProAccountType(mProLevel);
+    }
 
     // returns remaining time for the current pro-level plan
     // keep in mind that free plans do not have a remaining time; instead, the IP bandwidth is reset after a back off period
@@ -3972,6 +3990,10 @@ private:
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
+
+    // Evaluates the account's transfer-quota traffic light from the downloads and streaming reads
+    // in flight. Reaches back into this client for that data and to queue the `uq`/`qbq` commands.
+    TransferQuotaChecker mTransferQuotaChecker{*this};
 };
 
 } // namespace

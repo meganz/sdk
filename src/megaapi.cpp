@@ -237,6 +237,57 @@ int MegaNodeList::size() const
 
 void MegaNodeList::addNode(MegaNode*) {}
 
+MegaDownloadItemList* MegaDownloadItemList::createInstance()
+{
+    return new MegaDownloadItemListPrivate();
+}
+
+MegaDownloadItemList::MegaDownloadItemList() {}
+
+MegaDownloadItemList::~MegaDownloadItemList() {}
+
+MegaDownloadItemList* MegaDownloadItemList::copy() const
+{
+    return NULL;
+}
+
+void MegaDownloadItemList::add(MegaNode*, const char*, const char*, const char*, bool, bool) {}
+
+int MegaDownloadItemList::size() const
+{
+    return 0;
+}
+
+MegaNode* MegaDownloadItemList::getNode(int) const
+{
+    return NULL;
+}
+
+const char* MegaDownloadItemList::getLocalPath(int) const
+{
+    return NULL;
+}
+
+const char* MegaDownloadItemList::getCustomName(int) const
+{
+    return NULL;
+}
+
+const char* MegaDownloadItemList::getAppData(int) const
+{
+    return NULL;
+}
+
+bool MegaDownloadItemList::getStartFirst(int) const
+{
+    return false;
+}
+
+bool MegaDownloadItemList::getUndelete(int) const
+{
+    return false;
+}
+
 MegaTransferList::~MegaTransferList() { }
 
 MegaTransfer *MegaTransferList::get(int)
@@ -1839,7 +1890,12 @@ void MegaTransferListener::onFolderTransferUpdate(MegaApi*,
 {}
 
 bool MegaTransferListener::onTransferData(MegaApi *, MegaTransfer *, char *, size_t)
-{ return true; }
+{
+    return true;
+}
+
+void MegaTransferListener::onTransferQuotaState(MegaApi*, MegaTransfer*, int) {}
+
 void MegaTransferListener::onTransferTemporaryError(MegaApi *, MegaTransfer *, MegaError*)
 { }
 MegaTransferListener::~MegaTransferListener()
@@ -3153,6 +3209,18 @@ void MegaApi::queryTransferQuota(long long size, MegaRequestListener *listener)
     pImpl->queryTransferQuota(size, listener);
 }
 
+void MegaApi::estimateFreeTransferQuotaState(MegaHandleList* ownNodes,
+                                             MegaHandleList* publicNodes,
+                                             MegaRequestListener* listener)
+{
+    pImpl->estimateFreeTransferQuotaState(ownNodes, publicNodes, listener);
+}
+
+void MegaApi::queryProTransferQuotaStateLite(MegaRequestListener* listener)
+{
+    pImpl->queryProTransferQuotaStateLite(listener);
+}
+
 int64_t MegaApi::getOverquotaDeadlineTs()
 {
     return pImpl->getOverquotaDeadlineTs();
@@ -3855,6 +3923,19 @@ void MegaApi::startUploadByHandle(const std::string& localPath,
 void MegaApi::startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener)
 {
     pImpl->startDownload(startFirst, node, localPath, customName, 0 /*folderTransferTag*/, appData, convertToCancelToken(cancelToken), collisionCheck, collisionResolution, undelete, listener);
+}
+
+void MegaApi::startDownloadBatch(const MegaDownloadItemList* items,
+                                 MegaCancelToken* cancelToken,
+                                 int collisionCheck,
+                                 int collisionResolution,
+                                 MegaTransferListener* listener)
+{
+    pImpl->startDownloadBatch(items,
+                              convertToCancelToken(cancelToken),
+                              collisionCheck,
+                              collisionResolution,
+                              listener);
 }
 
 void MegaApi::cancelTransfer(MegaTransfer *t, MegaRequestListener *listener)
@@ -6582,6 +6663,11 @@ long long MegaAccountDetails::getTransferSrvUsed()
 long long MegaAccountDetails::getTransferUsed()
 {
     return 0;
+}
+
+int MegaAccountDetails::getTransferQuotaState()
+{
+    return MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN;
 }
 
 int MegaAccountDetails::getNumUsageItems()
