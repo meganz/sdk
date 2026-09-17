@@ -55,6 +55,8 @@ const mega::Proxy kProxyB = customProxy("socks5://proxy-b.generation-b.invalid:2
 // Pool workers call configureWsEasy() while the client thread calls setproxy(). On the unfixed
 // tree this is a data race on std::string members (TSAN reports it; a torn c_str() handed to
 // libcurl can also crash). Runs unmodified on pristine develop: both APIs are public.
+// Its only oracle is TSAN: the CI `--tsan` sweep runs it from the TSAN-built test_unit
+// (Jenkinsfile TSAN_UNIT_FILTER); in a plain build it is just a crash smoke test.
 TEST(CurlHttpIoConfig, ConfigureWsEasyRacesSetproxy)
 {
     mega::CurlHttpIO io;

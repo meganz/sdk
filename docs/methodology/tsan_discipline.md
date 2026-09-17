@@ -17,7 +17,7 @@ For Windows, rely on the regular sweep + Linux/macOS TSAN coverage.
 
 ```bash
 cmake --preset dev-unix-tsan
-cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration
+cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration test_unit
 ```
 
 This sets `-DENABLE_TSAN=ON` which adds `-fsanitize=thread` and the
@@ -66,6 +66,23 @@ SDK-6298 added the two quota cells.)
 
 For final session sweeps, extend with the full `SdkWsUploadTest.*`
 suite at lower n.
+
+### Unit cells (`TSAN_UNIT_FILTER`)
+
+The sweep also runs the TSAN-built `test_unit` on the cells written for
+it (mirrors the Jenkinsfile `TSAN_UNIT_FILTER`):
+
+```
+CurlHttpIoConfig.*   # SDK-6476 CurlHttpIO proxy/DNS/user-agent snapshot vs WS handshake readers
+```
+
+They are hermetic (no accounts, seconds to run) and any race report
+from them fails the stage:
+
+```bash
+TSAN_OPTIONS='halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0' \
+  ~/repo/build-sdk-dev-unix-tsan/tests/unit/test_unit --gtest_filter='CurlHttpIoConfig.*'
+```
 
 ## NEW-vs-develop race classification
 
