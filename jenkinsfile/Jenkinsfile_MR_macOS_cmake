@@ -389,7 +389,7 @@ pipeline {
                                             csplit -k -s -b '%04d' -f bench_logs_${BUILD_ID}/_split_ bench_sweep.log '/\\[ RUN      \\]/' '{*}' || :
                                             for sf in bench_logs_${BUILD_ID}/_split_*; do
                                                 [ -s \"\$sf\" ] || { rm -f \"\$sf\"; continue; }
-                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' \"\$sf\" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' \"\$sf\" | awk '{print \$4}' | tr '.' '_' || echo 'preamble')
                                                 [ -n \"\$cellName\" ] || cellName=\"preamble\"
                                                 mv \"\$sf\" \"bench_logs_${BUILD_ID}/\${cellName}.log\" || :
                                             done
@@ -462,10 +462,10 @@ pipeline {
                                         fi
                                         ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$TSAN_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee -a tsan_sweep.log || true
                                         echo "===TSAN SUMMARY==="
-                                        grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || echo 0
+                                        grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || :
                                         echo "===WS-UPLOAD SURFACE FIELDS==="
                                         for fld in mChunksInFlight mNumChunksInFlight mUploadingFile WsConn::mLastActive WsConn::mPausedByServerUntilDs WsConn::mReadyState WsUploadFile mWorkGeneration; do
-                                            cnt=\$(grep -cE "\$fld" tsan_sweep.log || echo 0)
+                                            cnt=\$(grep -cE "\$fld" tsan_sweep.log || :)
                                             echo "\$fld: \$cnt"
                                             if [ \"\$cnt\" != \"0\" ]; then
                                                 echo "[ERROR] new WS-upload surface race on \$fld" >&2
@@ -478,7 +478,7 @@ pipeline {
                                             csplit -k -s -b '%04d' -f tsan_logs_${BUILD_ID}/_split_ tsan_sweep.log '/\\[ RUN      \\]/' '{*}' || :
                                             for sf in tsan_logs_${BUILD_ID}/_split_*; do
                                                 [ -s \"\$sf\" ] || { rm -f \"\$sf\"; continue; }
-                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' \"\$sf\" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' \"\$sf\" | awk '{print \$4}' | tr '.' '_' || echo 'preamble')
                                                 [ -n \"\$cellName\" ] || cellName=\"preamble\"
                                                 mv \"\$sf\" \"tsan_logs_${BUILD_ID}/\${cellName}.log\" || :
                                             done
