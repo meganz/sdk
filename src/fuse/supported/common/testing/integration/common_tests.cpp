@@ -353,6 +353,63 @@ TEST_F(FUSECommonTests, file_cache_load)
     ASSERT_EQ(client->logout(false), API_OK);
 }
 
+TEST_F(FUSECommonTests, modify_preserves_node_attributes)
+{
+    // Convenience.
+    const auto path = MountPathW() / "sf0";
+
+    // Get the handle of the file we're going to modify.
+    auto before = ClientW()->handle("/x/s/sf0");
+    ASSERT_EQ(before.errorOr(API_OK), API_OK);
+
+    // Attributes that should survive a change to the file's content.
+    const common::testing::Client::NodeAttributes attributes = {
+        {"des", "description"},
+        {"fav", "1"},
+        {"lbl", "1"},
+        {"sen", "1"},
+        {"t", "tag"},
+    };
+
+    // Decorate the file with those attributes.
+    ASSERT_EQ(ClientW()->setAttributes(*before, attributes), API_OK);
+
+    // Modify the file's content via the mount.
+    ASSERT_TRUE(makeFile(path, "sf0x"));
+
+    // Wait for the modified content to be uploaded.
+    //
+    // We know this has happened when the file's handle changes.
+    NodeHandle after;
+
+    ASSERT_TRUE(waitFor(
+        [&]()
+        {
+            auto handle = ClientW()->handle("/x/s/sf0");
+
+            if (!handle || *handle == *before)
+                return false;
+
+            after = *handle;
+
+            return true;
+        },
+        mDefaultTimeout));
+
+    // Retrieve the attributes of the node that replaced our file.
+    auto result = ClientW()->attributes(after);
+    ASSERT_EQ(result.errorOr(API_OK), API_OK);
+
+    // Make sure the node retains the attributes of the node it replaced.
+    for (const auto& [name, value]: attributes)
+    {
+        auto i = result->find(name);
+
+        ASSERT_NE(i, result->end()) << "Missing attribute: " << name;
+        EXPECT_EQ(i->second, value) << "Unexpected value for attribute: " << name;
+    }
+}
+
 TEST_F(FUSECommonTests, reload)
 {
     // Create a new client so not to interfere with future tests.
