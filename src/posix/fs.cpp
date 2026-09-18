@@ -1045,10 +1045,9 @@ void LinuxFileSystemAccess::addevents([[maybe_unused]] Waiter* waiter, int /*fla
 
     auto w = static_cast<PosixWaiter*>(waiter);
 
-    MEGA_FD_SET(mNotifyFd, &w->rfds);
-    MEGA_FD_SET(mNotifyFd, &w->ignorefds);
-
-    w->bumpmaxfd(mNotifyFd);
+    // checkevents() below interprets this descriptor's readiness itself, so
+    // readiness here must not request NEEDEXEC on its behalf.
+    w->watchReadable(mNotifyFd, ExecOnReady::No);
 
 #endif // ENABLE_SYNC
 }
@@ -1071,7 +1070,7 @@ int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
 
     auto* w = static_cast<PosixWaiter*>(waiter);
 
-    if (!MEGA_FD_ISSET(mNotifyFd, &w->rfds))
+    if (!w->isReadable(mNotifyFd))
         return result;
 
     char buf[sizeof(struct inotify_event) + NAME_MAX + 1];

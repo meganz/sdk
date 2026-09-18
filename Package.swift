@@ -54,7 +54,8 @@ let package = Package(
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
                 .define("MEGA_USE_WSUPLOAD"),
-                .define("NDEBUG", .when(configuration: .release))
+                .define("NDEBUG", .when(configuration: .release)),
+                .define("USE_POLL") // as CMake defaults it on every UNIX target
             ],
             linkerSettings: [
                 // Frameworks

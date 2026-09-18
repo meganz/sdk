@@ -100,6 +100,14 @@ target_sources_conditional(test_unit
     GfxCommands_test.cpp
 )
 
+target_sources_conditional(test_unit
+    FLAG UNIX
+    PRIVATE
+    FdWatchSet_test.cpp
+    PosixWaiter_test.cpp
+    PosixConsoleWaiter_test.cpp
+)
+
 # Load File Service test sources.
 include(file_service/file_service.cmake)
 

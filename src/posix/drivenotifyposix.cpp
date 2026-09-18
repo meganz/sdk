@@ -21,14 +21,15 @@
 
 #ifdef USE_DRIVE_NOTIFICATIONS
 
-
 #include "mega/drivenotify.h"
+#include "mega/logging.h"
+#include "mega/posix/megafdwatchset.h"
+
+#include <cassert>
+#include <chrono>
+#include <cstring>
 #include <libudev.h> // Ubuntu: sudo apt-get install libudev-dev
 #include <mntent.h>
-#include <cstring>
-#include <chrono>
-
-
 
 namespace mega {
 
@@ -64,6 +65,25 @@ bool DriveNotifyPosix::notifierSetup()
     udev_monitor_filter_add_match_subsystem_devtype(mUdevMon, "block", "partition");
     udev_monitor_enable_receiving(mUdevMon);
 
+    // enabled() is just mEventSinkThread.joinable(), so a thread that gave up
+    // would still report the monitor as running. Failing setup keeps it from
+    // starting at all.
+    const int fd = udev_monitor_get_fd(mUdevMon);
+    if (fd < 0)
+    {
+        LOG_err << "Drive notifications unavailable: udev_monitor_get_fd() returned " << fd;
+        notifierTeardown();
+        return false;
+    }
+
+    if (!FdWatchSet::isWatchable(fd))
+    {
+        LOG_err << "Drive notifications unavailable: udev descriptor " << fd
+                << " is at or above FD_SETSIZE. Rebuild with -DUSE_POLL=ON.";
+        notifierTeardown();
+        return false;
+    }
+
     return true;
 }
 
@@ -93,20 +113,21 @@ void DriveNotifyPosix::notifierTeardown()
 
 void DriveNotifyPosix::doInThread()
 {
-    int fd = udev_monitor_get_fd(mUdevMon);
+    const int fd = udev_monitor_get_fd(mUdevMon);
+    assert(FdWatchSet::isWatchable(fd) && "notifierSetup() must have run first");
+
+    // Via FdWatchSet, not poll() directly, so this follows USE_POLL like the
+    // rest of the POSIX layer. ExecOnReady is meaningless without a waiter.
+    FdWatchSet watched;
+
     while (!shouldStop())
     {
-        // use a blocking call, with a timeout, to check for device events
-        fd_set fds;
-        FD_ZERO(&fds);
-        FD_SET(fd, &fds);
+        // a blocking call, with a timeout, to check for device events
+        watched.clear();
+        watched.watchReadable(fd, ExecOnReady::Yes);
 
-        timeval tv;
-        tv.tv_sec = 0;
-        tv.tv_usec = 250 * 1000; // 250ms
-
-        int ret = select(fd+1, &fds, nullptr, nullptr, &tv);
-        if (ret <= 0 || !FD_ISSET(fd, &fds))  continue;
+        if (watched.wait(250 /* ms */) <= 0 || !watched.isReadable(fd))
+            continue;
 
         // get any [dis]connected device
         udev_device* dev = udev_monitor_receive_device(mUdevMon);
