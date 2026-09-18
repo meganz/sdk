@@ -737,8 +737,13 @@ public:
     // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.
     void wsPostTransferUpdate(Transfer* t,
                               std::function<void(Transfer&, TransferDbCommitter&)>&& f);
-    // Internal WS helper to performs HttpIO WS handshake on the client thread.
-    void* wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err);
+    // Internal WS helper: performs the HttpIO WS handshake on the calling thread (a pool worker
+    // for parallel handshakes, the client thread for the serial path). stopFlag, when given, is
+    // polled inside libcurl so the handshake aborts once the engine is stopping.
+    void* wsHandshakeForUpload(const std::string& url,
+                               long timeoutMs,
+                               std::string* err,
+                               const std::atomic<bool>* stopFlag);
 #endif
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 

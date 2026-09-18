@@ -610,6 +610,7 @@ int CurlHttpIO::instanceCount = 0;
 
 void CurlHttpIO::setuseragent(string* u)
 {
+    std::lock_guard<std::mutex> g(mNetConfigMutex);
     useragent = *u;
 }
 
@@ -624,8 +625,11 @@ bool CurlHttpIO::setdnsservers(const char* servers)
 
     if (servers)
     {
-        dnsservers = servers;
-        LOG_debug << "Setting custom DNS servers: " << dnsservers;
+        {
+            std::lock_guard<std::mutex> g(mNetConfigMutex);
+            dnsservers = servers;
+        }
+        LOG_debug << "Setting custom DNS servers: " << servers;
     }
     return true;
 }
@@ -684,10 +688,18 @@ void CurlHttpIO::disconnect()
     arerequestspaused[PUT] = false;
 
     disconnecting = false;
-    if (proxyurl.size() && !proxyip.size())
+    bool proxyResolved = false;
+    {
+        std::lock_guard<std::mutex> g(mNetConfigMutex);
+        if (proxyurl.size() && !proxyip.size())
+        {
+            request_proxy_ip_locked();
+            proxyResolved = true;
+        }
+    }
+    if (proxyResolved)
     {
         LOG_debug << "Unresolved proxy name. Resolving...";
-        request_proxy_ip();
     }
 }
 
@@ -1172,7 +1184,7 @@ void CurlHttpIO::send_request(CurlHttpContext* httpctx)
     httpio->statechange = true;
 }
 
-void CurlHttpIO::request_proxy_ip()
+void CurlHttpIO::request_proxy_ip_locked()
 {
     if (!proxyhost.empty() && proxyport)
     {
@@ -1286,6 +1298,8 @@ void CurlHttpIO::post(HttpReq* req, const char* data, size_t len)
 
 std::optional<Proxy> CurlHttpIO::getproxy() const
 {
+    std::lock_guard<std::mutex> g(mNetConfigMutex);
+
     // No prior proxy configuration.
     if (proxytype == Proxy::NONE)
         return std::nullopt;
@@ -1303,15 +1317,17 @@ std::optional<Proxy> CurlHttpIO::getproxy() const
 
 void CurlHttpIO::setproxy(const Proxy& proxy)
 {
+    // Publish the change as ONE coherent generation (SDK-6476): a concurrent WS handshake
+    // snapshot must never see the cleared proxyip next to the previous or half-written
+    // credentials/type, which would route that handshake around the user's proxy. The lock is
+    // released before any log line or request dispatch.
+    std::unique_lock<std::mutex> configLock(mNetConfigMutex);
+
     // clear the previous proxy IP
     proxyip.clear();
 
     if (proxy.getProxyType() != Proxy::CUSTOM || !proxy.getProxyURL().size())
     {
-        LOG_debug << "CurlHttpIO::setproxy:"
-                  << (proxy.getProxyType() == Proxy::CUSTOM ? " Invalid arguments." : "")
-                  << " type: " << proxy.getProxyType() << " url: " << proxy.getProxyURL()
-                  << " Invalidating inflight proxy changes";
         proxyschema.clear();
         proxyhost.clear();
         proxyport = 0;
@@ -1319,6 +1335,12 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
         proxypassword.clear();
         proxytype = proxy.getProxyType() == Proxy::AUTO ? Proxy::AUTO : Proxy::NONE;
         proxyurl.clear();
+        configLock.unlock();
+
+        LOG_debug << "CurlHttpIO::setproxy:"
+                  << (proxy.getProxyType() == Proxy::CUSTOM ? " Invalid arguments." : "")
+                  << " type: " << proxy.getProxyType() << " url: " << proxy.getProxyURL()
+                  << " Invalidating inflight proxy changes";
 
         // send pending requests without a proxy
         send_pending_requests();
@@ -1330,24 +1352,41 @@ void CurlHttpIO::setproxy(const Proxy& proxy)
     proxypassword = proxy.getPassword();
     proxytype = proxy.getProxyType();
 
-    LOG_debug << "Setting proxy: " << proxyurl;
-
-    if (!crackURI(proxyurl, proxyschema, proxyhost, proxyport))
+    const bool wellFormed = crackURI(proxyurl, proxyschema, proxyhost, proxyport);
+    if (wellFormed)
     {
-        LOG_err << "Malformed proxy string: " << proxyurl;
-
-        // invalidate inflight proxy changes
-
+        request_proxy_ip_locked();
+    }
+    else
+    {
         // mark the proxy as invalid (proxyurl set but proxyhost not set)
         proxyhost.clear();
         proxyschema.clear();
-
-        // drop all pending requests
-        drop_pending_requests();
-        return;
     }
+    configLock.unlock();
 
-    request_proxy_ip();
+    LOG_debug << "Setting proxy: " << proxy.getProxyURL();
+    if (!wellFormed)
+    {
+        LOG_err << "Malformed proxy string: " << proxy.getProxyURL();
+
+        // invalidate inflight proxy changes: drop all pending requests
+        drop_pending_requests();
+    }
+}
+
+CurlHttpIO::NetConfigSnapshot CurlHttpIO::netConfigSnapshot() const
+{
+    std::lock_guard<std::mutex> g(mNetConfigMutex);
+    NetConfigSnapshot cfg;
+    cfg.useragent = useragent;
+    cfg.dnsservers = dnsservers;
+    cfg.proxyip = proxyip;
+    cfg.proxyschema = proxyschema;
+    cfg.proxyusername = proxyusername;
+    cfg.proxypassword = proxypassword;
+    cfg.proxytype = proxytype;
+    return cfg;
 }
 
 // cancel pending HTTP request
@@ -2467,11 +2506,16 @@ void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
     LOG_debug << "[CurlHttpIO::configureWsEasy] BEGIN [easy=" << (void*)easy
               << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
     assert(easy);
-    // Share DNS/SSL sessions while we are on the client thread
+    // One coherent copy of the client-owned configuration (SDK-6476): this runs on a pool
+    // worker while setproxy()/disconnect() may be rewriting these members on the client thread.
+    // Copy by value under the lock, then hand the copies to libcurl (it duplicates every string
+    // option at curl_easy_setopt time, so the copies may die before curl_easy_perform).
+    const NetConfigSnapshot cfg = netConfigSnapshot();
+    // Share the DNS/SSL-session caches (curlsh carries lock callbacks; this runs on pool workers)
     curl_easy_setopt(easy, CURLOPT_SHARE, curlsh);
     curl_easy_setopt(easy, CURLOPT_NOSIGNAL, 1L);
     curl_easy_setopt(easy, CURLOPT_ACCEPT_ENCODING, "");
-    curl_easy_setopt(easy, CURLOPT_USERAGENT, useragent.c_str());
+    curl_easy_setopt(easy, CURLOPT_USERAGENT, cfg.useragent.c_str());
 
     if (isPostJson)
     {
@@ -2499,28 +2543,28 @@ void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
     curl_easy_setopt(easy, CURLOPT_TCP_KEEPINTVL, 60L);
 
     // Respect current proxy/DNS settings
-    if (!dnsservers.empty())
-        curl_easy_setopt(easy, CURLOPT_DNS_SERVERS, dnsservers.c_str());
+    if (!cfg.dnsservers.empty())
+        curl_easy_setopt(easy, CURLOPT_DNS_SERVERS, cfg.dnsservers.c_str());
 
     // Apply proxy if configured (same logic as send_request; abbreviated)
-    if (proxyip.size())
+    if (cfg.proxyip.size())
     {
-        if (!proxyschema.size() || !proxyschema.compare(0, 4, "http"))
+        if (!cfg.proxyschema.size() || !cfg.proxyschema.compare(0, 4, "http"))
             curl_easy_setopt(easy, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
-        else if (!proxyschema.compare(0, 5, "socks"))
+        else if (!cfg.proxyschema.compare(0, 5, "socks"))
             curl_easy_setopt(easy, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
 
-        curl_easy_setopt(easy, CURLOPT_PROXY, proxyip.c_str());
+        curl_easy_setopt(easy, CURLOPT_PROXY, cfg.proxyip.c_str());
         curl_easy_setopt(easy, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
-        if (proxyusername.size())
+        if (cfg.proxyusername.size())
         {
-            curl_easy_setopt(easy, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
-            curl_easy_setopt(easy, CURLOPT_PROXYPASSWORD, proxypassword.c_str());
+            curl_easy_setopt(easy, CURLOPT_PROXYUSERNAME, cfg.proxyusername.c_str());
+            curl_easy_setopt(easy, CURLOPT_PROXYPASSWORD, cfg.proxypassword.c_str());
         }
         // For WSS via HTTP proxies:
         curl_easy_setopt(easy, CURLOPT_HTTPPROXYTUNNEL, 1L);
     }
-    else if (proxytype == Proxy::NONE)
+    else if (cfg.proxytype == Proxy::NONE)
     {
         curl_easy_setopt(easy, CURLOPT_PROXY, "");
     }
@@ -2537,7 +2581,25 @@ void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
               << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
 }
 
-CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::string* err)
+namespace
+{
+// libcurl progress callback armed on a WS handshake handle (SDK-6476): aborts the blocking
+// curl_easy_perform with CURLE_ABORTED_BY_CALLBACK once the engine's stop flag is set. libcurl
+// calls it on every pass of its internal state machine, on the thread running the handshake
+// (about once per second while a connect/TLS/upgrade is stalled), so it must stay a single
+// atomic load. Return 0 to continue; never CURL_PROGRESSFUNC_CONTINUE (that enables curl's
+// text progress meter).
+int wsHandshakeStopCallback(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
+{
+    const auto* stopFlag = static_cast<const std::atomic<bool>*>(clientp);
+    return (stopFlag && stopFlag->load(std::memory_order_acquire)) ? 1 : 0;
+}
+} // namespace
+
+CURL* CurlHttpIO::wsHandshake(const std::string& url,
+                              long timeoutMs,
+                              std::string* err,
+                              const std::atomic<bool>* stopFlag)
 {
     LOG_debug << "[CurlHttpIO::wsHandshake] BEGIN [url=" << url << "] [timeoutMs=" << timeoutMs
               << "] [this = " << this << "]";
@@ -2566,6 +2628,18 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
     curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, ebuf);
     configureWsEasy(easy, /*isPostJson*/ false);
     curl_easy_setopt(easy, CURLOPT_URL, url.c_str());
+    if (stopFlag)
+    {
+        // Stop-aware handshake (SDK-6476). The progress callback is the only libcurl-sanctioned
+        // way to interrupt a blocking curl_easy_perform: the handle must never be touched from
+        // another thread. NOPROGRESS=0 is mandatory (libcurl hides progress by default and then
+        // never invokes the callback); QUICK_EXIT lets an abort during name resolution return
+        // without joining the resolver thread, as send_request already does.
+        curl_easy_setopt(easy, CURLOPT_XFERINFOFUNCTION, wsHandshakeStopCallback);
+        curl_easy_setopt(easy, CURLOPT_XFERINFODATA, stopFlag);
+        curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 0L);
+        curl_easy_setopt(easy, CURLOPT_QUICK_EXIT, 1L);
+    }
     if (timeoutMs > 0)
     {
         // Bound the TCP-connect leg AND the overall handshake (TLS + WS upgrade).
@@ -2581,16 +2655,39 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::strin
     CURLcode rc = curl_easy_perform(easy);
     if (rc != CURLE_OK)
     {
-        if (err)
-            *err = std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
-        LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
-                << curl_easy_strerror(rc) << " (" << ebuf << ")";
+        if (rc == CURLE_ABORTED_BY_CALLBACK && stopFlag)
+        {
+            // Expected cancellation (engine stopping), not a network failure: stay quiet and
+            // hand callers a stable, SDK-owned reason.
+            if (err)
+                *err = kWsHandshakeCancelledErr;
+            LOG_debug << "[wsHandshake] cancelled (engine stopping) url=" << url;
+        }
+        else
+        {
+            if (err)
+                *err =
+                    std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
+            LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
+                    << curl_easy_strerror(rc) << " (" << ebuf << ")";
+        }
         curl_easy_cleanup(easy);
         return nullptr;
     }
 
     // On success, DETACH from shared state before we hand the handle to worker threads.
     curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
+
+    // Disarm the stop callback: the handle now belongs to the WS send/recv path. lib/ws.c never
+    // invokes the progress callback, so this is defensive symmetry with the detaches around it.
+    if (stopFlag)
+    {
+        curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1L);
+        curl_easy_setopt(easy,
+                         CURLOPT_XFERINFOFUNCTION,
+                         static_cast<curl_xferinfo_callback>(nullptr));
+        curl_easy_setopt(easy, CURLOPT_XFERINFODATA, nullptr);
+    }
 
     // Drop the stack-local error buffer before the handle outlives this frame:
     // the worker thread keeps using `easy`, and a later error would otherwise have

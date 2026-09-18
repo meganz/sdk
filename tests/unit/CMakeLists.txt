@@ -21,6 +21,7 @@ target_sources(test_unit
     ChunkMacMap_test.cpp
     Commands_test.cpp
     Crypto_test.cpp
+    CurlHttpIoConfig_test.cpp
     cxx20_features_test.cpp
     FileFingerprint_test.cpp
     FileFingerprint_CRC_test.cpp
@@ -79,6 +80,7 @@ target_sources(test_unit
     SharedMemoryZone_test.cpp
     sc_streaming_parser_test.cpp
     TestHooks_test.cpp
+    WsHandshakeCancel_test.cpp
     WsUpload_test.cpp
     WsQuota_test.cpp
     MediaTs_test.cpp

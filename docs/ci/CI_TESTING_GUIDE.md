@@ -72,7 +72,7 @@ coexist; you can have all of them present at once.
 | Task                              | Command                                                                                                                                                                                                                                                                                                                       |
 |-----------------------------------|-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | Bench (one or more cells)         | `bash tests/integration/run_bench.sh 'SdkBenchmarkTest.SingleLargeUpload' 3`                                                                                                                                                                                                                                                  |
-| TSAN build                        | `cmake --preset dev-unix-tsan && cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration`                                                                                                                                                                                                                  |
+| TSAN build                        | `cmake --preset dev-unix-tsan && cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration test_unit`                                                                                                                                                                                                       |
 | TSAN run                          | `TSAN_OPTIONS='halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0' ~/repo/build-sdk-dev-unix-tsan/tests/integration/test_integration --USERAGENT:JenkinsCanSpam-SDK --CI --COUT --gtest_filter='SdkWsUploadTest.OverquotaDuringTransfer'`                                                              |
 | Strict pre-push compile gate      | `cmake --preset dev-unix-strict && cmake --build ~/repo/build-sdk-dev-unix-strict -j16 --target SDKlib`                                                                                                                                                                                                                       |
 
@@ -132,6 +132,10 @@ The stage **fails** if any race signature touches one of the watched
 WS-upload-surface fields (`mChunksInFlight`, `mNumChunksInFlight`,
 `mUploadingFile`, `WsConn::mLastActive`, `WsConn::mPausedByServerUntilDs`,
 `WsConn::mReadyState`, `WsUploadFile`, `mWorkGeneration`).
+
+The stage also runs the TSAN-built `test_unit` on `TSAN_UNIT_FILTER`
+(`CurlHttpIoConfig.*`, SDK-6476): hermetic cells written for the sweep;
+any race they report fails the stage.
 
 **What's NOT covered yet** (expansion candidates):
 

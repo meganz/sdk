@@ -808,6 +808,16 @@ namespace mega {
         // deterministically, no starvation timing needed. Asserted (<=64) by
         // SdkWsUploadTest.LocallogoutBoundedWithStuckReadIO.
         std::function<void(std::uint64_t /*itersWhileStopping*/)> onWsTeardownWorkerChurn;
+        // SDK-6476 seam: fired once from wsLocallogoutCleanup right after the bounded worker
+        // quiesce wait, BEFORE the branch it reports on: quiesced==true means every engine
+        // thread exited and the engine is destroyed normally; quiesced==false means the
+        // bounded containment path is taken and the engine is intentionally leaked.
+        // liveWorkers is the pool-worker count still alive at that moment and elapsedMs the
+        // locallogout phase time. Lets tests assert WHICH branch ran without scraping logs
+        // (LocallogoutCancelsBlackholedHandshake expects true, LocallogoutBoundedWithStuckReadIO
+        // expects false).
+        std::function<void(bool /*quiesced*/, int /*liveWorkers*/, std::int64_t /*elapsedMs*/)>
+            onWsEngineQuiesceOutcome;
         // Goodput-saturation gate v2 (SDK-5360 QCT-K) controller-input seams. Both fire on the
         // WS engine thread under uploadMutex, inside WsPool::runGoodputGateLocked, so a test can
         // drive the ramp controller with a deterministic synthetic signal while the REAL send
@@ -942,6 +952,10 @@ namespace mega {
                 std::move(other.onWsUploadTailCompletionTimeoutDs);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
+            onWsTeardownWorkerChurn = std::move(other.onWsTeardownWorkerChurn);
+            onWsEngineQuiesceOutcome = std::move(other.onWsEngineQuiesceOutcome);
+            onHeartbeatReceived = std::move(other.onHeartbeatReceived);
+            interceptCSRequest = std::move(other.interceptCSRequest);
             onWsTfsIssued = std::move(other.onWsTfsIssued);
             onWsTfsResult = std::move(other.onWsTfsResult);
             onWsQuotaHoldChanged = std::move(other.onWsQuotaHoldChanged);
@@ -1412,6 +1426,19 @@ namespace mega {
         } \
         while (0)
 
+#define DEBUG_TEST_HOOK_WS_ENGINE_QUIESCE_OUTCOME(QUIESCED, LIVEWORKERS, ELAPSEDMS) \
+        do \
+        { \
+            std::function<void(bool, int, std::int64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsEngineQuiesceOutcome; \
+            } \
+            if (_fn) \
+                _fn((QUIESCED), (LIVEWORKERS), (ELAPSEDMS)); \
+        } \
+        while (0)
+
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA) \
         do \
         { \
@@ -1688,6 +1715,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
 #define DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(COUNT)
+#define DEBUG_TEST_HOOK_WS_ENGINE_QUIESCE_OUTCOME(QUIESCED, LIVEWORKERS, ELAPSEDMS)
 #define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN)
 #define DEBUG_TEST_HOOK_WS_TFS_RESULT(GEN, ERR, GROUPS, ACTION)
 #define DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(TAG, HELD, FOREIGN, AVAIL)

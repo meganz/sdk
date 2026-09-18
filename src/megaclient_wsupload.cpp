@@ -879,14 +879,17 @@ void MegaClient::wsPostTransferUpdate(Transfer* t,
         });
 }
 
-void* MegaClient::wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err)
+void* MegaClient::wsHandshakeForUpload(const std::string& url,
+                                       long timeoutMs,
+                                       std::string* err,
+                                       const std::atomic<bool>* stopFlag)
 {
     auto* cio = dynamic_cast<CurlHttpIO*>(httpio);
     if (!cio)
     {
         return nullptr;
     }
-    return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err));
+    return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err, stopFlag));
 }
 
 void MegaClient::wsDrainClientActions(dstime maxExecTimeDs, bool loudPhases)
@@ -1633,7 +1636,13 @@ void MegaClient::wsLocallogoutCleanup()
         // S15 FIX-T regression seam: report the teardown worker-churn count while the
         // engine is still alive on both branches below (the leak branch releases it).
         DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(m_wsEngine->workerItersWhileStopping());
-        if (!m_wsEngine->workersQuiesced())
+        // SDK-6476 seam: report which teardown branch is taken (normal destruction vs the
+        // bounded leak fallback) so tests can assert it without scraping logs.
+        const bool quiesced = m_wsEngine->workersQuiesced();
+        DEBUG_TEST_HOOK_WS_ENGINE_QUIESCE_OUTCOME(quiesced,
+                                                  m_wsEngine->liveWorkerCount(),
+                                                  static_cast<std::int64_t>(phaseMs()));
+        if (!quiesced)
         {
             LOG_err << "WsUpload: engine workers did not quiesce at locallogout — "
                        "intentionally leaking the engine to avoid an unbounded thread "

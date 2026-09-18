@@ -356,7 +356,7 @@ pipeline {
                                         csplit -z -s -b '%04d' -f bench_logs_${BUILD_ID}/_split_ bench_sweep.log '/\\[ RUN      \\]/' '{*}' || :
                                         for sf in bench_logs_${BUILD_ID}/_split_*; do
                                             [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
-                                            cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                            cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$4}' | tr '.' '_' || echo 'preamble')
                                             [ -n "\$cellName" ] || cellName="preamble"
                                             mv "\$sf" "bench_logs_${BUILD_ID}/\${cellName}.log" || :
                                         done

@@ -17,7 +17,7 @@ For Windows, rely on the regular sweep + Linux/macOS TSAN coverage.
 
 ```bash
 cmake --preset dev-unix-tsan
-cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration
+cmake --build ~/repo/build-sdk-dev-unix-tsan -j16 --target test_integration test_unit
 ```
 
 This sets `-DENABLE_TSAN=ON` which adds `-fsanitize=thread` and the
@@ -44,7 +44,7 @@ Recommended TSAN_OPTIONS (matches the Jenkinsfile lines ~420):
 ## Surface filter vs full sweep
 
 The full TSAN sweep is expensive. For per-commit gates, use the
-8-cell **WS-upload surface filter** (matches the Jenkinsfile
+9-cell **WS-upload surface filter** (matches the Jenkinsfile
 `TSAN_SURFACE_FILTER` — the single source of truth; this list mirrors it):
 
 ```
@@ -56,6 +56,7 @@ SdkWsUploadTest.AckStallForceReconnectsHungConnection        # S11 watchdog (fu8
 SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion # S11 watchdog (fu8)
 SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool      # SDK-6298 T3 (quota x engine)
 SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds # SDK-6298 T14 (quota x legacy OQ)
+SdkWsUploadTest.LocallogoutCancelsBlackholedHandshake         # SDK-6476 stop-aware handshake at logout
 ```
 
 This is the minimum surface that exercises the WS pool + worker thread
@@ -65,6 +66,23 @@ SDK-6298 added the two quota cells.)
 
 For final session sweeps, extend with the full `SdkWsUploadTest.*`
 suite at lower n.
+
+### Unit cells (`TSAN_UNIT_FILTER`)
+
+The sweep also runs the TSAN-built `test_unit` on the cells written for
+it (mirrors the Jenkinsfile `TSAN_UNIT_FILTER`):
+
+```
+CurlHttpIoConfig.*   # SDK-6476 CurlHttpIO proxy/DNS/user-agent snapshot vs WS handshake readers
+```
+
+They are hermetic (no accounts, seconds to run) and any race report
+from them fails the stage:
+
+```bash
+TSAN_OPTIONS='halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0' \
+  ~/repo/build-sdk-dev-unix-tsan/tests/unit/test_unit --gtest_filter='CurlHttpIoConfig.*'
+```
 
 ## NEW-vs-develop race classification
 
