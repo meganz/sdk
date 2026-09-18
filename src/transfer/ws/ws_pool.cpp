@@ -318,6 +318,27 @@ void WsPool::addAndResetBenchThrottleStatsTo(UploadEngine::BenchThrottleSnapshot
 
 WsUploadFile* WsPool::findPreflightReadyCandidate(UploadEngine::Impl& impl)
 {
+    // Upper bound on how many not-yet-Ready preflights ONE scan pass may leave
+    // outstanding. A pool uploads one file at a time, so one ready-ahead file is all
+    // that is needed to hide the client-thread latency of the next preflight. Anything
+    // beyond that is speculative work: it fills the ws->client FIFO ahead of the
+    // onStart/onProgress updates the app renders, and schedules thumbnail/preview file
+    // attributes for files that will not start for minutes (SDK-5360 QA: 4,861-file
+    // folder upload posted 4,861 preflights before the first onStart could drain).
+    constexpr std::size_t kMaxPendingPreflightsPerPass = 2;
+
+    // Cursor position at pass start, restored below when the pass finds nothing to
+    // start, so the pending head files are re-examined first and start order stays in
+    // queue (priority) order. Safe to hold across the loop: uploadMutex is held for the
+    // whole pass and impl.mCb.preflightStart is non-blocking (posts to the client thread
+    // and polls with wait_for(0)), so nothing can erase from fileList meanwhile.
+    const auto passStartIt = impl.nextIt;
+    std::size_t pendingSeen = 0;
+    // Last file nextEligible handed out. It returns the SAME file again when it could not
+    // advance the cursor (single eligible file, or a wrap that lands back on it); a repeat
+    // carries no new information, so scanning on would only re-post the same preflight.
+    WsUploadFile* lastCandidate = nullptr;
+
     const std::size_t scanBudget = impl.fileList.size();
     for (std::size_t scanned = 0; scanned < scanBudget; ++scanned)
     {
@@ -326,13 +347,33 @@ WsUploadFile* WsPool::findPreflightReadyCandidate(UploadEngine::Impl& impl)
         {
             break;
         }
+        if (candidate == lastCandidate)
+        {
+            break;
+        }
+        lastCandidate = candidate;
 
         if (impl.mCb.preflightStart)
         {
             const auto preflightResult = impl.mCb.preflightStart(candidate->transfer());
+            if (preflightResult == UploadEngine::PreflightStartResult::NotScheduled)
+            {
+                // Preflight ran and failed (or was never scheduled): the failure action
+                // removes this file from the engine, so there is nothing to wait for.
+                // Skip it WITHOUT charging the lookahead budget and WITHOUT arming
+                // mPreflightPending, so this same pass can still start the next healthy
+                // file instead of stalling the pool on a doomed one.
+                continue;
+            }
             if (preflightResult != UploadEngine::PreflightStartResult::Ready)
             {
+                // Genuinely Pending: a preflight is in flight for this file and will wake
+                // the worker when it completes.
                 mPreflightPending = true;
+                if (++pendingSeen >= kMaxPendingPreflightsPerPass)
+                {
+                    break;
+                }
                 continue;
             }
         }
@@ -342,15 +383,15 @@ WsUploadFile* WsPool::findPreflightReadyCandidate(UploadEngine::Impl& impl)
         return candidate;
     }
 
+    if (pendingSeen)
+    {
+        impl.rewindNextIt(passStartIt);
+    }
     return nullptr;
 }
 
 bool WsPool::getWsUploadFile(const dstime now, UploadEngine::Impl& impl)
 {
-    // Mark true when we observe preflight pending (queued/running) so worker threads
-    // use short CV waits instead of coarse decisecond sleeps.
-    mPreflightPending = false;
-
     const std::uint32_t implQueueVersion = impl.queueVersion.load(std::memory_order_relaxed);
     if (mUploadingFile && !mUploadingFile->paused() && mUploadingFile->continuingUpload(now) &&
         mUploadingFile->hasPendingBytesOrEofToSend() && mUFTQversion == implQueueVersion)
@@ -427,6 +468,14 @@ WsUploadFile* WsPool::findFile(const std::uint32_t fileno, UploadEngine::Impl& i
 
 bool WsPool::nextChunk(WsChunk& chunk, UploadEngine::Impl& impl, dstime* retryAfterDs)
 {
+    // Clear the hint for this whole pass; findPreflightReadyCandidate marks it true when it
+    // observes a preflight pending (queued/running), so the worker takes a short CV wait
+    // instead of a coarse decisecond sleep. Reset here, NOT in getWsUploadFile: the early
+    // `return false` exits below (impl.paused, resend budget denied) never reach
+    // getWsUploadFile and would otherwise inherit a stale true, making the worker busy-poll
+    // on the 100 ms preflight wait while nothing is actually in flight.
+    mPreflightPending = false;
+
     WSUPLOAD_TRACE << "[WsPool::nextChunk] BEGIN [this = " << this << "]";
     // Queued retry first — but only entries whose owner is SENDABLE. S12 Cluster-B fix
     // (JENKINS_RCA_S12): a parked chunk whose owner was paused underneath used to be

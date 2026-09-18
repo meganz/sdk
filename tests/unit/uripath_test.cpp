@@ -245,3 +245,47 @@ TEST(UriPathTest, trimNonDriveTrailingSeparatorOnSafUriForms)
         EXPECT_EQ(withLeaf.toPath(false), expected) << uri;
     }
 }
+
+/**
+ * Premise + contract of the WS-upload preflight path check (SDK-5360).
+ *
+ * A SAF URI kept by the Android folder scan is a usable local file path, yet
+ * LocalPath::isAbsolute() is false for it (URIs carry PathType::URI_PATH, not
+ * ABSOLUTE_PATH). That asymmetry is why the preflight gate is `isUsableLocalFilePath`
+ * -- non-empty AND (absolute OR URI): it must accept the URI the old `isAbsolute()`
+ * gate rejected, and keep rejecting an empty or a relative path, because those are the
+ * inputs for which the preflight must fail the transfer instead of deferring it forever.
+ */
+TEST(UriPathTest, WsPreflightPredicateAcceptsUriAndAbsolutePaths)
+{
+    static const std::string uri{auxUriBase + "/document/primary%3ADocuments%2Ffile.txt"};
+    ASSERT_TRUE(LocalPath::isURIPath(uri)) << uri;
+
+#ifdef WIN32
+    static const std::string absolute{rootDrive + "\\" + auxUriLeaf1 + "\\" + auxUriLeaf2};
+#else
+    static const std::string absolute{pathSep + auxUriLeaf1 + pathSep + auxUriLeaf2};
+#endif
+
+    const auto uriPath = LocalPath::fromAbsolutePath(uri);
+    const auto absolutePath = LocalPath::fromAbsolutePath(absolute);
+    const auto relativePath = LocalPath::fromRelativePath("b.txt");
+
+    // The premise: the same factory routes a URI to the URI branch, where isAbsolute()
+    // is false. Turning RED here would mean the gate no longer needs the || isURI().
+    EXPECT_FALSE(uriPath.empty()) << uri;
+    EXPECT_FALSE(uriPath.isAbsolute()) << uri;
+    EXPECT_TRUE(uriPath.isURI()) << uri;
+    EXPECT_EQ(uriPath.toPath(false), uri);
+    EXPECT_TRUE(absolutePath.isAbsolute()) << absolute;
+    EXPECT_FALSE(absolutePath.isURI()) << absolute;
+    EXPECT_FALSE(relativePath.empty());
+    EXPECT_FALSE(relativePath.isAbsolute());
+    EXPECT_FALSE(relativePath.isURI());
+
+    // The predicate itself.
+    EXPECT_TRUE(isUsableLocalFilePath(uriPath)) << uri;
+    EXPECT_TRUE(isUsableLocalFilePath(absolutePath)) << absolute;
+    EXPECT_FALSE(isUsableLocalFilePath(LocalPath{}));
+    EXPECT_FALSE(isUsableLocalFilePath(relativePath));
+}

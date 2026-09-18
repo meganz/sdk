@@ -126,7 +126,8 @@ bool wsSmallFileColdStartEnvDefault(); // MEGA_WS_SMALLFILE_COLDSTART -> mSmallF
 //   - The private `withFile<F>` template (mandatory: template definition must
 //     be visible to every TU that instantiates it).
 //   - The private one-line noexcept iterator helpers `cycleNextIt` and
-//     `advanceNextItFrom`.
+//     `advanceNextItFrom`, plus the public `rewindNextIt` (inline because it is
+//     called from ws_pool.cpp, which cannot reach the private helpers).
 class UploadEngine::Impl
 {
 public:
@@ -463,6 +464,17 @@ public:
     std::unordered_map<std::uint32_t, WsUploadFile*> fileByNo;
 
     ListWsUploadFile::iterator nextIt = fileList.begin();
+
+    // Restore the round-robin cursor to a value read from `nextIt` earlier in the SAME
+    // uploadMutex critical section. WsPool::findPreflightReadyCandidate uses it to undo
+    // the advance made by a scan pass that ended without a startable file, so the next
+    // pass re-examines the files whose preflight is already in flight instead of walking
+    // further down the queue. Caller must hold uploadMutex.
+    void rewindNextIt(ListWsUploadFile::iterator it) noexcept
+    {
+        nextIt = it;
+        cycleNextIt();
+    }
     // Atomic because poolWorkerThread reads queueVersion before acquiring
     // uploadMutex at wsupload.cpp:4315 (race with bumpQueueVersion writer).
     // Relaxed memory order is sufficient: the value is used as a change-counter

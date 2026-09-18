@@ -568,6 +568,25 @@ class MEGA_API MegaClient
     std::unordered_map<Transfer*, WsPreflightRequest> mWsPreflightRequests;
     dstime mWsPreflightLastCleanupDs{0};
 
+    // SDK-5360 fan-out observability. Client-lifetime high-water marks of the preflight
+    // dedup map and of the ws->client action FIFO. Test-facing only, never reset: a folder
+    // upload submits all its subtransfers at once, so these record how many speculative
+    // preflights / queued client actions the engine accumulated at the worst moment.
+    std::atomic<std::uint64_t> mWsPreflightRequestsPeak{0};
+    std::atomic<std::uint64_t> mWsClientActionsPeak{0};
+
+public:
+    std::uint64_t wsPreflightRequestsPeak() const
+    {
+        return mWsPreflightRequestsPeak.load(std::memory_order_relaxed);
+    }
+
+    std::uint64_t wsClientActionsPeak() const
+    {
+        return mWsClientActionsPeak.load(std::memory_order_relaxed);
+    }
+
+private:
     struct WsFailureRequeuePosition
     {
         Transfer* wsBefore{nullptr};

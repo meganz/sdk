@@ -843,6 +843,18 @@ void MegaClient::wsPostToClientThread(std::function<void(MegaClient&, TransferDb
     // sync-upload completion propagation. Logged AFTER unlock for low overhead.
     LOG_debug << "[SyncPutnodesDiag] wsPostToClientThread enqueued. queueSize="
               << diagQueueSize;
+
+    // SDK-5360: high-water mark of the ws->client action FIFO. Any WS worker thread may
+    // post concurrently, so the maximum is published with a CAS loop.
+    const auto queueDepth = static_cast<std::uint64_t>(diagQueueSize);
+    auto knownPeak = mWsClientActionsPeak.load(std::memory_order_relaxed);
+    while (queueDepth > knownPeak &&
+           !mWsClientActionsPeak.compare_exchange_weak(knownPeak,
+                                                       queueDepth,
+                                                       std::memory_order_relaxed,
+                                                       std::memory_order_relaxed))
+    {}
+
     waiter->notify(); // wake client thread to process actions in exec()
 }
 
@@ -924,7 +936,7 @@ void MegaClient::wsDrainClientActions(dstime maxExecTimeDs, bool loudPhases)
     if (n)
     {
         LOG_debug << "Processed " << ctr_N << " WS requests in " << (waiter->ds - ctr_start)
-                  << "ms, " << n << " WS requests outstanding";
+                  << "ds, " << n << " WS requests outstanding";
     }
 
     wsCleanupPreflightRequests();
@@ -1146,6 +1158,15 @@ ws::UploadEngine::PreflightStartResult MegaClient::wsPrepareUploadForWsSync(Tran
                                          WsPreflightRequest{th,
                                                             resultFuture,
                                                             WsPreflightState::Queued});
+
+            // SDK-5360: high-water mark of the speculative-preflight backlog. This is the
+            // only site that grows the map and mWsPreflightMutex is held, so a plain
+            // load/store pair is exact (no concurrent writer to race with).
+            const auto mapSize = static_cast<std::uint64_t>(mWsPreflightRequests.size());
+            if (mapSize > mWsPreflightRequestsPeak.load(std::memory_order_relaxed))
+            {
+                mWsPreflightRequestsPeak.store(mapSize, std::memory_order_relaxed);
+            }
         }
     }
 
@@ -1240,7 +1261,15 @@ ws::UploadEngine::PreflightStartResult MegaClient::wsPrepareUploadForWsSync(Tran
     {
         return PreflightStartResult::Pending;
     }
-    return resultFuture.get() ? PreflightStartResult::Ready : PreflightStartResult::Pending;
+    if (!resultFuture.get())
+    {
+        // Preflight ran and FAILED. The failure action posted by prepareUploadForWs detaches
+        // the transfer from the engine and fails it, so this candidate will never turn Ready.
+        // Reporting Pending here would charge the pool's per-pass lookahead budget and make
+        // its worker take the 100 ms preflight-pending wait for a wake that cannot come.
+        return PreflightStartResult::NotScheduled;
+    }
+    return PreflightStartResult::Ready;
 }
 
 // Check transfer is alive by comparing its exact pointer identity.
@@ -1391,10 +1420,29 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
             (*it)->prepare(*fsaccess);
         }
 
-        if (t.localfilename.empty() || !t.localfilename.isAbsolute())
+        if (t.files.empty())
         {
-            LOG_err << "[MegaClient::prepareUploadForWs] No absolute localfilename yet";
-            return false; // defer start until we have a usable path
+            // No File is attached (yet), so the loop above had nothing to derive a path
+            // from. This is a transfer being torn down or not yet linked, NOT a broken
+            // path: defer instead of failing, and let the next scan pass re-check it.
+            LOG_warn << "[MegaClient::prepareUploadForWs] no File attached yet, deferring [t = "
+                     << &t << "]";
+            return false;
+        }
+
+        if (!isUsableLocalFilePath(t.localfilename))
+        {
+            // A File is attached but yielded no usable path. Legacy asserts this cannot
+            // happen (File::prepare always yields the upload's local name) and
+            // dispatchTransfers fails such a transfer outright ("Error preparing transfer.
+            // No localfilename" -> failed(API_EREAD)). The WS preflight deliberately fails
+            // validation problems PERMANENTLY (forcePermanentWsReadFailure), exactly like
+            // the sibling "cannot open local file" / "file modified" branches below and
+            // unlike legacy's retryable API_EREAD: a path that cannot be used will not
+            // become usable by retrying, and deferring would leave the file not-Ready at
+            // the head of its pool's queue forever.
+            failWsPreflightRead("no usable local path");
+            return false;
         }
 
         // App-side preparation (thumbnails may depend on this meta)

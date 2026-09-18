@@ -390,7 +390,9 @@ LocalPath File::logicalPath() const
 void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = getLocalname();
-    assert(transfer->localfilename.isAbsolute());
+    // URI paths (Android SAF content://) are a supported local-file state: isAbsolute() is
+    // false for them, so assert the usability predicate instead (SDK-5360).
+    assert(isUsableLocalFilePath(transfer->localfilename));
 }
 
 void File::start()

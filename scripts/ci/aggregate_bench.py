@@ -64,6 +64,12 @@ AXES: List[Tuple[str, str, bool, str]] = [
     ("throttle_event6_total_ms", "throttle event=6 total ms", False, "throttle"),
     ("chunk_ms_median", "chunk ms median", False, "chunk"),
     ("chunk_ms_p95", "chunk ms p95", False, "chunk"),
+    # Schema-3 axes (SDK-5360): only QaNestedFolderUpload measures them, other cells
+    # write 0 and pre-schema-3 rows have no key. Not primary, so they never gate.
+    ("first_progress_after_stage_ms", "stage -> first subtransfer progress ms", False, "latency"),
+    ("first_finish_after_stage_ms", "stage -> first subtransfer finish ms", False, "latency"),
+    ("preflight_peak", "outstanding preflight requests peak", False, "preflight"),
+    ("action_queue_peak", "client-action queue depth peak", False, "preflight"),
 ]
 
 # Primary axes used by the master_summary §1 wide table + close-gate.
@@ -118,6 +124,8 @@ CELL_ALIASES: Dict[str, str] = {
     "SdkTestBenchmarkLargePlusManySmall": "largeplusmanysmall",
     "SmallFileBurst": "smallfileburst",
     "SdkTestBenchmarkSmallFileBurst": "smallfileburst",
+    "QaNestedFolderUpload": "qanested",
+    "SdkTestBenchmarkQaNestedFolderUpload": "qanested",
 }
 
 
@@ -1016,7 +1024,10 @@ def parse_cli() -> argparse.Namespace:
         "--axes",
         type=str,
         default=None,
-        help="Comma-separated axis-group allow-list (throughput,rss,cpu,throttle,chunk). Defaults to every group.",
+        help=(
+            "Comma-separated axis-group allow-list "
+            "(throughput,rss,cpu,throttle,chunk,latency,preflight). Defaults to every group."
+        ),
     )
     return ap.parse_args()
 

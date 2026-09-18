@@ -87,4 +87,15 @@ TEST_F(SdkBenchmarkTest, QaMixedUpload)
     runQaMixedUploadBenchmark(*this);
 }
 
+/**
+ * @brief Benchmark / QA reproduction (SDK-5360): the directory tree at
+ * MEGA_BENCH_UPLOAD_SOURCE_DIR uploaded by ONE MegaApi::startUpload() of the folder
+ * itself, so the recursive folder controller submits all subtransfers at once.
+ * Measurement cell — see BENCHMARKS.md for the axes, env knobs and gating.
+ */
+TEST_F(SdkBenchmarkTest, QaNestedFolderUpload)
+{
+    runQaNestedFolderUploadBenchmark(*this);
+}
+
 } // namespace mega::test::benchmark

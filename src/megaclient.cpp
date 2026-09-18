@@ -4597,7 +4597,10 @@ void MegaClient::dispatchTransfers()
                 {
                     (*it)->prepare(*fsaccess);
                 }
-                assert(nexttransfer->localfilename.isAbsolute());
+                // URI paths (Android SAF content://) are a supported local-file state:
+                // isAbsolute() is false for them, so assert the usability predicate
+                // instead (SDK-5360).
+                assert(isUsableLocalFilePath(nexttransfer->localfilename));
 
                 // app-side transfer preparations (populate localname, create thumbnail...)
                 app->transfer_prepare(nexttransfer);
@@ -6652,6 +6655,14 @@ void MegaClient::activatefa()
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
         queueCommand(fa->getURLForFACmd());
     }
+#ifdef MEGA_USE_WSUPLOAD
+    // queuedfa changed (grown by putfa or drained into activefa): publish the WS
+    // start gate now, not at the end of the next client-action drain. With prompt
+    // starts (bounded preflight lookahead) a stale-open snapshot lets the pools start
+    // hundreds of small files in one exec cycle and overshoot MAXQUEUEDFA by an order
+    // of magnitude, which then closes the gate for seconds while the backlog drains.
+    wsRefreshCanStartAnotherFileSnapshot();
+#endif
 }
 
 // has the limit of concurrent transfer tslots been reached?
@@ -19236,7 +19247,9 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 // (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause, int tag, m_off_t availableDiskSpace)
 {
-    assert(f->getLocalname().isAbsolute());
+    // URI paths (Android SAF content://) are a supported local-file state: isAbsolute() is
+    // false for them, so assert the usability predicate instead (SDK-5360).
+    assert(isUsableLocalFilePath(f->getLocalname()));
     f->mVersioningOption = vo;
 
     // Dummy to avoid checking later.

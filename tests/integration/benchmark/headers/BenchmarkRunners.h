@@ -53,4 +53,10 @@ void runSmallFileBurstBenchmark(SdkTest& test);
 // generation is reproduced. Honours MEGA_NET_MAXUPLOAD_KBPS + MEGA_BENCH_UPLOAD_CONNECTIONS.
 void runQaMixedUploadBenchmark(SdkTest& test);
 
+// Drives the QA nested-folder reproduction (SDK-5360): ONE MegaApi::startUpload()
+// of the whole directory tree at MEGA_BENCH_UPLOAD_SOURCE_DIR (skipped when unset),
+// so the recursive folder controller submits every subtransfer in one go.
+// Measurement cell — axes, env knobs and gating are in BENCHMARKS.md.
+void runQaNestedFolderUploadBenchmark(SdkTest& test);
+
 } // namespace mega::test::benchmark

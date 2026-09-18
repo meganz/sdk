@@ -109,7 +109,12 @@ void writeCellBody(std::ostream& ofs, const BenchReportCell& c, const char* inde
     ofs << indent << "\"chunk_ms_mean\": " << c.chunkMsDist.mean << ",";
     ofs << indent << "\"chunk_ms_median\": " << c.chunkMsDist.median << ",";
     ofs << indent << "\"chunk_ms_p95\": " << c.chunkMsDist.p95 << ",";
-    ofs << indent << "\"chunk_n\": " << c.chunkMsDist.n;
+    ofs << indent << "\"chunk_n\": " << c.chunkMsDist.n << ",";
+    // Schema 3 (SDK-5360 followup9.1) — folder-transfer latency + WS backlog peaks.
+    ofs << indent << "\"first_progress_after_stage_ms\": " << c.firstProgressAfterStageMs << ",";
+    ofs << indent << "\"first_finish_after_stage_ms\": " << c.firstFinishAfterStageMs << ",";
+    ofs << indent << "\"preflight_peak\": " << c.preflightPeak << ",";
+    ofs << indent << "\"action_queue_peak\": " << c.actionQueuePeak;
 }
 
 // Build the absolute path `<reportDir>/bench_reports/<basename>_<PID>.<ext>`,
@@ -142,7 +147,10 @@ void appendJsonlLine(const std::string& path, const BenchReportCell& c)
         return;
 
     ofs << '{';
-    // No newlines between fields → entire cell on one line.
+    // No newlines between fields → entire cell on one line. The per-line form
+    // carried no `schema_version` before schema 3; a line without the field
+    // predates it (and carries none of the schema-3 keys).
+    ofs << " \"schema_version\": 3,";
     writeCellBody(ofs, c, " ");
     ofs << " }\n";
     ofs.flush();
@@ -259,7 +267,7 @@ std::string BenchReportWriter::flush(const std::string& reportDir)
         return {};
 
     ofs << "{\n";
-    ofs << "  \"schema_version\": 2,\n";
+    ofs << "  \"schema_version\": 3,\n";
     ofs << "  \"session_pid\": " << currentPid() << ",\n";
     ofs << "  \"cells\": [\n";
     for (std::size_t i = 0; i < storage().size(); ++i)
