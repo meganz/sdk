@@ -9954,6 +9954,27 @@ bool MegaApiImpl::isScheduleNotifiable(MegaPushNotificationSettingsPrivate* push
     }
 }
 
+void MegaApiImpl::abortScRequests(const error e)
+{
+    // bounded, so that a listener re-queuing a catchup from its callback cannot feed the loop
+    for (size_t remaining = scRequestQueue.size(); remaining; --remaining)
+    {
+        MegaRequestPrivate* scRequest = scRequestQueue.pop();
+        if (!scRequest)
+        {
+            break;
+        }
+
+        // keep it reachable for removeRequestListener while its callbacks run
+        const auto scopedRetaining = scRequestQueue.scopedRetainingRequest(scRequest);
+        if (!scRequest->getTag()) // never dispatched, so it was never started either
+        {
+            fireOnRequestStart(scRequest);
+        }
+        fireOnRequestFinish(scRequest, std::make_unique<MegaErrorPrivate>(e));
+    }
+}
+
 // clears backups/requests/transfers notifying failure with EACCESS (and resets total up/down bytes)
 void MegaApiImpl::abortPendingActions(error preverror)
 {
@@ -9987,6 +10008,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(preverror));
     }
     requestMap.clear();
+
+    abortScRequests(preverror);
 
     // -- Transfers in progress --
     {
@@ -17830,12 +17853,16 @@ void MegaApiImpl::checkLastPurgeNotification()
 
 void MegaApiImpl::catchup_result()
 {
-    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    // sc requests are sent sequentially, it must be the one at front and already started (tag
+    // assigned)
     MegaRequestPrivate *request = scRequestQueue.front();
     if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
     request = scRequestQueue.pop();
 
-    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+    {
+        const auto scopedRetaining = scRequestQueue.scopedRetainingRequest(request);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+    }
 
     // if there are more sc requests in the queue, send the next one
     if (scRequestQueue.front())
@@ -18418,6 +18445,7 @@ bool MegaApiImpl::removeRequestListener(MegaRequestListener* listener)
     }
 
     requestQueue.removeListener(listener);
+    scRequestQueue.removeListener(listener);
 
     return removed;
 }
@@ -21558,16 +21586,34 @@ static error updateAttributesMapWithCoordinates(attr_map& attrUpdates, int latit
 
 void MegaApiImpl::sendPendingScRequest()
 {
-    MegaRequestPrivate *request = scRequestQueue.front();
-    if (!request || request->getTag())
-    {
+    if (!scRequestQueue.front()) // lock free fast path, the queue has its own mutex
         return;
-    }
+
+    SdkMutexGuard g(sdkMutex);
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request)
+        return;
     assert(request->getType() == MegaRequest::TYPE_CATCHUP);
 
-    SdkMutexGuard g(sdkMutex);;
+    // catchup completes off the sc channel, which no session will ever bring up, so none of the
+    // queued requests can make progress either
+    if (client->loggedin() == NOTLOGGEDIN && !client->loggedIntoFolder())
+    {
+        abortScRequests(API_EACCESS);
+        return;
+    }
 
-    request->setTag(1);
+    if (request->getTag())
+    {
+        // The engine dropped our registration, so re-register here
+        if (!client->hasPendingCatchUps())
+        {
+            client->catchup();
+        }
+        return;
+    }
+
+    request->setTag(client->nextreqtag());
     fireOnRequestStart(request);
     client->catchup();
 }
@@ -31259,6 +31305,12 @@ MegaRequestPrivate *RequestQueue::pop()
     MegaRequestPrivate *request = requests.front();
     requests.pop_front();
     return request;
+}
+
+size_t RequestQueue::size()
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return requests.size();
 }
 
 MegaRequestPrivate *RequestQueue::front()

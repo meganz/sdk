@@ -3475,6 +3475,7 @@ class RequestQueue
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
+        size_t size();
         void removeListener(MegaRequestListener *listener);
         void removeListener(MegaScheduledCopyListener *listener);
         std::unique_ptr<ScopedRetainingRequest> scopedRetainingRequest(MegaRequestPrivate* request);
@@ -5995,6 +5996,8 @@ public:
 
         // deletes backups, requests and transfers. Reset total stats for down/uploads
         void abortPendingActions(error preverror = API_OK);
+        // fails every queued catchup; runs on the MegaApiImpl thread, with sdkMutex held
+        void abortScRequests(error e);
 
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
