@@ -56,6 +56,14 @@ struct BenchReportCell
     // removes the need for any log-scraping post-step. 0 if unsampled (Windows).
     std::int64_t rssMaxKb = 0;
     BenchSummaryDistribution chunkMsDist;
+    // Schema-3 folder-transfer axes (SDK-5360 QaNestedFolderUpload): ms from
+    // STAGE_TRANSFERRING_FILES to the first subtransfer progress / first API_OK
+    // finish, plus the WS preflight and client-action queue high-water marks.
+    // 0 = not measured by this cell, -1 = callback never arrived. See BENCHMARKS.md.
+    std::int64_t firstProgressAfterStageMs = 0;
+    std::int64_t firstFinishAfterStageMs = 0;
+    std::int64_t preflightPeak = 0;
+    std::int64_t actionQueuePeak = 0;
     // Per-iter throttle snapshot drained from
     // `UploadEngine::getAndResetBenchThrottleStats()` before each
     // `recordCell()` so iters are independent.

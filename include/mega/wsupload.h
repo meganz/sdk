@@ -52,7 +52,9 @@ public:
     {
         Ready,        // preflight completed and result consumable now
         Pending,      // queued/running (or racing with completion)
-        NotScheduled, // rejected before queueing (e.g. back-pressure cap)
+        NotScheduled, // not startable now and not worth waiting for: rejected before
+                      // queueing (e.g. back-pressure cap), or preflight ran and failed;
+                      // the failure action will detach the transfer
     };
 
     enum class FailureDisposition : std::uint8_t
@@ -290,6 +292,13 @@ public:
         std::uint64_t throttleRecoveryAckSamples = 0;
         std::uint64_t throttleRecoveryAckTotalMs = 0;
         std::uint64_t throttleRecoveryAckMaxMs = 0;
+
+        // SDK-5360 folder-upload fan-out. Client-lifetime high-water marks mirrored from
+        // MegaClient (NOT per-pool, so they are copied in wholesale rather than folded):
+        // how many speculative preflight requests were outstanding at once, and how deep
+        // the ws->client action FIFO (shared by preflight, onStart and onProgress) grew.
+        std::uint64_t preflightRequestsPeak = 0;
+        std::uint64_t clientActionQueuePeak = 0;
     };
 
     bool getPoolStateForTesting(const std::string& url, PoolStateForTesting& out) const;

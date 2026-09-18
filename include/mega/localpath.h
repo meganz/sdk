@@ -389,6 +389,15 @@ private:
     static string_type toStringType(const std::string& path);
     std::unique_ptr<AbstractLocalPath> mImplementation;
 };
+
+// True when `p` names a file the platform filesystem layer can open directly: a
+// conventional absolute path, or a platform URI path (Android content://). Same test as
+// MegaClient::isValidLocalSyncRoot and MegaFileGet::prepare, named once so the URI half
+// is not dropped again by the next caller that writes `!p.isAbsolute()`.
+inline bool isUsableLocalFilePath(const LocalPath& p)
+{
+    return !p.empty() && (p.isAbsolute() || p.isURI());
+}
 } // mega namespace
 
 #endif // LOCALPATH_H

@@ -370,6 +370,17 @@ static unsigned logBenchWsStats(SdkTest& test, const size_t fileCount)
 }
 
 #ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+// Schema-3 bench-report axes (see BenchReportWriter.h). Only the folder-controller
+// cell (QaNestedFolderUpload) measures them; every other cell leaves the
+// 0 = "not measured by this cell" default.
+struct BenchFolderLatencyAxes
+{
+    std::int64_t firstProgressAfterStageMs = 0;
+    std::int64_t firstFinishAfterStageMs = 0;
+    std::int64_t preflightPeak = 0;
+    std::int64_t actionQueuePeak = 0;
+};
+
 // Wires bench-runner results to the bench_framework JSON channel. Inert on builds
 // without MEGA_BENCH_FRAMEWORK_ENABLED.
 //
@@ -385,7 +396,8 @@ static void recordBenchCell(SdkTest& test,
                             const BenchTimingSummary& timing,
                             const BenchProcessStatsSample& procStart,
                             const BenchProcessStatsSample& procEnd,
-                            std::size_t chunkSamples)
+                            std::size_t chunkSamples,
+                            BenchFolderLatencyAxes folderAxes = {})
 {
     ::mega::bench::BenchReportCell cell;
     cell.name = name;
@@ -412,6 +424,10 @@ static void recordBenchCell(SdkTest& test,
     cell.chunkMsDist.median = static_cast<double>(timing.perTransferPureTransferMs.median);
     cell.chunkMsDist.p95 = static_cast<double>(timing.perTransferPureTransferMs.p95);
     cell.chunkMsDist.n = chunkSamples;
+    cell.firstProgressAfterStageMs = folderAxes.firstProgressAfterStageMs;
+    cell.firstFinishAfterStageMs = folderAxes.firstFinishAfterStageMs;
+    cell.preflightPeak = folderAxes.preflightPeak;
+    cell.actionQueuePeak = folderAxes.actionQueuePeak;
 
 #ifdef MEGA_USE_WSUPLOAD
     {
@@ -1308,6 +1324,463 @@ void runQaMixedUploadBenchmark(SdkTest& test)
                     /*chunkSamples=*/fileCount);
 #endif
     test.deleteFolder(folderName);
+}
+
+// ---------------------------------------------------------------------------
+// QaNestedFolderUpload — recursive folder-controller reproduction (SDK-5360).
+// ---------------------------------------------------------------------------
+
+// Folder-transfer listener. Adds the STAGE_TRANSFERRING_FILES timestamp to
+// everything TransferTracker already captures (result, node handle, finish time).
+// onFolderTransferUpdate reaches ONLY the listener handed to startUpload(), never
+// the globally registered ones — hence the subclass rather than a second observer.
+struct QaNestedFolderTracker: public TransferTracker
+{
+    explicit QaNestedFolderTracker(MegaApi* api):
+        TransferTracker(api)
+    {}
+
+    // Absolute steady-clock ms of the first STAGE_TRANSFERRING_FILES notification
+    // (0 = never seen).
+    std::atomic<std::int64_t> mStageTransferringFilesMs{0};
+
+    void noteStage(const int stage)
+    {
+        if (stage != MegaTransfer::STAGE_TRANSFERRING_FILES)
+        {
+            return;
+        }
+        std::int64_t expected = 0;
+        mStageTransferringFilesMs.compare_exchange_strong(expected, benchmarkSteadyMs());
+    }
+
+    void onFolderTransferUpdate(MegaApi*,
+                                MegaTransfer*,
+                                int stage,
+                                uint32_t /*folderCount*/,
+                                uint32_t /*createdFolderCount*/,
+                                uint32_t /*fileCount*/,
+                                const char* /*currentFolder*/,
+                                const char* /*currentFileLeafName*/) override
+    {
+        noteStage(stage);
+    }
+
+    void onTransferUpdate(MegaApi* api, MegaTransfer* transfer) override
+    {
+        // getStage() only carries a folder-scan stage for folder transfers; on file
+        // transfers the same getter means "temp file removed", so guard on the type.
+        if (transfer && transfer->isFolderTransfer())
+        {
+            noteStage(static_cast<int>(transfer->getStage()));
+        }
+        TransferTracker::onTransferUpdate(api, transfer);
+    }
+};
+
+// Globally registered observer for the FILE subtransfers of the folder transfer.
+// Per-file callbacks never reach the folder transfer's own listener, only the
+// listeners added with MegaApi::addTransferListener / addListener.
+struct QaNestedSubTransferObserver: public MegaTransferListener
+{
+    // Absolute steady-clock ms of the first events (0 = never seen).
+    std::atomic<std::int64_t> mFirstProgressMs{0};
+    std::atomic<std::int64_t> mFirstFinishOkMs{0};
+    std::atomic<int> mStartedFiles{0};
+    std::atomic<int> mFinishedOkFiles{0};
+    std::atomic<int> mFailedFiles{0};
+    std::atomic<int> mFirstFailureCode{0};
+    std::atomic<m_off_t> mTransferredBytes{0};
+
+    static bool isFolderSubTransfer(const MegaTransfer* transfer)
+    {
+        return transfer && transfer->getType() == MegaTransfer::TYPE_UPLOAD &&
+               !transfer->isFolderTransfer() && transfer->getFolderTransferTag() > 0;
+    }
+
+    static void recordFirst(std::atomic<std::int64_t>& slot, const std::int64_t nowMs)
+    {
+        std::int64_t expected = 0;
+        slot.compare_exchange_strong(expected, nowMs);
+    }
+
+    void onTransferStart(MegaApi*, MegaTransfer* transfer) override
+    {
+        if (!isFolderSubTransfer(transfer))
+        {
+            return;
+        }
+        mStartedFiles.fetch_add(1, std::memory_order_relaxed);
+    }
+
+    void onTransferUpdate(MegaApi*, MegaTransfer* transfer) override
+    {
+        if (!isFolderSubTransfer(transfer) || transfer->getTransferredBytes() <= 0)
+        {
+            return;
+        }
+        recordFirst(mFirstProgressMs, benchmarkSteadyMs());
+    }
+
+    void onTransferFinish(MegaApi*, MegaTransfer* transfer, MegaError* error) override
+    {
+        if (!isFolderSubTransfer(transfer))
+        {
+            return;
+        }
+        const int code = error ? error->getErrorCode() : API_EINTERNAL;
+        if (code != API_OK)
+        {
+            mFailedFiles.fetch_add(1, std::memory_order_relaxed);
+            int noFailureYet = 0;
+            mFirstFailureCode.compare_exchange_strong(noFailureYet, code);
+            return;
+        }
+
+        recordFirst(mFirstFinishOkMs, benchmarkSteadyMs());
+        mFinishedOkFiles.fetch_add(1, std::memory_order_relaxed);
+        mTransferredBytes.fetch_add(transfer->getTotalBytes(), std::memory_order_relaxed);
+    }
+};
+
+// Recursively counts the file nodes under `node`.
+static std::size_t countRemoteNodes(MegaApi& api, MegaNode* node)
+{
+    std::size_t fileCount = 0;
+    std::unique_ptr<MegaNodeList> children{api.getChildren(node)};
+    if (!children)
+    {
+        return 0;
+    }
+    for (int i = 0; i < children->size(); ++i)
+    {
+        MegaNode* child = children->get(i);
+        if (!child)
+        {
+            continue;
+        }
+        if (child->isFolder())
+        {
+            fileCount += countRemoteNodes(api, child);
+        }
+        else
+        {
+            ++fileCount;
+        }
+    }
+    return fileCount;
+}
+
+void runQaNestedFolderUploadBenchmark(SdkTest& test)
+{
+    constexpr const char* kTestName = "SdkTestBenchmarkQaNestedFolderUpload";
+    // Grace given to the cancel token after the wall-clock budget is spent.
+    constexpr int kCancelGraceS = 300;
+    // Poll cadence of the progress line while the folder transfer runs.
+    constexpr int kPollIntervalS = 15;
+
+    // The nested corpus is a persistent, read-only-to-us directory tree (the QA
+    // reproduction dataset). Without it there is nothing to reproduce, so skip.
+    const char* srcDirEnv = std::getenv("MEGA_BENCH_UPLOAD_SOURCE_DIR");
+    if (!srcDirEnv || !*srcDirEnv)
+    {
+        GTEST_SKIP() << "QaNestedFolderUpload requires MEGA_BENCH_UPLOAD_SOURCE_DIR (a nested "
+                        "corpus directory)";
+    }
+
+    const fs::path sourceDir{srcDirEnv};
+    {
+        std::error_code ec;
+        ASSERT_TRUE(fs::is_directory(sourceDir, ec))
+            << "MEGA_BENCH_UPLOAD_SOURCE_DIR is not a directory: " << sourceDir;
+    }
+
+    // RECURSIVE enumeration: unlike QaMixedUpload (flat, per-file startUpload) this
+    // cell hands the whole tree to ONE startUpload, so every regular file below
+    // sourceDir is part of the workload.
+    std::size_t fileCount = 0;
+    std::size_t localFolderCount = 0;
+    std::uintmax_t totalBytes = 0;
+    {
+        std::error_code ec;
+        fs::recursive_directory_iterator it{sourceDir, ec};
+        ASSERT_FALSE(ec) << "Cannot enumerate " << sourceDir << ": " << ec.message();
+        for (const auto& entry: it)
+        {
+            std::error_code entryEc;
+            if (entry.is_directory(entryEc))
+            {
+                ++localFolderCount;
+                continue;
+            }
+            if (!entry.is_regular_file(entryEc))
+            {
+                continue;
+            }
+            ++fileCount;
+            totalBytes += fs::file_size(entry.path(), entryEc);
+        }
+    }
+    ASSERT_GT(fileCount, 0u) << "MEGA_BENCH_UPLOAD_SOURCE_DIR has no regular files: " << sourceDir;
+
+    LOG_info << "[BenchQaNestedFolderUpload] sourceDir=" << sourceDir << " fileCount=" << fileCount
+             << " folderCount=" << localFolderCount << " totalBytes=" << totalBytes;
+
+    // Wall-clock budget for the folder transfer (env MEGA_BENCH_TIMEOUT_S, default 40 min).
+    int timeoutS = 2400;
+    if (const char* envTimeout = std::getenv("MEGA_BENCH_TIMEOUT_S"))
+    {
+        const long v = std::atol(envTimeout);
+        if (v > 0)
+        {
+            timeoutS = static_cast<int>(v);
+        }
+    }
+
+    LOG_info << "___TEST___ " << kTestName;
+    ASSERT_NO_FATAL_FAILURE(test.getAccountsForTest(1));
+
+    // Env-var override of upload connection count (mirrors ManySmall / QaExact / QaMixed).
+    if (const char* envConns = std::getenv("MEGA_BENCH_UPLOAD_CONNECTIONS"))
+    {
+        const int n = std::atoi(envConns);
+        if (n > 0)
+        {
+            ASSERT_EQ(API_OK, test.doSetMaxConnections(0, n));
+            LOG_info << "[BenchQaNestedFolderUpload] connections override = " << n;
+        }
+    }
+
+    // BANDWIDTH knob: MEGA_NET_MAXUPLOAD_KBPS is kilobits/sec (as in the iOS Network
+    // Link Conditioner). Converted to bytes/sec and scoped to this upload.
+#ifdef MEGA_USE_WSUPLOAD
+    std::optional<::mega::test::wsupload::ScopedUploadSpeedLimit> uploadSpeedCap;
+#endif
+    if (const char* envKbps = std::getenv("MEGA_NET_MAXUPLOAD_KBPS"))
+    {
+        const long kbps = std::atol(envKbps);
+        if (kbps > 0)
+        {
+            const int bytesPerSec = static_cast<int>(kbps * 1000 / 8);
+#ifdef MEGA_USE_WSUPLOAD
+            uploadSpeedCap.emplace(*test.megaApi[0], bytesPerSec);
+#else
+            test.megaApi[0]->setMaxUploadSpeed(bytesPerSec);
+#endif
+            LOG_info << "[BenchQaNestedFolderUpload] maxUploadKbps=" << kbps
+                     << " (bytesPerSec=" << bytesPerSec << ")";
+        }
+    }
+
+    auto accountRestorer = scopedToPro(*test.megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    std::unique_ptr<MegaNode> rootnode{test.megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode, nullptr);
+
+    const std::string suffix = benchUniqueSuffix("QaNestedFolderUpload");
+    const std::string folderName = "bench_qa_nested_" + suffix;
+    const MegaHandle folderHandle = test.createFolder(0, folderName.c_str(), rootnode.get());
+    ASSERT_NE(folderHandle, UNDEF);
+    std::unique_ptr<MegaNode> targetFolder{test.megaApi[0]->getNodeByHandle(folderHandle)};
+    ASSERT_NE(targetFolder, nullptr);
+
+    // The one remote cleanup: runs on the normal tail and on the timeout path alike.
+    auto cleanupRemoteFolder = makeScopedDestructor(
+        [&test, folderHandle]()
+        {
+            std::unique_ptr<MegaNode> remoteRoot{test.megaApi[0]->getNodeByHandle(folderHandle)};
+            if (remoteRoot)
+            {
+                EXPECT_EQ(API_OK, test.doDeleteNode(0, remoteRoot.get()));
+            }
+        });
+
+    QaNestedSubTransferObserver subTransfers;
+    test.megaApi[0]->addTransferListener(&subTransfers);
+    auto cleanupListener = makeScopedDestructor(
+        [&test, &subTransfers]()
+        {
+            test.megaApi[0]->removeTransferListener(&subTransfers);
+        });
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_NE(cancelToken, nullptr);
+
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME;
+
+    QaNestedFolderTracker folderTracker(test.megaApi[0].get());
+
+    const auto procStatsStart = captureBenchProcessStats();
+    const auto submitMs = benchmarkSteadyMs();
+    // THE point of this cell: ONE startUpload of the whole tree. The recursive folder
+    // controller submits every subtransfer in one go, which is what QaMixedUpload's
+    // per-file loop never does.
+    test.megaApi[0]->startUpload(sourceDir.string(),
+                                 targetFolder.get(),
+                                 cancelToken.get(),
+                                 &uploadOptions,
+                                 &folderTracker);
+
+    bool timedOut = false;
+    while (!folderTracker.finished.load())
+    {
+        const auto elapsedS = (benchmarkSteadyMs() - submitMs) / 1000;
+        LOG_info << "[BenchQaNestedFolderUpload] progress elapsedS=" << elapsedS
+                 << " startedFiles=" << subTransfers.mStartedFiles.load()
+                 << " finishedOk=" << subTransfers.mFinishedOkFiles.load() << "/" << fileCount
+                 << " failed=" << subTransfers.mFailedFiles.load()
+                 << " bytesDone=" << subTransfers.mTransferredBytes.load()
+                 << " totalBytes=" << totalBytes;
+        if (elapsedS >= timeoutS)
+        {
+            timedOut = true;
+            break;
+        }
+        std::this_thread::sleep_for(std::chrono::seconds{kPollIntervalS});
+    }
+
+    if (timedOut)
+    {
+        cancelToken->cancel();
+        const auto cancelResult = folderTracker.waitForResult(kCancelGraceS);
+        LOG_err << "[BenchQaNestedFolderUpload] TIMEOUT after " << timeoutS
+                << "s; cancelResult=" << cancelResult;
+        FAIL() << "QaNestedFolderUpload did not finish within " << timeoutS
+               << " s (cancelled; result=" << cancelResult << ")";
+    }
+
+    // The future is already satisfied here, so this returns immediately.
+    const auto folderResult = folderTracker.waitForResult(0);
+    const auto completionMs = folderTracker.mFinishSteadyMs.load();
+    const auto procStatsEnd = captureBenchProcessStats();
+
+    EXPECT_EQ(API_OK, folderResult) << "Folder transfer failed";
+    EXPECT_EQ(0, subTransfers.mFailedFiles.load())
+        << "Some file subtransfers failed (first error code "
+        << subTransfers.mFirstFailureCode.load() << ")";
+
+    // --- the measurement -----------------------------------------------------
+    const auto stageMsAbs = folderTracker.mStageTransferringFilesMs.load();
+    const auto firstProgressMsAbs = subTransfers.mFirstProgressMs.load();
+    const auto firstFinishMsAbs = subTransfers.mFirstFinishOkMs.load();
+
+    EXPECT_GT(stageMsAbs, 0) << "No STAGE_TRANSFERRING_FILES notification was delivered";
+    EXPECT_GT(firstProgressMsAbs, 0) << "No file subtransfer ever reported transferred bytes";
+    EXPECT_GT(firstFinishMsAbs, 0) << "No file subtransfer ever finished with API_OK";
+
+    // -1 encodes "the cell ran but the callback never arrived" (premise broken; the
+    // EXPECTs above have already failed). 0 in these JSONL fields means a different
+    // thing entirely: "the cell does not measure this axis" — see BenchReportWriter.h.
+    const std::int64_t stageMs = stageMsAbs > 0 ? stageMsAbs - submitMs : -1;
+    const std::int64_t firstProgressAfterStageMs =
+        (stageMsAbs > 0 && firstProgressMsAbs > 0) ? firstProgressMsAbs - stageMsAbs : -1;
+    const std::int64_t firstFinishAfterStageMs =
+        (stageMsAbs > 0 && firstFinishMsAbs > 0) ? firstFinishMsAbs - stageMsAbs : -1;
+    const std::int64_t completionRelMs = completionMs > 0 ? completionMs - submitMs : -1;
+
+    std::int64_t preflightPeak = 0;
+    std::int64_t actionQueuePeak = 0;
+#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
+    {
+        ws::UploadEngine::WsUploadStatsForTesting wsStats;
+        if (fetchWsUploadStatsForTesting(*test.megaApi[0], wsStats, 30) && wsStats.found)
+        {
+            preflightPeak = static_cast<std::int64_t>(wsStats.preflightRequestsPeak);
+            actionQueuePeak = static_cast<std::int64_t>(wsStats.clientActionQueuePeak);
+        }
+    }
+#endif
+
+    // Wall clock of the whole user-visible operation: startUpload -> folder finish.
+    const std::int64_t totalMs = completionRelMs > 0 ? completionRelMs : 0;
+    const double aggregateKBps = aggregateKBpsForBytes(totalBytes, totalMs);
+
+    // The folder controller owns the subtransfers, so there are no per-file
+    // TransferTrackers and no putnodes decomposition: this cell reports chunk_ms_* = 0
+    // ("not measured") and carries the four latency/preflight axes instead.
+    BenchTimingSummary timingSummary;
+    timingSummary.firstStartMs = submitMs;
+    timingSummary.lastFinishMs = completionMs;
+    timingSummary.lastPutnodesStartMs = completionMs;
+    timingSummary.callbackTransferMs = totalMs;
+    timingSummary.completeTransferMs = totalMs;
+    timingSummary.pureTransferMs = stageMs > 0 ? completionRelMs - stageMs : totalMs;
+    timingSummary.putnodesOverheadMs = 0;
+
+    std::ostringstream summary;
+    summary << "[BenchQaNestedFolderUpload] files=" << fileCount << " bytes=" << totalBytes
+            << " stageMs=" << stageMs << " firstProgressAfterStageMs=" << firstProgressAfterStageMs
+            << " firstFinishAfterStageMs=" << firstFinishAfterStageMs
+            << " completionMs=" << completionRelMs << " preflightPeak=" << preflightPeak
+            << " actionQueuePeak=" << actionQueuePeak << " folders=" << localFolderCount
+            << " aggregateKBps=" << aggregateKBps;
+    appendBenchTimingFields(summary, timingSummary);
+    LOG_info << summary.str();
+
+    // --- remote verification -------------------------------------------------
+    // startUpload(<dir>) creates <targetFolder>/<dir leaf name>; prefer the handle the
+    // folder transfer reported and fall back to the name lookup. Both the node itself
+    // and its subtree arrive over action packets that can trail the last putnodes
+    // reply, so resolve AND count inside one settle loop rather than reading a
+    // mid-flight snapshot (a single-shot lookup right after onTransferFinish does
+    // come back empty in practice).
+    const std::string uploadedLeafName = sourceDir.filename().string();
+    std::unique_ptr<MegaNode> uploadedRoot;
+    std::size_t remoteFiles = 0;
+    for (int pollIter = 0; pollIter < 60; ++pollIter)
+    {
+        if (!uploadedRoot && folderTracker.resultNodeHandle != UNDEF)
+        {
+            uploadedRoot.reset(test.megaApi[0]->getNodeByHandle(folderTracker.resultNodeHandle));
+        }
+        if (!uploadedRoot)
+        {
+            uploadedRoot.reset(
+                test.megaApi[0]->getChildNode(targetFolder.get(), uploadedLeafName.c_str()));
+        }
+        if (uploadedRoot)
+        {
+            remoteFiles = countRemoteNodes(*test.megaApi[0], uploadedRoot.get());
+            if (remoteFiles >= fileCount)
+            {
+                break;
+            }
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds{500});
+    }
+
+    EXPECT_NE(uploadedRoot, nullptr) << "Could not locate the uploaded remote folder "
+                                     << uploadedLeafName << " under " << folderName;
+    if (uploadedRoot)
+    {
+        LOG_info << "[BenchQaNestedFolderUpload] remoteCheck files=" << remoteFiles << "/"
+                 << fileCount;
+        EXPECT_EQ(fileCount, remoteFiles)
+            << "Remote file count does not match the local corpus (remote folder " << folderName
+            << ")";
+    }
+
+    logBenchProcessStatsDelta("QaNestedFolderUpload", procStatsStart, procStatsEnd);
+    [[maybe_unused]] const unsigned usedConns = logBenchWsStats(test, fileCount);
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    const BenchFolderLatencyAxes folderAxes{firstProgressAfterStageMs,
+                                            firstFinishAfterStageMs,
+                                            preflightPeak,
+                                            actionQueuePeak};
+    recordBenchCell(test,
+                    "QaNestedFolderUpload",
+                    /*fileSizeMib=*/static_cast<std::int64_t>(totalBytes / (1024 * 1024)),
+                    /*connections=*/usedConns,
+                    /*totalMs=*/totalMs,
+                    aggregateKBps,
+                    timingSummary,
+                    procStatsStart,
+                    procStatsEnd,
+                    /*chunkSamples=*/0,
+                    folderAxes);
+#endif
 }
 
 void runSmallFileBurstBenchmark(SdkTest& test)

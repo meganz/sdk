@@ -35,7 +35,6 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
-#include <fstream>
 #include <future>
 #include <memory>
 #include <optional>
@@ -7168,6 +7167,187 @@ TEST_F(SdkWsUploadTest, CensusPurgeTruncatedNodes)
         }
         std::cout << "[Census] deleted=" << deleted << "/" << matches.size() << std::endl;
         EXPECT_EQ(deleted, matches.size());
+    }
+}
+
+// Resolves a promise on the FIRST finished FILE subtransfer. Per-file outcomes reach
+// only listeners registered with addTransferListener, never the folder's own listener.
+struct FirstFolderSubTransferFinish: public ::mega::MegaTransferListener
+{
+    std::promise<void> firstFinish;
+    std::atomic<bool> signalled{false};
+    std::atomic<int> finishedFiles{0};
+
+    void onTransferFinish(::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*) override
+    {
+        // A file subtransfer of a folder transfer: not the folder transfer itself, and
+        // carrying the folder transfer's tag.
+        if (!t || t->isFolderTransfer() || t->getFolderTransferTag() <= 0)
+        {
+            return;
+        }
+
+        finishedFiles.fetch_add(1, std::memory_order_relaxed);
+        if (!signalled.exchange(true, std::memory_order_relaxed))
+        {
+            firstFinish.set_value();
+        }
+    }
+};
+
+/**
+ * @brief The preflight fan-out of a recursive folder upload must stay bounded (SDK-5360).
+ *
+ * A folder upload submits all N subtransfers at once and WsPool::findPreflightReadyCandidate
+ * posts a preflight action for every not-yet-Ready candidate it scans, onto the same strictly
+ * ordered client-action FIFO the app-visible onStart/onProgress callbacks use — so an
+ * unbounded fan-out delays the first visible progress by the whole backlog (~50 s on the
+ * 4,861-file QA corpus). Size-mixed corpus so at least two size-class pools scan at once; the
+ * peaks are client-lifetime and monotone, hence the assertion on the DELTA.
+ */
+TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
+{
+    LOG_info << "___TEST SdkWsUploadFolderUploadPreflightFanOutIsBounded___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Size-mixed corpus so at least two size-class pools have work at the same time.
+    constexpr int kTinyFiles = 300; // ~100 B each
+    constexpr int kMediumFiles = 60; // ~300 KiB each
+    constexpr int kLargeFiles = 30; // ~2 MiB each
+    constexpr int kFileCount = kTinyFiles + kMediumFiles + kLargeFiles;
+    constexpr std::size_t kTinySize = 100u;
+    constexpr std::size_t kMediumSize = 300u * 1024u;
+    constexpr std::size_t kLargeSize = 2u * 1024u * 1024u; // ~78 MB in total
+    // Generous upper bound: one in-flight plus one prefetched candidate per pool, times a
+    // large safety factor. Anything that scales with kFileCount blows straight through it.
+    constexpr std::uint64_t kMaxPreflightPeak = 64;
+    constexpr int kFirstFileTimeoutS = 300;
+    constexpr int kFolderResultTimeoutS = 300;
+
+    // Baseline for the monotone client-lifetime peaks: whatever earlier cells on this shared
+    // client already accumulated. A missing engine (no upload yet) legitimately reads 0.
+    ::mega::ws::UploadEngine::WsUploadStatsForTesting statsBefore{};
+    const bool gotStatsBefore =
+        fetchWsUploadStatsForTesting(*megaApi[0], statsBefore, 30) && statsBefore.found;
+    const std::uint64_t preflightPeakBefore = statsBefore.preflightRequestsPeak;
+    const std::uint64_t clientActionPeakBefore = statsBefore.clientActionQueuePeak;
+    LOG_info << "[PreflightFanOut] before: gotStats=" << gotStatsBefore
+             << " preflightRequestsPeak=" << preflightPeakBefore
+             << " clientActionQueuePeak=" << clientActionPeakBefore
+             << " poolCount=" << statsBefore.poolCount;
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    const std::string folderName =
+        "ws_preflight_fanout_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const fs::path localFolder = fs::temp_directory_path() / folderName;
+
+    std::error_code ec;
+    fs::remove_all(localFolder, ec);
+    ASSERT_TRUE(fs::create_directories(localFolder, ec))
+        << "Could not create " << localFolder.string() << ": " << ec.message();
+
+    auto cleanupLocal = makeScopedDestructor(
+        [&localFolder]()
+        {
+            std::error_code removeEc;
+            fs::remove_all(localFolder, removeEc);
+        });
+
+    struct SizeClass
+    {
+        const char* prefix;
+        int count;
+        std::size_t sizeBytes;
+    };
+
+    const SizeClass corpus[] = {{"t", kTinyFiles, kTinySize},
+                                {"m", kMediumFiles, kMediumSize},
+                                {"l", kLargeFiles, kLargeSize}};
+    for (const SizeClass& sizeClass: corpus)
+    {
+        for (int i = 0; i < sizeClass.count; ++i)
+        {
+            // Each file is filled with its own (unique) name: identical fingerprints would
+            // let the API clone the first node instead of running real uploads.
+            const std::string name = std::string{sizeClass.prefix} + std::to_string(i);
+            ASSERT_TRUE(
+                createFileWithSize(path_u8string(localFolder / name), sizeClass.sizeBytes, name))
+                << "Could not write " << name << " in " << localFolder.string();
+        }
+    }
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    FirstFolderSubTransferFinish subTransfers;
+    auto firstFileFinished = subTransfers.firstFinish.get_future();
+    megaApi[0]->addTransferListener(&subTransfers);
+    auto cleanupListener = makeScopedDestructor(
+        [this, &subTransfers]()
+        {
+            megaApi[0]->removeTransferListener(&subTransfers);
+        });
+
+    TransferTracker folderTracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(localFolder.string(),
+                            rootnode.get(),
+                            cancelToken.get(),
+                            &uploadOptions,
+                            &folderTracker);
+
+    const bool sawFirstFile =
+        firstFileFinished.wait_for(std::chrono::seconds(kFirstFileTimeoutS)) ==
+        std::future_status::ready;
+
+    ::mega::ws::UploadEngine::WsUploadStatsForTesting stats{};
+    cancelToken->cancel();
+    const auto folderResult = folderTracker.waitForResult(kFolderResultTimeoutS);
+    EXPECT_TRUE(folderResult == API_OK || folderResult == API_EINCOMPLETE)
+        << "Unexpected folder transfer result after cancel: " << folderResult;
+
+    // Read the peaks only after the folder upload has been cancelled and has settled: the
+    // stats snapshot folds per-connection counters that the WS workers write without
+    // synchronisation while sending (test-hook reader; TSAN flags it mid-upload). The two
+    // peaks are monotone, so reading them after quiescing gives the same values.
+    const bool gotStats = fetchWsUploadStatsForTesting(*megaApi[0], stats, 30) && stats.found;
+
+    // Peaks are monotone per client, so `after >= before` always holds and the delta is the
+    // fan-out this upload alone produced.
+    const std::uint64_t preflightPeakDelta =
+        stats.preflightRequestsPeak - std::min(stats.preflightRequestsPeak, preflightPeakBefore);
+    const std::uint64_t clientActionPeakDelta =
+        stats.clientActionQueuePeak - std::min(stats.clientActionQueuePeak, clientActionPeakBefore);
+
+    LOG_info << "[PreflightFanOut] after: preflightRequestsPeak=" << stats.preflightRequestsPeak
+             << " (before=" << preflightPeakBefore << ", delta=" << preflightPeakDelta << ")"
+             << " clientActionQueuePeak=" << stats.clientActionQueuePeak
+             << " (before=" << clientActionPeakBefore << ", delta=" << clientActionPeakDelta << ")"
+             << " poolCount=" << stats.poolCount << " files=" << kFileCount
+             << " (tiny=" << kTinyFiles << " medium=" << kMediumFiles << " large=" << kLargeFiles
+             << ")"
+             << " finishedFiles=" << subTransfers.finishedFiles.load(std::memory_order_relaxed);
+
+    EXPECT_TRUE(sawFirstFile) << "No file subtransfer finished within " << kFirstFileTimeoutS
+                              << " s of starting the folder upload";
+    EXPECT_TRUE(gotStats) << "Could not read WsUploadStatsForTesting";
+
+    EXPECT_LE(preflightPeakDelta, kMaxPreflightPeak)
+        << "Speculative preflight fan-out is unbounded: " << preflightPeakDelta
+        << " outstanding at once for a " << kFileCount << "-file folder upload (peak "
+        << stats.preflightRequestsPeak << " vs " << preflightPeakBefore
+        << " before, clientActionQueuePeak delta=" << clientActionPeakDelta
+        << ", poolCount=" << stats.poolCount << ")";
+
+    std::unique_ptr<MegaNode> remoteFolder{
+        megaApi[0]->getChildNode(rootnode.get(), folderName.c_str())};
+    if (remoteFolder)
+    {
+        EXPECT_EQ(API_OK, doDeleteNode(0, remoteFolder.get()));
     }
 }
 
