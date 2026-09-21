@@ -1,7 +1,6 @@
 # docker build --build-arg DISTRO=<DISTRO> --build-arg ARCH=<ARCH> --build-arg CMAKE_PRESET=<CMAKE_PRESET> -f /path/to/linux-build.dockerfile -t sdk-linux-build .
 #
 # Where <DISTRO> is one of the following:
-# - debian:11
 # - debian:12
 # - debian:13
 # - debian:testing
@@ -12,7 +11,6 @@
 # - opensuse/tumbleweed
 # - ubuntu:22.04
 # - ubuntu:24.04
-# - ubuntu:25.10
 # - fedora:43
 # - fedora:44
 #
@@ -83,18 +81,6 @@ case "${DISTRO}" in
         apt-get update
         apt-get install -y ${PACKAGES}
 
-        if [ "$DISTRO" = "debian:11" ]; then
-            CMAKE_VERSION=3.20.2
-            EXPECTED_CMAKE_INSTALLER_SHA256="ea497b4658816010e5850a3ed53845e430654640aabbe10d93fe67def9503e4d"
-            CMAKE_INSTALLER=cmake-${CMAKE_VERSION}-linux-x86_64.sh
-            curl -fsSL https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/${CMAKE_INSTALLER} -o cmake.sh
-            echo "${EXPECTED_CMAKE_INSTALLER_SHA256}  cmake.sh" | sha256sum -c || {
-                echo "unexpected checksum for ${CMAKE_INSTALLER}!"
-                exit 1
-            }
-            chmod u+x cmake.sh
-            ./cmake.sh --prefix=/usr --exclude-subdir --skip-license
-        fi
     ;;
     'archlinux'*)
         PACKAGES="${PACKAGES} base-devel cmake"

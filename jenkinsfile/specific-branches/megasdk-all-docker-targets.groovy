@@ -18,7 +18,6 @@ pipeline {
         choice(name: 'DISTRO',
             choices: [
                 'ubuntu:24.04', // Default value
-                'debian:11',
                 'debian:12',
                 'debian:13',
                 'debian:testing',
@@ -28,8 +27,6 @@ pipeline {
                 'opensuse/leap:16.0',
                 'opensuse/tumbleweed',
                 'ubuntu:24.04',
-                'ubuntu:25.10',
-                'fedora:43',
                 'fedora:44'
             ],
             description: 'Distribution to build')
