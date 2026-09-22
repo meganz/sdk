@@ -129,7 +129,7 @@ private:
     std::vector<int> mIndexByFd;
     std::vector<char> mExecOnReady; // parallel to mDescriptors
 
-    [[maybe_unused]] bool mOverflowLogged = false; // used by the select() backend only
+    bool mOverflowLogged = false; // used by the select() backend only
     bool mClearedSinceWait = true; // guards the rebuild invariant
 };
 
