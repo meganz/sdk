@@ -159,7 +159,13 @@ public:
      */
     MegaErrorPrivate(int errorCode, long long value);
 
+    /**
+     * @param err: API MegaError API_* value or internal ErrorCodes enum, with its extra info
+     */
+    MegaErrorPrivate(const Error& err, long long value);
+
     MegaErrorPrivate(const Error &err);
+
     MegaErrorPrivate(fuse::MountResult result);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
@@ -349,6 +355,20 @@ protected:
 
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
+
+    // Error the whole operation completes with once every sub-transfer has resolved. Sub-transfer
+    // errors are flattened, since there is no one error a mixed batch could report.
+    virtual Error resolvedError() const
+    {
+        return mIncompleteTransfers ? API_EINCOMPLETE : API_OK;
+    }
+
+    // State the transfer carries into its final callback. Reaching the end counts as completing
+    // however the sub-transfers fared, since a partial failure still ran to the end.
+    virtual int resolvedState(const Error& /*e*/, bool cancelledByUser) const
+    {
+        return cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED;
+    }
 
     // return true if thread is stopped or canceled by transfer token
     bool isStoppedOrCancelled(const std::string& name) const;
@@ -742,6 +762,29 @@ private:
 
     // A no-op when nothing was queried: a batch whose files were all skipped costs no quota.
     void reportTransferQuotaState() override;
+
+    // Sub-transfer errors reach the global listeners on the sub-transfer itself; this forwards
+    // them to the parent as well, for a single-file batch only.
+    void onTransferTemporaryError(MegaApi*, MegaTransfer* t, MegaError* e) override;
+
+    // Terminal sub-transfer failures reach onTransferFinish, never onTransferTemporaryError.
+    // Captured here for resolvedError(), so a single-file batch reports the error it actually
+    // hit rather than flattening every one of them to API_EINCOMPLETE.
+    void onTransferFinish(MegaApi*, MegaTransfer* t, MegaError* e) override;
+
+    Error resolvedError() const override;
+
+    // A single-file batch is failed or cancelled if its one file is, the way a plain single-file
+    // download reports it. Anything else keeps the inherited answer.
+    int resolvedState(const Error& e, bool cancelledByUser) const override;
+
+    // A batch of exactly one file item reports sub-transfer errors on the parent the way a plain
+    // single-file download does. Fixed by start(): the error callbacks fire per sub-transfer, so
+    // this must not be recomputed in them.
+    bool mSingleFileBatch = false;
+
+    // Only meaningful when mSingleFileBatch; API_OK until that file fails.
+    Error mSingleFileError{API_OK};
 };
 
 namespace totp

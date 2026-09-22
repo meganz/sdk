@@ -80,8 +80,11 @@ ScopedHttpReqPostHook::~ScopedHttpReqPostHook()
     globalMegaTestHooks.onHttpReqPost = std::move(mPrev);
 }
 
-ScopedApiErrorInjector::ScopedApiErrorInjector(const error e, CommandPredicate accept):
+ScopedApiErrorInjector::ScopedApiErrorInjector(const error e,
+                                               std::optional<ExtraInfo> extraInfo,
+                                               CommandPredicate accept):
     mError{e},
+    mExtraInfo{std::move(extraInfo)},
     mAccept{std::move(accept)},
     mHook{[this](HttpReq* req)
           {
@@ -98,12 +101,20 @@ bool ScopedApiErrorInjector::injectError(HttpReq* const req)
     if (!mAccept || std::none_of(commands.begin(), commands.end(), mAccept))
         return false;
 
+    // An error with extra info is an object; a bare one is just its code. Command::checkError
+    // reads both, per command.
+    const std::string answer = mExtraInfo ?
+                                   "{\"err\":" + std::to_string(static_cast<int>(mError)) +
+                                       ",\"u\":" + std::to_string(mExtraInfo->userStatus) +
+                                       ",\"l\":" + std::to_string(mExtraInfo->linkStatus) + "}" :
+                                   std::to_string(static_cast<int>(mError));
+
     std::string reply{"["};
     for (size_t i = 0; i < commands.size(); ++i)
     {
         if (i)
             reply += ',';
-        reply += std::to_string(static_cast<int>(mError));
+        reply += answer;
     }
     reply += ']';
 

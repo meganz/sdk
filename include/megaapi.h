@@ -18166,23 +18166,54 @@ class MegaApi
          * Unlike MegaApi::startDownload, which takes one root node, this method takes every root
          * node the user selected for one download action, each carrying its own destination,
          * custom local name, app data, start-first and undelete flags. The SDK therefore knows the
-         * whole batch up front: it scans all the roots in one pass and reports the predicted
-         * transfer-quota state for the batch as a whole (see
-         * MegaTransferListener::onTransferQuotaState below), instead of once per root as separate
-         * MegaApi::startDownload calls would.
+         * whole batch up front, and scans all the roots in one pass.
          *
          * The whole batch is one MegaTransfer: a single MegaTransferListener::onTransferStart, one
          * cancel token, and one MegaTransferListener::onTransferFinish for the batch, with the
          * individual files reported as sub-transfers exactly as for a folder download. App data is
-         * per item rather than per batch, so MegaTransfer::getAppData is NULL for the batch itself
-         * and carries the item's value on each sub-transfer.
+         * per item rather than per batch: MegaTransfer::getAppData carries the item's value on
+         * each sub-transfer, and is NULL on the batch itself -- except for a batch of one file
+         * item, which stands for that file and carries its app data as MegaApi::startDownload
+         * would.
          *
-         * Transfer-quota reporting: once every root has been scanned and the files to fetch are
-         * known, the query goes out and the batch waits for its answer, which is delivered through
-         * MegaTransferListener::onTransferQuotaState before any file transfer starts. So an app can
-         * warn while the bandwidth is still unspent -- at the cost of the download starting a few
-         * seconds later on a slow connection. A state that could not be determined is still
-         * reported, as MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN.
+         * WHAT IS REPORTED, AND WHERE
+         *
+         * Every sub-transfer is always reported in full on the listeners registered with
+         * MegaApi::addListener or MegaApi::addTransferListener, whatever the shape of the batch:
+         * its start, its progress, its state, its temporary errors and its final error all arrive
+         * there, carried on the sub-transfer itself. The rest of this section concerns only what
+         * the batch transfer reports on its own listener, the one given to this method.
+         *
+         * A batch of exactly one file item stands for that file, and behaves as the equivalent
+         * MegaApi::startDownload would. That sub-transfer's errors are reported on the batch
+         * transfer as well: through MegaTransferListener::onTransferTemporaryError while it
+         * retries, and through MegaTransferListener::onTransferFinish with the file's own error
+         * code once it gives up. MegaTransfer::getLastErrorExtended on the batch then carries that
+         * error in full. In particular:
+         *  - If the status of the business account is expired, the error code is
+         *    MegaError::API_EBUSINESSPASTDUE. Apps should show a warning message similar to "Your
+         *    business account is overdue, please contact your administrator."
+         *  - If the node, or the account it belongs to, has been taken down or suspended, the
+         *    error code is MegaError::API_ETOOMANY, and MegaError::getUserStatus and
+         *    MegaError::getLinkStatus describe it. Apps should show a warning message similar to
+         *    "The file that you are downloading (or the account it belongs to) has been suspended
+         *    for violating our Terms of Service."
+         *
+         * Any other batch reports MegaError::API_EINCOMPLETE when one or more of its files failed,
+         * since no single error can stand for the whole selection. The per-file detail, including
+         * the two cases above, is then only on the listeners registered with MegaApi::addListener
+         * or MegaApi::addTransferListener.
+         *
+         * TRANSFER-QUOTA REPORTING
+         *
+         * Once every root has been scanned and the files to fetch are known, the query goes out
+         * and the batch waits for its answer, which is delivered through
+         * MegaTransferListener::onTransferQuotaState before any file transfer starts. So an app
+         * can warn while the bandwidth is still unspent -- at the cost of the download starting a
+         * few seconds later on a slow connection. A state that could not be determined is still
+         * reported, as MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN. Reporting it for the batch as a
+         * whole is what separate MegaApi::startDownload calls cannot do, as each would ask once
+         * per root.
          *
          * If the API does not answer within a few seconds the batch stops waiting and reports
          * MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN, so a slow connection delays the download but does
@@ -18192,15 +18223,7 @@ class MegaApi
          * awaited. An app waiting on the prediction must therefore also treat
          * MegaTransferListener::onTransferFinish as a release condition.
          *
-         * If the status of the business account is expired, onTransferFinish will be called with
-         * the error code MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning
-         * message similar to "Your business account is overdue, please contact your administrator."
-         *
-         * If a node, or the account to which it belongs, has been taken down or suspended,
-         * onTransferFinish will be called with the error code MegaError::API_ETOOMANY. In this
-         * case, the application should show a warning message similar to "The file that you are
-         * downloading (or the account it belongs to) has been suspended for violating our Terms of
-         * Service."
+         * LOCKING AND CANCELLATION
          *
          * When the batch contains at least one folder, SDK mutex will be partially locked until:
          *  - we have received onTransferStart for every file in the batch
@@ -18227,6 +18250,8 @@ class MegaApi
          * destination may be a folder to store the node in, or the exact path to store it as, and
          * defaults to the current folder; see MegaDownloadItemList::add. Items with a null node are
          * ignored.
+         * The start-first and undelete flags apply to a file item only; they are ignored, with a
+         * warning in the log, for a folder item.
          * The list is not taken ownership of; it is copied before this method returns.
          * It MUST NOT be NULL. The request fails with MegaError::API_EARGS if it holds no usable
          * node
@@ -18235,14 +18260,16 @@ class MegaApi
          * This param is required to be able to cancel transfers safely.
          * App retains the ownership of this param.
          *
-         * @param collisionCheck Indicates the collision check on same files, valid values are:
+         * @param collisionCheck Indicates the collision check on same files, applied to every item
+         * of the batch rather than per item, valid values are:
          *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
          *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
          *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
          *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
          *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
          *
-         * @param collisionResolution Indicates how to save same files, valid values are:
+         * @param collisionResolution Indicates how to save same files, applied to every item of
+         * the batch rather than per item, valid values are:
          *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
          *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
          *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
