@@ -2581,25 +2581,10 @@ void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
               << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
 }
 
-namespace
-{
-// libcurl progress callback armed on a WS handshake handle (SDK-6476): aborts the blocking
-// curl_easy_perform with CURLE_ABORTED_BY_CALLBACK once the engine's stop flag is set. libcurl
-// calls it on every pass of its internal state machine, on the thread running the handshake
-// (about once per second while a connect/TLS/upgrade is stalled), so it must stay a single
-// atomic load. Return 0 to continue; never CURL_PROGRESSFUNC_CONTINUE (that enables curl's
-// text progress meter).
-int wsHandshakeStopCallback(void* clientp, curl_off_t, curl_off_t, curl_off_t, curl_off_t)
-{
-    const auto* stopFlag = static_cast<const std::atomic<bool>*>(clientp);
-    return (stopFlag && stopFlag->load(std::memory_order_acquire)) ? 1 : 0;
-}
-} // namespace
-
-CURL* CurlHttpIO::wsHandshake(const std::string& url,
-                              long timeoutMs,
-                              std::string* err,
-                              const std::atomic<bool>* stopFlag)
+ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
+                                          long timeoutMs,
+                                          std::string* err,
+                                          const std::atomic<bool>* stopFlag)
 {
     LOG_debug << "[CurlHttpIO::wsHandshake] BEGIN [url=" << url << "] [timeoutMs=" << timeoutMs
               << "] [this = " << this << "]";
@@ -2612,91 +2597,134 @@ CURL* CurlHttpIO::wsHandshake(const std::string& url,
     {
         if (err)
             *err = hookErr.empty() ? "debug forced WS handshake failure" : hookErr;
-        return nullptr;
+        return {};
     }
 #endif
 
-    CURL* easy = curl_easy_init();
-    if (!easy)
+    // The pair is created, configured, driven and (on failure) destroyed on this thread. On
+    // success it is returned still paired: the easy handle must stay added to the multi handle
+    // (ws_curl_handles.h, "Resident").
+    ws::WsCurlHandles h;
+    h.easy = curl_easy_init();
+    if (!h.easy)
     {
         if (err)
             *err = "curl_easy_init failed";
-        return nullptr;
+        return {};
     }
 
     char ebuf[CURL_ERROR_SIZE] = {0};
-    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, ebuf);
-    configureWsEasy(easy, /*isPostJson*/ false);
-    curl_easy_setopt(easy, CURLOPT_URL, url.c_str());
-    if (stopFlag)
-    {
-        // Stop-aware handshake (SDK-6476). The progress callback is the only libcurl-sanctioned
-        // way to interrupt a blocking curl_easy_perform: the handle must never be touched from
-        // another thread. NOPROGRESS=0 is mandatory (libcurl hides progress by default and then
-        // never invokes the callback); QUICK_EXIT lets an abort during name resolution return
-        // without joining the resolver thread, as send_request already does.
-        curl_easy_setopt(easy, CURLOPT_XFERINFOFUNCTION, wsHandshakeStopCallback);
-        curl_easy_setopt(easy, CURLOPT_XFERINFODATA, stopFlag);
-        curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 0L);
-        curl_easy_setopt(easy, CURLOPT_QUICK_EXIT, 1L);
-    }
+    curl_easy_setopt(h.easy, CURLOPT_ERRORBUFFER, ebuf);
+    configureWsEasy(h.easy, /*isPostJson*/ false);
+    curl_easy_setopt(h.easy, CURLOPT_URL, url.c_str());
+    // A cancellation or timeout that lands during name resolution must not make the cleanup
+    // below join the resolver thread (same as send_request).
+    curl_easy_setopt(h.easy, CURLOPT_QUICK_EXIT, 1L);
     if (timeoutMs > 0)
     {
         // Bound the TCP-connect leg AND the overall handshake (TLS + WS upgrade).
         // Without an overall TIMEOUT the upgrade leg is unbounded under loss and
-        // outruns the worker baton (ws_conn.cpp:232), which abandons a handshake
+        // outruns the worker baton (ws_conn.cpp), which abandons a handshake
         // that still completes on the client thread -> wasted client-thread seconds
         // (root_cause.md S3a). 15s is generous: a clean handshake is <1s, so this
         // never trips on a good link (clean-network no-op).
-        curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
-        curl_easy_setopt(easy, CURLOPT_TIMEOUT_MS, timeoutMs);
+        curl_easy_setopt(h.easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
+        curl_easy_setopt(h.easy, CURLOPT_TIMEOUT_MS, timeoutMs);
     }
 
-    CURLcode rc = curl_easy_perform(easy);
-    if (rc != CURLE_OK)
+    h.multi = curl_multi_init();
+    if (!h.multi)
     {
-        if (rc == CURLE_ABORTED_BY_CALLBACK && stopFlag)
-        {
-            // Expected cancellation (engine stopping), not a network failure: stay quiet and
-            // hand callers a stable, SDK-owned reason.
-            if (err)
-                *err = kWsHandshakeCancelledErr;
-            LOG_debug << "[wsHandshake] cancelled (engine stopping) url=" << url;
-        }
-        else
-        {
-            if (err)
-                *err =
-                    std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
-            LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
-                    << curl_easy_strerror(rc) << " (" << ebuf << ")";
-        }
-        curl_easy_cleanup(easy);
-        return nullptr;
+        if (err)
+            *err = "curl_multi_init failed";
+        ws::destroyWsCurlHandles(h);
+        return {};
     }
-
-    // On success, DETACH from shared state before we hand the handle to worker threads.
-    curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
-
-    // Disarm the stop callback: the handle now belongs to the WS send/recv path. lib/ws.c never
-    // invokes the progress callback, so this is defensive symmetry with the detaches around it.
-    if (stopFlag)
+    if (const CURLMcode mc = curl_multi_add_handle(h.multi, h.easy); mc != CURLM_OK)
     {
-        curl_easy_setopt(easy, CURLOPT_NOPROGRESS, 1L);
-        curl_easy_setopt(easy,
-                         CURLOPT_XFERINFOFUNCTION,
-                         static_cast<curl_xferinfo_callback>(nullptr));
-        curl_easy_setopt(easy, CURLOPT_XFERINFODATA, nullptr);
+        if (err)
+            *err = std::string("curl_multi_add_handle failed: ") + curl_multi_strerror(mc);
+        LOG_err << "[wsHandshake] FAILED url=" << url << " curl_multi_add_handle mc=" << mc << " "
+                << curl_multi_strerror(mc);
+        ws::destroyWsCurlHandles(h);
+        return {};
     }
+
+    // SDK-owned transfer loop. This is the loop curl_easy_perform runs internally
+    // (lib/easy.c easy_transfer: multi_poll, multi_perform, info_read) with two differences:
+    // the engine's stop flag is read between libcurl calls, and the poll slice is
+    // kWsCurlPollSliceMs instead of libcurl's 1000 ms. Because the stop check is SDK code
+    // executed between two libcurl calls, it takes effect in every connect phase (DNS, TCP,
+    // proxy CONNECT, TLS, HTTP upgrade) regardless of which libcurl states invoke callbacks
+    // (curl 8.20.0 stopped invoking the progress callback before the connection is fully
+    // established, which is exactly where a black-holed node stalls).
+    CURLcode rc = CURLE_OK;
+    CURLMcode mc = CURLM_OK;
+    bool cancelled = false;
+    bool completed = false;
+    for (;;)
+    {
+        if (stopFlag && stopFlag->load(std::memory_order_acquire))
+        {
+            cancelled = true;
+            break;
+        }
+        int running = 0;
+        mc = curl_multi_perform(h.multi, &running);
+        if (mc != CURLM_OK)
+            break;
+        if (!running)
+        {
+            int queued = 0;
+            const CURLMsg* msg = curl_multi_info_read(h.multi, &queued);
+            // The single transfer finished: its CURLcode is the handshake result. A missing
+            // completion message cannot happen for a handle that stopped running, but never
+            // treat it as success.
+            rc = (msg && msg->msg == CURLMSG_DONE) ? msg->data.result : CURLE_RECV_ERROR;
+            completed = true;
+            break;
+        }
+        mc = curl_multi_poll(h.multi, nullptr, 0, ws::kWsCurlPollSliceMs, nullptr);
+        if (mc != CURLM_OK)
+            break;
+    }
+
+    if (cancelled)
+    {
+        // Expected cancellation (engine stopping), not a network failure: stay quiet and hand
+        // callers a stable, SDK-owned reason.
+        if (err)
+            *err = kWsHandshakeCancelledErr;
+        LOG_debug << "[wsHandshake] cancelled (engine stopping) url=" << url;
+        ws::destroyWsCurlHandles(h);
+        return {};
+    }
+    if (mc != CURLM_OK || !completed || rc != CURLE_OK)
+    {
+        const char* reason = (mc != CURLM_OK) ? curl_multi_strerror(mc) : curl_easy_strerror(rc);
+        if (err)
+            *err = std::string("handshake failed: ") + reason + " (" + ebuf + ")";
+        LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " mc=" << mc << " "
+                << reason << " (" << ebuf << ")";
+        ws::destroyWsCurlHandles(h);
+        return {};
+    }
+
+    // On success, DETACH from shared state before we hand the pair to the worker thread. The
+    // transfer is DONE, so unsetting the share on a handle that stays added to its multi is an
+    // ordinary option change; curlsh only shares DNS and TLS sessions, never connections, so
+    // the established connection is unaffected.
+    curl_easy_setopt(h.easy, CURLOPT_SHARE, nullptr);
 
     // Drop the stack-local error buffer before the handle outlives this frame:
     // the worker thread keeps using `easy`, and a later error would otherwise have
     // libcurl write into the dangling `ebuf` address.
-    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, nullptr);
+    curl_easy_setopt(h.easy, CURLOPT_ERRORBUFFER, nullptr);
 
-    LOG_debug << "[CurlHttpIO::wsHandshake] END -> return easy=" << (void*)easy << " [url=" << url
-              << "] [timeoutMs=" << timeoutMs << "] [this = " << this << "]";
-    return easy;
+    LOG_debug << "[CurlHttpIO::wsHandshake] END -> return easy=" << (void*)h.easy
+              << " multi=" << (void*)h.multi << " [url=" << url << "] [timeoutMs=" << timeoutMs
+              << "] [this = " << this << "]";
+    return h;
 }
 #endif // MEGA_USE_WSUPLOAD
 

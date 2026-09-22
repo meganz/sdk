@@ -202,11 +202,14 @@ bool WsConn::connectWS()
     // coherent snapshot under CurlHttpIO::mNetConfigMutex (SDK-6476), so a concurrent
     // setProxySettings()/disconnect() on the client thread cannot tear it. CURLOPT_TIMEOUT_MS
     // inside wsHandshake bounds the blocking call, so no separate baton watchdog is needed.
-    // SDK-6476: the engine's mStopping flag is handed down as a stop token and polled inside
-    // libcurl, so a handshake stuck on a black-holed endpoint aborts within ~1 s of stop()
-    // instead of running to CURLOPT_TIMEOUT_MS (15/45 s) — otherwise locallogout's 3 s quiesce
-    // window is missed and the whole engine is intentionally leaked. Impl outlives this call on
-    // every path (~Impl joins the workers; the leak fallback never destroys it).
+    // SDK-6476 / SDK-6565: the engine's mStopping flag is handed down as a stop token.
+    // wsHandshake drives the handshake with an SDK-owned curl_multi loop and reads the flag
+    // between libcurl calls, so a handshake stuck on a black-holed endpoint (any phase: DNS,
+    // TCP, proxy, TLS, upgrade; any libcurl version) returns within kWsCurlPollSliceMs of
+    // stop() instead of running to CURLOPT_TIMEOUT_MS (15/45 s) — otherwise locallogout's 3 s
+    // quiesce window is missed and the whole engine is intentionally leaked. Impl outlives this
+    // call on every path (~Impl joins the workers; the leak fallback never destroys it). The
+    // returned pair (easy + the multi it stays added to) is adopted whole by adoptCurl().
     if (mPool->mImpl->mParallelHandshake)
     {
         const std::string url = mPool->mUrl;
@@ -229,21 +232,20 @@ bool WsConn::connectWS()
         }
 
         std::string err;
-        CURL* e =
-            static_cast<CURL*>(mPool->mImpl->client.wsHandshakeForUpload(url,
-                                                                         handshakeTimeoutMs,
-                                                                         &err,
-                                                                         &mPool->mImpl->mStopping));
-        if (!e)
+        WsCurlHandles handles = mPool->mImpl->client.wsHandshakeForUpload(url,
+                                                                          handshakeTimeoutMs,
+                                                                          &err,
+                                                                          &mPool->mImpl->mStopping);
+        if (!handles)
         {
-            WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) wsHandshakeForUpload -> nullptr"
+            WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) wsHandshakeForUpload -> empty"
                            << (err.empty() ? "" : (", err=" + err))
                            << " -> readyState=CLOSED, return false [this = " << this << "]";
             readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
             return false;
         }
 
-        curl = e; // this worker thread exclusively owns the handle now
+        adoptCurl(std::move(handles)); // this worker thread exclusively owns the pair now
         readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
         // Fix #6: a fresh handle must never inherit a stale partial frame; closeWS() runs
         // before any reconnect and resets the send cursor + mFrameInProgress.
@@ -256,12 +258,22 @@ bool WsConn::connectWS()
         return true;
     }
 
+    // Hand-over cell between the client thread (which performs the handshake) and this worker
+    // (which adopts the result). `handles` is written and read only under `m`. If the worker
+    // gives up first (engine stopping / baton deadline), the lambda still stores the pair here
+    // and the last shared_ptr owner destroys it, on whichever thread that is: the pair is
+    // never used by two threads and never leaks.
     struct Baton
     {
         std::mutex m;
         std::condition_variable cv;
-        std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> easy{nullptr, &curl_easy_cleanup};
+        WsCurlHandles handles;
         bool done = false;
+
+        ~Baton()
+        {
+            destroyWsCurlHandles(handles);
+        }
     };
 
     auto baton = std::make_shared<Baton>();
@@ -287,7 +299,6 @@ bool WsConn::connectWS()
             if (auto* engine = client.wsEngine(); !engine || engine->isStopping())
             {
                 std::lock_guard<std::mutex> g(baton->m);
-                baton->easy.reset();
                 baton->done = true;
                 baton->cv.notify_one();
                 return;
@@ -296,35 +307,27 @@ bool WsConn::connectWS()
             // No stop token: this lambda runs on the client thread, i.e. the thread that calls
             // locallogout, so it can never overlap engine stop (and it already returned above
             // when the engine is stopping).
-            CURL* e = static_cast<CURL*>(
-                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err, nullptr));
+            WsCurlHandles handles =
+                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err, nullptr);
 
             {
                 std::lock_guard<std::mutex> g(baton->m);
-                baton->easy.reset(e);
+                baton->handles = std::move(handles);
                 baton->done = true;
-                if (e)
+                if (baton->handles)
                 {
-                    if (!err.empty())
-                    {
-                        WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                     "wsHandshakeForUpload failed, err="
-                                  << err << ", set baton.easy=" << (void*)baton->easy.get()
-                                  << " [this = " << self
-                                  << "]";
-                    }
-                    else
-                    {
-                        WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                     "wsHandshakeForUpload success, set baton.easy="
-                                  << (void*)baton->easy.get() << " [this = " << self << "]";
-                    }
+                    WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                                      "wsHandshakeForUpload success, set baton.handles.easy="
+                                   << (void*)baton->handles.easy
+                                   << " multi=" << (void*)baton->handles.multi
+                                   << " [this = " << self << "]";
                 }
                 else
                 {
                     WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                 "wsHandshakeForUpload returned nullptr, set baton.easy=nullptr [this = "
-                              << self << "]";
+                                      "wsHandshakeForUpload returned empty"
+                                   << (err.empty() ? "" : (", err=" + err)) << " [this = " << self
+                                   << "]";
                 }
             }
             baton->cv.notify_one();
@@ -362,16 +365,16 @@ bool WsConn::connectWS()
                            });
     }
 
-    if (!baton->easy)
+    if (!baton->handles)
     {
         WSUPLOAD_TRACE
-            << "[WsConn::connectWS] !baton.easy -> readyState=CLOSED and return false [this = "
+            << "[WsConn::connectWS] !baton.handles -> readyState=CLOSED and return false [this = "
             << this << "]";
         readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
         return false;
     }
 
-    curl = baton->easy.release(); // worker thread exclusively owns the handle now
+    adoptCurl(std::move(baton->handles)); // still under baton->m: the worker owns the pair now
     readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
     // Fix #6: a fresh handle must never inherit a stale partial frame; closeWS() runs
     // before any reconnect and resets the send cursor + mFrameInProgress.
