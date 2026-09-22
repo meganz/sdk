@@ -6920,45 +6920,82 @@ public class MegaApiJava {
      * <p>
      * Unlike MegaApiJava::startDownload, which takes one root node, this method takes every root
      * node the user selected for one download action, each carrying its own destination, custom
-     * local name, app data, start-first and undelete flags. The SDK therefore knows the whole batch
-     * up front: it scans all the roots in one pass and reports the predicted transfer-quota state
-     * for the batch as a whole through MegaTransferListenerInterface::onTransferQuotaState, instead
-     * of once per root as separate MegaApiJava::startDownload calls would. <p> The whole batch is
-     * one MegaTransfer: a single onTransferStart, one cancel token, and one onTransferFinish for
-     * the batch, with the individual files reported as sub-transfers exactly as for a folder
-     * download. App data is per item rather than per batch, so MegaTransfer::getAppData is NULL for
-     * the batch itself and carries the item's value on each sub-transfer. <p> The quota state is
-     * delivered before any file transfer starts, so an app can warn while the bandwidth is still
-     * unspent, at the cost of the download starting a few seconds later on a slow connection. It is
-     * reported at most once per batch, and not at all when there is nothing to describe or the
-     * batch was cancelled while the answer was awaited, so an app waiting on the prediction must
-     * also treat onTransferFinish as a release condition. <p> If the status of the business account
-     * is expired, onTransferFinish will be called with the error code
-     * MegaError::API_EBUSINESSPASTDUE. In this case, apps should show a warning message similar to
-     * "Your business account is overdue, please contact your administrator."
+     * local name, app data, start-first and undelete flags. The SDK therefore knows the whole
+     * batch up front, and scans all the roots in one pass.
      * <p>
-     * When the batch contains at least one folder, the SDK mutex will be partially locked until
+     * The whole batch is one MegaTransfer: a single onTransferStart, one cancel token, and one
+     * onTransferFinish for the batch, with the individual files reported as sub-transfers exactly
+     * as for a folder download. App data is per item rather than per batch:
+     * MegaTransfer::getAppData carries the item's value on each sub-transfer, and is null on the
+     * batch itself - except for a batch of one file item, which stands for that file and carries
+     * its app data as MegaApiJava::startDownload would.
+     *
+     * <p><b>What is reported, and where</b>
+     *
+     * <p>Every sub-transfer is always reported in full on the listeners registered with
+     * MegaApiJava::addTransferListener, whatever the shape of the batch: its start, its progress,
+     * its state, its temporary errors and its final error all arrive there, carried on the
+     * sub-transfer itself. The rest of this section concerns only what the batch transfer reports
+     * on its own listener, the one given to this method.
+     * <p>
+     * A batch of exactly one file item stands for that file, and behaves as the equivalent
+     * MegaApiJava::startDownload would. That sub-transfer's errors are reported on the batch
+     * transfer as well: through onTransferTemporaryError while it retries, and through
+     * onTransferFinish with the file's own error code once it gives up.
+     * MegaTransfer::getLastErrorExtended on the batch then carries that error in full.
+     * In particular:
+     * <ul>
+     * <li>If the status of the business account is expired, the error code is
+     * MegaError::API_EBUSINESSPASTDUE. Apps should show a warning message similar to "Your business
+     * account is overdue, please contact your administrator."</li>
+     * <li>If the node, or the account it belongs to, has been taken down or suspended, the error
+     * code is MegaError::API_ETOOMANY, and MegaError::getUserStatus and MegaError::getLinkStatus
+     * describe it. Apps should show a warning message similar to "The file that you are downloading
+     * (or the account it belongs to) has been suspended for violating our Terms of Service."</li>
+     * </ul>
+     * <p>
+     * Any other batch reports MegaError::API_EINCOMPLETE when one or more of its files failed,
+     * since no single error can stand for the whole selection. The per-file detail, including the
+     * two cases above, is then only on the listeners registered with
+     * MegaApiJava::addTransferListener.
+     *
+     * <p><b>Transfer-quota reporting</b>
+     *
+     * <p>Once every root has been scanned and the files to fetch are known, the predicted state is
+     * delivered through MegaTransferListenerInterface::onTransferQuotaState before any file
+     * transfer starts, so an app can warn while the bandwidth is still unspent, at the cost of the
+     * download starting a few seconds later on a slow connection. Reporting it for the batch as a
+     * whole is what separate MegaApiJava::startDownload calls cannot do, as each would ask once per
+     * root. It is reported at most once per batch, and not at all when there is nothing to describe
+     * or the batch was cancelled while the answer was awaited, so an app waiting on the prediction
+     * must also treat onTransferFinish as a release condition.
+     *
+     * <p><b>Locking and cancellation</b>
+     *
+     * <p>When the batch contains at least one folder, the SDK mutex will be partially locked until
      * every file in the batch has started. During that period the only safe way to cancel is
      * MegaCancelToken::cancel(true), which cancels every transfer sharing the token.
      *
      * @param items       MegaDownloadItemList with the files and/or folders to download, each with
-     *     its
-     *                    own destination, custom local name, app data, start-first and undelete
-     * flags. Items with a null node are ignored. It MUST NOT be NULL, and the request fails with
-     * MegaError::API_EARGS if it holds no usable node. The list is copied before this method
-     * returns.
+     *                    its own destination, custom local name, app data, start-first and undelete
+     * flags. The start-first and undelete flags apply to a file item only; they are ignored, with a
+     * warning in the log, for a folder item. Items with a null node are ignored. It MUST NOT be
+     * NULL, and the request fails with MegaError::API_EARGS if it holds no usable node. The list is
+     * copied before this method returns.
      * @param cancelToken MegaCancelToken to be able to cancel the download process.
      *                    This param is required to be able to cancel transfers safely.
      *                    You preserve the ownership of this param, and must keep it alive until
      *                    onTransferFinish is received for every transfer sharing it.
-     * @param collisionCheck Indicates collision check on same files, valid values are:
+     * @param collisionCheck Indicates collision check on same files, applied to every item of the
+     *     batch rather than per item, valid values are:
      *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
      *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
      *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
      *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
      *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
      *
-     * @param collisionResolution Indicates how to save same files, valid values are:
+     * @param collisionResolution Indicates how to save same files, applied to every item of the
+     *     batch rather than per item, valid values are:
      *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
      *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
      *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,

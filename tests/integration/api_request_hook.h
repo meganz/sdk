@@ -16,7 +16,9 @@
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 #include <atomic>
+#include <cstdint>
 #include <functional>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -75,7 +77,25 @@ class ScopedApiErrorInjector
 public:
     using CommandPredicate = std::function<bool(const std::string& command)>;
 
-    ScopedApiErrorInjector(::mega::error e, CommandPredicate accept);
+    /**
+     * @brief The detail the API sends alongside an error that carries one, as "u" and "l".
+     *
+     * Only an ETD takedown does; MegaError::getUserStatus and MegaError::getLinkStatus expose
+     * them. Without it the error is answered as a bare code, which is what most of them are.
+     */
+    struct ExtraInfo
+    {
+        int64_t userStatus;
+        int64_t linkStatus;
+    };
+
+    ScopedApiErrorInjector(::mega::error e, CommandPredicate accept):
+        ScopedApiErrorInjector{e, std::nullopt, std::move(accept)}
+    {}
+
+    ScopedApiErrorInjector(::mega::error e, ExtraInfo extraInfo, CommandPredicate accept):
+        ScopedApiErrorInjector{e, std::optional<ExtraInfo>{extraInfo}, std::move(accept)}
+    {}
 
     // True once a request has been answered with the error.
     bool fired() const
@@ -84,9 +104,14 @@ public:
     }
 
 private:
+    ScopedApiErrorInjector(::mega::error e,
+                           std::optional<ExtraInfo> extraInfo,
+                           CommandPredicate accept);
+
     bool injectError(::mega::HttpReq* req);
 
     const ::mega::error mError;
+    const std::optional<ExtraInfo> mExtraInfo;
     const CommandPredicate mAccept;
     std::atomic<bool> mFired{false};
 
