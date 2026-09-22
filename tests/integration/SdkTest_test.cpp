@@ -1957,11 +1957,17 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
         purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 #endif
 
+        // Listener-based on purpose: the shared mApi[nApi].lastError is also written by
+        // onTransferFinish, so a transfer that ends while this request is in flight (for
+        // example one restored from the transfer cache by the test that just finished) would
+        // be misreported as a folder-info failure.
         auto getFolderInfo =
             [this, prefix, &localCleanupSuccess](unsigned nApi, MegaNode* n, uint64_t& nodesIn)
         {
-            if (auto res = synchronousFolderInfo(nApi, n);
-                res != MegaError::API_OK && res != MegaError::API_ENOENT)
+            RequestTracker rt(megaApi[nApi].get());
+            megaApi[nApi]->getFolderInfo(n, &rt);
+            const int res = rt.waitForResult();
+            if (res != MegaError::API_OK && res != MegaError::API_ENOENT)
             {
                 const string errDetails = "Cannot get Folder Info for rootnode";
                 localCleanupSuccess = false;
@@ -1971,11 +1977,11 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
                                    res,
                                    localCleanupSuccess);
             }
-            else
+            else if (const MegaFolderInfo* info =
+                         rt.request ? rt.request->getMegaFolderInfo() : nullptr)
             {
-                nodesIn = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                mApi[nApi].mFolderInfo->getNumFolders() +
-                                                mApi[nApi].mFolderInfo->getNumVersions());
+                nodesIn = static_cast<uint64_t>(info->getNumFiles() + info->getNumFolders() +
+                                                info->getNumVersions());
             }
         };
 
