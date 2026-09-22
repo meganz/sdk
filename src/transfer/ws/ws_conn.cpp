@@ -166,10 +166,7 @@ WsConn::~WsConn()
         }
         mPool->mConns.erase(mConns_it);
     }
-    if (curl)
-    {
-        curl_easy_cleanup(curl);
-    }
+    destroyCurl();
 }
 
 bool WsConn::connectWS()
@@ -188,8 +185,7 @@ bool WsConn::connectWS()
         // must have run first (which clears mFrameInProgress via resetBufferedSendState).
         assert((!mBufs[0].mFrameInProgress && !mBufs[1].mFrameInProgress) &&
                "connectWS() reached with a partial frame staged; closeWS() must run first");
-        curl_easy_cleanup(curl);
-        curl = nullptr;
+        destroyCurl();
     }
     readyState.store(ReadyState::CONNECTING, std::memory_order_relaxed);
 

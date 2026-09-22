@@ -28,9 +28,12 @@
 #ifdef MEGA_USE_WSUPLOAD
 
 #include "mega/logging.h"
+#include "mega/transfer/ws/ws_curl_handles.h" // WsCurlHandles, destroyWsCurlHandles, kWsCurlPollSliceMs
 #include "mega/transfer/ws/ws_pool_mgr.h"
 #include "mega/types.h" // chunkmac_map, dstime, m_off_t
 #include "mega/wsupload.h" // UploadEngine, InboundFrameValidationResult, etc.
+
+#include <curl/curl.h>
 
 #include <atomic>
 #include <cassert>
@@ -45,9 +48,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <curl/curl.h>
-
 #include <zlib.h>
 
 namespace mega
@@ -120,7 +120,9 @@ struct SteadyTime
 // Block timeout for curl_multi_poll() in the WsPoolMgr IO loop. Caps the time
 // the manager thread waits for socket activity per iteration; bounded so that
 // stop signals (mStopping) and refresh-timer expiries are honoured promptly.
-constexpr int WSUPLOAD_CURL_MULTI_POLL_MS = 500;
+// One value for every SDK-driven curl_multi_poll in the engine (the WS handshake
+// loop uses the same constant, see ws_curl_handles.h).
+constexpr int WSUPLOAD_CURL_MULTI_POLL_MS = kWsCurlPollSliceMs;
 
 // Mebibyte (2^20). Used for chunk-size constants and the per-chunk send buffer.
 constexpr int kMiB = 1048576;
@@ -247,8 +249,34 @@ struct ChunkFingerprintMacUpdate
 // ---------- WebSocket connection (per thread) ----------
 struct WsConn
 {
+    // The connection's libcurl handles (ws_curl_handles.h). `curl` is the easy handle the
+    // send/receive path uses; `curlm` is the multi handle that drove its handshake and that it
+    // must stay added to. Both are written only by adoptCurl()/destroyCurl(): nothing else in
+    // the engine reads `curlm`.
     CURL* curl{nullptr};
+    CURLM* curlm{nullptr};
     int bufferedAmount{0};
+
+    // Take ownership of a completed handshake's handle pair. The caller has already
+    // synchronised the hand-over (a return value on the parallel path, the Baton mutex on the
+    // serial path), so from here on this worker thread is the pair's only user.
+    void adoptCurl(WsCurlHandles&& h) noexcept
+    {
+        assert(!curl && !curlm && "WsConn::adoptCurl: destroyCurl() must run before a reconnect");
+        curl = h.easy;
+        curlm = h.multi;
+        h = WsCurlHandles{};
+    }
+
+    // The only place a WsConn releases its libcurl handles (~WsConn and the reconnect path in
+    // connectWS). Order and non-blocking guarantees: destroyWsCurlHandles().
+    void destroyCurl() noexcept
+    {
+        WsCurlHandles h{curl, curlm};
+        curl = nullptr;
+        curlm = nullptr;
+        destroyWsCurlHandles(h);
+    }
 
 #ifndef NDEBUG
     // Send-side counters (per-connection). Aggregated to the pool
