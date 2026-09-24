@@ -183,6 +183,51 @@ protected:
     }
 
     /**
+     * @brief Freeze the first catchup (sc/wsc) request so that catchup never completes
+     *
+     * Later sc requests, a second catchup included, are left untouched.
+     */
+    void freezeFirstCatchupScRequest()
+    {
+        globalMegaTestHooks.interceptSCRequest = [this](std::unique_ptr<HttpReq>& pendingsc)
+        {
+            std::lock_guard<std::mutex> g{mFrozenScMutex};
+            if (!mFrozenScFound)
+            {
+                if (pendingsc->posturl.find("sc/wsc") == std::string::npos)
+                {
+                    return; // not the catchup request
+                }
+                mFrozenScFound = true;
+                mFrozenScId = pendingsc->getId();
+                pendingsc->disconnect(); // so that no real response can arrive for it
+            }
+            else if (pendingsc->getId() != mFrozenScId)
+            {
+                // the frozen request is gone, uninstall from this thread as the other hooks do
+                globalMegaTestHooks.interceptSCRequest = nullptr;
+                return;
+            }
+
+            // hold it pre-response, refreshing lastdata so the heartbeat timeout won't reset it
+            pendingsc->status = REQ_INFLIGHT;
+            pendingsc->mResponseStarted = false;
+            pendingsc->lastdata = Waiter::ds;
+        };
+    }
+
+    // true once the hook has caught the catchup request, i.e. the freeze is in effect
+    bool catchupScRequestFrozen()
+    {
+        std::lock_guard<std::mutex> g{mFrozenScMutex};
+        return mFrozenScFound;
+    }
+
+    std::mutex mFrozenScMutex;
+    bool mFrozenScFound = false;
+    uint32_t mFrozenScId = 0;
+
+    /**
      * @brief Wait until the listener captures all expected events and no others.
      */
     bool waitForNetworkEvents(std::vector<NetworkActivityEvent> expectedEvents,
@@ -920,6 +965,72 @@ TEST_P(SdkTestScChannel, ReceivesServerHeartbeatLive)
     CASE_info << "finished (" << total << " heartbeat(s), max span " << maxSpan << " ds)";
 }
 
+/**
+ * @brief Test: logout finishes the pending catchups instead of orphaning them
+ */
+TEST_P(SdkTestScChannel, LogoutFinishesPendingCatchups)
+{
+    CASE_info << "started";
+
+    freezeFirstCatchupScRequest();
+
+    RequestTracker inFlight{megaApi[0].get()};
+    megaApi[0]->catchup(&inFlight);
+    ASSERT_TRUE(WaitFor(
+        [this]()
+        {
+            return catchupScRequestFrozen();
+        },
+        defaultTimeoutMs))
+        << "the first catchup's sc request was never frozen - the test would be vacuous";
+
+    RequestTracker queued{megaApi[0].get()};
+    megaApi[0]->catchup(&queued); // waits behind the frozen one
+
+    logout(0, false, maxTimeout);
+
+    // both are finished with the abort error, the exact code is not what this test is about
+    EXPECT_NE(LOCAL_ETIMEOUT, inFlight.waitForResult(defaultTimeout))
+        << "the in-flight catchup was orphaned by the logout";
+    EXPECT_NE(LOCAL_ETIMEOUT, queued.waitForResult(defaultTimeout))
+        << "the queued catchup was orphaned by the logout";
+
+    CASE_info << "finished";
+}
+
+/**
+ * @brief Test: a mid-session fetchnodes finishes the in-flight catchup and unblocks the queue
+ */
+TEST_P(SdkTestScChannel, FetchnodesFinishesInFlightCatchup)
+{
+    CASE_info << "started";
+
+    freezeFirstCatchupScRequest();
+
+    RequestTracker inFlight{megaApi[0].get()};
+    megaApi[0]->catchup(&inFlight);
+    ASSERT_TRUE(WaitFor(
+        [this]()
+        {
+            return catchupScRequestFrozen();
+        },
+        defaultTimeoutMs))
+        << "the catchup's sc request was never frozen - the test would be vacuous";
+
+    // discards the sc channel state, the engine side pending catchups included
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    EXPECT_EQ(API_OK, inFlight.waitForResult(defaultTimeout))
+        << "the in-flight catchup was orphaned by the fetchnodes";
+
+    RequestTracker afterwards{megaApi[0].get()};
+    megaApi[0]->catchup(&afterwards);
+    EXPECT_EQ(API_OK, afterwards.waitForResult(defaultTimeout))
+        << "a later catchup stayed blocked behind the orphaned one";
+
+    CASE_info << "finished";
+}
+
 INSTANTIATE_TEST_SUITE_P(ScChannel,
                          SdkTestScChannel,
                          ::testing::Bool(),
@@ -929,3 +1040,28 @@ INSTANTIATE_TEST_SUITE_P(ScChannel,
                          });
 
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+
+/**
+ * @brief Test: catchup without a session is rejected instead of queued forever
+ *
+ * Needs no test hooks, so it lives outside the guard above.
+ */
+TEST_F(SdkTest, CatchupWithoutSessionIsRejected)
+{
+    CASE_info << "started";
+
+    // well clear of the indexes getAccountsForTest() hands out, so the caches cannot collide
+    constexpr int cacheIndex = 10;
+    auto api = std::make_unique<MegaApiTest>(APP_KEY.c_str(),
+                                             megaApiCacheFolder(cacheIndex).c_str(),
+                                             USER_AGENT.c_str(),
+                                             unsigned(THREADS_PER_MEGACLIENT));
+    ASSERT_FALSE(api->isLoggedIn()) << "the test would be vacuous with a session";
+
+    RequestTracker tracker{api.get()};
+    api->catchup(&tracker);
+    EXPECT_EQ(API_EACCESS, tracker.waitForResult(defaultTimeout))
+        << "catchup() was not rejected without a session";
+
+    CASE_info << "finished";
+}

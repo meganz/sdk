@@ -1606,6 +1606,12 @@ public:
 
     // close server-client HTTP connection
     void catchup();
+
+    // true while the engine still owes a catchup_result
+    bool hasPendingCatchUps() const
+    {
+        return mPendingCatchUps > 0;
+    }
     // abort lock request
     void abortlockrequest();
 

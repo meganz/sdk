@@ -24351,13 +24351,18 @@ class MegaApi
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
-       /**
+        /**
          * @brief Catch up with API for pending actionpackets
          *
          * The associated request type with this request is MegaRequest::TYPE_CATCHUP
          *
          * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
          * up to date (as for the time this function is called).
+         *
+         * This request requires a session: it is answered on the server-client channel, so
+         * calling it before login finishes it with MegaError::API_EACCESS. Note the channel only
+         * starts once MegaApi::fetchNodes has succeeded, so a catchup issued between login and
+         * fetchnodes stays pending until then.
          *
          * @param listener MegaRequestListener to track this request
          */
