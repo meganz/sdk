@@ -21,6 +21,7 @@
 
 #include "mega/transfer_quota_checker.h"
 
+#include "mega/backofftimer.h"
 #include "mega/command.h"
 #include "mega/logging.h"
 #include "mega/megaapp.h"
@@ -38,6 +39,9 @@ namespace mega
 
 // Ten minutes between Pro-account `uq` polls.
 static constexpr dstime PRO_CHECK_INTERVAL_DS = 10 * 60 * 10;
+
+// One-second debounce window for stream-triggered checks.
+static constexpr dstime STREAM_CHECK_WINDOW_DS = 10;
 
 transferquotastatus_t TransferQuotaChecker::statusForUsage(m_off_t used, m_off_t max)
 {
@@ -170,8 +174,15 @@ bool TransferQuotaChecker::isProAccount() const
 
 bool TransferQuotaChecker::check(std::vector<handle> newOwnNodes,
                                  std::vector<handle> newPublicNodes,
-                                 std::function<void(transferquotastatus_t, Error)> completion)
+                                 std::function<void(transferquotastatus_t, Error)> completion,
+                                 CheckOrigin origin)
 {
+    // Stream nodes are projected from hdrns: the node lists are not used
+    if (origin == CheckOrigin::Stream)
+    {
+        return checkStreamThrottled(std::move(completion));
+    }
+
     // A Pro account's state is its allowance ratio, which no `qbq` verdict describes, so the nodes
     // starting now say nothing about it: the snapshot is the answer.
     if (isProAccount())
@@ -233,6 +244,62 @@ bool TransferQuotaChecker::checkFreeAccount(
                                std::move(onReply));
 
     return true;
+}
+
+bool TransferQuotaChecker::checkStreamThrottled(
+    std::function<void(transferquotastatus_t, Error)> completion)
+{
+    if (mStreamTimerRunning)
+    {
+        mStreamCheckPending = true;
+        mPendingStreamCompletion = std::move(completion);
+        return true;
+    }
+
+    return queryStream(std::move(completion));
+}
+
+bool TransferQuotaChecker::queryStream(std::function<void(transferquotastatus_t, Error)> completion)
+{
+    if (isProAccount())
+    {
+        checkProAccount(std::move(completion));
+    }
+    else if (!checkFreeAccount({},
+                               {},
+                               std::move(completion))) // The new streams are already in hdrns
+    {
+        return false;
+    }
+
+    auto timer = new CallbackTimer(mClient.rng,
+                                   [this]()
+                                   {
+                                       onStreamTimerExpired();
+                                   });
+    timer->backoff(STREAM_CHECK_WINDOW_DS);
+
+    mClient.addtimer(timer);
+
+    mStreamTimerRunning = true;
+    return true;
+}
+
+void TransferQuotaChecker::onStreamTimerExpired()
+{
+    mStreamTimerRunning = false;
+
+    if (!mStreamCheckPending)
+    {
+        return;
+    }
+
+    mStreamCheckPending = false;
+    auto completion = std::move(mPendingStreamCompletion);
+    mPendingStreamCompletion = nullptr;
+
+    // Streams that all finished meanwhile leave nothing to ask about: stays idle
+    queryStream(std::move(completion));
 }
 
 void TransferQuotaChecker::checkProAccount(
@@ -364,6 +431,9 @@ void TransferQuotaChecker::reset()
     mProAccountCacheValidUntilDs = 0;
     // Session reset clears the command queue without running the completion that would lower this
     mProQueryInFlight = false;
+    mStreamTimerRunning = false;
+    mStreamCheckPending = false;
+    mPendingStreamCompletion = nullptr;
 
     // Dropped, not run: their captures belong to the session going away (MegaApiImpl finishes those
     // requests itself, via abortPendingActions).

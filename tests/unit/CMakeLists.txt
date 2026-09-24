@@ -23,6 +23,7 @@ target_sources(test_unit
     Crypto_test.cpp
     CurlHttpIoConfig_test.cpp
     cxx20_features_test.cpp
+    ExecTimers_test.cpp
     FileFingerprint_test.cpp
     FileFingerprint_CRC_test.cpp
     File_test.cpp
