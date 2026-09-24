@@ -1287,8 +1287,11 @@ public:
                            int tag,
                            CommandSetPH::CompletionType completion); // auxiliar method to add req
 
-    // add timer
+    // Client thread only: bttimers is unlocked
     error addtimer(TimerWithBackoff *twb);
+
+    // Fire the expired bttimers
+    void execTimers();
 
 #ifdef ENABLE_SYNC
     /**

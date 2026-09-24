@@ -24,6 +24,8 @@
 
 #include "types.h"
 
+#include <functional>
+
 namespace mega {
 // generic timer facility with exponential backoff
 class MEGA_API BackoffTimer
@@ -155,7 +157,22 @@ class MEGA_API TimerWithBackoff: public BackoffTimer {
 
 public:
     int tag;
-    TimerWithBackoff(PrnGen &rng, int tag);
+
+    TimerWithBackoff(PrnGen& rng, int tag);
+    virtual void invoke(MegaClient& client);
+    virtual ~TimerWithBackoff() = default;
+};
+
+// Internal timer: runs its callback on the client thread instead of reporting MegaApp::timer_result
+class CallbackTimer final: public TimerWithBackoff
+{
+public:
+    CallbackTimer(PrnGen& rng, std::function<void()> callback);
+
+    void invoke(MegaClient&) override;
+
+private:
+    std::function<void()> mCallback;
 };
 
 } // namespace

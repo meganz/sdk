@@ -7,6 +7,7 @@
 #include "mega/file.h"
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
+#include "mega/scoped_helpers.h"
 #include "mega/transfer.h"
 #include "utils.h"
 
@@ -676,6 +677,324 @@ TEST_F(DownloadProjectionTest, AStreamingReadAsksAboutItselfAndTellsTheApp)
 }
 #else
 TEST_F(DownloadProjectionTest, AStreamingReadAsksAboutItselfAndTellsTheApp)
+{
+    GTEST_SKIP() << "needs MegaClient::reqs.deferRequests, built only in Debug";
+}
+#endif
+
+#if defined(MEGA_MEASURE_CODE) || defined(DEBUG)
+TEST_F(DownloadProjectionTest, AStreamStartedWhileTheTimerRunsDoesNotAsk)
+{
+    client->mMyAccount.setProLevel(ACCOUNT_TYPE_FREE);
+
+    std::vector<Command*> queued;
+    client->reqs.deferRequests = [&queued](Command* c)
+    {
+        queued.push_back(c);
+        return true;
+    };
+
+    const auto quotaQueries = [&queued]()
+    {
+        std::vector<CommandQueryTransferQuota*> found;
+        for (Command* c: queued)
+        {
+            if (auto* q = dynamic_cast<CommandQueryTransferQuota*>(c))
+            {
+                found.push_back(q);
+            }
+        }
+        return found;
+    };
+
+    // Each handle is a new node, so each read would ask on its own without the throttle
+    SymmCipher cipher;
+    const auto streamNode = [&client = client, &cipher](const handle h)
+    {
+        client->pread(
+            h,
+            &cipher,
+            0 /*iv*/,
+            0 /*offset*/,
+            1000 /*count*/,
+            [](DirectRead::CallbackParam&) {},
+            true /*isPublicHandle*/);
+    };
+
+    streamNode(7);
+    ASSERT_EQ(1u, quotaQueries().size()) << "the first stream did not ask";
+
+    streamNode(8);
+    ASSERT_EQ(1u, quotaQueries().size()) << "a stream asked while the timer ran";
+    EXPECT_TRUE(app.mStates.empty()) << "a throttled check notified the app";
+
+    JSON json;
+    json.pos = "1]";
+    quotaQueries().front()->procresult(Command::Result(Command::CmdItem), json);
+    ASSERT_EQ(1u, app.mStates.size()) << "only the real reply tells the app";
+    EXPECT_EQ(TRANSFER_QUOTA_ORANGE, app.mStates.front());
+}
+
+TEST_F(DownloadProjectionTest, StreamChecksAreDebouncedByAOneSecondTimer)
+{
+    // Driven through check() rather than pread, whose DirectReadNode::schedule bumps Waiter::ds
+    client->mMyAccount.setProLevel(ACCOUNT_TYPE_FREE);
+    const dstime savedDs = Waiter::ds;
+    const auto restoreDs = makeScopedDestructor(
+        [savedDs]()
+        {
+            Waiter::ds = savedDs;
+        });
+    Waiter::ds = 1000;
+
+    std::vector<Command*> queued;
+    client->reqs.deferRequests = [&queued](Command* c)
+    {
+        queued.push_back(c);
+        return true;
+    };
+
+    queueStream(4000, 0, 1000, 0, 7, true);
+    auto& checker = client->transferQuotaChecker();
+
+    std::vector<int> completions;
+    const auto streamCheck = [&checker, &completions](const int id)
+    {
+        return checker.check(
+            {},
+            {},
+            [&completions, id](transferquotastatus_t, Error)
+            {
+                completions.push_back(id);
+            },
+            TransferQuotaChecker::CheckOrigin::Stream);
+    };
+
+    const auto reply = [&queued](const size_t index)
+    {
+        JSON json;
+        json.pos = "0]";
+        queued.at(index)->procresult(Command::Result(Command::CmdItem), json);
+    };
+
+    // Idle: asks at once and starts the timer
+    ASSERT_TRUE(streamCheck(1));
+    ASSERT_EQ(1u, queued.size());
+
+    // Timer running: folded, no qbq and no completion yet
+    EXPECT_TRUE(streamCheck(2));
+    EXPECT_TRUE(streamCheck(3));
+    EXPECT_EQ(1u, queued.size()) << "a stream check asked while the timer ran";
+
+    // The timer runs from the send, not the reply
+    Waiter::ds = 1005;
+    reply(0);
+    EXPECT_EQ(std::vector<int>{1}, completions);
+
+    Waiter::ds = 1009;
+    client->execTimers();
+    EXPECT_EQ(1u, queued.size()) << "the folded qbq went out before the timer expired";
+
+    // Expiry with folded checks: one qbq, and the timer restarts
+    Waiter::ds = 1010;
+    client->execTimers();
+    ASSERT_EQ(2u, queued.size()) << "the timer expired without sending the folded qbq";
+
+    // Restarted from this send: a check folds even with the previous qbq unanswered
+    EXPECT_TRUE(streamCheck(4));
+    Waiter::ds = 1020;
+    client->execTimers();
+    ASSERT_EQ(3u, queued.size()) << "the restarted timer did not send the folded qbq";
+
+    reply(1);
+    reply(2);
+    EXPECT_EQ((std::vector<int>{1, 3, 4}), completions) << "only the latest folded check completes";
+
+    // Expiry with nothing folded: no qbq, back to idle
+    Waiter::ds = 1030;
+    client->execTimers();
+    EXPECT_EQ(3u, queued.size()) << "an expiry with nothing folded asked";
+
+    EXPECT_TRUE(streamCheck(5));
+    EXPECT_EQ(4u, queued.size()) << "an idle check did not ask at once";
+
+    // Download and estimate checks are not throttled
+    EXPECT_TRUE(checker.check({2}, {}, {}));
+    EXPECT_EQ(5u, queued.size()) << "a non-stream check was throttled";
+}
+
+TEST_F(DownloadProjectionTest, ResetClearsTheStreamThrottle)
+{
+    client->mMyAccount.setProLevel(ACCOUNT_TYPE_FREE);
+
+    std::vector<Command*> queued;
+    client->reqs.deferRequests = [&queued](Command* c)
+    {
+        queued.push_back(c);
+        return true;
+    };
+
+    queueStream(4000, 0, 1000, 0, 7, true);
+    auto& checker = client->transferQuotaChecker();
+    ASSERT_TRUE(checker.check({}, {}, {}, TransferQuotaChecker::CheckOrigin::Stream));
+    ASSERT_TRUE(checker.check({}, {}, {}, TransferQuotaChecker::CheckOrigin::Stream));
+    ASSERT_EQ(1u, queued.size()) << "a stream check asked while the timer ran";
+
+    // A session reset must not carry the running timer or the folded check into the next session
+    checker.reset();
+
+    EXPECT_TRUE(checker.check({}, {}, {}, TransferQuotaChecker::CheckOrigin::Stream));
+    EXPECT_EQ(2u, queued.size()) << "the throttle outlived the session reset";
+
+    // The new session throttles on its own timer
+    EXPECT_TRUE(checker.check({}, {}, {}, TransferQuotaChecker::CheckOrigin::Stream));
+    EXPECT_EQ(2u, queued.size()) << "the new session's timer did not throttle";
+}
+
+TEST_F(DownloadProjectionTest, AFoldedStreamCheckWithNoStreamsLeftIsDropped)
+{
+    client->mMyAccount.setProLevel(ACCOUNT_TYPE_FREE);
+    const dstime savedDs = Waiter::ds;
+    const auto restoreDs = makeScopedDestructor(
+        [savedDs]()
+        {
+            Waiter::ds = savedDs;
+        });
+    Waiter::ds = 1000;
+
+    std::vector<Command*> queued;
+    client->reqs.deferRequests = [&queued](Command* c)
+    {
+        queued.push_back(c);
+        return true;
+    };
+
+    queueStream(4000, 0, 1000, 0, 7, true);
+    auto& checker = client->transferQuotaChecker();
+
+    std::vector<int> completions;
+    const auto streamCheck = [&checker, &completions](const int id)
+    {
+        return checker.check(
+            {},
+            {},
+            [&completions, id](transferquotastatus_t, Error)
+            {
+                completions.push_back(id);
+            },
+            TransferQuotaChecker::CheckOrigin::Stream);
+    };
+
+    ASSERT_TRUE(streamCheck(1));
+    ASSERT_TRUE(streamCheck(2));
+    ASSERT_EQ(1u, queued.size());
+
+    // The stream finishes inside the window: ~DirectReadNode erases it from hdrns
+    delete client->hdrns.begin()->second;
+    ASSERT_TRUE(client->hdrns.empty());
+
+    Waiter::ds = 1010;
+    client->execTimers();
+    EXPECT_EQ(1u, queued.size()) << "a folded check with no streams left asked";
+
+    JSON json;
+    json.pos = "0]";
+    queued.front()->procresult(Command::Result(Command::CmdItem), json);
+    EXPECT_EQ(std::vector<int>{1}, completions) << "the dropped folded check completed";
+
+    // Dropped means idle: the next stream asks at once
+    queueStream(4000, 0, 1000, 0, 8, true);
+    EXPECT_TRUE(streamCheck(3));
+    EXPECT_EQ(2u, queued.size()) << "the checker stayed throttled after dropping the check";
+}
+
+TEST_F(DownloadProjectionTest, ProStreamChecksAreDebouncedAndServeTheSnapshot)
+{
+    client->mMyAccount.setProLevel(ACCOUNT_TYPE_PROI);
+    const dstime savedDs = Waiter::ds;
+    const auto restoreDs = makeScopedDestructor(
+        [savedDs]()
+        {
+            Waiter::ds = savedDs;
+        });
+    Waiter::ds = 1000;
+
+    std::vector<Command*> queued;
+    client->reqs.deferRequests = [&queued](Command* c)
+    {
+        queued.push_back(c);
+        return true;
+    };
+
+    AccountDetails orange;
+    orange.transfer_max = 1000;
+    orange.transfer_own_used = 950; // 95% -> ORANGE
+    auto& checker = client->transferQuotaChecker();
+    checker.cacheStatusFromDetails(orange);
+
+    std::vector<std::pair<int, transferquotastatus_t>> completions;
+    const auto streamCheck = [&checker, &completions](const int id)
+    {
+        return checker.check(
+            {},
+            {},
+            [&completions, id](transferquotastatus_t state, Error)
+            {
+                completions.emplace_back(id, state);
+            },
+            TransferQuotaChecker::CheckOrigin::Stream);
+    };
+
+    using Completions = decltype(completions);
+
+    // Idle: served from the snapshot at once, and the timer starts
+    ASSERT_TRUE(streamCheck(1));
+    EXPECT_EQ((Completions{{1, TRANSFER_QUOTA_ORANGE}}), completions);
+
+    // Timer running: folded, not served yet
+    EXPECT_TRUE(streamCheck(2));
+    EXPECT_TRUE(streamCheck(3));
+    EXPECT_EQ(1u, completions.size()) << "a Pro stream check was served while the timer ran";
+
+    Waiter::ds = 1009;
+    client->execTimers();
+    EXPECT_EQ(1u, completions.size()) << "the folded check was served before the timer expired";
+
+    // Expiry: only the latest folded check is served
+    Waiter::ds = 1010;
+    client->execTimers();
+    EXPECT_EQ((Completions{{1, TRANSFER_QUOTA_ORANGE}, {3, TRANSFER_QUOTA_ORANGE}}), completions);
+
+    // Expiry with nothing folded: back to idle, so the next check is served at once
+    Waiter::ds = 1020;
+    client->execTimers();
+    EXPECT_TRUE(streamCheck(4));
+    EXPECT_EQ(3u, completions.size()) << "an idle Pro stream check was not served at once";
+
+    EXPECT_TRUE(queued.empty()) << "a Pro stream check sent a request despite a fresh snapshot";
+}
+#else
+TEST_F(DownloadProjectionTest, AStreamStartedWhileTheTimerRunsDoesNotAsk)
+{
+    GTEST_SKIP() << "needs MegaClient::reqs.deferRequests, built only in Debug";
+}
+
+TEST_F(DownloadProjectionTest, StreamChecksAreDebouncedByAOneSecondTimer)
+{
+    GTEST_SKIP() << "needs MegaClient::reqs.deferRequests, built only in Debug";
+}
+
+TEST_F(DownloadProjectionTest, ResetClearsTheStreamThrottle)
+{
+    GTEST_SKIP() << "needs MegaClient::reqs.deferRequests, built only in Debug";
+}
+
+TEST_F(DownloadProjectionTest, AFoldedStreamCheckWithNoStreamsLeftIsDropped)
+{
+    GTEST_SKIP() << "needs MegaClient::reqs.deferRequests, built only in Debug";
+}
+
+TEST_F(DownloadProjectionTest, ProStreamChecksAreDebouncedAndServeTheSnapshot)
 {
     GTEST_SKIP() << "needs MegaClient::reqs.deferRequests, built only in Debug";
 }
