@@ -224,6 +224,64 @@ TEST_F(SdkHttpServerTest, HttpServerStartStop)
 }
 
 /**
+ * @brief Checks that the HTTP server survives connections it cannot set up after accepting them
+ *
+ * A connection that fails right after being accepted is never added to the pool by the old
+ * code, so its context is freed while the libuv close callbacks are still pending. Running
+ * this test under ASAN reports that use after free.
+ */
+TEST_F(SdkHttpServerTest, HttpServerDropsConnectionsThatCannotBeSetUp)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    ASSERT_TRUE(megaApi[0]->httpServerStart(true, 0));
+    const auto httpServer = makeScopedDestructor(
+        [&api = megaApi]()
+        {
+            api[0]->httpServerStop();
+        });
+
+    const int port = megaApi[0]->httpServerIsRunning();
+    ASSERT_GT(port, 0);
+
+    const std::string url = baseURL(port);
+
+    constexpr int failures = 5;
+    const ScopedTcpServerAcceptFailure acceptFailure{failures};
+
+    // The server drops every one of these connections, so the client gets no answer at all
+    for (int i = 0; i < failures; i++)
+    {
+        const auto response = HttpClient::get(url);
+        EXPECT_EQ(0, response.statusCode) << "the server answered a dropped connection";
+    }
+
+    EXPECT_EQ(failures, acceptFailure.simulatedFailures());
+
+    // Each dropped connection must close on its own. A context that was freed too early, or
+    // one that was never closed, does not get here
+    EXPECT_TRUE(acceptFailure.waitForClosedConnections(failures, std::chrono::seconds(30)))
+        << "only " << acceptFailure.closedConnections() << " of " << failures
+        << " dropped connections finished closing";
+
+    // Without the lifetime fix the context is freed as soon as the accept path returns, so the
+    // server no longer owns it when its close callbacks run
+    EXPECT_EQ(0, acceptFailure.connectionsClosedAfterBeingFreed())
+        << "a dropped connection was freed before its close callbacks ran";
+
+    // Dropping a connection must not stop the server from listening
+    const auto response = HttpClient::get(url);
+    EXPECT_NE(0, response.statusCode) << "the server stopped accepting connections";
+
+    megaApi[0]->httpServerStop();
+    EXPECT_FALSE(megaApi[0]->httpServerIsRunning());
+#endif
+}
+
+/**
  * Test for HTTP server using port 0, which also consist of:
  * - start two HTTP servers from a thread and no ports conflicting
  * - stop HTTP servers from a different thread, to allow TSAN to report any data races

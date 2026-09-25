@@ -2,9 +2,15 @@
 
 #include "easy_curl.h"
 #include "mega/scoped_helpers.h"
+#include "mega/testhooks.h"
 #include "SdkTest_test.h"
 
+#include <atomic>
+#include <chrono>
+#include <memory>
+#include <mutex>
 #include <optional>
+#include <thread>
 
 class SdkServerTest: public SdkTest
 {
@@ -20,6 +26,106 @@ protected:
                                     const std::string& contents,
                                     MegaNode* parent = nullptr);
 };
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+/**
+ * @brief Makes the local TCP server drop the connections it accepts.
+ *
+ * While this object is alive, the server fails the setup of the first failuresToSimulate
+ * connections right after accepting them, which is where a real accept failure leaves the
+ * connection. The object also counts the connections whose asynchronous close has already
+ * finished, so a test can wait for the teardown instead of sleeping for a fixed time.
+ *
+ * The counters live in a shared state, so a hook call that is already running keeps them
+ * alive even if this object is destroyed in the meantime.
+ */
+class ScopedTcpServerAcceptFailure
+{
+public:
+    explicit ScopedTcpServerAcceptFailure(int failuresToSimulate):
+        mState{std::make_shared<State>()}
+    {
+        auto state = mState;
+
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+
+        ::mega::globalMegaTestHooks.onTcpServerSimulateAcceptFailure =
+            [state, failuresToSimulate]() -> bool
+        {
+            // Several servers may run their own loop thread, so claim the slot atomically
+            int simulated = state->simulated.load();
+            while (simulated < failuresToSimulate)
+            {
+                if (state->simulated.compare_exchange_weak(simulated, simulated + 1))
+                {
+                    return true;
+                }
+            }
+            return false;
+        };
+
+        ::mega::globalMegaTestHooks.onTcpServerConnectionClosed = [state](bool wasOwnedByServer)
+        {
+            if (!wasOwnedByServer)
+            {
+                state->unowned++;
+            }
+            state->closed++;
+        };
+    }
+
+    ~ScopedTcpServerAcceptFailure()
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onTcpServerSimulateAcceptFailure = nullptr;
+        ::mega::globalMegaTestHooks.onTcpServerConnectionClosed = nullptr;
+    }
+
+    ScopedTcpServerAcceptFailure(const ScopedTcpServerAcceptFailure&) = delete;
+    ScopedTcpServerAcceptFailure& operator=(const ScopedTcpServerAcceptFailure&) = delete;
+
+    int simulatedFailures() const
+    {
+        return mState->simulated.load();
+    }
+
+    int closedConnections() const
+    {
+        return mState->closed.load();
+    }
+
+    // Connections that the server no longer owned when their close finished. The context of
+    // such a connection was freed while its libuv close callbacks were still pending
+    int connectionsClosedAfterBeingFreed() const
+    {
+        return mState->unowned.load();
+    }
+
+    bool waitForClosedConnections(int expected, std::chrono::milliseconds timeout) const
+    {
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (closedConnections() < expected)
+        {
+            if (std::chrono::steady_clock::now() >= deadline)
+            {
+                return false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(20));
+        }
+        return true;
+    }
+
+private:
+    struct State
+    {
+        std::atomic<int> simulated{0};
+        std::atomic<int> closed{0};
+        std::atomic<int> unowned{0};
+    };
+
+    std::shared_ptr<State> mState;
+};
+#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 /**
  * Helper class for HTTP client requests

@@ -1,6 +1,7 @@
 #include "easy_curl.h"
 #include "integration_test_utils.h"
 #include "mega/scoped_helpers.h"
+#include "sdk_server_test_utils.h"
 #include "SdkTest_test.h"
 
 #include <curl/curl.h>
@@ -429,6 +430,67 @@ std::string ftpBaseUrl(const std::string& link)
 }
 
 } // namespace
+
+/**
+ * @brief Checks that the FTP server survives connections it cannot set up after accepting them
+ *
+ * The FTP control server shares the accept path with the HTTP and WebDAV servers, so a
+ * connection that fails right after being accepted used to free its context while the libuv
+ * close callbacks were still pending. Running this test under ASAN reports that use after free.
+ */
+TEST_F(SdkTest, FtpServerDropsConnectionsThatCannotBeSetUp)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED";
+#else
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    ASSERT_TRUE(megaApi[0]->ftpServerStart(true, 0));
+    const auto ftpServer = makeScopedDestructor(
+        [&api = megaApi]()
+        {
+            api[0]->ftpServerStop();
+        });
+
+    const int port = megaApi[0]->ftpServerIsRunning();
+    ASSERT_GT(port, 0);
+
+    const std::string baseUrl = "ftp://127.0.0.1:" + std::to_string(port) + "/";
+
+    constexpr int failures = 3;
+    const ScopedTcpServerAcceptFailure acceptFailure{failures};
+
+    // A dropped connection never reaches the greeting, because the server closes it before
+    // it answers anything
+    for (int i = 0; i < failures; i++)
+    {
+        const FtpExchange exchange = FtpTestClient::runControlCommands(baseUrl, {"NOOP"});
+        EXPECT_NE(CURLE_OK, exchange.curlCode) << "the server answered a dropped connection";
+        EXPECT_EQ(std::string::npos, exchange.controlLog.find("220 "))
+            << "the server greeted a dropped connection. Control log:\n"
+            << exchange.controlLog;
+    }
+
+    EXPECT_EQ(failures, acceptFailure.simulatedFailures());
+
+    // Each dropped connection must close on its own. A context that was freed too early, or
+    // one that was never closed, does not get here
+    EXPECT_TRUE(acceptFailure.waitForClosedConnections(failures, std::chrono::seconds(30)))
+        << "only " << acceptFailure.closedConnections() << " of " << failures
+        << " dropped connections finished closing";
+
+    // Without the lifetime fix the context is freed as soon as the accept path returns, so the
+    // server no longer owns it when its close callbacks run
+    EXPECT_EQ(0, acceptFailure.connectionsClosedAfterBeingFreed())
+        << "a dropped connection was freed before its close callbacks ran";
+
+    // Dropping a connection must not stop the server from listening
+    const FtpExchange served = FtpTestClient::runControlCommands(baseUrl, {"NOOP"});
+    EXPECT_NE(std::string::npos, served.controlLog.find("220 "))
+        << "the server stopped accepting connections. Control log:\n"
+        << served.controlLog;
+#endif
+}
 
 /**
  * The FTP server must not resolve a path outside the served folder.
