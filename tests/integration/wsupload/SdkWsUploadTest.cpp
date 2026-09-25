@@ -896,6 +896,14 @@ TEST_F(SdkWsUploadTest, ActivePoolUsesParallelConnections)
  *   pool must return to base within 60 s and STAY there (v1 parked at peak forever).
  * - PHASE D: all uploads complete OK (the synthetic signals must not corrupt real transfers).
  *
+ * PHASES A-C judge ONE pool: the one the first active file is bound to (frozen URL). If that pool
+ * turns retiring or vanishes (a server refresh rotated it; the gate never runs on a retiring
+ * pool), or the URL resolves to a pinned pool (a retried file is re-enqueued pinned to the same
+ * URL and the pool lookup returns pinned pools first, hiding the gate-driven one), no verdict is
+ * possible, so the cell fails with "PREMISE VIOLATED (not a gate verdict)" instead of judging
+ * whichever pool the best snapshot names -- after a rotation that is a successor born at base,
+ * which made PHASE C pass vacuously.
+ *
  * NO setenv: every gate knob is a read-once process static (a setenv here would be a silent
  * no-op in a batch run -- the adversarial trap); the test runs on the defaults and sizes its
  * timeouts from them. Distinct-content files are REQUIRED (identical content is fingerprint-
@@ -912,10 +920,10 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     WSUPLOAD_REQUIRE_TEST_HOOKS();
 
     // Drop server event=5 Distress for this cell's duration, exactly as
-    // B9ClosedThrottleReconnectPacing does (see :5133-5139). WHY: this cell's premise is ONE
-    // stable size-class pool for all of PHASES A+B. A genuine Distress frame calls refreshPools()
-    // (ws_conn.cpp:938); if the USC reply returns a different host for the size class,
-    // applyRefreshedUrls retires the busy pool (ws_pool_mgr.cpp:1174) and `shouldScaleUp =
+    // B9ClosedThrottleReconnectPacing does (its fu7-15 G2.b block). WHY: this cell's premise is ONE
+    // stable size-class pool for all of PHASES A-C. A genuine Distress frame calls refreshPools()
+    // (WsConn::onmessage, event 5); USC mints a fresh session token per reply, so
+    // applyRefreshedUrls retires the busy pool behind a new-URL successor and `shouldScaleUp =
     // !pool->mRetiring` (ws_pool_mgr.cpp:390 -- the only guard under which runGoodputGateLocked
     // runs) silences the gate on it for good, freezing conns one widen short of the knee. That is
     // exactly how macos_9808 failed (settle 10 vs 11).
@@ -1035,54 +1043,93 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
 
     ws::UploadEngine::PoolStateForTesting state{};
     ws::UploadEngine::PoolStateForTesting lastObservedState{};
-    std::string observedPoolUrl = activeUpload.wsSessionUrl;
+    // FROZEN anchor: PHASES A-C judge the pool the first active file is bound to -- the one
+    // size-class pool the gate drives. Never re-derive it from the "best" snapshot per poll: after
+    // a pool rotation that snapshot eventually names the successor (born at base), so PHASE C
+    // could pass with no gate trim at all -- macos_9808 passed PHASE C with 0 trims.
+    const std::string observedPoolUrl = activeUpload.wsSessionUrl;
     unsigned maxActiveThreadsSeen = 0;
-    bool observingPhasesAB = true; // scopes the premise warning below to PHASES A+B
-    bool retiringWarned = false;
+    // Premise of every gate verdict: the frozen URL still resolves to a live, non-pinned,
+    // non-retiring pool. A non-pinned pool retires or vanishes only through an admitted refresh
+    // (applyRefreshedUrls), and the gate never runs on a retiring pool (ws_pool_mgr.cpp:390); a
+    // pinned result is the same-URL pinned pool a retried file gets on re-enqueue, which the pool
+    // lookup returns first. Either way no verdict is possible: the first violation latches and
+    // fails the cell loudly.
+    std::string premiseViolation;
+    const char* phaseName = "A";
+    second_timer anchorTimer;
+    // Violation attribution: refreshPools() counts every refresh it LAUNCHES (refreshPoolsCount),
+    // and only applyRefreshedUrls retires or retargets a non-pinned pool.
+    ws::UploadEngine::WsUploadStatsForTesting statsAtAnchor{};
+    const bool haveStatsAtAnchor =
+        fetchWsUploadStatsForTesting(*megaApi[0], statsAtAnchor, 5) && statsAtAnchor.found;
 
-    const auto pollPoolState = [&]() -> bool
+    const auto pollPoolState = [&](int timeoutSeconds = 1) -> bool
     {
-        WsUploadTransferSnapshot latest{};
-        if (fetchBestWsUploadTransferSnapshot(*megaApi[0], latest, 1) && latest.found &&
-            !latest.wsSessionUrl.empty())
+        if (!premiseViolation.empty() ||
+            !fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, timeoutSeconds))
         {
-            observedPoolUrl = latest.wsSessionUrl;
+            return false; // premise already broken, or the client thread was busy: no sample
         }
-        if (!observedPoolUrl.empty() &&
-            fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, 1))
+        lastObservedState = state;
+        if (!state.found || state.pinned || state.retiring)
         {
-            lastObservedState = state;
-            maxActiveThreadsSeen = std::max(maxActiveThreadsSeen, state.activeThreads);
-            // Diagnostics only (no re-anchor): a retiring observed pool means the cell's
-            // one-stable-pool premise broke and the gate is no longer driven on it.
-            if (state.retiring && observingPhasesAB && !retiringWarned)
-            {
-                retiringWarned = true;
-                LOG_warn << "premise violated: observed pool retiring mid-phase (server refresh?)"
-                         << " url=" << observedPoolUrl << " activeThreads=" << state.activeThreads
-                         << " numPoolFiles=" << state.numPoolFiles;
-            }
-            return state.found;
+            ws::UploadEngine::WsUploadStatsForTesting statsNow{};
+            const bool haveStatsNow =
+                fetchWsUploadStatsForTesting(*megaApi[0], statsNow, 5) && statsNow.found;
+            premiseViolation = std::string(!state.found ? "vanished" :
+                                           state.pinned ? "resolved to a pinned pool" :
+                                                          "turned retiring") +
+                               " (activeThreads=" + std::to_string(state.activeThreads) +
+                               ") in PHASE " + phaseName + ", " +
+                               std::to_string(anchorTimer.elapsed()) + " s after the anchor" +
+                               " [refreshPoolsCount " +
+                               (haveStatsAtAnchor && haveStatsNow ?
+                                    std::to_string(statsAtAnchor.refreshPoolsCount) + "->" +
+                                        std::to_string(statsNow.refreshPoolsCount) :
+                                    std::string("unknown")) +
+                               "]";
+            LOG_warn << "premise violated: observed pool " << premiseViolation
+                     << " url=" << observedPoolUrl << " activeThreads=" << state.activeThreads
+                     << " numPoolFiles=" << state.numPoolFiles;
+            return false;
         }
-        return false;
+        maxActiveThreadsSeen = std::max(maxActiveThreadsSeen, state.activeThreads);
+        return true;
     };
 
     // Self-adjudicating failure suffix: macos_9808 needed a 7.6k-line SDK log to tell a gate
-    // regression from a pool swap. retiring/url/files/drops answer that from the gtest line.
+    // regression from a pool swap. The premise/pool fields answer that from the gtest line.
     const auto poolDiag = [&]() -> std::string
     {
-        return " [retiring=" + std::string(lastObservedState.retiring ? "1" : "0") +
+        return " [premise=" + (premiseViolation.empty() ? std::string("held") : premiseViolation) +
+               "] [found=" + std::string(lastObservedState.found ? "1" : "0") +
+               "] [pinned=" + std::string(lastObservedState.pinned ? "1" : "0") +
+               "] [retiring=" + std::string(lastObservedState.retiring ? "1" : "0") +
                "] [numPoolFiles=" + std::to_string(lastObservedState.numPoolFiles) +
                "] [distressDrops=" +
                std::to_string(globalMegaTestHooks.wsUploadServerEventHook.getSecondaryDropHits()) +
+               "] [primaryHookHits=" +
+               std::to_string(globalMegaTestHooks.wsUploadServerEventHook.getHitCount()) +
                "] [observedPoolUrl=" + observedPoolUrl + "]";
+    };
+
+    const auto premiseFailure = [&]() -> std::string
+    {
+        // lastObservedState is the violating sample: pollPoolState stops updating it once latched.
+        const char* const cause =
+            lastObservedState.pinned ?
+                "a retried file's same-URL pinned pool hides the gate-driven pool from the lookup" :
+                "a server refresh rotated it, and the gate never runs on a retiring pool";
+        return "PREMISE VIOLATED (not a gate verdict): the observed pool " + premiseViolation +
+               " -- " + cause + ", so this run cannot judge the gate" + poolDiag();
     };
 
     // PHASE A -- engage+ramp: the forged quorum must take the pool ABOVE the base within 30 s
     // (2 debounce windows + one 2-window probe, plus scheduling slack).
     bool engaged = false;
     second_timer phaseTimer;
-    while (phaseTimer.elapsed() < 30)
+    while (phaseTimer.elapsed() < 30 && premiseViolation.empty())
     {
         // activeThreads > base alone is the engage proof: >8 is impossible without the dataset
         // ceiling + a gate widen. Deliberately NOT requiring numPoolFiles >= 2 on the same
@@ -1096,6 +1143,7 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
         }
         WaitMillisec(200);
     }
+    ASSERT_TRUE(premiseViolation.empty()) << premiseFailure();
     ASSERT_TRUE(engaged) << "Gate never engaged above base=" << kDefaultPoolConnLimit
                          << " under a forged full-backpressure quorum within 30 s"
                          << " [maxActiveThreadsSeen=" << maxActiveThreadsSeen
@@ -1106,8 +1154,9 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     // materially above it (one in-flight +1 probe is legal), proving the gain-judged stop far
     // below the ceiling (~28-32).
     unsigned settleSample = 0;
+    phaseName = "B";
     phaseTimer.reset();
-    while (phaseTimer.elapsed() < 25)
+    while (phaseTimer.elapsed() < 25 && premiseViolation.empty())
     {
         pollPoolState();
         settleSample = lastObservedState.activeThreads;
@@ -1119,6 +1168,10 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + 4)
         << "Gate climbed far past the synthetic knee (gain-judge failed to stop the ramp)"
         << poolDiag();
+    // A rotated pool freezes wherever the gate left it (macos_9808: settle 10 vs 11), so the
+    // settle checks below would judge a pool the gate no longer drives. The overshoot bound
+    // above needs no premise gate: maxActiveThreadsSeen counts only premise-held samples.
+    ASSERT_TRUE(premiseViolation.empty()) << premiseFailure();
     EXPECT_GE(settleSample, kSyntheticKnee - 1)
         << "Gate did not reach/hold the synthetic knee [settle=" << settleSample << "]"
         << poolDiag();
@@ -1126,7 +1179,7 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
         << "Gate did not settle at the synthetic knee [settle=" << settleSample << "]"
         << poolDiag();
 
-    observingPhasesAB = false; // premise warning above is scoped to PHASES A+B
+    phaseName = "C";
 
     // PHASE C -- trim: clear the seams. The app-throttled link presents no real backpressure
     // (quorum false), so halving trim must return the pool to base within 60 s (3 halvings x
@@ -1139,22 +1192,32 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
 
     bool trimmed = false;
     phaseTimer.reset();
-    while (phaseTimer.elapsed() < 60)
+    while (phaseTimer.elapsed() < 60 && premiseViolation.empty())
     {
-        if (pollPoolState() && state.activeThreads <= kDefaultPoolConnLimit)
+        // EXACTLY base, not <=: a gate trim ends on base (the halving trim reaches it from
+        // base + 1 and no gate step goes below it, WsPool::runGoodputGateLocked); the only drop
+        // of a live pool below base is the POOLCONNKEEPALIVE idle trim to 1 on a pool with no
+        // work (WsPoolMgr::checkPools) -- not a gate trim.
+        if (pollPoolState() && state.activeThreads == kDefaultPoolConnLimit)
         {
             trimmed = true;
             break;
         }
         WaitMillisec(500);
     }
+    ASSERT_TRUE(premiseViolation.empty()) << premiseFailure();
     ASSERT_TRUE(trimmed) << "Gate never trimmed back to base=" << kDefaultPoolConnLimit
                          << " within 60 s of backpressure clearing [activeThreads="
-                         << lastObservedState.activeThreads << "]";
+                         << lastObservedState.activeThreads << "]" << poolDiag();
     WaitMillisec(5000);
-    pollPoolState();
+    // 5 s fetch timeout + hard ASSERT: a busy client thread must neither turn this into a check
+    // of the (already trimmed) previous sample nor, at the 1 s default, fail it spuriously.
+    const bool resampled = pollPoolState(5);
+    ASSERT_TRUE(premiseViolation.empty()) << premiseFailure();
+    ASSERT_TRUE(resampled) << "Could not re-sample the observed pool 5 s after the trim"
+                           << poolDiag();
     EXPECT_LE(lastObservedState.activeThreads, kDefaultPoolConnLimit)
-        << "Trim was transient -- pool climbed back above base with no backpressure";
+        << "Trim was transient -- pool climbed back above base with no backpressure" << poolDiag();
 
     // PHASE D -- the synthetic controller signals must not have corrupted the real transfers.
     for (auto& tracker: uploadTrackers)
