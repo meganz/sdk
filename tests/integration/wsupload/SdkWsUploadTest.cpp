@@ -930,8 +930,9 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     // (WsConn::onmessage, event 5); USC mints a fresh session token per reply, so
     // applyRefreshedUrls retires the busy pool behind a new-URL successor and `shouldScaleUp =
     // !pool->mRetiring` (ws_pool_mgr.cpp:390 -- the only guard under which runGoodputGateLocked
-    // runs) silences the gate on it for good, freezing conns one widen short of the knee. That is
-    // exactly how macos_9808 failed (settle 10 vs 11).
+    // runs) silences the gate on it for good -- its level freezes where the gate left it, exactly
+    // how macos_9808 failed (settle 10 vs 11); after a Distress refresh the distress-scoped clamp
+    // instead drops that pool to base, where the gate still never runs.
     constexpr int kDistressEvent = 5;
     globalMegaTestHooks.wsUploadServerEventHook.configureSecondaryDrop(kDistressEvent);
 
@@ -1292,7 +1293,7 @@ TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
     evHook.configureSecondaryDrop(5 /*Distress*/);
     globalMegaTestHooks.wsBudgetProbeHook.setEnabled(true); // arms AND zeroes the counters
 
-    // Sizing identical to the gate cell (:933-937): 8 x 8 MiB distinct-content files = one size
+    // Sizing identical to the gate cell: 8 x 8 MiB distinct-content files = one size
     // class (arms the mDatasetSeen latch, wsupload_internal.h:785-786) living ~160 s at the
     // 400 KB/s cap -- far longer than PHASES 0-5 combined. NO setMaxConnections: this cell needs
     // the DEFAULT base of 8 (DistressRetiresPoolWithoutRestartingInFlightUpload pins 1, which is
@@ -1322,7 +1323,7 @@ TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
             (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
         });
     // RAII on EVERY exit path (assert failure included) so no synthetic signal and no armed
-    // event rule leaks into the next cell -- mirrors the gate cell's cleanupHooks (:958-968).
+    // event rule leaks into the next cell -- mirrors the gate cell's cleanupHooks.
     auto cleanupHooks = makeScopedDestructor(
         []()
         {
@@ -1361,9 +1362,10 @@ TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
                                 uploadTrackers.back().get());
     }
 
-    // PHASE 0 -- first active WS snapshot, then FREEZE the anchor. Unlike the gate cell's
-    // pollPoolState this cell NEVER re-anchors: it must keep watching the pool that gets retired
-    // (F1 guarantees the successor carries a different URL).
+    // PHASE 0 -- first active WS snapshot, then FREEZE the anchor. The gate cell freezes its
+    // anchor too, but there a retiring observed pool is a broken premise that fails the run;
+    // here the retirement is the event under test, so keep watching the retired pool (F1
+    // guarantees the successor carries a different URL).
     WsUploadTransferSnapshot activeUpload{};
     ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
         *megaApi[0],
@@ -1379,7 +1381,7 @@ TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
     const std::string observedPoolUrl = activeUpload.wsSessionUrl;
     second_timer anchorTimer;
 
-    // Forged controller inputs, verbatim from the gate cell (:1021-1034): a full backpressure
+    // Forged controller inputs, verbatim from the gate cell: a full backpressure
     // quorum every tick plus a concave conns->goodput curve with a knee at 12. Deterministic
     // widen in PHASE 1, and section G cannot trim the pool while PHASE 2 waits out F2.
     {
@@ -1413,9 +1415,9 @@ TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
         return state.found;
     };
 
-    // Self-adjudicating failure suffix (pattern :1072-1079): every number a reviewer needs to
-    // tell "the clamp did not fire" from "the pool drained" or "it never rotated", from the
-    // gtest line alone -- macos_9808 needed a 7.6k-line SDK log for that.
+    // Self-adjudicating failure suffix (the gate cell's poolDiag pattern): every number a
+    // reviewer needs to tell "the clamp did not fire" from "the pool drained" or "it never
+    // rotated", from the gtest line alone -- macos_9808 needed a 7.6k-line SDK log for that.
     const auto poolDiag = [&]() -> std::string
     {
         std::ostringstream os;
@@ -1455,7 +1457,7 @@ TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
     }
 
     // Premise: nothing may have retired the pool BEFORE the injection. An unrelated refresh
-    // (handshake failure ws_pool.cpp:1936-1940, queueVersion ws_pool_mgr.cpp:492/:504) would
+    // (handshake-failure queueVersion path in WsPool::poolWorkerThread, or SERVERTIMEOUT) would
     // both reset the F2 window AND retire the pool outside the Distress path the product fix is
     // scoped to -- PHASE 5 would then fail for a reason that is not the product gap. Adjudicate
     // it here instead of leaving a confusing trim failure.
@@ -6272,7 +6274,7 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     auto clearWsHook = makeScopedDestructor(
         []()
         {
-            // ALL hook writes under the hooks mutex, like B9's clearWsHooks (:5154-5162): the
+            // ALL hook writes under the hooks mutex, like B9's clearWsHooks: the
             // pool workers read this hook from evaluate() concurrently with the reset.
             std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.wsUploadServerEventHook.reset();
