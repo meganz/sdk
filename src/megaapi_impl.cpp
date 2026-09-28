@@ -2325,16 +2325,29 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
 {
     if (isPasswordNode())
     {
+        const char* const pwmAttr = getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        assert(pwmAttr); // guaranteed by isPasswordNode(), and dereferenced unconditionally below
+
         AttrMap aux;
-        aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
-        constexpr auto totpNameid = AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+        aux.fromjson(pwmAttr);
+
+        // Every other value of this object is a string that was escaped when it was serialized,
+        // so the fromjson() above unescapes it back. The totp value is a nested JSON object that
+        // preparePasswordManagerNodeData() appends verbatim instead, so that unescaping is one
+        // too many for it and would eat the escapes of the values it holds. Take it from the
+        // parent attribute again, which is what getComplexNestedJsonObject() is for.
+        AttrMap pwmAttrMap;
+        pwmAttrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER)] = pwmAttr;
+        const auto totpData =
+            pwmAttrMap.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                  MegaClient::PWM_ATTR_PASSWORD_TOTP);
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (aux.map.contains(totpNameid))
+        if (totpData)
         {
             AttrMap auxTotp;
             auxTotp.fromjsonObject(
-                aux.map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
+                totpData->map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
             totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
         }
 
@@ -24235,7 +24248,29 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
 
         string sname = attrName;
         LocalPath::utf8_normalize(&sname);
+
+        // utf8_normalize() empties the whole string when the name is not valid UTF-8. Without
+        // this check the name would quietly become a bare "_", so every invalid name would be
+        // stored as the same attribute and overwrite the one stored before it.
+        if (sname.empty())
+        {
+            LOG_err << logPre << "attrName is not valid UTF-8: " << attrName;
+            return API_EARGS;
+        }
+
         sname.insert(0, "_");
+
+        // attrName becomes a raw (unescaped) JSON object key when the node's AttrMap is
+        // serialized for the encrypted "at" node attribute, so a name that cannot be used as
+        // such a key would corrupt the JSON of all of this node's attributes, not just of this
+        // one. The check runs on the normalized name, because that is what ends up in the JSON:
+        // normalization can both make the name longer and give it bytes it did not have before.
+        if (!AttrMap::isValidJsonKey(sname))
+        {
+            LOG_err << logPre << "attrName cannot be used as a JSON key: " << attrName;
+            return API_EARGS;
+        }
+
         nameid attr = AttrMap::string2nameid(sname.c_str());
 
         if (attrValue)
