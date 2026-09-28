@@ -39225,9 +39225,11 @@ bool MegaHTTPServer::startStream(MegaHTTPContext* httpctx,
     }
     httpctx->mCacheFile.init(std::move(f), static_cast<m_off_t>(offset));
 
-    auto callback =
-        [logName = httpctx->getLogName(), ctx = httpctx->weak_from_this(), offset, length](
-            FileResultOr<FileStreamFDResult> result)
+    auto callback = [logName = httpctx->getLogName(),
+                     ctx = httpctx->weak_from_this(),
+                     offset,
+                     length,
+                     delivered = std::uint64_t(0)](FileResultOr<FileStreamFDResult> result) mutable
     {
         auto ctxPtr = ctx.lock();
         if (!ctxPtr)
@@ -39261,9 +39263,19 @@ bool MegaHTTPServer::startStream(MegaHTTPContext* httpctx,
         // All requested has been delivered
         if (receivedLength == 0)
         {
-            LOG_verbose << ctxPtr->logname << "[Streaming] callback: all delivered";
+            // Unless the stream delivered less than we asked for.
+            if (delivered < length)
+                LOG_debug << ctxPtr->logname
+                          << "[Streaming] callback: stream ended after delivering " << delivered
+                          << " of " << length << " requested bytes";
+            else
+                LOG_verbose << ctxPtr->logname << "[Streaming] callback: all delivered";
+
             return;
         }
+
+        // Keep track of how much data the stream has delivered so far.
+        delivered += receivedLength;
 
         // More data available in the cached file
         if (const auto newAvailableBytes =

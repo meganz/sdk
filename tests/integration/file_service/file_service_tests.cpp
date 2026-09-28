@@ -62,6 +62,7 @@
 #include <filesystem>
 #include <memory>
 #include <sdk_test_data_provider.h>
+#include <variant>
 #include <vector>
 
 namespace mega
@@ -355,6 +356,25 @@ static auto reclaimAll(ClientPtr& client) -> std::future<FileServiceResultOr<std
 
 // Remove a file.
 static auto remove(File file, bool serviceOnly) -> std::future<FileResult>;
+
+// Describes a partly cached file whose cache file has been shrunk behind the
+// service's back.
+struct ShrunkCacheFile
+{
+    // The client that owns the file.
+    ClientPtr mClient;
+
+    // The file's content.
+    std::string mContent;
+
+    // The file's ID.
+    FileID mID;
+}; // ShrunkCacheFile
+
+// Partly cache a 1MiB file, log out and back in so that the file must be
+// reopened from the database and then shrink its cache file to 512KiB behind
+// the service's back. The file is modified first if dirty is true.
+static void shrinkCacheFile(bool dirty, ShrunkCacheFile& result);
 
 // Update the specified file's modification time.
 static auto touch(const ApplicationData& applicationData,
@@ -1409,82 +1429,19 @@ TEST_F(FileServiceTests, file_destroyed_on_client_thread_during_read_callback_su
     ASSERT_NE(waiter.wait_for(mDefaultTimeout), timeout);
 }
 
-TEST_F(FileServiceTests, file_truncated_on_open_when_unexpectedly_smaller_on_disk)
+// A file that's been modified locally can't be repaired from the cloud: when
+// its cache file turns out to be smaller than expected, the file is shrunk so
+// that what remains of it is consistent.
+TEST_F(FileServiceTests, dirty_file_truncated_on_open_when_unexpectedly_smaller_on_disk)
 {
-    // Generate a name for our client.
-    const auto name = "file_service_" + randomName();
+    // Shrink the cache file of a modified file.
+    ShrunkCacheFile shrunk;
 
-    // Create a client we can safely logout.
-    auto client = CreateClient(name);
-    ASSERT_TRUE(client);
-
-    // Log the client in.
-    ASSERT_EQ(client->login(0), API_OK);
-
-    // Create a file for us to open.
-    const auto handle = client->upload(randomBytes(1_MiB), randomName(), "/z");
-    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
-
-    // Tweak service options.
-    client->fileService().serviceOptions(
-        []()
-        {
-            auto options = DefaultOptions;
-
-            // Don't pin files in memory.
-            options.mFileContextReleaseDelay = std::chrono::seconds::zero();
-
-            // Only download what we explicitly request.
-            options.mImmediateDownloadThreshold = 1_MiB;
-            options.mMinimumRangeSize = 0u;
-
-            return options;
-        }());
+    ASSERT_NO_FATAL_FAILURE(shrinkCacheFile(true, shrunk));
 
     // Convenience.
-    const auto id = FileID::from(*handle);
-
-    // Make sure our test file is partly cached.
-    {
-        // Open our test file for reading.
-        auto file = client->fileOpen(id);
-        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-        // Read a few ranges so that the file is partly cached.
-        read(*file, 0, 256_KiB, StreamReadTag{false});
-        read(*file, 320_KiB, 128_KiB, StreamReadTag{false});
-        read(*file, 480_KiB, 128_KiB, StreamReadTag{false});
-        read(*file, 672_KiB, 128_KiB, StreamReadTag{false});
-
-        // Wait for all of our reads to complete.
-        ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
-
-        // Make sure our ranges are on disk.
-        ASSERT_THAT(file->ranges(),
-                    ElementsAre(FileRange(0, 256_KiB),
-                                FileRange(320_KiB, 448_KiB),
-                                FileRange(480_KiB, 608_KiB),
-                                FileRange(672_KiB, 800_KiB)));
-    }
-
-    // Retrieve the client's session token.
-    const auto session = client->sessionToken();
-    ASSERT_EQ(session.errorOr(API_OK), API_OK);
-
-    // Log the client out, taking care to keep our session alive.
-    ASSERT_EQ(client->logout(true), API_OK);
-
-    // Log the client back in.
-    ASSERT_EQ(client->login(*session), API_OK);
-
-    // Figure out where our file's data is being stored in the cache.
-    const auto path = client->fileService().userFilePath(id);
-
-    // Make sure we could get the file's path.
-    ASSERT_EQ(path.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
-
-    // Truncate the file to 512KiB.
-    std::filesystem::resize_file(Path(*path), 512_KiB);
+    auto& client = shrunk.mClient;
+    const auto id = shrunk.mID;
 
     // So we can test whether we receive a file truncation event.
     auto observer = observe(client->fileService());
@@ -1492,6 +1449,9 @@ TEST_F(FileServiceTests, file_truncated_on_open_when_unexpectedly_smaller_on_dis
     // Reopen the test file.
     auto file = client->fileOpen(id);
     ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // The file must still be dirty.
+    ASSERT_TRUE(file->info().dirty());
 
     // Make sure the file's been truncated.
     ASSERT_EQ(file->info().size(), 512_KiB);
@@ -1506,6 +1466,52 @@ TEST_F(FileServiceTests, file_truncated_on_open_when_unexpectedly_smaller_on_dis
     observer.expect(FileTruncateEvent{ApplicationData(), FileRange(512_KiB, 1_MiB), id, 512_KiB});
 
     ASSERT_TRUE(observer.satisfied(mDefaultTimeout));
+}
+
+// A file that hasn't been modified locally can always be repaired from the
+// cloud: when its cache file turns out to be smaller than expected, only the
+// cached data beyond the cache file's end is forgotten. The file's size must
+// not change, otherwise a reader would be told the file ends early.
+TEST_F(FileServiceTests, clean_file_keeps_size_on_open_when_unexpectedly_smaller_on_disk)
+{
+    // Shrink the cache file of an unmodified file.
+    ShrunkCacheFile shrunk;
+
+    ASSERT_NO_FATAL_FAILURE(shrinkCacheFile(false, shrunk));
+
+    // Convenience.
+    auto& client = shrunk.mClient;
+    const auto& content = shrunk.mContent;
+
+    // So we can test whether we receive a file truncation event.
+    auto observer = observe(client->fileService());
+
+    // Reopen the test file.
+    auto file = client->fileOpen(shrunk.mID);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // The file hasn't been modified so its size must be unchanged.
+    ASSERT_EQ(file->info().size(), 1_MiB);
+    ASSERT_FALSE(file->info().dirty());
+
+    // Only the ranges beyond the cache file's end should've been forgotten.
+    ASSERT_THAT(file->ranges(),
+                ElementsAre(FileRange(0, 256_KiB),
+                            FileRange(320_KiB, 448_KiB),
+                            FileRange(480_KiB, 512_KiB)));
+
+    // Nothing about the file itself has changed so it mustn't have been
+    // reported as truncated.
+    for (const auto& event: observer.events())
+        ASSERT_FALSE(std::holds_alternative<FileTruncateEvent>(event));
+
+    // The forgotten data must be downloaded again when it's next read.
+    auto computed = execute(read, *file, 480_KiB, 320_KiB, StreamReadTag{true});
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*computed, content, 480_KiB, 320_KiB));
+
+    // And be back on disk.
+    ASSERT_TRUE(contains({FileRange(480_KiB, 800_KiB)}, toSet(file->ranges())));
 }
 
 TEST_F(FileServiceTests, flush_after_modification_succeeds)
@@ -4290,6 +4296,83 @@ TEST_F(FileServiceTests, reclaim_modified_succeeds)
     ASSERT_NE(newHandle, *handle);
 }
 
+// Reclaiming a file's storage empties its cache file but must not change the
+// file's size: once the file's reopened, say after the application restarts,
+// its content must still be readable from the cloud.
+TEST_F(FileServiceTests, reclaim_reopen_read_succeeds)
+{
+    // Generate a name for our client.
+    const auto name = "file_service_" + randomName();
+
+    // Create a client we can safely logout.
+    auto client = CreateClient(name);
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(0), API_OK);
+
+    // Create a file for us to open.
+    const auto content = randomBytes(512_KiB);
+    const auto handle = client->upload(content, randomName(), "/z");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Make sure the service's options are in a known state.
+    client->fileService().serviceOptions(DefaultOptions);
+
+    // Convenience.
+    const auto id = FileID::from(*handle);
+
+    // Cache the file's content and then reclaim its storage.
+    {
+        // Open our test file for reading.
+        auto file = client->fileOpen(id);
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Retrieve the file's content.
+        ASSERT_EQ(execute(fetch, *file), FILE_SUCCESS);
+        ASSERT_GE(file->info().allocatedSize(), content.size());
+
+        // Reclaim the file's storage.
+        auto reclaimed = execute(reclaim, *file);
+        ASSERT_EQ(reclaimed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+
+        // The file's cache file is now empty but the file itself is unchanged.
+        ASSERT_EQ(file->info().allocatedSize(), 0u);
+        ASSERT_EQ(file->info().size(), content.size());
+        ASSERT_TRUE(file->ranges().empty());
+    }
+
+    // Retrieve the client's session token.
+    const auto session = client->sessionToken();
+    ASSERT_EQ(session.errorOr(API_OK), API_OK);
+
+    // Log the client out, taking care to keep our session alive.
+    ASSERT_EQ(client->logout(true), API_OK);
+
+    // Log the client back in.
+    ASSERT_EQ(client->login(*session), API_OK);
+
+    // Reopen the test file: its cache file is empty but the file itself
+    // mustn't be mistaken for an empty file.
+    auto file = client->fileOpen(id);
+    ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    ASSERT_EQ(file->info().size(), content.size());
+    ASSERT_FALSE(file->info().dirty());
+    ASSERT_TRUE(file->ranges().empty());
+
+    // A streaming read at the start of the file must deliver data rather
+    // than report that there's nothing left to read.
+    auto computed = execute(read, *file, 0, 2, StreamReadTag{true});
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*computed, content, 0, 2));
+
+    // As must a read of the entire file.
+    computed = execute(read, *file, 0, content.size(), StreamReadTag{true});
+    ASSERT_EQ(computed.errorOr(FILE_SUCCESS), FILE_SUCCESS);
+    ASSERT_TRUE(compare(*computed, content, 0, content.size()));
+}
+
 TEST_F(FileServiceTests, reclaim_single_succeeds)
 {
     // Generate data for us to write to the cloud.
@@ -6296,6 +6379,104 @@ auto remove(File file, bool serviceOnly) -> std::future<FileResult>
 
     // Return the waiter to our caller.
     return waiter;
+}
+
+void shrinkCacheFile(bool dirty, ShrunkCacheFile& result)
+{
+    // Generate a name for our client.
+    const auto name = "file_service_" + randomName();
+
+    // Create a client we can safely logout.
+    auto client = FileServiceTests::CreateClient(name);
+    ASSERT_TRUE(client);
+
+    // Log the client in.
+    ASSERT_EQ(client->login(0), API_OK);
+
+    // Create a file for us to open.
+    auto content = randomBytes(1_MiB);
+    const auto handle = client->upload(content, randomName(), "/z");
+    ASSERT_EQ(handle.errorOr(API_OK), API_OK);
+
+    // Tweak service options.
+    client->fileService().serviceOptions(
+        []()
+        {
+            auto options = DefaultOptions;
+
+            // Don't pin files in memory.
+            options.mFileContextReleaseDelay = std::chrono::seconds::zero();
+
+            // Only download what we explicitly request.
+            options.mImmediateDownloadThreshold = 1_MiB;
+            options.mMinimumRangeSize = 0u;
+
+            // Make sure any modifications aren't flushed behind our back.
+            options.mMaximumFileFlushDelay = std::chrono::hours(1);
+            options.mMinimumFileFlushDelay = std::chrono::hours(1);
+
+            return options;
+        }());
+
+    // Convenience.
+    const auto id = FileID::from(*handle);
+
+    // Make sure our test file is partly cached.
+    {
+        // Open our test file for reading.
+        auto file = client->fileOpen(id);
+        ASSERT_EQ(file.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+        // Read a few ranges so that the file is partly cached.
+        read(*file, 0, 256_KiB, StreamReadTag{false});
+        read(*file, 320_KiB, 128_KiB, StreamReadTag{false});
+        read(*file, 480_KiB, 128_KiB, StreamReadTag{false});
+        read(*file, 672_KiB, 128_KiB, StreamReadTag{false});
+
+        // Wait for all of our reads to complete.
+        ASSERT_EQ(execute(fetchBarrier, *file), FILE_SUCCESS);
+
+        // Modify the file so that it's dirty.
+        if (dirty)
+        {
+            const auto data = randomBytes(64_KiB);
+
+            ASSERT_EQ(execute(write, ApplicationData(), data.data(), *file, 0, 0, 64_KiB),
+                      FILE_SUCCESS);
+            ASSERT_TRUE(file->info().dirty());
+        }
+
+        // Make sure our ranges are on disk.
+        ASSERT_THAT(file->ranges(),
+                    ElementsAre(FileRange(0, 256_KiB),
+                                FileRange(320_KiB, 448_KiB),
+                                FileRange(480_KiB, 608_KiB),
+                                FileRange(672_KiB, 800_KiB)));
+    }
+
+    // Retrieve the client's session token.
+    const auto session = client->sessionToken();
+    ASSERT_EQ(session.errorOr(API_OK), API_OK);
+
+    // Log the client out, taking care to keep our session alive.
+    ASSERT_EQ(client->logout(true), API_OK);
+
+    // Log the client back in.
+    ASSERT_EQ(client->login(*session), API_OK);
+
+    // Figure out where our file's data is being stored in the cache.
+    const auto path = client->fileService().userFilePath(id);
+
+    // Make sure we could get the file's path.
+    ASSERT_EQ(path.errorOr(FILE_SERVICE_SUCCESS), FILE_SERVICE_SUCCESS);
+
+    // Truncate the file to 512KiB.
+    std::filesystem::resize_file(Path(*path), 512_KiB);
+
+    // Return the file to our caller.
+    result.mClient = std::move(client);
+    result.mContent = std::move(content);
+    result.mID = id;
 }
 
 auto touch(const ApplicationData& applicationData,
