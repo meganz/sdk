@@ -41,6 +41,8 @@
 #include <openssl/err.h>
 #endif
 
+#include <algorithm>
+#include <chrono>
 #include <limits>
 #include <string_view>
 
@@ -2629,7 +2631,9 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
         // outruns the worker baton (ws_conn.cpp), which abandons a handshake
         // that still completes on the client thread -> wasted client-thread seconds
         // (root_cause.md S3a). 15s is generous: a clean handshake is <1s, so this
-        // never trips on a good link (clean-network no-op).
+        // never trips on a good link (clean-network no-op). Since curl 8.17.0 libcurl
+        // stops applying CURLOPT_TIMEOUT_MS once a CONNECT_ONLY transfer is connected;
+        // the SDK deadline in the loop below bounds the upgrade leg there.
         curl_easy_setopt(h.easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
         curl_easy_setopt(h.easy, CURLOPT_TIMEOUT_MS, timeoutMs);
     }
@@ -2670,10 +2674,21 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
     // proxy CONNECT, TLS, HTTP upgrade) regardless of which libcurl states invoke callbacks
     // (curl 8.20.0 stopped invoking the progress callback before the connection is fully
     // established, which is exactly where a black-holed node stalls).
+    //
+    // Backstop deadline: since curl 8.17.0 libcurl stops applying CURLOPT_TIMEOUT_MS to a
+    // CONNECT_ONLY transfer once it is connected (lib/connect.c timeleft_now_ms), so a node that
+    // accepts TCP/TLS but never sends the 101 would otherwise keep this loop (and, on the baton
+    // path, the client thread) running forever. The grace keeps libcurl's own timeout, and its
+    // error text, first wherever libcurl still enforces it (every phase on 8.14.1; DNS/TCP/TLS
+    // on 8.17+), and keeps the bound under the baton slack (ws_conn.cpp).
+    const bool hasDeadline = timeoutMs > 0;
+    const auto deadline = std::chrono::steady_clock::now() +
+                          std::chrono::milliseconds(timeoutMs + ws::kWsCurlPollSliceMs);
     CURLcode rc = CURLE_OK;
     CURLMcode mc = CURLM_OK;
     bool cancelled = false;
     bool completed = false;
+    bool deadlineReached = false;
     for (;;)
     {
         if (stopFlag && stopFlag->load(std::memory_order_acquire))
@@ -2696,9 +2711,35 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
             completed = true;
             break;
         }
-        mc = curl_multi_poll(h.multi, nullptr, 0, ws::kWsCurlPollSliceMs, nullptr);
+        int sliceMs = ws::kWsCurlPollSliceMs;
+        if (hasDeadline)
+        {
+            const auto now = std::chrono::steady_clock::now();
+            if (now >= deadline)
+            {
+                deadlineReached = true;
+                break;
+            }
+            const auto leftMs =
+                std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now).count() + 1;
+            sliceMs = static_cast<int>(std::min<long long>(sliceMs, leftMs));
+        }
+        mc = curl_multi_poll(h.multi, nullptr, 0, sliceMs, nullptr);
         if (mc != CURLM_OK)
             break;
+    }
+    if (deadlineReached)
+    {
+        // Same classification as libcurl's own timeout (rc 28, "Timeout was reached"), so
+        // connectWS/retry and the log extractors see no new failure kind; the parenthetical
+        // tells the two apart.
+        rc = CURLE_OPERATION_TIMEDOUT;
+        completed = true;
+        snprintf(ebuf,
+                 sizeof(ebuf),
+                 "WS handshake deadline reached: %ld ms timeout + %d ms grace",
+                 timeoutMs,
+                 ws::kWsCurlPollSliceMs);
     }
 
     if (cancelled)
