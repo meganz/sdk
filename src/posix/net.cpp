@@ -2618,7 +2618,9 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
     configureWsEasy(h.easy, /*isPostJson*/ false);
     curl_easy_setopt(h.easy, CURLOPT_URL, url.c_str());
     // A cancellation or timeout that lands during name resolution must not make the cleanup
-    // below join the resolver thread (same as send_request).
+    // below join the resolver thread (same as send_request). curl <= 8.19 reads this per easy
+    // handle; curl >= 8.20 only honours the multi-level CURLMOPT_QUICK_EXIT set after
+    // curl_multi_init() below.
     curl_easy_setopt(h.easy, CURLOPT_QUICK_EXIT, 1L);
     if (timeoutMs > 0)
     {
@@ -2640,6 +2642,16 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
         ws::destroyWsCurlHandles(h);
         return {};
     }
+    // curl >= 8.20 runs the threaded resolver as a per-multi pool: only the multi-level flag
+    // keeps curl_multi_cleanup from joining a resolver thread stuck in getaddrinfo (the easy
+    // CURLOPT_QUICK_EXIT above is what curl_easy_perform copies to its own multi, lib/easy.c).
+    // Set by value when the headers predate it, so a build against older headers still gets it
+    // from a newer runtime libcurl; an older runtime answers CURLM_UNKNOWN_OPTION (harmless).
+#if LIBCURL_VERSION_NUM >= 0x081400
+    (void)curl_multi_setopt(h.multi, CURLMOPT_QUICK_EXIT, 1L);
+#else
+    (void)curl_multi_setopt(h.multi, static_cast<CURLMoption>(CURLOPTTYPE_LONG + 21), 1L);
+#endif
     if (const CURLMcode mc = curl_multi_add_handle(h.multi, h.easy); mc != CURLM_OK)
     {
         if (err)

@@ -60,9 +60,11 @@ struct WsCurlHandles
 
 // The one teardown sequence for a handle pair, in the order libcurl mandates
 // (curl_multi_cleanup(3): remove the easy handle, clean the easy handle, then clean the multi
-// handle). Idempotent and safe on a half-initialised pair. Does not block: removing a
-// CONNECT_ONLY easy handle closes its connection abortively, and the multi cleanup runs no
-// graceful shutdown outside libcurl debug builds.
+// handle). Idempotent and safe on a half-initialised pair. Does not block, provided the multi
+// has CURLMOPT_QUICK_EXIT (CurlHttpIO::wsHandshake sets it; on curl >= 8.20 curl_multi_cleanup
+// otherwise joins resolver threads still inside getaddrinfo): removing a CONNECT_ONLY easy
+// handle closes its connection abortively, and the multi cleanup runs no graceful shutdown
+// outside libcurl debug builds.
 inline void destroyWsCurlHandles(WsCurlHandles& h) noexcept
 {
     if (h.easy && h.multi)
