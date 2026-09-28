@@ -298,6 +298,11 @@ public:
     // handshake returns within ws::kWsCurlPollSliceMs in every connect phase (DNS, TCP, proxy,
     // TLS, HTTP upgrade) and on every libcurl version, with err set to
     // kWsHandshakeCancelledErr. Pass nullptr when nobody can stop the handshake.
+    //
+    // timeoutMs > 0 bounds the whole handshake: it fails with CURLE_OPERATION_TIMEDOUT
+    // ("Timeout was reached") within timeoutMs + ws::kWsCurlPollSliceMs, also where libcurl no
+    // longer enforces CURLOPT_TIMEOUT_MS (the upgrade leg on curl >= 8.17). timeoutMs <= 0
+    // means no bound.
     ws::WsCurlHandles wsHandshake(const std::string& url,
                                   long timeoutMs,
                                   std::string* err,

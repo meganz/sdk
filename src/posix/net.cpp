@@ -43,6 +43,7 @@
 
 #include <algorithm>
 #include <chrono>
+#include <cstdio>
 #include <limits>
 #include <string_view>
 
@@ -2620,20 +2621,18 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
     configureWsEasy(h.easy, /*isPostJson*/ false);
     curl_easy_setopt(h.easy, CURLOPT_URL, url.c_str());
     // A cancellation or timeout that lands during name resolution must not make the cleanup
-    // below join the resolver thread (same as send_request). curl <= 8.19 reads this per easy
-    // handle; curl >= 8.20 only honours the multi-level CURLMOPT_QUICK_EXIT set after
-    // curl_multi_init() below.
+    // below join the resolver thread. curl <= 8.19 reads this per easy handle; curl >= 8.20
+    // only honours the multi-level CURLMOPT_QUICK_EXIT set after curl_multi_init() below.
     curl_easy_setopt(h.easy, CURLOPT_QUICK_EXIT, 1L);
     if (timeoutMs > 0)
     {
-        // Bound the TCP-connect leg AND the overall handshake (TLS + WS upgrade).
-        // Without an overall TIMEOUT the upgrade leg is unbounded under loss and
-        // outruns the worker baton (ws_conn.cpp), which abandons a handshake
-        // that still completes on the client thread -> wasted client-thread seconds
-        // (root_cause.md S3a). 15s is generous: a clean handshake is <1s, so this
-        // never trips on a good link (clean-network no-op). Since curl 8.17.0 libcurl
-        // stops applying CURLOPT_TIMEOUT_MS once a CONNECT_ONLY transfer is connected;
-        // the SDK deadline in the loop below bounds the upgrade leg there.
+        // Bound the connect leg (DNS, TCP, proxy, TLS) and, on curl < 8.17, the WS upgrade
+        // too. From 8.17.0 libcurl no longer times a connected CONNECT_ONLY transfer; the SDK
+        // deadline in the loop below bounds the upgrade there. Without an overall bound the
+        // upgrade leg is unbounded under loss and outruns the worker baton (ws_conn.cpp),
+        // which abandons a handshake that still completes on the client thread -> wasted
+        // client-thread seconds (root_cause.md S3a). 15s is generous: a clean handshake is
+        // <1s, so this never trips on a good link (clean-network no-op).
         curl_easy_setopt(h.easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
         curl_easy_setopt(h.easy, CURLOPT_TIMEOUT_MS, timeoutMs);
     }
@@ -2666,10 +2665,12 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
         return {};
     }
 
-    // SDK-owned transfer loop. This is the loop curl_easy_perform runs internally
-    // (lib/easy.c easy_transfer: multi_poll, multi_perform, info_read) with two differences:
-    // the engine's stop flag is read between libcurl calls, and the poll slice is
-    // kWsCurlPollSliceMs instead of libcurl's 1000 ms. Because the stop check is SDK code
+    // SDK-owned transfer loop, modelled on the one curl_easy_perform runs internally
+    // (lib/easy.c easy_transfer: multi_poll, multi_perform, info_read). Differences: the
+    // engine's stop flag is read between libcurl calls; the poll slice is kWsCurlPollSliceMs
+    // instead of libcurl's 1000 ms, clamped to the backstop deadline below; and
+    // CURLMOPT_QUICK_EXIT is set on this multi explicitly (curl_easy_perform copies it from the
+    // easy handle). Because the stop check is SDK code
     // executed between two libcurl calls, it takes effect in every connect phase (DNS, TCP,
     // proxy CONNECT, TLS, HTTP upgrade) regardless of which libcurl states invoke callbacks
     // (curl 8.20.0 stopped invoking the progress callback before the connection is fully
@@ -2677,13 +2678,18 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
     //
     // Backstop deadline: since curl 8.17.0 libcurl stops applying CURLOPT_TIMEOUT_MS to a
     // CONNECT_ONLY transfer once it is connected (lib/connect.c timeleft_now_ms), so a node that
-    // accepts TCP/TLS but never sends the 101 would otherwise keep this loop (and, on the baton
-    // path, the client thread) running forever. The grace keeps libcurl's own timeout, and its
-    // error text, first wherever libcurl still enforces it (every phase on 8.14.1; DNS/TCP/TLS
-    // on 8.17+), and keeps the bound under the baton slack (ws_conn.cpp).
+    // accepts TCP/TLS but never sends the 101 would otherwise keep this loop running until the
+    // stop flag is set (forever on the baton path, which passes none, pinning the client
+    // thread). The grace keeps libcurl's own timeout, and its error text, first wherever libcurl
+    // still enforces it (every phase on 8.14.1; every connect phase, DNS/TCP/proxy/TLS, on
+    // 8.17+), and keeps the bound under the baton slack (ws_conn.cpp). The clamp only guards
+    // against an absurd MEGA_WS_HANDSHAKE_TIMEOUT_MS override overflowing the time point.
+    constexpr long long kMaxHandshakeDeadlineMs = 24LL * 60 * 60 * 1000;
     const bool hasDeadline = timeoutMs > 0;
-    const auto deadline = std::chrono::steady_clock::now() +
-                          std::chrono::milliseconds(timeoutMs + ws::kWsCurlPollSliceMs);
+    const auto deadline =
+        std::chrono::steady_clock::now() +
+        std::chrono::milliseconds(std::min<long long>(timeoutMs, kMaxHandshakeDeadlineMs) +
+                                  ws::kWsCurlPollSliceMs);
     CURLcode rc = CURLE_OK;
     CURLMcode mc = CURLM_OK;
     bool cancelled = false;
@@ -2730,9 +2736,9 @@ ws::WsCurlHandles CurlHttpIO::wsHandshake(const std::string& url,
     }
     if (deadlineReached)
     {
-        // Same classification as libcurl's own timeout (rc 28, "Timeout was reached"), so
-        // connectWS/retry and the log extractors see no new failure kind; the parenthetical
-        // tells the two apart.
+        // Same classification as libcurl's own timeout (rc 28, "Timeout was reached"), so the
+        // FAILED log line and log extractors see no new failure kind (callers only ever see an
+        // empty pair); the parenthetical tells the two apart.
         rc = CURLE_OPERATION_TIMEDOUT;
         completed = true;
         snprintf(ebuf,
