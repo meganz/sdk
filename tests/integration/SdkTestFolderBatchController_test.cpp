@@ -8,12 +8,15 @@
  * transfer-quota prediction reported before any file starts.
  */
 
+#include "api_request_hook.h"
 #include "integration_test_utils.h"
+#include "mega/testhooks.h"
 #include "mock_listeners.h"
 #include "SdkTest_test.h"
 
 #include <algorithm>
 #include <map>
+#include <set>
 
 using namespace testing;
 
@@ -72,12 +75,13 @@ public:
     }
 
     // A standalone file uploaded to the account root, for a batch's file items.
-    std::unique_ptr<MegaNode> uploadLooseFile(const std::string& name)
+    std::unique_ptr<MegaNode> uploadLooseFile(const std::string& name,
+                                              const std::string& content = "test ")
     {
         const fs::path filePath = fs::current_path() / name;
         std::error_code ignoredEc;
         fs::remove(filePath, ignoredEc);
-        EXPECT_TRUE(createFile(path_u8string(filePath), false));
+        EXPECT_TRUE(createFile(path_u8string(filePath), false, content));
 
         MegaHandle handle = INVALID_HANDLE;
         EXPECT_EQ(MegaError::API_OK,
@@ -208,12 +212,26 @@ public:
             }
         }
 
+        void onTransferTemporaryError(MegaApi*, MegaTransfer* t, MegaError* e) override
+        {
+            std::lock_guard<std::mutex> g{mMutex};
+            ++mTemporaryErrors;
+            mTemporaryError = e->getErrorCode();
+            // The parent must carry the failure itself, not just relay the callback.
+            const MegaError* onTransfer = t->getLastErrorExtended();
+            mTemporaryErrorOnTransfer = onTransfer ? onTransfer->getErrorCode() : MegaError::API_OK;
+            mTemporaryErrorState = t->getState();
+        }
+
         void onTransferFinish(MegaApi*, MegaTransfer* t, MegaError* e) override
         {
             {
                 std::lock_guard<std::mutex> g{mMutex};
                 ++mFinishes;
                 mError = e->getErrorCode();
+                mFinishState = t->getState();
+                mFinishUserStatus = e->getUserStatus();
+                mFinishLinkStatus = e->getLinkStatus();
                 // The callback's transfer dies with it, and retryTransfer needs one afterwards
                 mFinishedTransfer.reset(t->copy());
             }
@@ -246,6 +264,13 @@ public:
         int mQuotaStateReports{0};
         int mQuotaState{-1};
         int mSubTransferStartsWhenReported{-1};
+        int mFinishState{-1};
+        long long mFinishUserStatus{-1};
+        long long mFinishLinkStatus{-1};
+        int mTemporaryErrors{0};
+        int mTemporaryError{-1};
+        int mTemporaryErrorOnTransfer{-1};
+        int mTemporaryErrorState{-1};
         std::unique_ptr<MegaTransfer> mFinishedTransfer;
 
     private:
@@ -257,6 +282,40 @@ public:
         // Points at a counter owned by the test's BatchObserver, which must outlive this listener.
         const std::atomic<int>* mSubTransferStartsAtQuotaState{nullptr};
     };
+
+    static std::string base64Handle(MegaNode& node)
+    {
+        std::unique_ptr<char[]> handle{node.getBase64Handle()};
+        return handle ? std::string{handle.get()} : std::string{};
+    }
+
+    // Matches the download-URL request for any of `handles`: its "g" command names the node
+    // in "n". onMatch, when given, records which handle was answered.
+    static sdk_test::ScopedApiErrorInjector::CommandPredicate
+        isDownloadUrlRequestFor(std::vector<std::string> handles,
+                                std::function<void(const std::string&)> onMatch = nullptr)
+    {
+        return
+            [handles = std::move(handles), onMatch = std::move(onMatch)](const std::string& command)
+        {
+            if (command.find("\"a\":\"g\"") == std::string::npos)
+            {
+                return false;
+            }
+
+            const std::string handle = sdk_test::commandStringArg(command, "n");
+            if (std::find(handles.begin(), handles.end(), handle) == handles.end())
+            {
+                return false;
+            }
+
+            if (onMatch)
+            {
+                onMatch(handle);
+            }
+            return true;
+        };
+    }
 
 private:
     const std::string localFolderName = getFilePrefix() + "batchDir";
@@ -671,6 +730,12 @@ TEST_F(SdkTestFolderBatchController, RejectsAListWithNoUsableNode)
         std::lock_guard<std::mutex> g{listener.mMutex};
         EXPECT_EQ(MegaError::API_EARGS, listener.mError)
             << "A batch with no usable node should fail, with null items: " << withNullItems;
+        // A rejected batch is still one transfer, so it owes the app both callbacks: the empty
+        // list is rejected before any item is looked at, which is where that is easiest to lose.
+        EXPECT_EQ(1, listener.mStarts)
+            << "A rejected batch still reports onTransferStart, with null items: " << withNullItems;
+        EXPECT_EQ(1, listener.mFinishes)
+            << "A rejected batch reports one onTransferFinish, with null items: " << withNullItems;
     }
 }
 
@@ -1041,4 +1106,363 @@ TEST_F(SdkTestFolderBatchController, RetryTransferRestartsTheWholeBatch)
     EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
     removeLocalTree();
     fs::remove(looseFilePath, ignoredEc);
+}
+
+/**
+ * A batch holding a single file item reports its sub-transfer's temporary errors on the batch
+ * transfer itself, the way a plain single-file download does. Before, those reached only the
+ * listeners registered with addListener, never the listener passed to startDownloadBatch.
+ *
+ * The failure is injected, not induced from the filesystem: the download-URL request is answered
+ * with API_ETEMPUNAVAIL, which Transfer::failed treats as retryable. So it runs the same on every
+ * platform, and cannot pass without the injection having fired.
+ */
+TEST_F(SdkTestFolderBatchController, SingleFileBatchReportsTemporaryErrorOnTheBatchTransfer)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    const std::string looseFileName = getFilePrefix() + "temporaryErrorFile";
+    std::unique_ptr<MegaNode> fileNode = uploadLooseFile(looseFileName);
+    ASSERT_TRUE(fileNode);
+
+    std::error_code ignoredEc;
+    const fs::path looseFilePath = fs::current_path() / looseFileName;
+    fs::remove(looseFilePath, ignoredEc);
+
+    // Answers every attempt: the sub-transfer backs off and asks again while it retries.
+    sdk_test::ScopedApiErrorInjector injector{API_ETEMPUNAVAIL,
+                                              isDownloadUrlRequestFor({base64Handle(*fileNode)})};
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    BatchListener listener{megaApi[0].get()};
+
+    const std::string downloadParent = path_u8string(fs::current_path() / "");
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(fileNode.get(), downloadParent.c_str());
+
+    LOG_info << logPre << "downloading one file whose download URL keeps failing";
+    megaApi[0]->startDownloadBatch(items.get(),
+                                   cancelToken.get(),
+                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                   MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                   &listener);
+
+    // The sub-transfer retries with backoff, so the batch never ends on its own.
+    const bool sawTemporaryError = WaitFor(
+        [&listener]
+        {
+            std::lock_guard<std::mutex> g{listener.mMutex};
+            return listener.mTemporaryErrors > 0;
+        },
+        180 * 1000);
+    cancelToken->cancel();
+    EXPECT_TRUE(listener.waitForFinish(std::chrono::minutes{3}))
+        << "The cancelled batch never finished";
+
+    EXPECT_TRUE(injector.fired()) << "The failure was never injected, so nothing here was tested";
+
+    {
+        std::lock_guard<std::mutex> g{listener.mMutex};
+        EXPECT_TRUE(sawTemporaryError)
+            << "The batch listener never saw its single file's temporary error";
+        EXPECT_NE(MegaError::API_OK, listener.mTemporaryError)
+            << "The forwarded error should carry the sub-transfer's failure";
+        EXPECT_EQ(listener.mTemporaryError, listener.mTemporaryErrorOnTransfer)
+            << "getLastErrorExtended() on the batch transfer should match the reported error";
+        EXPECT_EQ(MegaTransfer::STATE_RETRYING, listener.mTemporaryErrorState)
+            << "A retrying sub-transfer should leave the batch transfer retrying too";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
+    fs::remove(looseFilePath, ignoredEc);
+}
+
+/**
+ * The same induced failure in a batch of two file items reports nothing on the batch transfer:
+ * with more than one file there is no single sub-transfer whose error the parent could stand for,
+ * so only the listeners registered with addListener hear about it. Pins that the single-file rule
+ * did not widen into every batch.
+ */
+TEST_F(SdkTestFolderBatchController, MultiItemBatchKeepsTemporaryErrorsOffTheBatchTransfer)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    const std::string firstName = getFilePrefix() + "temporaryErrorFirst";
+    const std::string secondName = getFilePrefix() + "temporaryErrorSecond";
+    std::unique_ptr<MegaNode> firstNode = uploadLooseFile(firstName, "first ");
+    ASSERT_TRUE(firstNode);
+    std::unique_ptr<MegaNode> secondNode = uploadLooseFile(secondName, "second ");
+    ASSERT_TRUE(secondNode);
+
+    std::error_code ignoredEc;
+    fs::remove(fs::current_path() / firstName, ignoredEc);
+    fs::remove(fs::current_path() / secondName, ignoredEc);
+
+    // Which files were actually failed, by handle: a bare count cannot tell two sub-transfers
+    // apart from one retrying twice. Declared before the injector so it outlives the hook.
+    std::mutex failedMutex;
+    std::set<std::string> failedHandles;
+
+    sdk_test::ScopedApiErrorInjector injector{
+        API_ETEMPUNAVAIL,
+        isDownloadUrlRequestFor({base64Handle(*firstNode), base64Handle(*secondNode)},
+                                [&failedMutex, &failedHandles](const std::string& handle)
+                                {
+                                    std::lock_guard<std::mutex> g{failedMutex};
+                                    failedHandles.insert(handle);
+                                })};
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    BatchListener listener{megaApi[0].get()};
+
+    const std::string downloadParent = path_u8string(fs::current_path() / "");
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(firstNode.get(), downloadParent.c_str());
+    items->add(secondNode.get(), downloadParent.c_str());
+
+    LOG_info << logPre << "downloading two files whose download URLs keep failing";
+    megaApi[0]->startDownloadBatch(items.get(),
+                                   cancelToken.get(),
+                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                   MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                   &listener);
+
+    // Both files must actually fail before the absence of a batch callback proves anything, and
+    // it has to be both of them: each distinct handle is one sub-transfer reporting a temporary
+    // error to the global listeners.
+    const bool bothFailed = WaitFor(
+        [&failedMutex, &failedHandles]
+        {
+            std::lock_guard<std::mutex> g{failedMutex};
+            return failedHandles.size() >= 2;
+        },
+        180 * 1000);
+    ASSERT_TRUE(bothFailed) << "The batch's two downloads were not both failed";
+
+    // Now give the batch listener every chance to report one it should not have.
+    WaitFor(
+        [&listener]
+        {
+            std::lock_guard<std::mutex> g{listener.mMutex};
+            return listener.mTemporaryErrors > 0;
+        },
+        15 * 1000);
+
+    cancelToken->cancel();
+    EXPECT_TRUE(listener.waitForFinish(std::chrono::minutes{3}))
+        << "The cancelled batch never finished";
+
+    {
+        std::lock_guard<std::mutex> g{listener.mMutex};
+        EXPECT_EQ(0, listener.mTemporaryErrors)
+            << "A batch of several files must not report a single file's error as its own";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, firstNode.get()));
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, secondNode.get()));
+}
+
+/**
+ * Cancelling a single-file batch reports API_EINCOMPLETE and STATE_CANCELLED, not STATE_FAILED:
+ * the sub-transfer resolves as incomplete, and that is a cancellation, exactly as
+ * processTransferRemoved reads it for a plain single-file download.
+ */
+TEST_F(SdkTestFolderBatchController, CancelledSingleFileBatchIsCancelledNotFailed)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    const std::string looseFileName = getFilePrefix() + "cancelledFile";
+    std::unique_ptr<MegaNode> fileNode = uploadLooseFile(looseFileName);
+    ASSERT_TRUE(fileNode);
+
+    std::error_code ignoredEc;
+    const fs::path looseFilePath = fs::current_path() / looseFileName;
+    fs::remove(looseFilePath, ignoredEc);
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    class CancellingBatchListener: public BatchListener
+    {
+    public:
+        CancellingBatchListener(MegaApi* api, MegaCancelToken* token):
+            BatchListener(api),
+            mToken(token)
+        {}
+
+        void onTransferUpdate(MegaApi*, MegaTransfer* t) override
+        {
+            if (t->getStage() == MegaTransfer::STAGE_CREATE_TREE)
+            {
+                mToken->cancel();
+            }
+        }
+
+    private:
+        MegaCancelToken* mToken;
+    };
+
+    CancellingBatchListener listener{megaApi[0].get(), cancelToken.get()};
+
+    const std::string downloadParent = path_u8string(fs::current_path() / "");
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(fileNode.get(), downloadParent.c_str());
+
+    LOG_info << logPre << "downloading one file and cancelling it";
+    megaApi[0]->startDownloadBatch(items.get(),
+                                   cancelToken.get(),
+                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                   MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                   &listener);
+
+    ASSERT_TRUE(listener.waitForFinish(std::chrono::minutes{3}))
+        << "The cancelled batch never finished";
+
+    {
+        std::lock_guard<std::mutex> g{listener.mMutex};
+        EXPECT_EQ(MegaError::API_EINCOMPLETE, listener.mError)
+            << "A cancelled batch should finish as incomplete";
+        EXPECT_EQ(1, listener.mFinishes) << "The whole batch is one transfer, so one finish";
+        EXPECT_EQ(MegaTransfer::STATE_CANCELLED, listener.mFinishState)
+            << "A cancelled single-file batch is cancelled, not completed and not failed";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
+    fs::remove(looseFilePath, ignoredEc);
+}
+
+/**
+ * A single-file batch whose one file is taken down reports API_ETOOMANY with the ETD user and link
+ * status, and STATE_FAILED. It used to report API_EINCOMPLETE with the extra info dropped, because
+ * MegaRecursiveOperation flattens every sub-transfer error into that one code.
+ *
+ * processTransferFailed routes API_ETOOMANY with extra info to fireOnTransferFinish rather than
+ * fireOnTransferTemporaryError, so this is the terminal half of the same behaviour. No test
+ * account can be taken down on demand, so the response is forged on the lockless CS channel the
+ * download-URL request uses, the way sdk_test_sc_channel forges SC responses.
+ */
+TEST_F(SdkTestFolderBatchController, SingleFileBatchReportsItsFileTakedownNotIncomplete)
+{
+    static const std::string logPre{getLogPrefix()};
+    // MegaError::USER_ENABLED and MegaError::LINK_DOWN_ETD: the link is down by an ETD while the
+    // account itself is fine, which is one of the shapes the API sends.
+    static constexpr long long kUserStatus{0};
+    static constexpr long long kLinkStatus{2};
+
+    LOG_info << logPre << "starting";
+
+    const std::string looseFileName = getFilePrefix() + "takenDownFile";
+    std::unique_ptr<MegaNode> fileNode = uploadLooseFile(looseFileName);
+    ASSERT_TRUE(fileNode);
+
+    std::error_code ignoredEc;
+    const fs::path looseFilePath = fs::current_path() / looseFileName;
+    fs::remove(looseFilePath, ignoredEc);
+
+    sdk_test::ScopedApiErrorInjector injector{API_ETOOMANY,
+                                              {kUserStatus, kLinkStatus},
+                                              isDownloadUrlRequestFor({base64Handle(*fileNode)})};
+
+    BatchListener listener{megaApi[0].get()};
+
+    const std::string downloadParent = path_u8string(fs::current_path() / "");
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(fileNode.get(), downloadParent.c_str());
+
+    LOG_info << logPre << "downloading one file whose download URL is answered with a takedown";
+    megaApi[0]->startDownloadBatch(items.get(),
+                                   nullptr /*cancelToken*/,
+                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                   MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                   &listener);
+
+    ASSERT_TRUE(listener.waitForFinish(std::chrono::minutes{3})) << "The batch never finished";
+    ASSERT_TRUE(injector.fired()) << "The takedown was never injected, so nothing here was tested";
+
+    {
+        std::lock_guard<std::mutex> g{listener.mMutex};
+        EXPECT_EQ(MegaError::API_ETOOMANY, listener.mError)
+            << "A single-file batch should report its file's own error, not API_EINCOMPLETE";
+        EXPECT_EQ(kUserStatus, listener.mFinishUserStatus)
+            << "The ETD user status did not survive to the batch's listener";
+        EXPECT_EQ(kLinkStatus, listener.mFinishLinkStatus)
+            << "The ETD link status did not survive to the batch's listener";
+        EXPECT_EQ(MegaTransfer::STATE_FAILED, listener.mFinishState)
+            << "A batch whose only file failed should report itself failed";
+        EXPECT_EQ(1, listener.mFinishes) << "The whole batch is one transfer, so one finish";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
+    fs::remove(looseFilePath, ignoredEc);
+}
+
+/**
+ * A single-file batch that fails before its sub-transfer ever starts still reports itself failed,
+ * as the equivalent MegaApi::startDownload would. The destination folder is blocked by a regular
+ * file, which ensureLocalFolder_unlocked refuses during the collision pre-pass: a real filesystem
+ * refusal that needs no permissions, so it behaves the same on every platform.
+ *
+ * This is the half of resolvedState() the cancellation test cannot reach. The error never passes
+ * through a sub-transfer, so mSingleFileError is untouched and complete()'s own error is all there
+ * is to decide the state on; before it was given one, this reported STATE_COMPLETED.
+ */
+TEST_F(SdkTestFolderBatchController, SingleFileBatchFailingBeforeItsTransferReportsFailed)
+{
+    static const std::string logPre{getLogPrefix()};
+
+    LOG_info << logPre << "starting";
+
+    const std::string looseFileName = getFilePrefix() + "blockedDestFile";
+    std::unique_ptr<MegaNode> fileNode = uploadLooseFile(looseFileName);
+    ASSERT_TRUE(fileNode);
+
+    std::error_code ignoredEc;
+    fs::remove(fs::current_path() / looseFileName, ignoredEc);
+
+    // A regular file standing exactly where the destination folder would have to be.
+    const fs::path blockedDest = fs::current_path() / (getFilePrefix() + "blockedDest");
+    fs::remove_all(blockedDest, ignoredEc);
+    ASSERT_TRUE(createFile(path_u8string(blockedDest), false));
+    ASSERT_TRUE(fs::is_regular_file(blockedDest));
+
+    BatchListener listener{megaApi[0].get()};
+
+    // Trailing separator: the path names the folder to download into, not the file to save as.
+    const std::string downloadParent = path_u8string(blockedDest / "");
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(fileNode.get(), downloadParent.c_str());
+
+    LOG_info << logPre << "downloading one file into a destination a file is standing in";
+    megaApi[0]->startDownloadBatch(items.get(),
+                                   nullptr /*cancelToken*/,
+                                   MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                   MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                   &listener);
+
+    ASSERT_TRUE(listener.waitForFinish(std::chrono::minutes{3})) << "The batch never finished";
+
+    {
+        std::lock_guard<std::mutex> g{listener.mMutex};
+        EXPECT_EQ(MegaError::API_EARGS, listener.mError)
+            << "A file where the destination folder belongs should fail the batch with the "
+               "destination's own error, not the flattened API_EINCOMPLETE";
+        EXPECT_EQ(MegaTransfer::STATE_FAILED, listener.mFinishState)
+            << "A single-file batch that failed before its transfer started is failed, not "
+               "completed";
+        EXPECT_EQ(1, listener.mStarts) << "The batch is one transfer, so one onTransferStart";
+        EXPECT_EQ(1, listener.mFinishes) << "... and one onTransferFinish";
+    }
+
+    fs::remove(blockedDest, ignoredEc);
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
 }

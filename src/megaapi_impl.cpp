@@ -31818,6 +31818,13 @@ MegaErrorPrivate::MegaErrorPrivate(const Error& err)
 {
 }
 
+MegaErrorPrivate::MegaErrorPrivate(const Error& err, long long value):
+    MegaError(err),
+    mValue(value),
+    mUserStatus(err.getUserStatus()),
+    mLinkStatus(err.getLinkStatus())
+{}
+
 MegaErrorPrivate::MegaErrorPrivate(fuse::MountResult result)
   : MegaError(result == fuse::MOUNT_SUCCESS ? API_OK : API_EFAILED)
   , mMountResult(result)
@@ -33410,7 +33417,7 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
 
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
-        complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
+        complete(resolvedError());
     }
 }
 
@@ -33801,7 +33808,7 @@ void MegaRecursiveOperation::complete(Error e, bool cancelledByUser)
         setRootNodeHandleInTransfer();
     }
 
-    transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
+    transfer->setState(resolvedState(e, cancelledByUser));
     megaApi->fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(e));
 }
 
@@ -35153,9 +35160,21 @@ void MegaFolderDownloadBatchController::start(MegaNode*)
     transfer->setStartTime(Waiter::ds);
     transfer->setState(MegaTransfer::STATE_QUEUED);
 
+    const MegaDownloadItemList* items = transfer->getDownloadItems();
+
+    // Raw count on purpose: a null-node item pairing with one file is not a single-file batch.
+    const MegaNode* onlyItem = items && items->size() == 1 ? items->getNode(0) : nullptr;
+    mSingleFileBatch = onlyItem && onlyItem->getType() == MegaNode::TYPE_FILE;
+
+    // A single-file batch carries its one item's app data, the way startDownload does. Set before
+    // the start callback, so every callback sees it and not just the ones after this point.
+    if (mSingleFileBatch)
+    {
+        transfer->setAppData(items->getAppData(0));
+    }
+
     megaApi->fireOnTransferStart(transfer);
 
-    const MegaDownloadItemList* items = transfer->getDownloadItems();
     if (!items || !items->size())
     {
         LOG_debug << "Batch download failed. No item given";
@@ -35322,6 +35341,79 @@ void MegaFolderDownloadBatchController::reportTransferQuotaState()
     }
 
     megaApi->reportTransferQuotaState(tag, mTransferQuotaCheckState->state);
+}
+
+void MegaFolderDownloadBatchController::onTransferTemporaryError(MegaApi*,
+                                                                 MegaTransfer* t,
+                                                                 MegaError* e)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    assert(transfer);
+
+    // The global listeners already saw this on the sub-transfer. Only a single-file batch also
+    // fires on the parent, so its caller gets what a plain single-file download would report.
+    if (!transfer || !t || !e || !mSingleFileBatch)
+    {
+        return;
+    }
+
+    // What processTransferFailed set on the sub-transfer, mirrored so the parent handed to the
+    // listener answers the same questions. isForeignOverquota() in particular: the API_EOVERQUOTA
+    // contract has the app read it off the transfer it is given.
+    transfer->setLastError(e);
+    transfer->setForeignOverquota(t->isForeignOverquota());
+    transfer->setState(t->getState());
+
+    megaApi->fireOnTransferTemporaryError(transfer, std::make_unique<MegaErrorPrivate>(*e));
+}
+
+void MegaFolderDownloadBatchController::onTransferFinish(MegaApi* api,
+                                                         MegaTransfer* t,
+                                                         MegaError* e)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    assert(transfer);
+
+    // Terminal sub-transfer failures arrive here, not at onTransferTemporaryError: the
+    // API_ETOOMANY branch of processTransferFailed, processTransferRemoved, and the
+    // sendPendingTransfers failures. Kept verbatim so ETD user/link status survives too.
+    if (transfer && t && e && e->getErrorCode() != API_OK && mSingleFileBatch)
+    {
+        mSingleFileError.setErrorCode(static_cast<error>(e->getErrorCode()));
+        mSingleFileError.setUserStatus(e->getUserStatus());
+        mSingleFileError.setLinkStatus(e->getLinkStatus());
+
+        transfer->setLastError(e);
+        transfer->setForeignOverquota(t->isForeignOverquota());
+    }
+
+    MegaRecursiveOperation::onTransferFinish(api, t, e);
+}
+
+Error MegaFolderDownloadBatchController::resolvedError() const
+{
+    // One file, so there is no ambiguity about whose error the batch reports: give the caller
+    // what a plain single-file download would, extra info included.
+    if (mSingleFileBatch)
+    {
+        return mSingleFileError;
+    }
+
+    return MegaRecursiveOperation::resolvedError();
+}
+
+int MegaFolderDownloadBatchController::resolvedState(const Error& e, bool cancelledByUser) const
+{
+    // The error actually being reported -- the sub-transfer's, or one from before it ever
+    // started -- so a failure during folder creation is labelled like any other.
+    if (!cancelledByUser && mSingleFileBatch && e != API_OK)
+    {
+        // processTransferRemoved reads API_EINCOMPLETE on a single-file download as a
+        // cancellation, not a failure.
+        return e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED;
+    }
+
+    return MegaRecursiveOperation::resolvedState(e, cancelledByUser);
 }
 
 MegaFolderDownloadBatchController::scanFolder_result
