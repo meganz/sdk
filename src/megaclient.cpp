@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/backofftimer.h"
 #include "mega/common/badge.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
@@ -3745,21 +3746,7 @@ void MegaClient::exec()
             mReqStatCS->post(this);
         }
 
-        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
-        {
-            TimerWithBackoff *bttimer = *it;
-            if (bttimer->armed())
-            {
-                restag = bttimer->tag;
-                app->timer_result(API_OK);
-                delete bttimer;
-                it = bttimers.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
+        execTimers();
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
@@ -18173,12 +18160,14 @@ void MegaClient::queueread(handle handle,
         else
         {
             // No need to pass node here. hdrns already have it.
-            mTransferQuotaChecker.check({},
-                                        {},
-                                        [this](transferquotastatus_t state, Error)
-                                        {
-                                            app->notify_transfer_quota_state(state);
-                                        });
+            mTransferQuotaChecker.check(
+                {},
+                {},
+                [this](transferquotastatus_t state, Error)
+                {
+                    app->notify_transfer_quota_state(state);
+                },
+                TransferQuotaChecker::CheckOrigin::Stream);
 
             it->second->dispatch();
         }
@@ -18294,6 +18283,31 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 {
     bttimers.push_back(twb);
     return API_OK;
+}
+
+void MegaClient::execTimers()
+{
+    std::vector<std::unique_ptr<TimerWithBackoff>> expired;
+
+    size_t kept = 0;
+    for (TimerWithBackoff* timer: bttimers)
+    {
+        if (timer->armed())
+        {
+            expired.emplace_back(timer);
+        }
+        else
+        {
+            bttimers[kept++] = timer;
+        }
+    }
+    bttimers.resize(kept);
+
+    // Invoked outside bttimers: an invoke() may addtimer()
+    for (auto& timer: expired)
+    {
+        timer->invoke(*this);
+    }
 }
 
 #ifdef ENABLE_SYNC

@@ -42,6 +42,16 @@ public:
         mClient(client)
     {}
 
+    // Stream checks are debounced: an idle check is answered at once (`qbq` for free, the snapshot
+    // for Pro) and starts a one-second timer. Checks while it runs are folded into one when it
+    // expires, which restarts it; only the latest of them has its completion run. None means back
+    // to idle.
+    enum class CheckOrigin
+    {
+        Default,
+        Stream,
+    };
+
     // Nodes still to download, split as `qbq` takes them, with the bytes already fetched.
     struct DownloadProjection
     {
@@ -59,9 +69,13 @@ public:
     //
     // The completion also receives the query's own error, so a caller can tell a failed query from
     // one that answered but could not determine the state -- both give TRANSFER_QUOTA_UNKNOWN.
+    //
+    // False when nothing was asked or will be: completion is not run. A folded Stream check returns
+    // true but may still drop its completion: superseded, or no streams left at expiry.
     bool check(std::vector<handle> newOwnNodes,
                std::vector<handle> newPublicNodes,
-               std::function<void(transferquotastatus_t, Error)> completion);
+               std::function<void(transferquotastatus_t, Error)> completion,
+               CheckOrigin origin = CheckOrigin::Default);
 
     // Reset to the just-logged-in state, on session (re)init.
     void reset();
@@ -126,6 +140,16 @@ private:
                           std::vector<handle> newPublicNodes,
                           std::function<void(transferquotastatus_t, Error)> completion);
 
+    // Stream path of check(): answers now when idle, else folds into the timer's check.
+    bool checkStreamThrottled(std::function<void(transferquotastatus_t, Error)> completion);
+
+    // Answer a stream check now (`qbq` or the Pro snapshot) and start the timer. False when nothing
+    // was asked.
+    bool queryStream(std::function<void(transferquotastatus_t, Error)> completion);
+
+    // Answer the folded stream check, or go idle when nothing was folded.
+    void onStreamTimerExpired();
+
     // Issue a `uq` transfer query; on reply derive and cache the snapshot, then run completion.
     void getProTransferQuota(std::function<void(ProTransferQuota, Error)> completion);
 
@@ -156,6 +180,15 @@ private:
     // Callers waiting on that one reply. They are dropped, not run, on reset(): their captures may
     // not outlive the session.
     std::vector<std::function<void(ProTransferQuota, Error)>> mPendingProPolls;
+
+    // A MegaClient::bttimers entry, started when a stream check is answered or sent, not when its
+    // reply arrives.
+    // Owned there: locallogout drops it alongside reset().
+    bool mStreamTimerRunning = false;
+
+    // A stream check arrived while the timer ran: its expiry owes a check
+    bool mStreamCheckPending = false;
+    std::function<void(transferquotastatus_t, Error)> mPendingStreamCompletion;
 
     // Transfer allowance figures from the last Pro `uq` reply, cached alongside mStatus so
     // getProTransferState can return them without another round-trip.
