@@ -22,10 +22,14 @@
 #include "mega/transferstats.h"
 
 #include "mega/logging.h"
+#include "mega/megaclient.h"
 #include "mega/transferslot.h"
 
+#include <algorithm>
 #include <chrono>
+#include <cmath>
 #include <iomanip>
+#include <limits>
 
 namespace mega::stats
 {
@@ -134,6 +138,9 @@ bool TransferStats::addTransferData(TransferData&& transferData)
 
     mUncollectedAndPrintedTransferData.first += 1;
     mUncollectedAndPrintedTransferData.second += transferData.mSize;
+    LOG_debug << "[TransferStats::addTransferData] uncollected=("
+              << mUncollectedAndPrintedTransferData.first << ", "
+              << mUncollectedAndPrintedTransferData.second << ")";
 
     // Update the timestamp and move the transferData to the collection.
     transferData.mTimestamp = now;
@@ -238,6 +245,74 @@ bool TransferStatsManager::addTransferStats(const Transfer* const transfer)
         return false;
     }
 
+#ifdef MEGA_USE_WSUPLOAD
+    if (transfer->channel == Transfer::Channel::WebSocket)
+    {
+        if (!transfer->client || !transfer->client->wsEngine())
+        {
+            LOG_debug << "[TransferStatsManager::addTransferStats] Missing WS engine for "
+                         "WebSocket transfer";
+            return false;
+        }
+
+        ws::UploadEngine::WsTransferStats wsStats;
+        if (!transfer->client->wsEngine()->getTransferStats(*transfer, wsStats))
+        {
+            // S13 round-3 (Cluster H): explicit latch-validity flag. The former
+            // ">0 && >0" sentinel test rejected legitimately-zero latched values
+            // (17 B over a ~10 s cold start ⇒ integer mean speed 0), silently
+            // dropping the upload from the stats (macos_9454: got (8,136) vs
+            // (9,153)). Zeros are safe downstream — the add path clamps both
+            // axes to >=1.
+            if (transfer->ws_latched_stats_valid)
+            {
+                wsStats.meanSpeedBytesPerSecond = transfer->ws_latched_mean_speed;
+                wsStats.avgStartTransferTime =
+                    std::chrono::milliseconds(transfer->ws_latched_avg_latency_ms);
+                wsStats.failedRequestRatio = transfer->ws_latched_failed_request_ratio;
+                LOG_debug << "[TransferStatsManager::addTransferStats] Using latched WS stats "
+                             "after engine detach [size="
+                          << transfer->size << "]";
+            }
+            else
+            {
+                // S13 round-3 (Cluster H, hardened per GOAL0 audit): the upstream
+                // trigger for a missing latch varies (engine detach before any
+                // successful stats read, pool refresh mid-transfer, cold start) and
+                // silently returning false un-counted a COMPLETED upload — the
+                // production under-count and the macos_9454 failure. Count it with
+                // floor axes instead (the add path clamps both axes to >=1 anyway)
+                // and say so loudly.
+                LOG_warn << "[TransferStatsManager::addTransferStats] WS stats unavailable and "
+                            "no latched fallback — counting upload with floor stats [size="
+                         << transfer->size << "]";
+                wsStats.meanSpeedBytesPerSecond = 0;
+                wsStats.avgStartTransferTime = std::chrono::milliseconds(0);
+                wsStats.failedRequestRatio = 0.0;
+            }
+        }
+
+        const m_off_t meanSpeed = std::max<m_off_t>(1, wsStats.meanSpeedBytesPerSecond);
+        const m_off_t avgLatencyMs =
+            std::max<m_off_t>(1, static_cast<m_off_t>(wsStats.avgStartTransferTime.count()));
+        TransferStats::TransferData transferData{
+            transfer->size,
+            meanSpeed,
+            static_cast<double>(avgLatencyMs),
+            wsStats.failedRequestRatio,
+            false};
+
+        std::lock_guard<std::mutex> guard(mTransferStatsMutex);
+        const bool added = mUploadStatistics.addTransferData(std::move(transferData));
+        LOG_debug << "[TransferStatsManager::addTransferStats] WS stats "
+                  << (added ? "added" : "discarded") << " [size=" << transfer->size
+                  << " meanSpeed=" << meanSpeed << " B/s"
+                  << " avgLatencyMs=" << wsStats.avgStartTransferTime.count()
+                  << " failedRatio=" << wsStats.failedRequestRatio << "]";
+        return added;
+    }
+#endif
+
     // Add transfer stats.
     TransferStats::TransferData transferData{transfer->size,
                                              transfer->slot->mTransferSpeed.getMeanSpeed(),
@@ -324,8 +399,9 @@ TransferStats::UncollectedTransfersCounters
     TransferStatsManager::getUncollectedAndPrintedTransferData(const direction_t type) const
 {
     std::lock_guard<std::mutex> guard(mTransferStatsMutex);
-    return type == PUT ? mUploadStatistics.getUncollectedAndPrintedTransferData() :
-                         mDownloadStatistics.getUncollectedAndPrintedTransferData();
+    const auto counters = type == PUT ? mUploadStatistics.getUncollectedAndPrintedTransferData() :
+                                        mDownloadStatistics.getUncollectedAndPrintedTransferData();
+    return counters;
 }
 
 // Utils
@@ -364,19 +440,30 @@ m_off_t calculateWeightedAverage(const vector<m_off_t>& values, const vector<m_o
         return 0;
     }
 
-    m_off_t weightedSum = 0;
-    m_off_t totalWeight = 0;
+    long double weightedSum = 0.0L;
+    long double totalWeight = 0.0L;
     for (size_t i = 0; i < values.size(); ++i)
     {
-        weightedSum += values[i] * weights[i];
-        totalWeight += weights[i];
+        weightedSum += static_cast<long double>(values[i]) *
+                       static_cast<long double>(weights[i]);
+        totalWeight += static_cast<long double>(weights[i]);
     }
-    if (weightedSum == 0 || totalWeight == 0)
+    if (weightedSum == 0.0L || totalWeight == 0.0L)
     {
         return 0;
     }
-    return static_cast<m_off_t>(
-        std::round(static_cast<double>(weightedSum) / static_cast<double>(totalWeight)));
+
+    const long double weightedAverage = weightedSum / totalWeight;
+    if (!std::isfinite(weightedAverage))
+    {
+        LOG_warn << "[calculateWeightedAverage] Non-finite weighted average calculated. Skipping";
+        return 0;
+    }
+
+    constexpr auto minValue = static_cast<long double>(std::numeric_limits<m_off_t>::min());
+    constexpr auto maxValue = static_cast<long double>(std::numeric_limits<m_off_t>::max());
+    const long double clampedAverage = std::clamp(weightedAverage, minValue, maxValue);
+    return static_cast<m_off_t>(std::llround(clampedAverage));
 }
 
 void checkTransferTypeValidity([[maybe_unused]] const direction_t type)
@@ -411,6 +498,13 @@ bool checkTransferStateValidity(const Transfer* const transfer)
             "[checkTransferStateValidity] called with an invalid transfer type"))
     {
         return false;
+    }
+
+    if (transfer->channel == Transfer::Channel::WebSocket)
+    {
+        return checkTransferStateCondition(
+            transfer->type == PUT,
+            "[checkTransferStateValidity] WebSocket channel used for non-PUT transfer");
     }
 
     if (!checkTransferStateCondition(

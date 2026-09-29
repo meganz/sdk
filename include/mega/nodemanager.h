@@ -289,6 +289,7 @@ struct NodeSearchCursorOffset
     std::optional<int64_t> mLastMtime; ///< mtime for MODIFICATION sorts
     std::optional<int> mLastLabel; ///< label value for LABEL_ASC / LABEL_DESC
     std::optional<int> mLastFav; ///< fav flag for FAV_ASC / FAV_DESC
+    std::optional<int64_t> mLastMediaTs; ///< mediats for MEDIATS_ASC / MEDIATS_DESC
 };
 
 // Mirrors MegaNodeScopeFilter::LOCATION_CLOUD_DRIVE_AND_VAULT (== 1).

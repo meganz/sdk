@@ -78,7 +78,7 @@
         "cryptopp",
         {
           "name": "curl",
-          "features": [ "zstd" ]
+          "features": [ "websockets", "zstd" ]
         },
         "icu",
         "libsodium",

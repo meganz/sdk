@@ -225,6 +225,18 @@ TEST(TransferStatsTest, TestCalculateWeightedAverageLargeNumbers)
 }
 
 /**
+ * @brief Tests calculateWeightedAverage function for large equal values won't
+ * cause overflow in intermediate integer multiplication.
+ */
+TEST(TransferStatsTest, TestCalculateWeightedAverageLargeEqualValuesNoOverflow)
+{
+    constexpr m_off_t oneTiB = 1LL * 1024 * 1024 * 1024 * 1024;
+    const std::vector<m_off_t> values = {oneTiB, oneTiB, oneTiB, oneTiB};
+    const std::vector<m_off_t> weights = values;
+    ASSERT_EQ(calculateWeightedAverage(values, weights), oneTiB);
+}
+
+/**
  * @brief Tests calculateWeightedAverage function when the result rounds up.
  *
  * Ex: Weighted average = (1 + 2) / 2 = 1.5 -> rounds to 2.

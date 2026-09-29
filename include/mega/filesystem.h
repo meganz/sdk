@@ -465,6 +465,10 @@ struct MEGA_API FileAccess
     // if opened path is a symlink
     bool mIsSymLink = false;
 
+    // When true, file opens include FILE_SHARE_DELETE in the share mode (Windows only).
+    // This allows the file to be moved/deleted while the handle is open.
+    bool mShareDelete = false;
+
     // if the open failed, retry indicates a potentially transient reason
     bool retry = false;
 

@@ -73,6 +73,12 @@ target_sources(test_unit
     megaclient_test.cpp
     SharedMemoryZone_test.cpp
     sc_streaming_parser_test.cpp
+    TestHooks_test.cpp
+    WsUpload_test.cpp
+    WsQuota_test.cpp
+    MediaTs_test.cpp
+    MediaTs_db_test.cpp
+    NodeComparator_test.cpp
 )
 
 target_sources_conditional(test_unit

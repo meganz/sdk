@@ -250,6 +250,16 @@ NS_ASSUME_NONNULL_BEGIN
 @property (readonly, nonatomic, nullable) NSDate *modificationTime;
 
 /**
+ * @brief Media capture time of the file, derived from its filename, modification
+ *        time or creation time.
+ *
+ * The value is only valid for nodes of type MEGANodeTypeFile whose name identifies
+ * a photo, video or audio file; it is nil for any other node.
+ *
+ */
+@property (readonly, nonatomic, nullable) NSDate *mediaCaptureTime;
+
+/**
  * @brief Public link creation time of the file to MEGA (in seconds since the epoch).
  *
  * The value is only valid for nodes of type MEGANodeTypeFile.

@@ -32,6 +32,7 @@ constexpr int64_t kJul15Sec = 1721001600; // 2024-07-15 00:00:00 UTC
 constexpr int64_t kJun15Sec = 1718452800; // 2024-06-15 00:00:00 UTC
 constexpr int64_t kJul20Sec = 1721433600; // 2024-07-20 00:00:00 UTC
 constexpr int64_t kAug01Sec = 1722470400; // 2024-08-01 00:00:00 UTC (= July end exclusive)
+constexpr int64_t kNov14Sec = 1700000001; // 2023-11-14 22:13:21 UTC — capture time
 
 std::chrono::system_clock::time_point toTimePoint(int64_t epochSec)
 {
@@ -95,17 +96,32 @@ std::set<std::string> nodeNames(MegaNodeList* nodes)
     return result;
 }
 
+MegaNode* nodeNamed(MegaNodeList* nodes, const std::string& name)
+{
+    if (!nodes)
+        return nullptr;
+    for (int i = 0; i < nodes->size(); ++i)
+        if (name == nodes->get(i)->getName())
+            return nodes->get(i);
+    return nullptr;
+}
+
 } // namespace
 
 /**
  * Fixture:
  *
- *  jul01.jpg    mtime = 2024-07-01 00:00:00 UTC   size 100
- *  jul15.jpg    mtime = 2024-07-15 00:00:00 UTC   size 200
- *  jul20.mp4    mtime = 2024-07-20 00:00:00 UTC   size 400
- *  jun15.jpg    mtime = 2024-06-15 00:00:00 UTC   size 300
+ *  jul01.jpg                  mtime = 2024-07-01 00:00:00 UTC   size 100
+ *  jul15.jpg                  mtime = 2024-07-15 00:00:00 UTC   size 200
+ *  jun15.jpg                  mtime = 2024-06-15 00:00:00 UTC   size 300
+ *  jul20.mp4                  mtime = 2024-07-20 00:00:00 UTC   size 400
+ *  IMG_20231114_221321.jpg    mtime = 2024-07-01 00:00:00 UTC   size 500
+ *                             mediats (from filename) = 2023-11-14 22:13:21 UTC
+ *  notes.txt                  mtime = 2024-07-01 00:00:00 UTC   size 600
  *
- * PHOTO filter matches: jul01, jul15, jun15 (3 nodes spanning two months).
+ * PHOTO filter matches: jul01, jul15, jun15, IMG_20231114_221321 (4 nodes;
+ * jul20.mp4 is a video, notes.txt is a document, both excluded).
+ * DOCUMENT filter matches: notes.txt only.
  */
 class SdkTestNodeDateSections: public SdkTestNodesSetUp
 {
@@ -116,6 +132,15 @@ class SdkTestNodeDateSections: public SdkTestNodesSetUp
             FileNodeInfo("jul15.jpg", {}, false, 200).setMtime(toTimePoint(kJul15Sec)),
             FileNodeInfo("jun15.jpg", {}, false, 300).setMtime(toTimePoint(kJun15Sec)),
             FileNodeInfo("jul20.mp4", {}, false, 400).setMtime(toTimePoint(kJul20Sec)),
+            // Filename carries a capture timestamp in Nov 2023 while its mtime sits in
+            // the existing 2024-07-01 bucket, so mediats and mtime group it differently.
+            FileNodeInfo("IMG_20231114_221321.jpg", {}, false, 500)
+                .setMtime(toTimePoint(kJul01Sec)),
+            // A FILE_TYPE_DOCUMENT node, so a modification-order grouping over the
+            // document category returns a real section while the mediats-order
+            // grouping over the same category is rejected — empty vs non-empty is
+            // what makes that distinction observable.
+            FileNodeInfo("notes.txt", {}, false, 600).setMtime(toTimePoint(kJul01Sec)),
         };
         return ELEMENTS;
     }
@@ -310,4 +335,90 @@ TEST_F(SdkTestNodeDateSections, Public_ByTimestampAnchor_InvertedRange_EmptyPage
                                        /*cursor=*/nullptr));
     ASSERT_NE(page, nullptr);
     EXPECT_EQ(page->size(), 0);
+}
+
+// ─── 4b: capture-date sections differ from modification-date sections ───────
+
+TEST_F(SdkTestNodeDateSections, Public_GroupAllNodesByDate_MediaTsMonths)
+{
+    auto filter = makePhotoGroupFilter();
+    std::unique_ptr<MegaDateSectionList> byMediaTs(
+        megaApi[0]->groupAllNodesByDate(filter.get(), MegaApi::ORDER_MEDIATS_DESC, nullptr));
+    ASSERT_NE(byMediaTs, nullptr);
+
+    // IMG_20231114_221321.jpg buckets by its filename capture time, not its
+    // 2024-07 mtime, so a month the modification-time grouping never reports appears.
+    EXPECT_THAT(toGids(byMediaTs.get()), ElementsAre("2024-07", "2024-06", "2023-11"));
+
+    const MegaDateSection* nov = findSection(byMediaTs.get(), "2023-11");
+    ASSERT_NE(nov, nullptr);
+    EXPECT_EQ(nov->getCount(), 1);
+
+    std::unique_ptr<MegaDateSectionList> byMtime(
+        megaApi[0]->groupAllNodesByDate(filter.get(), MegaApi::ORDER_MODIFICATION_DESC, nullptr));
+    ASSERT_NE(byMtime, nullptr);
+    EXPECT_EQ(findSection(byMtime.get(), "2023-11"), nullptr);
+}
+
+// ─── 4c: a mediats section anchors a mediats page ───────────────────────────
+
+TEST_F(SdkTestNodeDateSections, Public_ByTimestampAnchor_MediaTsSectionScopesPage)
+{
+    auto groupFilter = makePhotoGroupFilter();
+    std::unique_ptr<MegaDateSectionList> sections(
+        megaApi[0]->groupAllNodesByDate(groupFilter.get(), MegaApi::ORDER_MEDIATS_DESC, nullptr));
+    ASSERT_NE(sections, nullptr);
+    const MegaDateSection* nov = findSection(sections.get(), "2023-11");
+    ASSERT_NE(nov, nullptr);
+
+    auto filter = makePhotoListAllFilter();
+    filter->byTimestampAnchor(nov->getStartDate(), nov->getEndDate(), MegaApi::ORDER_MEDIATS_DESC);
+
+    std::unique_ptr<MegaNodeList> page(megaApi[0]->listAllNodesByPage(filter.get(),
+                                                                      MegaApi::ORDER_MEDIATS_DESC,
+                                                                      nullptr,
+                                                                      /*maxElements=*/0,
+                                                                      /*cursor=*/nullptr));
+    ASSERT_NE(page, nullptr);
+
+    // The DESC half-bound enforces mediats < endDate, so the 2024 photos are gone.
+    // Bounds leave the DB in UTC seconds and are scaled to ms at bind time — a
+    // unit slip here would either match everything or nothing.
+    const auto names = nodeNames(page.get());
+    EXPECT_EQ(names.count("IMG_20231114_221321.jpg"), 1u);
+    EXPECT_EQ(names.count("jul01.jpg"), 0u);
+    EXPECT_EQ(names.count("jul15.jpg"), 0u);
+    EXPECT_EQ(names.count("jun15.jpg"), 0u);
+    EXPECT_EQ(static_cast<int64_t>(names.size()), nov->getCount()); // getCount() is int64_t
+
+    // The capture time the public getter reports, in ms, derived from the filename while
+    // this node's mtime is pinned to July — so it cannot come from mtime.
+    MegaNode* nov14 = nodeNamed(page.get(), "IMG_20231114_221321.jpg");
+    ASSERT_NE(nov14, nullptr);
+    EXPECT_EQ(nov14->getMediaCaptureTimeMs(), kNov14Sec * 1000);
+}
+
+// ─── 4d: a mediats grouping over a non-media category is rejected ───────────
+
+TEST_F(SdkTestNodeDateSections, Public_GroupAllNodesByDate_MediaTsNonMediaCategory_EmptyList)
+{
+    std::unique_ptr<MegaGroupNodesByDateFilter> filter{
+        MegaGroupNodesByDateFilter::createInstance()};
+    filter->byCategory(MegaApi::FILE_TYPE_DOCUMENT);
+    filter->byGranularity(MegaGroupNodesByDateFilter::SECTION_GRANULARITY_MONTH);
+
+    std::unique_ptr<MegaDateSectionList> list(
+        megaApi[0]->groupAllNodesByDate(filter.get(), MegaApi::ORDER_MEDIATS_DESC, nullptr));
+    ASSERT_NE(list, nullptr);
+    EXPECT_EQ(list->size(), 0);
+
+    // The same category with a modification order IS accepted and returns a real
+    // section, so the empty list above is the rejection and not merely "nothing
+    // matched this category".
+    std::unique_ptr<MegaDateSectionList> byMtime(
+        megaApi[0]->groupAllNodesByDate(filter.get(), MegaApi::ORDER_MODIFICATION_DESC, nullptr));
+    ASSERT_NE(byMtime, nullptr);
+    EXPECT_GT(byMtime->size(), 0) << "modification-order grouping over FILE_TYPE_DOCUMENT "
+                                     "must still be accepted";
+    EXPECT_THAT(toGids(byMtime.get()), ElementsAre("2024-07"));
 }

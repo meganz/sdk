@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/mediats_utils.h"
 
 #include <algorithm>
 #include <limits>
@@ -30,6 +31,9 @@
 namespace mega {
 
 static const char* NodeSearchFilterPtrStr = "NodeSearchFilterPtrStr";
+
+// Result columns shared by most node-fetch SELECTs in this file.
+static const std::string kNodeFetchCols = "nodehandle, counter, node, mediats";
 
 SqliteDbAccess::SqliteDbAccess(const LocalPath& rootPath)
   : mRootPath(rootPath)
@@ -83,7 +87,8 @@ bool SqliteDbAccess::checkDbFileAndAdjustLegacy(FileSystemAccess& fsAccess, cons
             if (currentDbVersion == LEGACY_DB_VERSION &&
                 LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_NOD &&
                 LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_SRW &&
-                LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
+                LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_VFINGERPRINT &&
+                LEGACY_DB_VERSION != LAST_DB_VERSION_WITHOUT_MEDIATS)
             {
                 LOG_debug << "Using a legacy database.";
                 dbPath = std::move(legacyPath);
@@ -239,7 +244,8 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
         "s3keyVirtual text AS (name || (CASE WHEN type = 1 THEN '/' ELSE '' END)) VIRTUAL, "
         "share tinyint, fav tinyint, ctime int64, mtime int64 DEFAULT 0, "
         "flags int64, counter BLOB NOT NULL, "
-        "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text)";
+        "node BLOB NOT NULL, label tinyint DEFAULT 0, description text, tags text, mediats int64 "
+        "DEFAULT 0)";
 
     int result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
     if (result)
@@ -273,6 +279,10 @@ DbTable *SqliteDbAccess::openTableWithNodes(PrnGen &rng, FileSystemAccess &fsAcc
          NodeData::COMPONENT_DESCRIPTION,
          NewColumn::extractDataFromNodeData<DescriptionType>},
         {"tags", "text", NodeData::COMPONENT_TAGS, NewColumn::extractDataFromNodeData<TagsType>},
+        {"mediats",
+         "int64 DEFAULT 0",
+         NodeData::COMPONENT_MEDIATS,
+         NewColumn::extractDataFromNodeData<MediaTsType>},
         {"sizeVirtual",
          "int64 AS (getSizeFromNodeCounter(counter)) VIRTUAL",
          NodeData::COMPONENT_NONE,
@@ -618,7 +628,8 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
 
     // get existing data
     sqlite3_stmt* stmt = nullptr;
-    if (sqlite3_prepare_v2(db, "SELECT nodehandle, node FROM nodes", -1, &stmt, nullptr) != SQLITE_OK)
+    if (sqlite3_prepare_v2(db, "SELECT nodehandle, node, ctime FROM nodes", -1, &stmt, nullptr) !=
+        SQLITE_OK)
     {
         LOG_err << "Db error while preparing to extract data to migrate: " << sqlite3_errmsg(db);
         return false;
@@ -634,6 +645,9 @@ bool SqliteDbAccess::migrateDataToColumns(sqlite3* db, vector<NewColumn>&& cols)
         int blobSize = sqlite3_column_bytes(stmt, 1);
         handle nh = static_cast<handle>(sqlite3_column_int64(stmt, 0));
         NodeData nd(blob, static_cast<size_t>(blobSize), NodeData::COMPONENT_ATTRS);
+
+        // ctime is not readable from blob with COMPONENT_ATTRS, supplement from DB column
+        nd.setRowCtime(static_cast<m_time_t>(sqlite3_column_int64(stmt, 2)));
 
         std::vector<std::unique_ptr<MigrateType>> migrateElement;
         migrateElement.reserve(cols.size());
@@ -1155,6 +1169,7 @@ bool SqliteAccountState::processSqlQueryNodes(sqlite3_stmt *stmt, std::vector<st
         if (data && size)
         {
             node.mNode = std::string(static_cast<const char*>(data), static_cast<size_t>(size));
+            node.mMediaTs = static_cast<uint64_t>(sqlite3_column_int64(stmt, 3));
             nodes.insert(nodes.end(), std::make_pair(nodeHandle, std::move(node)));
         }
     }
@@ -1412,6 +1427,19 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
             LOG_err << "Data base error while creating index (listallnodeslabeldescidx): "
                     << sqlite3_errmsg(db);
         }
+
+        // Index for ORDER_MEDIATS_ASC and ORDER_MEDIATS_DESC.
+        // A single ASC index suffices for both directions: SQLite can scan a
+        // B-tree index in reverse when every ORDER BY column (mediats, name,
+        // nodehandle) is uniformly DESC, so no dedicated DESC index is needed.
+        sql = "CREATE INDEX IF NOT EXISTS listallnodesmediatsidx on nodes "
+              "(mimetypeVirtual, mediats, name COLLATE NATURALNOCASE, nodehandle)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (listallnodesmediatsidx): "
+                    << sqlite3_errmsg(db);
+        }
     }
     if (enableIndexesForLexicographicalList)
     {
@@ -1615,8 +1643,8 @@ bool SqliteAccountState::put(Node *node)
             sqlite3_prepare_v2(db,
                                "INSERT OR REPLACE INTO nodes (nodehandle, parenthandle, "
                                "name, fingerprint, origFingerprint, type, share, fav, ctime, "
-                               "mtime, flags, counter, node, label, description, tags) "
-                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                               "mtime, flags, counter, node, label, description, tags, mediats) "
+                               "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                                -1,
                                &mStmtPutNode,
                                NULL);
@@ -1707,6 +1735,8 @@ bool SqliteAccountState::put(Node *node)
             sqlite3_bind_null(mStmtPutNode, 16);
         }
 
+        sqlite3_bind_int64(mStmtPutNode, 17, static_cast<sqlite3_int64>(node->getMediaTs()));
+
         sqlResult = sqlite3_step(mStmtPutNode);
     }
 
@@ -1730,7 +1760,12 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
     int sqlResult = SQLITE_OK;
     if (!mStmtGetNode)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT counter, node FROM nodes  WHERE nodehandle = ?", -1, &mStmtGetNode, NULL);
+        sqlResult =
+            sqlite3_prepare_v2(db,
+                               "SELECT counter, node, mediats FROM nodes WHERE nodehandle = ?",
+                               -1,
+                               &mStmtGetNode,
+                               NULL);
     }
 
     if (sqlResult == SQLITE_OK)
@@ -1754,6 +1789,8 @@ bool SqliteAccountState::getNode(NodeHandle nodehandle, NodeSerialized &nodeSeri
                                                        static_cast<size_t>(sizeNodeCounter));
                     nodeSerialized.mNode.assign(static_cast<const char*>(dataNodeSerialized),
                                                 static_cast<size_t>(sizeNodeSerialized));
+                    nodeSerialized.mMediaTs =
+                        static_cast<uint64_t>(sqlite3_column_int64(mStmtGetNode, 2));
                     success = true;
                 }
             }
@@ -1781,7 +1818,9 @@ bool SqliteAccountState::getNodesByOrigFingerprint(const std::string &fingerprin
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByOrigFp)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE origfingerprint = ?", -1, &mStmtNodeByOrigFp, NULL);
+        static const std::string sqlQuery =
+            "SELECT " + kNodeFetchCols + " FROM nodes WHERE origfingerprint = ?";
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByOrigFp, NULL);
     }
 
     bool result = false;
@@ -1809,7 +1848,9 @@ bool SqliteAccountState::getRootNodes(std::vector<std::pair<NodeHandle, NodeSeri
 
     sqlite3_stmt *stmt = nullptr;
     bool result = false;
-    int sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE type >= ? AND type <= ?", -1, &stmt, NULL);
+    static const std::string sqlQuery =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE type >= ? AND type <= ?";
+    int sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &stmt, NULL);
     if (sqlResult == SQLITE_OK)
     {
         if ((sqlResult = sqlite3_bind_int(stmt, 1, nodetype_t::ROOTNODE)) == SQLITE_OK)
@@ -1841,22 +1882,25 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
     // the possible combinations of ShareType_t binary map values.
     // For example 10 coresponds to IN_SHARES = 0x01 + LINK = 0x08 and 12 corresponds to
     // PENDING_OUTSHARES = 0x04 + LINK = 0x08.
-    static constexpr auto sqlQueryInshares =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
-    static constexpr auto sqlQueryOutshares =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
-    static constexpr auto sqlQueryPendingOutshares =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
-    static constexpr auto sqlQueryPubLink =
-        "SELECT nodehandle, counter, node FROM nodes WHERE share IN (8,9,10,11,12,13,14,15)";
+    static const std::string sqlQueryInshares =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (1,3,5,7,9,11,13,15)";
+    static const std::string sqlQueryOutshares =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (2,3,6,7,10,11,14,15)";
+    static const std::string sqlQueryPendingOutshares =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (4,5,6,7,12,13,14,15)";
+    static const std::string sqlQueryPubLink =
+        "SELECT " + kNodeFetchCols + " FROM nodes WHERE share IN (8,9,10,11,12,13,14,15)";
 
     switch (shareType)
     {
         case ShareType_t::IN_SHARES:
             if (!mStmtNodesWithInshares)
             {
-                sqlResult =
-                    sqlite3_prepare_v2(db, sqlQueryInshares, -1, &mStmtNodesWithInshares, nullptr);
+                sqlResult = sqlite3_prepare_v2(db,
+                                               sqlQueryInshares.c_str(),
+                                               -1,
+                                               &mStmtNodesWithInshares,
+                                               nullptr);
             }
             stmt = mStmtNodesWithInshares;
             break;
@@ -1864,7 +1908,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
             if (!mStmtNodesWithOutshares)
             {
                 sqlResult = sqlite3_prepare_v2(db,
-                                               sqlQueryOutshares,
+                                               sqlQueryOutshares.c_str(),
                                                -1,
                                                &mStmtNodesWithOutshares,
                                                nullptr);
@@ -1875,7 +1919,7 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
             if (!mStmtNodesWithPendingOutshares)
             {
                 sqlResult = sqlite3_prepare_v2(db,
-                                               sqlQueryPendingOutshares,
+                                               sqlQueryPendingOutshares.c_str(),
                                                -1,
                                                &mStmtNodesWithPendingOutshares,
                                                nullptr);
@@ -1885,8 +1929,11 @@ bool SqliteAccountState::getNodesWithSharesOrLink(std::vector<std::pair<NodeHand
         case ShareType_t::LINK:
             if (!mStmtNodesWithPubLink)
             {
-                sqlResult =
-                    sqlite3_prepare_v2(db, sqlQueryPubLink, -1, &mStmtNodesWithPubLink, nullptr);
+                sqlResult = sqlite3_prepare_v2(db,
+                                               sqlQueryPubLink.c_str(),
+                                               -1,
+                                               &mStmtNodesWithPubLink,
+                                               nullptr);
             }
             stmt = mStmtNodesWithPubLink;
             break;
@@ -2065,7 +2112,7 @@ bool SqliteAccountState::getChildren(const mega::NodeSearchFilter& filter,
         // Disabling format for query readability
         // clang-format off
         const std::string sqlQuery =
-            "SELECT nodehandle, counter, node "s +
+            "SELECT "s + kNodeFetchCols + " "
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") "
             "AND (flags & " + idVerFlag + ") = 0 " // bound to versionFlag to skip, or 0 to include
@@ -2140,7 +2187,7 @@ bool SqliteAccountState::listChildNodesLexicographically(
                   "(s3keyVirtual = "  + idPageOffName + " AND nodehandle > " + idPageOffHandle + "))"
              : "";
         const std::string sqlQuery =
-            "SELECT nodehandle, counter, node "s +
+            "SELECT "s + kNodeFetchCols + " "
             "FROM nodes "
             "WHERE (parenthandle = " + idParentHand + ") " // Versions aren't taken in consideration
             + offsetWhere +
@@ -2429,7 +2476,8 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                                                                              "fav",
                                                                              "label",
                                                                              "description",
-                                                                             "tags"};
+                                                                             "tags",
+                                                                             "mediats"};
         // Output: "nodehandle, parenthandle, flags, ..."
         static const std::string columnsForNodeAndFilters =
             joinStrings(std::cbegin(columnsForNodeAndFiltersVec),
@@ -2446,9 +2494,9 @@ bool SqliteAccountState::searchNodes(const NodeSearchFilter& filter,
                             return "N." + n;
                         });
 
+        // kNodeFetchCols for the node payload; remaining columns are for ORDER BY only.
         static const std::string columnsForNodeAndOrderBy =
-            "nodehandle, counter, node, " // for nodes
-            "type, sizeVirtual, ctime, mtime, name, label, fav"; // for ORDER BY only
+            kNodeFetchCols + ", type, sizeVirtual, ctime, mtime, name, label, fav";
 
         using namespace std::string_literals;
 
@@ -2590,6 +2638,10 @@ std::string buildOrderByForListAll(int order)
             return "CASE WHEN label = 0 THEN 1 ELSE 0 END ASC, label ASC, " + nA + ", " + hA;
         case OrderByClause::LABEL_DESC:
             return "label DESC, " + nA + ", " + hA;
+        case OrderByClause::MEDIATS_ASC:
+            return "mediats ASC, " + nA + ", " + hA;
+        case OrderByClause::MEDIATS_DESC:
+            return "mediats DESC, " + nD + ", " + hD;
         default:
             return nA + ", " + hA;
     }
@@ -2627,6 +2679,7 @@ inline bool isAscOrder(int order)
         case OrderByClause::MTIME_ASC:
         case OrderByClause::LABEL_ASC:
         case OrderByClause::FAV_ASC:
+        case OrderByClause::MEDIATS_ASC:
             return true;
         default:
             return false;
@@ -2642,20 +2695,20 @@ constexpr size_t kListAllOrderStride = static_cast<size_t>(OrderByClause::LAST) 
 constexpr size_t kMimeTypeCount = static_cast<size_t>(MIME_TYPE_MAX) + 1;
 constexpr size_t kFileSubTypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
 constexpr size_t kFavouriteFilterStride = static_cast<size_t>(FAVOURITE_FILTER_MAX) + 1;
-constexpr size_t kAnchorDirectionStride = static_cast<size_t>(AnchorDirectionDigit::Max) + 1;
 constexpr size_t kDateSectionGranularityStride =
     static_cast<size_t>(DateSectionGranularity::Max) + 1;
 
 // Cache-key space upper bound; assert it stays within 32 bits (size_t is 32-bit on
-// armv7) if a base grows.
+// armv7) if a base grows. The anchor digit shares kListAllOrderStride, so adding an
+// order pair grows this product quadratically rather than linearly.
 constexpr size_t kListAllMaxCacheKey = kMimeTypeCount * kFileSubTypeStride * kListAllOrderStride *
-                                       2 /* hasCursor */ * kAnchorDirectionStride *
+                                       2 /* hasCursor */ * kListAllOrderStride /* anchorOrder */ *
                                        2 /* excludeSensitive */ * kListAllMaxRoots *
                                        (kListAllMaxExcludes + 1) * kFavouriteFilterStride;
 static_assert(kListAllMaxCacheKey < (uint64_t{1} << 32),
               "cache-key product no longer fits in 32 bits; revisit bounds");
 
-// Same bound for the date-section key (granularity digit replaces hasCursor + anchorDir).
+// Same bound for the date-section key (granularity digit replaces hasCursor + anchorOrder).
 constexpr size_t kDateSectionMaxCacheKey = kMimeTypeCount * kFileSubTypeStride *
                                            kListAllOrderStride * kDateSectionGranularityStride *
                                            2 /* excludeSensitive */ * kListAllMaxRoots *
@@ -2715,15 +2768,19 @@ struct TimestampColumnDescriptor
 // orders and the column / unit / direction each maps to; std::nullopt otherwise.
 std::optional<TimestampColumnDescriptor> timestampColumnForOrder(int order)
 {
-    // ⚠️ Adding a case for a NEW column also requires extending computeListAllCacheId —
-    // its anchor digit only encodes direction, which identifies the column only while
-    // mtime is the sole one here.
     switch (order)
     {
         case OrderByClause::MTIME_ASC:
             return TimestampColumnDescriptor{"mtime", "mtime", 0, 1, false};
         case OrderByClause::MTIME_DESC:
             return TimestampColumnDescriptor{"mtime", "mtime", 0, 1, true};
+        // mediats is milliseconds. secondsColumnExpr floors to the whole second so the
+        // strftime() callers keep receiving epoch seconds — a filename-derived mediats
+        // can carry sub-second digits, so it is not necessarily a multiple of 1000.
+        case OrderByClause::MEDIATS_ASC:
+            return TimestampColumnDescriptor{"mediats", "(mediats / 1000)", 0, 1000, false};
+        case OrderByClause::MEDIATS_DESC:
+            return TimestampColumnDescriptor{"mediats", "(mediats / 1000)", 0, 1000, true};
         default:
             return std::nullopt;
     }
@@ -2738,11 +2795,12 @@ static const std::string kLabelIsZeroExpr = "(CASE WHEN label = 0 THEN 1 ELSE 0 
 // is left to buildCursorWhereForListAll.
 // Slots used by this function:
 //   DEFAULT_ASC/DESC  : p1=name
-//   SIZE_ASC/DESC     : p1=size,   p2=name
-//   MTIME_ASC/DESC    : p1=mtime,  p2=name
-//   FAV_ASC/DESC      : p1=fav,    p2=name
-//   LABEL_ASC         : p1=isZero, p2=label, p3=name
-//   LABEL_DESC        : p1=label,  p2=name
+//   SIZE_ASC/DESC     : p1=size,    p2=name
+//   MTIME_ASC/DESC    : p1=mtime,   p2=name
+//   FAV_ASC/DESC      : p1=fav,     p2=name
+//   LABEL_ASC         : p1=isZero,  p2=label, p3=name
+//   LABEL_DESC        : p1=label,   p2=name
+//   MEDIATS_ASC/DESC  : p1=mediats, p2=name
 std::string buildBoundingWhereForListAll(int order, int startParam)
 {
     const std::string p1 = "?" + std::to_string(startParam);
@@ -2806,6 +2864,16 @@ std::string buildBoundingWhereForListAll(int order, int startParam)
             return "(label < " + p1 + " OR (label = " + p1 + " AND name >= " + p2 +
                    " COLLATE NATURALNOCASE))";
 
+        case OrderByClause::MEDIATS_ASC:
+            // p1=mediats, p2=name; ORDER BY mediats ASC, name ASC, nodehandle ASC
+            return "(mediats > " + p1 + " OR (mediats = " + p1 + " AND name >= " + p2 +
+                   " COLLATE NATURALNOCASE))";
+
+        case OrderByClause::MEDIATS_DESC:
+            // p1=mediats, p2=name; ORDER BY mediats DESC, name DESC, nodehandle DESC
+            return "(mediats < " + p1 + " OR (mediats = " + p1 + " AND name <= " + p2 +
+                   " COLLATE NATURALNOCASE))";
+
         default:
             return buildBoundingWhereForListAll(OrderByClause::DEFAULT_ASC, startParam);
     }
@@ -2814,12 +2882,13 @@ std::string buildBoundingWhereForListAll(int order, int startParam)
 // Cursor WHERE clause for resuming pagination at the row after the last seen item.
 // `type` is omitted since all results are FILENODEs. startParam is the first ?N slot.
 // Slot layout matches bindCursorParamsForListAll:
-//   DEFAULT_ASC/DESC  : p1=name,   p2=handle
-//   SIZE_ASC/DESC     : p1=size,   p2=name,  p3=handle
-//   MTIME_ASC/DESC    : p1=mtime,  p2=name,  p3=handle
-//   FAV_ASC/DESC      : p1=fav,    p2=name,  p3=handle
-//   LABEL_ASC         : p1=isZero, p2=label, p3=name, p4=handle
-//   LABEL_DESC        : p1=label,  p2=name,  p3=handle
+//   DEFAULT_ASC/DESC  : p1=name,    p2=handle
+//   SIZE_ASC/DESC     : p1=size,    p2=name,  p3=handle
+//   MTIME_ASC/DESC    : p1=mtime,   p2=name,  p3=handle
+//   FAV_ASC/DESC      : p1=fav,     p2=name,  p3=handle
+//   LABEL_ASC         : p1=isZero,  p2=label, p3=name, p4=handle
+//   LABEL_DESC        : p1=label,   p2=name,  p3=handle
+//   MEDIATS_ASC/DESC  : p1=mediats, p2=name,  p3=handle
 std::string buildCursorWhereForListAll(int order, int startParam)
 {
     const std::string p1 = "?" + std::to_string(startParam);
@@ -2914,6 +2983,22 @@ std::string buildCursorWhereForListAll(int order, int startParam)
                    p1 + " AND name = " + p2 + " COLLATE NATURALNOCASE AND nodehandle > " + p3 +
                    "))";
 
+        case OrderByClause::MEDIATS_ASC:
+            // ORDER BY mediats ASC, name ASC, nodehandle ASC
+            return "(mediats > " + p1 + " OR (mediats = " + p1 + " AND name > " + p2 +
+                   " COLLATE NATURALNOCASE)"
+                   " OR (mediats = " +
+                   p1 + " AND name = " + p2 + " COLLATE NATURALNOCASE AND nodehandle > " + p3 +
+                   "))";
+
+        case OrderByClause::MEDIATS_DESC:
+            // ORDER BY mediats DESC, name DESC, nodehandle DESC
+            return "(mediats < " + p1 + " OR (mediats = " + p1 + " AND name < " + p2 +
+                   " COLLATE NATURALNOCASE)"
+                   " OR (mediats = " +
+                   p1 + " AND name = " + p2 + " COLLATE NATURALNOCASE AND nodehandle < " + p3 +
+                   "))";
+
         default:
             return buildCursorWhereForListAll(OrderByClause::DEFAULT_ASC, startParam);
     }
@@ -2991,6 +3076,15 @@ bool bindCursorParamsForListAll(int& sqlResult,
             bindValue(sqlResult, stmt, kP3, h, bindI64);
             break;
 
+        case OrderByClause::MEDIATS_ASC:
+        case OrderByClause::MEDIATS_DESC:
+            if (!cursor.mLastMediaTs.has_value())
+                return false;
+            bindValue(sqlResult, stmt, kP1, *cursor.mLastMediaTs, bindI64);
+            bindText(sqlResult, stmt, kP2, cursor.mLastName);
+            bindValue(sqlResult, stmt, kP3, h, bindI64);
+            break;
+
         default:
             return bindCursorParamsForListAll(sqlResult,
                                               stmt,
@@ -3016,8 +3110,8 @@ bool bindTimestampAnchorParamForListAll(int& sqlResult,
         return false;
     const auto col = *colOpt;
 
-    // Scale seconds → column units. unitsPerSecond is always 1 today, so the overflow
-    // clamps are dead; they guard a future ms-resolution column against signed-overflow UB.
+    // Scale seconds → column units. mediats is milliseconds, so the clamps below are
+    // live: a bound near int64 max would otherwise overflow the multiply.
     auto scaleSat = [&](int64_t v) -> sqlite3_int64
     {
         if (col.unitsPerSecond > 1)
@@ -3039,8 +3133,7 @@ bool bindTimestampAnchorParamForListAll(int& sqlResult,
 // Result columns for listAllNodesByPage (omits ctime, which no sort order uses).
 const std::string& listAllNodesResultCols()
 {
-    static const std::string s{"nodehandle, counter, node, "
-                               "type, sizeVirtual, mtime, name, label, fav"};
+    static const std::string s = kNodeFetchCols + ", type, sizeVirtual, mtime, name, label, fav";
     return s;
 }
 
@@ -3596,35 +3689,36 @@ std::string buildGroupedMimeInListClause(MimeType_t mimeType)
 // Cache key for mStmtListAllNodesByPage. Distinct SQL shapes never collide
 // on one prepared statement — numRoots / numExcludes set IN-list arity;
 // excludeSensitive gates a WHERE clause; hasCursor adds cursor predicates;
-// anchorDir picks one of three half-bound shapes (none / >= / <).
+// anchorOrder picks the half-bound shape: none, or `>=` / `<` on the anchor's own
+// timestamp column.
 // locationScope is omitted: it only picks rootnodes; SQL depends only on
 // numRoots.
 //
-// Digit order: mimeType, fileSubType, order, hasCursor, anchorDir,
+// Digit order: mimeType, fileSubType, order, hasCursor, anchorOrder,
 // excludeSensitive, numRoots-1, numExcludes, favourite (see the append() chain below for each
 // base).
 size_t computeListAllCacheId(MimeType_t mimeType,
                              FileSubType_t fileSubType,
                              int order,
                              bool hasCursor,
-                             AnchorDirectionDigit anchorDir,
+                             int anchorOrder,
                              bool excludeSensitive,
                              size_t numRoots,
                              size_t numExcludes,
                              FavouriteFilter_t favourite)
 {
     assert(numRoots > 0); // numRoots - 1 below would underflow; append() bounds the rest
+    assert(anchorOrder >= 0 && static_cast<size_t>(anchorOrder) < kListAllOrderStride);
 
-    // anchorDir encodes only the anchor direction, not which timestamp column.
-    // Safe only while timestampColumnForOrder() has a single column (mtime); a
-    // second column would need its identity folded in here too (see the warning
-    // at timestampColumnForOrder).
+    // The anchor digit is the anchor's own OrderByClause value (0 = no anchor), so it
+    // identifies the column as well as the direction — any order timestampColumnForOrder()
+    // accepts gets its own slot, and a new timestamp column cannot be forgotten here.
     return CacheKeyBuilder{}
         .append(static_cast<size_t>(mimeType), kMimeTypeCount)
         .append(static_cast<size_t>(fileSubType), kFileSubTypeStride)
         .append(static_cast<size_t>(order), kListAllOrderStride)
         .append(hasCursor ? 1u : 0u, 2)
-        .append(static_cast<size_t>(anchorDir), kAnchorDirectionStride)
+        .append(static_cast<size_t>(anchorOrder), kListAllOrderStride)
         .append(excludeSensitive ? 1u : 0u, 2)
         .append(numRoots - 1, kListAllMaxRoots)
         .append(numExcludes, kListAllMaxExcludes + 1)
@@ -3633,7 +3727,7 @@ size_t computeListAllCacheId(MimeType_t mimeType,
 }
 
 // Cache key for mStmtDateSections — same shape as computeListAllCacheId but
-// with a base-3 granularity digit instead of hasCursor + anchorDir (the
+// with a base-3 granularity digit instead of hasCursor + anchorOrder (the
 // section query has no cursor and no timestamp-anchor filter). The tz offset is
 // a bound value, not part of the SQL text, so it needs no key digit. Declared in
 // include/mega/db/sqlite.h for the same test-reach reason as above.
@@ -3823,18 +3917,15 @@ bool SqliteAccountState::listAllNodesByPage(
     // Group mime types use literal per-route WHERE clauses in CTEs — no parameter slot needed.
     const bool mimeFilterNeedsParam = !isGroupMimeType;
 
-    // Anchor presence + direction (none / ASC / DESC) is a base-3 cache-key
-    // digit. Direction comes from the anchor's own sectionOrder, so the ASC and
-    // DESC SQL shapes get distinct cache slots.
-    const AnchorDirectionDigit anchorDir = !hasTimestampAnchor ? AnchorDirectionDigit::None :
-                                           isAscOrder(params.timestampAnchor->mOrder) ?
-                                                                 AnchorDirectionDigit::Asc :
-                                                                 AnchorDirectionDigit::Desc;
+    // Anchor digit: the anchor's own sectionOrder, or 0 for no anchor. The order value
+    // identifies both the column and the direction, so mtime and mediats anchors over an
+    // otherwise identical filter never share a prepared statement.
+    const int timestampAnchorOrder = hasTimestampAnchor ? params.timestampAnchor->mOrder : 0;
     const size_t cacheId = computeListAllCacheId(params.mimeType,
                                                  params.fileSubType,
                                                  params.order,
                                                  hasCursor,
-                                                 anchorDir,
+                                                 timestampAnchorOrder,
                                                  params.excludeSensitive,
                                                  numRoots,
                                                  numExcludes,
@@ -3853,7 +3944,6 @@ bool SqliteAccountState::listAllNodesByPage(
     const int excludeHandleParam = filesRootParam + static_cast<int>(numRoots);
     const int timestampAnchorParam = excludeHandleParam + static_cast<int>(numExcludes);
     const int cursorStartParam = timestampAnchorParam + (hasTimestampAnchor ? 1 : 0);
-    const int timestampAnchorOrder = hasTimestampAnchor ? params.timestampAnchor->mOrder : 0;
 
     const SubtreeScopeSql scope{filesRootParam,
                                 numRoots,
@@ -4178,12 +4268,9 @@ bool SqliteAccountState::getNodesByFingerprintNoMtime(
     int sqlResult = SQLITE_OK;
     if (!mStmtNodesByFpNoMtime)
     {
-        sqlResult = sqlite3_prepare_v2(
-            db,
-            "SELECT nodehandle, counter, node FROM nodes WHERE fingerprintVirtual = ?",
-            -1,
-            &mStmtNodesByFpNoMtime,
-            NULL);
+        static const std::string sqlQuery =
+            "SELECT " + kNodeFetchCols + " FROM nodes WHERE fingerprintVirtual = ?";
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodesByFpNoMtime, NULL);
     }
 
     bool result = false;
@@ -4219,7 +4306,9 @@ bool SqliteAccountState::getNodeByFingerprint(const std::string &fingerprint, me
     int sqlResult = SQLITE_OK;
     if (!mStmtNodeByFp)
     {
-        sqlResult = sqlite3_prepare_v2(db, "SELECT nodehandle, counter, node FROM nodes WHERE fingerprint = ? LIMIT 1", -1, &mStmtNodeByFp, NULL);
+        static const std::string sqlQuery =
+            "SELECT " + kNodeFetchCols + " FROM nodes WHERE fingerprint = ? LIMIT 1";
+        sqlResult = sqlite3_prepare_v2(db, sqlQuery.c_str(), -1, &mStmtNodeByFp, NULL);
     }
 
     bool result = false;
@@ -4259,7 +4348,7 @@ bool SqliteAccountState::getRecentNodes(const NodeSearchPage& page,
     constexpr uint64_t excludeFlags =
         (1 << Node::FLAGS_IS_VERSION | 1 << Node::FLAGS_IS_IN_RUBBISH);
     static const std::string filenode = std::to_string(FILENODE);
-    static const std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node "
+    static const std::string sqlQuery = "SELECT n1.nodehandle, n1.counter, n1.node, n1.mediats "
                                         "FROM nodes n1 "
                                         "WHERE n1.flags & " +
                                         std::to_string(excludeFlags) +
@@ -4346,7 +4435,9 @@ bool SqliteAccountState::childNodeByNameType(NodeHandle parentHandle, const std:
         return success;
     }
 
-    std::string sqlQuery = "SELECT nodehandle, counter, node FROM nodes WHERE parenthandle = ? AND name = ? AND type = ? limit 1";
+    std::string sqlQuery = "SELECT " + kNodeFetchCols +
+                           " FROM nodes WHERE "
+                           "parenthandle = ? AND name = ? AND type = ? limit 1";
 
     int sqlResult = SQLITE_OK;
     if (!mStmtChildNode)
@@ -4813,6 +4904,10 @@ std::string OrderByClause::get(int order)
             return "fav DESC," + typeSort + ", " + nameSort;
         case FAV_DESC:
             return "fav, " + typeSort + ", " + nameSort;
+        case MEDIATS_ASC:
+            return typeSort + ", " + "mediats, " + nameSort;
+        case MEDIATS_DESC:
+            return typeSort + ", " + "mediats DESC, " + nameSort + " DESC";
         default:
             return typeSort + ", " + nameSort;
     }
@@ -4952,6 +5047,36 @@ std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::TagsType::fromNodeD
 bool SqliteDbAccess::TagsType::hasValidValue() const
 {
     return mValue.size() > 0;
+}
+
+SqliteDbAccess::MediaTsType::MediaTsType(uint64_t value):
+    mValue(value)
+{}
+
+bool SqliteDbAccess::MediaTsType::bindToDb(sqlite3_stmt* stmt,
+                                           const std::map<int, int>& lookupId) const
+{
+    if (sqlite3_bind_int64(stmt, lookupId.at(COMPONENT), static_cast<sqlite3_int64>(mValue)) !=
+        SQLITE_OK)
+    {
+        LOG_err << "Db error during migration while binding mediats value";
+        sqlite3_finalize(stmt);
+        return false;
+    }
+    return true;
+}
+
+std::unique_ptr<SqliteDbAccess::MigrateType> SqliteDbAccess::MediaTsType::fromNodeData(NodeData& nd)
+{
+    if (nd.getType() != FILENODE)
+        return std::make_unique<MediaTsType>(0);
+    return std::make_unique<MediaTsType>(
+        computeMediaTsIfMediaFile(nd.getName(), nd.getMtime(), nd.getRowCtime()));
+}
+
+bool SqliteDbAccess::MediaTsType::hasValidValue() const
+{
+    return mValue > 0;
 }
 
 } // namespace

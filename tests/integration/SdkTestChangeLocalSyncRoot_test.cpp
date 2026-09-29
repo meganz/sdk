@@ -442,6 +442,8 @@ TEST_F(SdkTestSyncLocalRootChange, ErrorNestedSyncSymLink)
         EXPECT_TRUE(mockListener.waitForFinishOrTimeout(MAX_TIMEOUT));
         std::filesystem::remove(linkName);
     }
+
+    ASSERT_NO_FATAL_FAILURE(removeSync(megaApi[0].get(), dir2BackupId));
 }
 
 /**
@@ -884,7 +886,7 @@ public:
         const LocalTempDir tmpDir{"./auxTmp" + testName};
         prepareSimilarRoot(tmpDir.getPath());
 
-        MegaSync::SyncRunningState expectedRunState;
+        std::optional<MegaSync::SyncRunningState> expectedRunState;
         switch (action)
         {
             case StopAction::pause:
@@ -904,11 +906,12 @@ public:
                 break;
             }
         }
-        ASSERT_EQ(getSyncRunState(), std::optional{expectedRunState});
+        ASSERT_TRUE(expectedRunState.has_value());
+        ASSERT_EQ(getSyncRunState(), expectedRunState);
 
         LOG_verbose << logPrefix << "Changing the root";
         ASSERT_NO_FATAL_FAILURE(changeLocalSyncRootNoErrors(tmpDir.getPath()));
-        ASSERT_EQ(getSyncRunState(), std::optional{expectedRunState});
+        ASSERT_EQ(getSyncRunState(), expectedRunState);
 
         LOG_verbose << logPrefix << "Resuming the backup sync";
         ASSERT_TRUE(sdk_test::resumeSync(megaApi[0].get(), getBackupId()))

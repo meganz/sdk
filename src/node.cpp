@@ -25,6 +25,7 @@
 #include "mega/base64.h"
 #include "mega/heartbeats.h"
 #include "mega/logging.h"
+#include "mega/mediats_utils.h"
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/scoped_helpers.h"
@@ -869,9 +870,27 @@ void Node::setattr()
 
     setfingerprint();
 
+    // Compute mediats now that name and mtime are available.
+    // This ensures onNodesUpdate callbacks see the correct value,
+    // rather than waiting for putNodeInDb() which runs after the callback.
+    updateMediaTs();
+
     delete[] buf;
 
     attrstring.reset();
+}
+
+void Node::updateMediaTs()
+{
+    if (type == FILENODE && hasName())
+    {
+        const char* name = displayname(LOG_CONDITION_DISABLE_NO_KEY);
+        mMediaTs = (name && *name) ? computeMediaTsIfMediaFile(name, mtime, ctime) : 0;
+    }
+    else
+    {
+        mMediaTs = 0;
+    }
 }
 
 nameid Node::sdsId()
@@ -1862,6 +1881,22 @@ handle NodeData::getHandle()
     }
 
     return mHandle;
+}
+
+std::string NodeData::getName()
+{
+    if (readFailed())
+        return std::string();
+
+    auto it = mAttrs.map.find('n');
+    return (it != mAttrs.map.end()) ? it->second : std::string();
+}
+
+nodetype_t NodeData::getType()
+{
+    if (readFailed())
+        return TYPE_UNKNOWN;
+    return mType;
 }
 
 std::shared_ptr<Node> NodeData::createNode(MegaClient& client,

@@ -53,6 +53,11 @@ pipeline {
         APIURL_TO_TEST = ''
         GTEST_REPEAT = ''
         GTEST_FILTER = ''
+        // SDK-5360 fu7-17 G6.S1: opt-in gates parsed from $gitlabTriggerPhrase (see
+        // 'Get build and run paramters' stage). Default 'false' so the bench+tsan
+        // stages are skipped on regular MRs (HR14: bench gate only on wsupload-touching).
+        RUN_TSAN_SWEEP = 'false'
+        RUN_BENCH_SWEEP = 'false'
     }
 
     stages {
@@ -85,11 +90,15 @@ pipeline {
                                     GTEST_FILTER = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-gtest_filter=[^ ]*" | awk -F "gtest_filter="  \'{print "--gtest_filter="\$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
+                                    RUN_TSAN_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-tsan" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                                    RUN_BENCH_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-bench" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
                                     println CUSTOM_TIMEOUT
+                                    println "RUN_TSAN_SWEEP=${RUN_TSAN_SWEEP}"
+                                    println "RUN_BENCH_SWEEP=${RUN_BENCH_SWEEP}"
                                 }
                             }
                         }
@@ -176,15 +185,20 @@ pipeline {
                         BUILD_DIR = "build_dir"
                     }
                     steps{
-                        timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
-                            script {
-                                def lockLabel = ''
-                                if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
-                                    lockLabel = 'SDK_Concurrent_Test_Accounts'
-                                } else  {
-                                    lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
-                                }
-                                lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                        // S13 round-3 (Cluster J): the account-lock WAIT must not burn the test
+                        // timeout — macOS/Windows nest lock{ timeout{ } } but linux nested them
+                        // the other way round, so a job queued behind the single shared
+                        // SDK_Concurrent_Test_Accounts resource could abort on CUSTOM_TIMEOUT
+                        // without running a single test. Match the other platforms.
+                        script {
+                            def lockLabel = ''
+                            if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts'
+                            } else  {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                            }
+                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                timeout(time: "${CUSTOM_TIMEOUT}", unit: 'MINUTES') {
                                     dir("${linux_sources_workspace}") {
                                         script{
                                             env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
@@ -206,6 +220,15 @@ pipeline {
                                                 gzip -c gfxworker_test_integration.log > gfxworker_test_integration_${BUILD_ID}.log.gz || :
                                                 rm gfxworker_test_integration.log || :
                                             fi
+                                        fi
+
+                                        # SDK-5360 fu8 S12 C(ii): provision the QaMixed real-media dataset on a
+                                        # persistent per-agent path so SdkBenchmarkTest.QaMixedUpload RUNS instead
+                                        # of skipping. HarvestQaMixedDataset is idempotent (skips files already
+                                        # present at the right size), so this is a one-time download per agent.
+                                        export MEGA_BENCH_UPLOAD_SOURCE_DIR=\"\${HOME}/mega_bench_dataset/qa_mixed\"
+                                        if [ -z \"\$FAILED\" ]; then
+                                            ${env.BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} --gtest_filter=SdkTest.HarvestQaMixedDataset || FAILED=2
                                         fi
 
                                         if [ -z \"\$FAILED\" ]; then
@@ -275,6 +298,13 @@ pipeline {
 
                                         gzip -c test_integration.log > test_integration_${BUILD_ID}.log.gz || :
                                         rm test_integration.log || :
+                                        # Archive bench_framework reports (fu7-5 G6 + fu7-18 G1). Two files per
+                                        # test_integration PID, emitted when MEGA_BENCH_FRAMEWORK_ENABLED: a
+                                        # per-iter JSONL (mid-run safe) plus a consolidated JSON written at
+                                        # tear-down. Both live under pid_<PID>/bench_reports/.
+                                        for benchReport in pid_*/bench_reports/bench_report_*.json pid_*/bench_reports/bench_report_*.jsonl; do
+                                            [ -f \"\$benchReport\" ] && cp \"\$benchReport\" .
+                                        done
                                         if [ -n \"\$FAILED\" ]; then
                                             exit \"\$FAILED\"
                                         fi
@@ -299,6 +329,204 @@ pipeline {
                         }
                     }
                 }
+                stage('Build TSAN') {
+                    when {
+                        expression { return RUN_TSAN_SWEEP == 'true' }
+                    }
+                    options {
+                        timeout(time: 120, unit: 'MINUTES')
+                    }
+                    environment {
+                        VCPKGPATH = "/opt/vcpkg"
+                        TSAN_BUILD_DIR = "build_dir_tsan"
+                        VCPKG_BINARY_SOURCES  = 'clear;x-aws,s3://vcpkg-cache/archives/,readwrite'
+                        AWS_ACCESS_KEY_ID     = credentials('s4_access_key_id_vcpkg_cache')
+                        AWS_SECRET_ACCESS_KEY = credentials('s4_secret_access_key_vcpkg_cache')
+                        AWS_ENDPOINT_URL      = "https://s3.g.s4.mega.io"
+                    }
+                    steps {
+                        dir("${linux_sources_workspace}") {
+                            sh "rm -rf ${TSAN_BUILD_DIR}; mkdir ${TSAN_BUILD_DIR}"
+                            sh "echo Building SDK with TSAN"
+                            sh "cmake -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DENABLE_TSAN=ON -DVCPKG_ROOT=${VCPKGPATH} \
+                            ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${TSAN_BUILD_DIR}"
+                            sh "cmake --build ${linux_sources_workspace}/${TSAN_BUILD_DIR} -j5 --target test_integration"
+                        }
+                    }
+                    post {
+                        failure {
+                            echo "Error: TSAN build stage failed. TSAN sweep skipped."
+                        }
+                    }
+                }
+                stage('Run Benchmarks') {
+                    when {
+                        expression { return RUN_BENCH_SWEEP == 'true' }
+                    }
+                    environment {
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        BUILD_DIR = "build_dir"
+                        // SDK-5360 fu7-17 G6.S1: BENCH_FILTER is the fallback used when the user
+                        // did NOT supply --gtest_filter= alongside --bench in the trigger phrase.
+                        // When GTEST_FILTER is non-empty it wins; otherwise this default runs the
+                        // full SdkBenchmarkTest.* cell.
+                        BENCH_FILTER = "SdkBenchmarkTest.*"
+                    }
+                    steps {
+                        timeout(time: 120, unit: 'MINUTES') {
+                            script {
+                                def lockLabel = ''
+                                if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts'
+                                } else  {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                                }
+                                lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                    dir("${linux_sources_workspace}") {
+                                        script{
+                                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                        }
+                                        sh """#!/bin/bash
+                                        set -x
+                                        ulimit -c unlimited
+                                        # Bench cells emit bench_report_<PID>.json when MEGA_BENCH_FRAMEWORK_ENABLED=ON;
+                                        # the framework cmake option must be enabled at configure time. The default MR
+                                        # build does not enable it, so a separate configure+build under
+                                        # ${env.BUILD_DIR}_bench keeps the bench artifacts isolated from the main build.
+                                        rm -rf ${env.BUILD_DIR}_bench; mkdir ${env.BUILD_DIR}_bench
+                                        cmake -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DMEGA_BENCH_FRAMEWORK_ENABLED=ON -DVCPKG_ROOT=/opt/vcpkg \
+                                            \${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${env.BUILD_DIR}_bench
+                                        cmake --build ${linux_sources_workspace}/${env.BUILD_DIR}_bench -j5 --target test_integration
+                                        # SDK-5360 fu7-17 G6.S1: prefer user-supplied --gtest_filter= when present.
+                                        # GTEST_FILTER (line ~85) already includes the --gtest_filter= prefix when set.
+                                        # GTEST_REPEAT (line ~84) is appended unconditionally; empty when not given.
+                                        if [ -n \"${GTEST_FILTER}\" ]; then
+                                            BENCH_FILTER_ARG=\"${GTEST_FILTER}\"
+                                        else
+                                            BENCH_FILTER_ARG=\"--gtest_filter=${env.BENCH_FILTER}\"
+                                        fi
+                                        ${env.BUILD_DIR}_bench/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$BENCH_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee bench_sweep.log || true
+                                        # Copy bench reports (consolidated JSON + per-iter JSONL, fu7-18 G1) from
+                                        # the bench-build's pid_<PID>/bench_reports/ dirs to top-level for archival.
+                                        for benchReport in ${env.BUILD_DIR}_bench/pid_*/bench_reports/bench_report_*.json ${env.BUILD_DIR}_bench/pid_*/bench_reports/bench_report_*.jsonl pid_*/bench_reports/bench_report_*.json pid_*/bench_reports/bench_report_*.jsonl; do
+                                            [ -f "\$benchReport" ] && cp "\$benchReport" .
+                                        done
+                                        # SDK-5360 fu7-12 G5.c: per-cell bench log split. csplit on gtest [ RUN ]
+                                        # markers, rename per-cell, tar.gz into bench_logs_${BUILD_ID}.tar.gz so
+                                        # reviewers can wget one cell directly (analogous to gfx-log separation).
+                                        mkdir -p bench_logs_${BUILD_ID} || :
+                                        if [ -s bench_sweep.log ]; then
+                                            csplit -z -s -b '%04d' -f bench_logs_${BUILD_ID}/_split_ bench_sweep.log '/\\[ RUN      \\]/' '{*}' || :
+                                            for sf in bench_logs_${BUILD_ID}/_split_*; do
+                                                [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                [ -n "\$cellName" ] || cellName="preamble"
+                                                mv "\$sf" "bench_logs_${BUILD_ID}/\${cellName}.log" || :
+                                            done
+                                        fi
+                                        tar -czf bench_logs_${BUILD_ID}.tar.gz bench_logs_${BUILD_ID} || :
+                                        rm -rf bench_logs_${BUILD_ID} || :
+                                        gzip -c bench_sweep.log > bench_sweep_${BUILD_ID}.log.gz || :
+                                        rm bench_sweep.log || :
+                                        """
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        failure {
+                            echo 'Error: Bench sweep failed'
+                        }
+                    }
+                }
+                stage('Run TSAN sweep') {
+                    when {
+                        expression { return RUN_TSAN_SWEEP == 'true' }
+                    }
+                    environment {
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        TSAN_BUILD_DIR = "build_dir_tsan"
+                        TSAN_OPTIONS = "halt_on_error=0:second_deadlock_stack=1:history_size=7:report_thread_leaks=0"
+                        // SDK-5360 fu7-12 G5.b: current WS-upload surface cells (post-fu7-7 rename;
+                        // pre-fu7-7 SdkTest.* names removed). HR23 strict: any NEW race on
+                        // surface fields (mChunksInFlight, mUploadingFile, etc.) fails the stage.
+                        // SDK-5360 fu7-17 G6.S1: this is the fallback used when the user did
+                        // NOT supply --gtest_filter= alongside --tsan. User filter wins below.
+                        // SDK-5360 fu8 S12: + the two watchdog cells (CI TSAN previously never covered
+                        // the watchdog/pause recovery paths; S11 carry-over ruled in by the user).
+                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion:SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool:SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds"
+                    }
+                    steps {
+                        timeout(time: 90, unit: 'MINUTES') {
+                            script {
+                                def lockLabel = ''
+                                if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts'
+                                } else  {
+                                    lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                                }
+                                lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                    dir("${linux_sources_workspace}") {
+                                        script{
+                                            env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                        }
+                                        sh """#!/bin/bash
+                                        set -x
+                                        ulimit -c unlimited
+                                        # SDK-5360 fu7-17 G6.S1: prefer user-supplied --gtest_filter= when present.
+                                        # GTEST_FILTER already includes the --gtest_filter= prefix when set.
+                                        if [ -n \"${GTEST_FILTER}\" ]; then
+                                            TSAN_FILTER_ARG=\"${GTEST_FILTER}\"
+                                        else
+                                            TSAN_FILTER_ARG=\"--gtest_filter=${TSAN_SURFACE_FILTER}\"
+                                        fi
+                                        ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$TSAN_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee tsan_sweep.log || true
+                                        # Surface race summary: total reports + WS-upload surface field hits
+                                        echo "===TSAN SUMMARY==="
+                                        grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || echo 0
+                                        echo "===WS-UPLOAD SURFACE FIELDS==="
+                                        for fld in mChunksInFlight mNumChunksInFlight mUploadingFile WsConn::mLastActive WsConn::mPausedByServerUntilDs WsConn::mReadyState WsUploadFile mWorkGeneration; do
+                                            cnt=\$(grep -cE "\$fld" tsan_sweep.log || echo 0)
+                                            echo "\$fld: \$cnt"
+                                            if [ \"\$cnt\" != \"0\" ]; then
+                                                echo "[ERROR] new WS-upload surface race on \$fld" >&2
+                                                exit 1
+                                            fi
+                                        done
+                                        # SDK-5360 fu7-17 G6.S1: per-cell TSAN log split (same shape as bench).
+                                        # csplit on gtest [ RUN ] markers, rename per-cell, tar.gz so reviewers
+                                        # can wget one cell's TSAN output directly.
+                                        mkdir -p tsan_logs_${BUILD_ID} || :
+                                        if [ -s tsan_sweep.log ]; then
+                                            csplit -z -s -b '%04d' -f tsan_logs_${BUILD_ID}/_split_ tsan_sweep.log '/\\[ RUN      \\]/' '{*}' || :
+                                            for sf in tsan_logs_${BUILD_ID}/_split_*; do
+                                                [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                [ -n "\$cellName" ] || cellName="preamble"
+                                                mv "\$sf" "tsan_logs_${BUILD_ID}/\${cellName}.log" || :
+                                            done
+                                        fi
+                                        tar -czf tsan_logs_${BUILD_ID}.tar.gz tsan_logs_${BUILD_ID} || :
+                                        rm -rf tsan_logs_${BUILD_ID} || :
+                                        gzip -c tsan_sweep.log > tsan_sweep_${BUILD_ID}.log.gz || :
+                                        rm tsan_sweep.log || :
+                                        """
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        failure {
+                            echo 'Error: TSAN sweep failed — NEW WS-upload surface race detected'
+                        }
+                    }
+                }
             }
             post{
                 always {
@@ -306,7 +534,7 @@ pipeline {
                         echo "Final cleanup of any stale MEGA-FS mounts"
                         sh "./cleanup.sh '${env.WORKSPACE}'"
                     }
-                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz', fingerprint: true
+                    archiveArtifacts artifacts: '*test_integration*, core.tar.gz, bench_report_*.json, bench_report_*.jsonl, tsan_sweep*.log.gz, bench_sweep*.log.gz, bench_logs_*.tar.gz, tsan_logs_*.tar.gz', fingerprint: true, allowEmptyArchive: true
                     deleteDir()
                 }
             }

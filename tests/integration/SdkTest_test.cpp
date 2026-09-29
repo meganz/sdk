@@ -32,21 +32,41 @@
 #include "mega/types.h"
 #include "megaapi.h"
 #include "megaapi_impl.h"
+#include "benchmark/headers/BenchmarkRunners.h"
+#include "benchmark/headers/SdkBenchmarkTest.h"
 #include "megautils.h"
 #include "mock_listeners.h"
 #include "sdk_test_utils.h"
 #include "test.h"
+#include "wsupload/headers/SecondTimer.h"
+#include "wsupload/headers/TransferTempErrorTracker.h"
+#include "wsupload/headers/WsUscCommand.h"
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+#include "bench_framework/headers/BenchReportWriter.h"
+#endif
 
 #include <gtest/gtest.h>
 
 #include <algorithm>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdint>
+#include <fstream>
+#include <iterator>
 #include <map>
 #include <mutex>
+#include <optional>
+#include <random>
 #include <set>
 #include <sstream>
+#include <system_error>
+
+#ifndef _WIN32
+#include <sys/resource.h>
+#endif
+#include <thread>
+#include <unordered_map>
 #include <vector>
 
 #if !defined(WIN32) && defined(ENABLE_ISOLATED_GFX)
@@ -58,6 +78,10 @@ using ::mega::gfx::SocketUtils;
         (  std::ostringstream() << std::dec << x ) ).str()
 
 using namespace std;
+
+using ::mega::test::wsupload::fetchUscSizeClasses;
+using ::mega::test::wsupload::second_timer;
+using ::mega::test::wsupload::TransferTempErrorTracker;
 
 std::unique_ptr<::mega::FileSystemAccess> fileSystemAccess = ::mega::createFSA();
 
@@ -223,6 +247,7 @@ namespace
         fs << name;
         return true;
     }
+
 
     //
     // Get a new endpoint name without conflicts with any running instances
@@ -422,6 +447,37 @@ void SdkTest::TearDown()
         releaseMegaApi(i);
     }
     sdk_test::resetScParserMode();
+
+    // Cumulative RSS + CPU snapshot per cell, written to test_integration.log.
+    // Used by the bench-vs-develop comparison tooling to compute Δ on non-bench
+    // cells (bench cells already write bench_report JSON via BenchProcessStats).
+    // Cheap (single getrusage call).
+#if defined(__unix__) || defined(__APPLE__)
+    {
+        struct rusage ru
+        {};
+        if (getrusage(RUSAGE_SELF, &ru) == 0)
+        {
+            const auto suiteAndName = getTestSuiteAndName();
+            const std::int64_t rssMaxKb =
+#if defined(__APPLE__)
+                static_cast<std::int64_t>(ru.ru_maxrss) / 1024;
+#else
+                static_cast<std::int64_t>(ru.ru_maxrss);
+#endif
+            const std::int64_t userMs =
+                static_cast<std::int64_t>(ru.ru_utime.tv_sec) * 1000 +
+                static_cast<std::int64_t>(ru.ru_utime.tv_usec) / 1000;
+            const std::int64_t sysMs =
+                static_cast<std::int64_t>(ru.ru_stime.tv_sec) * 1000 +
+                static_cast<std::int64_t>(ru.ru_stime.tv_usec) / 1000;
+            LOG_info << "[ProcessStats] suite=" << suiteAndName.first
+                     << " name=" << suiteAndName.second << " rss_max_kb=" << rssMaxKb
+                     << " user_cpu_ms=" << userMs << " sys_cpu_ms=" << sysMs;
+        }
+    }
+#endif
+
     out() << "Teardown done, test exiting";
 }
 
@@ -2255,6 +2311,54 @@ bool SdkTest::createFile(string filename, bool largeFile, string content)
     }
 }
 
+bool SdkTest::createFileWithSize(string filename, size_t fileSize, std::string_view fillPattern)
+{
+    fs::path path = u8path_compat(filename);
+    std::error_code ignoredEc;
+    fs::remove(path, ignoredEc);
+
+    std::ofstream file(path, std::ios::binary | std::ios::trunc);
+    if (!file)
+    {
+        return false;
+    }
+
+    if (fillPattern.empty())
+    {
+        fillPattern = "X";
+    }
+
+    constexpr size_t kBlockSize = 64 * 1024;
+    std::string block;
+    block.reserve(kBlockSize);
+    while (block.size() < kBlockSize)
+    {
+        const size_t chunk = std::min(fillPattern.size(), kBlockSize - block.size());
+        block.append(fillPattern.data(), chunk);
+    }
+
+    for (size_t remaining = fileSize; remaining > 0;)
+    {
+        const size_t chunk = std::min(block.size(), remaining);
+        file.write(block.data(), static_cast<std::streamsize>(chunk));
+        if (!file)
+        {
+            return false;
+        }
+        remaining -= chunk;
+    }
+
+    file.close();
+    if (!file.good())
+    {
+        return false;
+    }
+
+    std::error_code sizeEc;
+    const auto actualSize = fs::file_size(path, sizeEc);
+    return !sizeEc && actualSize == static_cast<uintmax_t>(fileSize);
+}
+
 int64_t SdkTest::getFilesize(string filename)
 {
     struct stat stat_buf;
@@ -3755,6 +3859,296 @@ TEST_F(SdkTest, SdkTestUploadMacReadError)
 
     LOG_info << logPre << "Test completed";
 }
+
+namespace
+{
+
+// generateMetaMac grows its chunk by 128 KB per iteration up to 1 MB, so 256 KB is
+// exactly two chunks: one to cancel from, and one that must not be read.
+constexpr size_t TWO_CHUNK_FILE_SIZE = 256 * 1024;
+
+/**
+ * @brief Counts MAC comparisons and cancels the token after the first chunk read.
+ *
+ * Removes both hooks on destruction: they are global, so leaving them installed would
+ * corrupt later tests even if this one fails an ASSERT.
+ */
+class CancelOnFirstChunk
+{
+public:
+    explicit CancelOnFirstChunk(MegaCancelToken* token)
+    {
+        globalMegaTestHooks.onLocalFileNodeMacComparison = [this]()
+        {
+            mComparisonAttempts.fetch_add(1);
+        };
+        globalMegaTestHooks.onMacGenerationChunkRead = [this, token](const m_off_t offset)
+        {
+            if (mChunkReads.fetch_add(1) == 0)
+            {
+                LOG_debug << "[SDK-6400 test] cancelling at offset " << offset;
+                token->cancel();
+            }
+        };
+    }
+
+    ~CancelOnFirstChunk()
+    {
+        globalMegaTestHooks.onMacGenerationChunkRead = nullptr;
+        globalMegaTestHooks.onLocalFileNodeMacComparison = nullptr;
+    }
+
+    CancelOnFirstChunk(const CancelOnFirstChunk&) = delete;
+    CancelOnFirstChunk& operator=(const CancelOnFirstChunk&) = delete;
+
+    int chunkReads() const
+    {
+        return mChunkReads.load();
+    }
+
+    int comparisonAttempts() const
+    {
+        return mComparisonAttempts.load();
+    }
+
+private:
+    // Written from the SDK thread, read from the test thread.
+    std::atomic<int> mChunkReads{0};
+    std::atomic<int> mComparisonAttempts{0};
+};
+
+} // namespace
+
+/**
+ * @brief TEST_F SdkTestMetamacCancelStopsUploadDedup
+ *
+ * SDK-6400. The metamac read loop polls its CancelToken once per chunk, so cancelling
+ * during an upload-dedup comparison stops the read at the next chunk boundary rather
+ * than after the whole file.
+ *
+ * 1. Upload a file, so the target folder holds a same-name node with a matching
+ *    fingerprint.
+ * 2. Re-upload the identical file with a cancel token. The same-name branch of
+ *    sendPendingTransfers calls CompareLocalFileWithNodeMacAndFpExludingMtime, which
+ *    reads the whole local file to compute its MAC.
+ * 3. Cancel from the hook after the first chunk.
+ *
+ * The assertion is timing-free: onMacGenerationChunkRead fires at the END of each
+ * iteration while the cancel check sits at the TOP, so the next iteration must return
+ * before reading. The file is exactly two chunks, so a second invocation would mean the
+ * per-chunk check did not take effect.
+ *
+ * A cancelled comparison must also not be mistaken for "the files differ", which would
+ * emit event 800036 and force a needless re-upload.
+ */
+TEST_F(SdkTest, SdkTestMetamacCancelStopsUploadDedup)
+{
+    const auto logPre = getLogPrefix();
+    LOG_info << logPre << "starting";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode) << logPre << "cannot get root node";
+
+    // sdk_test::LocalTempFile rather than createFile: SdkTest has a member
+    // createFile(string, bool largeFile, string content) which hides the namespace-scope
+    // one, so an unqualified call would bind the size to `largeFile` and silently produce
+    // a multi-megabyte file instead.
+    const sdk_test::LocalTempFile localTempFile{"sdk6400_upload_dedup.bin", TWO_CHUNK_FILE_SIZE};
+    const fs::path& localFile = localTempFile.getPath();
+    ASSERT_EQ(fs::file_size(localFile), TWO_CHUNK_FILE_SIZE)
+        << logPre << "the local file is not exactly two metamac chunks";
+
+    LOG_info << logPre << "uploading the original, so a dedup candidate exists";
+    MegaHandle originalHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &originalHandle,
+                            localFile.string().c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << logPre << "failed to upload the original file";
+    ASSERT_NE(originalHandle, UNDEF);
+    const int childrenBeforeCancelledUpload = megaApi[0]->getNumChildren(rootnode.get());
+
+    MrProper removeRemoteNodes{
+        [this, originalHandle]()
+        {
+            std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(originalHandle)};
+            if (n)
+                doDeleteNode(0, n.get());
+        }};
+
+    // MegaCancelToken::createInstance(), not a default-constructed core CancelToken:
+    // the latter has no storage, so cancel() would be a silent no-op.
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    CancelOnFirstChunk hook{cancelToken.get()};
+
+    LOG_info << logPre << "re-uploading with a cancel token";
+    MegaHandle reuploadHandle = UNDEF;
+    const auto result = doStartUpload(0,
+                                      &reuploadHandle,
+                                      localFile.string().c_str(),
+                                      rootnode.get(),
+                                      nullptr /*fileName*/,
+                                      ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                                      nullptr /*appData*/,
+                                      false /*isSourceTemporary*/,
+                                      false /*startFirst*/,
+                                      cancelToken.get());
+
+    MrProper removeReupload{
+        [this, &reuploadHandle, originalHandle]()
+        {
+            if (reuploadHandle == UNDEF || reuploadHandle == originalHandle)
+                return;
+            std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(reuploadHandle)};
+            if (n)
+                doDeleteNode(0, n.get());
+        }};
+
+    EXPECT_EQ(hook.chunkReads(), 1)
+        << logPre
+        << "the metamac loop kept reading after the token was cancelled: the per-chunk "
+           "check did not take effect";
+    EXPECT_EQ(hook.comparisonAttempts(), 1)
+        << logPre << "the cancelled upload-dedup check started another MAC comparison";
+
+    EXPECT_EQ(result, API_EINCOMPLETE)
+        << logPre << "expected the cancelled transfer to report API_EINCOMPLETE";
+    EXPECT_EQ(reuploadHandle, UNDEF) << logPre << "the cancelled transfer still produced a node";
+
+    // The child count on its own does not prove there was no remote write: a putnodes for the
+    // same name in the same folder leaves the count unchanged, filing the previous node as a
+    // version when versioning is on and replacing it outright when it is off. The two checks
+    // below cover both settings - the handle catches a replacement, the version count catches
+    // a new version.
+    EXPECT_EQ(megaApi[0]->getNumChildren(rootnode.get()), childrenBeforeCancelledUpload)
+        << logPre << "the cancelled dedup check created an unexpected remote node";
+
+    const std::unique_ptr<MegaNode> childAfter{
+        megaApi[0]->getChildNode(rootnode.get(), localFile.filename().string().c_str())};
+    ASSERT_TRUE(childAfter) << logPre << "the original node is no longer in the root folder";
+    EXPECT_EQ(childAfter->getHandle(), originalHandle)
+        << logPre << "the cancelled dedup check replaced the original node";
+    EXPECT_EQ(megaApi[0]->getNumVersions(childAfter.get()), 1)
+        << logPre << "the cancelled dedup check added a version to the original node";
+
+    LOG_info << logPre << "done";
+}
+
+/**
+ * @brief TEST_F SdkTestMetamacCancelStopsDownloadCollisionCheck
+ *
+ * SDK-6400, download side. This is the first test in the repository to use
+ * COLLISION_CHECK_METAMAC.
+ *
+ * 1. Upload a file and keep the local copy in place, so the download destination
+ *    already holds identical content.
+ * 2. Download it back with COLLISION_CHECK_METAMAC and a cancel token. The gate in
+ *    sendPendingTransfers opens the existing local file and runs CollisionChecker,
+ *    whose Metamac branch computes the MAC over that whole file.
+ * 3. Cancel from the hook after the first chunk.
+ *
+ * A cancelled check yields Result::Cancelled rather than Download, so the transfer is not
+ * submitted after a comparison that never completed.
+ */
+TEST_F(SdkTest, SdkTestMetamacCancelStopsDownloadCollisionCheck)
+{
+    const auto logPre = getLogPrefix();
+    LOG_info << logPre << "starting";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode) << logPre << "cannot get root node";
+
+    // See the note in the upload test: SdkTest::createFile would hide the one we want.
+    const sdk_test::LocalTempFile localTempFile{"sdk6400_download_collision.bin",
+                                                TWO_CHUNK_FILE_SIZE};
+    const fs::path& localFile = localTempFile.getPath();
+    ASSERT_EQ(fs::file_size(localFile), TWO_CHUNK_FILE_SIZE)
+        << logPre << "the local file is not exactly two metamac chunks";
+
+    LOG_info << logPre << "uploading, then downloading back onto the same local file";
+    MegaHandle uploadedHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &uploadedHandle,
+                            localFile.string().c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << logPre << "failed to upload the file";
+    ASSERT_NE(uploadedHandle, UNDEF);
+
+    std::unique_ptr<MegaNode> uploadedNode{megaApi[0]->getNodeByHandle(uploadedHandle)};
+    ASSERT_TRUE(uploadedNode);
+
+    MrProper removeRemoteNode{[this, &uploadedNode]()
+                              {
+                                  doDeleteNode(0, uploadedNode.get());
+                              }};
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    CancelOnFirstChunk hook{cancelToken.get()};
+
+    std::ifstream originalFile{path_u8string(localFile), std::ios::binary};
+    ASSERT_TRUE(originalFile) << logPre << "cannot read the original local file";
+    const std::string originalContents{std::istreambuf_iterator<char>{originalFile}, {}};
+    // Compared as a tick count rather than as file_time_type: gtest instantiates a printer for
+    // whatever EXPECT_EQ receives, and printing a chrono type goes through std::format, whose
+    // floating-point path needs to_chars - unavailable below macOS 13.3, so it breaks the build
+    // there under -Werror.
+    const auto mtimeTicks = [](const fs::path& p)
+    {
+        return fs::last_write_time(p).time_since_epoch().count();
+    };
+    const auto originalMtimeTicks = mtimeTicks(localFile);
+
+    const auto result = doStartDownload(0,
+                                        uploadedNode.get(),
+                                        localFile.string().c_str(),
+                                        nullptr /*customName*/,
+                                        nullptr /*appData*/,
+                                        false /*startFirst*/,
+                                        cancelToken.get(),
+                                        MegaTransfer::COLLISION_CHECK_METAMAC,
+                                        MegaTransfer::COLLISION_RESOLUTION_OVERWRITE,
+                                        false /*undelete*/);
+
+    EXPECT_EQ(hook.chunkReads(), 1)
+        << logPre
+        << "the metamac loop kept reading after the token was cancelled: the per-chunk "
+           "check did not take effect";
+
+    EXPECT_EQ(result, API_EINCOMPLETE)
+        << logPre << "expected the cancelled transfer to report API_EINCOMPLETE";
+
+    std::ifstream fileAfterCancellation{path_u8string(localFile), std::ios::binary};
+    ASSERT_TRUE(fileAfterCancellation) << logPre << "cannot read the local file after cancellation";
+    const std::string contentsAfterCancellation{
+        std::istreambuf_iterator<char>{fileAfterCancellation},
+        {}};
+    EXPECT_EQ(contentsAfterCancellation, originalContents)
+        << logPre << "the cancelled download changed the local file contents";
+    EXPECT_EQ(mtimeTicks(localFile), originalMtimeTicks)
+        << logPre << "the cancelled download changed the local file mtime";
+
+    LOG_info << logPre << "done";
+}
 #endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 /**
@@ -4372,6 +4766,81 @@ TEST_F(SdkTestDownload, ConflictFileExistingName)
     ASSERT_EQ(transfer->getTotalBytes(), FILE_SIZE);
     // Check transferred bytes to confirm download is skipped
     ASSERT_EQ(transfer->getTransferredBytes(), 0);
+
+    CASE_info << "finished";
+}
+
+/**
+ * This test tries to download a File node to a local name that is too long for the filesystem.
+ *
+ * The download itself succeeds (the temporary file uses a short generated name), but moving it to
+ * the requested target fails with ENAMETOOLONG. That condition cannot be cleared by retrying, so
+ * the transfer must fail straight away with API_EWRITE instead of retrying the completion
+ * FILE_MAX_RETRIES times first.
+ */
+TEST_F(SdkTestDownload, TargetNameTooLongFailsWithoutRetrying)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const fs::path basePath = fs::current_path();
+
+    LOG_debug << "#### TEST1: Create File in cloud drive ####";
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(),
+                                              sdk_test::LocalTempFile{basePath / "testItem", 1},
+                                              rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    LOG_debug << "#### TEST2: Download it with a target name too long for the filesystem ####";
+    // 255 bytes is the longest path component every filesystem we support accepts.
+    const std::string tooLongName(256, 'a');
+
+    // Transfer::complete() sets STATE_COMPLETING and notifies listeners every time it runs, and a
+    // retried completion runs it again, so counting those updates tells whether the failure was
+    // retried. MegaTransfer::getNumRetry() can't be used instead: it only counts temporary-error
+    // callbacks, which this path never fires.
+    const auto nodeHandle = newNode->getHandle();
+    std::atomic<unsigned> completingUpdates{0};
+    testing::NiceMock<MockMegaTransferListener> updateListener{megaApi[0].get()};
+    EXPECT_CALL(updateListener, onTransferUpdate)
+        .WillRepeatedly(
+            [&completingUpdates, nodeHandle](MegaApi*, MegaTransfer* t)
+            {
+                if (t && t->getNodeHandle() == nodeHandle &&
+                    t->getState() == MegaTransfer::STATE_COMPLETING)
+                {
+                    ++completingUpdates;
+                }
+            });
+    megaApi[0]->addTransferListener(&updateListener);
+
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / tooLongName,
+                                                false,
+                                                180s,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                                onTransferFinish);
+
+    ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadNode) has returned nullopt";
+    ASSERT_EQ(*errCode, API_EWRITE) << "Unexpected error code: " << *errCode;
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    // The data did transfer; only moving it to its target failed.
+    ASSERT_EQ(transfer->getTransferredBytes(), 1);
+
+    // One run of Transfer::complete(); each retry of the failed completion would add another.
+    ASSERT_EQ(completingUpdates.load(), 1u)
+        << "The failed completion was retried instead of failing immediately";
 
     CASE_info << "finished";
 }
@@ -6534,17 +7003,6 @@ static void incrementFilename(string& s)
         }
     }
 }
-
-struct second_timer
-{
-    m_time_t t;
-    m_time_t pause_t;
-    second_timer() { t = m_time(); }
-    void reset () { t = m_time(); }
-    void pause() { pause_t = m_time(); }
-    void resume() { t += m_time() - pause_t; }
-    size_t elapsed() { return size_t(m_time() - t); }
-};
 
 namespace mega
 {
@@ -10875,7 +11333,9 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
                             &bulkUploadOptions,
                             &uploadListener);
 
-    ASSERT_EQ(API_OK, uploadListener.waitForResult());
+    // Bulk-upload SETUP can exceed the 60 s default on contended Windows
+    // runners (130 files / shared prod-storage egress).
+    ASSERT_EQ(API_OK, uploadListener.waitForResult(240));
 
     int currentMaxDownloadSpeed = megaApi[0]->getMaxDownloadSpeed();
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(1)); // set a small value for max download speed (bytes per second)
@@ -10942,6 +11402,347 @@ TEST_F(SdkTest, RecursiveDownloadWithLogout)
     auto tracker = asyncRequestLogin(0, mApi[0].email.c_str(), mApi[0].pwd.c_str());
     ASSERT_EQ(API_OK, tracker->waitForResult()) << " Failed to establish a login/session for account " << 0;
     ASSERT_EQ(true, megaApi[0]->setMaxDownloadSpeed(currentMaxDownloadSpeed)); // restore previous max download speed (bytes per second)
+}
+
+/**
+ * @brief TEST_F HarvestQaMixedDataset
+ *
+ * One-shot dataset harvester for the SDK-5360 fu8 QaMixedUpload benchmark. Logs
+ * into a PUBLIC folder link as a guest (no bench account needed), curates ~40
+ * real media files (JPG/PNG) matching the QA size distribution (~210 MB total),
+ * downloads them ONCE into MEGA_BENCH_UPLOAD_SOURCE_DIR (default
+ * $HOME/mega_bench_dataset/qa_mixed), and writes a manifest TSV. The
+ * QaMixedUpload bench cells (candidate SdkBenchmarkTest + develop inline) then
+ * reuse this on-disk dataset across --gtest_repeat runs so the SDK reproduces the
+ * thumbnail/preview fa generation that synthetic .bin files never trigger.
+ *
+ * Run manually ONCE (e.g. --gtest_filter=SdkTest.HarvestQaMixedDataset); it is
+ * idempotent (skips files already present at the right size) and may take minutes
+ * on a slow link. It does NOT depend on the bench account.
+ */
+TEST_F(SdkTest, HarvestQaMixedDataset)
+{
+    constexpr int kNetTimeoutS = 600; // generous: guest login / fetch / per-file download / logout
+    const char* FOLDER_LINK = "https://mega.nz/folder/eZx2TI7Z#g2qzUrS9ausRp0Ua7XD01w";
+
+    // Guest folder-link session (cache idx 90, away from the fixture accounts).
+    // A public folder link needs no bench-account credentials.
+    MegaApiTestPointer api = newMegaApi(APP_KEY.c_str(),
+                                        megaApiCacheFolder(90).c_str(),
+                                        USER_AGENT.c_str(),
+                                        unsigned(THREADS_PER_MEGACLIENT));
+    ASSERT_NE(api.get(), nullptr) << "Cannot create guest folder-link MegaApi";
+
+    RequestTracker loginTracker{api.get()};
+    api->loginToFolder(FOLDER_LINK, &loginTracker);
+    ASSERT_EQ(API_OK, loginTracker.waitForResult(kNetTimeoutS))
+        << "guest loginToFolder failed for: " << FOLDER_LINK;
+
+    RequestTracker fetchTracker{api.get()};
+    api->fetchNodes(&fetchTracker);
+    ASSERT_EQ(API_OK, fetchTracker.waitForResult(kNetTimeoutS)) << "guest fetchNodes failed";
+
+    std::unique_ptr<MegaNode> root{api->getRootNode()};
+    ASSERT_NE(root, nullptr) << "guest folder-link root node not found";
+
+    // Recursively collect every FILE node under the folder-link root. Nodes are
+    // copied out (child->copy()) because the enclosing MegaNodeList owns the
+    // borrowed pointers only for the lifetime of each recursion frame.
+    struct HarvestNode
+    {
+        std::string name;
+        std::int64_t size;
+        std::unique_ptr<MegaNode> node;
+    };
+    std::vector<HarvestNode> discovered;
+    std::function<void(MegaNode*)> collect = [&](MegaNode* parent)
+    {
+        std::unique_ptr<MegaNodeList> children{api->getChildren(parent)};
+        if (!children)
+        {
+            return;
+        }
+        for (int i = 0; i < children->size(); ++i)
+        {
+            MegaNode* child = children->get(i);
+            if (!child)
+            {
+                continue;
+            }
+            if (child->isFolder())
+            {
+                collect(child);
+            }
+            else if (child->isFile())
+            {
+                discovered.push_back(HarvestNode{child->getName() ? child->getName() : "",
+                                                 child->getSize(),
+                                                 std::unique_ptr<MegaNode>{child->copy()}});
+            }
+        }
+    };
+    collect(root.get());
+    LOG_info << "[HarvestQaMixedDataset] discovered " << discovered.size()
+             << " file nodes under folder link";
+
+    // Filter to image media (case-insensitive .jpg/.jpeg/.png) within the QA size
+    // envelope [260 KiB, 21 MiB].
+    const auto hasImageExt = [](const std::string& name)
+    {
+        std::string lower;
+        lower.reserve(name.size());
+        for (const char c: name)
+        {
+            lower.push_back((c >= 'A' && c <= 'Z') ? static_cast<char>(c - 'A' + 'a') : c);
+        }
+        const auto endsWith = [&lower](const std::string& suffix)
+        {
+            return lower.size() >= suffix.size() &&
+                   lower.compare(lower.size() - suffix.size(), suffix.size(), suffix) == 0;
+        };
+        return endsWith(".jpg") || endsWith(".jpeg") || endsWith(".png");
+    };
+    constexpr std::int64_t kMinSize = 260 * 1024;
+    constexpr std::int64_t kMaxSize = 21 * 1024 * 1024;
+    std::vector<HarvestNode*> mediaFiles;
+    for (auto& hn: discovered)
+    {
+        if (hn.size >= kMinSize && hn.size <= kMaxSize && hasImageExt(hn.name))
+        {
+            mediaFiles.push_back(&hn);
+        }
+    }
+    LOG_info << "[HarvestQaMixedDataset] " << mediaFiles.size()
+             << " image files in size envelope [" << kMinSize << ", " << kMaxSize << "]";
+
+    // Curate to QA's SHAPE (a few large, several medium, MANY tiny) at ~40 files /
+    // ~200 MiB. Non-overlapping bands. Large/medium take the BIGGEST available (this
+    // folder tops out ~17.5 MiB, short of QA's 21 MiB) to carry the byte bulk + the
+    // tail; the small band takes the SMALLEST (the tiny 260 KiB-1.5 MiB files QA
+    // emphasised, which a largest-first pick would miss). biggestFirst selects the
+    // per-band sort direction.
+    struct Bucket
+    {
+        const char* label;
+        std::int64_t lo;
+        std::int64_t hi;
+        std::size_t cap;
+        bool biggestFirst;
+    };
+    const Bucket buckets[] = {
+        {"large", 8 * 1024 * 1024, 21 * 1024 * 1024, 7, true},
+        {"medium", 3 * 1024 * 1024, 8 * 1024 * 1024 - 1, 14, true},
+        {"small", 260 * 1024, 3 * 1024 * 1024 - 1, 21, false},
+    };
+    std::vector<HarvestNode*> chosen;
+    for (const auto& bucket: buckets)
+    {
+        std::vector<HarvestNode*> candidates;
+        for (HarvestNode* hn: mediaFiles)
+        {
+            if (hn->size >= bucket.lo && hn->size <= bucket.hi)
+            {
+                candidates.push_back(hn);
+            }
+        }
+        const bool biggestFirst = bucket.biggestFirst;
+        std::sort(candidates.begin(),
+                  candidates.end(),
+                  [biggestFirst](const HarvestNode* a, const HarvestNode* b)
+                  {
+                      return biggestFirst ? (a->size > b->size) : (a->size < b->size);
+                  });
+        if (candidates.size() < bucket.cap)
+        {
+            LOG_warn << "[HarvestQaMixedDataset] bucket '" << bucket.label
+                     << "' under-supplied: " << candidates.size() << " < " << bucket.cap
+                     << " (taking what exists)";
+        }
+        const std::size_t take = std::min(bucket.cap, candidates.size());
+        for (std::size_t i = 0; i < take; ++i)
+        {
+            chosen.push_back(candidates[i]);
+        }
+    }
+    std::int64_t curatedBytes = 0;
+    for (const HarvestNode* hn: chosen)
+    {
+        curatedBytes += hn->size;
+    }
+    LOG_info << "[HarvestQaMixedDataset] curated " << chosen.size() << " files, "
+             << (curatedBytes / 1024) << " KiB (" << (curatedBytes / (1024 * 1024))
+             << " MiB) total";
+    ASSERT_FALSE(chosen.empty()) << "no image media matched the QA size buckets in the folder link";
+
+    // Destination: MEGA_BENCH_UPLOAD_SOURCE_DIR, else $HOME (POSIX) / %USERPROFILE% (Windows)
+    // + /mega_bench_dataset/qa_mixed. Windows CI has no HOME, which used to hard-FAIL here —
+    // but this is a one-shot manual harvester; an unconfigured host is a SKIP, not a defect.
+    fs::path destDir;
+    if (const char* envDest = std::getenv("MEGA_BENCH_UPLOAD_SOURCE_DIR"); envDest && *envDest)
+    {
+        destDir = fs::path{envDest};
+    }
+    else if (const char* home = std::getenv("HOME"); home && *home)
+    {
+        destDir = fs::path{home} / "mega_bench_dataset" / "qa_mixed";
+    }
+    else if (const char* profile = std::getenv("USERPROFILE"); profile && *profile)
+    {
+        destDir = fs::path{profile} / "mega_bench_dataset" / "qa_mixed";
+    }
+    else
+    {
+        GTEST_SKIP() << "no dataset destination available (MEGA_BENCH_UPLOAD_SOURCE_DIR, HOME "
+                        "and USERPROFILE all unset) — set one to harvest the QA dataset";
+    }
+    std::error_code destEc;
+    fs::create_directories(destDir, destEc);
+    ASSERT_FALSE(destEc) << "cannot create dataset dir " << destDir << ": " << destEc.message();
+    LOG_info << "[HarvestQaMixedDataset] destDir=" << destDir;
+
+    // S12 (M5): the manifest must NOT live inside destDir — runQaMixedUploadBenchmark
+    // enumerates every regular file there, so an in-dir manifest self-poisons the
+    // dataset (S11 QaMixed cells uploaded it as file #43). Write it next to the dir.
+    const fs::path manifestPath =
+        destDir.parent_path() / (destDir.filename().string() + "_manifest.tsv");
+    std::ofstream manifest(manifestPath, std::ios::trunc);
+    ASSERT_TRUE(manifest.is_open()) << "cannot open manifest " << manifestPath;
+
+    // Sanitize a leaf name (folder-link names can contain path separators).
+    const auto sanitizeLeafName = [](const HarvestNode* hn)
+    {
+        std::string safeName = hn->name;
+        for (char& c: safeName)
+        {
+            if (c == '/' || c == '\\')
+            {
+                c = '_';
+            }
+        }
+        if (safeName.empty())
+        {
+            safeName = "node_" +
+                       std::string{std::unique_ptr<char[]>{
+                                       MegaApi::handleToBase64(hn->node->getHandle())}
+                                       .get()};
+        }
+        return safeName;
+    };
+    // S13 round-3 (Cluster F): repeated leaf names among the chosen nodes used to
+    // collide at download time, leaving " (1)" copies on disk that no manifest row
+    // describes — one source of the per-agent dataset drift that made win_9649 run
+    // 77 files / 394,640,726 B instead of the canonical corpus. Uniquify repeats
+    // deterministically (handle suffix) before downloading instead.
+    std::map<std::string, int> nameUses;
+    for (const HarvestNode* hn: chosen)
+    {
+        ++nameUses[sanitizeLeafName(hn)];
+    }
+
+    std::int64_t downloadedBytes = 0;
+    std::size_t downloadedCount = 0;
+    std::set<std::string> manifestNames;
+    for (const HarvestNode* hn: chosen)
+    {
+        std::string safeName = sanitizeLeafName(hn);
+        if (nameUses[safeName] > 1)
+        {
+            const std::unique_ptr<char[]> handleSuffix{
+                MegaApi::handleToBase64(hn->node->getHandle())};
+            safeName += std::string{"_"} + handleSuffix.get();
+        }
+        const fs::path target = destDir / safeName;
+
+        std::error_code sizeEc;
+        if (fs::exists(target, sizeEc) &&
+            static_cast<std::int64_t>(fs::file_size(target, sizeEc)) == hn->size)
+        {
+            LOG_info << "[HarvestQaMixedDataset] skip (already present): " << safeName;
+        }
+        else
+        {
+            TransferTracker tt(api.get());
+            // S13 round-3 (Cluster F): OVERWRITE, not NEW_WITH_N — this is a dataset
+            // mirror, and NEW_WITH_N turned every re-download of a changed/partial
+            // file into an extra " (N)" copy accumulating on the persistent agent dir.
+            api->startDownload(hn->node.get(),
+                               target.string().c_str(),
+                               nullptr /*customName*/,
+                               nullptr /*appData*/,
+                               false /*startFirst*/,
+                               nullptr /*cancelToken*/,
+                               MegaTransfer::COLLISION_CHECK_FINGERPRINT /*collisionCheck*/,
+                               MegaTransfer::COLLISION_RESOLUTION_OVERWRITE /*collisionResolution*/,
+                               false /*undelete*/,
+                               &tt);
+            ASSERT_EQ(API_OK, tt.waitForResult(kNetTimeoutS)) << "download failed for: " << safeName;
+            LOG_info << "[HarvestQaMixedDataset] downloaded " << safeName << " (" << hn->size
+                     << " bytes)";
+        }
+
+        const std::unique_ptr<char[]> handleB64{MegaApi::handleToBase64(hn->node->getHandle())};
+        manifest << safeName << '\t' << hn->size << '\t' << handleB64.get() << '\n';
+        manifestNames.insert(safeName);
+        downloadedBytes += hn->size;
+        ++downloadedCount;
+    }
+    manifest << "# total_bytes=" << downloadedBytes << " file_count=" << downloadedCount << '\n';
+    manifest.close();
+    LOG_info << "[HarvestQaMixedDataset] wrote manifest " << manifestPath << " (" << downloadedCount
+             << " files, " << downloadedBytes << " bytes)";
+
+    // S13 round-3 (Cluster F): prune-to-manifest. The persistent per-agent dir keeps
+    // whatever older harvests left behind (" (N)" collision copies, retired
+    // selections), silently changing the bench corpus per platform — the bench cell
+    // only asserted non-emptiness. Delete everything the manifest does not list, then
+    // hard-assert the final on-disk state so drift can never reach the bench unnoticed.
+    std::size_t prunedCount = 0;
+    std::error_code iterEc;
+    for (const auto& entry: fs::directory_iterator(destDir, iterEc))
+    {
+        std::error_code entryEc;
+        if (!entry.is_regular_file(entryEc) || entryEc)
+        {
+            continue;
+        }
+        const std::string leaf = entry.path().filename().string();
+        if (manifestNames.count(leaf))
+        {
+            continue;
+        }
+        std::error_code rmEc;
+        const auto staleSize = fs::file_size(entry.path(), rmEc);
+        fs::remove(entry.path(), rmEc);
+        LOG_warn << "[HarvestQaMixedDataset] pruned stale file not in manifest: " << leaf << " ("
+                 << staleSize << " bytes)";
+        ASSERT_FALSE(rmEc) << "cannot prune stale dataset file " << entry.path() << ": "
+                           << rmEc.message();
+        ++prunedCount;
+    }
+    ASSERT_FALSE(iterEc) << "cannot enumerate dataset dir for prune: " << iterEc.message();
+
+    std::int64_t diskBytes = 0;
+    std::size_t diskCount = 0;
+    for (const auto& entry: fs::directory_iterator(destDir))
+    {
+        std::error_code entryEc;
+        if (entry.is_regular_file(entryEc) && !entryEc)
+        {
+            diskBytes += static_cast<std::int64_t>(entry.file_size());
+            ++diskCount;
+        }
+    }
+    LOG_info << "[HarvestQaMixedDataset] prune done: removed " << prunedCount
+             << " stale files; dataset now " << diskCount << " files / " << diskBytes << " bytes";
+    ASSERT_EQ(diskCount, downloadedCount)
+        << "dataset drift survived the prune (file count) — dir " << destDir;
+    ASSERT_EQ(diskBytes, downloadedBytes)
+        << "dataset drift survived the prune (total bytes) — dir " << destDir;
+
+    RequestTracker logoutTracker{api.get()};
+    api->logout(false /*keepSyncConfigsFile*/, &logoutTracker);
+    EXPECT_EQ(API_OK, logoutTracker.waitForResult(kNetTimeoutS))
+        << "guest folder-link logout failed";
 }
 
 TEST_F(SdkTest, DuplicatedDownloadTransferInFlight)
@@ -17778,6 +18579,40 @@ void SdkTest::testResumableTrasfers(const std::string& data, const size_t timeou
     megaApi[0]->setMaxDownloadSpeed(-1);
 }
 
+/**
+ * @brief TEST_F SdkResumableTrasfers
+ *
+ * Tests resumption for file upload and download.
+ */
+TEST_F(SdkTest, SdkResumableTrasfers)
+{
+    auto genStr = [](const size_t len) -> std::string
+    {
+        const std::string base = std::to_string(len) + " MB test file. ";
+        std::string result;
+        result.reserve(len);
+
+        while (result.size() < len)
+        {
+            result += base;
+        }
+
+        result.resize(len);
+        return result;
+    };
+
+    // Note: testResumableTrasfers limits maxConnections and max Upload/Download speed
+    auto i = 0;
+    const std::map<size_t, size_t> files = {{16, 120}, {19, 240}, {24, 300}};
+    for (const auto& [fileSize, timeout]: files)
+    {
+        auto data = genStr(fileSize);
+        LOG_info << "___TEST Resumable Trasfers. Iteration (" << ++i << ") FileSize ("
+                 << data.size() << " MB)___";
+        ASSERT_NO_FATAL_FAILURE(testResumableTrasfers(data, timeout));
+    }
+}
+
 TEST_F(SdkTest, SdkTestUploads)
 {
     LOG_info << "___TEST Test Uploads___";
@@ -17869,40 +18704,441 @@ TEST_F(SdkTest, SdkTestUploads)
         std::for_each(maxConnectionsVector.begin(), maxConnectionsVector.end(), uploadFile));
 }
 
-/**
- * @brief TEST_F SdkResumableTrasfers
- *
- * Tests resumption for file upload and download.
- */
-TEST_F(SdkTest, SdkResumableTrasfers)
-{
-    auto genStr = [](const size_t len) -> std::string
-    {
-        const std::string base = std::to_string(len) + " MB test file. ";
-        std::string result;
-        result.reserve(len);
 
-        while (result.size() < len)
+TEST_F(SdkTest, SdkTestUploadsOverquota)
+{
+    LOG_info << "___TEST SdkTestUploadsOverquota___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+    ASSERT_NE(rootnode.get(), nullptr);
+
+    const fs::path fillPath = "SdkTestUploadsOverquota";
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), fillPath));
+    auto fillCleanup = makeScopedDestructor(
+        [this, fillPath]()
         {
-            result += base;
+            cleanUp(this->megaApi[0].get(), fillPath);
+        });
+
+    auto fillHandle = createFolder(0, path_u8string(fillPath).c_str(), rootnode.get());
+    ASSERT_NE(fillHandle, UNDEF) << "Error creating remote fillPath";
+    std::unique_ptr<MegaNode> fillNode(megaApi[0]->getNodeByHandle(fillHandle));
+    ASSERT_NE(fillNode.get(), nullptr);
+
+    auto importHandle = importPublicLink(
+        0,
+        MegaClient::getMegaURL() + "/file/gzlQ3DIY#Ak-OW4MP7lhnQxP9nzBU1bOP45xr_7sXnIz8YYqOBUg",
+        fillNode.get());
+    std::unique_ptr<MegaNode> seedNode(megaApi[0]->getNodeByHandle(importHandle));
+    ASSERT_NE(seedNode.get(), nullptr);
+
+    ASSERT_NO_FATAL_FAILURE(synchronousGetSpecificAccountDetails(0, true, false, false));
+    ASSERT_NE(mApi[0].accountDetails, nullptr);
+
+    const long long storageMax = mApi[0].accountDetails->getStorageMax();
+    const long long storageUsed = mApi[0].accountDetails->getStorageUsed();
+    ASSERT_GT(storageMax, 0);
+
+    if (storageUsed >= storageMax)
+    {
+        GTEST_SKIP() << "Account already overquota or full (used=" << storageUsed
+                     << ", max=" << storageMax << ")";
+    }
+
+    const long long copySize = seedNode->getSize();
+    ASSERT_GT(copySize, 0);
+
+    const long long uploadSize = 16LL * 1024 * 1024;
+    long long remaining = storageMax - storageUsed;
+    long long copies = remaining / copySize;
+    const std::string seedName = seedNode->getName() ? seedNode->getName() : "seed";
+
+    for (long long i = 1; i <= copies; ++i)
+    {
+        const std::string copyName = seedName + std::to_string(i);
+        ASSERT_EQ(API_OK, doCopyNode(0, nullptr, seedNode.get(), fillNode.get(), copyName.c_str()))
+            << "Error copying fill node";
+    }
+
+    const auto createFileWithSize =
+        [&](const std::string& filename, const long long fileSize, const std::string& seed)
+    {
+        ASSERT_GT(fileSize, 0);
+        deleteFile(filename);
+        std::ofstream file(u8path_compat(filename), ios::out | ios::binary);
+        ASSERT_TRUE(file) << "Couldn't create " << filename;
+
+        const std::string pattern = seed.empty() ? "SdkTestUploadsOverquota" : seed;
+        const long long chunkSize = 1024LL * 1024LL;
+        std::vector<char> buffer(static_cast<size_t>(chunkSize));
+        for (size_t i = 0; i < buffer.size(); ++i)
+        {
+            buffer[i] = pattern[i % pattern.size()];
         }
 
-        result.resize(len);
-        return result;
+        long long remainingBytes = fileSize;
+        while (remainingBytes > 0)
+        {
+            const long long toWrite = std::min(remainingBytes, chunkSize);
+            file.write(buffer.data(), static_cast<std::streamsize>(toWrite));
+            remainingBytes -= toWrite;
+        }
+        file.close();
+        ASSERT_EQ(getFilesize(filename), fileSize) << "Wrong size for " << filename;
     };
 
-    // Note: testResumableTrasfers limits maxConnections and max Upload/Download speed
-    auto i = 0;
-    const std::map<size_t, size_t> files = {{16, 120}, {19, 240}, {24, 300}};
-    for (const auto& [fileSize, timeout]: files)
+    const long long remainingAfterCopies = remaining - (copies * copySize);
+    if (remainingAfterCopies >= uploadSize)
     {
-        auto data = genStr(fileSize);
-        LOG_info << "___TEST Resumable Trasfers. Iteration (" << ++i << ") FileSize ("
-                 << data.size() << " MB)___";
-        ASSERT_NO_FATAL_FAILURE(testResumableTrasfers(data, timeout));
+        const long long fillerSize = remainingAfterCopies - (uploadSize - 1);
+        const std::string fillerName = "oq_fill.bin";
+        ASSERT_NO_FATAL_FAILURE(createFileWithSize(fillerName, fillerSize, fillerName));
+
+        TransferTracker fillTracker(megaApi[0].get());
+        MegaUploadOptions fillOptions;
+        fillOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(fillerName, fillNode.get(), nullptr, &fillOptions, &fillTracker);
+        ASSERT_EQ(API_OK, fillTracker.waitForResult())
+            << "Filler upload failed (error: " << fillTracker.result << ")";
+        deleteFile(fillerName);
+    }
+
+    const std::string uploadName1 = "oq_test_upload_1.bin";
+    ASSERT_NO_FATAL_FAILURE(createFileWithSize(uploadName1, uploadSize, uploadName1));
+
+    TransferTempErrorTracker overTracker1(megaApi[0].get());
+    MegaUploadOptions uploadOptions1;
+    uploadOptions1.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(uploadName1, rootnode.get(), nullptr, &uploadOptions1, &overTracker1);
+
+    const ErrorCodes result1 = overTracker1.waitForResult(180);
+    ASSERT_NE(result1, LOCAL_ETIMEOUT) << "Upload timed out waiting for result";
+    if (overTracker1.wasTemporaryError())
+    {
+        ASSERT_EQ(API_EOVERQUOTA, result1) << "Expected storage overquota, got: " << result1;
+        const int transferTag1 = overTracker1.transferTag.load();
+        if (transferTag1 >= 0)
+        {
+            megaApi[0]->cancelTransferByTag(transferTag1);
+        }
+    }
+    else
+    {
+        ASSERT_EQ(API_OK, result1) << "Unexpected upload result: " << result1;
+    }
+    deleteFile(uploadName1);
+
+    if (result1 == API_OK)
+    {
+        const bool overquotaReached = WaitFor(
+            [this]()
+            {
+                if (synchronousGetSpecificAccountDetails(0, true, false, false) != API_OK)
+                    return false;
+                if (!mApi[0].accountDetails)
+                    return false;
+                return mApi[0].accountDetails->getStorageUsed() >
+                       mApi[0].accountDetails->getStorageMax();
+            },
+            120000);
+        if (!overquotaReached)
+        {
+            GTEST_SKIP() << "Account did not reach overquota status after initial upload";
+        }
+
+        const std::string uploadName2 = "oq_test_upload_2.bin";
+        ASSERT_NO_FATAL_FAILURE(createFileWithSize(uploadName2, uploadSize, uploadName2));
+
+        TransferTempErrorTracker overTracker2(megaApi[0].get());
+        MegaUploadOptions uploadOptions2;
+        uploadOptions2.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(uploadName2,
+                                rootnode.get(),
+                                nullptr,
+                                &uploadOptions2,
+                                &overTracker2);
+
+        const ErrorCodes result2 = overTracker2.waitForResult(180);
+        ASSERT_NE(result2, LOCAL_ETIMEOUT) << "Upload timed out waiting for result";
+        deleteFile(uploadName2);
+        const int transferTag2 = overTracker2.transferTag.load();
+        if (transferTag2 >= 0)
+        {
+            megaApi[0]->cancelTransferByTag(transferTag2);
+        }
+        if (!overTracker2.wasTemporaryError() && result2 == API_OK)
+        {
+            GTEST_SKIP() << "Upload completed despite storage usage exceeding quota";
+        }
+        ASSERT_TRUE(overTracker2.wasTemporaryError())
+            << "Expected transfer temporary error after exceeding quota";
+        ASSERT_EQ(API_EOVERQUOTA, result2)
+            << "Expected storage overquota after exceeding quota, got: " << result2;
     }
 }
 
+TEST_F(SdkTest, SdkTestMultipleUploads)
+{
+    LOG_info << "___TEST Multiple Uploads___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    // Make sure our clients are working with pro plans.
+    auto accountRestorer = scopedToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+
+    // Helper function to create a file with specific size
+    const auto createFileWithSize = [&](const std::string& filename, const size_t fileSize)
+    {
+        deleteFile(filename);
+        std::ofstream file(u8path_compat(filename), ios::out);
+        ASSERT_TRUE(file) << "Couldn't create " << filename;
+        
+        const std::string lineStr = "Test data for " + filename + " ";
+        const size_t lineSize = lineStr.size();
+        const size_t numLines = fileSize / lineSize;
+        
+        for (size_t l = 0; l < numLines; ++l)
+        {
+            file << lineStr;
+        }
+        
+        // Add remaining bytes if needed
+        const size_t remaining = fileSize % lineSize;
+        if (remaining > 0)
+        {
+            file << lineStr.substr(0, remaining);
+        }
+        
+        file.close();
+        
+        // Verify file size
+        const auto actualSize = getFilesize(filename);
+        ASSERT_EQ(actualSize, static_cast<int64_t>(fileSize)) << "Wrong size for " << filename;
+    };
+
+    // Create two files with different sizes
+    const std::string file1 = "parallel_upload_1.txt";
+    const std::string file2 = "parallel_upload_2.txt";
+    //const size_t size1 = 8000000;  // 8MB
+    //const size_t size2 = 12000000; // 12MB
+    const size_t size1 = 160000000;  // 160MB
+    const size_t size2 = 900000; // 900 KB
+
+    ASSERT_NO_FATAL_FAILURE(createFileWithSize(file1, size1));
+    ASSERT_NO_FATAL_FAILURE(createFileWithSize(file2, size2));
+
+    // Set up transfer tracking for both uploads
+    TransferTracker ut1(megaApi[0].get());
+    TransferTracker ut2(megaApi[0].get());
+
+    // Start both uploads in parallel
+    LOG_debug << "[SdkTestMultipleUploads] Starting parallel uploads";
+    const auto& uploadStartTime = std::chrono::system_clock::now();
+
+    // Reset transfer flags
+    mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD] = false;
+    onTransferUpdate_progress = 0;
+    onTransferUpdate_filesize = 0;
+
+    // Start first upload
+    MegaUploadOptions uploadOptions1;
+    uploadOptions1.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(file1, rootnode.get(), nullptr, &uploadOptions1, &ut1);
+
+    // Start second upload
+    MegaUploadOptions uploadOptions2;
+    uploadOptions2.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(file2, rootnode.get(), nullptr, &uploadOptions2, &ut2);
+
+    // Wait for both uploads to complete
+    unsigned int transfer_timeout_in_seconds = 300; // 5 minutes for parallel uploads
+    ASSERT_TRUE(waitForResponse(&mApi[0].transferFlags[MegaTransfer::TYPE_UPLOAD],
+                                transfer_timeout_in_seconds))
+        << "Transfer upload time out (" << transfer_timeout_in_seconds << " seconds)";
+
+    // Wait for individual transfer trackers
+    ASSERT_EQ(API_OK, ut1.waitForResult()) << "First upload failed (error: " << ut1.result << ")";
+    ASSERT_EQ(API_OK, ut2.waitForResult()) << "Second upload failed (error: " << ut2.result << ")";
+
+    const auto& uploadEndTime = std::chrono::system_clock::now();
+    auto uploadTime = std::chrono::duration_cast<std::chrono::milliseconds>(uploadEndTime - uploadStartTime).count();
+
+    LOG_debug << "[SdkTestMultipleUploads] Parallel uploads completed in " << uploadTime << " ms";
+    LOG_debug << "[SdkTestMultipleUploads] File 1: " << size1 << " bytes, File 2: " << size2 << " bytes";
+    LOG_debug << "[SdkTestMultipleUploads] Total size: " << (size1 + size2) << " bytes";
+    LOG_debug << "[SdkTestMultipleUploads] Average speed: "
+              << ((((static_cast<uint64_t>(size1) + static_cast<uint64_t>(size2))
+                    / static_cast<uint64_t>(uploadTime)) * 1000ULL) / 1024ULL)
+              << " KB/s";
+
+    // Verify both uploads completed successfully
+    ASSERT_EQ(API_OK, mApi[0].lastError) << "Upload error: " << mApi[0].lastError;
+    ASSERT_NE(ut1.resultNodeHandle, ::mega::INVALID_HANDLE) << "First upload didn't return valid node handle";
+    ASSERT_NE(ut2.resultNodeHandle, ::mega::INVALID_HANDLE) << "Second upload didn't return valid node handle";
+
+    // Verify the uploaded files exist in the cloud
+    std::unique_ptr<MegaNode> uploadedNode1(megaApi[0]->getNodeByHandle(ut1.resultNodeHandle));
+    std::unique_ptr<MegaNode> uploadedNode2(megaApi[0]->getNodeByHandle(ut2.resultNodeHandle));
+
+    ASSERT_NE(uploadedNode1, nullptr) << "Cannot find first uploaded file in cloud";
+    ASSERT_NE(uploadedNode2, nullptr) << "Cannot find second uploaded file in cloud";
+    ASSERT_STREQ(file1.c_str(), uploadedNode1->getName()) << "First uploaded file has wrong name";
+    ASSERT_STREQ(file2.c_str(), uploadedNode2->getName()) << "Second uploaded file has wrong name";
+    ASSERT_EQ(uploadedNode1->getSize(), static_cast<int64_t>(size1)) << "First uploaded file has wrong size";
+    ASSERT_EQ(uploadedNode2->getSize(), static_cast<int64_t>(size2)) << "Second uploaded file has wrong size";
+
+    // Clean up local files
+    deleteFile(file1);
+    deleteFile(file2);
+}
+
+TEST_F(SdkTest, SdkTestMultipleUploadsExpanded)
+{
+    LOG_info << "___TEST Multiple Uploads Expanded___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    auto accountRestorer = scopedToPro(*megaApi[0]);
+    ASSERT_EQ(result(accountRestorer), API_OK);
+
+    const auto rootnode = std::unique_ptr<MegaNode>{megaApi[0]->getRootNode()};
+
+    std::vector<m_off_t> sizeClasses;
+    ASSERT_TRUE(fetchUscSizeClasses(*megaApi[0], sizeClasses, 60))
+        << "Unable to fetch USC size classes";
+
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] USC size classes count: " << sizeClasses.size();
+
+    const m_off_t kLargeFileSize = 160000000; // 160MB
+    std::vector<m_off_t> fileSizes;
+    fileSizes.reserve(sizeClasses.size());
+
+    for (const auto maxSize: sizeClasses)
+    {
+        m_off_t size = 0;
+        if (maxSize > 0)
+        {
+            size = maxSize - 1;
+            if (size <= 0)
+                size = 1;
+            if (size > kLargeFileSize)
+                size = kLargeFileSize;
+        }
+        else
+        {
+            size = kLargeFileSize;
+        }
+        fileSizes.push_back(size);
+    }
+
+    if (fileSizes.size() < 2)
+    {
+        GTEST_SKIP() << "USC returned fewer than 2 size classes";
+    }
+
+    const auto createFileWithSize = [&](const std::string& filename, const size_t fileSize)
+    {
+        deleteFile(filename);
+        std::ofstream file(u8path_compat(filename), ios::out);
+        ASSERT_TRUE(file) << "Couldn't create " << filename;
+
+        const std::string lineStr = "Test data for " + filename + " ";
+        const size_t lineSize = lineStr.size();
+        const size_t numLines = fileSize / lineSize;
+
+        for (size_t l = 0; l < numLines; ++l)
+        {
+            file << lineStr;
+        }
+
+        const size_t remaining = fileSize % lineSize;
+        if (remaining > 0)
+        {
+            file << lineStr.substr(0, remaining);
+        }
+
+        file.close();
+
+        const auto actualSize = getFilesize(filename);
+        ASSERT_EQ(actualSize, static_cast<int64_t>(fileSize)) << "Wrong size for " << filename;
+    };
+
+    std::vector<std::string> fileNames;
+    fileNames.reserve(fileSizes.size());
+
+    for (size_t i = 0; i < fileSizes.size(); ++i)
+    {
+        const std::string filename = "parallel_upload_expanded_" + std::to_string(i + 1) + ".txt";
+        fileNames.push_back(filename);
+        const auto size = static_cast<size_t>(fileSizes[i] > 0 ? fileSizes[i] : 1);
+        ASSERT_NO_FATAL_FAILURE(createFileWithSize(filename, size));
+        LOG_debug << "[SdkTestMultipleUploadsExpanded] File " << (i + 1) << ": " << size
+                  << " bytes";
+    }
+
+    std::vector<std::unique_ptr<TransferTracker>> trackers;
+    trackers.reserve(fileNames.size());
+
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] Starting parallel uploads: " << fileNames.size();
+
+    const auto& uploadStartTime = std::chrono::system_clock::now();
+
+    for (size_t i = 0; i < fileNames.size(); ++i)
+    {
+        trackers.push_back(std::make_unique<TransferTracker>(megaApi[0].get()));
+        MegaUploadOptions uploadOptions;
+        uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[0]->startUpload(fileNames[i],
+                                rootnode.get(),
+                                nullptr,
+                                &uploadOptions,
+                                trackers.back().get());
+    }
+
+    const unsigned int transferTimeoutSeconds = 600;
+    for (size_t i = 0; i < trackers.size(); ++i)
+    {
+        ASSERT_EQ(API_OK, trackers[i]->waitForResult(transferTimeoutSeconds))
+            << "Upload failed for " << fileNames[i] << " (error: " << trackers[i]->result << ")";
+    }
+
+    const auto& uploadEndTime = std::chrono::system_clock::now();
+    const auto uploadTime =
+        std::chrono::duration_cast<std::chrono::milliseconds>(uploadEndTime - uploadStartTime)
+            .count();
+
+    m_off_t totalSize = 0;
+    for (const auto size: fileSizes)
+        totalSize += size;
+
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] Parallel uploads completed in " << uploadTime
+              << " ms";
+    LOG_debug << "[SdkTestMultipleUploadsExpanded] Total size: " << totalSize << " bytes";
+
+    ASSERT_EQ(API_OK, mApi[0].lastError) << "Upload error: " << mApi[0].lastError;
+
+    for (size_t i = 0; i < trackers.size(); ++i)
+    {
+        ASSERT_NE(trackers[i]->resultNodeHandle, ::mega::INVALID_HANDLE)
+            << "Upload didn't return valid node handle for " << fileNames[i];
+
+        std::unique_ptr<MegaNode> uploadedNode(
+            megaApi[0]->getNodeByHandle(trackers[i]->resultNodeHandle));
+        ASSERT_NE(uploadedNode, nullptr)
+            << "Cannot find uploaded file in cloud for " << fileNames[i];
+        ASSERT_STREQ(fileNames[i].c_str(), uploadedNode->getName())
+            << "Uploaded file has wrong name for " << fileNames[i];
+        ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(fileSizes[i]))
+            << "Uploaded file has wrong size for " << fileNames[i];
+    }
+
+    for (const auto& file: fileNames)
+    {
+        deleteFile(file);
+    }
+}
 auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)
 {
     auto previousDirectory = api.getDefaultFolderPermissions();

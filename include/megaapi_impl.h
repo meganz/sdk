@@ -251,22 +251,29 @@ public:
         Skip = 2, // Skip it
         ReportError = 3, // Report Error
         Download = 4, // Download it
+        Cancelled = 5, // Collision check was cancelled
     };
 
     // Use faGetter instead of a FileAcccess instance which delays the access to the file system and
     // only does it based on demand by check. This helps in a network folder.
-    static Result check(FileSystemAccess* fsaccess,
-                        const LocalPath& fileLocalPath,
+    // cancelToken aborts a long Metamac read. A cancelled check yields Result::Cancelled, decided
+    // from the returned MacComparisonResult rather than by sampling the token afterwards.
+    static Result check(std::function<FileAccess*()> faGetter,
                         MegaNode* fileNode,
-                        Option option);
-    static Result check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option);
-    static Result check(std::function<FileAccess*()> faGetter, Node* node, Option option);
+                        Option option,
+                        CancelToken cancelToken);
+    static Result check(std::function<FileAccess*()> faGetter,
+                        Node* node,
+                        Option option,
+                        CancelToken cancelToken);
 
 private:
     static Result check(std::function<bool()> fingerprintEqualF,
-                        std::function<bool()> metamacEqualF,
+                        std::function<MacComparisonResult()> metamacCheckF,
                         Option option);
-    static bool CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode);
+    static MacComparisonResult CompareLocalFileMetaMac(FileAccess* fa,
+                                                       MegaNode* fileNode,
+                                                       CancelToken cancelToken);
     static bool fingerprintEqualRelaxed(const FileFingerprint& lhs, const FileFingerprint& rhs);
 };
 
@@ -1062,6 +1069,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t getSize() override;
         int64_t getCreationTime() override;
         int64_t getModificationTime() override;
+        int64_t getMediaCaptureTimeMs() override;
         MegaHandle getHandle() const override;
         MegaHandle getRestoreHandle() override;
         MegaHandle getParentHandle() override;
@@ -1136,6 +1144,7 @@ class MegaNodePrivate : public MegaNode, public Cacheable
         int64_t size;
         int64_t ctime;
         int64_t mtime;
+        int64_t mMediaTs = 0;
         MegaHandle nodehandle;
         MegaHandle parenthandle;
         MegaHandle restorehandle = UNDEF;
@@ -1906,6 +1915,23 @@ protected:
     vector<uint64_t> uploadPriorities;
 };
 
+class MegaWsUploadQuotaFitPrivate: public MegaWsUploadQuotaFit
+{
+public:
+    MegaWsUploadQuotaFitPrivate(int state, long long shortfallBytes, bool foreignShortfall);
+
+    ~MegaWsUploadQuotaFitPrivate() override;
+    MegaWsUploadQuotaFit* copy() const override;
+    int getState() const override;
+    long long getShortfallBytes() const override;
+    bool isForeignShortfall() const override;
+
+private:
+    int mState;
+    long long mShortfallBytes;
+    bool mForeignShortfall;
+};
+
 class MegaFolderInfoPrivate : public MegaFolderInfo
 {
 public:
@@ -2669,6 +2695,7 @@ public:
     int64_t getMobileOfferExpiryTimestamp(int productIndex) const override;
     uint32_t getMobileOfferFlags(int productIndex) const override;
     int64_t getMobileOfferReshowInterval(int productIndex) const override;
+    uint64_t getMobileOfferCampaignId(int productIndex) const override;
     bool hasMobileOfferIos(int productIndex) const override;
     std::string getMobileOfferIosOfferId(int productIndex) const override;
     std::string getMobileOfferIosKeyId(int productIndex) const override;
@@ -4034,6 +4061,11 @@ public:
         mLastFav = lastFav;
     }
 
+    void setLastMediaTsMs(int64_t lastMediaTsMs) override
+    {
+        mLastMediaTs = lastMediaTsMs;
+    }
+
     const char* getLastName() const override
     {
         return mLastName.c_str();
@@ -4064,6 +4096,11 @@ public:
         return mLastFav;
     }
 
+    int64_t getLastMediaTsMs() const override
+    {
+        return mLastMediaTs;
+    }
+
 private:
     std::string mLastName;
     MegaHandle mLastHandle = INVALID_HANDLE;
@@ -4071,6 +4108,7 @@ private:
     int64_t mLastMtime = -1;
     int mLastLabel = -1;
     int mLastFav = -1;
+    int64_t mLastMediaTs = -1;
 };
 
 class MegaGfxProviderPrivate : public MegaGfxProvider
@@ -4188,6 +4226,17 @@ class MegaApiImpl : public MegaApp
         static string userAttributeToLongName(int);
         static int userAttributeFromString(const char *name);
         static char userAttributeToScope(int);
+        // Test-only helpers: since fu7-15 G2.a-2 (Option a — always-compile
+        // hook ABI), these wrappers are unconditionally available so that
+        // header-only test helpers (WsUploadDebugHelpers.h) can be compiled
+        // in Release. Production callers do not exist; the wrappers expose
+        // the internal MegaClient + executeOnThread path. Release impact:
+        // 2 always-inline accessor bodies linked in, never invoked.
+        MegaClient* getClientForTesting() const { return client; }
+        void executeOnThreadForTesting(std::shared_ptr<ExecuteOnce> request)
+        {
+            executeOnThread(std::move(request));
+        }
         bool serverSideRubbishBinAutopurgeEnabled();
         bool appleVoipPushEnabled();
         bool newLinkFormatEnabled();
@@ -4521,6 +4570,7 @@ class MegaApiImpl : public MegaApp
         int getUploadMethod();
         MegaTransferData *getTransferData(MegaTransferListener *listener = NULL);
         MegaTransfer *getFirstTransfer(int type);
+        MegaWsUploadQuotaFit* getWsUploadQueueQuotaFit();
         void notifyTransfer(int transferTag, MegaTransferListener *listener = NULL);
         MegaTransferList *getTransfers();
         MegaTransferList *getStreamingTransfers();
@@ -4737,24 +4787,27 @@ class MegaApiImpl : public MegaApp
             CancelToken cancelFlag,
             const size_t maxElements,
             const std::optional<MegaSearchLexicographicalOffset>& offset);
-        MegaNodeList* getChildren(const MegaNode *parent, int order, CancelToken cancelToken = CancelToken());
-        MegaNodeList* getChildren(MegaNodeList *parentNodes, int order);
-        MegaNodeList* getVersions(MegaNode *node);
-        int getNumVersions(MegaNode *node);
-        bool hasVersions(MegaNode *node);
-        void getFolderInfo(MegaNode *node, MegaRequestListener *listener);
+        MegaNodeList* getChildren(const MegaNode* parent,
+                                  int order,
+                                  CancelToken cancelToken = CancelToken());
+        MegaNodeList* getChildren(MegaNodeList* parentNodes, int order);
+        MegaNodeList* getVersions(MegaNode* node);
+        int getNumVersions(MegaNode* node);
+        bool hasVersions(MegaNode* node);
+        void getFolderInfo(MegaNode* node, MegaRequestListener* listener);
         bool isSensitiveInherited(MegaNode* node);
-        bool hasChildren(MegaNode *parent);
-        MegaNode *getChildNode(MegaNode *parent, const char* name);
-        MegaNode* getChildNodeOfType(MegaNode *parent, const char *name, int type = TYPE_UNKNOWN);
-        MegaNode *getParentNode(MegaNode *node);
-        char *getNodePath(MegaNode *node);
-        char *getNodePathByNodeHandle(MegaHandle handle);
-        MegaNode *getNodeByPath(const char *path, MegaNode *n = NULL);
-        MegaNode *getNodeByPathOfType(const char* path, MegaNode* n, int type);
-        MegaNode *getNodeByHandle(handle handler);
+        bool hasChildren(MegaNode* parent);
+        MegaNode* getChildNode(MegaNode* parent, const char* name);
+        MegaNode* getChildNodeOfType(MegaNode* parent, const char* name, int type = TYPE_UNKNOWN);
+        MegaNode* getParentNode(MegaNode* node);
+        bool isNodeWithinSubtree(MegaNode* node, MegaHandle baseHandle);
+        char* getNodePath(MegaNode* node);
+        char* getNodePathByNodeHandle(MegaHandle handle);
+        MegaNode* getNodeByPath(const char* path, MegaNode* n = NULL);
+        MegaNode* getNodeByPathOfType(const char* path, MegaNode* n, int type);
+        MegaNode* getNodeByHandle(handle handler);
         MegaTotpTokenGenResult generateTotpTokenFromNode(const MegaHandle handle);
-        MegaContactRequest *getContactRequestByHandle(MegaHandle handle);
+        MegaContactRequest* getContactRequestByHandle(MegaHandle handle);
         MegaUserList* getContacts();
         MegaUser* getContact(const char* uid);
         MegaUserAlertList* getUserAlerts();
@@ -4979,6 +5032,8 @@ public:
         static bool nodeComparatorLabelDESC(Node *i, Node *j);
         static bool nodeComparatorFavASC(Node *i, Node *j);
         static bool nodeComparatorFavDESC(Node *i, Node *j);
+        static bool nodeComparatorMediaTsASC(Node* i, Node* j);
+        static bool nodeComparatorMediaTsDESC(Node* i, Node* j);
         static int typeComparator(Node *i, Node *j);
         static bool userComparatorDefaultASC (User *i, User *j);
         static m_off_t sizeDifference(Node *i, Node *j);
@@ -7388,6 +7443,11 @@ std::unique_ptr<FileSystemAccess> createFSA();
 // nullptr / "" → 0 (UTC). Returns nullopt for malformed input, MM > 59, or a
 // total outside [-12:00, +14:00].
 std::optional<int64_t> parseUtcOffsetSeconds(const char* tz);
+
+/// True for the mime categories whose nodes can carry a media capture timestamp
+/// (mediats is 0 for everything else). Declared here, like parseUtcOffsetSeconds
+/// above, so the unit suite can pin the partition.
+bool isMediaMimeType(MimeType_t mimeType);
 }
 
 // Specializations of std::hash for custom Sync types

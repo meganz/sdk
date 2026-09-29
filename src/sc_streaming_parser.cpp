@@ -338,7 +338,7 @@ void ScStreamingParser::checkActionPacket()
     // 'st' is not present
     if (mSeqTag.empty())
     {
-        const bool ret =
+        [[maybe_unused]] const bool ret =
             mClient.sc_checkActionPacketWithoutSt(mActionName, mLastAPDeletedNode.get());
         assert(ret);
     }

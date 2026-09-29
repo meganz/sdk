@@ -770,8 +770,10 @@ private:
     auto isvalid(const Key& keyToConfirm, int type) const -> Status;
 
     Key key;
-    unsigned int padding;
-    mutable Status status;
+
+    // Both are read before any key is set, so S_UNKNOWN makes a first query validate
+    unsigned int padding = 0;
+    mutable Status status = S_UNKNOWN;
 };
 
 class MEGA_API Hash

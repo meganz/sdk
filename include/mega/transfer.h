@@ -28,11 +28,18 @@
 #include "http.h"
 #include "raid.h"
 
+#include <cstdint>
+#include <string>
 #include <variant>
 
 namespace mega
 {
 using namespace std::literals;
+
+namespace ws
+{
+class UploadEngine;
+}
 
 // helper class for categorizing transfers for upload/download queues
 struct TransferCategory
@@ -154,6 +161,43 @@ struct MEGA_API Transfer : public FileFingerprint
     MegaClient* client;
     int tag;
 
+    // Websockets or legacy
+    enum class Channel
+    {
+        LegacyHTTP,
+        WebSocket
+    };
+    Channel channel = Channel::LegacyHTTP;
+
+    // WebSocket resume metadata (PUT only).
+    //
+    // ws_fileno identifies this file within the WS upload session (the WSS URL).
+    // ws_session_url is the exact WSS endpoint used for the current upload attempt.
+    //
+    // Together with chunkmacs/progresscompleted/pos these allow best-effort resume after restart.
+    std::uint32_t ws_fileno = 0;
+    std::string ws_session_url;
+    // Predictive WS upload-quota hold (SDK-6298). NOT serialized: holds are
+    // recomputed from a fresh "tfs" each session, so the serializer is untouched.
+    bool ws_quota_held = false;
+    // Last per-transfer WS speeds sampled while the transfer is still tracked by wsEngine().
+    // Used by MegaApiImpl as a fallback when completion/update callbacks run after wsEngine
+    // has detached this transfer and live WS stats are no longer queryable.
+    m_off_t ws_latched_speed = 0;
+    m_off_t ws_latched_mean_speed = 0;
+    m_off_t ws_latched_avg_latency_ms = 0;
+    double ws_latched_failed_request_ratio = 0.0;
+    // S13 round-3 (Cluster H): explicit latch validity. The old ">0 && >0" sentinel
+    // test on the two fields above silently dropped a completed upload from the stats
+    // whenever the latched mean speed was legitimately 0 (a tiny file over a slow
+    // cold-start window: 17 B over ~10 s), under-counting uploads in production and
+    // failing SdkTestTransferStatsLogging (macos_9454). Runtime-only, not serialized.
+    bool ws_latched_stats_valid = false;
+
+    // WebSocket composition (PUT only)
+    // (No ownership cycles: engine keeps no owning ptrs to Transfer)
+    // std::unique_ptr<ws::UploadFile> lives inside engine; Transfer only tracks channel.
+
     void setProgresscompleted(const m_off_t p, const bool append = false);
 
     // signal failure.  Either the transfer's slot or the transfer itself (including slot) will be deleted.
@@ -183,6 +227,9 @@ struct MEGA_API Transfer : public FileFingerprint
     std::vector<string> tempurls;
     uint8_t discardedTempUrlsSize{};
     static constexpr m_time_t TEMPURL_TIMEOUT_TS{172500};
+    // A websocket upload can only be resumed up to 24 hours after the last chunk got confirmed by
+    // API.
+    static constexpr m_time_t WS_RESUME_TIMEOUT_TS{24 * 3600};
 
     // context of the async fopen operation
     unique_ptr<AsyncIOContext> asyncopencontext;

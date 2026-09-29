@@ -31,11 +31,14 @@
 #include "test.h"
 
 #include <atomic>
+#include <chrono>
+#include <cstdint>
 #include <fstream>
 #include <functional>
 #include <future>
 #include <iostream>
 #include <memory>
+#include <string_view>
 #include <type_traits>
 
 #ifndef WIN32
@@ -238,6 +241,11 @@ struct TransferTracker : public ::mega::MegaTransferListener
     MegaHandle resultNodeHandle = UNDEF;
     m_off_t mTransferSpeed{-1};
     m_off_t mTransferMeanSpeed{-1};
+    std::atomic<std::int64_t> mStartSteadyMs{0};
+    std::atomic<m_off_t> mTransferredBytes{0};
+    std::atomic<m_off_t> mTotalBytes{0};
+    std::atomic<std::int64_t> mFinishSteadyMs{0};
+    std::atomic<int> mTag{-1};
 
     TransferTracker(MegaApi *api): mApi(api), futureResult(promiseResult.get_future())
     {
@@ -258,6 +266,11 @@ struct TransferTracker : public ::mega::MegaTransferListener
         // called back on a different thread
         LOG_debug << "TransferTracker::onTransferStart callback received -> set started true for "
                   << (transfer && transfer->getFileName() ? transfer->getFileName() : "<null>");
+        mStartSteadyMs = static_cast<std::int64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count());
+        mTag = transfer ? transfer->getTag() : -1;
         started = true;
     }
 
@@ -267,9 +280,21 @@ struct TransferTracker : public ::mega::MegaTransferListener
         mTempFileRemoved = static_cast<bool>(transfer->getStage());
 
         // called back on a different thread
+        mTransferredBytes = transfer->getTransferredBytes();
+        mTotalBytes = transfer->getTotalBytes();
+        mTag = transfer->getTag();
         resultNodeHandle = transfer->getNodeHandle();
         mTransferSpeed = transfer->getSpeed();
         mTransferMeanSpeed = transfer->getMeanSpeed();
+        const auto finishSteadyMs = static_cast<std::int64_t>(
+            std::chrono::duration_cast<std::chrono::milliseconds>(
+                std::chrono::steady_clock::now().time_since_epoch())
+                .count());
+        if (!mStartSteadyMs.load())
+        {
+            mStartSteadyMs = finishSteadyMs;
+        }
+        mFinishSteadyMs = finishSteadyMs;
         LOG_debug << "TransferTracker::onTransferFinish - tSpeed = " << mTransferSpeed
                   << ", tMeanSpeed = " << mTransferMeanSpeed;
         result = static_cast<ErrorCodes>(error->getErrorCode());
@@ -290,6 +315,16 @@ struct TransferTracker : public ::mega::MegaTransferListener
 
         // let the test main thread know it can now continue
         local_promise.set_value(result);
+    }
+    void onTransferUpdate(MegaApi*, MegaTransfer* transfer) override
+    {
+        if (!transfer)
+        {
+            return;
+        }
+
+        mTransferredBytes = transfer->getTransferredBytes();
+        mTotalBytes = transfer->getTotalBytes();
     }
     ErrorCodes waitForResult(int seconds = defaultTimeout, bool unregisterListenerOnTimeout = true)
     {
@@ -1450,6 +1485,9 @@ public:
     void onNodesUpdateCheck(size_t apiIndex, MegaHandle target, MegaNodeList* nodes, int change, bool& flag);
 
     bool createFile(string filename, bool largeFile = true, string content = "test ");
+    bool createFileWithSize(string filename,
+                            size_t fileSize,
+                            std::string_view fillPattern = "X");
     int64_t getFilesize(string filename);
     void deleteFile(string filename);
     void deleteFolder(string foldername);

@@ -908,25 +908,17 @@ TEST(LocalPath, PrependWithSeparator)
 
 TEST(JSONWriter, arg_stringWithEscapes)
 {
-    JSONWriter writer;
-    writer.arg_stringWithEscapes("ke", "\"\\");
-    EXPECT_EQ(writer.getstring(), "\"ke\":\"\\\"\\\\\"");
-}
-
-TEST(JSONWriter, escape)
-{
-    class Writer
-      : public JSONWriter
+    const auto written = [](const char* value)
     {
-    public:
-        using JSONWriter::escape;
+        JSONWriter writer;
+        writer.arg_stringWithEscapes("ke", value);
+        return writer.getstring();
     };
 
-    Writer writer;
-    string input = "\"\\";
-    string expected = "\\\"\\\\";
-
-    EXPECT_EQ(writer.escape(input.c_str(), input.size()), expected);
+    EXPECT_EQ(written("\"\\"), "\"ke\":\"\\\"\\\\\"");
+    // Control characters and invalid UTF-8 reach the writer through JSON::escape as well.
+    EXPECT_EQ(written("a\nb\x01"), "\"ke\":\"a\\nb\\u0001\"");
+    EXPECT_EQ(written("a\xffz"), "\"ke\":\"a\xffz\"");
 }
 
 TEST(JSON, stripWhitespace)

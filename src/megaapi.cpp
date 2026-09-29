@@ -505,6 +505,11 @@ int64_t MegaNode::getModificationTime()
     return 0;
 }
 
+int64_t MegaNode::getMediaCaptureTimeMs()
+{
+    return 0;
+}
+
 MegaHandle MegaNode::getHandle() const
 {
     return INVALID_HANDLE;
@@ -3680,6 +3685,11 @@ MegaTransferData *MegaApi::getTransferData(MegaTransferListener *listener)
 MegaTransfer *MegaApi::getFirstTransfer(int type)
 {
     return pImpl->getFirstTransfer(type);
+}
+
+MegaWsUploadQuotaFit* MegaApi::getWsUploadQueueQuotaFit()
+{
+    return pImpl->getWsUploadQueueQuotaFit();
 }
 
 void MegaApi::notifyTransfer(MegaTransfer *transfer, MegaTransferListener *listener)
@@ -7788,6 +7798,8 @@ void MegaSearchCursorOffset::setLastLabel(int /*lastLabel*/) {}
 
 void MegaSearchCursorOffset::setLastFav(int /*lastFav*/) {}
 
+void MegaSearchCursorOffset::setLastMediaTsMs(int64_t /*lastMediaTsMs*/) {}
+
 const char* MegaSearchCursorOffset::getLastName() const
 {
     return nullptr;
@@ -7814,6 +7826,11 @@ int MegaSearchCursorOffset::getLastLabel() const
 }
 
 int MegaSearchCursorOffset::getLastFav() const
+{
+    return -1;
+}
+
+int64_t MegaSearchCursorOffset::getLastMediaTsMs() const
 {
     return -1;
 }
@@ -8150,6 +8167,28 @@ unsigned long long MegaTransferData::getUploadPriority(int /*i*/) const
 long long MegaTransferData::getNotificationNumber() const
 {
     return 0;
+}
+
+MegaWsUploadQuotaFit::~MegaWsUploadQuotaFit() {}
+
+MegaWsUploadQuotaFit* MegaWsUploadQuotaFit::copy() const
+{
+    return NULL;
+}
+
+int MegaWsUploadQuotaFit::getState() const
+{
+    return STATE_UNKNOWN;
+}
+
+long long MegaWsUploadQuotaFit::getShortfallBytes() const
+{
+    return 0;
+}
+
+bool MegaWsUploadQuotaFit::isForeignShortfall() const
+{
+    return false;
 }
 
 MegaEvent::~MegaEvent() { }

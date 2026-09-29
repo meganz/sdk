@@ -98,6 +98,11 @@ typedef NS_ENUM (NSInteger, MEGASortOrderType) {
     MEGASortOrderTypeFavouriteDesc = 20,
     MEGASortOrderTypeShareCreationAsc = 21,
     MEGASortOrderTypeShareCreationDesc = 22,
+    /// Media capture timestamp, oldest first. Meaningful only for media files
+    /// (photo / video / audio); every other file carries no capture time.
+    MEGASortOrderTypeMediaTsAsc = 23,
+    /// Media capture timestamp, newest first. See MEGASortOrderTypeMediaTsAsc.
+    MEGASortOrderTypeMediaTsDesc = 24,
 };
 
 typedef NS_ENUM (NSInteger, MEGAFolderTargetType) {
@@ -8091,6 +8096,12 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  *   - MEGAOrderTypeModificationAsc / MEGAOrderTypeModificationDesc
  *   - MEGAOrderTypeLabelAsc        / MEGAOrderTypeLabelDesc
  *   - MEGAOrderTypeFavouriteAsc    / MEGAOrderTypeFavouriteDesc
+ *   - MEGAOrderTypeMediaTsAsc      / MEGAOrderTypeMediaTsDesc
+ *
+ * With no timestamp anchor set on the filter, a capture-time order also returns
+ * nodes whose capture time is 0 — any file from which no timestamp could be
+ * derived. Those nodes belong to no MEGADateSection, so section counts do not sum
+ * to such a page's length. Set an anchor to exclude them.
  *
  * The call returns an empty list and logs a warning when:
  *   - filter is nil.
@@ -8145,21 +8156,32 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 
 /**
  * @brief Group all nodes matching a MEGAGroupNodesByDateFilter into date buckets,
- * sorted by modification time.
+ * sorted by the active timestamp column.
  *
  * Same scope / sensitivity / file-version exclusion as listAllNodesByPage. Nodes
- * with a modification time <= 0 are excluded so the section list does not contain
- * a spurious "1970-01-01" bucket. Sections with zero items are omitted. Always
- * returns the section list across the entire filter scope — this call has no
- * pagination anchor.
+ * with no timestamp in the active column (modification time <= 0, or a media
+ * capture time of 0) are excluded so the section list does not contain a spurious
+ * "1970-01-01" bucket. Sections with zero items are omitted. Always returns the
+ * section list across the entire filter scope — this call has no pagination
+ * anchor.
  *
  * Sum the count of every returned section for the timeline's total length (the
- * value the fast scroller uses for its track).
+ * value the fast scroller uses for its track). Under a capture-time order with
+ * no timestamp anchor set, listAllNodesByPage also returns nodes with no capture
+ * time, which belong to no section — so the sum matches the page length only
+ * when an anchor is set.
  *
  * Supported sort orders:
- *   - MEGASortOrderTypeModificationAsc  (oldest first)
- *   - MEGASortOrderTypeModificationDesc (newest first)
+ *   - MEGASortOrderTypeModificationAsc  (oldest first, by modification time)
+ *   - MEGASortOrderTypeModificationDesc (newest first, by modification time)
+ *   - MEGASortOrderTypeMediaTsAsc       (oldest first, by media capture time)
+ *   - MEGASortOrderTypeMediaTsDesc      (newest first, by media capture time)
  * Any other order value is rejected (returns an empty array and logs a warning).
+ *
+ * The capture-time orders additionally require filter.category to be one of
+ * MEGANodeFormatTypePhoto / MEGANodeFormatTypeVideo / MEGANodeFormatTypeAudio /
+ * MEGANodeFormatTypeAllVisualMedia: capture time is 0 for every other category,
+ * so the grouping would have no rows to bucket. Any other pairing is rejected.
  *
  * @param filter      Node-selection scope and bucket granularity. Must not be nil.
  * @param orderType   Timeline sort order; controls section ordering.

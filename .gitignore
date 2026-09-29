@@ -16,3 +16,22 @@ build-*Debug
 build-*Release
 *.toml
 /CMakeUserPresets.json
+
+# Per-user agent guidance (each contributor maintains their own copy)
+CLAUDE.md
+CLAUDE.local.md
+CLAUDE.*.md
+AGENTS.md
+AGENTS.override.md
+AGENTS.local.md
+.claude/
+.codex/
+
+# Operational session methodology — per-contributor; tracked exemptions below
+docs/methodology/*
+!docs/methodology/README.md
+!docs/methodology/portable_template/
+!docs/methodology/portable_template/**
+!docs/methodology/benchmark_discipline.md
+!docs/methodology/tsan_discipline.md
+!docs/methodology/poor_network_discipline.md

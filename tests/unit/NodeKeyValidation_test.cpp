@@ -243,8 +243,11 @@ TEST_F(NodeKeyValidationTest, PreadOnUnappliedKeyFailsCleanly)
 // key. A key that is not a full file key must be refused, not read past.
 TEST_F(NodeKeyValidationTest, MetaMacHelpersRejectInvalidLengthKey)
 {
-    MacComparisonResult result =
-        CompareLocalFileMetaMacWithNodeKey(nullptr, kRawShortKey, FILENODE, std::nullopt);
+    MacComparisonResult result = CompareLocalFileMetaMacWithNodeKey(nullptr,
+                                                                    kRawShortKey,
+                                                                    FILENODE,
+                                                                    std::nullopt,
+                                                                    CancelToken());
     // errorCode is the specific marker the guard sets (it defaults to 0/success);
     // areEqualMacs alone is too weak since it defaults to false.
     EXPECT_EQ(result.errorCode, API_EKEY);

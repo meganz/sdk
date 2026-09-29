@@ -172,6 +172,28 @@ SockInfo::~SockInfo()
 
 std::mutex CurlHttpIO::curlMutex;
 
+// SDK-5360 (Design A): lock callbacks for the process-wide `curlsh` share handle. One mutex
+// per curl_lock_data slot; libcurl passes the slot index, which we bound-check against
+// CURL_LOCK_DATA_LAST before indexing. Held only for the microsecond cache touch, never across
+// curl_easy_perform, so concurrent WS handshakes are not re-serialized. See meganet.h.
+std::mutex CurlHttpIO::sCurlShareMutexes[CURL_LOCK_DATA_LAST];
+
+void CurlHttpIO::curlsh_lock(CURL*, curl_lock_data data, curl_lock_access, void*)
+{
+    if (data < CURL_LOCK_DATA_LAST)
+    {
+        sCurlShareMutexes[data].lock();
+    }
+}
+
+void CurlHttpIO::curlsh_unlock(CURL*, curl_lock_data data, void*)
+{
+    if (data < CURL_LOCK_DATA_LAST)
+    {
+        sCurlShareMutexes[data].unlock();
+    }
+}
+
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
 
 std::recursive_mutex **CurlHttpIO::sslMutexes = NULL;
@@ -280,6 +302,28 @@ CurlHttpIO::CurlHttpIO()
         throw std::runtime_error("curl built without HTTP/HTTPS support. Aborting.");
     }
 
+#ifdef MEGA_USE_WSUPLOAD
+    // A header/runtime ABI mismatch can fail in the dynamic loader before this constructor runs.
+    const char* const* protocols = data ? data->protocols : nullptr;
+    bool supportsWss = false;
+    for (; protocols && *protocols; ++protocols)
+    {
+        if (std::string_view(*protocols) == "wss")
+        {
+            supportsWss = true;
+            break;
+        }
+    }
+
+    if (!supportsWss)
+    {
+        LOG_fatal
+            << "libcurl built without WebSocket support required by MEGA_USE_WSUPLOAD. Aborting.";
+        throw std::runtime_error(
+            "libcurl built without WebSocket support required by MEGA_USE_WSUPLOAD. Aborting.");
+    }
+#endif
+
     if (data->ares)
     {
         int version{data->ares_num};
@@ -376,6 +420,10 @@ CurlHttpIO::CurlHttpIO()
     curlsh = curl_share_init();
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_DNS);
     curl_share_setopt(curlsh, CURLSHOPT_SHARE, CURL_LOCK_DATA_SSL_SESSION);
+    // SDK-5360 (Design A): make `curlsh` safe for concurrent users (WS handshakes now run on
+    // worker threads). USERDATA not needed: the mutex array is static. See meganet.h.
+    curl_share_setopt(curlsh, CURLSHOPT_LOCKFUNC, CurlHttpIO::curlsh_lock);
+    curl_share_setopt(curlsh, CURLSHOPT_UNLOCKFUNC, CurlHttpIO::curlsh_unlock);
 
     contenttypejson = curl_slist_append(NULL, "Content-Type: application/json");
     contenttypejson = curl_slist_append(contenttypejson, "Expect:");
@@ -2411,5 +2459,147 @@ bool isValidIPv6Address(const std::string& string)
 {
     return isValidIPAddress(string, AF_INET6);
 }
+
+#ifdef MEGA_USE_WSUPLOAD
+void CurlHttpIO::configureWsEasy(CURL* easy, bool isPostJson)
+{
+    LOG_debug << "[CurlHttpIO::configureWsEasy] BEGIN [easy=" << (void*)easy
+              << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
+    assert(easy);
+    // Share DNS/SSL sessions while we are on the client thread
+    curl_easy_setopt(easy, CURLOPT_SHARE, curlsh);
+    curl_easy_setopt(easy, CURLOPT_NOSIGNAL, 1L);
+    curl_easy_setopt(easy, CURLOPT_ACCEPT_ENCODING, "");
+    curl_easy_setopt(easy, CURLOPT_USERAGENT, useragent.c_str());
+
+    if (isPostJson)
+    {
+        curl_easy_setopt(easy, CURLOPT_HTTPHEADER, contenttypejson);
+        curl_easy_setopt(easy, CURLOPT_LOW_SPEED_TIME, 30L);
+        curl_easy_setopt(easy, CURLOPT_LOW_SPEED_LIMIT, 1L);
+        return;
+    }
+
+    // WebSocket lane
+    curl_easy_setopt(easy, CURLOPT_CONNECT_ONLY, 2L); // enable WS
+    curl_easy_setopt(easy, CURLOPT_HTTP_VERSION, CURL_HTTP_VERSION_1_1);
+#ifdef CURLOPT_SSL_ENABLE_ALPN
+    curl_easy_setopt(easy, CURLOPT_SSL_ENABLE_ALPN, 0L);
+#endif
+#ifdef CURLOPT_SSL_ENABLE_NPN
+    curl_easy_setopt(easy, CURLOPT_SSL_ENABLE_NPN, 0L);
+#endif
+#ifdef CURLOPT_PROTOCOLS
+    curl_easy_setopt(easy, CURLOPT_PROTOCOLS, CURLPROTO_WS | CURLPROTO_WSS);
+    curl_easy_setopt(easy, CURLOPT_REDIR_PROTOCOLS, CURLPROTO_WS | CURLPROTO_WSS);
+#endif
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPALIVE, 1L);
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPIDLE, 90L);
+    curl_easy_setopt(easy, CURLOPT_TCP_KEEPINTVL, 60L);
+
+    // Respect current proxy/DNS settings
+    if (!dnsservers.empty())
+        curl_easy_setopt(easy, CURLOPT_DNS_SERVERS, dnsservers.c_str());
+
+    // Apply proxy if configured (same logic as send_request; abbreviated)
+    if (proxyip.size())
+    {
+        if (!proxyschema.size() || !proxyschema.compare(0, 4, "http"))
+            curl_easy_setopt(easy, CURLOPT_PROXYTYPE, CURLPROXY_HTTP);
+        else if (!proxyschema.compare(0, 5, "socks"))
+            curl_easy_setopt(easy, CURLOPT_PROXYTYPE, CURLPROXY_SOCKS5_HOSTNAME);
+
+        curl_easy_setopt(easy, CURLOPT_PROXY, proxyip.c_str());
+        curl_easy_setopt(easy, CURLOPT_PROXYAUTH, CURLAUTH_ANY);
+        if (proxyusername.size())
+        {
+            curl_easy_setopt(easy, CURLOPT_PROXYUSERNAME, proxyusername.c_str());
+            curl_easy_setopt(easy, CURLOPT_PROXYPASSWORD, proxypassword.c_str());
+        }
+        // For WSS via HTTP proxies:
+        curl_easy_setopt(easy, CURLOPT_HTTPPROXYTUNNEL, 1L);
+    }
+    else if (proxytype == Proxy::NONE)
+    {
+        curl_easy_setopt(easy, CURLOPT_PROXY, "");
+    }
+
+    // gfs userstorage hosts are never pinned or CA-verified (data is
+    // E2E-encrypted; the upload URL is a capability from the pinned API
+    // channel). Match send_request's trust model for these hosts.
+    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYPEER, 0L);
+    curl_easy_setopt(easy, CURLOPT_SSL_VERIFYHOST, 0L);
+    curl_easy_setopt(easy, CURLOPT_CAINFO, NULL);
+    curl_easy_setopt(easy, CURLOPT_CAPATH, NULL);
+
+    LOG_debug << "[CurlHttpIO::configureWsEasy] END [easy=" << (void*)easy
+              << "] [isPostJson=" << isPostJson << "] [this = " << this << "]";
+}
+
+CURL* CurlHttpIO::wsHandshake(const std::string& url, long timeoutMs, std::string* err)
+{
+    LOG_debug << "[CurlHttpIO::wsHandshake] BEGIN [url=" << url << "] [timeoutMs=" << timeoutMs
+              << "] [this = " << this << "]";
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    bool forceFailure = false;
+    std::string hookErr;
+    DEBUG_TEST_HOOK_WS_HANDSHAKE(url, timeoutMs, hookErr, forceFailure);
+    if (forceFailure)
+    {
+        if (err)
+            *err = hookErr.empty() ? "debug forced WS handshake failure" : hookErr;
+        return nullptr;
+    }
+#endif
+
+    CURL* easy = curl_easy_init();
+    if (!easy)
+    {
+        if (err)
+            *err = "curl_easy_init failed";
+        return nullptr;
+    }
+
+    char ebuf[CURL_ERROR_SIZE] = {0};
+    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, ebuf);
+    configureWsEasy(easy, /*isPostJson*/ false);
+    curl_easy_setopt(easy, CURLOPT_URL, url.c_str());
+    if (timeoutMs > 0)
+    {
+        // Bound the TCP-connect leg AND the overall handshake (TLS + WS upgrade).
+        // Without an overall TIMEOUT the upgrade leg is unbounded under loss and
+        // outruns the worker baton (ws_conn.cpp:232), which abandons a handshake
+        // that still completes on the client thread -> wasted client-thread seconds
+        // (root_cause.md S3a). 15s is generous: a clean handshake is <1s, so this
+        // never trips on a good link (clean-network no-op).
+        curl_easy_setopt(easy, CURLOPT_CONNECTTIMEOUT_MS, timeoutMs);
+        curl_easy_setopt(easy, CURLOPT_TIMEOUT_MS, timeoutMs);
+    }
+
+    CURLcode rc = curl_easy_perform(easy);
+    if (rc != CURLE_OK)
+    {
+        if (err)
+            *err = std::string("handshake failed: ") + curl_easy_strerror(rc) + " (" + ebuf + ")";
+        LOG_err << "[wsHandshake] FAILED url=" << url << " rc=" << rc << " "
+                << curl_easy_strerror(rc) << " (" << ebuf << ")";
+        curl_easy_cleanup(easy);
+        return nullptr;
+    }
+
+    // On success, DETACH from shared state before we hand the handle to worker threads.
+    curl_easy_setopt(easy, CURLOPT_SHARE, nullptr);
+
+    // Drop the stack-local error buffer before the handle outlives this frame:
+    // the worker thread keeps using `easy`, and a later error would otherwise have
+    // libcurl write into the dangling `ebuf` address.
+    curl_easy_setopt(easy, CURLOPT_ERRORBUFFER, nullptr);
+
+    LOG_debug << "[CurlHttpIO::wsHandshake] END -> return easy=" << (void*)easy << " [url=" << url
+              << "] [timeoutMs=" << timeoutMs << "] [this = " << this << "]";
+    return easy;
+}
+#endif // MEGA_USE_WSUPLOAD
 
 } // namespace

@@ -759,6 +759,79 @@ void JSON::unescape(string* s)
     }
 }
 
+string JSON::escape(const char* data, size_t length)
+{
+    const utf8proc_uint8_t* current = reinterpret_cast<const utf8proc_uint8_t*>(data);
+    utf8proc_ssize_t remaining = static_cast<utf8proc_ssize_t>(length);
+    utf8proc_int32_t codepoint = 0;
+    string result;
+
+    while (remaining > 0)
+    {
+        auto read = utf8proc_iterate(current, remaining, &codepoint);
+        if (read <= 0)
+        {
+            // Not valid UTF-8 (e.g. a non-UTF-8 local path on Linux, which exportSyncConfig
+            // may escape). Pass the raw byte through unescaped: it is >= 0x80 so it never needs
+            // escaping, and unescape() preserves it, so the round-trip stays byte-for-byte.
+            result.push_back(static_cast<char>(*current));
+            ++current;
+            --remaining;
+            continue;
+        }
+
+        assert(codepoint >= 0);
+
+        current += read;
+        remaining -= read;
+
+        if (read > 1)
+        {
+            result.append(current - read, current);
+            continue;
+        }
+
+        switch (codepoint)
+        {
+            case '"':
+                result.append("\\\"");
+                break;
+            case '\\':
+                result.append("\\\\");
+                break;
+            case '\b':
+                result.append("\\b");
+                break;
+            case '\f':
+                result.append("\\f");
+                break;
+            case '\n':
+                result.append("\\n");
+                break;
+            case '\r':
+                result.append("\\r");
+                break;
+            case '\t':
+                result.append("\\t");
+                break;
+            default:
+                if (codepoint < 0x20)
+                {
+                    char buf[7];
+                    snprintf(buf, sizeof(buf), "\\u%04x", static_cast<unsigned>(codepoint));
+                    result.append(buf);
+                }
+                else
+                {
+                    result.push_back(static_cast<char>(current[-1]));
+                }
+                break;
+        }
+    }
+
+    return result;
+}
+
 bool JSON::extractstringvalue(const string& json, const string& name, string* value)
 {
     string pattern = name + "\":\"";
@@ -948,12 +1021,12 @@ void JSONWriter::arg_fsfp(const char* n, std::uint64_t fp)
 
 void JSONWriter::arg_stringWithEscapes(const char* name, const string& value, int quote)
 {
-    arg(name, escape(value.c_str(), value.size()), quote);
+    arg(name, JSON::escape(value.c_str(), value.size()), quote);
 }
 
 void JSONWriter::arg_stringWithEscapes(const char* name, const char* value, int quote)
 {
-    arg(name, escape(value, strlen(value)), quote);
+    arg(name, JSON::escape(value, strlen(value)), quote);
 }
 
 void JSONWriter::arg(const char* name, m_off_t n)
@@ -1111,45 +1184,6 @@ int JSONWriter::elements()
     }
 
     return 1;
-}
-
-string JSONWriter::escape(const char* data, size_t length) const
-{
-    const utf8proc_uint8_t* current = reinterpret_cast<const utf8proc_uint8_t *>(data);
-    utf8proc_ssize_t remaining = static_cast<utf8proc_ssize_t>(length);
-    utf8proc_int32_t codepoint = 0;
-    string result;
-
-    while (remaining > 0)
-    {
-        auto read = utf8proc_iterate(current, remaining, &codepoint);
-        assert(codepoint >= 0);
-        assert(read > 0);
-
-        current += read;
-        remaining -= read;
-
-        if (read > 1)
-        {
-            result.append(current - read, current);
-            continue;
-        }
-
-        switch (codepoint)
-        {
-        case '"':
-            result.append("\\\"");
-            break;
-        case '\\':
-            result.append("\\\\");
-            break;
-        default:
-            result.push_back(static_cast<char>(current[-1]));
-            break;
-        }
-    }
-
-    return result;
 }
 
 JSONSplitter::JSONSplitter()

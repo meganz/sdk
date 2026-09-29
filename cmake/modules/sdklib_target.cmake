@@ -80,6 +80,7 @@ set(SDKLIB_HEADERS
     include/mega/version.h
     include/mega/node.h
     include/mega/mediafileattribute.h
+    include/mega/mediats_utils.h
     include/mega/process.h
     include/mega/name_collision.h
     include/mega/name_id.h
@@ -133,6 +134,7 @@ set(SDKLIB_SOURCES
     src/logging.cpp
     src/localpath.cpp
     src/mediafileattribute.cpp
+    src/mediats_utils.cpp
     src/megaclient.cpp
     src/megaclientprefs.cpp
     src/node.cpp
@@ -347,6 +349,31 @@ target_sources_conditional(SDKlib
     src/impl/tcp_context_pool.cpp
 )
 
+target_sources_conditional(SDKlib
+    FLAG MEGA_USE_WSUPLOAD
+    PRIVATE
+    include/mega/commands_ws.h
+    include/mega/wsupload.h
+    include/mega/transfer/ws/ws_encryption.h
+    include/mega/transfer/ws/ws_pool_mgr.h
+    include/mega/transfer/ws/ws_quota.h
+    include/mega/transfer/ws/ws_quota_types.h
+    include/mega/transfer/ws/ws_upload_file.h
+    include/mega/transfer/ws/wsupload_engine.h
+    include/mega/transfer/ws/wsupload_internal.h
+    src/commands_ws.cpp
+    src/transfer/ws/wsupload.cpp
+    src/transfer/ws/wsupload_engine.cpp
+    src/transfer/ws/ws_conn.cpp
+    src/transfer/ws/ws_encryption.cpp
+    src/transfer/ws/ws_curl.cpp
+    src/transfer/ws/ws_pool.cpp
+    src/transfer/ws/ws_pool_mgr.cpp
+    src/transfer/ws/ws_quota.cpp
+    src/transfer/ws/ws_upload_file.cpp
+    src/megaclient_wsupload.cpp
+)
+
 # Include directories
 target_include_directories(SDKlib
     PUBLIC
@@ -386,6 +413,11 @@ target_compile_definitions(SDKlib
     $<$<PLATFORM_ID:Android>:USE_POLL>
     $<$<PLATFORM_ID:Android>:USE_INOTIFY>
     $<$<PLATFORM_ID:Android>:HAVE_SDK_CONFIG_H>
+)
+
+target_compile_definitions(SDKlib
+    PUBLIC
+    $<$<BOOL:${MEGA_USE_WSUPLOAD}>:MEGA_USE_WSUPLOAD>
 )
 
 set_target_properties(SDKlib PROPERTIES
@@ -456,6 +488,20 @@ if(ENABLE_SDKLIB_WERROR)
         UNIX  $<$<CONFIG:Debug>: -Werror
                                  -Wno-error=deprecated-declarations> # Kept as a warning, do not promote to error.
     )
+endif()
+
+## Enable ARC for Objective-C / Objective-C++ sources on Apple platforms ##
+# The SPM source build compiles .m/.mm with ARC by default; the cmake build did
+# not, so autoreleased objects (e.g. the NSData in GfxProcCG.mm) were not retained
+# and crashed with EXC_BAD_ACCESS once their autorelease pool drained. Keep .mm
+# compiled as CXX (preserving -std) and just add -fobjc-arc to the ObjC(++) TUs.
+if(APPLE)
+    get_target_property(_sdklib_sources SDKlib SOURCES)
+    foreach(_src IN LISTS _sdklib_sources)
+        if(_src MATCHES "\\.(mm|m)$")
+            set_source_files_properties(${_src} PROPERTIES COMPILE_OPTIONS "-fobjc-arc")
+        endif()
+    endforeach()
 endif()
 
 ## Create config files ##

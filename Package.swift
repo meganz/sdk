@@ -53,6 +53,7 @@ let package = Package(
                 .headerSearchPath("third_party"),
                 .define("ENABLE_CHAT"),
                 .define("HAVE_LIBUV"),
+                .define("MEGA_USE_WSUPLOAD"),
                 .define("NDEBUG", .when(configuration: .release))
             ],
             linkerSettings: [

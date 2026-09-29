@@ -64,6 +64,7 @@ typedef enum
 typedef enum
 {
     NODE_COMP_EREAD = -21,
+    NODE_COMP_CANCELLED = -3,
     NODE_COMP_EARGS = -2,
     NODE_COMP_PENDING = -1,
     NODE_COMP_EQUAL = 0,
@@ -654,8 +655,16 @@ static constexpr int64_t INVALID_META_MAC{0xFFFFFFFF};
  *
  * Used by CompareLocalFileMetaMacWithNodeKey to return extended information
  * for diagnostics and event reporting (e.g., event 800036).
- * @note errorCode: 0 = success, non-zero = OS error code during MAC generation
- *       (e.g., EIO on POSIX, ERROR_HANDLE_EOF on Windows)
+ * @note `errorCode` has the following meanings:
+ * - `0`: The MAC was computed; `areEqualMacs` is meaningful.
+ * - Negative: A MEGA error code.
+ *   - `API_EINCOMPLETE`: Cancelled; no MAC was computed.
+ *   - `API_EKEY`: The node key was unusable. This is set for an invalid key length, or by a
+ *     caller such as `CollisionChecker::CompareLocalFileMetaMac` when the node has no key.
+ * - Positive: An OS error during MAC generation, such as `EIO` on POSIX or
+ *   `ERROR_HANDLE_EOF` on Windows.
+ *
+ * When `errorCode` is non-zero, `areEqualMacs == false` does not imply that the items differ.
  */
 struct MacComparisonResult
 {
@@ -688,14 +697,33 @@ bool areEqualNodesByMetaMac(const std::string& nodeKey_a, const std::string& nod
  * @param nodeKey The node's encryption key containing the MAC.
  * @param type The node type for cipher initialization.
  * @param pathStr Optional path string for logging.
- * @return MacComparisonResult with comparison details including both MACs and error status.
+ * @param cancelToken Token to abort the potentially long MAC computation.
+ * @return MacComparisonResult with both MACs and an error status. Check errorCode before reading
+ *         areEqualMacs: it is API_EINCOMPLETE when cancelled, and a comparison that did not
+ *         complete is not a mismatch.
  */
 MacComparisonResult CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                        const std::string& nodeKey,
                                                        int type,
-                                                       std::optional<std::string> pathStr);
+                                                       std::optional<std::string> pathStr,
+                                                       CancelToken cancelToken);
 
-bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node);
+/**
+ * @brief Compares local file MAC with the node's MAC.
+ *
+ * Convenience wrapper over CompareLocalFileMetaMacWithNodeKey, taking the key, type and path
+ * from the node.
+ *
+ * @param fa Pointer to FileAccess object for reading the local file.
+ * @param node The node whose key holds the MAC to compare against.
+ * @param cancelToken Token to abort the potentially long MAC computation.
+ * @return MacComparisonResult with both MACs and an error status. Check errorCode before reading
+ *         areEqualMacs: it is API_EINCOMPLETE when cancelled, and a comparison that did not
+ *         complete is not a mismatch.
+ */
+MacComparisonResult CompareLocalFileMetaMacWithNode(FileAccess* fa,
+                                                    Node* node,
+                                                    CancelToken cancelToken);
 
 /**
  * @brief Generates local METAMAC (from local file) and remote METAMAC (from a Node)
@@ -761,7 +789,7 @@ node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node*
  * @param path Local path to the file to be compared.
  * @param fp Fingerprint of the local file to be compared.
  * @param node Pointer to the node to compare with.
- * @param excludeMtime If true, ignores mtime time during fingerprint comparison.
+ * @param cancelToken Token to abort the potentially long MAC computation.
  *
  * @return A pair of {`node_comparison_result`, metamac}.
  *     `node_comparison_result` indicates:
@@ -772,12 +800,14 @@ node_comparison_result CompareNodeWithProvidedMacAndFpExcludingMtime(const Node*
  mtime (CRC, Size, isValid).
  *      - NODE_COMP_DIFFERS_MTIME: Fingerprints differ in mtime but METAMACs match.
  *      - NODE_COMP_DIFFERS_MAC: METAMACs differ.
+ *      - NODE_COMP_CANCELLED: MAC computation was cancelled; no mismatch event is reported.
  */
 std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(MegaClient& client,
                                                   const LocalPath& path,
                                                   const FileFingerprint& fp,
-                                                  const Node* node);
+                                                  const Node* node,
+                                                  CancelToken cancelToken);
 
 // Helper class for MegaClient.  Suitable for expansion/templatizing for other use caes.
 // Maintains a small thread pool for executing independent operations such as encrypt/decrypt a block of data

@@ -1348,6 +1348,23 @@ class MegaNode
         virtual int64_t getModificationTime();
 
         /**
+         * @brief Returns the media capture timestamp of the node in milliseconds since epoch (UTC).
+         *
+         * This is the best-effort capture time for media files (photos, videos, audio).
+         * It is derived from the filename pattern, modification time, or creation time,
+         * in that priority order.
+         *
+         * The returned value is only meaningful for media file nodes (photo/video/audio).
+         * For non-media nodes, returns 0.
+         *
+         * Note: unlike getCreationTime() / getModificationTime() which return seconds,
+         * this method returns milliseconds. The "Ms" suffix makes the unit explicit.
+         *
+         * @return Media capture timestamp in milliseconds since epoch (UTC), or 0 if not available
+         */
+        virtual int64_t getMediaCaptureTimeMs();
+
+        /**
          * @brief Returns a handle to identify this MegaNode
          *
          * You can use MegaApi::getNodeByHandle to recover the node later.
@@ -7902,6 +7919,79 @@ public:
     virtual long long getNotificationNumber() const;
 };
 
+/**
+ * @brief Observational snapshot of whether the current websocket-upload queue can
+ * complete under the account's current transfer-quota balances.
+ *
+ * This is a purely OBSERVATIONAL, app-facing helper for building interactive quota
+ * warnings (e.g. alerting a user who is not watching when storage nears the limit).
+ * The SDK does NOT use it for any internal upload decision-making: querying it takes
+ * no quota holds, changes no transfer state, and has zero side effects.
+ *
+ * The answer is a SNAPSHOT computed at the moment MegaApi::getWsUploadQueueQuotaFit
+ * is called. Because uploads, completions and quota replies keep arriving, races
+ * against ongoing transfers are inherent and the value may be stale immediately.
+ *
+ * The state is MegaWsUploadQuotaFit::STATE_UNKNOWN until the first transfer-quota
+ * balance has arrived from the server; apps should treat STATE_UNKNOWN as "no data
+ * yet", never as "fits".
+ *
+ * Objects of this class are immutable. You take the ownership of objects returned by
+ * MegaApi::getWsUploadQueueQuotaFit and of MegaWsUploadQuotaFit::copy.
+ *
+ * @see MegaApi::getWsUploadQueueQuotaFit
+ */
+class MegaWsUploadQuotaFit
+{
+public:
+    enum
+    {
+        STATE_UNKNOWN = 0, ///< No balance data yet (fail-open); treat as "no data".
+        STATE_FITS = 1, ///< Every quota pool can absorb its queued+running WS uploads.
+        STATE_SHORTFALL = 2, ///< At least one pool's queued+running WS uploads exceed its balance.
+    };
+
+    virtual ~MegaWsUploadQuotaFit();
+
+    /**
+     * @brief Creates a copy of this MegaWsUploadQuotaFit object.
+     *
+     * The resulting object is fully independent of the source object. You are the
+     * owner of the returned object.
+     *
+     * @return Copy of the MegaWsUploadQuotaFit object
+     */
+    virtual MegaWsUploadQuotaFit* copy() const;
+
+    /**
+     * @brief Returns whether the current WS upload queue fits under current balances.
+     *
+     * @return One of MegaWsUploadQuotaFit::STATE_UNKNOWN (no balance data yet),
+     * STATE_FITS or STATE_SHORTFALL.
+     */
+    virtual int getState() const;
+
+    /**
+     * @brief Returns the total number of bytes by which the queue overshoots quota.
+     *
+     * Summed across every quota pool that is short. It is 0 unless getState() is
+     * STATE_SHORTFALL. Observational only.
+     *
+     * @return Total shortfall in bytes, or 0 when the queue fits / is unknown.
+     */
+    virtual long long getShortfallBytes() const;
+
+    /**
+     * @brief Returns whether any short quota pool belongs to another user.
+     *
+     * True when at least one pool in shortfall is foreign (an inbound-share owner or
+     * a folder-link root) rather than the local account. Meaningful only when
+     * getState() is STATE_SHORTFALL.
+     *
+     * @return True if a foreign pool is in shortfall.
+     */
+    virtual bool isForeignShortfall() const;
+};
 
 /**
  * @brief Provides information about a contact request
@@ -10876,6 +10966,7 @@ public:
  *   ORDER_MODIFICATION_ASC / _DESC             : setLastName, setLastHandle, setLastMtime
  *   ORDER_LABEL_ASC / ORDER_LABEL_DESC         : setLastName, setLastHandle, setLastLabel
  *   ORDER_FAV_ASC   / ORDER_FAV_DESC           : setLastName, setLastHandle, setLastFav
+ *   ORDER_MEDIATS_ASC / ORDER_MEDIATS_DESC     : setLastName, setLastHandle, setLastMediaTsMs
  *
  * Note on ORDER_FAV_ASC / ORDER_FAV_DESC naming:
  *   Despite the "ASC" / "DESC" suffix, both orders sort non-favourites and
@@ -10959,6 +11050,18 @@ public:
     virtual void setLastFav(int lastFav);
 
     /**
+     * @brief Set the media capture timestamp of the last node returned in the previous page.
+     *
+     * Required for ORDER_MEDIATS_ASC / ORDER_MEDIATS_DESC.
+     *
+     * Note: the value is in milliseconds, unlike setLastMtime() which is in seconds.
+     * The "Ms" suffix makes the unit explicit.
+     *
+     * @param lastMediaTsMs Media capture timestamp in milliseconds since epoch (UTC).
+     */
+    virtual void setLastMediaTsMs(int64_t lastMediaTsMs);
+
+    /**
      * @brief Return the name of the last node.
      * @return Name set via setLastName(), or nullptr if not set.
      */
@@ -10993,6 +11096,17 @@ public:
      * @return Fav value set via setLastFav(), or -1 if not set.
      */
     virtual int getLastFav() const;
+
+    /**
+     * @brief Return the media capture timestamp of the last node in milliseconds.
+     *
+     * Note: -1 is used as the "not set" sentinel. It is technically a valid negative
+     * millisecond timestamp (1 ms before the Unix epoch), but no real media file is
+     * expected to carry such a value, so -1 remains an unambiguous sentinel in practice.
+     *
+     * @return MediaTs in milliseconds set via setLastMediaTsMs(), or -1 if not set.
+     */
+    virtual int64_t getLastMediaTsMs() const;
 };
 
 /**
@@ -11225,9 +11339,11 @@ public:
      * fields don't swap meaning based on direction.
      *
      * **Half-bounded semantics.** Only one bound is enforced, picked by
-     * @p sectionOrder:
-     *   - ORDER_MODIFICATION_ASC:  enforces the lower bound @p startDate (walks forward)
-     *   - ORDER_MODIFICATION_DESC: enforces the upper bound @p endDate   (walks backward)
+     * @p sectionOrder, which also selects the timestamp column:
+     *   - ORDER_MODIFICATION_ASC:  mtime,   enforces the lower bound @p startDate
+     *   - ORDER_MODIFICATION_DESC: mtime,   enforces the upper bound @p endDate
+     *   - ORDER_MEDIATS_ASC:       mediats, enforces the lower bound @p startDate
+     *   - ORDER_MEDIATS_DESC:      mediats, enforces the upper bound @p endDate
      * Pagination continues into adjacent sections. To fetch ONLY this bucket,
      * the app stops after MegaDateSection::getCount() items.
      *
@@ -11235,7 +11351,10 @@ public:
      * disable; all three fields reset together. This setter only stores the
      * values; validity is enforced when the filter is used. listAllNodesByPage
      * returns an empty list (and logs a warning) for an unsupported
-     * @p sectionOrder, a negative bound, or @p startDate >= @p endDate.
+     * @p sectionOrder, a negative bound, @p startDate >= @p endDate, or an
+     * ORDER_MEDIATS_* @p sectionOrder paired with a non-media
+     * MegaNodeScopeFilter::byCategory() — capture time is unset for every other
+     * kind of file, so that pairing could only ever return an empty page.
      * @p startDate == 0 is allowed and means "no lower bound" for an ASC anchor.
      *
      * Honoured only by listAllNodesByPage. Ignored by
@@ -11243,9 +11362,19 @@ public:
      * across the entire remaining filter scope.
      *
      * The @p order on listAllNodesByPage controls only the ORDER BY, not which
-     * half-bound is enforced. NOTE: a non-mtime page order is NOT scoped to one
-     * bucket; fetch getCount() items with ORDER_MODIFICATION_* and sort
-     * client-side.
+     * half-bound is enforced. NOTE: the page is scoped to this bucket ONLY when
+     * that @p order EQUALS this @p sectionOrder. Every other pairing yields an
+     * unscoped page of plausible-looking rows — a different column
+     * (ORDER_MEDIATS_DESC page + ORDER_MODIFICATION_DESC anchor), and equally the
+     * same column reversed (ORDER_MEDIATS_ASC page + ORDER_MEDIATS_DESC anchor,
+     * whose first getCount() items are the oldest media in scope, not this
+     * bucket's). Otherwise fetch getCount() items and sort client-side.
+     *
+     * NOTE: with no anchor set, ORDER_MEDIATS_* pages include nodes whose
+     * mediats is 0 (any non-media file, or a media file from which no timestamp
+     * could be derived). Those nodes belong to no MegaDateSection, so section
+     * counts do not sum to an unanchored page's length. Set an anchor to
+     * exclude them.
      */
     virtual void byTimestampAnchor(int64_t startDate, int64_t endDate, int sectionOrder);
 
@@ -11396,6 +11525,11 @@ public:
      *
      * Sum getCount() across all sections for the timeline's total length (the
      * value the fast scroller uses for its track).
+     *
+     * Under an ORDER_MEDIATS_* order with no MegaListAllNodesFilter timestamp
+     * anchor set, listAllNodesByPage also returns nodes with no capture time,
+     * which belong to no section — so that sum matches the page's length only
+     * when an anchor is set.
      *
      * int64_t (not int): a large account's total can exceed INT_MAX; bindings
      * must not narrow it.
@@ -18353,6 +18487,26 @@ class MegaApi
         MegaTransfer *getFirstTransfer(int type);
 
         /**
+         * @brief Observational query: can the current websocket-upload queue complete
+         * under the account's current transfer-quota balances?
+         *
+         * Intended for apps building interactive quota warnings (the user may not be
+         * watching when quota nears the limit). This is OBSERVATIONAL ONLY — the SDK
+         * does NOT use it for any internal upload decision-making, it takes no quota
+         * holds and has no side effects on transfers or the quota ledger.
+         *
+         * The result is a snapshot at call time (races with ongoing transfers,
+         * completions and quota replies are inherent). The state is
+         * MegaWsUploadQuotaFit::STATE_UNKNOWN until the first transfer-quota balance
+         * arrives from the server, which apps should treat as "no data yet".
+         *
+         * You take the ownership of the returned value.
+         *
+         * @return A MegaWsUploadQuotaFit snapshot. Never NULL.
+         */
+        MegaWsUploadQuotaFit* getWsUploadQueueQuotaFit();
+
+        /**
          * @brief Force an onTransferUpdate callback for the specified transfer
          *
          * The callback will be received by transfer listeners registered to receive all
@@ -19428,6 +19582,8 @@ class MegaApi
             ORDER_FAV_DESC = 20,
             ORDER_SHARE_CREATION_ASC = 21,
             ORDER_SHARE_CREATION_DESC = 22,
+            ORDER_MEDIATS_ASC = 23,
+            ORDER_MEDIATS_DESC = 24,
         };
 
         enum
@@ -19551,6 +19707,12 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
+         *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @return List with all child MegaNode objects
          */
@@ -19564,13 +19726,14 @@ class MegaApi
          *
          * You take the ownership of the returned value
          *
-         * This function allows to cancel the processing at any time by passing a MegaCancelToken and calling
-         * to MegaCancelToken::setCancelFlag(true).
+         * This function allows to cancel the processing at any time by passing a MegaCancelToken
+         * and calling to MegaCancelToken::setCancelFlag(true).
          *
          * @param filter Container for filtering options. In order to be considered valid it must
          * - be not null
-         * - have valid ancestor handle (different than INVALID_HANDLE) set by calling byLocationHandle(),
-         *   and in consequence it must have default value for location (SEARCH_TARGET_ALL)
+         * - have valid ancestor handle (different than INVALID_HANDLE) set by calling
+         * byLocationHandle(), and in consequence it must have default value for location
+         * (SEARCH_TARGET_ALL)
          * @param order Order for the returned list
          *
          * Note: First, the nodes are always sorted by type, being folders always first. Then, the
@@ -19615,6 +19778,12 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
+         *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
          *
          * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
@@ -19676,6 +19845,12 @@ class MegaApi
          *
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
+         *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
          *
          * @return List with all child MegaNode objects
          */
@@ -20770,6 +20945,12 @@ class MegaApi
          * - MegaApi::ORDER_FAV_DESC = 20
          * Sort nodes with favourite attr last
          *
+         * - MegaApi::ORDER_MEDIATS_ASC = 23
+         * Sort by media capture timestamp, oldest first
+         *
+         * - MegaApi::ORDER_MEDIATS_DESC = 24
+         * Sort by media capture timestamp, newest first
+         *
          * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
          * @param searchPage Container for pagination options; if null, all results will be returned
          *
@@ -20806,8 +20987,9 @@ class MegaApi
          *   - ORDER_DEFAULT_ASC      / ORDER_DEFAULT_DESC
          *   - ORDER_SIZE_ASC         / ORDER_SIZE_DESC
          *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
-         *   - ORDER_LABEL_ASC        / ORDER_LABEL_DESC
-         *   - ORDER_FAV_ASC          / ORDER_FAV_DESC
+         *   - ORDER_LABEL_ASC    / ORDER_LABEL_DESC
+         *   - ORDER_FAV_ASC      / ORDER_FAV_DESC
+         *   - ORDER_MEDIATS_ASC  / ORDER_MEDIATS_DESC
          *
          * To build a cursor for the next page, populate a MegaSearchCursorOffset
          * from the last MegaNode in the returned list. The fields required
@@ -20869,6 +21051,7 @@ class MegaApi
          *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
          *   - ORDER_LABEL_ASC        / ORDER_LABEL_DESC
          *   - ORDER_FAV_ASC          / ORDER_FAV_DESC
+         *   - ORDER_MEDIATS_ASC      / ORDER_MEDIATS_DESC
          *
          * The call returns an empty list and logs a warning when:
          *   - @p filter is nullptr.
@@ -20890,6 +21073,7 @@ class MegaApi
          *       * ORDER_LABEL_*        → getLastLabel() outside
          *                                [NODE_LBL_UNKNOWN, NODE_LBL_GREY]
          *       * ORDER_FAV_*          → getLastFav() not 0 or 1
+         *       * ORDER_MEDIATS_*      → getLastMediaTsMs() < 0
          *     ORDER_DEFAULT_* requires no extra field beyond lastName /
          *     lastHandle.
          *
@@ -20942,8 +21126,9 @@ class MegaApi
          * @param filter       Required. Scope/category filter; may carry byTimestampAnchor.
          * @param order        Sort order constant. Accepts the same set as
          *                     listAllNodesByPage (ORDER_DEFAULT / SIZE / MODIFICATION /
-         *                     LABEL / FAV, each ASC/DESC); the fast-scroller flow uses
-         *                     NEWEST/OLDEST = ORDER_MODIFICATION_DESC/ASC.
+         *                     LABEL / FAV / MEDIATS, each ASC/DESC); the fast-scroller
+         *                     flow uses NEWEST/OLDEST = ORDER_MODIFICATION_DESC/ASC, or
+         *                     the ORDER_MEDIATS_* pair for a capture-time timeline.
          * @param cancelToken  Optional; may be null.
          * @param maxElements  Window size (limit). 0 means no limit.
          * @param offset       Leading nodes to skip; must be >= 0 (negative => empty list).
@@ -20962,14 +21147,24 @@ class MegaApi
          *
          * Same scope / sensitivity / file-version exclusion as
          * MegaApi::listAllNodesByPage; any FILE_TYPE_* the latter accepts is
-         * accepted here. Nodes with mtime <= 0 are excluded so the section
-         * list does not contain a spurious "1970-01-01" bucket. Sections with
+         * accepted here, except that ORDER_MEDIATS_* additionally requires a
+         * media category (see below). Nodes with no timestamp in the active
+         * column (mtime <= 0, or mediats == 0) are excluded so the section list
+         * does not contain a spurious "1970-01-01" bucket. Sections with
          * zero remaining items are omitted.
          *
          * Always returns the section list across the entire filter scope.
          *
          * Supported sort orders (@p order):
          *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
+         *   - ORDER_MEDIATS_ASC      / ORDER_MEDIATS_DESC
+         *
+         * ORDER_MEDIATS_* groups by media capture timestamp rather than
+         * modification time, and requires @p filter->byCategory() to be one of
+         * FILE_TYPE_PHOTO / FILE_TYPE_VIDEO / FILE_TYPE_AUDIO /
+         * FILE_TYPE_ALL_VISUAL_MEDIA: mediats is 0 for every other category, so
+         * the grouping would have no rows to bucket. Any other combination is
+         * rejected (empty list + warning).
          *
          * Other order values are rejected (empty list + warning).
          *
@@ -27276,6 +27471,17 @@ public:
      * @return Reshow interval in seconds, or 0
      */
     virtual int64_t getMobileOfferReshowInterval(int productIndex) const = 0;
+
+    /**
+     * @brief Get the campaign of the mobile offer (mo.c)
+     *
+     * Offers of the same campaign share this identifier, so they can be shown and
+     * dismissed as one.
+     *
+     * @param productIndex Product index (from 0 to MegaPricing::getNumProducts)
+     * @return Campaign identifier, or 0 if the offer belongs to no campaign
+     */
+    virtual uint64_t getMobileOfferCampaignId(int productIndex) const = 0;
 
     /**
      * @brief Check whether the mobile offer carries an iOS StoreKit signature

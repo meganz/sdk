@@ -39,6 +39,7 @@ class NodeSerialized
 public:
     std::string mNode;
     std::string mNodeCounter;
+    uint64_t mMediaTs = 0;
 };
 
 enum class DBError
@@ -396,6 +397,7 @@ struct MEGA_API DbAccess
     static const int LAST_DB_VERSION_WITHOUT_NOD;
     static const int LAST_DB_VERSION_WITHOUT_SRW;
     static const int LAST_DB_VERSION_WITHOUT_VFINGERPRINT;
+    static const int LAST_DB_VERSION_WITHOUT_MEDIATS;
 
     DbAccess();
 

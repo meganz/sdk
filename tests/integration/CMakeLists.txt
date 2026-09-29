@@ -9,6 +9,7 @@ target_sources(test_integration
     SdkTestSyncNodesOperations.h
     SdkTestSyncPrevalidation.h
     test.h
+    api_request_hook.h
     integration_test_utils.h
     mock_listeners.h
     sdk_test_share.h
@@ -33,6 +34,7 @@ target_sources(test_integration
     Sync_test.cpp
     one_question_survey_test.cpp
     sdk_test_purge_notification.cpp
+    api_request_hook.cpp
     integration_test_utils.cpp
     DisableBackupSync_test.cpp
     SdkTestPersistConnections_test.cpp
@@ -47,6 +49,7 @@ target_sources(test_integration
     SdkTestDeviceCenter_test.cpp
     SdkTestSyncLocalOperations_test.cpp
     SdkTestSyncNodeAttribute_test.cpp
+    SdkTestSyncOverquotaReason_test.cpp
     SdkTestSyncVersionedNodeDeletion_test.cpp
     SdkTestCaseInsensitiveCollision_test.cpp
     backup_sync_operations_test.cpp
@@ -58,6 +61,7 @@ target_sources(test_integration
     SdkTestListAllNodesByPage_test.cpp
     SdkTestTransferResume_test.cpp
     SdkTestNodeDateSections_test.cpp
+    SdkTestMediatsIntegration_test.cpp
     sdk_test_share.cpp
     sdk_test_share_nested.cpp
     SdkTestMassiveActionPackets_test.cpp
@@ -95,6 +99,16 @@ include(common/common.cmake)
 
 # Load File Service test sources.
 include(file_service/file_service.cmake)
+
+# Load bench_framework module (gated by MEGA_BENCH_FRAMEWORK_ENABLED).
+include(bench_framework/bench_framework.cmake)
+
+# Load benchmark fixture-class module (unconditional; bench cells compile
+# in every test_integration build).
+include(benchmark/benchmark.cmake)
+
+# Load WS-upload integration-test module (gated by MEGA_USE_WSUPLOAD).
+include(wsupload/wsupload.cmake)
 
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)

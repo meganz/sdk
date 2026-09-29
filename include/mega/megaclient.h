@@ -48,13 +48,20 @@
 #include "treeproc.h"
 #include "user.h"
 #include "useralerts.h"
+#include "wsupload.h"
+// ws_quota.h self-guards on MEGA_USE_WSUPLOAD; included here (rather than
+// forward-declared) so the complete ws::UploadQuotaManager type is visible where
+// ~MegaClient() destroys the mWsQuota unique_ptr, mirroring wsupload.h/m_wsEngine.
+#include "mega/transfer/ws/ws_quota.h"
 
 // FUSE support.
 #include <mega/common/client_adapter.h>
 #include <mega/file_service/file_service.h>
 #include <mega/fuse/common/service.h>
 
+#include <future>
 #include <optional>
+#include <unordered_map>
 
 namespace mega {
 
@@ -521,6 +528,105 @@ struct DynamicMessageNotification
 
 class MEGA_API MegaClient
 {
+#ifdef MEGA_USE_WSUPLOAD
+    // WS client-thread actions (processed in MegaClient::exec()).
+    std::mutex mWsClientActionsMutex;
+    std::deque<std::function<void(MegaClient&, TransferDbCommitter&)>> mWsClientActions;
+    enum class WsVerifyResult
+    {
+        Ok,
+        TransientError,
+        Failed
+    };
+
+    struct WsVerifyPending
+    {
+        Transfer* transfer{nullptr};
+        direction_t type{PUT};
+        UploadHandle uploadHandle{};
+        BackoffTimer retryTimer;
+
+        WsVerifyPending(PrnGen& rng, Transfer& t);
+    };
+
+    std::deque<std::unique_ptr<WsVerifyPending>> mWsVerifyPending;
+    std::atomic<bool> mWsCanStartAnotherFile{true};
+    enum class WsPreflightState : std::uint8_t
+    {
+        Queued,
+        Running,
+        Ready,
+        Failed
+    };
+    struct WsPreflightRequest
+    {
+        UploadHandle uploadHandle{};
+        std::shared_future<bool> future;
+        WsPreflightState state{WsPreflightState::Queued};
+    };
+    std::mutex mWsPreflightMutex;
+    std::unordered_map<Transfer*, WsPreflightRequest> mWsPreflightRequests;
+    dstime mWsPreflightLastCleanupDs{0};
+
+    // SDK-5360 fan-out observability. Client-lifetime high-water marks of the preflight
+    // dedup map and of the ws->client action FIFO. Test-facing only, never reset: a folder
+    // upload submits all its subtransfers at once, so these record how many speculative
+    // preflights / queued client actions the engine accumulated at the worst moment.
+    std::atomic<std::uint64_t> mWsPreflightRequestsPeak{0};
+    std::atomic<std::uint64_t> mWsClientActionsPeak{0};
+
+public:
+    std::uint64_t wsPreflightRequestsPeak() const
+    {
+        return mWsPreflightRequestsPeak.load(std::memory_order_relaxed);
+    }
+
+    std::uint64_t wsClientActionsPeak() const
+    {
+        return mWsClientActionsPeak.load(std::memory_order_relaxed);
+    }
+
+private:
+    struct WsFailureRequeuePosition
+    {
+        Transfer* wsBefore{nullptr};
+        UploadHandle wsBeforeTh{};
+    };
+
+    // Keep engine declared after WS action queues/mutex so engine threads are stopped
+    // before those members are destroyed (member destruction is reverse declaration order).
+    std::unique_ptr<ws::UploadEngine> m_wsEngine;
+    bool mWsEngineStarted{false};
+
+    // Client-thread-only quota ledger (SDK-6298). Created lazily in P3; null here.
+    std::unique_ptr<ws::UploadQuotaManager> mWsQuota;
+
+    WsVerifyResult wsVerifyUploadUnchanged(Transfer& t, TransferDbCommitter& committer);
+    void wsFinalizeUploadCompletion(Transfer& t);
+    void wsScheduleVerifyUpload(Transfer& t);
+    // loudPhases: pre-log each drained action (locallogout path — Cluster I+J, S13).
+    void wsDrainClientActions(dstime maxExecTimeDs = 5, bool loudPhases = false);
+    void wsProcessVerifyUploads();
+    void wsCleanupPreflightRequests();
+    void wsRefreshCanStartAnotherFileSnapshot();
+    void maybeStartWsUploadEngine();
+    WsFailureRequeuePosition wsDetachTransferBeforeFailure(Transfer& t);
+    void wsReenqueueTransferAfterFailure(Transfer& t, const WsFailureRequeuePosition& position);
+    void wsLocallogoutCleanup();
+    void wsFreeqCleanupTransfer(direction_t d, Transfer* transfer);
+    void wsNotifyNetworkDisconnect();
+    void wsActivateOverquotaForTransfer(Transfer* t, bool alreadyOverquota, bool isPaywall);
+    void wsAbortBackoffForTransfer(Transfer* transfer);
+    void wsHandleAccountBlocked();
+    void wsHandleAccountUnblocked();
+    void wsApplyTransferPause(direction_t d, bool pause, bool hard);
+    void wsApplyMaxConnections(direction_t d, int num);
+    void wsApplyMaxUploadSpeed(m_off_t normalizedLimit);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    bool wsIsTransferTrackedForTesting(const Transfer& t) const;
+#endif
+#endif
+
 public:
     // own identity
     handle me;
@@ -568,8 +674,71 @@ private:
     // Pro Flexi plan is enabled
     bool mProFlexi = false;
 public:
-    bool isProFlexi() const { return mProFlexi; }
+    bool isProFlexi() const
+    {
+        return mProFlexi;
+    }
 
+#ifdef MEGA_USE_WSUPLOAD
+    ws::UploadEngine* wsEngine() const
+    {
+        return m_wsEngine.get();
+    }
+
+    void installWsEngineCallbacks();
+    bool wsCanStartAnotherFile() const;
+    ws::UploadEngine::PreflightStartResult wsPrepareUploadForWsSync(Transfer& t);
+    bool prepareUploadForWs(Transfer& t);
+    bool wsIsTransferAlive(direction_t type, const Transfer* tp) const;
+
+    // WS upload-quota ledger wrappers (SDK-6298). Null-safe: inert until P3
+    // constructs mWsQuota and wires the issue/apply/evaluate flow.
+    void wsQuotaMarkDirty();
+    void wsQuotaOnTransferTargetsAdded(const Transfer& t);
+    void wsQuotaInvalidateAndMarkDirty();
+    void wsQuotaFlush();
+    void wsQuotaOnUploadCompleted(Transfer& t);
+    void wsQuotaReassertHold(Transfer& t);
+    // A locally-visible node removal is the only local evidence that a quota pool
+    // can have GROWN. Inert unless some pool is currently constrained.
+    void wsQuotaOnNodesRemoved();
+
+    // WS upload-quota internals (client-thread-only; drive mWsQuota).
+    // Handle a "tfs" reply for generation `gen`. firstPass=false is a bounded
+    // Requeue re-run (skips endIssue); requeueCount bounds the defer chain.
+    void wsQuotaOnTfsReply(std::uint64_t gen,
+                           Error e,
+                           WsTfsGroupBalances groups,
+                           bool firstPass,
+                           int requeueCount);
+    // One O(N) scan of multi_transfers[PUT]: accumulate per-pool outstanding and
+    // apply hold/release transitions; wakes engine workers once if any released.
+    void wsQuotaEvaluateHolds();
+    // Apply a single hold/release transition for `t` (no-op when already in the
+    // target state). Returns true iff a RELEASE transition happened.
+    bool wsQuotaApplyHoldState(Transfer& t, bool hold, NodeHandle reprFolder);
+    // Client-side pool identity for a target folder: own-account roots share one
+    // pool (foreign=false); shares are keyed by their OWNER, so every inshare from
+    // the same user merges into one pool (foreign=true), with a link/share whose
+    // owner is unknown isolated under its own root handle; an unresolvable folder
+    // gets a unique, non-foreign key (isolated, never held).
+    std::pair<std::uint64_t, bool> wsQuotaClassifyPool(NodeHandle h);
+
+    // Observational, app-facing (SDK-6298 P5): compute FRESH whether the current WS
+    // upload queue can complete under the current tfs balances. Pure read — zero
+    // side effects on the ledger, engine or transfers; never consulted by any
+    // SDK-internal upload decision. Backs MegaApi::getWsUploadQueueQuotaFit.
+    ws::WsQuotaQueueFit wsQuotaQueueFitSnapshot();
+
+    // Bounce WS callbacks to the client thread.
+    // Enqueue a client-thread action (same signature as sync’s queueClient functors).
+    void wsPostToClientThread(std::function<void(MegaClient&, TransferDbCommitter&)>&& f);
+    // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.
+    void wsPostTransferUpdate(Transfer* t,
+                              std::function<void(Transfer&, TransferDbCommitter&)>&& f);
+    // Internal WS helper to performs HttpIO WS handshake on the client thread.
+    void* wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err);
+#endif
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
     // 2 = Opt-in and unblock SMS allowed 1 = Only unblock SMS allowed 0 = No SMS allowed  -1 = flag was not received
@@ -2593,6 +2762,27 @@ public:
     // transfer queue dispatch/retry handling
     void dispatchTransfers();
 
+    // Pure-math helpers used by dispatchTransfers. No state mutation; const so any
+    // caller in megaclient.cpp can reuse them.
+    unsigned calcDynamicQueueLimit() const;
+    double calcTransferWeight(direction_t transferDirection,
+                              bool forceDynamicLimit = false) const;
+
+    // Run on the client thread; no engine mutex acquired here. Both bail out when
+    // wsEngine() is null. `wsMergeDrainedChunkMacs` drains server-confirmed chunk MACs
+    // and advances contiguous/macsmac progress; `wsApplyLatchedTransferStats` snapshots
+    // WS transfer stats into the `ws_latched_*` fields capped by getmaxuploadspeed().
+    void wsMergeDrainedChunkMacs(Transfer& t);
+    void wsApplyLatchedTransferStats(Transfer& t);
+
+#ifdef MEGA_USE_WSUPLOAD
+    // Mirror legacy slot-based behavior for local-source invalidation by forcing
+    // Transfer::failed(API_EREAD) to skip deferred retries. Used by
+    // installWsEngineCallbacks and prepareUploadForWs when the local read path
+    // signals permanent failure (file vanished, fingerprint mismatch, etc.).
+    static void forcePermanentWsReadFailure(Transfer& transfer);
+#endif
+
     void freeq(direction_t);
 
     // client-server request double-buffering
@@ -3069,8 +3259,8 @@ public:
         CodeCounter::ScopeStats syncItemCXF = { "syncItemCXF" };
         CodeCounter::ScopeStats syncItemCSX = { "syncItemCSX" };
         CodeCounter::ScopeStats syncItemCSF = { "syncItemCSF" };
-        CodeCounter::ScopeStats clientThreadActions = { "clientThreadActions" };
 #endif
+        CodeCounter::ScopeStats clientThreadActions = { "clientThreadActions" };
         uint64_t transferStarts = 0, transferFinishes = 0;
         uint64_t transferTempErrors = 0, transferFails = 0;
         uint64_t prepwaitImmediate = 0, prepwaitZero = 0, prepwaitHttpio = 0, prepwaitFsaccess = 0, nonzeroWait = 0;

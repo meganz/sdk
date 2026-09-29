@@ -34,6 +34,7 @@ NS_ASSUME_NONNULL_BEGIN
  *   MEGAOrderTypeModificationAsc / MEGAOrderTypeModificationDesc  : lastName, lastHandle, lastMtime
  *   MEGAOrderTypeLabelAsc   / MEGAOrderTypeLabelDesc              : lastName, lastHandle, lastLabel
  *   MEGAOrderTypeFavouriteAsc / MEGAOrderTypeFavouriteDesc        : lastName, lastHandle, lastFav
+ *   MEGAOrderTypeMediaTsAsc / MEGAOrderTypeMediaTsDesc            : lastName, lastHandle, lastMediaTsMs
  *
  * Fields not relevant to the chosen order may be left at their defaults.
  */
@@ -73,6 +74,16 @@ NS_ASSUME_NONNULL_BEGIN
  *        Default: -1 (unset). Any negative value is treated as unset.
  */
 @property (nonatomic) NSInteger lastFav;
+
+/**
+ * @brief Media capture timestamp. Required for the media-capture-time orders.
+ *        Default: -1 (unset). Any negative value is treated as unset.
+ *
+ *        In MILLISECONDS, unlike lastMtime and the anchor bounds on
+ *        MEGAListAllNodesFilter, which are seconds. Read it from
+ *        MEGANode.mediaCaptureTime.
+ */
+@property (nonatomic) int64_t lastMediaTsMs;
 
 - (instancetype)init;
 

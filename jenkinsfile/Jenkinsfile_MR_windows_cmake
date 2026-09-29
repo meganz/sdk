@@ -56,6 +56,11 @@ pipeline {
         BUILD_OPTIONS = ''
         TESTS_PARALLEL = ''
         APIURL_TO_TEST = ''
+        // SDK-5360 fu7-17 G6.S3: --bench opt-in. --tsan is N/A on Windows (MSVC has
+        // no TSAN runtime). When --tsan is in the trigger phrase we surface a clear
+        // skip message so the user is not silently ignored.
+        RUN_TSAN_SWEEP = 'false'
+        RUN_BENCH_SWEEP = 'false'
     }
 
     stages {
@@ -89,12 +94,16 @@ pipeline {
                                     WIN32_FLAG = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-windows-32bits" || :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = sh(script: 'echo "$gitlabTriggerPhrase" | grep --only-matching "\\-\\-timeout=[^ ]*" | awk -F "timeout="  \'{print \$2}\'|| :', returnStdout: true).trim()
                                     CUSTOM_TIMEOUT = CUSTOM_TIMEOUT? CUSTOM_TIMEOUT : "250"
+                                    RUN_TSAN_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-tsan" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
+                                    RUN_BENCH_SWEEP = sh(script: 'echo "$gitlabTriggerPhrase" | grep "\\-\\-bench" >/dev/null 2>&1 && echo "true" || echo "false"', returnStdout: true).trim()
                                     println BUILD_OPTIONS
                                     println TESTS_PARALLEL
                                     println GTEST_REPEAT
                                     println GTEST_FILTER
                                     println WIN32_FLAG
                                     println CUSTOM_TIMEOUT
+                                    println "RUN_TSAN_SWEEP=${RUN_TSAN_SWEEP}"
+                                    println "RUN_BENCH_SWEEP=${RUN_BENCH_SWEEP}"
                                 }
                             }
                         }
@@ -266,6 +275,107 @@ pipeline {
                         }
                     }
                 }
+                stage('TSAN N/A on Windows') {
+                    when {
+                        expression { return RUN_TSAN_SWEEP == 'true' }
+                    }
+                    steps {
+                        // SDK-5360 fu7-17 G6.S3: MSVC has no TSAN runtime, AddressSanitizer's
+                        // /fsanitize=address is the only sanitizer MSVC ships. We surface a
+                        // clear skip message so users who comment --tsan on a Windows MR see
+                        // why no race report appears, rather than the stage silently missing.
+                        echo "[SDK-5360 fu7-17 G6.S3] --tsan requested but TSAN is not supported on Windows."
+                        echo "MSVC has no ThreadSanitizer runtime. Use the Linux or macOS pipeline for"
+                        echo "--tsan sweeps (Jenkinsfile_MR_linux_cmake / Jenkinsfile_MR_macOS_cmake)."
+                        echo "Continuing without the TSAN stage; the rest of the Windows pipeline is unaffected."
+                    }
+                }
+                stage('Run Benchmarks') {
+                    when {
+                        expression { return RUN_BENCH_SWEEP == 'true' }
+                    }
+                    environment {
+                        VCPKGPATH  = "${windows_sources_workspace}\\..\\vcpkg"
+                        _MSPDBSRV_ENDPOINT_ = "${BUILD_TAG}"
+                        TMP       = "${windows_sources_workspace}\\tmp"
+                        TEMP      = "${windows_sources_workspace}\\tmp"
+                        TMPDIR    = "${windows_sources_workspace}\\tmp"
+                        MEGAQTPATH_X64 = "C:\\Qt\\Qt5.15.16\\5.15.16\\x64"
+                        CMAKE_COMMON = "-DSWIG_EXECUTABLE='C:\\swigwin-4.0.2\\swig.exe' -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_VERBOSE_MAKEFILE=ON"
+                        MEGA_PWD = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX = credentials('MEGA_PWD_DEFAULT')
+                        MEGA_PWD_AUX2 = credentials('MEGA_PWD_DEFAULT')
+                        PATH = "${windows_sources_workspace}\\\\vcpkg_installed\\\\x64-windows-mega\\\\debug\\\\bin;${env.PATH}"
+                        // SDK-5360 fu7-17 G6.S3: BENCH_FILTER fallback used when the user did
+                        // NOT supply --gtest_filter= alongside --bench. On Windows GTEST_FILTER
+                        // does NOT include the --gtest_filter= prefix (see line ~93), so we
+                        // prepend it ourselves in the shell below.
+                        BENCH_FILTER = "SdkBenchmarkTest.*"
+                    }
+                    options{
+                        timeout(time: 150, unit: 'MINUTES')
+                    }
+                    steps {
+                        script {
+                            def lockLabel = ''
+                            if ("${APIURL_TO_TEST}" == 'https://g.api.mega.co.nz/') {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts'
+                            } else  {
+                                lockLabel = 'SDK_Concurrent_Test_Accounts_Staging'
+                            }
+                            lock(label: lockLabel, variable: 'ACCOUNTS_COMBINATION', quantity: 1, resourceSelectStrategy: "random", resource: null){
+                                dir("${windows_sources_workspace}") {
+                                    script{
+                                        env.MEGA_EMAIL = "${env.ACCOUNTS_COMBINATION}"
+                                    }
+                                    // Configure + build the bench tree (separate from build_dir).
+                                    sh "echo Building SDK x64 with bench framework"
+                                    sh "mkdir build_dir_bench || true"
+                                    sh "cmake -DCMAKE_PREFIX_PATH='${MEGAQTPATH_X64}' -DENABLE_CHAT=ON -DVCPKG_ROOT='${VCPKGPATH}' ${CMAKE_COMMON} ${BUILD_OPTIONS} -DMEGA_BENCH_FRAMEWORK_ENABLED=ON -DCMAKE_GENERATOR_PLATFORM=x64 -S '${windows_sources_workspace}' -B '${windows_sources_workspace}'\\\\build_dir_bench\\\\"
+                                    sh "cmake --build '${windows_sources_workspace}'\\\\build_dir_bench\\\\ --config Debug -j 1 --target test_integration"
+                                    // SDK-5360 fu7-17 G6.S3: prefer user-supplied --gtest_filter
+                                    // when present (GTEST_FILTER is bare on Windows, no prefix).
+                                    // GTEST_REPEAT is appended unconditionally; empty when not given.
+                                    sh """#!/bin/bash
+                                    set -x
+                                    if [ -n "${GTEST_FILTER}" ]; then
+                                        BENCH_FILTER_ARG="--gtest_filter=${GTEST_FILTER}"
+                                    else
+                                        BENCH_FILTER_ARG="--gtest_filter=${BENCH_FILTER}"
+                                    fi
+                                    # test_integration.exe lives under build_dir_bench/tests/integration/Debug/.
+                                    build_dir_bench/tests/integration/Debug/test_integration.exe --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} "\$BENCH_FILTER_ARG" ${GTEST_REPEAT} 2>&1 | tee bench_sweep.log || true
+                                    for benchReport in build_dir_bench/pid_*/bench_report_*.json pid_*/bench_report_*.json; do
+                                        [ -f "\$benchReport" ] && cp "\$benchReport" . || true
+                                    done
+                                    # Per-cell bench log split. Git-Bash on Windows ships GNU csplit
+                                    # via the Git-for-Windows MSYS environment (same as the gzip/tar
+                                    # invocations used elsewhere in this file).
+                                    mkdir -p bench_logs_${BUILD_ID} || :
+                                    if [ -s bench_sweep.log ]; then
+                                        csplit -z -s -b '%04d' -f bench_logs_${BUILD_ID}/_split_ bench_sweep.log '/\\[ RUN      \\]/' '{*}' || :
+                                        for sf in bench_logs_${BUILD_ID}/_split_*; do
+                                            [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
+                                            cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                            [ -n "\$cellName" ] || cellName="preamble"
+                                            mv "\$sf" "bench_logs_${BUILD_ID}/\${cellName}.log" || :
+                                        done
+                                    fi
+                                    tar -czf bench_logs_${BUILD_ID}.tar.gz bench_logs_${BUILD_ID} || :
+                                    rm -rf bench_logs_${BUILD_ID} || :
+                                    gzip -c bench_sweep.log > bench_sweep_${BUILD_ID}.log.gz || :
+                                    rm bench_sweep.log || :
+                                    """
+                                }
+                            }
+                        }
+                    }
+                    post {
+                        failure {
+                            echo 'Error: Bench sweep failed'
+                        }
+                    }
+                }
             }
             post{
                 always {
@@ -277,6 +387,7 @@ pipeline {
                     archiveArtifacts artifacts: 'pdbs.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'procdumps.tgz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'test_integration*.log.gz', allowEmptyArchive: true, fingerprint: true
+                    archiveArtifacts artifacts: 'bench_report_*.json, bench_sweep*.log.gz, bench_logs_*.tar.gz', allowEmptyArchive: true, fingerprint: true
                     archiveArtifacts artifacts: 'test_integration*.tgz', allowEmptyArchive: true, fingerprint: true
                     deleteDir()
                 }

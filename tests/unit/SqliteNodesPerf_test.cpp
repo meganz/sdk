@@ -299,6 +299,14 @@ protected:
             case OrderByClause::FAV_DESC:
                 c.mLastFav = 0; // leaf file is not a favourite
                 break;
+            case OrderByClause::MEDIATS_ASC:
+            case OrderByClause::MEDIATS_DESC:
+                // Fixture filenames are non-pattern, so mediats falls back to mtime * 1000.
+                // Use uint64_t arithmetic so the intermediate computation cannot signed-overflow
+                // for arbitrary 8-byte handle values.
+                c.mLastMediaTs =
+                    static_cast<int64_t>((1700000000ULL + mLeafFileHandle.as8byte()) * 1000ULL);
+                break;
             default:
                 break; // DEFAULT_ASC / DEFAULT_DESC: name + handle suffice
         }
@@ -329,6 +337,14 @@ protected:
             case OrderByClause::FAV_ASC:
             case OrderByClause::FAV_DESC:
                 c.mLastFav = 0;
+                break;
+            case OrderByClause::MEDIATS_ASC:
+            case OrderByClause::MEDIATS_DESC:
+                // Non-pattern filename → mediats = mtime * 1000.
+                // Use uint64_t arithmetic so the intermediate computation cannot signed-overflow
+                // for arbitrary 8-byte handle values.
+                c.mLastMediaTs =
+                    static_cast<int64_t>((1700000000ULL + mVideoLeafHandle.as8byte()) * 1000ULL);
                 break;
             default:
                 break;
@@ -670,6 +686,70 @@ TEST_F(DISABLED_SqliteNodesPerfTest, PerfGetChildren_OrderByMtime)
                      << us / COMPLEX_ITERS << " us/iter";
 }
 
+// ─── 13b. getChildren (ordered by mediats ASC) ──────────────────────────────
+TEST_F(DISABLED_SqliteNodesPerfTest, PerfGetChildren_OrderByMediaTsAsc)
+{
+    auto* table = nodesTable();
+    ASSERT_NE(table, nullptr);
+    ASSERT_FALSE(mSubFolderHandles.empty());
+
+    const NodeHandle parent = mSubFolderHandles.front();
+
+    NodeSearchFilter filter;
+    filter.byLocationHandle(parent.as8byte());
+
+    const long long us =
+        measureUs(COMPLEX_ITERS,
+                  [&]
+                  {
+                      std::vector<std::pair<NodeHandle, NodeSerialized>> children;
+                      CancelToken ct;
+                      NodeSearchPage page{0, 0};
+                      table->getChildren(filter, OrderByClause::MEDIATS_ASC, children, ct, page);
+                  });
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> children;
+    CancelToken ct;
+    NodeSearchPage page{0, 0};
+    table->getChildren(filter, OrderByClause::MEDIATS_ASC, children, ct, page);
+
+    GTEST_LOG_(INFO) << "getChildren (order by mediats ASC) [" << children.size()
+                     << " results]: " << COMPLEX_ITERS << " iters, total " << us << " us, avg "
+                     << us / COMPLEX_ITERS << " us/iter";
+}
+
+// ─── 13c. getChildren (ordered by mediats DESC) ─────────────────────────────
+TEST_F(DISABLED_SqliteNodesPerfTest, PerfGetChildren_OrderByMediaTsDesc)
+{
+    auto* table = nodesTable();
+    ASSERT_NE(table, nullptr);
+    ASSERT_FALSE(mSubFolderHandles.empty());
+
+    const NodeHandle parent = mSubFolderHandles.front();
+
+    NodeSearchFilter filter;
+    filter.byLocationHandle(parent.as8byte());
+
+    const long long us =
+        measureUs(COMPLEX_ITERS,
+                  [&]
+                  {
+                      std::vector<std::pair<NodeHandle, NodeSerialized>> children;
+                      CancelToken ct;
+                      NodeSearchPage page{0, 0};
+                      table->getChildren(filter, OrderByClause::MEDIATS_DESC, children, ct, page);
+                  });
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> children;
+    CancelToken ct;
+    NodeSearchPage page{0, 0};
+    table->getChildren(filter, OrderByClause::MEDIATS_DESC, children, ct, page);
+
+    GTEST_LOG_(INFO) << "getChildren (order by mediats DESC) [" << children.size()
+                     << " results]: " << COMPLEX_ITERS << " iters, total " << us << " us, avg "
+                     << us / COMPLEX_ITERS << " us/iter";
+}
+
 // ─── 14. getChildren (paginated) ────────────────────────────────────────────
 TEST_F(DISABLED_SqliteNodesPerfTest, PerfGetChildren_Paginated)
 {
@@ -885,6 +965,66 @@ TEST_F(DISABLED_SqliteNodesPerfTest, PerfSearchNodes_FromRoot_OrderByCtime)
     table->searchNodes(filter, OrderByClause::CTIME_DESC, nodes, ct, page);
 
     GTEST_LOG_(INFO) << "searchNodes (from root, FILENODE, order by ctime DESC, limit 100) ["
+                     << nodes.size() << " results]: " << COMPLEX_ITERS << " iters, total " << us
+                     << " us, avg " << us / COMPLEX_ITERS << " us/iter";
+}
+
+// ─── 20b. searchNodes (recursive, from root, order by mediats DESC) ──────────
+TEST_F(DISABLED_SqliteNodesPerfTest, PerfSearchNodes_FromRoot_OrderByMediaTsDesc)
+{
+    auto* table = nodesTable();
+    ASSERT_NE(table, nullptr);
+
+    NodeSearchFilter filter;
+    filter.byAncestors({mRootHandle.as8byte(), UNDEF, UNDEF});
+    filter.byNodeType(FILENODE);
+
+    const long long us =
+        measureUs(COMPLEX_ITERS,
+                  [&]
+                  {
+                      std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+                      CancelToken ct;
+                      NodeSearchPage page{0, 100}; // top-100 by mediats
+                      table->searchNodes(filter, OrderByClause::MEDIATS_DESC, nodes, ct, page);
+                  });
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+    CancelToken ct;
+    NodeSearchPage page{0, 100};
+    table->searchNodes(filter, OrderByClause::MEDIATS_DESC, nodes, ct, page);
+
+    GTEST_LOG_(INFO) << "searchNodes (from root, FILENODE, order by mediats DESC, limit 100) ["
+                     << nodes.size() << " results]: " << COMPLEX_ITERS << " iters, total " << us
+                     << " us, avg " << us / COMPLEX_ITERS << " us/iter";
+}
+
+// ─── 20c. searchNodes (recursive, from root, order by mediats ASC) ───────────
+TEST_F(DISABLED_SqliteNodesPerfTest, PerfSearchNodes_FromRoot_OrderByMediaTsAsc)
+{
+    auto* table = nodesTable();
+    ASSERT_NE(table, nullptr);
+
+    NodeSearchFilter filter;
+    filter.byAncestors({mRootHandle.as8byte(), UNDEF, UNDEF});
+    filter.byNodeType(FILENODE);
+
+    const long long us =
+        measureUs(COMPLEX_ITERS,
+                  [&]
+                  {
+                      std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+                      CancelToken ct;
+                      NodeSearchPage page{0, 100}; // top-100 by mediats
+                      table->searchNodes(filter, OrderByClause::MEDIATS_ASC, nodes, ct, page);
+                  });
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+    CancelToken ct;
+    NodeSearchPage page{0, 100};
+    table->searchNodes(filter, OrderByClause::MEDIATS_ASC, nodes, ct, page);
+
+    GTEST_LOG_(INFO) << "searchNodes (from root, FILENODE, order by mediats ASC, limit 100) ["
                      << nodes.size() << " results]: " << COMPLEX_ITERS << " iters, total " << us
                      << " us, avg " << us / COMPLEX_ITERS << " us/iter";
 }
@@ -1258,6 +1398,10 @@ static const char* listAllOrderName(int order)
             return "LABEL_ASC";
         case OrderByClause::LABEL_DESC:
             return "LABEL_DESC";
+        case OrderByClause::MEDIATS_ASC:
+            return "MEDIATS_ASC";
+        case OrderByClause::MEDIATS_DESC:
+            return "MEDIATS_DESC";
         default:
             return "UNKNOWN";
     }
@@ -1341,6 +1485,10 @@ static const ListAllByPageParam kListAllByPageParams[] = {
     {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::LABEL_ASC,     false},
     {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::LABEL_DESC,    true },
     {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::LABEL_DESC,    false},
+    {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::MEDIATS_ASC,   true },
+    {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::MEDIATS_ASC,   false},
+    {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::MEDIATS_DESC,  true },
+    {MIME_TYPE_ALL_VISUAL_MEDIA,  OrderByClause::MEDIATS_DESC,  false},
     {MIME_TYPE_VIDEO,             OrderByClause::DEFAULT_ASC,   true },
     {MIME_TYPE_VIDEO,             OrderByClause::DEFAULT_ASC,   false},
     {MIME_TYPE_VIDEO,             OrderByClause::DEFAULT_DESC,  true },
@@ -1361,6 +1509,10 @@ static const ListAllByPageParam kListAllByPageParams[] = {
     {MIME_TYPE_VIDEO,             OrderByClause::LABEL_ASC,     false},
     {MIME_TYPE_VIDEO,             OrderByClause::LABEL_DESC,    true },
     {MIME_TYPE_VIDEO,             OrderByClause::LABEL_DESC,    false},
+    {MIME_TYPE_VIDEO,             OrderByClause::MEDIATS_ASC,   true },
+    {MIME_TYPE_VIDEO,             OrderByClause::MEDIATS_ASC,   false},
+    {MIME_TYPE_VIDEO,             OrderByClause::MEDIATS_DESC,  true },
+    {MIME_TYPE_VIDEO,             OrderByClause::MEDIATS_DESC,  false},
 };
 // clang-format on
 

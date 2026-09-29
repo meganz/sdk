@@ -3,6 +3,9 @@
 #include "gtest_common.h"
 #include <cstdio>
 #include <fstream>
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+#include "bench_framework/headers/BenchReportWriter.h"
+#endif
 #ifdef WIN32
 #include <winhttp.h>
 #endif
@@ -354,6 +357,10 @@ public:
         {
             result = "PASSED";
         }
+        else if (info.result()->Skipped())
+        {
+            result = "SKIPPED";
+        }
 
         out() << "GTEST: "
               << result
@@ -384,11 +391,13 @@ public:
             line = std::to_string(result.line_number()) + ":";
         }
 
+        // A kSkip part is not a failure — labeling it "Failure" makes GTEST_SKIP-ended
+        // tests read as failed in the CI log scrapers.
         out() << "GTEST: "
               << file
               << ":"
               << line
-              << " Failure";
+              << (result.type() == TestPartResult::kSkip ? " Skipped" : " Failure");
 
         std::istringstream istream(result.message());
 
@@ -635,6 +644,15 @@ int main (int argc, char *argv[])
     testFS.ClearProcessFolder();
     testFS.ChangeToProcessFolder();
 
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    // SDK-5360: tell BenchReportWriter where to stream per-iter JSONL so partial
+    // runs (e.g. process killed mid-test, throttle storm truncation) still leave
+    // usable artifacts under `bench_reports/bench_report_<PID>.jsonl`. The
+    // consolidated `bench_report_<PID>.json` is still written at flush() below.
+    ::mega::bench::BenchReportWriter::instance().setReportDir(
+        TestFS::GetProcessFolder().string());
+#endif
+
 #if defined(__APPLE__)
     // our waiter uses select which only supports file number <=1024.
     // by limiting max open files to 1024, we might able to know this error precisely
@@ -656,6 +674,22 @@ int main (int argc, char *argv[])
     ::testing::InitGoogleTest(&argc, argv);
 
     int gtestRet = RUN_ALL_TESTS();
+
+#ifdef MEGA_BENCH_FRAMEWORK_ENABLED
+    // Flush bench cells accumulated by recordBenchCell() to
+    // `bench_reports/bench_report_<PID>.json` under the PID-specific process folder.
+    // No-op if no cells were recorded. Per-iter JSONL (`.jsonl` sibling) is appended
+    // synchronously in recordCell() via the setReportDir() set at startup.
+    {
+        const std::string reportDir = TestFS::GetProcessFolder().string();
+        const std::string out =
+            ::mega::bench::BenchReportWriter::instance().flush(reportDir);
+        if (!out.empty())
+        {
+            std::cout << "Bench report written: " << out << std::endl;
+        }
+    }
+#endif
 
 #if defined(USE_OPENSSL) && !defined(OPENSSL_IS_BORINGSSL)
     if (CurlHttpIO::sslMutexes)

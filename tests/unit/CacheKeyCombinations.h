@@ -7,7 +7,7 @@
  */
 #pragma once
 
-#include <mega/db/sqlite.h> // OrderByClause, AnchorDirectionDigit
+#include <mega/db/sqlite.h> // OrderByClause
 #include <mega/nodemanager.h> // DateSectionGranularity
 #include <mega/types.h> // MimeType_t
 
@@ -39,8 +39,8 @@ inline constexpr std::array<MimeType_t, 14> kAllMimeTypes{{
 static_assert(kAllMimeTypes.size() == static_cast<size_t>(MIME_TYPE_MAX) + 1,
               "kAllMimeTypes out of sync with MimeType_t — add the new value");
 
-// All currently valid OrderByClause values (with gaps 9..16 omitted).
-inline constexpr std::array<int, 12> kAllValidOrders{{
+// All currently valid OrderByClause values (with gaps 9..16 and 21..22 omitted).
+inline constexpr std::array<int, 14> kAllValidOrders{{
     OrderByClause::DEFAULT_ASC,
     OrderByClause::DEFAULT_DESC,
     OrderByClause::SIZE_ASC,
@@ -53,20 +53,27 @@ inline constexpr std::array<int, 12> kAllValidOrders{{
     OrderByClause::LABEL_DESC,
     OrderByClause::FAV_ASC,
     OrderByClause::FAV_DESC,
+    OrderByClause::MEDIATS_ASC,
+    OrderByClause::MEDIATS_DESC,
 }};
 // Tripwire for a new order pair appended after FAV_DESC (which moves OrderByClause::LAST).
 // Won't catch re-use of a reserved gap (9..16), but those are obsolete slots.
 static_assert(kAllValidOrders.back() == OrderByClause::LAST,
               "kAllValidOrders must end at OrderByClause::LAST — add the new order pair");
 
-inline constexpr std::array<AnchorDirectionDigit, 3> kAllAnchorDirs{{
-    AnchorDirectionDigit::None,
-    AnchorDirectionDigit::Asc,
-    AnchorDirectionDigit::Desc,
+// Anchor-digit inputs the production call site can produce: 0 (no anchor) plus every order
+// timestampColumnForOrder() accepts. The digit's base is the full order stride, so an order
+// missing here still gets a distinct key — this array bounds coverage, not collisions.
+// No tripwire is possible either: kAllValidOrders' `back() == LAST` would break on a future
+// non-timestamp order pair, and timestampColumnForOrder() is internal to sqlite.cpp. So add a
+// third timestamp column here by hand, or these tests silently skip it.
+inline constexpr std::array<int, 5> kAllAnchorOrders{{
+    0, // no anchor
+    OrderByClause::MTIME_ASC,
+    OrderByClause::MTIME_DESC,
+    OrderByClause::MEDIATS_ASC,
+    OrderByClause::MEDIATS_DESC,
 }};
-// Tripwire: a new value bumps AnchorDirectionDigit::Max, so size != Max + 1 until covered here.
-static_assert(kAllAnchorDirs.size() == static_cast<size_t>(AnchorDirectionDigit::Max) + 1,
-              "kAllAnchorDirs out of sync with AnchorDirectionDigit — add the new value");
 
 inline constexpr std::array<DateSectionGranularity, 3> kAllGranularities{{
     DateSectionGranularity::Day,

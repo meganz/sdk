@@ -64,6 +64,15 @@ void checkUsers(const mega::User& exp, const mega::User& act)
 
 }
 
+// A user whose public key has not been fetched yet must report it as invalid, so the callers that
+// gate getpubkey() on this actually go and fetch one.
+TEST(User, freshUserHasNoValidPubk)
+{
+    const mega::User user{"fake@example.com"};
+
+    EXPECT_FALSE(user.pubk.isvalid(mega::AsymmCipher::PUBKEY));
+}
+
 TEST(User, serialize_unserialize)
 {
     mega::MegaApp app;

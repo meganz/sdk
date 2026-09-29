@@ -177,3 +177,115 @@ TEST(UriPathTest, endsInSeparator)
     auto uriPath = LocalPath::fromURIPath(uriStr);
     EXPECT_TRUE(uriPath.endsInSeparator());
 }
+
+TEST(UriPathTest, trimNonDriveTrailingSeparator)
+{
+    // No trailing separator to remove is not an error: the call must be a silent no-op.
+    auto bare = LocalPath::fromURIPath(uriBase);
+    const auto bareBefore = bare.toPath(false);
+    bare.trimNonDriveTrailingSeparator();
+    EXPECT_EQ(bare.toPath(false), bareBefore);
+
+    auto uriPath = LocalPath::fromURIPath(uriBase);
+    uriPath.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf1), true);
+    uriPath.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf2), true);
+    const auto before = uriPath.toPath(false);
+    uriPath.trimNonDriveTrailingSeparator();
+    EXPECT_EQ(uriPath.toPath(false), before);
+
+    // Consecutive separators make splitString emit an empty leaf, so the last one can be empty.
+    auto emptyLeaf = LocalPath::fromURIPath(uriBase);
+    emptyLeaf.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf1 + pathSep + pathSep),
+                                  true);
+    const auto emptyLeafBefore = emptyLeaf.toPath(false);
+    emptyLeaf.trimNonDriveTrailingSeparator();
+    EXPECT_EQ(emptyLeaf.toPath(false), emptyLeafBefore);
+}
+
+/**
+ *  Test that trimNonDriveTrailingSeparator() works as expected on the four SAF URI forms.
+ *  content://<authority>/document/<documentId>
+ *  content://<authority>/tree/<treeDocumentId>
+ *  content://<authority>/tree/<treeDocumentId>/document/<documentId>
+ *  content://<authority>/tree/<treeDocumentId>/document/<parentDocumentId>/children
+ */
+TEST(UriPathTest, trimNonDriveTrailingSeparatorOnSafUriForms)
+{
+    // The four shapes DocumentsContract builds, all addressing primary:Documents/node1k/abc.
+    // The document id is a single path segment, so its ':' and '/' arrive percent-encoded.
+    static const std::string authority{"content://com.android.externalstorage.documents"};
+    static const std::string treeId{"primary%3ADocuments"};
+    static const std::string docId{"primary%3ADocuments%2Fnode1k%2Fabc"};
+    static const std::string parentId{"primary%3ADocuments%2Fnode1k"};
+
+    const std::vector<std::string> safUris{
+        authority + "/document/" + docId,
+        authority + "/tree/" + treeId,
+        authority + "/tree/" + treeId + "/document/" + docId,
+        authority + "/tree/" + treeId + "/document/" + parentId + "/children",
+    };
+
+    for (const auto& uri: safUris)
+    {
+        string_type uriStr;
+        LocalPath::path2local(&uri, &uriStr);
+
+        // No leaves yet, so there is nothing that could be trimmed.
+        auto bare = LocalPath::fromURIPath(uriStr);
+        ASSERT_TRUE(bare.isURI()) << uri;
+        bare.trimNonDriveTrailingSeparator();
+        EXPECT_EQ(bare.toPath(false), uri) << uri;
+
+        // A leaf that does not end in a separator must be left alone too.
+        auto withLeaf = LocalPath::fromURIPath(uriStr);
+        withLeaf.appendWithSeparator(LocalPath::fromRelativePath(auxUriLeaf2), true);
+        const auto expected{uri + uriPathSep + auxUriLeaf2};
+        ASSERT_EQ(withLeaf.toPath(false), expected) << uri;
+        withLeaf.trimNonDriveTrailingSeparator();
+        EXPECT_EQ(withLeaf.toPath(false), expected) << uri;
+    }
+}
+
+/**
+ * Premise + contract of the WS-upload preflight path check (SDK-5360).
+ *
+ * A SAF URI kept by the Android folder scan is a usable local file path, yet
+ * LocalPath::isAbsolute() is false for it (URIs carry PathType::URI_PATH, not
+ * ABSOLUTE_PATH). That asymmetry is why the preflight gate is `isUsableLocalFilePath`
+ * -- non-empty AND (absolute OR URI): it must accept the URI the old `isAbsolute()`
+ * gate rejected, and keep rejecting an empty or a relative path, because those are the
+ * inputs for which the preflight must fail the transfer instead of deferring it forever.
+ */
+TEST(UriPathTest, WsPreflightPredicateAcceptsUriAndAbsolutePaths)
+{
+    static const std::string uri{auxUriBase + "/document/primary%3ADocuments%2Ffile.txt"};
+    ASSERT_TRUE(LocalPath::isURIPath(uri)) << uri;
+
+#ifdef WIN32
+    static const std::string absolute{rootDrive + "\\" + auxUriLeaf1 + "\\" + auxUriLeaf2};
+#else
+    static const std::string absolute{pathSep + auxUriLeaf1 + pathSep + auxUriLeaf2};
+#endif
+
+    const auto uriPath = LocalPath::fromAbsolutePath(uri);
+    const auto absolutePath = LocalPath::fromAbsolutePath(absolute);
+    const auto relativePath = LocalPath::fromRelativePath("b.txt");
+
+    // The premise: the same factory routes a URI to the URI branch, where isAbsolute()
+    // is false. Turning RED here would mean the gate no longer needs the || isURI().
+    EXPECT_FALSE(uriPath.empty()) << uri;
+    EXPECT_FALSE(uriPath.isAbsolute()) << uri;
+    EXPECT_TRUE(uriPath.isURI()) << uri;
+    EXPECT_EQ(uriPath.toPath(false), uri);
+    EXPECT_TRUE(absolutePath.isAbsolute()) << absolute;
+    EXPECT_FALSE(absolutePath.isURI()) << absolute;
+    EXPECT_FALSE(relativePath.empty());
+    EXPECT_FALSE(relativePath.isAbsolute());
+    EXPECT_FALSE(relativePath.isURI());
+
+    // The predicate itself.
+    EXPECT_TRUE(isUsableLocalFilePath(uriPath)) << uri;
+    EXPECT_TRUE(isUsableLocalFilePath(absolutePath)) << absolute;
+    EXPECT_FALSE(isUsableLocalFilePath(LocalPath{}));
+    EXPECT_FALSE(isUsableLocalFilePath(relativePath));
+}

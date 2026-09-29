@@ -88,16 +88,20 @@
 #include <zxcvbn-c/zxcvbn.h>
 
 // FUSE
-#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_event.h>
+#include <mega/fuse/common/mount_event_type.h>
 #include <mega/fuse/common/mount_info.h>
 
-namespace {
+namespace
+{
 
-using ::mega::IGfxProvider;
-using ::mega::MegaGfxProcessor;
 using ::mega::GfxProc;
 using ::mega::GfxProviderExternal;
+using ::mega::IGfxProvider;
+using ::mega::MegaApiImpl;
+using ::mega::MegaGfxProcessor;
+using ::mega::MegaHandle;
+using ::mega::MegaNode;
 
 #define HTTP_verbose_timed \
     LOG_verbose_timed(std::chrono::milliseconds{120'000}, std::chrono::milliseconds{100})
@@ -112,13 +116,35 @@ std::unique_ptr<GfxProc> createGfxProc(MegaGfxProcessor* processor)
     return provider ? std::make_unique<GfxProc>(std::move(provider)) : nullptr;
 }
 
+bool isNodeOutsideServedSubtree(MegaApiImpl* megaApi, MegaNode* node, MegaHandle servedHandle)
+{
+    return node && !megaApi->isNodeWithinSubtree(node, servedHandle);
 }
-namespace mega {
 
-MegaNodePrivate::MegaNodePrivate(const char *name, int type, int64_t size, int64_t ctime, int64_t mtime, uint64_t nodehandle,
-                                 const string *nodekey, const string *fileattrstring, const char *fingerprint, const char *originalFingerprint, MegaHandle owner, MegaHandle parentHandle,
-                                 const char *privateauth, const char *publicauth, bool ispublic, bool isForeign, const char *chatauth, bool isNodeKeyDecrypted)
-: MegaNode()
+}
+
+namespace mega
+{
+
+MegaNodePrivate::MegaNodePrivate(const char* name,
+                                 int type,
+                                 int64_t size,
+                                 int64_t ctime,
+                                 int64_t mtime,
+                                 uint64_t nodehandle,
+                                 const string* nodekey,
+                                 const string* fileattrstring,
+                                 const char* fingerprint,
+                                 const char* originalFingerprint,
+                                 MegaHandle owner,
+                                 MegaHandle parentHandle,
+                                 const char* privateauth,
+                                 const char* publicauth,
+                                 bool ispublic,
+                                 bool isForeign,
+                                 const char* chatauth,
+                                 bool isNodeKeyDecrypted):
+    MegaNode()
 {
     this->name = MegaApi::strdup(name);
     this->fingerprint = MegaApi::strdup(fingerprint);
@@ -204,6 +230,7 @@ MegaNodePrivate::MegaNodePrivate(MegaNode *node)
     this->size = node->getSize();
     this->ctime = node->getCreationTime();
     this->mtime = node->getModificationTime();
+    this->mMediaTs = node->getMediaCaptureTimeMs();
     this->nodehandle = node->getHandle();
     this->parenthandle = node->getParentHandle();
     mIsNodeKeyDecrypted = node->isNodeKeyDecrypted();
@@ -490,6 +517,7 @@ MegaNodePrivate::MegaNodePrivate(Node *node)
     this->size = node->size;
     this->ctime = node->ctime;
     this->mtime = node->mtime;
+    this->mMediaTs = static_cast<int64_t>(node->getMediaTs());
     this->nodehandle = node->nodehandle;
     this->parenthandle = node->parent ? node->parent->nodehandle : INVALID_HANDLE;
     this->owner = node->owner;
@@ -927,6 +955,11 @@ int64_t MegaNodePrivate::getCreationTime()
 int64_t MegaNodePrivate::getModificationTime()
 {
     return mtime;
+}
+
+int64_t MegaNodePrivate::getMediaCaptureTimeMs()
+{
+    return mMediaTs;
 }
 
 MegaHandle MegaNodePrivate::getRestoreHandle()
@@ -6957,9 +6990,48 @@ static_assert(static_cast<int>(DateSectionGranularity::Year) ==
                   MegaGroupNodesByDateFilter::SECTION_GRANULARITY_YEAR,
               "DateSectionGranularity::Year must mirror SECTION_GRANULARITY_YEAR");
 
+// The public ORDER_* values travel verbatim into ListAllNodesParams::order and
+// TimestampAnchorFilter::mOrder, where the node table reads them as OrderByClause - and the
+// anchor cache-key digit needs the exact value to stay collision-free.
+static_assert(MegaApi::ORDER_DEFAULT_ASC == static_cast<int>(OrderByClause::DEFAULT_ASC) &&
+                  MegaApi::ORDER_DEFAULT_DESC == static_cast<int>(OrderByClause::DEFAULT_DESC),
+              "ORDER_DEFAULT_* must mirror OrderByClause::DEFAULT_*");
+static_assert(MegaApi::ORDER_SIZE_ASC == static_cast<int>(OrderByClause::SIZE_ASC) &&
+                  MegaApi::ORDER_SIZE_DESC == static_cast<int>(OrderByClause::SIZE_DESC),
+              "ORDER_SIZE_* must mirror OrderByClause::SIZE_*");
+static_assert(MegaApi::ORDER_MODIFICATION_ASC == static_cast<int>(OrderByClause::MTIME_ASC) &&
+                  MegaApi::ORDER_MODIFICATION_DESC == static_cast<int>(OrderByClause::MTIME_DESC),
+              "ORDER_MODIFICATION_* must mirror OrderByClause::MTIME_*");
+static_assert(MegaApi::ORDER_LABEL_ASC == static_cast<int>(OrderByClause::LABEL_ASC) &&
+                  MegaApi::ORDER_LABEL_DESC == static_cast<int>(OrderByClause::LABEL_DESC),
+              "ORDER_LABEL_* must mirror OrderByClause::LABEL_*");
+static_assert(MegaApi::ORDER_FAV_ASC == static_cast<int>(OrderByClause::FAV_ASC) &&
+                  MegaApi::ORDER_FAV_DESC == static_cast<int>(OrderByClause::FAV_DESC),
+              "ORDER_FAV_* must mirror OrderByClause::FAV_*");
+static_assert(MegaApi::ORDER_MEDIATS_ASC == static_cast<int>(OrderByClause::MEDIATS_ASC) &&
+                  MegaApi::ORDER_MEDIATS_DESC == static_cast<int>(OrderByClause::MEDIATS_DESC),
+              "ORDER_MEDIATS_* must mirror OrderByClause::MEDIATS_*");
+
+// Gates both date-section routes: groupAllNodesByDate via buildDateSectionParams, and
+// byTimestampAnchor's sectionOrder via buildListAllParams — the setter only stores it.
 static bool isSupportedTimestampOrder(int order)
 {
-    return order == MegaApi::ORDER_MODIFICATION_ASC || order == MegaApi::ORDER_MODIFICATION_DESC;
+    return order == MegaApi::ORDER_MODIFICATION_ASC || order == MegaApi::ORDER_MODIFICATION_DESC ||
+           order == MegaApi::ORDER_MEDIATS_ASC || order == MegaApi::ORDER_MEDIATS_DESC;
+}
+
+bool isMediaMimeType(MimeType_t mimeType)
+{
+    switch (mimeType)
+    {
+        case MIME_TYPE_PHOTO:
+        case MIME_TYPE_VIDEO:
+        case MIME_TYPE_AUDIO:
+        case MIME_TYPE_ALL_VISUAL_MEDIA:
+            return true;
+        default:
+            return false;
+    }
 }
 
 void MegaListAllNodesFilterPrivate::byTimestampAnchor(int64_t startDate,
@@ -10022,6 +10094,62 @@ MegaTransferData *MegaApiImpl::getTransferData(MegaTransferListener *listener)
     return data;
 }
 
+MegaWsUploadQuotaFitPrivate::MegaWsUploadQuotaFitPrivate(int state,
+                                                         long long shortfallBytes,
+                                                         bool foreignShortfall):
+    mState(state),
+    mShortfallBytes(shortfallBytes),
+    mForeignShortfall(foreignShortfall)
+{}
+
+MegaWsUploadQuotaFitPrivate::~MegaWsUploadQuotaFitPrivate() {}
+
+MegaWsUploadQuotaFit* MegaWsUploadQuotaFitPrivate::copy() const
+{
+    return new MegaWsUploadQuotaFitPrivate(mState, mShortfallBytes, mForeignShortfall);
+}
+
+int MegaWsUploadQuotaFitPrivate::getState() const
+{
+    return mState;
+}
+
+long long MegaWsUploadQuotaFitPrivate::getShortfallBytes() const
+{
+    return mShortfallBytes;
+}
+
+bool MegaWsUploadQuotaFitPrivate::isForeignShortfall() const
+{
+    return mForeignShortfall;
+}
+
+MegaWsUploadQuotaFit* MegaApiImpl::getWsUploadQueueQuotaFit()
+{
+    SdkMutexGuard g(sdkMutex);
+#ifdef MEGA_USE_WSUPLOAD
+    const ws::WsQuotaQueueFit fit = client->wsQuotaQueueFitSnapshot();
+    int state = MegaWsUploadQuotaFit::STATE_UNKNOWN;
+    switch (fit.state)
+    {
+        case ws::WsQuotaQueueFit::State::Unknown:
+            state = MegaWsUploadQuotaFit::STATE_UNKNOWN;
+            break;
+        case ws::WsQuotaQueueFit::State::Fits:
+            state = MegaWsUploadQuotaFit::STATE_FITS;
+            break;
+        case ws::WsQuotaQueueFit::State::Shortfall:
+            state = MegaWsUploadQuotaFit::STATE_SHORTFALL;
+            break;
+    }
+    return new MegaWsUploadQuotaFitPrivate(state,
+                                           static_cast<long long>(fit.shortfallBytes),
+                                           fit.foreignShortfall);
+#else
+    return new MegaWsUploadQuotaFitPrivate(MegaWsUploadQuotaFit::STATE_UNKNOWN, 0, false);
+#endif
+}
+
 MegaTransfer *MegaApiImpl::getFirstTransfer(int type)
 {
     if (type != MegaTransfer::TYPE_DOWNLOAD && type != MegaTransfer::TYPE_UPLOAD)
@@ -10172,7 +10300,7 @@ MegaTransferList *MegaApiImpl::getChildTransfers(int transferTag)
         MegaTransferPrivate *t = it->second;
         if (t->getFolderTransferTag() == transferTag)
         {
-            transfers.push_back(transfer);
+            transfers.push_back(t);
         }
     }
 
@@ -13271,7 +13399,8 @@ MegaNodeList* MegaApiImpl::search(const MegaSearchFilter* filter, int order, Can
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
-           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC));
+           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC) ||
+           (MegaApi::ORDER_MEDIATS_ASC <= order && order <= MegaApi::ORDER_MEDIATS_DESC));
 
     if (!filter ||
         (filter->byNodeType() == MegaNode::TYPE_FOLDER && filter->byCategory() != MegaApi::FILE_TYPE_DEFAULT))
@@ -13494,6 +13623,19 @@ std::optional<NodeSearchCursorOffset>
             c.mLastFav = lastFav;
             break;
         }
+        case MegaApi::ORDER_MEDIATS_ASC:
+        case MegaApi::ORDER_MEDIATS_DESC:
+        {
+            const int64_t lastMediaTsMs = megaCursor.getLastMediaTsMs();
+            if (lastMediaTsMs < 0)
+            {
+                LOG_warn << "listAllNodesByPage: cursor has missing or invalid last mediats: "
+                         << lastMediaTsMs;
+                return std::nullopt;
+            }
+            c.mLastMediaTs = lastMediaTsMs;
+            break;
+        }
         default:
             // Caller is responsible for filtering out unsupported orders.
             assert(false && "buildNodeSearchCursorOffset: unsupported order leaked through");
@@ -13616,6 +13758,8 @@ std::optional<ListAllNodesParams>
         case MegaApi::ORDER_LABEL_DESC:
         case MegaApi::ORDER_FAV_ASC:
         case MegaApi::ORDER_FAV_DESC:
+        case MegaApi::ORDER_MEDIATS_ASC:
+        case MegaApi::ORDER_MEDIATS_DESC:
             break;
         default:
             LOG_warn << "listAllNodesByPage: unsupported order value: " << order;
@@ -13645,6 +13789,19 @@ std::optional<ListAllNodesParams>
             {
                 LOG_warn << "listAllNodesByPage: unsupported byTimestampAnchor sectionOrder "
                          << anchorOrder;
+                return std::nullopt;
+            }
+
+            // Mirrors the buildDateSectionParams gate. mediats is 0 for every non-media node
+            // and an anchored page drops that sentinel, so this pairing can only ever return
+            // an empty page; warn instead of leaving the caller to guess why.
+            if ((anchorOrder == MegaApi::ORDER_MEDIATS_ASC ||
+                 anchorOrder == MegaApi::ORDER_MEDIATS_DESC) &&
+                !isMediaMimeType(params.mimeType))
+            {
+                LOG_warn << "listAllNodesByPage: mediats byTimestampAnchor requires a media "
+                            "file type, got "
+                         << params.mimeType;
                 return std::nullopt;
             }
 
@@ -13716,6 +13873,17 @@ std::optional<DateSectionParams>
     // is only read once it's known non-null.
     if (!parseListAllFilterIntoBase(filter, "groupAllNodesByDate", params))
         return std::nullopt;
+
+    // mediats is 0 for non-media nodes, so a mediats grouping over a non-media
+    // category returns zero sections while listAllNodesByPage with the same filter
+    // returns every row — reject rather than emit a list the caller cannot diagnose.
+    if ((order == MegaApi::ORDER_MEDIATS_ASC || order == MegaApi::ORDER_MEDIATS_DESC) &&
+        !isMediaMimeType(params.mimeType))
+    {
+        LOG_warn << "groupAllNodesByDate: mediats grouping requires a media file type, got "
+                 << params.mimeType;
+        return std::nullopt;
+    }
 
     const int granularity = filter->byGranularity();
     if (granularity < MegaGroupNodesByDateFilter::SECTION_GRANULARITY_DAY ||
@@ -18712,6 +18880,35 @@ void MegaApiImpl::processTransferUpdate(Transfer *tr, MegaTransferPrivate *trans
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
     }
+#ifdef MEGA_USE_WSUPLOAD
+    else if (tr->type == PUT && tr->channel == Transfer::Channel::WebSocket &&
+             client->wsEngine())
+    {
+        m_off_t prevTransferredBytes = transfer->getTransferredBytes();
+        m_off_t transferredBytes = std::max<m_off_t>(tr->progresscompleted, prevTransferredBytes);
+        m_off_t deltaSize = transferredBytes - prevTransferredBytes;
+        transfer->setStartTime(currentTime);
+        transfer->setTransferredBytes(transferredBytes);
+        transfer->setDeltaSize(deltaSize);
+
+        ws::UploadEngine::WsTransferStats wsStats;
+        if (client->wsEngine()->getTransferStats(*tr, wsStats))
+        {
+            const m_off_t maxUploadSpeed = client->getmaxuploadspeed();
+            const m_off_t boundedSpeed = (maxUploadSpeed > 0) ?
+                                             std::min(wsStats.windowSpeedBytesPerSecond,
+                                                      maxUploadSpeed) :
+                                             wsStats.windowSpeedBytesPerSecond;
+            transfer->setSpeed(boundedSpeed);
+            transfer->setMeanSpeed(wsStats.meanSpeedBytesPerSecond);
+        }
+        else
+        {
+            transfer->setSpeed(tr->ws_latched_speed);
+            transfer->setMeanSpeed(tr->ws_latched_mean_speed);
+        }
+    }
+#endif
     else
     {
         LOG_verbose << "No TransferSlot. Reset last progress, speed and mean speed.";
@@ -18741,6 +18938,28 @@ void MegaApiImpl::processTransferComplete(Transfer *tr, MegaTransferPrivate *tra
         transfer->setSpeed(tr->slot->speed);
         transfer->setMeanSpeed(tr->slot->meanSpeed);
     }
+#ifdef MEGA_USE_WSUPLOAD
+    else if (tr->type == PUT && tr->channel == Transfer::Channel::WebSocket &&
+             client->wsEngine())
+    {
+        ws::UploadEngine::WsTransferStats wsStats;
+        if (client->wsEngine()->getTransferStats(*tr, wsStats))
+        {
+            const m_off_t maxUploadSpeed = client->getmaxuploadspeed();
+            const m_off_t boundedSpeed = (maxUploadSpeed > 0) ?
+                                             std::min(wsStats.windowSpeedBytesPerSecond,
+                                                      maxUploadSpeed) :
+                                             wsStats.windowSpeedBytesPerSecond;
+            transfer->setSpeed(boundedSpeed);
+            transfer->setMeanSpeed(wsStats.meanSpeedBytesPerSecond);
+        }
+        else
+        {
+            transfer->setSpeed(tr->ws_latched_speed);
+            transfer->setMeanSpeed(tr->ws_latched_mean_speed);
+        }
+    }
+#endif
 
     if (tr->type == GET)
     {
@@ -18874,6 +19093,10 @@ std::function<bool(Node*, Node*)> MegaApiImpl::getComparatorFunction(int order, 
         case MegaApi::ORDER_SHARE_CREATION_ASC:
         case MegaApi::ORDER_SHARE_CREATION_DESC:
             return nullptr;
+        case MegaApi::ORDER_MEDIATS_ASC:
+            return MegaApiImpl::nodeComparatorMediaTsASC;
+        case MegaApi::ORDER_MEDIATS_DESC:
+            return MegaApiImpl::nodeComparatorMediaTsDESC;
     }
     assert(false);
     return nullptr;
@@ -19257,6 +19480,57 @@ bool MegaApiImpl::nodeComparatorFavDESC(Node *i, Node *j)
     }
 }
 
+bool MegaApiImpl::nodeComparatorMediaTsASC(Node* i, Node* j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t != 0;
+    }
+
+    if (i->type != FILENODE) // only file nodes carry a capture timestamp
+    {
+        return nodeNaturalComparatorASC(i, j);
+    }
+
+    // getMediaTs() is unsigned - compare, never subtract as the mtime pair does.
+    if (i->getMediaTs() < j->getMediaTs())
+    {
+        return 1;
+    }
+    if (i->getMediaTs() > j->getMediaTs())
+    {
+        return 0;
+    }
+
+    return nodeNaturalComparatorASC(i, j);
+}
+
+bool MegaApiImpl::nodeComparatorMediaTsDESC(Node* i, Node* j)
+{
+    int t = typeComparator(i, j);
+    if (t >= 0)
+    {
+        return t != 0;
+    }
+
+    if (i->type != FILENODE)
+    {
+        return nodeNaturalComparatorDESC(i, j);
+    }
+
+    if (i->getMediaTs() < j->getMediaTs())
+    {
+        return 0;
+    }
+    if (i->getMediaTs() > j->getMediaTs())
+    {
+        return 1;
+    }
+
+    return nodeNaturalComparatorDESC(i, j);
+}
+
 // Compare node types. Returns -1 if i==j, 0 if i goes first, +1 if j goes first.
 int MegaApiImpl::typeComparator(Node *i, Node *j)
 {
@@ -19320,7 +19594,8 @@ MegaNodeList *MegaApiImpl::getChildren(const MegaSearchFilter* filter, int order
 {
     // guard against unsupported or removed order criteria
     assert((MegaApi::ORDER_NONE <= order && order <= MegaApi::ORDER_MODIFICATION_DESC) ||
-           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC));
+           (MegaApi::ORDER_LABEL_ASC <= order && order <= MegaApi::ORDER_FAV_DESC) ||
+           (MegaApi::ORDER_MEDIATS_ASC <= order && order <= MegaApi::ORDER_MEDIATS_DESC));
 
     // validations
     if (!filter || filter->byLocationHandle() == INVALID_HANDLE ||
@@ -19599,9 +19874,22 @@ MegaNode* MegaApiImpl::getParentNode(MegaNode* n)
     return MegaNodePrivate::fromNode(node->parent.get());
 }
 
-char* MegaApiImpl::getNodePath(MegaNode *node)
+bool MegaApiImpl::isNodeWithinSubtree(MegaNode* node, MegaHandle baseHandle)
 {
-    if(!node) return nullptr;
+    if (!node)
+    {
+        return false;
+    }
+
+    SdkMutexGuard g(sdkMutex);
+    std::shared_ptr<Node> n = client->nodebyhandle(node->getHandle());
+    return n && n->hasNHOrHasAncestorWithNH(NodeHandle().set6byte(baseHandle));
+}
+
+char* MegaApiImpl::getNodePath(MegaNode* node)
+{
+    if (!node)
+        return nullptr;
 
     SdkMutexGuard guard(sdkMutex);
     std::shared_ptr<Node> n = client->nodebyhandle(node->getHandle());
@@ -19827,11 +20115,15 @@ void MegaApiImpl::executeOnThread(shared_ptr<ExecuteOnce> f)
     waiter->notify();
 }
 
-bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNode)
+MacComparisonResult CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa,
+                                                              MegaNode* fileNode,
+                                                              CancelToken cancelToken)
 {
     if (fileNode->getNodeKey() == nullptr)
     {
-        return false;
+        MacComparisonResult result;
+        result.errorCode = API_EKEY;
+        return result;
     }
 
     auto name =
@@ -19839,8 +20131,8 @@ bool CollisionChecker::CompareLocalFileMetaMac(FileAccess* fa, MegaNode* fileNod
     return CompareLocalFileMetaMacWithNodeKey(fa,
                                               *fileNode->getNodeKey(),
                                               fileNode->getType(),
-                                              name)
-        .areEqualMacs;
+                                              name,
+                                              cancelToken);
 }
 
 bool CollisionChecker::fingerprintEqualRelaxed(const FileFingerprint& lhs,
@@ -19853,7 +20145,9 @@ bool CollisionChecker::fingerprintEqualRelaxed(const FileFingerprint& lhs,
 #endif
 }
 
-CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF, std::function<bool()> metamacEqualF, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerprintEqualF,
+                                                 std::function<MacComparisonResult()> metamacCheckF,
+                                                 Option option)
 {
     auto decision = CollisionChecker::Result::Download;
 
@@ -19879,7 +20173,12 @@ CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerpri
     }
     case Option::Metamac:
     {
-        if (metamacEqualF())
+        const auto comparison = metamacCheckF();
+        if (comparison.errorCode == API_EINCOMPLETE)
+        {
+            decision = Result::Cancelled;
+        }
+        else if (comparison.areEqualMacs)
         {
             decision = Result::Skip;
         }
@@ -19898,7 +20197,10 @@ CollisionChecker::Result CollisionChecker::check(std::function<bool()> fingerpri
 
 }
 
-CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter, MegaNode* fileNode, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter,
+                                                 MegaNode* fileNode,
+                                                 Option option,
+                                                 CancelToken cancelToken)
 {
     if (!fileNode)
     {
@@ -19924,38 +20226,26 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> fa
         return ff->isvalid && resGenFp && fp.isvalid && fingerprintEqualRelaxed(*ff, fp);
     };
 
-    auto metaMacFunc = [fileNode, faGetter]() {
-
+    auto metaMacFunc = [fileNode, faGetter, cancelToken]() -> MacComparisonResult
+    {
         auto fa = faGetter();
         if (!fa)
         {
-            return false;
+            MacComparisonResult result;
+            result.errorCode = API_EREAD;
+            return result;
         }
 
-        return CompareLocalFileMetaMac(fa, fileNode);
+        return CompareLocalFileMetaMac(fa, fileNode, cancelToken);
     };
 
-    return check(
-        fingerprintEqualF,
-        metaMacFunc,
-        option);
+    return check(fingerprintEqualF, metaMacFunc, option);
 }
 
-CollisionChecker::Result CollisionChecker::check(FileSystemAccess* fsaccess, const LocalPath& fileLocalPath, MegaNode* fileNode, Option option)
-{
-    auto fa = fsaccess->newfileaccess();
-    auto fap = fa.get();
-    auto faGetter = [fap, &fileLocalPath]()
-    {
-        return fap->fopen(fileLocalPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound) &&
-                       fap->type == FILENODE ?
-                   fap :
-                   nullptr;
-    };
-    return CollisionChecker::check(std::move(faGetter), fileNode, option);
-}
-
-CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> faGetter, Node* node, Option option)
+CollisionChecker::Result CollisionChecker::check(std::function<FileAccess*()> faGetter,
+                                                 Node* node,
+                                                 Option option,
+                                                 CancelToken cancelToken)
 {
     if (!node)
     {
@@ -19976,21 +20266,20 @@ CollisionChecker::Result CollisionChecker::check(std::function<FileAccess* ()> f
                fingerprintEqualRelaxed(fp, nodeFp);
     };
 
-    auto metaMacFunc = [node, faGetter]() {
-
+    auto metaMacFunc = [node, faGetter, cancelToken]() -> MacComparisonResult
+    {
         auto fa = faGetter();
         if (!fa)
         {
-            return false;
+            MacComparisonResult result;
+            result.errorCode = API_EREAD;
+            return result;
         }
 
-        return CompareLocalFileMetaMacWithNode(fa, node);
+        return CompareLocalFileMetaMacWithNode(fa, node, cancelToken);
     };
 
-    return check(
-        fingerprintEqualF,
-        metaMacFunc,
-        option);
+    return check(fingerprintEqualF, metaMacFunc, option);
 }
 
 unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOperation* recursiveTransfer, m_off_t availableDiskSpace)
@@ -20019,7 +20308,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
         int nextTag = client->nextreqtag();
         transfer->setState(MegaTransfer::STATE_QUEUED);
 
-        if (transfer->accessCancelToken().isCancelled())
+        const auto finishCancelledTransfer = [&]()
         {
             if (queue && recursiveTransfer && recursiveTransfer->isCancelledByFolderTransferToken())
             {
@@ -20042,6 +20331,11 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
             transfer->setUpdateTime(Waiter::ds);
             transfer->setState(MegaTransfer::STATE_CANCELLED);
             fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(API_EINCOMPLETE));
+        };
+
+        if (transfer->accessCancelToken().isCancelled())
+        {
+            finishCancelledTransfer();
             continue;
         }
 
@@ -20172,7 +20466,14 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                 *client,
                                 wLocalPath,
                                 fp_forCloud,
-                                prevNodeSameName.get());
+                                prevNodeSameName.get(),
+                                transfer->accessCancelToken());
+
+                            if (compRes == NODE_COMP_CANCELLED)
+                            {
+                                finishCancelledTransfer();
+                                continue;
+                            }
 
                             if (compRes == NODE_COMP_DIFFERS_MTIME)
                             {
@@ -20214,6 +20515,7 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                         const auto alreadyCheckedSameNodeNameInTarget = !skipSearchBySameName;
                         bool sameNodeSameNameInTarget{false};
+                        bool macComparisonCancelled{false};
 
                         // MAC computation requires reading the local file (expensive I/O). When
                         // many cloud nodes share the same fingerprint, verifying all of them is
@@ -20238,7 +20540,16 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                                                 *client,
                                                 wLocalPath,
                                                 fp_forCloud,
-                                                n.get());
+                                                n.get(),
+                                                transfer->accessCancelToken());
+
+                                        if (compRes == NODE_COMP_CANCELLED)
+                                        {
+                                            // Stop the search, the caller skips any remaining
+                                            // phase and finishes the transfer as cancelled.
+                                            macComparisonCancelled = true;
+                                            return false;
+                                        }
 
                                         if (compRes == NODE_COMP_EQUAL ||
                                             compRes == NODE_COMP_DIFFERS_MTIME)
@@ -20275,13 +20586,20 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         // a full re-upload. nameMatch nodes are skipped here because they were
                         // already checked in Phase 1. Breaks at the first MAC-verified match, so
                         // typically only one extra MAC computation is needed.
-                        if (!sameNodeFpFound && !alreadyCheckedSameNodeNameInTarget)
+                        if (!macComparisonCancelled && !sameNodeFpFound &&
+                            !alreadyCheckedSameNodeNameInTarget)
                         {
                             findNodeWithMacMatch(
                                 [](bool nameMatch)
                                 {
                                     return !nameMatch;
                                 });
+                        }
+
+                        if (macComparisonCancelled)
+                        {
+                            finishCancelledTransfer();
+                            continue;
                         }
 
                         if (sameNodeFpFound)
@@ -20559,19 +20877,25 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                         auto fap = fa.get();
                         if (node)
                         {
-                            transfer->setCollisionCheckResult(
-                                CollisionChecker::check(
-                                    [fap]() { return fap; }
-                                    , node.get()
-                                    , transfer->getCollisionCheck()));
+                            transfer->setCollisionCheckResult(CollisionChecker::check(
+                                [fap]()
+                                {
+                                    return fap;
+                                },
+                                node.get(),
+                                transfer->getCollisionCheck(),
+                                transfer->accessCancelToken()));
                         }
                         else
                         {
-                            transfer->setCollisionCheckResult(
-                                CollisionChecker::check(
-                                    [fap]() { return fap; }
-                                    , publicNode
-                                    , transfer->getCollisionCheck()));
+                            transfer->setCollisionCheckResult(CollisionChecker::check(
+                                [fap]()
+                                {
+                                    return fap;
+                                },
+                                publicNode,
+                                transfer->getCollisionCheck(),
+                                transfer->accessCancelToken()));
                         }
                     }
                     else if (transfer->getCollisionCheckResult() == CollisionChecker::Result::NotYet) // no collision
@@ -20581,6 +20905,12 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
                     // decision check for early returns
                     {
                         auto decision = transfer->getCollisionCheckResult();
+                        if (decision == CollisionChecker::Result::Cancelled)
+                        {
+                            finishCancelledTransfer();
+                            continue;
+                        }
+
                         if (decision == CollisionChecker::Result::ReportError)
                         {
                             e = API_EEXIST;
@@ -31223,6 +31553,17 @@ int64_t MegaPricingPrivate::getMobileOfferReshowInterval(int productIndex) const
     return 0;
 }
 
+uint64_t MegaPricingPrivate::getMobileOfferCampaignId(int productIndex) const
+{
+    if (auto index = static_cast<size_t>(productIndex);
+        index < products.size() && products[index].mobileOffer.has_value())
+    {
+        return products[index].mobileOffer->campaignId;
+    }
+
+    return 0;
+}
+
 bool MegaPricingPrivate::hasMobileOfferIos(int productIndex) const
 {
     if (auto index = static_cast<size_t>(productIndex);
@@ -34549,7 +34890,8 @@ bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsTyp
                                 return fap;
                             },
                             fileNode,
-                            option);
+                            option,
+                            transfer->accessCancelToken());
                     }
                     folder.childrenCollisionDecisions[w.fileIdx] = result;
                     processedFiles.fetch_add(1);
@@ -37082,9 +37424,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
     if (httpctx->path == "/")
     {
         node = httpctx->megaApi->getRootNode();
-        char *base64Handle = node->getBase64Handle();
+        if (!node)
+        {
+            // Root not available yet (e.g. fetchnodes incomplete).
+            returnHttpCode(httpctx, 404);
+            return 0;
+        }
+        char* base64Handle = node->getBase64Handle();
         httpctx->nodehandle = base64Handle;
-        delete [] base64Handle;
+        delete[] base64Handle;
         httpctx->nodename = node->getName();
     }
     else if (httpctx->nodehandle.size())
@@ -37266,7 +37614,10 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
     }
 
-    MegaNode *baseNode = NULL;
+    // node is non-null here: block above either materialized it or returned early.
+    // Capture the URL-root handle now; the subpath block below may set node to null for PUT/MKCOL.
+    const MegaHandle servedHandle = node->getHandle();
+    MegaNode* baseNode = NULL;
     if (httpctx->subpathrelative.size())
     {
         string subnodepath = httpctx->subpathrelative;
@@ -37282,6 +37633,13 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         if (parser->method != HTTP_PUT && parser->method != HTTP_MKCOL && !subnode)
         {
             returnHttpCode(httpctx, 404);
+            delete node;
+            return 0;
+        }
+        else if (subnode && isNodeOutsideServedSubtree(httpctx->megaApi, subnode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete subnode;
             delete node;
             return 0;
         }
@@ -37464,6 +37822,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
 
+        if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete newParentNode;
+            delete node;
+            delete baseNode;
+            return 0;
+        }
+
         httpctx->megaApi->createFolder(newname.c_str(), newParentNode, httpctx);
         delete newParentNode;
         delete node;
@@ -37506,7 +37873,16 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
         }
 
         dest = dest.substr(baseURL.size());
-        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        MegaNode* destNode =
+            httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        if (destNode && isNodeOutsideServedSubtree(httpctx->megaApi, destNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete destNode;
+            delete node;
+            delete baseNode;
+            return 0;
+        }
         if (destNode)
         {
             if (node->getHandle() == destNode->getHandle())
@@ -37523,6 +37899,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 if (httpctx->overwrite)
                 {
                     newParentNode = httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                    if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+                    {
+                        returnHttpCode(httpctx, 403);
+                        delete newParentNode;
+                        delete node;
+                        delete baseNode;
+                        delete destNode;
+                        return 0;
+                    }
                 }
                 else
                 {
@@ -37563,6 +37948,14 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             returnHttpCode(httpctx, 409);
             delete node;
             delete baseNode;
+            return 0;
+        }
+        if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete node;
+            delete baseNode;
+            delete newParentNode;
             return 0;
         }
         if (newname.size())
@@ -37623,9 +38016,18 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
                 return 0;
             }
 
-            if (!httpctx->tmpFileAccess) //put with no body contents
+            if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
             {
-                httpctx->tmpFileName=httpctx->server->basePath;
+                returnHttpCode(httpctx, 403);
+                delete newParentNode;
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            if (!httpctx->tmpFileAccess) // put with no body contents
+            {
+                httpctx->tmpFileName = httpctx->server->basePath;
                 httpctx->tmpFileName.append("httputfile");
                 httpctx->tmpFileName.append(LocalPath::tmpNameLocal().toPath(false));
                 string ext;
@@ -37699,7 +38101,16 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             return 0;
         }
         dest = dest.substr(baseURL.size());
-        MegaNode *destNode = httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        MegaNode* destNode =
+            httpctx->megaApi->getNodeByPath(dest.c_str(), baseNode ? baseNode : node);
+        if (destNode && isNodeOutsideServedSubtree(httpctx->megaApi, destNode, servedHandle))
+        {
+            returnHttpCode(httpctx, 403);
+            delete destNode;
+            delete node;
+            delete baseNode;
+            return 0;
+        }
         if (destNode)
         {
             if (node->getHandle() == destNode->getHandle())
@@ -37712,9 +38123,21 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             }
             else
             {
-                //overwrite?
+                // overwrite?
                 if (httpctx->overwrite)
                 {
+                    MegaNode* overwriteParent =
+                        httpctx->megaApi->getNodeByHandle(destNode->getParentHandle());
+                    if (isNodeOutsideServedSubtree(httpctx->megaApi, overwriteParent, servedHandle))
+                    {
+                        returnHttpCode(httpctx, 403);
+                        delete overwriteParent;
+                        delete node;
+                        delete baseNode;
+                        delete destNode;
+                        return 0;
+                    }
+                    delete overwriteParent;
                     httpctx->newParentNode = destNode->getParentHandle();
                     httpctx->newname = destNode->getName();
                     httpctx->nodeToMove = node->getHandle();
@@ -37755,6 +38178,15 @@ int MegaHTTPServer::onMessageComplete(http_parser *parser)
             if (!newParentNode)
             {
                 returnHttpCode(httpctx, 409);
+                delete node;
+                delete baseNode;
+                return 0;
+            }
+
+            if (isNodeOutsideServedSubtree(httpctx->megaApi, newParentNode, servedHandle))
+            {
+                returnHttpCode(httpctx, 403);
+                delete newParentNode;
                 delete node;
                 delete baseNode;
                 return 0;

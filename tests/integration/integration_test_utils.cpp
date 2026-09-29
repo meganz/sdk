@@ -499,7 +499,7 @@ handle createCreditCardNode(::mega::MegaApi* megaApi,
     return newPwdNodeHandle;
 }
 
-void setScParserMode(bool isStreamingMode)
+void setScParserMode([[maybe_unused]] bool isStreamingMode)
 {
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     globalMegaTestHooks.interceptSCRequest =

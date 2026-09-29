@@ -75,6 +75,7 @@ class GTestProc : public ProcessWithInterceptedOutput
 public:
     bool run(const std::vector<std::string>& args, const std::unordered_map<std::string, std::string>& env, size_t workerIdx, std::string&& name);
     bool passed() const { return mStatus == TestStatus::TEST_PASSED; }
+    bool skipped() const { return mStatus == TestStatus::TEST_SKIPPED; }
     bool crashed() const { return mStatus == TestStatus::CRASHED; }
     std::string getRelevantOutput() { return finishedRunning() ? mRelevantOutput : std::string(); }
     const std::string& getTestName() const { return mTestName; }
@@ -99,6 +100,7 @@ private:
         NOT_STARTED,
         RUNNING,
         TEST_PASSED,
+        TEST_SKIPPED,
         TEST_FAILED,
         CRASHED,
     };
@@ -216,6 +218,7 @@ private:
     size_t mTestSuiteCount = 0u;
     size_t mTotalTestCount = 0u;
     size_t mPassedTestCount = 0u;
+    std::vector<std::string> mSkippedTests;
     std::vector<std::string> mFailedTests;
     size_t mDisabledTestCount = 0u;
     std::vector<int> mPidDumps;

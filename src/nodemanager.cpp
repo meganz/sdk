@@ -1397,6 +1397,7 @@ shared_ptr<Node> NodeManager::getNodeFromNodeSerialized(const NodeSerialized &no
     }
 
     setNodeCounter(node, NodeCounter(nodeSerialized.mNodeCounter), false, nullptr);
+    node->setMediaTs(nodeSerialized.mMediaTs);
 
     // do not automatically try to reload the account if we can't unserialize.
     // (1) we might go around in circles downloading the account over and over, DDOSing MEGA, because we get the same data back each time
@@ -2646,6 +2647,11 @@ void NodeManager::putNodeInDb(Node* node) const
             mNoKeyLogger.log(*node);
         }
     }
+
+    // Always recompute mediats before DB write.
+    // Covers: ctime-only changes (setattr not called),
+    //         old cache migration (createNode bypasses setattr).
+    node->updateMediaTs();
 
     mTable->put(node);
 }

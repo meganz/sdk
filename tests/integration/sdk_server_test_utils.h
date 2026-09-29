@@ -45,9 +45,10 @@ public:
 
     static Response get(const std::string& url,
                         const std::string& range = EmptyRange,
-                        const map<string, string>& headers = {})
+                        const map<string, string>& headers = {},
+                        bool curlPathAsIs = false)
     {
-        return performRequest(url, "GET", range, headers, "", BodyMode::WithBody);
+        return performRequest(url, "GET", range, headers, "", BodyMode::WithBody, curlPathAsIs);
     }
 
     static Response post(const std::string& url,
@@ -74,6 +75,21 @@ public:
         return performRequest(url, "HEAD", EmptyRange, headers, "", BodyMode::WithoutBody);
     }
 
+    static Response request(const std::string& url,
+                            const std::string& method,
+                            const map<string, string>& headers = {},
+                            const string& body = "",
+                            bool curlPathAsIs = false)
+    {
+        return performRequest(url,
+                              method,
+                              EmptyRange,
+                              headers,
+                              body,
+                              BodyMode::WithBody,
+                              curlPathAsIs);
+    }
+
 private:
     static bool appendHttpHeaders(sdk_test::EasyCurlSlist& easyCurlSlist,
                                   const std::map<std::string, std::string>& headers)
@@ -94,7 +110,8 @@ private:
                                    const std::string& rangeHeader = EmptyRange,
                                    const map<string, string>& headers = {},
                                    const string& body = "",
-                                   BodyMode bodyMode = BodyMode::WithBody)
+                                   BodyMode bodyMode = BodyMode::WithBody,
+                                   bool curlPathAsIs = false)
     {
         Response response;
         auto easyCurl = sdk_test::EasyCurl();
@@ -102,6 +119,10 @@ private:
         auto curl = easyCurl.curl();
 
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        if (curlPathAsIs)
+        {
+            curl_easy_setopt(curl, CURLOPT_PATH_AS_IS, 1L);
+        }
         curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 0L);
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 60L);
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 10L);

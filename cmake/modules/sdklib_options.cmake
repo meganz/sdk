@@ -46,3 +46,7 @@ option(ENABLE_UBSAN "Enable undefined behavior sanitizer" OFF)
 option(ENABLE_TSAN "Enable thread sanitizer" OFF)
 option(ENABLE_C_ARES_BACKEND "Enable c-ares backend as the DNS resolver for curl" OFF)
 option(ENABLE_SDKLIB_ANDROID_DYNAMIC_LIBRARY "It builds a final dynamic library for Android." OFF)
+option(MEGA_USE_WSUPLOAD "Enable WebSocket-based uploads (experimental)" ON)
+option(MEGA_BENCH_FRAMEWORK_ENABLED
+       "Build bench_framework module under tests/integration/bench_framework/ (BenchSession, BenchProcessStats, etc.) and emit bench_report_<PID>.json"
+       OFF)

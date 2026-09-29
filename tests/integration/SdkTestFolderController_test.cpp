@@ -1126,6 +1126,70 @@ TEST_F(SdkTestFolderController, CancelDownloadOntoExistingLocalTree)
 }
 
 /**
+ * Verify cancellation from the only MetaMAC chunk interrupts the folder-download collision
+ * pre-pass. This covers both the folder-controller token propagation and the final-chunk check.
+ */
+TEST_F(SdkTestFolderController, CancelMetamacDuringCollisionPrepass)
+{
+#ifndef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    GTEST_SKIP() << "Requires MEGASDK_DEBUG_TEST_HOOKS_ENABLED (debug test hooks)";
+#else
+    static const std::string logPre{getLogPrefix()};
+
+    const fs::path basePath = createWideLocalTree(1, 1);
+    ASSERT_LT(fs::file_size(basePath / "sub0" / "file0"), 128u * 1024u)
+        << "the fixture must fit in one MetaMAC chunk";
+
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    std::unique_ptr<MegaCancelToken> cancelToken{MegaCancelToken::createInstance()};
+    ASSERT_TRUE(cancelToken);
+
+    std::atomic<int> chunkReads{0};
+    globalMegaTestHooks.onMacGenerationChunkRead = [&](m_off_t)
+    {
+        if (chunkReads.fetch_add(1) == 0)
+        {
+            cancelToken->cancel();
+        }
+    };
+    MrProper clearHook{[]()
+                       {
+                           globalMegaTestHooks.onMacGenerationChunkRead = nullptr;
+                       }};
+
+    DownloadObserver obs;
+    NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+    observeSubTransfers(subTransferListener, obs);
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+
+    startFolderDownload(remoteFolderNode.get(),
+                        &listener,
+                        MegaTransfer::COLLISION_CHECK_METAMAC,
+                        cancelToken.get());
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::seconds{60}))
+        << "MetaMAC-cancelled folder download never finished";
+    EXPECT_EQ(chunkReads.load(), 1)
+        << "the collision pre-pass continued after cancellation in its only MetaMAC chunk";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(MegaError::API_EINCOMPLETE, obs.folderError)
+            << "the folder collision pre-pass did not propagate cancellation";
+        EXPECT_EQ(0u, obs.skippedFiles);
+        EXPECT_EQ(0u, obs.downloadedFiles);
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+#endif
+}
+
+/**
  * Verify the collision decision computed by the parallel pre-pass is the one actually applied,
  * by running the same download over the same unchanged local tree under two collision options
  * whose outcomes are distinguishable from the fingerprint default.
@@ -1198,6 +1262,160 @@ TEST_F(SdkTestFolderController, DownloadOntoExistingLocalTreeCollisionOptions)
             << "ALWAYSERROR should report an error for every colliding file";
         EXPECT_EQ(0u, obs.skippedFiles) << "ALWAYSERROR should never skip a file";
         EXPECT_EQ(0u, obs.downloadedFiles) << "ALWAYSERROR should never download a file";
+    }
+
+    EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));
+    removeLocalTree();
+}
+
+/**
+ * Verify getChildTransfers reports the sub-transfers of a folder transfer, rather than the folder
+ * transfer itself.
+ *
+ * The list is sampled from the sub-transfer callbacks, the only window where children are alive: a
+ * sub-transfer enters the transfer map just before its onTransferStart is fired and leaves it just
+ * after its onTransferFinish, so a call made from there cannot legitimately come back empty.
+ *
+ * Steps:
+ * 1. Create a local tree of several folders, each holding several files, and upload it.
+ * 2. Delete the local tree, so the download really transfers every file and its sub-transfers
+ * start.
+ * 3. From every sub-transfer's onTransferStart, look up the children of the folder tag and check
+ * the identity of each one, also look up the sub-transfer's own tag, which is not a folder transfer
+ *    and therefore has no children.
+ * 4. Once the folder transfer has finished, its tag is no longer known, so the lookup reports
+ *    nothing.
+ */
+TEST_F(SdkTestFolderController, GetChildTransfersReturnsSubTransfers)
+{
+    static const std::string logPre{getLogPrefix()};
+    static constexpr int kFolders{2};
+    static constexpr int kFilesPerFolder{2};
+
+    LOG_info << logPre << "starting";
+
+    const fs::path basePath = createWideLocalTree(kFolders, kFilesPerFolder);
+
+    LOG_info << logPre << "uploading the local tree";
+    const MegaHandle remoteFolderHandle = uploadLocalTree(basePath);
+    std::unique_ptr<MegaNode> remoteFolderNode{megaApi[0]->getNodeByHandle(remoteFolderHandle)};
+    ASSERT_TRUE(remoteFolderNode);
+
+    // Nothing may be left behind locally, or the collision pre-pass skips every file and no
+    // sub-transfer ever starts.
+    removeLocalTree();
+
+    // Everything the lookup reported. Sampled on the SDK thread from the transfer callbacks while
+    // the assertions run on the test thread, so the members are guarded.
+    struct ChildTransfersObserver
+    {
+        std::mutex mutex;
+        int folderTag{-1};
+        int samples{0};
+        int largestChildCount{0};
+        int folderElements{0}; // elements that are folder transfers themselves
+        int foreignElements{0}; // elements not pointing back at the queried folder tag
+        int repeatedElements{0}; // the same tag more than once within one list
+        int elementsForNonFolderTag{0};
+    };
+
+    ChildTransfersObserver childObs;
+
+    NiceMock<MockTransferListener> subTransferListener{megaApi[0].get()};
+    EXPECT_CALL(subTransferListener, onTransferStart)
+        .WillRepeatedly(
+            [&childObs](MegaApi* api, MegaTransfer* t)
+            {
+                if (t->getType() != MegaTransfer::TYPE_DOWNLOAD || t->isFolderTransfer() ||
+                    t->getFolderTransferTag() <= 0)
+                {
+                    return;
+                }
+                const int folderTag = t->getFolderTransferTag();
+                std::unique_ptr<MegaTransferList> children{api->getChildTransfers(folderTag)};
+                // A sub-transfer is not a folder transfer, so it has no children of its own.
+                std::unique_ptr<MegaTransferList> ownChildren{api->getChildTransfers(t->getTag())};
+
+                std::lock_guard<std::mutex> g{childObs.mutex};
+                ++childObs.samples;
+                childObs.elementsForNonFolderTag += ownChildren->size();
+                childObs.largestChildCount = std::max(childObs.largestChildCount, children->size());
+
+                std::set<int> tagsSeen;
+                for (int i = 0; i < children->size(); ++i)
+                {
+                    const MegaTransfer* child = children->get(i);
+                    if (child->isFolderTransfer())
+                    {
+                        ++childObs.folderElements;
+                    }
+                    if (child->getFolderTransferTag() != folderTag)
+                    {
+                        ++childObs.foreignElements;
+                    }
+                    if (!tagsSeen.insert(child->getTag()).second)
+                    {
+                        ++childObs.repeatedElements;
+                    }
+                }
+            });
+    megaApi[0]->addListener(&subTransferListener);
+
+    DownloadObserver obs;
+    NiceMock<MockMegaTransferListener> listener{megaApi[0].get()};
+    observeFolderTransfer(listener, obs);
+    // Takes over the start expectation set by observeFolderTransfer, to keep the folder transfer's
+    // tag for the lookup made after it has finished.
+    EXPECT_CALL(listener, onTransferStart)
+        .WillRepeatedly(
+            [&childObs](MegaApi*, MegaTransfer* t)
+            {
+                if (!t->isFolderTransfer())
+                {
+                    return;
+                }
+                std::lock_guard<std::mutex> g{childObs.mutex};
+                childObs.folderTag = t->getTag();
+            });
+
+    LOG_info << logPre << "downloading the folder";
+    startFolderDownload(remoteFolderNode.get(), &listener);
+
+    EXPECT_TRUE(listener.waitForFinishOrTimeout(std::chrono::minutes{3}))
+        << "Folder download never finished";
+
+    {
+        std::lock_guard<std::mutex> g{obs.mutex};
+        EXPECT_EQ(MegaError::API_OK, obs.folderError) << "Folder download should have succeeded";
+    }
+
+    int folderTag{-1};
+    {
+        std::lock_guard<std::mutex> g{childObs.mutex};
+        folderTag = childObs.folderTag;
+
+        // Reported without aborting, so the local tree is still cleaned up below.
+        EXPECT_GT(childObs.samples, 0)
+            << "No sub-transfer started, so getChildTransfers was never exercised";
+        EXPECT_GT(childObs.largestChildCount, 0)
+            << "getChildTransfers reported no child, although every call was made from inside a "
+               "sub-transfer callback and that sub-transfer was already in the transfer map";
+        EXPECT_EQ(0, childObs.folderElements)
+            << "getChildTransfers reported the folder transfer itself instead of its children";
+        EXPECT_EQ(0, childObs.foreignElements)
+            << "getChildTransfers reported a transfer that does not belong to the queried folder";
+        EXPECT_EQ(0, childObs.repeatedElements)
+            << "getChildTransfers reported the same transfer more than once";
+        EXPECT_EQ(0, childObs.elementsForNonFolderTag)
+            << "getChildTransfers reported children for a tag that is not a folder transfer";
+    }
+
+    EXPECT_GT(folderTag, 0) << "The folder transfer never reported its tag";
+    if (folderTag > 0)
+    {
+        std::unique_ptr<MegaTransferList> afterFinish{megaApi[0]->getChildTransfers(folderTag)};
+        EXPECT_EQ(0, afterFinish->size())
+            << "getChildTransfers should report nothing for a tag that is no longer known";
     }
 
     EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, remoteFolderNode.get()));

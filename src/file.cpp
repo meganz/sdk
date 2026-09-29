@@ -27,6 +27,7 @@
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/sync.h"
+#include "mega/testhooks.h"
 #include "mega/transfer.h"
 #include "mega/transferslot.h"
 
@@ -389,7 +390,9 @@ LocalPath File::logicalPath() const
 void File::prepare(FileSystemAccess&)
 {
     transfer->localfilename = getLocalname();
-    assert(transfer->localfilename.isAbsolute());
+    // URI paths (Android SAF content://) are a supported local-file state: isAbsolute() is
+    // false for them, so assert the usability predicate instead (SDK-5360).
+    assert(isUsableLocalFilePath(transfer->localfilename));
 }
 
 void File::start()
@@ -479,6 +482,7 @@ void File::sendPutnodesOfUpload(MegaClient* client,
     if (targetuser.size())
     {
         // drop file into targetuser's inbox (obsolete feature, kept for sending logs to helpdesk)
+        DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
         client->putnodes(targetuser.c_str(), std::move(newnodes), tag, std::move(completion));
     }
     else
@@ -511,6 +515,12 @@ void File::sendPutnodesOfUpload(MegaClient* client,
             pitag->target = inIncomingShare ? PitagTarget::IncomingShare : PitagTarget::CloudDrive;
         }
 
+        DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
+        // [SyncPutnodesDiag] CommandPutNodes about to enqueue on the
+        // reqs.nextreqs.back() batch — RCA expects 88 of these to land in a
+        // single client-thread pass once the WS-action queue finally drains.
+        LOG_debug << "[SyncPutnodesDiag] queueCommand[CommandPutNodes] entered. source="
+                  << static_cast<int>(source) << " syncxfer=" << syncxfer;
         client->queueCommand(new CommandPutNodes(client,
                                                  th,
                                                  NULL,
@@ -796,12 +806,12 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
         fileNodeKey,
         PUTNODES_SYNC,
         ovHandle,
-        [self, stts, client](const Error& e,
-                             targettype_t t,
-                             vector<NewNode>& nn,
-                             bool targetOverride,
-                             int ownTag,
-                             const map<string, string>& fileHandles)
+        [self, stts, client, fromInshare = fromInsycShare](const Error& e,
+                                                           targettype_t t,
+                                                           vector<NewNode>& nn,
+                                                           bool targetOverride,
+                                                           int ownTag,
+                                                           const map<string, string>& fileHandles)
         {
             // Is the originating transfer still alive?
             if (auto s = self.lock())
@@ -828,7 +838,14 @@ void SyncUpload_inClient::sendPutnodesOfUpload(MegaClient* client, NodeHandle ov
                 }
                 else if (e == API_EOVERQUOTA)
                 {
-                    client->syncs.disableSyncByBackupId(s->backupId(),  FOREIGN_TARGET_OVERSTORAGE, false, true, nullptr);
+                    // Only an inshare target means somebody else's storage is full.
+                    const SyncError reason =
+                        fromInshare ? FOREIGN_TARGET_OVERSTORAGE : STORAGE_OVERQUOTA;
+                    client->syncs.disableSyncByBackupId(s->backupId(),
+                                                        reason,
+                                                        false,
+                                                        true,
+                                                        nullptr);
                 }
             }
 
@@ -863,12 +880,13 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client,
         nodeToClone,
         PUTNODES_SYNC,
         ovHandle,
-        [self, stts, client](const Error& e,
-                             targettype_t /*t*/,
-                             vector<NewNode>& nn,
-                             bool /*targetOverride*/,
-                             int /*tag*/,
-                             const map<string, string>& /*fileHandles*/)
+        [self, stts, client, fromInshare = fromInsycShare](
+            const Error& e,
+            targettype_t /*t*/,
+            vector<NewNode>& nn,
+            bool /*targetOverride*/,
+            int /*tag*/,
+            const map<string, string>& /*fileHandles*/)
         {
             // Is the originating transfer still alive?
             if (auto s = self.lock())
@@ -895,8 +913,11 @@ void SyncUpload_inClient::sendPutnodesToCloneNode(MegaClient* client,
                 }
                 else if (e == API_EOVERQUOTA)
                 {
+                    // Only an inshare target means somebody else's storage is full.
+                    const SyncError reason =
+                        fromInshare ? FOREIGN_TARGET_OVERSTORAGE : STORAGE_OVERQUOTA;
                     client->syncs.disableSyncByBackupId(s->backupId(),
-                                                        FOREIGN_TARGET_OVERSTORAGE,
+                                                        reason,
                                                         false,
                                                         true,
                                                         nullptr);

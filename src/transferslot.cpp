@@ -180,7 +180,7 @@ bool TransferSlot::createconnectionsonce()
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
         if (transfer->size >= MIN_FILESIZE_FOR_MULTIPLE_CONNECTIONS && transferbuf.isNewRaid())
         {
-            DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connections, transfer->client->connections[transfer->type])
+            DEBUG_TEST_HOOK_NUMBER_OF_CONNECTIONS(connections, transfer->client->connections[transfer->type]);
         }
 #endif
         LOG_debug << "Populating transfer slot with " << connections << " connections, max request size of " << maxRequestSize << " bytes [transferbuf.isNewRaid() = " << transferbuf.isNewRaid() << "] [isDownload = " << (transfer->type == GET) << "]";

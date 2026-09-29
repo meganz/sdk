@@ -1744,6 +1744,9 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
             for (auto& it : multi_transfers[d])
             {
                 Transfer *t = it.second;
+#ifdef MEGA_USE_WSUPLOAD
+                const bool alreadyOverquota = (t->bt.nextset() == NEVER);
+#endif
                 t->bt.backoff(NEVER);
                 if (t->slot)
                 {
@@ -1753,6 +1756,12 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
                     app->transfer_failed(t, isPaywall ? API_EPAYWALL : API_EOVERQUOTA, 0);
                     ++performanceStats.transferTempErrors;
                 }
+#ifdef MEGA_USE_WSUPLOAD
+                else if (t->channel == Transfer::Channel::WebSocket)
+                {
+                    wsActivateOverquotaForTransfer(t, alreadyOverquota, isPaywall);
+                }
+#endif
             }
         }
     }
@@ -2136,7 +2145,6 @@ MegaClient::MegaClient(MegaApp* a,
 
     badhostcs = NULL;
 
-    scsn.clear();
     cachedscsn = UNDEF;
 
     // initialize useragent
@@ -2256,6 +2264,12 @@ void MegaClient::exec()
     WAIT_CLASS::bumpds();
 
     DEBUG_TEST_HOOK_INTERCEPT_CS_REQUEST(pendingcs);
+
+#ifdef MEGA_USE_WSUPLOAD
+    // Drain WS actions early so completions/failures don't wait for later exec work.
+    // Keep the budget small to avoid starving the main state machine.
+    wsDrainClientActions(1);
+#endif
 
     if (overquotauntil && overquotauntil < Waiter::ds)
     {
@@ -2692,6 +2706,17 @@ void MegaClient::exec()
         // handle API client-server requests
         for (;;)
         {
+            // [SyncPutnodesDiag] cs-dispatch entry — confirms single-pendingcs
+            // serialization is the bottleneck during the 5-min MoveSeveral stall.
+            // Conditional to keep volume low: only when there's something to log.
+            if (pendingcs || reqs.readyToSend())
+            {
+                LOG_debug << "[SyncPutnodesDiag] cs-dispatch entry. pendingcs="
+                          << (pendingcs ? "non-null" : "null")
+                          << " status=" << (pendingcs ? static_cast<int>(pendingcs->status) : -1)
+                          << " readyToSend=" << reqs.readyToSend()
+                          << " btcs.armed=" << btcs.armed();
+            }
             // do we have an API request outstanding?
             if (pendingcs)
             {
@@ -3227,6 +3252,7 @@ void MegaClient::exec()
                                                     this,
                                                     idempotenceId);
 
+                    LOG_debug << "Lockless req: " << *mPendingLocklessCS->out;
                     mPendingLocklessCS->posturl = httpio->APIURL;
                     mPendingLocklessCS->posturl.append("cs?id=");
                     mPendingLocklessCS->posturl.append(idempotenceId);
@@ -3244,6 +3270,7 @@ void MegaClient::exec()
                         mPendingLocklessCS->posturl.append("&j=");
                         mPendingLocklessCS->posturl.append(mJourneyId->getValue());
                     }
+
                     mPendingLocklessCS->type = REQ_JSON;
 
                     mPendingLocklessCS->post(this);
@@ -3586,6 +3613,14 @@ void MegaClient::exec()
         {
             LOG_debug << "skipping slots doio while blocked";
         }
+
+#ifdef MEGA_USE_WSUPLOAD
+        wsDrainClientActions();
+        wsProcessVerifyUploads();
+        // Coalesced quota step: completions drained above have already deducted,
+        // so evaluation/issue this cycle sees up-to-date balances (SDK-6298).
+        wsQuotaFlush();
+#endif
 
 #ifdef ENABLE_SYNC
         if (!pendingDebris.empty())
@@ -4120,6 +4155,9 @@ bool MegaClient::abortbackoff(bool includexfers)
                             r = true;
                         }
                     }
+#ifdef MEGA_USE_WSUPLOAD
+                    wsAbortBackoffForTransfer(it.second);
+#endif
                 }
             }
 
@@ -4179,6 +4217,95 @@ bool MegaClient::abortbackoff(bool includexfers)
     return r;
 }
 
+// Exponential function to calculate the maximum transfer queue size.
+// This function uses a threshold (in KB/s) so the function has two different behaviors:
+// 1. Before the threshold, the function grows slowly from MIN_MAXTRANSFERS to MAXTRANSFERS.
+// 2. After the threshold, the function grows quickly to MAXTRANSFERS.
+unsigned MegaClient::calcDynamicQueueLimit() const
+{
+    const int minScalingFactor = 2000;   // KB/s
+    const int maxScalingFactor = 20000;  // KB/s
+
+    const int minSize = MIN_MAXTRANSFERS;
+    const int maxSize = MAXTRANSFERS;
+
+    const int threshold = 16500;  // KB/s — see in-function commentary above.
+    if (threshold <= minScalingFactor)
+    {
+        LOG_err << "[calcDynamicQueueLimit] threshold (" << threshold
+                << ") IS SMALLER OR EQUAL minScalingFactor(" << minScalingFactor
+                << ") !!!!!!!!!! This must be fixed!!!!";
+        assert(false && "[calcDynamicQueueLimit] thresold <= minScalingFactor!");
+        return maxSize;
+    }
+
+    const m_off_t throughputInKBPerSec = std::clamp<m_off_t>(
+        (httpio ? httpio->downloadSpeed : 0) / 1024,
+        minScalingFactor,
+        maxScalingFactor);
+    const double reductiveGrowthMultiplier = 0.12;
+    double scaleFactor =
+        (static_cast<double>(throughputInKBPerSec - minScalingFactor) /
+         (threshold - minScalingFactor)) *
+        reductiveGrowthMultiplier;
+    double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
+    size = std::min(size, static_cast<double>(maxSize));
+
+    if (throughputInKBPerSec >= threshold)
+    {
+        double minSizeAfterThreshold = size;
+        scaleFactor = static_cast<double>(throughputInKBPerSec - threshold) /
+                      (maxScalingFactor - threshold);
+
+        double additionalTerm =
+            20 * log(1 + static_cast<double>(throughputInKBPerSec - threshold) / threshold);
+        double sizeAfterThreshold =
+            minSizeAfterThreshold +
+            (maxSize - minSizeAfterThreshold) * (1 - exp(-scaleFactor)) + additionalTerm;
+        size = std::min(sizeAfterThreshold, static_cast<double>(maxSize));
+    }
+
+#if defined(__ANDROID__) || defined(USE_IOS)
+    return std::min<unsigned>(static_cast<unsigned>(size), MAX_RAIDTRANSFERS_FOR_MOBILE);
+#else
+    return static_cast<unsigned>(size);
+#endif
+}
+
+double MegaClient::calcTransferWeight(direction_t transferDirection, bool forceDynamicLimit) const
+{
+    if (transferDirection == GET &&
+        ((raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) ||
+         forceDynamicLimit))
+    {
+        double averageFileSize = 0;
+        for (TransferSlot* ts: tslots)
+        {
+            // VERY LARGE FILE SIZES: divide each iteration to avoid overflow on the running sum.
+            averageFileSize +=
+                (static_cast<double>(ts->transfer->size) / static_cast<double>(tslots.size()));
+        }
+        unsigned dynamicQueueLimit;
+        const unsigned maxAverageFilesizeForFixedLimit = 2 * 1024 * 1024;  // 2MB
+        if (static_cast<unsigned>(averageFileSize) <= maxAverageFilesizeForFixedLimit)
+        {
+#if defined(__ANDROID__) || defined(USE_IOS)
+            dynamicQueueLimit = MAX_RAIDTRANSFERS_FOR_MOBILE;
+#else
+            dynamicQueueLimit = MAXTRANSFERS + 10;
+#endif
+        }
+        else
+        {
+            dynamicQueueLimit = calcDynamicQueueLimit();
+        }
+        double transferWeight =
+            static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit);
+        return transferWeight;
+    }
+    return 1;
+}
+
 // activate enough queued transfers as necessary to keep the system busy - but not too busy
 void MegaClient::dispatchTransfers()
 {
@@ -4207,11 +4334,26 @@ void MegaClient::dispatchTransfers()
         }
     }
 
+    const bool slotsAvailable = slotavail();
+
     // do we have any transfer slots available?
-    if (!slotavail())
+    if (!slotsAvailable)
     {
-        LOG_verbose << "No slots available";
-        return;
+        if (mBlocked)
+        {
+            return;
+        }
+
+        bool hasWsUploadEngine = false;
+#ifdef MEGA_USE_WSUPLOAD
+        // If WS is enabled, we need to give it a chance even legacy slot not available.
+        hasWsUploadEngine = (wsEngine() != nullptr);
+#endif
+        if (!hasWsUploadEngine)
+        {
+            LOG_verbose << "No slots available";
+            return;
+        }
     }
 
     CodeCounter::ScopeTimer ccst(performanceStats.dispatchTransfers);
@@ -4240,122 +4382,43 @@ void MegaClient::dispatchTransfers()
     };
     std::array<counter, 6> counters;
 
-    // Exponential function to calculate the maximum transfer queue size
-    // This function uses a threshold (in KB/s) so the function has two different behaviors:
-    // 1. Before the threshold, the function grows slowly from the minSize to the maxSize
-    // 2. After the threshold, the function grows very quickly to the maxSize
-    // This allows us to optimize the queue limit based on throughput.
-    auto calcDynamicQueueLimit = [this]() -> unsigned
-    {
-        // Define the minimum and maximum scaling factors
-        const int minScalingFactor = 2000; // KB/s
-        const int maxScalingFactor = 20000; // KB/s
-
-        // Define the minimum and maximum size limits
-        const int minSize = MIN_MAXTRANSFERS; // Adjusted minimum size
-        const int maxSize = MAXTRANSFERS;
-
-        const int threshold = 16500; // Threshold (KB/S) to activate the additional term -> before this threshold, dynamic size grows slowly from minSize to maxSize. After the threshold, it will quickly grow to maxSize.
-        if (threshold <= minScalingFactor)
-        {
-            LOG_err << "[calcDynamicQueueLimit] threshold (" << threshold << ") IS SMALLER OR EQUAL minScalingFactor(" << minScalingFactor << ") !!!!!!!!!! This must be fixed!!!!";
-            assert(false && "[calcDynamicQueueLimit] thresold <= minScalingFactor!");
-            return maxSize;
-        }
-
-        // Use an expontential function to obtain a very low growth rate before the threshold
-        m_off_t throughputInKBPerSec = std::min<m_off_t>(httpio->downloadSpeed / 1024, minScalingFactor); // KB/s
-        const double reductiveGrowthMultiplier = 0.12; // This allows us to keep the scaling factor within a very low growth rate
-        double scaleFactor = (static_cast<double>(throughputInKBPerSec - minScalingFactor) / (threshold - minScalingFactor)) * reductiveGrowthMultiplier;
-        double size = minSize + (maxSize - minSize) * (1 - exp(-scaleFactor));
-        size = std::min(size, static_cast<double>(maxSize));
-
-        if (throughputInKBPerSec >= threshold)
-        {
-            double minSizeAfterThreshold = size;
-            scaleFactor = static_cast<double>(throughputInKBPerSec - threshold) / (maxScalingFactor - threshold);
-
-            // Calculate size using exponential function with an additional term for a high growth rate after the threshold
-            double additionalTerm = 20 * log(1 + static_cast<double>(throughputInKBPerSec - threshold) / threshold);
-            double sizeAfterThreshold = minSizeAfterThreshold + (maxSize - minSizeAfterThreshold) * (1 - exp(-scaleFactor)) + additionalTerm;
-            size = std::min(sizeAfterThreshold, static_cast<double>(maxSize));
-        }
-
-        //LOG_verbose << "[calcDynamicQueueSize] customLimit = " << size << " [throughput = " << (throughputInKBPerSec) << " KB/s]";
-#if defined(__ANDROID__) || defined(USE_IOS)
-        return std::min<unsigned>(static_cast<unsigned>(size), MAX_RAIDTRANSFERS_FOR_MOBILE);
-#else
-        return static_cast<unsigned>(size);
-#endif
-    };
-
-    auto calcTransferWeight = [this, &calcDynamicQueueLimit](mega::direction_t transferDirection, bool forceDynamicLimit = false) -> double
-    {
-        if (transferDirection == GET &&
-            ((raidTransfersCounter >= MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) // 1/6 of the hard limit
-            || forceDynamicLimit))
-        {
-            double averageFileSize = 0;
-            for (TransferSlot* ts : tslots)
-            {
-                averageFileSize += (static_cast<double>(ts->transfer->size) / static_cast<double>(tslots.size())); // Take into account VERY LARGE FILE SIZES, that's why I divide for each iteration and not at the end
-            }
-            unsigned dynamicQueueLimit;
-            const unsigned maxAverageFilesizeForFixedLimit = 2 * 1024 * 1024; // 2MB, it's better to used a fixed limit (and a larger queue max size) for transfer queues whose average filesize is smaller than this value
-            if (static_cast<unsigned>(averageFileSize) <= maxAverageFilesizeForFixedLimit) // Truncate double averageFileSize (2,x MB ≡ 2MB)
-            {
-#if defined(__ANDROID__) || defined(USE_IOS)
-                dynamicQueueLimit = MAX_RAIDTRANSFERS_FOR_MOBILE;
-#else
-                dynamicQueueLimit = MAXTRANSFERS + 10;
-#endif
-            }
-            else
-            {
-                dynamicQueueLimit = calcDynamicQueueLimit();
-            }
-            double transferWeight =
-                static_cast<double>(MAXTRANSFERS) / static_cast<double>(dynamicQueueLimit);
-            //LOG_verbose << "[calcTransferWeight] raidTransfersCounter = " << raidTransfersCounter << ", >= " << MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM << " -> transferWeight = " << transferWeight << " [tslots = " << tslots.size() << "] [dynamicQueueLimit = " << dynamicQueueLimit << "] [averageFileSize = " << (averageFileSize / 1024) << " KBs]";
-            return transferWeight;
-        }
-        return 1;
-    };
-
     // Determine average speed and total amount of data remaining for the given direction/size-category
     // We prepare data for put/get in index 0..1, and the put/get/big/small combinations in index 2..5
-    for (TransferSlot* ts : tslots)
+    if (slotsAvailable)
     {
-        assert(ts->transfer->type == PUT || ts->transfer->type == GET);
-        double transferWeightKnown = 0.0;
-        TransferCategory tc(ts->transfer);
-        if (ts->transfer->type == GET)
+        for (TransferSlot* ts : tslots)
         {
-            if (!ts->transfer->tempurls.empty())
+            assert(ts->transfer->type == PUT || ts->transfer->type == GET);
+            double transferWeightKnown = 0.0;
+            TransferCategory tc(ts->transfer);
+            if (ts->transfer->type == GET)
             {
-                if (ts->transferbuf.isNewRaid()) // Raid
+                if (!ts->transfer->tempurls.empty())
                 {
-                    // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
-                    // i.e., if the counter has already reached that value, we don't continue increasing it
-                    if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
-                    transferWeightKnown = calcTransferWeight(tc.direction, true); // We already know this transfer is raided, force the dynamic calculation
-                }
-                else // Old raid or non-raid
-                {
-                    // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
-                    if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
-                    transferWeightKnown = 1.0; // We alredy know this transfer is non-raided, the weight should be 1.
+                    if (ts->transferbuf.isNewRaid()) // Raid
+                    {
+                        // Keep the counter within the limit to avoid overrepresentation: 1/6 of max transfers
+                        // i.e., if the counter has already reached that value, we don't continue increasing it
+                        if (raidTransfersCounter < MEANINGFUL_PORTION_OF_MAXTRANSFERS_QUEUE_FOR_RAID_PREDICTIVE_SYSTEM) raidTransfersCounter += 1;
+                        transferWeightKnown = calcTransferWeight(tc.direction, true); // We already know this transfer is raided, force the dynamic calculation
+                    }
+                    else // Old raid or non-raid
+                    {
+                        // As we kept the raid counter within a max limit (1/6), we obtain an accurate representation by decreasing the counter every time we find a non-raid transfer.
+                        if (raidTransfersCounter > 1) raidTransfersCounter -= 1;
+                        transferWeightKnown = 1.0; // We alredy know this transfer is non-raided, the weight should be 1.
+                    }
                 }
             }
+            auto transferWeight = transferWeightKnown != 0.0 ? transferWeightKnown : calcTransferWeight(tc.direction);
+            counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
+            counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
         }
-        auto transferWeight = transferWeightKnown != 0.0 ? transferWeightKnown : calcTransferWeight(tc.direction);
-        counters[tc.index()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
-        counters[tc.directionIndex()].addexisting(ts->transfer->size, ts->progressreported, transferWeight);
-    }
-    if (tslots.empty())
-    {
-        if (raidTransfersCounter != 0) { LOG_verbose << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
-        raidTransfersCounter = 0;
+        if (tslots.empty())
+        {
+            if (raidTransfersCounter != 0) { LOG_verbose << "[MegaClient::dispatchTransfers] reset raidTransfersCounter to 0!!! [raidTransfersCounter = " << raidTransfersCounter << "]"; }
+            raidTransfersCounter = 0;
+        }
     }
 
     std::function<bool(direction_t)> continueDirection = [this, &counters](direction_t putget)
@@ -4379,7 +4442,7 @@ void MegaClient::dispatchTransfers()
             return true;
     };
 
-    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this, &calcTransferWeight](Transfer* t)
+    std::function<bool(Transfer*)> testAddTransferFunction = [&counters, this](Transfer* t)
         {
             TransferCategory tc(t);
 
@@ -4419,13 +4482,31 @@ void MegaClient::dispatchTransfers()
         TransferCategory(GET, SMALLFILE),
     };
 
+#ifdef MEGA_USE_WSUPLOAD
+    bool wsKickNeeded = false;
+#endif
     for (auto category : categoryOrder)
     {
         for (Transfer *nexttransfer : nextInCategory[category.index()])
         {
-            if (!slotavail())
+            const bool isWsPut =
+                nexttransfer->type == PUT &&
+                nexttransfer->channel == Transfer::Channel::WebSocket;
+
+            const bool slotsAvailableNow = slotavail();
+            if (!slotsAvailableNow)
             {
-                return;
+                if (category.direction == GET)
+                {
+                    // once slots are exhausted, stop handling the GET category.
+                    break;
+                }
+
+                if (!isWsPut)
+                {
+                    // keep scanning PUT category so WS uploads can still be kicked.
+                    continue;
+                }
             }
 
             if (category.direction == PUT && queuedfa.size() > MAXQUEUEDFA)
@@ -4516,7 +4597,10 @@ void MegaClient::dispatchTransfers()
                 {
                     (*it)->prepare(*fsaccess);
                 }
-                assert(nexttransfer->localfilename.isAbsolute());
+                // URI paths (Android SAF content://) are a supported local-file state:
+                // isAbsolute() is false for them, so assert the usability predicate
+                // instead (SDK-5360).
+                assert(isUsableLocalFilePath(nexttransfer->localfilename));
 
                 // app-side transfer preparations (populate localname, create thumbnail...)
                 app->transfer_prepare(nexttransfer);
@@ -4528,7 +4612,25 @@ void MegaClient::dispatchTransfers()
             // verify that a local path was given and start/resume transfer
             if (!nexttransfer->localfilename.empty())
             {
-                TransferSlot *ts = nullptr;
+#ifdef MEGA_USE_WSUPLOAD
+                if (nexttransfer->type == PUT &&
+                    nexttransfer->channel == Transfer::Channel::WebSocket)
+                {
+                    // WS engine owns starts. Only request a kick once per pass if this
+                    // transfer is not yet uploading (avoids log spam & redundant nudges).
+                    if (wsEngine() && !wsEngine()->isUploading(*nexttransfer))
+                    {
+                        LOG_debug << "[Megaclient::dispatchTransfers] !isUploading() -> "
+                                     "wsKickNeeded = true [nexttransfer->localfilename = "
+                                  << nexttransfer->localfilename << "]";
+                        wsKickNeeded = true;
+                    }
+                    continue; // do not create TransferSlot/HttpReq for WS PUT
+
+                    // ToDo: should we move this code elsewhere?
+                }
+#endif
+                TransferSlot* ts = nullptr;
 
                 if (!nexttransfer->slot)
                 {
@@ -4846,6 +4948,15 @@ void MegaClient::dispatchTransfers()
             }
         }
     }
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (wsKickNeeded && wsEngine())
+    {
+        LOG_debug << "[Megaclient::dispatchTransfers] wsKickNeeded && wsEngine() -> kick WS engine "
+                     "(coalesced) -> wsEngine()->kick()";
+        wsEngine()->kick();
+    }
+#endif
 }
 
 // do we have an upload that is still waiting for file attributes before being completed?
@@ -4894,6 +5005,18 @@ void MegaClient::checkfacompletion(UploadHandle th, Transfer* t, bool uploadComp
         }
     }
 
+    else if (uploadCompleted && t)
+    {
+        if (t->transfers_it != multi_transfers[t->type].end())
+        {
+            multi_transfers[t->type].erase(t->transfers_it);
+            t->transfers_it = multi_transfers[t->type].end();
+        }
+
+        delete t->slot;
+        t->slot = NULL;
+    }
+
     if (!t) return;
 
     LOG_debug << "Transfer finished, sending callbacks - " << th;
@@ -4910,6 +5033,9 @@ void MegaClient::freeq(direction_t d)
     TransferDbCommitter committer(tctable);
     for (auto transferPtr : multi_transfers[d])
     {
+#ifdef MEGA_USE_WSUPLOAD
+        wsFreeqCleanupTransfer(d, transferPtr.second);
+#endif
         transferPtr.second->mOptimizedDelete = true;  // so it doesn't remove itself from this list while deleting
         app->transfer_removed(transferPtr.second);
         delete transferPtr.second;
@@ -4968,6 +5094,10 @@ void MegaClient::disconnect()
     {
         (*it)->disconnect();
     }
+
+#ifdef MEGA_USE_WSUPLOAD
+    wsNotifyNetworkDisconnect();
+#endif
 
     for (handledrn_map::iterator it = hdrns.begin(); it != hdrns.end();)
     {
@@ -5185,13 +5315,33 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     mSfuid = sfu_invalid_id;
 #endif
 
+    // S15 round-1 (Cluster I, macos_9562): phase stamps. A 15.8 s macOS logout pin sat
+    // in this segment with ZERO log lines between "MediaInfo version" and the WS
+    // teardown's first stamp — each phase below is stamped so any future pin is
+    // localized from the CI log alone. steady_clock (the macOS logger's ms field is
+    // second-granular and unusable for this).
+    const auto logoutPhaseStart = std::chrono::steady_clock::now();
+    const auto logoutPhaseMs = [&logoutPhaseStart]()
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(
+                   std::chrono::steady_clock::now() - logoutPhaseStart)
+            .count();
+    };
+
     // remove any cached transfers older than two days that have not been resumed (updates transfer list)
     purgeOrphanTransfers();
+    LOG_debug << "locallogout: purgeOrphanTransfers done (" << logoutPhaseMs() << " ms)";
 
     // delete all remaining transfers (optimized not to remove from transfer list one by one)
     // transfer destructors update the transfer in the cache database
     freeq(GET);
+    LOG_debug << "locallogout: freeq(GET) done (" << logoutPhaseMs() << " ms)";
     freeq(PUT);
+    LOG_debug << "locallogout: freeq(PUT) done (" << logoutPhaseMs() << " ms)";
+
+#ifdef MEGA_USE_WSUPLOAD
+    wsLocallogoutCleanup();
+#endif
 
     disconnect();
 
@@ -6505,6 +6655,14 @@ void MegaClient::activatefa()
         fa->status = REQ_GET_URL;  // will become REQ_INFLIGHT after we get the URL and start data upload.  Don't delete while the reqs subsystem would end up with a dangling pointer
         queueCommand(fa->getURLForFACmd());
     }
+#ifdef MEGA_USE_WSUPLOAD
+    // queuedfa changed (grown by putfa or drained into activefa): publish the WS
+    // start gate now, not at the end of the next client-action drain. With prompt
+    // starts (bounded preflight lookahead) a stale-open snapshot lets the pools start
+    // hundreds of small files in one exec cycle and overshoot MAXQUEUEDFA by an order
+    // of magnitude, which then closes the gate for seconds while the backlog drains.
+    wsRefreshCanStartAnotherFileSnapshot();
+#endif
 }
 
 // has the limit of concurrent transfer tslots been reached?
@@ -6562,6 +6720,12 @@ bool MegaClient::setstoragestatus(storagestatus_t status)
         mCachedStatus.addOrUpdate(CacheableStatus::STATUS_STORAGE, status);
 
         app->notify_storage(ststatus);
+
+#ifdef MEGA_USE_WSUPLOAD
+        // usl transition (all ingestion paths funnel here): orphan any in-flight
+        // tfs and re-query on the next exec cycle so holds re-evaluate (SDK-6298).
+        wsQuotaInvalidateAndMarkDirty();
+#endif
 
 #ifdef ENABLE_SYNC
         if (status == STORAGE_RED || status == STORAGE_PAYWALL) // transitioning to OQ
@@ -8742,6 +8906,13 @@ void MegaClient::sc_sqac(JSON& json)
                 // Invalidate cached storage info.
                 mLastKnownCapacity = -1;
 
+#ifdef MEGA_USE_WSUPLOAD
+                // A purchase that raises capacity WITHOUT a level transition never
+                // reaches setstoragestatus; re-query tfs so a queued oversized hold
+                // releases at the "user just paid" moment (SDK-6298).
+                wsQuotaInvalidateAndMarkDirty();
+#endif
+
                 getuserdata(0);
                 return;
 
@@ -9484,6 +9655,18 @@ std::shared_ptr<Node> MegaClient::sc_deltree(JSON& json, bool& moveOperation)
                     {
                         useralerts.convertNotedSharedNodes(false, originatingUser);
                     }
+#ifdef MEGA_USE_WSUPLOAD
+                    // SDK-6298: a locally-visible removal is the only local evidence a
+                    // quota pool can have GROWN — own account or a visible inshare
+                    // subtree (frees in an owner's account OUTSIDE the share stay
+                    // invisible to us, matching the no-foreign-re-poll ruling). Fired
+                    // for moves too: a move across the share boundary does change two
+                    // pools' balances. Event-driven and state-gated, never periodic:
+                    // the callee returns immediately unless a pool is constrained, and
+                    // the dirty flag + in-flight guard coalesce a delete storm into at
+                    // most one follow-up `tfs` per exec cycle.
+                    wsQuotaOnNodesRemoved();
+#endif
                 }
 
                 return moveOperation ? n : nullptr;
@@ -12474,12 +12657,12 @@ string MegaClient::sessiontransferdata(const char *url, string *session)
     ss << aeskey << ",\"";
 
     // add session ID
-    ss << *session << "\",\"";
+    ss << JSON::escape(session->c_str(), session->size()) << "\",\"";
 
     // add URL
     if (url)
     {
-        ss << url;
+        ss << JSON::escape(url, strlen(url));
     }
     ss << "\",false]";
 
@@ -12539,10 +12722,13 @@ void MegaClient::opensctable()
             // new DB scheme. Similarly, for SRW, we just need to rename the existing legacy DB, and
             // only delete the DB if there is a downgrade (SRW to NO SRW), hence why we need to
             // increase the DB version, but without affecting the upgrade from NO SRW to SRW.
+            // Similarly, for MEDIATS (Nodes table with mediats int64 column), we
+            // rename the legacy DB and backfill the column on first open.
             int recycleDBVersion =
                 (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD ||
                  DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
-                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT) ?
+                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT ||
+                 DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_MEDIATS) ?
                     DB_OPEN_FLAG_RECYCLE :
                     0;
             sctable.reset(dbaccess->openTableWithNodes(rng, *fsaccess, dbname, recycleDBVersion, [this](DBError error)
@@ -15055,6 +15241,9 @@ void MegaClient::reportLoggedInChanges()
         mLastLoggedInMyEmail = currentEmail;
         app->loggedInStateChanged(currState, me, currentEmail);
     }
+#ifdef MEGA_USE_WSUPLOAD
+    maybeStartWsUploadEngine();
+#endif
 }
 
 void MegaClient::whyamiblocked()
@@ -15078,6 +15267,11 @@ void MegaClient::block(bool fromServerClientResponse)
 {
     LOG_verbose << "Blocking MegaClient, fromServerClientResponse: " << fromServerClientResponse;
     setBlocked(true);
+
+#ifdef MEGA_USE_WSUPLOAD
+    wsHandleAccountBlocked();
+#endif
+
 #ifdef ENABLE_SYNC
     syncs.disableSyncs(ACCOUNT_BLOCKED, false, true);
 #endif
@@ -15087,6 +15281,10 @@ void MegaClient::unblock()
 {
     LOG_verbose << "Unblocking MegaClient";
     setBlocked(false);
+
+#ifdef MEGA_USE_WSUPLOAD
+    wsHandleAccountUnblocked();
+#endif
 }
 
 error MegaClient::changepw(const char* password, const char *pin)
@@ -15848,6 +16046,8 @@ void MegaClient::resumeTransferFromDB()
                 auto remoteCopyNode = mNodeManager.getNodeByHandle(data.sameNodeHandle);
                 // It should be valid, obtained in file_resume
                 assert(remoteCopyNode);
+                // transferRemoteCopy deletes file; capture dbid first
+                const auto fileDbid = file->dbid;
                 transferRemoteCopy(file,
                                    remoteCopyNode,
                                    data.remoteName,
@@ -15855,7 +16055,7 @@ void MegaClient::resumeTransferFromDB()
                                    tag,
                                    std::nullopt,
                                    data.inboxTarget);
-                resumedUniqueIds.push_back(file->dbid);
+                resumedUniqueIds.push_back(fileDbid);
                 break;
             }
         }
@@ -19047,7 +19247,9 @@ string MegaClient::decypherTLVTextWithMasterKey(const char* name, const string& 
 // (PUT) or the file's key (GET)
 bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committer, bool skipdupes, bool startfirst, bool donotpersist, VersioningOption vo, error* cause, int tag, m_off_t availableDiskSpace)
 {
-    assert(f->getLocalname().isAbsolute());
+    // URI paths (Android SAF content://) are a supported local-file state: isAbsolute() is
+    // false for them, so assert the usability predicate instead (SDK-5360).
+    assert(isUsableLocalFilePath(f->getLocalname()));
     f->mVersioningOption = vo;
 
     // Dummy to avoid checking later.
@@ -19206,6 +19408,9 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
             f->file_it = t->files.insert(t->files.end(), f);
             f->transfer = t;
+#ifdef MEGA_USE_WSUPLOAD
+            wsQuotaOnTransferTargetsAdded(*t);
+#endif
             f->tag = tag;
             if (!f->dbid && !donotpersist)
             {
@@ -19314,6 +19519,25 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             const auto currentTime = m_time();
             if (t)
             {
+#ifdef MEGA_USE_WSUPLOAD
+                if (d == PUT && (t->ws_fileno != 0 || !t->ws_session_url.empty()) &&
+                    ((currentTime - t->lastaccesstime) >= Transfer::WS_RESUME_TIMEOUT_TS))
+                {
+                    LOG_warn << "WS resume state expired after "
+                             << Transfer::WS_RESUME_TIMEOUT_TS
+                             << " seconds. Restarting upload from scratch: "
+                             << t->localfilename;
+                    t->tempurls.clear();
+                    t->discardedTempUrlsSize = 0;
+                    t->chunkmacs.clear();
+                    t->setProgresscompleted(0);
+                    t->ultoken.reset();
+                    t->pos = 0;
+                    t->ws_fileno = 0;
+                    t->ws_session_url.clear();
+                    transfercacheadd(t, &committer);
+                }
+#endif
                 t->discardTempUrlsIfNoDataDownloadedOrTimeoutReached(d, currentTime);
 
                 auto fa = fsaccess->newfileaccess();
@@ -19350,10 +19574,14 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         {
                             LOG_warn << "The local file has been modified: " << t->localfilename;
                             t->tempurls.clear();
+                            t->discardedTempUrlsSize = 0;
                             t->chunkmacs.clear();
                             t->setProgresscompleted(0);
                             t->ultoken.reset();
                             t->pos = 0;
+                            t->ws_fileno = 0;
+                            t->ws_session_url.clear();
+                            *(FileFingerprint*)t = *(FileFingerprint*)f;
                         }
                     }
                     else
@@ -19379,6 +19607,22 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                     t->downloadFileHandle = f->h;
                 }
             }
+
+#ifdef MEGA_USE_WSUPLOAD
+            if (d == PUT && wsEngine() && t->ws_fileno == 0 && t->ws_session_url.empty() &&
+                !t->tempurls.empty())
+            {
+                // Legacy HTTP resume metadata detected while this client will upload via WS.
+                // Clear once (guarded by !tempurls.empty()) before the WS attempt starts, so we
+                // will not mix old HTTP resume state into WS state.
+                t->tempurls.clear();
+                t->discardedTempUrlsSize = 0;
+                t->chunkmacs.clear();
+                t->ultoken.reset();
+                t->pos = 0;
+                t->setProgresscompleted(0);
+            }
+#endif
 
             t->skipserialization = donotpersist;
 
@@ -19481,6 +19725,10 @@ void MegaClient::pausexfers(direction_t d, bool pause, bool hard, TransferDbComm
         }
     }
 
+#ifdef MEGA_USE_WSUPLOAD
+    wsApplyTransferPause(d, pause, hard);
+#endif
+
 #ifdef ENABLE_SYNC
     syncs.transferPauseFlagsUpdated(xferpaused[GET], xferpaused[PUT]);
 #endif
@@ -19554,6 +19802,13 @@ error MegaClient::transferRemoteCopy(File* file,
         }
     }
 
+    // S13 round-3 (Cluster F): the same-FP+MAC remote-copy completion sends its own
+    // putnodes but bypasses File::sendPutnodesOfUpload, so the pre-putnodes test hook
+    // never fired for these tags — tripping the bench timing guard
+    // (BenchmarkRunners.cpp "Missing pre-putnodes timestamp") on any corpus with
+    // duplicate-content files (linux_9741 tag 21, linux_9747 tag 22, win_9649 tags
+    // 51+52). Fire it here so remote-copy putnodes are timed like every other upload.
+    DEBUG_TEST_HOOK_UPLOAD_PUTNODES_STARTED(tag);
     if (inboxTarget.has_value())
     {
         putnodes(inboxTarget.value().c_str(), std::move(tc.nn), tag);
@@ -19710,6 +19965,11 @@ void MegaClient::applymaxconnections(const direction_t d, const uint8_t num)
     LOG_debug << "[MegaClient::applymaxconnections] Set max parallel " << connDirectionToStr(d)
               << " connections per transfer to " << +num << " [prev: " << +connections[d] << "]";
     connections[d] = static_cast<unsigned char>(num);
+
+#ifdef MEGA_USE_WSUPLOAD
+    wsApplyMaxConnections(d, num);
+#endif
+ 
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end();)
     {
         TransferSlot* slot = *it++;
@@ -19758,7 +20018,7 @@ std::shared_ptr<Node> MegaClient::nodebyfingerprint(LocalNode* localNode)
 
     auto localPath = localNode->getLocalPath();
 
-    if (!ifAccess->fopen(localPath, true, false, FSLogging::logOnError))
+    if (!ifAccess->fopen(localPath, OPEN_RDONLY, FSLogging::logOnError))
         return nullptr;
 
     std::string remoteKey = (*remoteNode)->nodekey();
@@ -19974,7 +20234,14 @@ bool MegaClient::setmaxdownloadspeed(m_off_t bpslimit)
 
 bool MegaClient::setmaxuploadspeed(m_off_t bpslimit)
 {
-    return httpio->setmaxuploadspeed(bpslimit >= 0 ? bpslimit : 0);
+    const m_off_t normalizedLimit = (bpslimit >= 0 ? bpslimit : 0);
+    const bool updated = httpio->setmaxuploadspeed(normalizedLimit);
+
+#ifdef MEGA_USE_WSUPLOAD
+    wsApplyMaxUploadSpeed(normalizedLimit);
+#endif
+
+    return updated;
 }
 
 m_off_t MegaClient::getmaxdownloadspeed()

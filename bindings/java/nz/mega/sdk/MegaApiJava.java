@@ -218,6 +218,8 @@ public class MegaApiJava {
     public final static int ORDER_LABEL_DESC = MegaApi.ORDER_LABEL_DESC;
     public final static int ORDER_FAV_ASC = MegaApi.ORDER_FAV_ASC;
     public final static int ORDER_FAV_DESC = MegaApi.ORDER_FAV_DESC;
+    public final static int ORDER_MEDIATS_ASC = MegaApi.ORDER_MEDIATS_ASC;
+    public final static int ORDER_MEDIATS_DESC = MegaApi.ORDER_MEDIATS_DESC;
 
     public final static int TCP_SERVER_DENY_ALL = MegaApi.TCP_SERVER_DENY_ALL;
     public final static int TCP_SERVER_ALLOW_ALL = MegaApi.TCP_SERVER_ALLOW_ALL;
@@ -8019,6 +8021,12 @@ public class MegaApiJava {
      * - MegaApi::ORDER_FAV_DESC = 20
      * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
+     * - MegaApi::ORDER_MEDIATS_ASC = 23
+     * Sort by media capture timestamp, oldest first
+     *
+     * - MegaApi::ORDER_MEDIATS_DESC = 24
+     * Sort by media capture timestamp, newest first
+     *
      * @param cancelToken MegaCancelToken to be able to cancel the processing at any time.
      * @param searchPage Container for pagination options; if null, all results will be returned
      *
@@ -8077,6 +8085,12 @@ public class MegaApiJava {
      *               <p>
      *               - MegaApi::ORDER_FAV_DESC = 20
      *               Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *               <p>
+     *               - MegaApi::ORDER_MEDIATS_ASC = 23
+     *               Sort by media capture timestamp, oldest first
+     *               <p>
+     *               - MegaApi::ORDER_MEDIATS_DESC = 24
+     *               Sort by media capture timestamp, newest first
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNode parent, int order) {
@@ -8132,6 +8146,12 @@ public class MegaApiJava {
      *                    <p>
      *                    - MegaApi::ORDER_FAV_DESC = 20
      *                    Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *                    <p>
+     *                    - MegaApi::ORDER_MEDIATS_ASC = 23
+     *                    Sort by media capture timestamp, oldest first
+     *                    <p>
+     *                    - MegaApi::ORDER_MEDIATS_DESC = 24
+     *                    Sort by media capture timestamp, newest first
      * @return List with all child MegaNode objects
      */
     public ArrayList<MegaNode> getChildren(MegaNodeList parentNodes, int order) {
@@ -9094,6 +9114,12 @@ public class MegaApiJava {
      * - MegaApi::ORDER_FAV_DESC = 20
      * Sort nodes with favourite attr last. With this order, folders are returned first, then files
      *
+     * - MegaApi::ORDER_MEDIATS_ASC = 23
+     * Sort by media capture timestamp, oldest first
+     *
+     * - MegaApi::ORDER_MEDIATS_DESC = 24
+     * Sort by media capture timestamp, newest first
+     *
      * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
      *
      * @return List with found nodes as MegaNode objects
@@ -9149,6 +9175,12 @@ public class MegaApiJava {
      *
      * - MegaApi::ORDER_FAV_DESC = 20
      * Sort nodes with favourite attr last. With this order, folders are returned first, then files
+     *
+     * - MegaApi::ORDER_MEDIATS_ASC = 23
+     * Sort by media capture timestamp, oldest first
+     *
+     * - MegaApi::ORDER_MEDIATS_DESC = 24
+     * Sort by media capture timestamp, newest first
      *
      * @param cancelToken MegaCancelToken to be able to cancel the search at any time.
      * @param searchPage Container for pagination options; if null, all results will be returned
@@ -12461,14 +12493,24 @@ public class MegaApiJava {
      *
      * Same scope / sensitivity / file-version exclusion as
      * MegaApi::listAllNodesByPage; any FILE_TYPE_* the latter accepts is
-     * accepted here. Nodes with mtime <= 0 are excluded so the section
-     * list does not contain a spurious "1970-01-01" bucket. Sections with
+     * accepted here, except that ORDER_MEDIATS_* additionally requires a
+     * media category (see below). Nodes with no timestamp in the active
+     * column (mtime <= 0, or mediats == 0) are excluded so the section list
+     * does not contain a spurious "1970-01-01" bucket. Sections with
      * zero remaining items are omitted.
      *
      * Always returns the section list across the entire filter scope.
      *
      * Supported sort orders (@p order):
      *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
+     *   - ORDER_MEDIATS_ASC      / ORDER_MEDIATS_DESC
+     *
+     * ORDER_MEDIATS_* groups by media capture timestamp rather than
+     * modification time, and requires @p filter->byCategory() to be one of
+     * FILE_TYPE_PHOTO / FILE_TYPE_VIDEO / FILE_TYPE_AUDIO /
+     * FILE_TYPE_ALL_VISUAL_MEDIA: mediats is 0 for every other category, so
+     * the grouping would have no rows to bucket. Any other combination is
+     * rejected (empty list + warning).
      *
      * Other order values are rejected (empty list + warning).
      *
@@ -12507,6 +12549,7 @@ public class MegaApiJava {
      *   - ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC
      *   - ORDER_LABEL_ASC        / ORDER_LABEL_DESC
      *   - ORDER_FAV_ASC          / ORDER_FAV_DESC
+     *   - ORDER_MEDIATS_ASC      / ORDER_MEDIATS_DESC
      *
      * The call returns an empty list and logs a warning when:
      *   - @p filter is nullptr.
@@ -12528,6 +12571,7 @@ public class MegaApiJava {
      *       * ORDER_LABEL_*        → getLastLabel() outside
      *                                [NODE_LBL_UNKNOWN, NODE_LBL_GREY]
      *       * ORDER_FAV_*          → getLastFav() not 0 or 1
+     *       * ORDER_MEDIATS_*      → getLastMediaTsMs() < 0
      *     ORDER_DEFAULT_* requires no extra field beyond lastName /
      *     lastHandle.
      *
@@ -12578,8 +12622,9 @@ public class MegaApiJava {
      * @param filter       Required. Scope/category filter; may carry byTimestampAnchor.
      * @param order        Sort order constant. Accepts the same set as
      *                     listAllNodesByPage (ORDER_DEFAULT / SIZE / MODIFICATION /
-     *                     LABEL / FAV, each ASC/DESC); the fast-scroller flow uses
-     *                     NEWEST/OLDEST = ORDER_MODIFICATION_DESC/ASC.
+     *                     LABEL / FAV / MEDIATS, each ASC/DESC); the fast-scroller
+     *                     flow uses NEWEST/OLDEST = ORDER_MODIFICATION_DESC/ASC, or
+     *                     the ORDER_MEDIATS_* pair for a capture-time timeline.
      * @param cancelToken  Optional; may be null.
      * @param maxElements  Window size (limit). 0 means no limit.
      * @param offset       Leading nodes to skip; must be >= 0 (negative => empty list).

@@ -35,6 +35,24 @@
 
 namespace mega {
 
+#ifdef MEGA_USE_WSUPLOAD
+namespace {
+
+// Returns the WS upload engine pointer iff `t` is a WS-channel transfer and its client
+// has a live wsEngine. Replaces the repeated
+// `transfer->channel == Transfer::Channel::WebSocket && client->wsEngine()` guard pattern
+// at simple call sites. Complex call sites with extra conditional logic keep their
+// inline guard.
+inline ws::UploadEngine* wsEngineForTransfer(const Transfer* t)
+{
+    if (!t || !t->client || t->channel != Transfer::Channel::WebSocket)
+        return nullptr;
+    return t->client->wsEngine();
+}
+
+} // namespace
+#endif
+
 TransferCategory::TransferCategory(direction_t d, filesizetype_t s)
     : direction(d)
     , sizetype(s)
@@ -89,6 +107,17 @@ Transfer::Transfer(MegaClient* cclient, direction_t ctype)
 // delete transfer with underlying slot, notify files
 Transfer::~Transfer()
 {
+#ifdef MEGA_USE_WSUPLOAD
+    // Detach from WS upload engine FIRST, before File* entries are destroyed by the
+    // files iteration below. Ensures worker threads that dereference non-owning
+    // Transfer&/File* in WsUploadFile have drained before the referents are freed.
+    // Idempotent with TransferList::removetransfer()'s detach and with Option A's
+    // wsDetachTransferBeforeFailure() (UploadEngine::Impl::remove() early-returns
+    // when the transfer is no longer tracked).
+    if (auto* wse = wsEngineForTransfer(this))
+        wse->remove(*this);
+#endif
+
     auto keepDownloadTarget = false;
 
     TransferDbCommitter* committer = nullptr;
@@ -177,7 +206,9 @@ Transfer::~Transfer()
 
 bool Transfer::serialize(string *d) const
 {
-    assert(localfilename.empty() || localfilename.isAbsolute());
+    // URI paths (Android SAF content://) are a supported local-file state: isAbsolute() is
+    // false for them, so assert the usability predicate instead (SDK-5360).
+    assert(localfilename.empty() || isUsableLocalFilePath(localfilename));
 
     unsigned short ll;
 
@@ -241,13 +272,22 @@ bool Transfer::serialize(string *d) const
     d->append((const char*)&priority, sizeof(priority));
 
     CacheableWriter cw(*d);
-    // version. Originally, 0.  Version 1 adds expansion flags, which then work in the usual way
-    cw.serializeu8(1);
+    // version. Originally, 0.
+    // Version 1 adds expansion flags, which then work in the usual way
+    // Version 2 adds extra optional fields for WS resume states
+    cw.serializeu8(2);
 
-    // 8 expansion flags, in the normal manner. First flag is for whether downloadFileHandle is
-    // present. Second flag is for amount of discarded temp URLs. Third Flag is for marking if
-    // localfilename is serialized as LocalPath
-    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1, 1, 1);
+    // 8 expansion flags, in the normal manner. 
+    // First flag is for whether downloadFileHandle is present.
+    // Second flag is for amount of discarded temp URLs.
+    // Third Flag is for marking if localfilename is serialized as LocalPath
+    // Fourth flag indicates whether ws_fileno is present for WS uploading.
+    // Fifth flag indicates whether ws_session_url is present for WS uploading.
+    cw.serializeexpansionflags(downloadFileHandle.isUndef() ? 0 : 1,
+                               1,
+                               1,
+                               ws_fileno ? 1 : 0,
+                               ws_session_url.empty() ? 0 : 1);
 
     if (!downloadFileHandle.isUndef())
     {
@@ -256,6 +296,16 @@ bool Transfer::serialize(string *d) const
 
     cw.serializeu8(discardedTempUrlsSize);
 
+    if (ws_fileno)
+    {
+        cw.serializeu32(ws_fileno);
+    }
+
+    if (!ws_session_url.empty())
+    {
+        cw.serializestring(ws_session_url);
+    }
+
 #ifdef DEBUG
     // very quick debug only double check
     string tempstr = *d;
@@ -263,6 +313,8 @@ bool Transfer::serialize(string *d) const
     unique_ptr<Transfer> t(unserialize(client, &tempstr, tempmap));
     assert(t);
     assert(t->localfilename == localfilename);
+    assert(t->ws_fileno == ws_fileno);
+    assert(t->ws_session_url == ws_session_url);
     assert(t->tempurls == tempurls);
     assert(t->state == (state == TRANSFERSTATE_PAUSED ? TRANSFERSTATE_PAUSED : TRANSFERSTATE_NONE));
     assert(t->priority == priority);
@@ -322,9 +374,11 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     if ((hasUltoken && !r.unserializebinary(t->ultoken->data(), UPLOADTOKENLEN)) ||
         !r.unserializestring(combinedUrls) || !r.unserializei8(state) ||
         !r.unserializeu64(t->priority) || !r.unserializei8(version) ||
-        (version > 0 && !r.unserializeexpansionflags(expansionflags, 3)) ||
+        (version > 0 && !r.unserializeexpansionflags(expansionflags, version > 1 ? 5 : 3)) ||
         (expansionflags[0] && !r.unserializeNodeHandle(t->downloadFileHandle)) ||
-        (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)))
+        (expansionflags[1] && !r.unserializeu8(t->discardedTempUrlsSize)) ||
+        (expansionflags[3] && !r.unserializeu32(t->ws_fileno)) ||
+        (expansionflags[4] && !r.unserializestring(t->ws_session_url)))
     {
         LOG_err << "Transfer unserialization failed at field " << r.fieldnum;
         return nullptr;
@@ -446,6 +500,19 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         if (!slot)
         {
             bt.backoff(timeleft ? timeleft : NEVER);
+            state = TRANSFERSTATE_RETRYING;
+#ifdef MEGA_USE_WSUPLOAD
+            if (channel == Transfer::Channel::WebSocket && client->wsEngine())
+            {
+                dstime retryUntil = NEVER;
+                if (timeleft)
+                {
+                    const dstime now = Waiter::ds;
+                    retryUntil = (timeleft >= (NEVER - now)) ? NEVER : (now + timeleft);
+                }
+                client->wsEngine()->markFailed(*this, retryUntil);
+            }
+#endif
             client->activateoverquota(timeleft, (e == API_EPAYWALL));
             client->app->transfer_failed(this, e, timeleft);
             ++client->performanceStats.transferTempErrors;
@@ -553,6 +620,22 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
             {
                 LOG_warn << "Modification detected during active upload. Size: " << size << "  Mtime: " << mtime
                          << "    FaSize: " << slot->fa->size << "  FaMtime: " << slot->fa->mtime;
+                defer = false;
+            }
+        }
+        else if (channel == Transfer::Channel::WebSocket && !localfilename.empty())
+        {
+            auto fa = client->fsaccess->newfileaccess();
+            if (!fa->fopen(localfilename, OPEN_RDONLY, FSLogging::logOnError))
+            {
+                LOG_warn << "fopen failed for upload.";
+                defer = false;
+            }
+            else if (fa->mtime != mtime || fa->size != size)
+            {
+                LOG_warn << "Modification detected during active upload. Size: " << size
+                         << "  Mtime: " << mtime << "    FaSize: " << fa->size
+                         << "  FaMtime: " << fa->mtime;
                 defer = false;
             }
         }
@@ -683,7 +766,7 @@ void Transfer::discardTempUrlsIfNoDataDownloadedOrTimeoutReached(
     const direction_t transferDirection,
     const m_time_t currentTime)
 {
-    DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastaccesstime)
+    DEBUG_TEST_HOOK_RESET_TRANSFER_LASTACCESSTIME(lastaccesstime);
 
     if (const auto discardTempURLs = (transferDirection == GET && !pos) ||
                                      ((currentTime - lastaccesstime) >= TEMPURL_TIMEOUT_TS);
@@ -1072,12 +1155,13 @@ void Transfer::complete(TransferDbCommitter& committer)
                     LOG_debug << "Transient error completing file";
                     it++;
                 }
-                else if (!(*it)->failed(API_EAGAIN, client))
+                else if (name_too_long || !(*it)->failed(API_EAGAIN, client))
                 {
                     File* f = (*it);
                     files.erase(it++);
 
-                    LOG_warn << "Unable to complete transfer due to a persistent error";
+                    LOG_warn << "Unable to complete transfer due to a persistent error"
+                             << (name_too_long ? ": the target's name is too long" : "");
                     client->filecachedel(f, &committer);
 #ifdef ENABLE_SYNC
                     if (f->syncxfer)
@@ -1098,10 +1182,6 @@ void Transfer::complete(TransferDbCommitter& committer)
                 {
                     failcount++;
                     LOG_debug << "Persistent error completing file. Failcount: " << failcount;
-                    if (name_too_long)
-                    {
-                        LOG_warn << "Error is: name too long";
-                    }
                     it++;
                 }
             }
@@ -2847,6 +2927,30 @@ void TransferList::addtransfer(Transfer *transfer, TransferDbCommitter& committe
         assert(it == transfers[transfer->type].end() || it->transfer->priority != transfer->priority);
         transfers[transfer->type].insert(it, transfer);
     }
+
+    if (transfer->type == PUT)
+    {
+#ifdef MEGA_USE_WSUPLOAD
+        transfer->channel = Transfer::Channel::WebSocket;
+        if (client->wsEngine())
+        {
+            client->wsEngine()->enqueue(*transfer);
+            // Respect explicit per-transfer pause and global PUT pause semantics.
+            // Support uploads bypass global pause, matching legacy HTTP behavior.
+            const bool pauseByTransferState = (transfer->state == TRANSFERSTATE_PAUSED);
+            const bool pauseByGlobalState = client->xferpaused[PUT] && !transfer->isForSupport();
+            if (pauseByTransferState || pauseByGlobalState)
+            {
+                client->wsEngine()->pause(*transfer);
+            }
+            // Quota (SDK-6298): this funnel covers new/sync/resumed WS uploads — mark the
+            // ledger dirty (coalesced tfs next exec cycle) and re-apply any in-force
+            // predictive hold onto the freshly-created WsUploadFile.
+            client->wsQuotaOnTransferTargetsAdded(*transfer);
+            client->wsQuotaReassertHold(*transfer);
+        }
+#endif
+    }
 }
 
 void TransferList::removetransfer(Transfer *transfer)
@@ -2854,6 +2958,10 @@ void TransferList::removetransfer(Transfer *transfer)
     transfer_list::iterator it;
     if (getIterator(transfer, it, true))
     {
+#ifdef MEGA_USE_WSUPLOAD
+        if (auto* wse = wsEngineForTransfer(transfer))
+            wse->remove(*transfer);
+#endif
         transfers[transfer->type].erase(it);
     }
 }
@@ -2979,9 +3087,26 @@ void TransferList::movetransfer(transfer_list::iterator it, transfer_list::itera
     transfers[transfer->type].erase(it);
     transfer_list::iterator fit = transfers[transfer->type].begin() + dstindex;
     assert(fit == transfers[transfer->type].end() || fit->transfer->priority != transfer->priority);
+
+#ifdef MEGA_USE_WSUPLOAD
+    Transfer* wsBefore = nullptr;
+    if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine() &&
+        fit != transfers[transfer->type].end())
+    {
+        wsBefore = fit->transfer;
+    }
+#endif
+
     transfers[transfer->type].insert(fit, transfer);
     client->transfercacheadd(transfer, &committer);
     client->app->transfer_update(transfer);
+
+#ifdef MEGA_USE_WSUPLOAD
+    if (auto* wse = wsEngineForTransfer(transfer))
+    {
+        wse->reposition(*transfer, wsBefore);
+    }
+#endif
 }
 
 void TransferList::movetofirst(Transfer *transfer, TransferDbCommitter& committer)
@@ -3080,6 +3205,20 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
         if (getIterator(transfer, it))
         {
             prepareIncreasePriority(transfer, it, it, committer);
+#ifdef MEGA_USE_WSUPLOAD
+            if (transfer->channel == Transfer::Channel::WebSocket && client->wsEngine() &&
+                (!client->xferpaused[PUT] || transfer->isForSupport()))
+            {
+                client->wsEngine()->unpause(*transfer);
+                // WS uploads may continue on the same pool/file without a new onStart callback.
+                // If upload traffic has already resumed, reflect that immediately in transfer state.
+                // onProgress() also has a guarded QUEUED->ACTIVE fallback for delayed state convergence.
+                if (client->wsEngine()->isUploading(*transfer))
+                {
+                    transfer->state = TRANSFERSTATE_ACTIVE;
+                }
+            }
+#endif
         }
 
         client->transfercacheadd(transfer, &committer);
@@ -3101,6 +3240,12 @@ error TransferList::pause(Transfer *transfer, bool enable, TransferDbCommitter& 
             transfer->slot = NULL;
         }
         transfer->state = TRANSFERSTATE_PAUSED;
+#ifdef MEGA_USE_WSUPLOAD
+        if (auto* wse = wsEngineForTransfer(transfer))
+        {
+            wse->pause(*transfer);
+        }
+#endif
         client->transfercacheadd(transfer, &committer);
         client->app->transfer_update(transfer);
         return API_OK;
@@ -3170,7 +3315,13 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
             if (transfer == nullptr)
                 continue;
 
-            if (!transfer->slot)
+            auto tsSlotOrWsUpload = (transfer->slot != nullptr);
+#ifdef MEGA_USE_WSUPLOAD
+            tsSlotOrWsUpload = tsSlotOrWsUpload || 
+                (transfer->type == PUT && transfer->channel == Transfer::Channel::WebSocket &&
+                 client->wsEngine() && client->wsEngine()->isUploading(*transfer));
+#endif
+            if (!tsSlotOrWsUpload)
             {
                 // check for cancellation here before we go to the trouble of requesting a download/upload URL
                 transfer->removeCancelledTransferFiles(&committer);
@@ -3187,7 +3338,7 @@ std::array<vector<Transfer*>, 6> TransferList::nexttransfers(std::function<bool(
             bool continueLarge = true;
             bool continueSmall = true;
 
-            if ((!transfer->slot && isReady(transfer))
+            if ((!tsSlotOrWsUpload && isReady(transfer))
                 || (transfer->asyncopencontext
                     && transfer->asyncopencontext->finished))
             {

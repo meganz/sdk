@@ -200,7 +200,8 @@ TEST(Sqlite, checkDbFileAndAdjustLegacy_useLegacyDB)
 {
     if (DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_NOD ||
         DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_SRW ||
-        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT)
+        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_VFINGERPRINT ||
+        DbAccess::LEGACY_DB_VERSION == DbAccess::LAST_DB_VERSION_WITHOUT_MEDIATS)
     {
         GTEST_SKIP()
             << "use-legacy-DB branch is unreachable: LEGACY_DB_VERSION sits at a migration cutoff";
@@ -1883,11 +1884,15 @@ TEST_F(ListAllNodesByPageTest, Sensitive_ResultIsSubsetWhenEnabled)
 //  Only the nodehandle differs between nodes, so every sort order that reaches the
 //  nodehandle tiebreaker is exercised in its pure form.
 //
-//  Dataset: ROOT + 5 file nodes, all "tied.txt" (MIME_TYPE_DOCUMENT)
-//    size  = 500        (constant → SIZE sorts tie after primary key)
-//    mtime = 1'900'000'000  (constant → MTIME sorts tie)
-//    label = 2          (nonzero → LABEL_ASC isZero=0; all in same label bucket)
-//    fav   = 0
+//  Dataset: ROOT + 5 file nodes, all "tied.jpg" (MIME_TYPE_PHOTO)
+//    size    = 500                  (constant → SIZE sorts tie after primary key)
+//    mtime   = 1'900'000'000        (constant → MTIME sorts tie)
+//    label   = 2                    (nonzero → LABEL_ASC isZero=0; same label bucket)
+//    fav     = 0
+//    mediats = mtime * 1000 = 1'900'000'000'000  (derived; ties across all nodes)
+//  Extension is .jpg (not .txt) so mediats carries a real non-zero value — a
+//  tied-at-zero mediats would degenerate to a trivial case and mask bugs in
+//  integer comparison / column indexing / sign handling.
 //  Handles are assigned sequentially during insertion:
 //    mTiedHandles[0] has the smallest handle, mTiedHandles[4] the largest.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -1895,11 +1900,13 @@ TEST_F(ListAllNodesByPageTest, Sensitive_ResultIsSubsetWhenEnabled)
 class TieBreakTest: public SearchByPageTest
 {
 protected:
-    static constexpr MimeType_t TEST_MIME = MIME_TYPE_DOCUMENT;
+    static constexpr MimeType_t TEST_MIME = MIME_TYPE_PHOTO;
     static constexpr int64_t kTiedSize = 500;
     static constexpr int64_t kTiedMtime = 1'900'000'000LL;
     static constexpr int kTiedLabel = 2;
     static constexpr int kNumTied = 5;
+    // Filename has no embedded timestamp, so mediats falls back to mtime * 1000.
+    static constexpr int64_t kExpectedMediats = kTiedMtime * 1000LL;
 
     std::vector<NodeHandle> mTiedHandles; ///< insertion order = ascending handle order
 
@@ -1911,13 +1918,17 @@ protected:
         for (int i = 0; i < kNumTied; ++i)
         {
             NodeMeta m;
-            m.name = "tied.txt";
+            m.name = "tied.jpg";
             m.size = kTiedSize;
             m.mtime = kTiedMtime;
             m.label = kTiedLabel;
             m.fav = 0;
             auto node = addNode(FILENODE, root, m);
             mTiedHandles.push_back(node->nodeHandle());
+
+            // Sanity-check the fixture: mediats must carry the expected real
+            // value so MEDIATS tie-break tests exercise the non-zero path.
+            ASSERT_EQ(static_cast<int64_t>(node->getMediaTs()), kExpectedMediats);
         }
         // mTiedHandles[0].as8byte() < … < mTiedHandles[4].as8byte()
     }
@@ -2056,6 +2067,48 @@ TEST_F(TieBreakTest, DefaultDesc_TiedName_UsesNodehandleDescTieBreak)
     assertTiedHandleOrder(collectAllByPage(OrderByClause::DEFAULT_DESC, 2),
                           /*ascending=*/false,
                           "DEFAULT_DESC");
+}
+
+// G5. MEDIATS_ASC with tied (mediats, name) – nodehandle ASC breaks the tie.
+//     Exercises buildCursorWhereForListAll (MEDIATS_ASC):
+//       mediats = p1 AND name = p2 AND nodehandle > p3
+TEST_F(TieBreakTest, MediaTsAsc_TiedMediatsAndName_UsesNodehandleTieBreak)
+{
+    const auto paged = collectAllByPage(OrderByClause::MEDIATS_ASC, 2);
+    ASSERT_EQ(paged.size(), static_cast<size_t>(kNumTied));
+
+    const std::set<NodeHandle> unique(paged.begin(), paged.end());
+    ASSERT_EQ(unique.size(), paged.size()) << "duplicate handles in MEDIATS_ASC tied result";
+
+    for (size_t i = 1; i < paged.size(); ++i)
+    {
+        EXPECT_GT(paged[i].as8byte(), paged[i - 1].as8byte())
+            << "nodehandle did not advance (ASC) in MEDIATS_ASC tied sequence at index " << i;
+    }
+
+    EXPECT_EQ(paged, mTiedHandles)
+        << "MEDIATS_ASC tied result does not match handle-ascending order";
+}
+
+// G6. MEDIATS_DESC with tied (mediats, name) – nodehandle DESC breaks the tie.
+//     Exercises buildCursorWhereForListAll (MEDIATS_DESC):
+//       mediats = p1 AND name = p2 AND nodehandle < p3
+TEST_F(TieBreakTest, MediaTsDesc_TiedMediatsAndName_UsesNodehandleDescTieBreak)
+{
+    const auto paged = collectAllByPage(OrderByClause::MEDIATS_DESC, 2);
+    ASSERT_EQ(paged.size(), static_cast<size_t>(kNumTied));
+
+    const std::set<NodeHandle> unique(paged.begin(), paged.end());
+    ASSERT_EQ(unique.size(), paged.size()) << "duplicate handles in MEDIATS_DESC tied result";
+
+    for (size_t i = 1; i < paged.size(); ++i)
+    {
+        EXPECT_LT(paged[i].as8byte(), paged[i - 1].as8byte())
+            << "nodehandle did not decrease (DESC) in MEDIATS_DESC tied sequence at index " << i;
+    }
+
+    const std::vector<NodeHandle> expected(mTiedHandles.rbegin(), mTiedHandles.rend());
+    EXPECT_EQ(paged, expected) << "MEDIATS_DESC tied result does not match handle-descending order";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -3326,23 +3379,25 @@ size_t oracleComputeListAllCacheId(MimeType_t mimeType,
                                    FileSubType_t fileSubType,
                                    int order,
                                    bool hasCursor,
-                                   AnchorDirectionDigit anchorDir,
+                                   int anchorOrder,
                                    bool excludeSensitive,
                                    size_t numRoots,
                                    size_t numExcludes,
                                    FavouriteFilter_t favourite)
 {
-    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::FAV_DESC) + 1;
+    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::MEDIATS_DESC) + 1;
     constexpr size_t maxRoots = 3; // mirrors kListAllMaxLocationHandles
     constexpr size_t maxExcludes = 3;
-    constexpr size_t anchorStride = 3;
+    // The anchor digit is an OrderByClause value (0 = no anchor), so it shares the
+    // order stride rather than having one of its own.
+    constexpr size_t anchorStride = orderStride;
     constexpr size_t subtypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
 
     size_t key = static_cast<size_t>(mimeType);
     key = key * subtypeStride + static_cast<size_t>(fileSubType);
     key = key * orderStride + static_cast<size_t>(order);
     key = key * 2 + (hasCursor ? 1u : 0u);
-    key = key * anchorStride + static_cast<size_t>(anchorDir);
+    key = key * anchorStride + static_cast<size_t>(anchorOrder);
     key = key * 2 + (excludeSensitive ? 1u : 0u);
     key = key * maxRoots + (numRoots - 1);
     key = key * (maxExcludes + 1) + numExcludes;
@@ -3360,7 +3415,7 @@ size_t oracleComputeDateSectionsCacheId(MimeType_t mimeType,
                                         size_t numExcludes,
                                         FavouriteFilter_t favourite)
 {
-    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::FAV_DESC) + 1;
+    constexpr size_t orderStride = static_cast<size_t>(OrderByClause::MEDIATS_DESC) + 1;
     constexpr size_t maxRoots = 3;
     constexpr size_t maxExcludes = 3;
     constexpr size_t subtypeStride = static_cast<size_t>(FILE_SUBTYPE_MAX) + 1;
@@ -3381,7 +3436,7 @@ constexpr FileSubType_t kAllFileSubTypes[] = {FILE_SUBTYPE_NONE,
                                               FILE_SUBTYPE_GIF,
                                               FILE_SUBTYPE_RAW};
 
-// Dimension arrays (kAllMimeTypes / kAllValidOrders / kAllAnchorDirs /
+// Dimension arrays (kAllMimeTypes / kAllValidOrders / kAllAnchorOrders /
 // kAllGranularities) live in CacheKeyCombinations.h.
 
 TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
@@ -3393,7 +3448,7 @@ TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
         for (auto sub: kAllFileSubTypes)
             for (int order: kAllValidOrders)
                 for (bool hasCursor: {false, true})
-                    for (auto anchorDir: kAllAnchorDirs)
+                    for (int anchorOrder: kAllAnchorOrders)
                         for (bool sens: {false, true})
                             for (size_t roots = 1; roots <= 3; ++roots)
                                 for (size_t excludes = 0; excludes <= 3; ++excludes)
@@ -3403,7 +3458,7 @@ TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
                                                                                     sub,
                                                                                     order,
                                                                                     hasCursor,
-                                                                                    anchorDir,
+                                                                                    anchorOrder,
                                                                                     sens,
                                                                                     roots,
                                                                                     excludes,
@@ -3413,7 +3468,7 @@ TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
                                                                         sub,
                                                                         order,
                                                                         hasCursor,
-                                                                        anchorDir,
+                                                                        anchorOrder,
                                                                         sens,
                                                                         roots,
                                                                         excludes,
@@ -3421,13 +3476,12 @@ TEST(CacheKeyBuilder, ListAll_MatchesOracleArithmetic)
                                         ASSERT_EQ(actual, expected)
                                             << "mime=" << mime << " sub=" << static_cast<int>(sub)
                                             << " order=" << order << " hasCursor=" << hasCursor
-                                            << " anchorDir=" << static_cast<int>(anchorDir)
-                                            << " sens=" << sens << " roots=" << roots
-                                            << " excludes=" << excludes
+                                            << " anchorOrder=" << anchorOrder << " sens=" << sens
+                                            << " roots=" << roots << " excludes=" << excludes
                                             << " fav=" << static_cast<int>(fav);
                                         ++checked;
                                     }
-    EXPECT_EQ(checked, 14u * 3u * 12u * 2u * 3u * 2u * 3u * 4u * 3u); // 217728
+    EXPECT_EQ(checked, 14u * 3u * 14u * 2u * 5u * 2u * 3u * 4u * 3u); // 423360
 }
 
 TEST(CacheKeyBuilder, DateSections_MatchesOracleArithmetic)
@@ -3467,7 +3521,7 @@ TEST(CacheKeyBuilder, DateSections_MatchesOracleArithmetic)
                                         << " fav=" << static_cast<int>(fav);
                                     ++checked;
                                 }
-    EXPECT_EQ(checked, 14u * 3u * 12u * 3u * 2u * 3u * 4u * 3u); // 108864
+    EXPECT_EQ(checked, 14u * 3u * 14u * 3u * 2u * 3u * 4u * 3u); // 127008
 }
 
 TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
@@ -3478,7 +3532,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                                FILE_SUBTYPE_NONE,
                                                OrderByClause::MTIME_DESC,
                                                /*hasCursor=*/false,
-                                               AnchorDirectionDigit::None,
+                                               /*anchorOrder=*/0,
                                                /*sens=*/false,
                                                /*roots=*/1,
                                                /*excludes=*/0,
@@ -3489,7 +3543,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3499,7 +3553,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_GIF,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3508,7 +3562,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_GIF,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3517,7 +3571,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_RAW,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3527,7 +3581,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_ASC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3537,7 +3591,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     true,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3547,7 +3601,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::Asc,
+                                    OrderByClause::MTIME_ASC,
                                     false,
                                     1,
                                     0,
@@ -3557,7 +3611,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::Desc,
+                                    OrderByClause::MTIME_DESC,
                                     false,
                                     1,
                                     0,
@@ -3567,7 +3621,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                                FILE_SUBTYPE_NONE,
                                                OrderByClause::MTIME_DESC,
                                                false,
-                                               AnchorDirectionDigit::None,
+                                               /*anchorOrder=*/0,
                                                false,
                                                1,
                                                0,
@@ -3577,7 +3631,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3586,7 +3640,7 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
@@ -3595,11 +3649,47 @@ TEST(CacheKeyBuilder, ListAll_DistinctInputsProduceDistinctKeys)
                                     FILE_SUBTYPE_NONE,
                                     OrderByClause::MTIME_DESC,
                                     false,
-                                    AnchorDirectionDigit::None,
+                                    /*anchorOrder=*/0,
                                     false,
                                     1,
                                     0,
                                     FAVOURITE_FILTER_ONLY_FALSE));
+}
+
+// Regression: the anchor digit must identify the anchor's COLUMN, not just its
+// direction. An mtime DESC anchor and a mediats DESC anchor build different SQL,
+// so sharing a cache slot hands the second caller the first one's statement.
+TEST(CacheKeyBuilder, ListAll_AnchorColumnDistinguishesCacheId)
+{
+    auto keyFor = [](int anchorOrder)
+    {
+        return computeListAllCacheId(MIME_TYPE_PHOTO,
+                                     FILE_SUBTYPE_NONE,
+                                     OrderByClause::MEDIATS_DESC,
+                                     /*hasCursor=*/false,
+                                     anchorOrder,
+                                     /*excludeSensitive=*/false,
+                                     /*numRoots=*/1,
+                                     /*numExcludes=*/0,
+                                     FAVOURITE_FILTER_DISABLED);
+    };
+
+    // Same direction, different column: the case the old digit could not express.
+    EXPECT_NE(keyFor(OrderByClause::MTIME_DESC), keyFor(OrderByClause::MEDIATS_DESC));
+    EXPECT_NE(keyFor(OrderByClause::MTIME_ASC), keyFor(OrderByClause::MEDIATS_ASC));
+
+    // Same column, different direction: the guarantee the old digit already gave.
+    EXPECT_NE(keyFor(OrderByClause::MTIME_ASC), keyFor(OrderByClause::MTIME_DESC));
+    EXPECT_NE(keyFor(OrderByClause::MEDIATS_ASC), keyFor(OrderByClause::MEDIATS_DESC));
+
+    // 0 means "no anchor" and must differ from every anchor order.
+    for (const int anchorOrder: kAllAnchorOrders)
+    {
+        if (anchorOrder != 0)
+        {
+            EXPECT_NE(keyFor(0), keyFor(anchorOrder)) << "anchorOrder=" << anchorOrder;
+        }
+    }
 }
 
 } // anonymous namespace

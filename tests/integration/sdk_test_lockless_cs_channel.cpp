@@ -116,7 +116,7 @@ TEST_F(SdkTestLocklessCSChannel, ImportFileLink)
     ASSERT_TRUE(source) << "Couldn't locate test file";
 
     // Retrieve our node's public link.
-    auto link = makeUniqueFrom(source->getPublicLink());
+    std::unique_ptr<char[]> link{source->getPublicLink()};
     ASSERT_TRUE(link) << "Couldn't retrieve public link for test file";
 
     // Log our client into a different account so we can import the link.

@@ -510,6 +510,14 @@ bool chunkmac_map::unserialize(const char*& ptr, const char* end)
         else
         {
             assert(pos > macsmacSoFarPos);
+            // SDK-5360 S16: catch a lattice-poisoned statecache at RESUME time instead of at
+            // download-time key corruption. macsmac() (below, :~843) already asserts this
+            // invariant on every fold; a serialized map violating it means the writer put an
+            // off-canonical chunk boundary into the cache (the S15 round-6 clamp class —
+            // meta-MAC folds are boundary-dependent, so such a map yields a wrong node key
+            // and API_EKEY on every download). No legal writer produces such an entry.
+            assert(pos == ChunkedHash::chunkfloor(pos) &&
+                   "unserialized chunkmac key off the canonical chunk lattice");
         }
     }
     return true;
@@ -2607,32 +2615,29 @@ bool areCrcEqual(const FingerprintCrc& lhs, const FingerprintCrc& rhs)
     return std::memcmp(lhs.data(), rhs.data(), sizeof(lhs)) == 0;
 }
 
-std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
-                                         FileAccess& ifAccess,
-                                         const int64_t iv,
-                                         std::optional<std::string> pathStr)
+namespace
 {
-    using clock = std::chrono::steady_clock;
-    auto start = clock::now();
 
-    FileInputStream isAccess(&ifAccess);
-    auto res = generateMetaMac(cipher, isAccess, iv);
-    auto end = clock::now();
-    auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+enum class MetaMacGenerationStatus
+{
+    Success,
+    ReadError,
+    Cancelled,
+};
 
-    double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
-    std::ostringstream oss;
-    oss << std::fixed << std::setprecision(6) << durationSec;
+struct MetaMacGenerationResult
+{
+    MetaMacGenerationStatus status;
+    int64_t mac{0}; // Valid only when status is Success.
+};
 
-    const std::string p = pathStr.has_value() ? (" for: " + pathStr.value()) : "";
-    LOG_debug << "generateMetaMac: MAC computed in " << oss.str() << " (s)" << p;
-    return res;
-}
-
-std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &isAccess, const int64_t iv)
+MetaMacGenerationResult generateMetaMacCancellable(SymmCipher& cipher,
+                                                   InputStreamAccess& isAccess,
+                                                   const int64_t iv,
+                                                   CancelToken cancelToken)
 {
     static const unsigned int SZ_1024K = 1l << 20;
-    static const unsigned int SZ_128K  = 128l << 10;
+    static const unsigned int SZ_128K = 128l << 10;
 
     auto buffer = std::make_unique<byte[]>(SZ_1024K + SymmCipher::BLOCKSIZE);
     chunkmac_map chunkMacs;
@@ -2642,12 +2647,26 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
 
     while (remaining > 0)
     {
+        if (cancelToken.isCancelled())
+        {
+            return {MetaMacGenerationStatus::Cancelled};
+        }
+
         chunkLength =
           std::min(chunkLength + SZ_128K,
                    static_cast<unsigned int>(std::min<m_off_t>(remaining, SZ_1024K)));
 
-        if (!isAccess.read(&buffer[0], chunkLength))
-            return std::make_pair(false, 0l);
+        // A failed read is classified as a read error even if cancellation happens concurrently.
+        if (!isAccess.read(buffer.get(), chunkLength))
+        {
+            return {MetaMacGenerationStatus::ReadError};
+        }
+
+        // Catch cancellation while a potentially slow read was in progress.
+        if (cancelToken.isCancelled())
+        {
+            return {MetaMacGenerationStatus::Cancelled};
+        }
 
         memset(&buffer[chunkLength], 0, SymmCipher::BLOCKSIZE);
 
@@ -2659,7 +2678,59 @@ std::pair<bool, int64_t> generateMetaMac(SymmCipher &cipher, InputStreamAccess &
         DEBUG_TEST_HOOK_MAC_GENERATION_CHUNK_READ(current);
     }
 
-    return std::make_pair(true, chunkMacs.macsmac(&cipher));
+    if (cancelToken.isCancelled())
+    {
+        return {MetaMacGenerationStatus::Cancelled};
+    }
+
+    return {MetaMacGenerationStatus::Success, chunkMacs.macsmac(&cipher)};
+}
+
+MetaMacGenerationResult generateMetaMacCancellable(SymmCipher& cipher,
+                                                   FileAccess& ifAccess,
+                                                   const int64_t iv,
+                                                   std::optional<std::string> pathStr,
+                                                   CancelToken cancelToken)
+{
+    using clock = std::chrono::steady_clock;
+    auto start = clock::now();
+
+    FileInputStream isAccess(&ifAccess);
+    auto res = generateMetaMacCancellable(cipher, isAccess, iv, cancelToken);
+    auto end = clock::now();
+    auto durationUs = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+
+    double durationSec = static_cast<double>(durationUs) / 1'000'000.0;
+    std::ostringstream oss;
+    oss << std::fixed << std::setprecision(6) << durationSec;
+
+    const std::string p = pathStr.has_value() ? (" for: " + pathStr.value()) : "";
+    const char* outcome =
+        res.status == MetaMacGenerationStatus::Success   ? "MAC computed in " :
+        res.status == MetaMacGenerationStatus::Cancelled ? "MAC computation cancelled after " :
+                                                           "MAC computation failed after ";
+    LOG_debug << "generateMetaMac: " << outcome << oss.str() << " (s)" << p;
+    return res;
+}
+
+} // anonymous namespace
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
+                                         FileAccess& ifAccess,
+                                         const int64_t iv,
+                                         std::optional<std::string> pathStr)
+{
+    const auto result =
+        generateMetaMacCancellable(cipher, ifAccess, iv, std::move(pathStr), CancelToken());
+    return {result.status == MetaMacGenerationStatus::Success, result.mac};
+}
+
+std::pair<bool, int64_t> generateMetaMac(SymmCipher& cipher,
+                                         InputStreamAccess& isAccess,
+                                         const int64_t iv)
+{
+    const auto result = generateMetaMacCancellable(cipher, isAccess, iv, CancelToken());
+    return {result.status == MetaMacGenerationStatus::Success, result.mac};
 }
 
 bool areEqualNodesByMetaMac(const std::string& nodeKey_a, const std::string& nodeKey_b)
@@ -2683,7 +2754,8 @@ bool areEqualNodesByMetaMac(const std::string& nodeKey_a, const std::string& nod
 MacComparisonResult CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
                                                        const std::string& nodeKey,
                                                        int type,
-                                                       std::optional<std::string> pathStr)
+                                                       std::optional<std::string> pathStr,
+                                                       CancelToken cancelToken)
 {
     MacComparisonResult result;
     if (nodeKey.size() != FILENODEKEYLENGTH)
@@ -2698,18 +2770,34 @@ MacComparisonResult CompareLocalFileMetaMacWithNodeKey(FileAccess* fa,
     result.remoteMac = MemAccess::get<int64_t>(iva + sizeof(int64_t));
     cipher.setkey((byte*)&nodeKey[0], type);
 
-    auto [succeeded, calcMac] = generateMetaMac(cipher, *fa, remoteIv, pathStr);
-    result.errorCode = succeeded ? 0 : fa->errorcode; // 0 = success, non-zero = OS error code
-    result.localMac = succeeded ? calcMac : INVALID_META_MAC;
-    result.areEqualMacs = succeeded && (calcMac == result.remoteMac);
+    const auto generated =
+        generateMetaMacCancellable(cipher, *fa, remoteIv, std::move(pathStr), cancelToken);
+    switch (generated.status)
+    {
+        case MetaMacGenerationStatus::Success:
+            result.localMac = generated.mac;
+            result.areEqualMacs = generated.mac == result.remoteMac;
+            break;
+        case MetaMacGenerationStatus::ReadError:
+            result.errorCode = fa->errorcode;
+            break;
+        case MetaMacGenerationStatus::Cancelled:
+            result.errorCode = API_EINCOMPLETE;
+            break;
+    }
 
     return result;
 }
 
-bool CompareLocalFileMetaMacWithNode(FileAccess* fa, Node* node)
+MacComparisonResult CompareLocalFileMetaMacWithNode(FileAccess* fa,
+                                                    Node* node,
+                                                    CancelToken cancelToken)
 {
-    return CompareLocalFileMetaMacWithNodeKey(fa, node->nodekey(), node->type, node->displaypath())
-        .areEqualMacs;
+    return CompareLocalFileMetaMacWithNodeKey(fa,
+                                              node->nodekey(),
+                                              node->type,
+                                              node->displaypath(),
+                                              cancelToken);
 }
 
 std::pair<int64_t, int64_t> genLocalAndRemoteMetaMac(FileAccess* fa,
@@ -2738,6 +2826,8 @@ std::string nodeComparisonResultToStr(const node_comparison_result result)
     {
         case NODE_COMP_EREAD:
             return "NODE_COMP_EREAD";
+        case NODE_COMP_CANCELLED:
+            return "NODE_COMP_CANCELLED";
         case NODE_COMP_EARGS:
             return "NODE_COMP_EARGS";
         case NODE_COMP_PENDING:
@@ -2830,8 +2920,11 @@ std::pair<node_comparison_result, int64_t>
     CompareLocalFileWithNodeMacAndFpExludingMtime(class MegaClient& client,
                                                   const LocalPath& path,
                                                   const FileFingerprint& fp,
-                                                  const Node* node)
+                                                  const Node* node,
+                                                  CancelToken cancelToken)
 {
+    DEBUG_TEST_HOOK_LOCAL_FILE_NODE_MAC_COMPARISON;
+
     if (!node || node->type != FILENODE || !node->keyApplied())
     {
         return {NODE_COMP_EARGS, INVALID_META_MAC};
@@ -2861,7 +2954,17 @@ std::pair<node_comparison_result, int64_t>
         MacComparisonResult macResult = CompareLocalFileMetaMacWithNodeKey(fa.get(),
                                                                            node->nodekey(),
                                                                            node->type,
-                                                                           path.toPath(false));
+                                                                           path.toPath(false),
+                                                                           cancelToken);
+
+        if (macResult.errorCode == API_EINCOMPLETE)
+        {
+            // No MAC was computed, so nothing is known about the items. Return before the
+            // mismatch handling below.
+            LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs CANCELLED [Path: "
+                      << path.toPath(false) << "]";
+            return {NODE_COMP_CANCELLED, INVALID_META_MAC};
+        }
 
         auto sameMtime = fp.mtime == node->mtime;
         LOG_debug << "[CompareLocalFileWithNodeFpAndMac] comparing macs END... [sameMtime = "
@@ -2880,7 +2983,9 @@ std::pair<node_comparison_result, int64_t>
                 // Build enriched event message with extra diagnostic fields:
                 // Format: "msg [nodeHandle,nodeFp,localMac,remoteMac,errorCode]"
                 // errorCode: 0 = successful MAC computation (real mismatch),
-                //            non-zero = OS error during read (e.g., EIO, ERROR_HANDLE_EOF)
+                //            positive = OS error during read (e.g., EIO, ERROR_HANDLE_EOF).
+                // Cancellation (API_EINCOMPLETE) returns above and never reaches this event, so
+                // no mismatch is reported for a comparison that did not happen.
                 std::ostringstream oss;
                 oss << "Node found with same Fp but different MAC than local file"
                     << " [" << toNodeHandle(node->nodehandle) << ","

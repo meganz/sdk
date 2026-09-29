@@ -57,7 +57,7 @@ void DelegateMEGARequestListener::onRequestFinish(MegaApi *api, MegaRequest *req
         dispatch(this->queueType, ^{
             [tempListener onRequestFinish:tempMegaSDK request:[[MEGARequest alloc] initWithMegaRequest:tempRequest cMemoryOwn:YES] error:[[MEGAError alloc] initWithMegaError:tempError cMemoryOwn:YES]];
             if (tempSingleListener) {
-                [megaSDK freeRequestListener:this];
+                [tempMegaSDK freeRequestListener:this];
             }
         });
     }

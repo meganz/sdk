@@ -1,0 +1,41 @@
+# wsupload integration-test module.
+#
+# WS-upload test bodies and supporting helpers extracted from SdkTest_test.cpp.
+# Test names were renamed from SdkTest.SdkWsUploadX to SdkWsUploadTest.X during
+# the extraction.
+#
+# Module is gated by MEGA_USE_WSUPLOAD because every test here exercises the
+# WS upload path; consumers of test_integration with MEGA_USE_WSUPLOAD=OFF would
+# never run these.
+
+target_sources_conditional(test_integration
+    FLAG MEGA_USE_WSUPLOAD
+    PRIVATE
+    wsupload/headers/SdkWsUploadTest.h
+    wsupload/SdkWsUploadTest.cpp
+    wsupload/SdkWsUploadCrashTest.cpp
+    wsupload/SdkWsQuotaTest.cpp
+    wsupload/SdkWsQuotaRealTest.cpp
+    wsupload/headers/ScopedUploadSpeedLimit.h
+    wsupload/headers/SecondTimer.h
+    wsupload/headers/TransferTempErrorTracker.h
+    wsupload/headers/WsChunkSendOverquotaCapture.h
+    wsupload/headers/WsOneShotHelper.h
+    wsupload/headers/WsQuotaClientThread.h
+    wsupload/headers/WsQuotaHoldTracker.h
+    wsupload/headers/WsQuotaHookCaptures.h
+    wsupload/headers/WsUploadDebugHelpers.h
+    wsupload/headers/WsUploadHelpers.h
+    wsupload/headers/WsUploadHookGate.h
+    wsupload/headers/WsUploadRetryTracker.h
+    wsupload/headers/WsUploadTestHelpers.h
+    wsupload/headers/WsUploadTransitionCapture.h
+    wsupload/headers/WsUscCommand.h
+    wsupload/WsUscCommand.cpp
+    wsupload/headers/WsTfsCommand.h
+    wsupload/WsTfsCommand.cpp
+)
+
+target_include_directories(test_integration PRIVATE
+    $<$<BOOL:${MEGA_USE_WSUPLOAD}>:${CMAKE_CURRENT_SOURCE_DIR}>
+)

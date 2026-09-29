@@ -16,8 +16,11 @@
 #include <mega/megaclient.h>
 #include <mega/nodemanager.h>
 
+#include <iomanip>
 #include <mega.h> // brings in config.h which #defines USE_SQLITE when enabled
 #include <optional>
+#include <set>
+#include <sstream>
 #include <string>
 #include <vector>
 
@@ -33,6 +36,24 @@ namespace
 {
 
 using namespace mega::pagetest;
+
+// Section-list helpers, file-scoped: both fixtures below use them, neither needs state.
+std::vector<std::pair<std::string, int64_t>> gidCounts(const std::vector<DateSection>& sections)
+{
+    std::vector<std::pair<std::string, int64_t>> result;
+    result.reserve(sections.size());
+    for (const auto& s: sections)
+        result.emplace_back(s.mGroupId, s.mCount);
+    return result;
+}
+
+const DateSection* find(const std::vector<DateSection>& v, const std::string& gid)
+{
+    for (const auto& s: v)
+        if (s.mGroupId == gid)
+            return &s;
+    return nullptr;
+}
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  DateSectionTest – fixture + tests for groupAllNodesByDate +
@@ -165,25 +186,6 @@ protected:
         std::vector<std::pair<NodeHandle, NodeSerialized>> out;
         tableNodes()->listAllNodesByPage(p, {mDateSectionRoot}, out, CancelToken{});
         return out;
-    }
-
-    // (gid, count) tuples for compact section-list assertions.
-    static std::vector<std::pair<std::string, int64_t>>
-        gidCounts(const std::vector<DateSection>& sections)
-    {
-        std::vector<std::pair<std::string, int64_t>> result;
-        result.reserve(sections.size());
-        for (const auto& s: sections)
-            result.emplace_back(s.mGroupId, s.mCount);
-        return result;
-    }
-
-    static const DateSection* find(const std::vector<DateSection>& v, const std::string& gid)
-    {
-        for (const auto& s: v)
-            if (s.mGroupId == gid)
-                return &s;
-        return nullptr;
     }
 
     // NodeSerialized.mNode is a serialized blob; for mtime/size assertions
@@ -887,6 +889,68 @@ TEST_F(DateSectionTest, ListAllByPage_Anchor_PagesCrossSectionBoundary)
     EXPECT_GT(rowMtimes[1], rowMtimes[2]);
 }
 
+// One paged row, reduced to what the MEDIATS composition assertions read.
+struct MediaTsRow
+{
+    NodeHandle mHandle;
+    std::string mName;
+    int64_t mMediaTs;
+};
+
+// Pages `p` to exhaustion, threading a full MEDIATS cursor (mediats + name +
+// handle) between pages. mLastMediaTs comes from the row's own mediats column,
+// so a residual filter that fails to ride the cursor query shows up as extra
+// rows rather than as a stalled cursor.
+//
+// The scope comes from p.explicitAncestors alone, so it cannot disagree with the filter.
+std::vector<MediaTsRow> pageAllWithMediaTsCursor(SqliteAccountState* table,
+                                                 MegaClient& client,
+                                                 ListAllNodesParams p)
+{
+    std::vector<MediaTsRow> rows;
+    if (p.explicitAncestors.empty())
+    {
+        ADD_FAILURE() << "pageAllWithMediaTsCursor needs p.explicitAncestors as the scope";
+        return rows;
+    }
+
+    std::optional<NodeSearchCursorOffset> cursor;
+    // Bounded well above (dataset / pageSize): a non-advancing cursor then exits with
+    // duplicated rows, which the caller's assertion reports, rather than hanging.
+    for (int guard = 0; guard < 200; ++guard)
+    {
+        p.cursor = cursor;
+        std::vector<std::pair<NodeHandle, NodeSerialized>> page;
+        CancelToken ct;
+        if (!table->listAllNodesByPage(p, p.explicitAncestors, page, ct))
+        {
+            ADD_FAILURE() << "listAllNodesByPage returned false at page " << guard;
+            return rows;
+        }
+        if (page.empty())
+            break;
+
+        for (const auto& [handle, serialized]: page)
+        {
+            const auto node = client.mNodeManager.getNodeByHandle(handle);
+            if (!node)
+            {
+                ADD_FAILURE() << "paged node not found in NodeManager";
+                return rows;
+            }
+            rows.push_back(
+                {handle, node->displayname(), static_cast<int64_t>(serialized.mMediaTs)});
+        }
+
+        NodeSearchCursorOffset c;
+        c.mLastName = rows.back().mName;
+        c.mLastHandle = rows.back().mHandle.as8byte();
+        c.mLastMediaTs = rows.back().mMediaTs;
+        cursor = c;
+    }
+    return rows;
+}
+
 // ═══════════════════════════════════════════════════════════════════════════
 //  GifRawFilterTest – the gif/raw sub-category filter on listAllNodesByPage +
 //  groupAllNodesByDate. Real SQLite via SearchByPageTest.
@@ -1066,6 +1130,58 @@ TEST_F(GifRawFilterTest, SubCategoryFilterHonouredWithCursor)
         cursor = c;
     }
     EXPECT_EQ(paged, gifCount);
+}
+
+// MEDIATS_ASC composed with the sub-category residual. The residual and the
+// ORDER BY are built independently, so this pins the composition: the gif-only
+// result must survive every page of a mediats cursor, not just page 1.
+TEST_F(GifRawFilterTest, MediaTsAsc_SubCategoryFilterHonouredWithCursor)
+{
+    size_t gifCount = 0, rawCount = 0;
+    const NodeHandle folder = seedPhotoTree(/*photos=*/40,
+                                            /*gifEvery=*/5,
+                                            /*rawEvery=*/5,
+                                            gifCount,
+                                            rawCount);
+    ASSERT_GT(gifCount, 2u); // need several pages at size 2
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::MEDIATS_ASC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    EXPECT_EQ(rows.size(), gifCount);
+
+    std::set<NodeHandle> unique;
+    for (const auto& r: rows)
+        unique.insert(r.mHandle);
+    EXPECT_EQ(unique.size(), rows.size()) << "mediats cursor revisited a row";
+
+    for (const auto& r: rows)
+    {
+        EXPECT_TRUE(r.mName.size() > 4 && r.mName.compare(r.mName.size() - 4, 4, ".gif") == 0)
+            << "sub-category residual leaked a non-gif row: " << r.mName;
+        // .gif must be classified as a media extension, otherwise mediats is 0
+        // and MEDIATS ordering silently degenerates to the name/handle tiebreak.
+        EXPECT_GT(r.mMediaTs, 0) << "mediats not populated for " << r.mName;
+    }
+
+    for (size_t i = 1; i < rows.size(); ++i)
+    {
+        EXPECT_GE(rows[i].mMediaTs, rows[i - 1].mMediaTs)
+            << "mediats decreased under MEDIATS_ASC at index " << i;
+    }
+
+    // seedPhotoTree gives node k mtime 1'700'000'000 + k + 1 and a stem with no
+    // embedded timestamp, so mediats falls back to mtime * 1000. k=0 is a .gif and
+    // carries the smallest mtime, so it leads MEDIATS_ASC. Pins the ms unit.
+    ASSERT_FALSE(rows.empty());
+    EXPECT_EQ(rows.front().mName, "p_0.gif");
+    EXPECT_EQ(rows.front().mMediaTs, 1'700'000'001'000LL);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1265,6 +1381,663 @@ TEST_F(FavouriteFilterTest, FavouriteHonouredWithFavOrderCursor)
     EXPECT_EQ(
         pageAllAtSize2(FAVOURITE_FILTER_ONLY_TRUE, OrderByClause::FAV_ASC, folder, /*lastFav=*/1),
         favCount);
+}
+
+// The favourite residual must ride both MEDIATS directions, not just the mtime
+// orders the filter shipped with. Unpaged, so a wrong residual shows up as a row
+// count rather than as a cursor artefact.
+TEST_F(FavouriteFilterTest, MediaTsOrders_FilterRowsCorrectly)
+{
+    size_t favCount = 0;
+    const NodeHandle folder = seedFavTree(40, 5, favCount);
+    ASSERT_GT(favCount, 0u);
+    ASSERT_LT(favCount, 40u);
+
+    for (int order: {OrderByClause::MEDIATS_ASC, OrderByClause::MEDIATS_DESC})
+    {
+        EXPECT_EQ(countRows(FAVOURITE_FILTER_DISABLED, folder, MIME_TYPE_PHOTO, order), 40u)
+            << "order=" << order;
+        EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_TRUE, folder, MIME_TYPE_PHOTO, order), favCount)
+            << "order=" << order;
+        EXPECT_EQ(countRows(FAVOURITE_FILTER_ONLY_FALSE, folder, MIME_TYPE_PHOTO, order),
+                  40u - favCount)
+            << "order=" << order;
+    }
+}
+
+// Same composition across a mediats cursor: ONLY_TRUE must stay favourite-only on
+// every page, and the cursor must keep advancing while the residual thins the rows.
+TEST_F(FavouriteFilterTest, MediaTsAsc_FavouriteHonouredWithMediaTsCursor)
+{
+    size_t favCount = 0;
+    const NodeHandle folder = seedFavTree(40, 5, favCount);
+    ASSERT_GT(favCount, 2u); // need several pages at size 2
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.favouriteFilter = FAVOURITE_FILTER_ONLY_TRUE;
+    p.order = OrderByClause::MEDIATS_ASC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    EXPECT_EQ(rows.size(), favCount);
+
+    std::set<NodeHandle> unique;
+    for (const auto& r: rows)
+        unique.insert(r.mHandle);
+    EXPECT_EQ(unique.size(), rows.size()) << "mediats cursor revisited a row";
+
+    for (const auto& r: rows)
+    {
+        const auto node = mClient->mNodeManager.getNodeByHandle(r.mHandle);
+        ASSERT_NE(node, nullptr);
+        EXPECT_EQ(node->attrs.map.count(kFavId), 1u)
+            << "favourite residual leaked a non-favourite row: " << r.mName;
+        EXPECT_GT(r.mMediaTs, 0) << "mediats not populated for " << r.mName;
+    }
+
+    for (size_t i = 1; i < rows.size(); ++i)
+    {
+        EXPECT_GE(rows[i].mMediaTs, rows[i - 1].mMediaTs)
+            << "mediats decreased under MEDIATS_ASC at index " << i;
+    }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MediaTsOrderCompositionTest – MEDIATS orders composed with the residual
+//  filters, on datasets the sibling fixtures cannot express:
+//    * mediats order deliberately OPPOSITE to name and nodehandle order, so a
+//      monotonic-mediats assertion cannot be satisfied by a name/handle sort;
+//    * both residuals (sub-category AND favourite) set at once;
+//    * a mediats tie that survives a residual filter.
+//  Real SQLite via SearchByPageTest.
+// ═══════════════════════════════════════════════════════════════════════════
+class MediaTsOrderCompositionTest: public SearchByPageTest
+{
+protected:
+    static constexpr int kNodes = 18;
+    static constexpr int64_t kMtimeBase = 1'700'000'000LL;
+
+    // Node k gets name m_<kk> (ascending with insertion order, hence with
+    // nodehandle) but mtime kMtimeBase + (kNodes - k) — descending. mediats is
+    // derived as mtime * 1000, so mediats order is the exact REVERSE of both the
+    // name order and the handle order. Any query that sorts by name or handle
+    // instead of mediats therefore yields the reversed sequence, not a
+    // coincidentally-identical one.
+    //   ext: .gif when k % 3 == 0, else .jpg      → 6 gifs
+    //   fav: set when k % 4 == 0                  → 5 favourites, 2 of them gifs
+    // The gif/favourite strides are deliberately coprime-unequal so that
+    // gif AND favourite (2) differs from gif AND non-favourite (4) — equal counts
+    // would make a favourite-polarity inversion invisible.
+    NodeHandle seedDecorrelated()
+    {
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        EXPECT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, NodeMeta{"DecorrFolder", FOLDERNODE});
+
+        for (int k = 0; k < kNodes; ++k)
+        {
+            const char* ext = (k % 3 == 0) ? ".gif" : ".jpg";
+            std::ostringstream name;
+            name << "m_" << std::setw(2) << std::setfill('0') << k << ext;
+
+            NodeMeta meta{name.str(), FILENODE, 100, kMtimeBase + (kNodes - k)};
+            if (k % 4 == 0)
+                meta.fav = 1;
+            addNode(FILENODE, folder, meta);
+        }
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+        return folder->nodeHandle();
+    }
+
+    // `gifs` .gif plus `jpgs` .jpg nodes that ALL share one mtime, hence one
+    // mediats value. Exercises the keyset tie-break (mediats = p1 AND name > p2)
+    // while a residual filter is thinning the rows.
+    NodeHandle seedMediaTsTie(int gifs, int jpgs)
+    {
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        EXPECT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, NodeMeta{"TieFolder", FOLDERNODE});
+
+        for (int k = 0; k < gifs + jpgs; ++k)
+        {
+            std::ostringstream name;
+            name << "t_" << std::setw(2) << std::setfill('0') << k
+                 << ((k < gifs) ? ".gif" : ".jpg");
+            addNode(FILENODE, folder, NodeMeta{name.str(), FILENODE, 100, kMtimeBase});
+        }
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+        return folder->nodeHandle();
+    }
+
+    size_t countRows(MimeType_t mime,
+                     FileSubType_t sub,
+                     FavouriteFilter_t fav,
+                     int order,
+                     NodeHandle ancestor)
+    {
+        ListAllNodesParams p;
+        p.mimeType = mime;
+        p.fileSubType = sub;
+        p.favouriteFilter = fav;
+        p.order = order;
+        p.maxElements = 0; // no limit
+        p.explicitAncestors = {ancestor};
+        std::vector<std::pair<NodeHandle, NodeSerialized>> nodes;
+        CancelToken ct;
+        EXPECT_TRUE(table()->listAllNodesByPage(p, {ancestor}, nodes, ct));
+        return nodes.size();
+    }
+
+    static std::vector<std::string> namesOf(const std::vector<MediaTsRow>& rows)
+    {
+        std::vector<std::string> out;
+        for (const auto& r: rows)
+            out.push_back(r.mName);
+        return out;
+    }
+
+    SqliteAccountState* table()
+    {
+        return dynamic_cast<SqliteAccountState*>(mClient->sctable.get());
+    }
+};
+
+// The decisive ordering test: mediats runs opposite to both name and nodehandle,
+// so the expected sequence is the reverse of insertion order. A regression that
+// dropped the mediats sort key and fell through to name/handle would return the
+// exact opposite of this list.
+TEST_F(MediaTsOrderCompositionTest, MediaTsAsc_OrdersByMediaTsNotNameOrHandle)
+{
+    const NodeHandle folder = seedDecorrelated();
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::MEDIATS_ASC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    // gifs are k = 0,3,6,9,12,15; mediats ascending means k descending.
+    const std::vector<std::string> expected{"m_15.gif",
+                                            "m_12.gif",
+                                            "m_09.gif",
+                                            "m_06.gif",
+                                            "m_03.gif",
+                                            "m_00.gif"};
+    EXPECT_EQ(namesOf(rows), expected);
+
+    // Strictly increasing, and strictly decreasing in k — the two cannot both
+    // hold if the ORDER BY lost its mediats key.
+    for (size_t i = 1; i < rows.size(); ++i)
+        EXPECT_GT(rows[i].mMediaTs, rows[i - 1].mMediaTs) << "at index " << i;
+
+    // Pins the ms unit: k=15 has mtime kMtimeBase + 3.
+    ASSERT_FALSE(rows.empty());
+    EXPECT_EQ(rows.front().mMediaTs, (kMtimeBase + 3) * 1000LL);
+}
+
+// MEDIATS_DESC has its own cursor predicate (`<` instead of `>`) and its own ORDER BY
+// direction. This dataset's mediats are all distinct, so it reaches only the `mediats < ?1`
+// branch; MediaTsDesc_TiedMediaTsWithSubCategoryFilter covers the name tiebreak.
+TEST_F(MediaTsOrderCompositionTest, MediaTsDesc_SubCategoryFilterHonouredWithCursor)
+{
+    const NodeHandle folder = seedDecorrelated();
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::MEDIATS_DESC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    // mediats descending means k ascending — the mirror of the ASC case.
+    const std::vector<std::string> expected{"m_00.gif",
+                                            "m_03.gif",
+                                            "m_06.gif",
+                                            "m_09.gif",
+                                            "m_12.gif",
+                                            "m_15.gif"};
+    EXPECT_EQ(namesOf(rows), expected);
+
+    for (size_t i = 1; i < rows.size(); ++i)
+        EXPECT_LT(rows[i].mMediaTs, rows[i - 1].mMediaTs)
+            << "mediats did not decrease under MEDIATS_DESC at index " << i;
+}
+
+// Grouped-mime ORDER BY is resolved by a switch separate from the simple-mime
+// path, so it needs its own ordering assertion — a row-count test cannot see a
+// lost sort key. Decorrelated dataset, so name/handle order is the reverse of
+// the expected sequence. ALL_VISUAL_MEDIA is the production Timeline shape.
+TEST_F(MediaTsOrderCompositionTest, GroupedMime_MediaTsAsc_OrdersByMediaTs)
+{
+    const NodeHandle folder = seedDecorrelated();
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_ALL_VISUAL_MEDIA;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::MEDIATS_ASC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    const std::vector<std::string> expected{"m_15.gif",
+                                            "m_12.gif",
+                                            "m_09.gif",
+                                            "m_06.gif",
+                                            "m_03.gif",
+                                            "m_00.gif"};
+    EXPECT_EQ(namesOf(rows), expected);
+}
+
+// The residual filters must ride every per-route CTE of the grouped query under a
+// mediats order. gif/jpg are photos subset of visual media, so these counts must
+// match the simple-PHOTO path.
+TEST_F(MediaTsOrderCompositionTest, GroupedMime_MediaTsOrders_FilterRowsCorrectly)
+{
+    const NodeHandle folder = seedDecorrelated();
+
+    for (int order: {OrderByClause::MEDIATS_ASC, OrderByClause::MEDIATS_DESC})
+    {
+        EXPECT_EQ(countRows(MIME_TYPE_ALL_VISUAL_MEDIA,
+                            FILE_SUBTYPE_NONE,
+                            FAVOURITE_FILTER_DISABLED,
+                            order,
+                            folder),
+                  static_cast<size_t>(kNodes))
+            << "order=" << order;
+        EXPECT_EQ(countRows(MIME_TYPE_ALL_VISUAL_MEDIA,
+                            FILE_SUBTYPE_GIF,
+                            FAVOURITE_FILTER_DISABLED,
+                            order,
+                            folder),
+                  6u)
+            << "order=" << order;
+        EXPECT_EQ(countRows(MIME_TYPE_ALL_VISUAL_MEDIA,
+                            FILE_SUBTYPE_NONE,
+                            FAVOURITE_FILTER_ONLY_TRUE,
+                            order,
+                            folder),
+                  5u)
+            << "order=" << order;
+    }
+}
+
+// Both residuals at once. The sub-category and favourite clauses are separately
+// concatenated onto the same WHERE; a concatenation or AND-placement bug that
+// only manifests with two residuals present would slip past the single-residual
+// tests.
+TEST_F(MediaTsOrderCompositionTest, MediaTsOrders_SubTypeAndFavouriteCompose)
+{
+    const NodeHandle folder = seedDecorrelated();
+
+    for (int order: {OrderByClause::MEDIATS_ASC, OrderByClause::MEDIATS_DESC})
+    {
+        // gif AND favourite = k in {0, 12}
+        EXPECT_EQ(
+            countRows(MIME_TYPE_PHOTO, FILE_SUBTYPE_GIF, FAVOURITE_FILTER_ONLY_TRUE, order, folder),
+            2u)
+            << "order=" << order;
+        // gif AND non-favourite = k in {3, 6, 9, 15}. Deliberately != the ONLY_TRUE
+        // count, so a favourite-polarity inversion cannot pass both assertions.
+        EXPECT_EQ(countRows(MIME_TYPE_PHOTO,
+                            FILE_SUBTYPE_GIF,
+                            FAVOURITE_FILTER_ONLY_FALSE,
+                            order,
+                            folder),
+                  4u)
+            << "order=" << order;
+        // The two halves must partition the unfiltered gif set.
+        EXPECT_EQ(
+            countRows(MIME_TYPE_PHOTO, FILE_SUBTYPE_GIF, FAVOURITE_FILTER_DISABLED, order, folder),
+            6u)
+            << "order=" << order;
+    }
+}
+
+// Every row shares one mediats value, so the keyset predicate degenerates to the
+// (name, nodehandle) tiebreak while the sub-category residual thins the rows. An
+// off-by-one in the tiebreak (>= instead of >) shows up as a duplicate.
+TEST_F(MediaTsOrderCompositionTest, MediaTsAsc_TiedMediaTsWithSubCategoryFilter)
+{
+    const NodeHandle folder = seedMediaTsTie(/*gifs=*/5, /*jpgs=*/4);
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::MEDIATS_ASC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    // All five gifs, exactly once each, name-ascending (the tiebreak).
+    const std::vector<std::string> expected{"t_00.gif",
+                                            "t_01.gif",
+                                            "t_02.gif",
+                                            "t_03.gif",
+                                            "t_04.gif"};
+    EXPECT_EQ(namesOf(rows), expected);
+
+    for (const auto& r: rows)
+        EXPECT_EQ(r.mMediaTs, kMtimeBase * 1000LL) << "tie broken for " << r.mName;
+}
+
+// The DESC mirror of the test above. The other mediats cursor tests seed distinct mediats,
+// so DESC never reaches its `mediats = ?1 AND name < ?2` tiebreak. Ties are routine —
+// mediats falls back to mtime * 1000 — and MEDIATS_DESC is the Timeline's default order, so
+// a reversed tiebreak would repeat or drop rows across page boundaries.
+TEST_F(MediaTsOrderCompositionTest, MediaTsDesc_TiedMediaTsWithSubCategoryFilter)
+{
+    const NodeHandle folder = seedMediaTsTie(/*gifs=*/5, /*jpgs=*/4);
+
+    ListAllNodesParams p;
+    p.mimeType = MIME_TYPE_PHOTO;
+    p.fileSubType = FILE_SUBTYPE_GIF;
+    p.order = OrderByClause::MEDIATS_DESC;
+    p.maxElements = 2;
+    p.explicitAncestors = {folder};
+
+    const auto rows = pageAllWithMediaTsCursor(table(), *mClient, p);
+
+    // All five gifs, exactly once each, name-descending. A reversed tiebreak fails here.
+    const std::vector<std::string> expected{"t_04.gif",
+                                            "t_03.gif",
+                                            "t_02.gif",
+                                            "t_01.gif",
+                                            "t_00.gif"};
+    EXPECT_EQ(namesOf(rows), expected);
+
+    for (const auto& r: rows)
+        EXPECT_EQ(r.mMediaTs, kMtimeBase * 1000LL) << "tie broken for " << r.mName;
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+//  MediaTsDateSectionTest – groupAllNodesByDate + byTimestampAnchor on the
+//  mediats column. Real SQLite via SearchByPageTest.
+// ═══════════════════════════════════════════════════════════════════════════
+//
+// Every media node carries a filename capture timestamp in Nov/Dec 2023 while
+// its mtime sits in July 2024, so mediats and mtime bucket into DIFFERENT gids:
+// a regression that routes a mediats order back to the mtime column returns
+// "2024-07-*" where "2023-11-*" is expected. It cannot pass by coincidence.
+//
+// Restricted to the four PHOTO rows (a_/b_/c_/d_), mediats order is the exact
+// reverse of name order, mtime order AND insertion (handle) order — a fallback
+// to any of those three yields the reversed sequence, not a matching one. The
+// e_ video breaks the pattern, sorting third: d_, c_, e_, b_, a_.
+//
+//   name                          mediats (ms)     mtime (s)    mediats day (UTC)
+//   a_plain.jpg                   1719792000000    1719792000   2024-07-01
+//   b_IMG_20231201_000000.jpg     1701388800000    1719878400   2023-12-01
+//   c_IMG_20231115_061321.jpg     1700028801000    1719964800   2023-11-15
+//   d_IMG_20231114_221321.jpg     1700000001000    1720137600   2023-11-14
+//   e_vid_20231116_120000.mp4     1700136000000    1720224000   2023-11-16  (VIDEO)
+//   z_zero.jpg                    0                0            none — sentinel row
+//
+// a_plain.jpg has no filename timestamp, so its mediats falls back to mtime*1000;
+// z_zero.jpg has mtime 0 (addNode sets ctime = mtime), so the whole priority
+// chain yields 0 — the only way to get a PHOTO row with no capture timestamp.
+class MediaTsDateSectionTest: public SearchByPageTest
+{
+protected:
+    NodeHandle mFolder;
+
+    void populateDB() override
+    {
+        SearchByPageTest::populateDB();
+
+        auto root = mClient->mNodeManager.getNodeByHandle(mRootHandle);
+        ASSERT_NE(root, nullptr);
+        auto folder = addNode(FOLDERNODE, root, NodeMeta{"mediats_sections", FOLDERNODE});
+        mFolder = folder->nodeHandle();
+
+        // Inserted alphabetically so nodehandle order ascends with name order and
+        // both run counter to mediats.
+        addNode(FILENODE, folder, NodeMeta{"a_plain.jpg", FILENODE, 100, 1719792000});
+        addNode(FILENODE, folder, NodeMeta{"b_IMG_20231201_000000.jpg", FILENODE, 110, 1719878400});
+        addNode(FILENODE, folder, NodeMeta{"c_IMG_20231115_061321.jpg", FILENODE, 120, 1719964800});
+        addNode(FILENODE, folder, NodeMeta{"d_IMG_20231114_221321.jpg", FILENODE, 130, 1720137600});
+        addNode(FILENODE, folder, NodeMeta{"e_vid_20231116_120000.mp4", FILENODE, 140, 1720224000});
+        addNode(FILENODE, folder, NodeMeta{"z_zero.jpg", FILENODE, 150, 0});
+
+        if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
+            sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+    }
+
+    DBTableNodes* tableNodes()
+    {
+        return dynamic_cast<DBTableNodes*>(mClient->sctable.get());
+    }
+
+    std::vector<DateSection> runSections(DateSectionGranularity g,
+                                         int order,
+                                         MimeType_t mime = MIME_TYPE_PHOTO,
+                                         int64_t tzOffsetSeconds = 0)
+    {
+        DateSectionParams p;
+        p.mimeType = mime;
+        p.order = order;
+        p.granularity = g;
+        p.tzOffsetSeconds = tzOffsetSeconds;
+
+        std::vector<DateSection> out;
+        tableNodes()->groupAllNodesByDate(p, {mFolder}, out, CancelToken{});
+        return out;
+    }
+
+    std::vector<std::pair<NodeHandle, NodeSerialized>>
+        runListAll(int order,
+                   std::optional<TimestampAnchorFilter> anchor = std::nullopt,
+                   MimeType_t mime = MIME_TYPE_PHOTO)
+    {
+        auto p = makeParams(mime,
+                            order,
+                            /*maxElements=*/0,
+                            /*excludeSensitive=*/false,
+                            /*cursor=*/std::nullopt,
+                            /*explicitAncestors=*/{mFolder},
+                            /*excludeHandles=*/{},
+                            /*locationScope=*/1);
+        p.timestampAnchor = anchor;
+
+        std::vector<std::pair<NodeHandle, NodeSerialized>> out;
+        tableNodes()->listAllNodesByPage(p, {mFolder}, out, CancelToken{});
+        return out;
+    }
+
+    // Names in row order, looked up via NodeManager.
+    std::vector<std::string> namesOf(const std::vector<std::pair<NodeHandle, NodeSerialized>>& rows)
+    {
+        std::vector<std::string> result;
+        result.reserve(rows.size());
+        for (const auto& [h, _]: rows)
+        {
+            auto n = mClient->mNodeManager.getNodeByHandle(h);
+            result.push_back(n ? n->displayname() : "<missing>");
+        }
+        return result;
+    }
+
+    std::set<std::string> nameSetOf(const std::vector<std::pair<NodeHandle, NodeSerialized>>& rows)
+    {
+        const auto v = namesOf(rows);
+        return std::set<std::string>(v.begin(), v.end());
+    }
+
+    // The 2023-11-15 day bucket at tz=0, as groupAllNodesByDate reports it.
+    static TimestampAnchorFilter nov15AnchorAsc()
+    {
+        TimestampAnchorFilter ta;
+        ta.mOrder = OrderByClause::MEDIATS_ASC;
+        ta.mStartSeconds = 1700006400; // 2023-11-15 00:00:00 UTC inclusive
+        ta.mEndSeconds = 1700092800; // 2023-11-16 00:00:00 UTC exclusive
+        return ta;
+    }
+};
+
+// T1 — the decisive direction test. An ASC mediats anchor must enforce the
+// bucket's LOWER bound. isAscOrder() had no MEDIATS_ASC case before this change,
+// so without it this anchor is treated as DESC and walks backwards from
+// mEndSeconds, pulling in d_ (older than the bucket) instead of excluding it.
+TEST_F(MediaTsDateSectionTest, MediaTsAscAnchor_EnforcesLowerBound)
+{
+    const auto rows = runListAll(OrderByClause::MEDIATS_ASC, nov15AnchorAsc());
+    const auto names = nameSetOf(rows);
+
+    EXPECT_EQ(names.count("c_IMG_20231115_061321.jpg"), 1u); // == bucket start side
+    EXPECT_EQ(names.count("b_IMG_20231201_000000.jpg"), 1u); // later, end NOT enforced
+    EXPECT_EQ(names.count("a_plain.jpg"), 1u); // later still
+    EXPECT_EQ(names.count("d_IMG_20231114_221321.jpg"), 0u); // before start
+    EXPECT_EQ(names.count("z_zero.jpg"), 0u); // mediats == 0, in no section
+}
+
+// T2 — mediats sections, on a dataset where mediats and mtime disagree. A
+// regression to the mtime column yields 2024-07-* gids instead.
+TEST_F(MediaTsDateSectionTest, MediaTsDesc_DayBucketsComeFromMediaTsNotMtime)
+{
+    const auto sections = runSections(DateSectionGranularity::Day, OrderByClause::MEDIATS_DESC);
+
+    EXPECT_EQ(gidCounts(sections),
+              (std::vector<std::pair<std::string, int64_t>>{{"2024-07-01", 1},
+                                                            {"2023-12-01", 1},
+                                                            {"2023-11-15", 1},
+                                                            {"2023-11-14", 1}}));
+}
+
+// T2b — ASC sections are the same buckets in the opposite order, driven by the
+// descriptor's `descending` flag.
+TEST_F(MediaTsDateSectionTest, MediaTsAsc_SectionsAreOldestFirst)
+{
+    const auto sections = runSections(DateSectionGranularity::Day, OrderByClause::MEDIATS_ASC);
+
+    EXPECT_EQ(gidCounts(sections),
+              (std::vector<std::pair<std::string, int64_t>>{{"2023-11-14", 1},
+                                                            {"2023-11-15", 1},
+                                                            {"2023-12-01", 1},
+                                                            {"2024-07-01", 1}}));
+}
+
+// T3 — the grouped-mime route. Same builder as the simple route but a distinct
+// SQL text (a literal mime IN-list) and therefore a distinct cache slot. The
+// .mp4 lands in 2023-11 only under ALL_VISUAL_MEDIA, so a route that silently
+// dropped the video would report 2 instead of 3.
+TEST_F(MediaTsDateSectionTest, GroupedMime_MediaTsDesc_IncludesVideoBuckets)
+{
+    const auto sections = runSections(DateSectionGranularity::Month,
+                                      OrderByClause::MEDIATS_DESC,
+                                      MIME_TYPE_ALL_VISUAL_MEDIA);
+
+    EXPECT_EQ(gidCounts(sections),
+              (std::vector<std::pair<std::string, int64_t>>{{"2024-07", 1},
+                                                            {"2023-12", 1},
+                                                            {"2023-11", 3}})); // c, d + the .mp4
+
+    // The photo-only route sees the same months but only 2 nodes in 2023-11.
+    const auto photoOnly =
+        runSections(DateSectionGranularity::Month, OrderByClause::MEDIATS_DESC, MIME_TYPE_PHOTO);
+    const DateSection* nov = find(photoOnly, "2023-11");
+    ASSERT_NE(nov, nullptr);
+    EXPECT_EQ(nov->mCount, 2);
+}
+
+// T4a — bucket bounds are UTC epoch SECONDS even though the column is
+// milliseconds, and the pinned values come from the design's validation table.
+TEST_F(MediaTsDateSectionTest, MediaTsSections_Utc_BoundsAreEpochSeconds)
+{
+    const auto sections = runSections(DateSectionGranularity::Day, OrderByClause::MEDIATS_DESC);
+
+    const DateSection* nov14 = find(sections, "2023-11-14");
+    ASSERT_NE(nov14, nullptr);
+    EXPECT_EQ(nov14->mStartDate, 1699920000); // 2023-11-14 00:00:00 UTC
+    EXPECT_EQ(nov14->mEndDate, 1700006400); // 2023-11-15 00:00:00 UTC
+}
+
+// T4b — the SDK-6322 timezone offset composes with the ms division. At +08:00
+// both d_ (22:13 UTC on the 14th) and c_ (06:13 UTC on the 15th) fall on the
+// local 15th, so two separate UTC buckets MERGE into one.
+TEST_F(MediaTsDateSectionTest, MediaTsSections_TzPlus8_MergesAdjacentDayBuckets)
+{
+    const auto sections = runSections(DateSectionGranularity::Day,
+                                      OrderByClause::MEDIATS_DESC,
+                                      MIME_TYPE_PHOTO,
+                                      /*tzOffsetSeconds=*/28800);
+
+    const DateSection* nov15 = find(sections, "2023-11-15");
+    ASSERT_NE(nov15, nullptr);
+    EXPECT_EQ(nov15->mCount, 2); // d_ and c_ share the local day
+    EXPECT_EQ(nov15->mStartDate, 1699977600); // local midnight, back in true UTC
+    EXPECT_EQ(nov15->mEndDate, 1700064000);
+    EXPECT_EQ(find(sections, "2023-11-14"), nullptr); // no longer its own bucket
+}
+
+// T4c — a negative offset walks the other way: b_'s 2023-12-01 00:00 UTC is
+// 2023-11-30 19:00 local at -05:00, so its bucket moves back a day and a month.
+TEST_F(MediaTsDateSectionTest, MediaTsSections_TzMinus5_MovesDec01BackToNov30)
+{
+    const auto sections = runSections(DateSectionGranularity::Day,
+                                      OrderByClause::MEDIATS_DESC,
+                                      MIME_TYPE_PHOTO,
+                                      /*tzOffsetSeconds=*/-18000);
+
+    EXPECT_EQ(find(sections, "2023-12-01"), nullptr);
+    const DateSection* nov30 = find(sections, "2023-11-30");
+    ASSERT_NE(nov30, nullptr);
+    EXPECT_EQ(nov30->mCount, 1);
+}
+
+// T5 — mediats == 0 (no capture timestamp derivable) belongs to no section and
+// must not surface in an anchored page either, matching the mtime semantics.
+TEST_F(MediaTsDateSectionTest, MediaTsZero_ExcludedFromSectionsAndAnchoredPage)
+{
+    const auto sections = runSections(DateSectionGranularity::Day, OrderByClause::MEDIATS_DESC);
+    EXPECT_EQ(find(sections, "1970-01-01"), nullptr);
+
+    int64_t total = 0;
+    for (const auto& s: sections)
+        total += s.mCount;
+    EXPECT_EQ(total, 4) << "5 photos exist; z_zero.jpg has no capture timestamp";
+
+    // A DESC anchor has no lower bound, so without the sentinel filter the
+    // mediats == 0 row would leak into the tail.
+    TimestampAnchorFilter ta;
+    ta.mOrder = OrderByClause::MEDIATS_DESC;
+    ta.mStartSeconds = 0;
+    ta.mEndSeconds = 1900000000; // after every row
+    EXPECT_EQ(nameSetOf(runListAll(OrderByClause::MEDIATS_DESC, ta)).count("z_zero.jpg"), 0u);
+}
+
+// T6 — the behavioural half of Task 1. Two calls, identical but for the anchor's
+// column, against the same SqliteAccountState (hence the same statement cache).
+// If the two anchors shared a cache slot the second call would re-run the first
+// call's mtime predicate and return {a_, b_}.
+TEST_F(MediaTsDateSectionTest, MtimeAndMediaTsAnchors_DoNotShareAPreparedStatement)
+{
+    TimestampAnchorFilter mtimeAnchor;
+    mtimeAnchor.mOrder = OrderByClause::MTIME_DESC;
+    mtimeAnchor.mStartSeconds = 0;
+    mtimeAnchor.mEndSeconds = 1719964800; // 2024-07-03 — excludes c_ and d_ by mtime
+
+    TimestampAnchorFilter mediaTsAnchor;
+    mediaTsAnchor.mOrder = OrderByClause::MEDIATS_DESC;
+    mediaTsAnchor.mStartSeconds = 0;
+    mediaTsAnchor.mEndSeconds = 1700092800; // 2023-11-16 — keeps ONLY c_ and d_
+
+    const auto byMtime = nameSetOf(runListAll(OrderByClause::MEDIATS_DESC, mtimeAnchor));
+    const auto byMediaTs = nameSetOf(runListAll(OrderByClause::MEDIATS_DESC, mediaTsAnchor));
+
+    EXPECT_EQ(byMtime, (std::set<std::string>{"a_plain.jpg", "b_IMG_20231201_000000.jpg"}));
+    EXPECT_EQ(byMediaTs,
+              (std::set<std::string>{"c_IMG_20231115_061321.jpg", "d_IMG_20231114_221321.jpg"}));
 }
 
 } // anonymous namespace

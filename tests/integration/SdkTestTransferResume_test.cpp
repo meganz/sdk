@@ -820,3 +820,164 @@ TEST_F(SdkTestTransfersResumedEvent, event_covers_uploads_and_downloads)
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
     ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_DOWNLOAD));
 }
+
+// EVENT_TRANSFERS_RESUMED must report the cached transfer ID when resume completes
+// via remote copy (same fingerprint, different remote name).
+TEST_F(SdkTestTransfersResumedEvent, event_fired_for_remote_copy_on_resume)
+{
+    constexpr size_t FILE_SIZE = 64;
+    const std::string kSourceName{"source.bin"};
+    const std::string kCopyName{"remote_copy.bin"};
+    const std::string kFolder1Name{"remote_copy_resume_folder1"};
+    const std::string kFolder2Name{"remote_copy_resume_folder2"};
+
+    auto rootNode = makeUniqueFrom(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode);
+
+    auto [errCode1, folder1Handle] = createRemoteFolder(0, kFolder1Name.c_str(), rootNode.get());
+    ASSERT_EQ(errCode1, API_OK);
+    mNodesToDelete.push_back(folder1Handle);
+
+    auto [errCode2, folder2Handle] = createRemoteFolder(0, kFolder2Name.c_str(), rootNode.get());
+    ASSERT_EQ(errCode2, API_OK);
+    mNodesToDelete.push_back(folder2Handle);
+
+    auto folder1Node = makeUniqueFrom(megaApi[0]->getNodeByHandle(folder1Handle));
+    auto folder2Node = makeUniqueFrom(megaApi[0]->getNodeByHandle(folder2Handle));
+    ASSERT_TRUE(folder1Node);
+    ASSERT_TRUE(folder2Node);
+
+    sdk_test::LocalTempFile localFile(fs::current_path() /
+                                          (getFilePrefix() + "remote_copy_resume.bin"),
+                                      FILE_SIZE);
+
+    // Queue an upload before any matching fingerprint exists in the cloud.
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+
+    MegaUploadOptions opts;
+    opts.fileName = kCopyName;
+    opts.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    megaApi[0]->startUpload(localFile.getPath().string().c_str(),
+                            folder1Node.get(),
+                            nullptr,
+                            &opts,
+                            nullptr);
+
+    ASSERT_TRUE(
+        waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, defaultTimeoutMs))
+        << "Queued upload did not appear within timeout";
+
+    auto transferList = makeUniqueFrom(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    ASSERT_TRUE(transferList && transferList->size() == 1);
+    const uint32_t queuedUniqueId = transferList->get(0)->getUniqueId();
+    ASSERT_NE(queuedUniqueId, 0u);
+
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_TRUE(session);
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    // First restart: restore the queued upload, then add a same-fingerprint source elsewhere.
+    mListener.reset();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    ASSERT_TRUE(
+        waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, defaultTimeoutMs))
+        << "Resumed upload did not reappear within timeout";
+
+    transferList.reset(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    ASSERT_TRUE(transferList && transferList->size() == 1);
+    auto copyTransfer = makeUniqueFrom(transferList->get(0)->copy());
+
+    mApi[0].requestFlags[MegaRequest::TYPE_PAUSE_TRANSFER] = false;
+    megaApi[0]->pauseTransfer(copyTransfer.get(), true);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_PAUSE_TRANSFER]))
+        << "Failed to keep the copy upload paused individually";
+
+    mApi[0].requestFlags[MegaRequest::TYPE_PAUSE_TRANSFERS] = false;
+    megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
+    ASSERT_TRUE(waitForResponse(&mApi[0].requestFlags[MegaRequest::TYPE_PAUSE_TRANSFERS]))
+        << "Failed to unpause uploads globally";
+
+    MegaHandle sourceHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &sourceHandle,
+                            localFile.getPath().string().c_str(),
+                            folder2Node.get(),
+                            kSourceName.c_str(),
+                            MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr,
+                            false,
+                            false,
+                            nullptr));
+    ASSERT_NE(sourceHandle, UNDEF);
+
+    ASSERT_TRUE(
+        waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, defaultTimeoutMs))
+        << "Copy upload must remain queued while source upload completes";
+
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+
+    session.reset(dumpSession());
+    ASSERT_TRUE(session);
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    // Second restart: resume must complete via remote copy and report the cached ID.
+    mListener.reset();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    ASSERT_TRUE(WaitFor(
+        [this]
+        {
+            return mListener.firedCount() >= 1;
+        },
+        defaultTimeoutMs))
+        << "EVENT_TRANSFERS_RESUMED was not fired after remote-copy resume";
+
+    EXPECT_EQ(mListener.firedCount(), 1) << "EVENT_TRANSFERS_RESUMED must fire exactly once";
+
+    const auto eventIds = mListener.ids();
+    ASSERT_EQ(eventIds.size(), 1u) << "Event must contain exactly one resumed transfer ID";
+    EXPECT_EQ(*eventIds.begin(), queuedUniqueId)
+        << "Event ID must match the cached transfer unique ID from before restart";
+
+    ASSERT_TRUE(
+        waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 0, defaultTimeoutMs))
+        << "Remote-copy resume must not leave an upload transfer in the queue";
+
+    ASSERT_TRUE(waitForEvent(
+        [this, folder1Handle, kCopyName]()
+        {
+            auto folder = makeUniqueFrom(megaApi[0]->getNodeByHandle(folder1Handle));
+            if (!folder)
+                return false;
+            auto copyNode =
+                makeUniqueFrom(megaApi[0]->getChildNode(folder.get(), kCopyName.c_str()));
+            return copyNode != nullptr;
+        },
+        maxTimeout))
+        << "Remote copy node was not created after resume";
+
+    auto folder1After = makeUniqueFrom(megaApi[0]->getNodeByHandle(folder1Handle));
+    ASSERT_TRUE(folder1After);
+    EXPECT_EQ(megaApi[0]->getNumChildren(folder1After.get()), 1)
+        << "Folder1 must contain the remote-copy node";
+
+    // A remote copy reuses the source node key, whereas a plain re-upload would generate a fresh
+    // random key. Comparing the keys proves the resume completed through the remote-copy branch and
+    // not through a re-upload that would satisfy every assertion above just the same.
+    auto copyNode = makeUniqueFrom(megaApi[0]->getChildNode(folder1After.get(), kCopyName.c_str()));
+    ASSERT_TRUE(copyNode);
+    auto sourceNode = makeUniqueFrom(megaApi[0]->getNodeByHandle(sourceHandle));
+    ASSERT_TRUE(sourceNode);
+
+    std::unique_ptr<char[]> copyKey{copyNode->getBase64Key()};
+    std::unique_ptr<char[]> sourceKey{sourceNode->getBase64Key()};
+    ASSERT_TRUE(copyKey);
+    ASSERT_TRUE(sourceKey);
+    EXPECT_STREQ(copyKey.get(), sourceKey.get())
+        << "Remote copy must reuse the source node key. A re-upload would get a fresh random key";
+}

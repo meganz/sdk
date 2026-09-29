@@ -1816,7 +1816,9 @@ protected:
     /**
      * @brief Execute network block test
      */
-    void networkBlockTest(MegaClient* client, const std::string& logPre, unsigned int apiIndex)
+    void networkBlockTest([[maybe_unused]] MegaClient* client,
+                          const std::string& logPre,
+                          unsigned int apiIndex)
     {
         std::promise<void> actionPacketStart;
         std::future<void> actionPacketStartFuture = actionPacketStart.get_future();
@@ -1904,7 +1906,9 @@ protected:
      * this by resetting pendingsc, clearing the streaming parser, backing off, and retrying.
      * Eventually all action packets should be processed correctly.
      */
-    void networkFailureTest(MegaClient* client, const std::string& logPre, unsigned int apiIndex)
+    void networkFailureTest([[maybe_unused]] MegaClient* client,
+                            const std::string& logPre,
+                            unsigned int apiIndex)
     {
         std::promise<void> actionPacketStart;
         std::future<void> actionPacketStartFuture = actionPacketStart.get_future();
@@ -2055,7 +2059,9 @@ protected:
     /**
      * @brief Execute incompleted packet test
      */
-    void incompletedPacketTest(MegaClient* client, const std::string& logPre, unsigned int apiIndex)
+    void incompletedPacketTest([[maybe_unused]] MegaClient* client,
+                               const std::string& logPre,
+                               unsigned int apiIndex)
     {
         // Install hook to remove the second half of the first SC response with AP data,
         // making the JSON incomplete while pendingsc status remains REQ_SUCCESS.

@@ -35,12 +35,20 @@ typedef NS_ENUM (NSInteger, MEGAListAllNodesFilterLocation) {
 /**
  * @brief Direction of the date-bucket timestamp anchor (see
  * `timestampAnchorSectionOrder`). Identifies both the timestamp column and the
- * traversal direction; only modification-time ordering is supported.
+ * traversal direction.
+ *
+ * A page is scoped to its bucket only when the listing's `orderType` is the sort
+ * matching the anchor: `MEGASortOrderTypeModification*` for the Modification
+ * values here, `MEGASortOrderTypeMediaTs*` for the MediaTs ones. The MediaTs
+ * values additionally require a media `category` (photo / video / audio /
+ * all-visual-media), since capture time is unset for every other kind of file.
  */
 typedef NS_ENUM (NSInteger, MEGAListAllNodesTimestampAnchorOrder) {
     MEGAListAllNodesTimestampAnchorOrderNone = 0,             ///< Anchor disabled (default).
-    MEGAListAllNodesTimestampAnchorOrderModificationAsc = 1,  ///< Enforce the lower bound; walk forward.
-    MEGAListAllNodesTimestampAnchorOrderModificationDesc = 2  ///< Enforce the upper bound; walk backward.
+    MEGAListAllNodesTimestampAnchorOrderModificationAsc = 1,  ///< mtime; enforce the lower bound, walk forward.
+    MEGAListAllNodesTimestampAnchorOrderModificationDesc = 2, ///< mtime; enforce the upper bound, walk backward.
+    MEGAListAllNodesTimestampAnchorOrderMediaTsAsc = 3,       ///< mediats; enforce the lower bound, walk forward.
+    MEGAListAllNodesTimestampAnchorOrderMediaTsDesc = 4       ///< mediats; enforce the upper bound, walk backward.
 };
 
 /**
@@ -138,6 +146,10 @@ NS_ASSUME_NONNULL_BEGIN
  * enforces this lower bound. Pagination continues into adjacent buckets, so to
  * fetch ONLY this bucket the caller stops after MEGADateSection.count items.
  * startDate == 0 with a non-zero endDate means "no lower bound" for an ASC anchor.
+ *
+ * Seconds for both timestamp columns, including the millisecond-valued mediats:
+ * the engine scales the bound to the column's units. Only
+ * MEGASearchCursorOffset.lastMediaTsMs is passed in milliseconds.
  */
 @property (nonatomic) int64_t timestampAnchorStartDate;
 
@@ -155,8 +167,11 @@ NS_ASSUME_NONNULL_BEGIN
  * to activate the anchor; MEGAListAllNodesTimestampAnchorOrderNone (default)
  * disables it and leaves the start/end bounds ignored.
  *
- * Independent of the `orderType` passed to the listing call, which controls
- * only the ORDER BY.
+ * The `orderType` passed to the listing call controls only the ORDER BY, never
+ * which bound is enforced. The page is scoped to this bucket ONLY when that
+ * `orderType` is the sort matching this value; any other pairing — a different
+ * timestamp column, or the same column reversed — returns rows from outside the
+ * bucket, ordered so that they look plausible.
  */
 @property (nonatomic) MEGAListAllNodesTimestampAnchorOrder timestampAnchorSectionOrder;
 
