@@ -15965,6 +15965,9 @@ void MegaClient::enabletransferresumption()
     Transfer* t;
     size_t cachedTransfersLoaded = 0;
     size_t cachedFilesLoaded = 0;
+#ifdef MEGA_USE_WSUPLOAD
+    std::uint32_t highestCachedWsFileNo = 0;
+#endif
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
@@ -15983,6 +15986,12 @@ void MegaClient::enabletransferresumption()
                         {
                             transferlist.currentpriority = t->priority;
                         }
+#ifdef MEGA_USE_WSUPLOAD
+                        if (t->type == PUT)
+                        {
+                            highestCachedWsFileNo = std::max(highestCachedWsFileNo, t->ws_fileno);
+                        }
+#endif
                         cachedTransfersLoaded += 1;
                     }
                     else
@@ -15999,6 +16008,14 @@ void MegaClient::enabletransferresumption()
             }
         }
     }
+#ifdef MEGA_USE_WSUPLOAD
+    // SDK-6600: new uploads can start before these are restored (at statecurrent). Keep their
+    // filenos above the cached ones, or a restored upload whose fileno was taken restarts at 0.
+    if (wsEngine())
+    {
+        wsEngine()->reserveFileNos(highestCachedWsFileNo);
+    }
+#endif
     LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
     LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
 

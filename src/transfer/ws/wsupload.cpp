@@ -278,6 +278,11 @@ bool UploadEngine::managerThreadLive() const
     return pImpl->mManagerThreadLive.load(std::memory_order_acquire);
 }
 
+void UploadEngine::reserveFileNos(const std::uint32_t highestPersisted)
+{
+    pImpl->reserveFileNos(highestPersisted);
+}
+
 void UploadEngine::enqueue(Transfer& t)
 {
     pImpl->enqueue(t);

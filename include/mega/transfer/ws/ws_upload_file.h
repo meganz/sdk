@@ -441,6 +441,13 @@ public:
         return mSessionUrlHint;
     }
 
+    // Source path snapshot taken at enqueue. Stable across engine generations (unlike the
+    // transfer tag), so the SDK-6600 wire observer can attribute a frame to its file.
+    const LocalPath& localPath() const noexcept
+    {
+        return mLocalPath;
+    }
+
     void clearSessionUrlHintAndRestart()
     {
         mSessionUrlHint.clear();

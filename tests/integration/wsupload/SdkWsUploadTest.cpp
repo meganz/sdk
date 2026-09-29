@@ -32,18 +32,23 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
+#include <functional>
 #include <future>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <sstream>
 #include <string>
 #include <system_error>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -7581,6 +7586,975 @@ TEST_F(SdkWsUploadTest, FolderUploadPreflightFanOutIsBounded)
     {
         EXPECT_EQ(API_OK, doDeleteNode(0, remoteFolder.get()));
     }
+}
+
+namespace
+{
+
+// SDK-6600 wire capture: every frame the WS engine hands to the transport (onWsChunkSent),
+// tagged with the session it was sent in. The hook captures heap-owned state by value, so a
+// worker-thread invocation racing the uninstall never touches a dead object.
+class WsWireFrameCapture
+{
+public:
+    struct Frame
+    {
+        int session = 0;
+        std::string url;
+        std::uint32_t fileno = 0;
+        ::m_off_t pos = 0;
+        int len = 0;
+        std::string localPath;
+    };
+
+    WsWireFrameCapture():
+        mState(std::make_shared<State>())
+    {
+        auto state = mState;
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsChunkSent = [state](const std::string& url,
+                                                            const std::uint32_t fileno,
+                                                            const ::m_off_t pos,
+                                                            const int len,
+                                                            const std::string& localPath)
+        {
+            std::lock_guard<std::mutex> lk(state->m);
+            state->frames.push_back(Frame{state->session.load(), url, fileno, pos, len, localPath});
+        };
+    }
+
+    ~WsWireFrameCapture()
+    {
+        uninstall();
+    }
+
+    WsWireFrameCapture(const WsWireFrameCapture&) = delete;
+    WsWireFrameCapture& operator=(const WsWireFrameCapture&) = delete;
+
+    void uninstall()
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsChunkSent = nullptr;
+    }
+
+    void setSession(const int session)
+    {
+        mState->session.store(session);
+    }
+
+    std::vector<Frame> frames() const
+    {
+        std::lock_guard<std::mutex> lk(mState->m);
+        return mState->frames;
+    }
+
+    // 1 once neither the installed hook nor an in-flight copy of it holds the state.
+    long stateUseCount() const
+    {
+        return mState.use_count();
+    }
+
+private:
+    struct State
+    {
+        std::mutex m;
+        std::atomic<int> session{1};
+        std::vector<Frame> frames;
+    };
+
+    std::shared_ptr<State> mState;
+};
+
+// Holds the action-packet (sc) catch-up, so statecurrent (and resumeTransferFromDB with it)
+// cannot be reached: while armed, every sc request (the only request whose URL carries "?sn=")
+// is answered locally with -3 (API_EAGAIN) instead of being sent, which the client handles as a
+// retryable sc error (clearForScError: back off and retry). onHttpReqPost is read with
+// copy-under-lock, so arming, releasing and uninstalling from the test thread are race-free.
+class ScopedScCatchupBlock
+{
+public:
+    explicit ScopedScCatchupBlock(::mega::MegaApi& api):
+        mApi(api),
+        mState(std::make_shared<State>())
+    {
+        auto state = mState;
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        mPrevious = ::mega::globalMegaTestHooks.onHttpReqPost;
+        ::mega::globalMegaTestHooks.onHttpReqPost =
+            [state, previous = mPrevious](::mega::HttpReq* req) -> bool
+        {
+            if (previous && previous(req))
+            {
+                return true;
+            }
+            if (!req || !state->armed.load() || req->posturl.find("?sn=") == std::string::npos)
+            {
+                return false;
+            }
+            state->blocked.fetch_add(1);
+            req->in = "-3"; // API_EAGAIN
+            req->httpstatus = 200;
+            req->contentlength = static_cast<::m_off_t>(req->in.size());
+            req->bufpos = req->contentlength;
+            req->status = ::mega::REQ_SUCCESS;
+            return true;
+        };
+    }
+
+    ~ScopedScCatchupBlock()
+    {
+        uninstall();
+    }
+
+    ScopedScCatchupBlock(const ScopedScCatchupBlock&) = delete;
+    ScopedScCatchupBlock& operator=(const ScopedScCatchupBlock&) = delete;
+
+    // Lets sc requests through again and cuts the backoff the held catch-up accumulated.
+    void release()
+    {
+        if (mState->armed.exchange(false))
+        {
+            mApi.retryPendingConnections();
+        }
+    }
+
+    void uninstall()
+    {
+        release();
+        if (mInstalled)
+        {
+            mInstalled = false;
+            std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+            ::mega::globalMegaTestHooks.onHttpReqPost = std::move(mPrevious);
+        }
+    }
+
+    unsigned blocked() const
+    {
+        return mState->blocked.load();
+    }
+
+    long stateUseCount() const
+    {
+        return mState.use_count();
+    }
+
+private:
+    struct State
+    {
+        std::atomic<bool> armed{true};
+        std::atomic<unsigned> blocked{0};
+    };
+
+    ::mega::MegaApi& mApi;
+    std::shared_ptr<State> mState;
+    std::function<bool(::mega::HttpReq*)> mPrevious;
+    bool mInstalled = true;
+};
+
+// Per uploaded file name: the terminal result, every temporary error (a whole-file retry goes
+// through Transfer::failed), and the transfer tags seen at start. Covers the transfers that
+// resumeTransferFromDB restores, which the test holds no per-transfer listener for.
+class WsUploadEventsByName final: public ::mega::MegaTransferListener
+{
+public:
+    struct Result
+    {
+        int error = ::mega::API_OK;
+        ::mega::MegaHandle node = ::mega::INVALID_HANDLE;
+    };
+
+    void onTransferStart(::mega::MegaApi*, ::mega::MegaTransfer* transfer) override
+    {
+        if (!isUpload(transfer))
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> g(mMutex);
+        mNameByTag[transfer->getTag()] = transfer->getFileName();
+    }
+
+    void onTransferTemporaryError(::mega::MegaApi*,
+                                  ::mega::MegaTransfer* transfer,
+                                  ::mega::MegaError* error) override
+    {
+        if (!isUpload(transfer) || !error)
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> g(mMutex);
+        mTemporaryErrors[transfer->getFileName()].push_back(error->getErrorCode());
+    }
+
+    void onTransferFinish(::mega::MegaApi*,
+                          ::mega::MegaTransfer* transfer,
+                          ::mega::MegaError* error) override
+    {
+        if (!isUpload(transfer) || !error)
+        {
+            return;
+        }
+        std::lock_guard<std::mutex> g(mMutex);
+        mResults[transfer->getFileName()] =
+            Result{error->getErrorCode(), transfer->getNodeHandle()};
+    }
+
+    std::optional<Result> finished(const std::string& fileName) const
+    {
+        std::lock_guard<std::mutex> g(mMutex);
+        const auto it = mResults.find(fileName);
+        if (it == mResults.end())
+        {
+            return std::nullopt;
+        }
+        return it->second;
+    }
+
+    std::vector<int> temporaryErrors(const std::string& fileName) const
+    {
+        std::lock_guard<std::mutex> g(mMutex);
+        const auto it = mTemporaryErrors.find(fileName);
+        return it == mTemporaryErrors.end() ? std::vector<int>{} : it->second;
+    }
+
+    std::string nameOfTag(const int tag) const
+    {
+        std::lock_guard<std::mutex> g(mMutex);
+        const auto it = mNameByTag.find(tag);
+        return it == mNameByTag.end() ? "tag " + std::to_string(tag) : it->second;
+    }
+
+private:
+    static bool isUpload(::mega::MegaTransfer* transfer)
+    {
+        return transfer && transfer->getFileName() &&
+               transfer->getType() == ::mega::MegaTransfer::TYPE_UPLOAD;
+    }
+
+    mutable std::mutex mMutex;
+    std::map<std::string, Result> mResults;
+    std::map<std::string, std::vector<int>> mTemporaryErrors;
+    std::map<int, std::string> mNameByTag;
+};
+
+// Every WS session-URL transition (onWsSessionUrlTransition: onStart re-population and pinned-
+// URL invalidation), so that a resume failure on the fix can be attributed to an environmental
+// URL death rather than to the product. Heap-owned state captured by value, like the others.
+class WsUrlTransitionLog
+{
+public:
+    struct Entry
+    {
+        int tag = 0;
+        std::string oldUrl;
+        std::string newUrl;
+        std::string reason;
+    };
+
+    WsUrlTransitionLog():
+        mState(std::make_shared<State>())
+    {
+        auto state = mState;
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsSessionUrlTransition = [state](const int tag,
+                                                                       const std::string& oldUrl,
+                                                                       const std::string& newUrl,
+                                                                       const char* reason)
+        {
+            std::lock_guard<std::mutex> lk(state->m);
+            state->entries.push_back(Entry{tag, oldUrl, newUrl, reason ? reason : ""});
+        };
+    }
+
+    ~WsUrlTransitionLog()
+    {
+        uninstall();
+    }
+
+    WsUrlTransitionLog(const WsUrlTransitionLog&) = delete;
+    WsUrlTransitionLog& operator=(const WsUrlTransitionLog&) = delete;
+
+    void uninstall()
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsSessionUrlTransition = nullptr;
+    }
+
+    std::vector<Entry> entries() const
+    {
+        std::lock_guard<std::mutex> lk(mState->m);
+        return mState->entries;
+    }
+
+    long stateUseCount() const
+    {
+        return mState.use_count();
+    }
+
+private:
+    struct State
+    {
+        std::mutex m;
+        std::vector<Entry> entries;
+    };
+
+    std::shared_ptr<State> mState;
+};
+
+// Whether the WS engine tracks the PUT transfer of local file `fileName` (probed on the client
+// thread); nullopt when the probe did not answer or no such transfer exists.
+std::optional<bool> wsEngineTracksUpload(::mega::MegaApi& api, const std::string& fileName)
+{
+    std::optional<bool> tracked;
+    const bool answered = runOnClientThreadWithResult<std::optional<bool>>(
+        api,
+        tracked,
+        30,
+        [fileName](::mega::MegaClient* client,
+                   std::shared_ptr<std::promise<std::optional<bool>>> promise)
+        {
+            std::optional<bool> result;
+            if (client && client->wsEngine())
+            {
+                for (const auto& entry: client->multi_transfers[::mega::PUT])
+                {
+                    ::mega::Transfer* const t = entry.second;
+                    if (t && t->localfilename.leafName().toPath(false) == fileName)
+                    {
+                        result = client->wsEngine()->isTrackedForTesting(*t);
+                        break;
+                    }
+                }
+            }
+            promise->set_value(result);
+        });
+    return answered ? tracked : std::nullopt;
+}
+
+bool endsWith(const std::string& text, const std::string& suffix)
+{
+    return text.size() >= suffix.size() &&
+           text.compare(text.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+// The PUT transfer of local file `fileName` (multi_transfers + transferlist), if any.
+std::optional<WsUploadTransferSnapshot> wsSnapshotOf(::mega::MegaApi& api,
+                                                     const std::string& fileName)
+{
+    std::vector<WsUploadTransferSnapshot> uploads;
+    if (fetchWsUploadTransferSnapshots(api, uploads, 30))
+    {
+        for (auto& snapshot: uploads)
+        {
+            if (snapshot.fileName == fileName)
+            {
+                return std::move(snapshot);
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+bool waitForWsSnapshotOf(::mega::MegaApi& api,
+                         const std::string& fileName,
+                         const std::function<bool(const WsUploadTransferSnapshot&)>& predicate,
+                         const int timeoutSeconds,
+                         WsUploadTransferSnapshot& out)
+{
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(timeoutSeconds);
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (auto snapshot = wsSnapshotOf(api, fileName); snapshot && predicate(*snapshot))
+        {
+            out = std::move(*snapshot);
+            return true;
+        }
+        ::WaitMillisec(200);
+    }
+    return false;
+}
+
+} // namespace
+
+/**
+ * @brief SDK-6600 Timeline A: a restart in which a new upload is enqueued before the transfer
+ *        cache is restored must never feed a persisted wss:// URL a fileno used by another file.
+ *
+ * - Session 1: B, then C, are partially uploaded on ONE pool URL (B is paused so the pool moves
+ *   on to C, then resumed); their persisted (fileno, URL) are recorded. Every frame on the wire
+ *   is captured from the start through onWsChunkSent.
+ * - Session 2: the sc catch-up is held, so statecurrent and resumeTransferFromDB cannot run.
+ *   New upload N1 is enqueued and paused (it stays live) while B and C are verifiably NOT
+ *   restored. Precondition, asserted: N1 took B's or C's cached fileno (unseeded engine) or a
+ *   fileno above both (seeded engine). Then the hold is released and B and C are restored.
+ * - (i) no (URL, fileno) pair seen on the wire in either session serves two local files;
+ *   (i-b) no session-2 frame at pos > 0 on a session-1 URL uses a (URL, fileno) whose byte 0
+ *   another file (or none) fed: a mid-file resume under a foreign or fresh fileno, whichever
+ *   of B and C is restored first; (ii) B and C resume: session-2 frames only on their session-1
+ *   (URL, fileno), none at byte 0, and fewer distinct bytes than the file (URL transitions and
+ *   temporary errors are attached for attribution); (iii) all three complete and every cloud
+ *   node's content matches its source; (iv) hygiene: no pinned-pool reference survives on the
+ *   session-1 URL and every hook is uninstalled.
+ */
+TEST_F(SdkWsUploadTest, RestartWithNewUploadsFirstNeverRecyclesFilenoOnPersistedUrl)
+{
+    LOG_info << "___TEST SdkWsUploadRestartWithNewUploadsFirstNeverRecyclesFilenoOnPersistedUrl___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    constexpr int kWaitS = 180;
+    constexpr int kCompletionWaitS = 420;
+    constexpr int kSpeedCapBps = 100000;
+    constexpr size_t kFileSize = kWsUploadDefaultFileSize;
+    const std::string stamp =
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count());
+    const std::string fileB = "ws_fileno_recycle_B_" + stamp + ".bin";
+    const std::string fileC = "ws_fileno_recycle_C_" + stamp + ".bin";
+    const std::string fileN = "ws_fileno_recycle_N1_" + stamp + ".bin";
+    // Distinct contents: distinct fingerprints (no remote-copy dedup) and a detectable mix-up.
+    ASSERT_TRUE(createFileWithSize(fileB, kFileSize, "B6600")) << "Couldn't create " << fileB;
+    ASSERT_TRUE(createFileWithSize(fileC, kFileSize, "C6600")) << "Couldn't create " << fileC;
+    ASSERT_TRUE(createFileWithSize(fileN, kFileSize, "N6600")) << "Couldn't create " << fileN;
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileB, &fileC, &fileN]()
+        {
+            deleteFile(fileB);
+            deleteFile(fileC);
+            deleteFile(fileN);
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    const std::map<std::string, std::string> sourceHash{
+        {fileB, sdk_test::hashFileHex(fs::path(fileB))},
+        {fileC, sdk_test::hashFileHex(fs::path(fileC))},
+        {fileN, sdk_test::hashFileHex(fs::path(fileN))}};
+    const auto fileLabel = [&fileB, &fileC, &fileN](const std::string& localPath) -> std::string
+    {
+        if (endsWith(localPath, fileB))
+            return "B";
+        if (endsWith(localPath, fileC))
+            return "C";
+        if (endsWith(localPath, fileN))
+            return "N1";
+        return localPath;
+    };
+
+    // The capture runs from the very first frame of session 1.
+    WsWireFrameCapture wire;
+
+    RequestTracker ct(megaApi[0].get());
+    megaApi[0]->setMaxConnections(1, &ct);
+    ASSERT_EQ(API_OK, ct.waitForResult(60)) << "setMaxConnections() failed or timed out";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    ScopedUploadSpeedLimit restoreUploadSpeed{*megaApi[0], kSpeedCapBps};
+    auto uploadOptions = makeDefaultUploadOptions();
+
+    const auto pauseByTag = [this](const int tag, const bool pause)
+    {
+        RequestTracker rt(megaApi[0].get());
+        megaApi[0]->pauseTransferByTag(tag, pause, &rt);
+        return rt.waitForResult(60);
+    };
+    const auto resumable = [](const WsUploadTransferSnapshot& snapshot)
+    {
+        return snapshot.wsFileno > 0 && !snapshot.serializedWsSessionUrl.empty() &&
+               snapshot.pos > 0;
+    };
+    const auto hasFileno = [](const WsUploadTransferSnapshot& snapshot)
+    {
+        return snapshot.wsFileno > 0;
+    };
+
+    // ---- Session 1: B, then C, partially uploaded on one pool URL ----
+    TransferTracker trackerB(megaApi[0].get());
+    megaApi[0]->startUpload(fileB, rootnode.get(), nullptr, &uploadOptions, &trackerB);
+    WsUploadTransferSnapshot b1{};
+    ASSERT_TRUE(waitForWsSnapshotOf(*megaApi[0], fileB, resumable, kWaitS, b1))
+        << "B never became resumable (fileno, persisted URL, pos > 0) in session 1";
+    ASSERT_TRUE(trackerB.started);
+    // A pool uploads one file at a time: pause B so that its pool moves on to C.
+    ASSERT_EQ(API_OK, pauseByTag(trackerB.mTag.load(), true)) << "Pausing B failed";
+
+    TransferTracker trackerC(megaApi[0].get());
+    megaApi[0]->startUpload(fileC, rootnode.get(), nullptr, &uploadOptions, &trackerC);
+    WsUploadTransferSnapshot c1{};
+    ASSERT_TRUE(waitForWsSnapshotOf(*megaApi[0], fileC, resumable, kWaitS, c1))
+        << "C never became resumable (fileno, persisted URL, pos > 0) in session 1";
+    ASSERT_EQ(API_OK, pauseByTag(trackerB.mTag.load(), false)) << "Resuming B failed";
+    ASSERT_FALSE(trackerB.finished) << "B finished in session 1: nothing left to restore";
+    ASSERT_FALSE(trackerC.finished) << "C finished in session 1: nothing left to restore";
+
+    // Precondition: B and C were fed on ONE URL with distinct filenos, so a recycle of either
+    // fileno on that URL is observable on the wire.
+    const std::string urlS1 = b1.serializedWsSessionUrl;
+    ASSERT_EQ(c1.serializedWsSessionUrl, urlS1)
+        << "precondition not reached: B and C were not uploaded on the same pool URL in session 1";
+    ASSERT_NE(b1.wsFileno, c1.wsFileno);
+    const auto sawFrame = [](const std::vector<WsWireFrameCapture::Frame>& frames,
+                             const std::string& url,
+                             const std::uint32_t fileno,
+                             const std::string& fileName)
+    {
+        return std::any_of(frames.begin(),
+                           frames.end(),
+                           [&](const WsWireFrameCapture::Frame& frame)
+                           {
+                               return frame.url == url && frame.fileno == fileno &&
+                                      endsWith(frame.localPath, fileName);
+                           });
+    };
+    {
+        const auto session1 = wire.frames();
+        ASSERT_TRUE(sawFrame(session1, urlS1, b1.wsFileno, fileB))
+            << "The wire capture never saw B's session-1 frames: onWsChunkSent is not firing";
+        ASSERT_TRUE(sawFrame(session1, urlS1, c1.wsFileno, fileC))
+            << "The wire capture never saw C's session-1 frames: onWsChunkSent is not firing";
+    }
+    LOG_info << "[FilenoRecycle] session 1: U1=" << urlS1 << " B=(U1, fileno " << b1.wsFileno
+             << ", pos " << b1.pos << ") C=(U1, fileno " << c1.wsFileno << ", pos " << c1.pos
+             << ")";
+
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+    for (TransferTracker* tracker: {&trackerB, &trackerC})
+    {
+        const int interrupted = tracker->waitForResult();
+        ASSERT_TRUE(interrupted == API_EACCESS || interrupted == API_EINCOMPLETE)
+            << "Upload interrupted with unexpected code: " << interrupted;
+    }
+    // The session-1 engine is gone: every later frame belongs to session 2.
+    wire.setSession(2);
+
+    // ---- Session 2: N1 enqueued while the sc catch-up (and so the restore) is held ----
+    WsUploadEventsByName events;
+    megaApi[0]->addTransferListener(&events);
+    auto removeEvents = makeScopedDestructor(
+        [this, &events]()
+        {
+            megaApi[0]->removeTransferListener(&events);
+        });
+    // Session-2 URL transitions and temporary errors are recorded so that a resume failure on
+    // the fix can be told apart from an environmental pinned-URL death or whole-file retry.
+    WsUrlTransitionLog urlTransitions;
+
+    ScopedScCatchupBlock scHold{*megaApi[0]};
+    mApi[0].resetlastEvent();
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    // The session-cache fetchnodes reports its result before (and without) the sc catch-up; a
+    // server fetchnodes would wait for statecurrent, which the hold keeps out of reach.
+    RequestTracker fetchTracker(megaApi[0].get());
+    megaApi[0]->fetchNodes(&fetchTracker);
+    ASSERT_EQ(API_OK, fetchTracker.waitForResult(kWaitS))
+        << "fetchnodes did not complete while the sc catch-up was held: this cell needs the "
+           "session-cache fetchnodes path";
+    megaApi[0]->setMaxUploadSpeed(kSpeedCapBps);
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+
+    TransferTracker trackerN(megaApi[0].get());
+    megaApi[0]->startUpload(fileN, rootnode.get(), nullptr, &uploadOptions, &trackerN);
+    WsUploadTransferSnapshot n1{};
+    ASSERT_TRUE(waitForWsSnapshotOf(*megaApi[0], fileN, hasFileno, kWaitS, n1))
+        << "N1 never got a WS fileno while the sc catch-up was held";
+    ASSERT_TRUE(WaitFor(
+        [&trackerN]()
+        {
+            return trackerN.started.load();
+        },
+        static_cast<unsigned>(kWaitS) * 1000u));
+    // Keep N1 live in the engine (and idle) until B and C have been restored behind it.
+    ASSERT_EQ(API_OK, pauseByTag(trackerN.mTag.load(), true)) << "Pausing N1 failed";
+
+    // The hold must hold: B and C not restored, statecurrent not reached, sc intercepted.
+    {
+        std::vector<WsUploadTransferSnapshot> uploads;
+        ASSERT_TRUE(fetchWsUploadTransferSnapshots(*megaApi[0], uploads, 30));
+        for (const auto& upload: uploads)
+        {
+            ASSERT_NE(upload.fileName, fileB) << "B was restored while the sc catch-up was held";
+            ASSERT_NE(upload.fileName, fileC) << "C was restored while the sc catch-up was held";
+        }
+        bool stateCurrent = true;
+        ASSERT_TRUE(runOnClientThreadWithResult<bool>(
+            *megaApi[0],
+            stateCurrent,
+            30,
+            [](::mega::MegaClient* client, std::shared_ptr<std::promise<bool>> promise)
+            {
+                promise->set_value(client && client->statecurrent);
+            }));
+        ASSERT_FALSE(stateCurrent) << "statecurrent was reached while the sc catch-up was held";
+        ASSERT_FALSE(mApi[0].lastEventsContain(MegaEvent::EVENT_NODES_CURRENT));
+        ASSERT_GT(scHold.blocked(), 0u) << "No sc request was intercepted: the hold is vacuous";
+        ASSERT_EQ(wsEngineTracksUpload(*megaApi[0], fileN), std::optional<bool>{true})
+            << "N1 is not tracked by the WS engine while the sc catch-up is held";
+    }
+
+    // Precondition: the Timeline A collision is reached (unseeded engine: N1 took a cached
+    // fileno) or provably avoided by the seed (N1 above every cached fileno). Anything else
+    // means this run exercises neither, and must not pass.
+    const bool collided = n1.wsFileno == b1.wsFileno || n1.wsFileno == c1.wsFileno;
+    const bool seededAbove = n1.wsFileno > std::max(b1.wsFileno, c1.wsFileno);
+    LOG_info << "[FilenoRecycle] session 2: N1 fileno " << n1.wsFileno << " vs cached B "
+             << b1.wsFileno << " / C " << c1.wsFileno << ": "
+             << (collided    ? "collides with a cached fileno (unseeded engine)" :
+                 seededAbove ? "above every cached fileno (seeded engine)" :
+                               "neither");
+    ASSERT_TRUE(collided || seededAbove)
+        << "precondition not reached: N1 took fileno " << n1.wsFileno << ", neither B's ("
+        << b1.wsFileno << ") nor C's (" << c1.wsFileno << ") cached fileno and not above both";
+
+    scHold.release();
+    for (second_timer currentTimer; !mApi[0].lastEventsContain(MegaEvent::EVENT_NODES_CURRENT) &&
+                                    currentTimer.elapsed() < static_cast<size_t>(kWaitS);)
+    {
+        WaitMillisec(2000);
+        megaApi[0]->retryPendingConnections(); // cut any sc backoff accumulated while held
+    }
+    ASSERT_TRUE(mApi[0].lastEventsContain(MegaEvent::EVENT_NODES_CURRENT))
+        << "statecurrent not reached within " << kWaitS << " s of releasing the sc catch-up";
+
+    WsUploadTransferSnapshot b2{};
+    WsUploadTransferSnapshot c2{};
+    ASSERT_TRUE(waitForWsSnapshotOf(*megaApi[0], fileB, hasFileno, kWaitS, b2))
+        << "B was not restored after statecurrent";
+    ASSERT_TRUE(waitForWsSnapshotOf(*megaApi[0], fileC, hasFileno, kWaitS, c2))
+        << "C was not restored after statecurrent";
+    {
+        const auto n1Now = wsSnapshotOf(*megaApi[0], fileN);
+        ASSERT_TRUE(n1Now && n1Now->wsFileno == n1.wsFileno)
+            << "N1 changed fileno before B and C were restored";
+        ASSERT_EQ(wsEngineTracksUpload(*megaApi[0], fileN), std::optional<bool>{true})
+            << "N1 left the WS engine before B and C were restored";
+    }
+    const auto urlFate = [&urlS1](const std::string& url)
+    {
+        return url == urlS1 ? std::string{"U1 kept"} :
+                              (url.empty() ? std::string{"dropped"} : "other: " + url);
+    };
+    LOG_info << "[FilenoRecycle] restored: B fileno " << b1.wsFileno << "->" << b2.wsFileno << " ("
+             << urlFate(b2.serializedWsSessionUrl) << "), C fileno " << c1.wsFileno << "->"
+             << c2.wsFileno << " (" << urlFate(c2.serializedWsSessionUrl) << ")";
+
+    ASSERT_EQ(API_OK, pauseByTag(trackerN.mTag.load(), false)) << "Resuming N1 failed";
+    megaApi[0]->setMaxUploadSpeed(-1);
+    for (second_timer completionTimer;
+         !(events.finished(fileB) && events.finished(fileC) && events.finished(fileN)) &&
+         completionTimer.elapsed() < static_cast<size_t>(kCompletionWaitS);)
+    {
+        WaitMillisec(500);
+    }
+
+    // ---- Evaluation: the full wire table, then each assertion on its own ----
+    wire.uninstall();
+    urlTransitions.uninstall();
+    const auto frames = wire.frames();
+    const auto transitions = urlTransitions.entries();
+    std::map<std::string, std::string> urlLabel{{urlS1, "U1"}};
+    const auto labelUrl = [&urlLabel](const std::string& url)
+    {
+        if (url.empty())
+        {
+            return std::string{"(none)"};
+        }
+        if (!urlLabel.count(url))
+        {
+            const std::string label = "U" + std::to_string(urlLabel.size() + 1);
+            urlLabel.emplace(url, label);
+        }
+        return urlLabel[url];
+    };
+    for (const auto& frame: frames)
+    {
+        labelUrl(frame.url);
+    }
+    for (const auto& transition: transitions)
+    {
+        labelUrl(transition.oldUrl);
+        labelUrl(transition.newUrl);
+    }
+    for (const auto& [url, label]: urlLabel)
+    {
+        LOG_info << "[FilenoRecycle] " << label << " = " << url;
+    }
+
+    // Session-2 environment per file: URL transitions, temporary errors (whole-file retries)
+    // and restarts from byte 0 on the wire. Printed, and attached to the (ii) messages.
+    const auto environmentOf = [&](const std::string& fileName)
+    {
+        std::ostringstream os;
+        os << " [session-2 URL transitions:";
+        for (const auto& transition: transitions)
+        {
+            if (events.nameOfTag(transition.tag) == fileName)
+            {
+                os << " " << transition.reason << " " << labelUrl(transition.oldUrl) << "->"
+                   << labelUrl(transition.newUrl) << ";";
+            }
+        }
+        os << " temporary errors:";
+        for (const int error: events.temporaryErrors(fileName))
+        {
+            os << " " << error;
+        }
+        os << "; frames at byte 0:";
+        std::size_t restarts = 0;
+        for (const auto& frame: frames)
+        {
+            if (frame.session == 2 && frame.pos == 0 && endsWith(frame.localPath, fileName))
+            {
+                ++restarts;
+            }
+        }
+        os << " " << restarts << "]";
+        return os.str();
+    };
+    for (const auto& transition: transitions)
+    {
+        LOG_info << "[FilenoRecycle] session-2 URL transition: " << transition.reason << " "
+                 << fileLabel(events.nameOfTag(transition.tag)) << " "
+                 << labelUrl(transition.oldUrl) << " -> " << labelUrl(transition.newUrl);
+    }
+    for (const std::string& fileName: {fileB, fileC, fileN})
+    {
+        LOG_info << "[FilenoRecycle] " << fileLabel(fileName) << environmentOf(fileName);
+    }
+
+    struct WireRow
+    {
+        std::size_t frames = 0;
+        ::m_off_t minPos = -1;
+        ::m_off_t maxEnd = 0;
+    };
+
+    std::map<std::tuple<int, std::string, std::uint32_t, std::string>, WireRow> table;
+    std::map<std::pair<std::string, std::uint32_t>, std::set<std::string>> filesByPair;
+    for (const auto& frame: frames)
+    {
+        const std::string file = fileLabel(frame.localPath);
+        WireRow& row =
+            table[std::make_tuple(frame.session, urlLabel[frame.url], frame.fileno, file)];
+        ++row.frames;
+        row.minPos = row.minPos < 0 ? frame.pos : std::min(row.minPos, frame.pos);
+        row.maxEnd = std::max(row.maxEnd, frame.pos + frame.len);
+        filesByPair[std::make_pair(frame.url, frame.fileno)].insert(file);
+    }
+    for (const auto& [key, row]: table)
+    {
+        LOG_info << "[FilenoRecycle] wire: session " << std::get<0>(key) << " " << std::get<1>(key)
+                 << " fileno " << std::get<2>(key) << " file " << std::get<3>(key)
+                 << " frames=" << row.frames << " bytes=[" << row.minPos << ", " << row.maxEnd
+                 << ")";
+    }
+
+    // (i) No (URL, fileno) pair on the wire, across both sessions, serves two local files.
+    std::ostringstream recycled;
+    for (const auto& [urlFileno, owners]: filesByPair)
+    {
+        if (owners.size() > 1)
+        {
+            recycled << " (" << urlLabel[urlFileno.first] << ", fileno " << urlFileno.second
+                     << ") fed";
+            for (const auto& owner: owners)
+            {
+                recycled << " " << owner;
+            }
+            recycled << ";";
+        }
+    }
+    EXPECT_TRUE(recycled.str().empty())
+        << "(i) a (URL, fileno) pair served two files:" << recycled.str();
+
+    // (i-b) Order-independent: in session 2, a frame at pos > 0 on a URL that carried frames in
+    // session 1 continues an upload on that URL, so its (URL, fileno) must already carry the
+    // SAME file's pos-0 frame, fed earlier on the wire (in either session). A mid-file resume
+    // under a foreign or fresh fileno breaks this whichever of B and C is restored first.
+    std::set<std::string> session1Urls;
+    for (const auto& frame: frames)
+    {
+        if (frame.session == 1)
+        {
+            session1Urls.insert(frame.url);
+        }
+    }
+    std::map<std::pair<std::string, std::uint32_t>, std::set<std::string>> startedBy;
+    std::map<std::tuple<std::string, std::uint32_t, std::string>, ::m_off_t> headless;
+    for (const auto& frame: frames) // wire order
+    {
+        const std::string file = fileLabel(frame.localPath);
+        auto& starters = startedBy[std::make_pair(frame.url, frame.fileno)];
+        if (frame.pos == 0)
+        {
+            starters.insert(file);
+        }
+        else if (frame.session == 2 && session1Urls.count(frame.url) && !starters.count(file))
+        {
+            headless.emplace(std::make_tuple(frame.url, frame.fileno, file), frame.pos);
+        }
+    }
+    std::ostringstream headlessText;
+    for (const auto& [key, firstPos]: headless)
+    {
+        const auto& [url, fileno, file] = key;
+        headlessText << " " << file << " on (" << labelUrl(url) << ", fileno " << fileno
+                     << ") from pos " << firstPos << ", pos 0 fed by";
+        const auto& starters = startedBy[std::make_pair(url, fileno)];
+        if (starters.empty())
+        {
+            headlessText << " nobody";
+        }
+        for (const auto& starter: starters)
+        {
+            headlessText << " " << starter;
+        }
+        headlessText << ";";
+    }
+    EXPECT_TRUE(headless.empty())
+        << "(i-b) mid-file resume on a session-1 URL under a (URL, fileno) whose byte 0 another "
+           "file (or no file) fed:"
+        << headlessText.str();
+
+    // (ii) B and C resumed: session-2 frames only on their session-1 (URL, fileno), never from
+    // byte 0, and fewer distinct bytes than the file.
+    for (const auto& [fileName, before]: {std::make_pair(fileB, b1), std::make_pair(fileC, c1)})
+    {
+        const std::string label = fileLabel(fileName);
+        std::set<std::pair<std::string, std::uint32_t>> pairs;
+        std::map<::m_off_t, int> lenByPos;
+        for (const auto& frame: frames)
+        {
+            if (frame.session == 2 && endsWith(frame.localPath, fileName))
+            {
+                pairs.emplace(frame.url, frame.fileno);
+                lenByPos[frame.pos] = frame.len;
+            }
+        }
+        const std::string environment = environmentOf(fileName);
+        EXPECT_FALSE(lenByPos.empty())
+            << "(ii) " << label << " sent no frame in session 2" << environment;
+        if (lenByPos.empty())
+        {
+            continue;
+        }
+        std::ostringstream seen;
+        for (const auto& [url, fileno]: pairs)
+        {
+            seen << " (" << urlLabel[url] << ", fileno " << fileno << ")";
+        }
+        const std::set<std::pair<std::string, std::uint32_t>> expected{
+            std::make_pair(before.serializedWsSessionUrl, before.wsFileno)};
+        EXPECT_EQ(pairs, expected)
+            << "(ii) " << label << " did not resume on its session-1 (U1, fileno "
+            << before.wsFileno << "); session 2 fed" << seen.str() << environment;
+        ::m_off_t distinctBytes = 0;
+        for (const auto& [pos, len]: lenByPos)
+        {
+            distinctBytes += len;
+        }
+        EXPECT_GT(lenByPos.begin()->first, 0)
+            << "(ii) " << label << " restarted from byte 0 in session 2" << environment;
+        EXPECT_LT(distinctBytes, static_cast<::m_off_t>(kFileSize))
+            << "(ii) " << label << " re-sent " << distinctBytes << " distinct bytes of "
+            << kFileSize << " in session 2 (restarted, not resumed)" << environment;
+    }
+
+    // (iii) All three complete and each cloud node's content matches its source.
+    for (const std::string& fileName: {fileB, fileC, fileN})
+    {
+        const std::string label = fileLabel(fileName);
+        const auto result = events.finished(fileName);
+        EXPECT_TRUE(result.has_value())
+            << "(iii) " << label << " did not finish within " << kCompletionWaitS << " s";
+        if (!result)
+        {
+            continue;
+        }
+        EXPECT_EQ(result->error, API_OK)
+            << "(iii) " << label << " finished with " << MegaError::getErrorString(result->error);
+        if (result->error != API_OK)
+        {
+            continue;
+        }
+        std::unique_ptr<MegaNode> node{megaApi[0]->getNodeByHandle(result->node)};
+        EXPECT_TRUE(node) << "(iii) " << label << " has no cloud node";
+        if (!node)
+        {
+            continue;
+        }
+        EXPECT_EQ(node->getSize(), static_cast<long long>(kFileSize))
+            << "(iii) " << label << " cloud node has the wrong size";
+        const fs::path downloadPath = fs::current_path() / ("dl_" + fileName);
+        std::error_code ignored;
+        fs::remove(downloadPath, ignored);
+        TransferTracker downloadTracker(megaApi[0].get());
+        megaApi[0]->startDownload(node.get(),
+                                  downloadPath.string().c_str(),
+                                  nullptr /*customName*/,
+                                  nullptr /*appData*/,
+                                  false /*startFirst*/,
+                                  nullptr /*cancelToken*/,
+                                  MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                  MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                                  false /*undelete*/,
+                                  &downloadTracker);
+        const auto downloaded = downloadTracker.waitForResult(300);
+        EXPECT_EQ(downloaded, API_OK)
+            << "(iii) " << label << " download failed (API_EKEY = corrupted meta-MAC)";
+        if (downloaded == API_OK)
+        {
+            EXPECT_EQ(sdk_test::hashFileHex(downloadPath), sourceHash.at(fileName))
+                << "(iii) " << label << " cloud content differs from its source";
+        }
+        fs::remove(downloadPath, ignored);
+    }
+
+    // (iv) Hygiene (holds on every arm): once everything finished, no pinned pool keeps a file
+    // reference on the session-1 URL, and no hook or hook state survives.
+    ::mega::ws::UploadEngine::PoolStateForTesting pool{};
+    const bool noStaleReference = waitForWsUploadPoolStateForTesting(
+        *megaApi[0],
+        urlS1,
+        pool,
+        [](const ::mega::ws::UploadEngine::PoolStateForTesting& state)
+        {
+            return !state.found ||
+                   (!state.hasReference && state.numPoolFiles == 0 && !state.hasUploadingFile);
+        },
+        30,
+        500);
+    if (!noStaleReference)
+    {
+        fetchWsUploadPoolStateForTesting(*megaApi[0], urlS1, pool, 10);
+    }
+    EXPECT_TRUE(noStaleReference) << "(iv) the pinned pool for U1 still references a file [found="
+                                  << pool.found << " numPoolFiles=" << pool.numPoolFiles
+                                  << " uploading=" << pool.hasUploadingFile
+                                  << " hasReference=" << pool.hasReference
+                                  << " retiring=" << pool.retiring << "]";
+
+    scHold.uninstall();
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        EXPECT_FALSE(::mega::globalMegaTestHooks.onWsChunkSent)
+            << "(iv) the wire hook is still installed";
+        EXPECT_FALSE(::mega::globalMegaTestHooks.onWsSessionUrlTransition)
+            << "(iv) the URL-transition hook is still installed";
+    }
+    EXPECT_TRUE(WaitFor(
+        [&wire, &scHold, &urlTransitions]()
+        {
+            return wire.stateUseCount() == 1 && scHold.stateUseCount() == 1 &&
+                   urlTransitions.stateUseCount() == 1;
+        },
+        10000))
+        << "(iv) a hook copy still holds its capture state [wire=" << wire.stateUseCount()
+        << " sc=" << scHold.stateUseCount() << " transitions=" << urlTransitions.stateUseCount()
+        << "]";
 }
 
 } // namespace mega::test::wsupload
