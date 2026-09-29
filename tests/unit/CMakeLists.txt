@@ -10,6 +10,7 @@ target_sources(test_unit
     FsNode.h
     NotImplemented.h
     utils.h
+    WsUploadFilenoHarness.h
 
     main.cpp
     Arguments_test.cpp
@@ -75,6 +76,8 @@ target_sources(test_unit
     sc_streaming_parser_test.cpp
     TestHooks_test.cpp
     WsUpload_test.cpp
+    WsUploadFileno_test.cpp
+    WsUploadFilenoSeed_test.cpp
     WsQuota_test.cpp
     MediaTs_test.cpp
     MediaTs_db_test.cpp

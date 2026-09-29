@@ -799,6 +799,18 @@ namespace mega {
         // Used by SdkWsUploadTest.OverquotaDuringTransfer to deterministically exercise
         // the WS-channel OVERQUOTA path without depending on staging quota state.
         std::function<bool(int /*transferTag*/)> onWsChunkSendOverquota;
+        // SDK-6600 wire observer: fires in WsPool::sendChunk right before a frame is handed to
+        // WsConn::sendChunkData, i.e. once per frame put on the wire (fresh chunks, resent
+        // chunks and the zero-length EOF frame alike). Carries the pool URL the connection is
+        // bound to, the frame's fileno/pos/len and the owning file's local path, which (unlike
+        // the transfer tag) is stable across sessions. Fires on a WS worker thread with the
+        // engine uploadMutex held: the callback must only record, never call engine APIs.
+        std::function<void(const std::string& /*url*/,
+                           std::uint32_t /*fileno*/,
+                           m_off_t /*pos*/,
+                           int /*len*/,
+                           const std::string& /*localPath*/)>
+            onWsChunkSent;
         // S15 FIX-T regression seam: fired once from wsLocallogoutCleanup after the
         // worker quiesce window with the engine's count of worker-loop iterations
         // executed while stopping() was already true. Post-fix invariant: <=1 per
@@ -933,6 +945,7 @@ namespace mega {
                 std::move(other.onWsUploadTailCompletionTimeoutDs);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
+            onWsChunkSent = std::move(other.onWsChunkSent);
             onWsTfsIssued = std::move(other.onWsTfsIssued);
             onWsTfsResult = std::move(other.onWsTfsResult);
             onWsQuotaHoldChanged = std::move(other.onWsQuotaHoldChanged);
@@ -1414,6 +1427,23 @@ namespace mega {
         } \
         while (0)
 
+    // SDK-6600 per-frame wire observer. LOCALPATH is only evaluated when a hook is installed,
+    // so the uninstalled path costs one lock and one empty-function copy per frame.
+#define DEBUG_TEST_HOOK_WS_CHUNK_SENT(URL, FILENO, POS, LEN, LOCALPATH) \
+        do \
+        { \
+            std::function< \
+                void(const std::string&, std::uint32_t, m_off_t, int, const std::string&)> \
+                _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsChunkSent; \
+            } \
+            if (_fn) \
+                _fn((URL), (FILENO), (POS), (LEN), (LOCALPATH)); \
+        } \
+        while (0)
+
     // SDK-6298 WS upload-quota ledger hooks. Copy-under-lock / invoke-outside-lock
     // like every other hook; all fire on the client thread with no engine lock held.
 #define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN) \
@@ -1650,6 +1680,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_PURGE_INFLIGHT(FILENO, OUT_PURGE)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
+#define DEBUG_TEST_HOOK_WS_CHUNK_SENT(URL, FILENO, POS, LEN, LOCALPATH)
 #define DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(COUNT)
 #define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN)
 #define DEBUG_TEST_HOOK_WS_TFS_RESULT(GEN, ERR, GROUPS, ACTION)

@@ -56,6 +56,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <list>
+#include <map>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -115,6 +116,30 @@ dstime wsTailCompletionTimeoutDsEnvDefault(); // MEGA_WS_TAIL_COMPLETION_TIMEOUT
 // it is a small-file overhead concern, not loss-recovery, so it is NOT ANDed with
 // mLossRecovery in the ctor. Default ON; only an explicit "0" disables.
 bool wsSmallFileColdStartEnvDefault(); // MEGA_WS_SMALLFILE_COLDSTART -> mSmallFileColdStart
+
+// SDK-6600: every fileno one engine has put in service, fresh or kept from the transfer cache.
+// A wss:// URL may receive each fileno for one file only, and a persisted URL outlives the
+// engine, so unlike fileByNo (live files only) nothing is ever removed. Fresh filenos are
+// consecutive, so the set is kept as disjoint closed runs [first, last] that never touch.
+// Guarded by UploadEngine::Impl::uploadMutex.
+class ClaimedFileNos
+{
+public:
+    bool contains(std::uint32_t fileno) const;
+
+    // Adds a non-zero fileno, merging it with the runs it touches. No-op if already claimed.
+    void claim(std::uint32_t fileno);
+
+    // First unclaimed fileno at or after `from`, in allocation order (1..UINT32_MAX, then 1).
+    std::uint32_t firstUnclaimedFrom(std::uint32_t from) const;
+
+private:
+    using Runs = std::map<std::uint32_t, std::uint32_t>; // first -> last
+
+    Runs::const_iterator findRun(std::uint32_t fileno) const;
+
+    Runs mRuns;
+};
 
 // ========== UploadEngine::Impl (queue + mgr + thread) ==========
 //
@@ -223,6 +248,9 @@ public:
 
     // Queue mirrors TransferList ordering and priority.
     void enqueue(Transfer& t);
+
+    // See UploadEngine::reserveFileNos.
+    void reserveFileNos(std::uint32_t highestPersisted);
 
     void reposition(Transfer& t, Transfer* before);
 
@@ -500,6 +528,8 @@ public:
 
     dstime currentTime{0};
     std::atomic<std::uint32_t> nextFileNo{1};
+    // SDK-6600: every fileno this engine has handed out; see enqueue(). Guarded by uploadMutex.
+    ClaimedFileNos mClaimedFileNos;
     unsigned char mPoolConnectionLimit{3};
     m_off_t mMaxUploadSpeed{0};
     m_off_t mUploadBudget{0};
