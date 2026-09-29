@@ -100,12 +100,17 @@ namespace
 // the curl handshake makes progress on the client thread.
 constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
 
-// The worker baton must OUTLIVE the handshake's own CURLOPT_TIMEOUT so a slow
-// handshake is terminated by curl (fast, definitive, frees the easy) rather than
-// abandoned by the baton (which leaves the easy running on the client thread).
-// Slack covers FIFO queueing + the 200ms CV poll granularity. Added to whichever
+// The worker baton must OUTLIVE the handshake's own bound (CURLOPT_TIMEOUT, and
+// wsHandshake's deadline of that timeout + ws::kWsCurlPollSliceMs for the upgrade leg
+// curl >= 8.17 leaves unbounded) so a slow handshake is terminated by wsHandshake (fast,
+// definitive, frees the easy) rather than abandoned by the baton (which leaves the easy
+// running on the client thread). Slack covers FIFO queueing + the 200ms CV poll
+// granularity and must stay larger than that grace plus one CV poll. Added to whichever
 // handshake timeout (baseline or loss) is in effect for this attempt.
 constexpr int WSUPLOAD_HANDSHAKE_BATON_SLACK_MS = 5000;
+static_assert(WSUPLOAD_HANDSHAKE_BATON_SLACK_MS >
+                  kWsCurlPollSliceMs + WSUPLOAD_HANDSHAKE_CV_POLL_MS,
+              "the baton must outlive wsHandshake's deadline grace plus one CV poll");
 
 // TU-local enum: server-event opcodes for the WS upload response stream.
 // Only used by WsConn::onmessage; moved together with the body.
@@ -200,13 +205,14 @@ bool WsConn::connectWS()
     // carries lock callbacks (net.cpp) for the concurrent DNS/SSL-session cache writes; and
     // (c) the proxy/DNS/user-agent configuration wsHandshake consumes is published as one
     // coherent snapshot under CurlHttpIO::mNetConfigMutex (SDK-6476), so a concurrent
-    // setProxySettings()/disconnect() on the client thread cannot tear it. CURLOPT_TIMEOUT_MS
-    // inside wsHandshake bounds the blocking call, so no separate baton watchdog is needed.
+    // setProxySettings()/disconnect() on the client thread cannot tear it. wsHandshake bounds
+    // the blocking call (CURLOPT_TIMEOUT_MS, plus its own deadline of that timeout + one poll
+    // slice for the upgrade leg), so no separate baton watchdog is needed.
     // SDK-6476 / SDK-6565: the engine's mStopping flag is handed down as a stop token.
     // wsHandshake drives the handshake with an SDK-owned curl_multi loop and reads the flag
     // between libcurl calls, so a handshake stuck on a black-holed endpoint (any phase: DNS,
     // TCP, proxy, TLS, upgrade; any libcurl version) returns within kWsCurlPollSliceMs of
-    // stop() instead of running to CURLOPT_TIMEOUT_MS (15/45 s) — otherwise locallogout's 3 s
+    // stop() instead of running to the handshake bound (15/45 s) — otherwise locallogout's 3 s
     // quiesce window is missed and the whole engine is intentionally leaked. Impl outlives this
     // call on every path (~Impl joins the workers; the leak fallback never destroys it). The
     // returned pair (easy + the multi it stays added to) is adopted whole by adoptCurl().
