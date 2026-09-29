@@ -370,6 +370,7 @@ target_sources_conditional(SDKlib
     PRIVATE
     include/mega/commands_ws.h
     include/mega/wsupload.h
+    include/mega/transfer/ws/ws_curl_handles.h
     include/mega/transfer/ws/ws_encryption.h
     include/mega/transfer/ws/ws_pool_mgr.h
     include/mega/transfer/ws/ws_quota.h

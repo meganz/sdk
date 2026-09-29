@@ -31,6 +31,10 @@
 
 #include <atomic>
 
+#ifdef MEGA_USE_WSUPLOAD
+#include "mega/transfer/ws/ws_curl_handles.h"
+#endif
+
 namespace mega {
 
 extern std::atomic<bool> g_netLoggingOn;
@@ -284,15 +288,25 @@ public:
     // Configure cURL easy for WebSocket or JSON POST (reuses SDK defaults).
     void configureWsEasy(CURL* easy, bool isPostJson);
 
-    // Perform a WS handshake synchronously on the calling thread and return an open easy
-    // handle. Returns nullptr on failure and fills err (optional). stopFlag (optional) is
-    // polled from libcurl's progress callback while the handshake is in flight: once it reads
-    // true the handshake aborts within ~1 s (inside the locallogout quiesce window) and err is
-    // set to kWsHandshakeCancelledErr. Pass nullptr when nobody can stop the handshake.
-    CURL* wsHandshake(const std::string& url,
-                      long timeoutMs,
-                      std::string* err,
-                      const std::atomic<bool>* stopFlag);
+    // Perform a CONNECT_ONLY=2 WebSocket handshake synchronously on the calling thread and
+    // return the connection's handle pair (the easy handle, still added to the multi handle
+    // that drove it; see ws_curl_handles.h). Returns an empty pair on failure and fills err
+    // (optional).
+    //
+    // The handshake is driven by an SDK-owned curl_multi loop rather than curl_easy_perform
+    // (SDK-6565): stopFlag (optional) is read between libcurl calls, so once it is true the
+    // handshake returns within ws::kWsCurlPollSliceMs in every connect phase (DNS, TCP, proxy,
+    // TLS, HTTP upgrade) and on every libcurl version, with err set to
+    // kWsHandshakeCancelledErr. Pass nullptr when nobody can stop the handshake.
+    //
+    // timeoutMs > 0 bounds the whole handshake: it fails with CURLE_OPERATION_TIMEDOUT
+    // ("Timeout was reached") within timeoutMs + ws::kWsCurlPollSliceMs, also where libcurl no
+    // longer enforces CURLOPT_TIMEOUT_MS (the upgrade leg on curl >= 8.17). timeoutMs <= 0
+    // means no bound.
+    ws::WsCurlHandles wsHandshake(const std::string& url,
+                                  long timeoutMs,
+                                  std::string* err,
+                                  const std::atomic<bool>* stopFlag);
 
     // err value produced by wsHandshake when the handshake was cancelled through stopFlag.
     static constexpr const char* kWsHandshakeCancelledErr =

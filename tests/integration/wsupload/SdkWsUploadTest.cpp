@@ -3878,7 +3878,27 @@ TEST_F(SdkWsUploadTest, LocallogoutBoundedWithStuckReadIO)
     // Restore a working session for fixture teardown.
     ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
     ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
-    (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+
+    // The upload was persisted before the measured logout and is restored asynchronously after
+    // fetchnodes (once the client is state-current), so a cancelTransfers issued right after
+    // fetchnodes can run before the transfer exists and leave it alive into the fixture
+    // teardown, where its failure callback would overlap Cleanup(). Give it a bounded window to
+    // reappear, then cancel until the upload list is empty.
+    const auto uploadsPending = [this]()
+    {
+        std::unique_ptr<MegaTransferList> uploads{
+            megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD)};
+        return uploads && uploads->size() > 0;
+    };
+    (void)WaitFor(uploadsPending, 5000);
+    const bool uploadsGone = WaitFor(
+        [this, &uploadsPending]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            return !uploadsPending();
+        },
+        30000);
+    EXPECT_TRUE(uploadsGone) << "the restored upload was still alive after cancelTransfers";
 }
 
 /**
