@@ -146,6 +146,11 @@ public:
     int liveWorkerCount() const;
     bool managerThreadLive() const;
 
+    // Keep fresh filenos above `highestPersisted`, the highest ws_fileno of the persisted PUT
+    // transfers, so that restored uploads keep their fileno and resume state (SDK-6600). Only
+    // ever raises the counter (a lower value is a no-op) and never wraps it. Client thread.
+    void reserveFileNos(std::uint32_t highestPersisted);
+
     // Mirror TransferList semantics (PUT only):
     void enqueue(Transfer& t); // addtransfer()
     void reposition(Transfer& t, Transfer* before /* nullptr=end */);

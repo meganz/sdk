@@ -33,6 +33,8 @@
 #include "mega/transfer.h"
 #include "mega/transfer/ws/ws_quota.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -71,6 +73,22 @@ void MegaClient::maybeStartWsUploadEngine()
     if (!m_wsEngine)
     {
         m_wsEngine.reset(new ws::UploadEngine(*this));
+        // SDK-6600: the transfer cache may have loaded before the engine existed (see
+        // enabletransferresumption): keep fresh filenos above the persisted ones.
+        std::uint32_t highestWsFileNo = 0;
+        for (const auto* transfers: {&multi_cachedtransfers[PUT], &multi_transfers[PUT]})
+        {
+            for (const auto& entry: *transfers)
+            {
+                highestWsFileNo = std::max(highestWsFileNo, entry.second->ws_fileno);
+            }
+        }
+        if (highestWsFileNo)
+        {
+            LOG_debug << "WsUpload: engine start reserves filenos up to " << highestWsFileNo
+                      << " (held by already loaded PUT transfers)";
+            m_wsEngine->reserveFileNos(highestWsFileNo);
+        }
     }
     if (!mWsQuota)
     {

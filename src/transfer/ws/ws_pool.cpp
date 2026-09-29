@@ -1099,6 +1099,13 @@ bool WsPool::sendChunk(WsConn* ws, UploadEngine::Impl& impl, dstime* retryAfterD
             ws->mChunksInFlightHighWater = static_cast<unsigned>(ws->mChunksInFlight.size());
 #endif
         uf->onRequestSent();
+        // SDK-6600 wire observer: every frame handed to the transport (fresh, resent and the
+        // zero-length EOF frame) with the (URL, fileno) it feeds. uploadMutex is held.
+        DEBUG_TEST_HOOK_WS_CHUNK_SENT(mUrl,
+                                      chunk.fileno,
+                                      chunk.pos,
+                                      chunk.len,
+                                      uf->localPath().toPath(false));
         ws->sendChunkData(chunk.fileno, chunk.pos, tlsBuf.get(), chunk.len);
 
         ++mNumChunksInFlight;
