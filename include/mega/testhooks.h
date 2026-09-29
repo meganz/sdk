@@ -945,10 +945,10 @@ namespace mega {
                 std::move(other.onWsUploadTailCompletionTimeoutDs);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
-            onWsChunkSent = std::move(other.onWsChunkSent);
             onWsTfsIssued = std::move(other.onWsTfsIssued);
             onWsTfsResult = std::move(other.onWsTfsResult);
             onWsQuotaHoldChanged = std::move(other.onWsQuotaHoldChanged);
+            onWsChunkSent = std::move(other.onWsChunkSent);
             onWsTfsStaleDiscarded = std::move(other.onWsTfsStaleDiscarded);
             onWsQuotaDeducted = std::move(other.onWsQuotaDeducted);
             onWsGateBackpressureSample = std::move(other.onWsGateBackpressureSample);
