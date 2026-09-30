@@ -88,16 +88,23 @@ Do **not** attribute these to your fix without evidence.
 
 ## Quota cells (SDK-6298 predictive WS upload-quota)
 
-- **Hook cells** — `SdkWsUploadTest.Quota*` (21 cells, `tests/integration/wsupload/
+- **Hook cells** — `SdkWsUploadTest.Quota*` (27 cells, `tests/integration/wsupload/
   SdkWsQuotaTest.cpp`): exercise the tfs ledger through the H1–H4/H6 + M1 seams. They open with
   `WSUPLOAD_REQUIRE_TEST_HOOKS()`, so in hooks-OFF (Release) builds every one must emit a clean
   `[ SKIPPED ]` — a FAIL in a hooks-off run is real. No env knobs (HR58); cells self-configure.
 - **Real-path cells** — `SdkWsQuotaRealTest.{ProbeTfsCommandOwnRoot,
-  RealFillOwnAccountHoldAndRelease,RealFillInshareForeignHold}` (hook-FREE, run in any build):
-  live-server probe + own/foreign real-fill discriminators. They run on the MR pipeline surface
-  (user ruling 2026-07-30) and SKIP with a precise reason on non-conforming accounts (plan
-  shape / already-full / copies cap). The fill targets GREEN-but-insufficient (1.5 GiB free) —
-  never near-full, which would flip usl=RED and tautologize the discriminator.
+  RealFillOwnAccountShortfallIsNotHeld,RealFillOwnAccountQaGeometryIsNotHeld,
+  RealFillInshareForeignHold}` (hook-FREE, run in any build): live-server probe + real-fill
+  cells. The two own-account cells (SDK-6610; they replace `RealFillOwnAccountHoldAndRelease`)
+  assert an own-account shortfall is NOT held (the upload streams; the server + legacy RED path
+  decide; EVENT_STORAGE RED must reach the app); `RealFillInshareForeignHold` keeps the foreign
+  hold discriminator. They run on the MR pipeline surface (user ruling 2026-07-30) and SKIP with
+  a precise reason on non-conforming accounts (plan shape / already-full / copies cap). Fill
+  targets: 1.5 GiB free (ORANGE-but-insufficient) for the big own cell and T20; the QA-geometry
+  cell deliberately leaves the account NEAR-FULL — exactly 8 MiB (8388608 B, by tfs) free for a
+  10 MiB upload, the QA reproduction — and a PREMISE fails loudly if the SDK is already RED
+  before its upload. The own-account cells restore the account (fill removal, cached-RED
+  refresh) and flag a failed restore as `RESTORE:`. Run them LAST: they fill the shared account.
 - **Timing subset (HR43)** — `Quota{CrossPoolHoldDoesNotBlockOtherPool,BatchEnqueueCoalescesSingleTfs,
   CompletionDeductionHoldsSubsequentUpload,LateTfsReplyAfterUploadCompleted,
   StaleTfsReplyDiscardedOnUslRace,EnqueueWhileTfsInFlightIssuesFollowUp,
