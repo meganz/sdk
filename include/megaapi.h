@@ -18966,6 +18966,10 @@ class MegaApi
          * MegaWsUploadQuotaFit::STATE_UNKNOWN until the first transfer-quota balance
          * arrives from the server, which apps should treat as "no data yet".
          *
+         * Own-account shortfalls are reported here but never hold uploads. Only uploads into a
+         * foreign (inshare) target are predictively held, reported as a temporary API_EOVERQUOTA
+         * with MegaTransfer::isForeignOverquota() == true.
+         *
          * You take the ownership of the returned value.
          *
          * @return A MegaWsUploadQuotaFit snapshot. Never NULL.
