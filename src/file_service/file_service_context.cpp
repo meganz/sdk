@@ -1170,6 +1170,19 @@ auto FileServiceContext::sanitizeCacheFile(FileAccess& file,
     // Persist database changes.
     transaction.commit();
 
+    // The file hasn't been modified locally so the cloud remains the
+    // authority on its size: leave the file's logical size as is and let
+    // anything beyond the cache file's current end be downloaded again on
+    // demand, as happens after the file's storage has been reclaimed.
+    if (!info.dirty())
+    {
+        FSDebugF("Cache file smaller than expected, forgot ranges beyond %" PRIu64 ": %s",
+                 newSize,
+                 toString(id).c_str());
+
+        return FILE_SERVICE_SUCCESS;
+    }
+
     // Update the file's attributes.
     info.truncated(ApplicationData{}, now(), newSize);
 
