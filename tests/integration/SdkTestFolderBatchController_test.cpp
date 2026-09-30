@@ -289,6 +289,7 @@ public:
         return handle ? std::string{handle.get()} : std::string{};
     }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
     // Matches the download-URL request for any of `handles`: its "g" command names the node
     // in "n". onMatch, when given, records which handle was answered.
     static sdk_test::ScopedApiErrorInjector::CommandPredicate
@@ -316,6 +317,7 @@ public:
             return true;
         };
     }
+#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 private:
     const std::string localFolderName = getFilePrefix() + "batchDir";
@@ -1108,6 +1110,7 @@ TEST_F(SdkTestFolderBatchController, RetryTransferRestartsTheWholeBatch)
     fs::remove(looseFilePath, ignoredEc);
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 /**
  * A batch holding a single file item reports its sub-transfer's temporary errors on the batch
  * transfer itself, the way a plain single-file download does. Before, those reached only the
@@ -1269,6 +1272,7 @@ TEST_F(SdkTestFolderBatchController, MultiItemBatchKeepsTemporaryErrorsOffTheBat
     EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, firstNode.get()));
     EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, secondNode.get()));
 }
+#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 /**
  * Cancelling a single-file batch reports API_EINCOMPLETE and STATE_CANCELLED, not STATE_FAILED:
@@ -1341,6 +1345,7 @@ TEST_F(SdkTestFolderBatchController, CancelledSingleFileBatchIsCancelledNotFaile
     fs::remove(looseFilePath, ignoredEc);
 }
 
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 /**
  * A single-file batch whose one file is taken down reports API_ETOOMANY with the ETD user and link
  * status, and STATE_FAILED. It used to report API_EINCOMPLETE with the extra info dropped, because
@@ -1405,6 +1410,7 @@ TEST_F(SdkTestFolderBatchController, SingleFileBatchReportsItsFileTakedownNotInc
     EXPECT_EQ(MegaError::API_OK, doDeleteNode(0, fileNode.get()));
     fs::remove(looseFilePath, ignoredEc);
 }
+#endif // MEGASDK_DEBUG_TEST_HOOKS_ENABLED
 
 /**
  * A single-file batch that fails before its sub-transfer ever starts still reports itself failed,
