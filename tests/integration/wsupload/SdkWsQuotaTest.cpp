@@ -1,6 +1,7 @@
 /**
  * @file SdkWsQuotaTest.cpp
- * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T25).
+ * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T25),
+ *        plus the SDK-XXXX own-account-shortfall cells (Quota*OwnShortfall*) at the end.
  *
  * These cells exercise the predictive WS upload-quota ledger through the Q9 test
  * seams (analysis/DESIGN_IMPL_SDK6298.md): H1 onWsTfsIssued, H2 onWsTfsResult
@@ -37,6 +38,7 @@
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 #include "test.h"
+#include "wsupload/headers/OverquotaAppContractRecorder.h"
 #include "wsupload/headers/SdkWsUploadTest.h"
 #include "wsupload/headers/WsQuotaClientThread.h"
 #include "wsupload/headers/WsQuotaHoldTracker.h"
@@ -50,6 +52,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <set>
 #include <string>
 #include <utility>
@@ -2971,6 +2974,372 @@ TEST_F(SdkWsUploadTest, QuotaFailedRefreshReleasesExistingHold)
     ASSERT_EQ(sequence.front().code, API_EOVERQUOTA);
     ASSERT_EQ(sequence.back().kind, WsQuotaHoldTracker::Event::Kind::Finish);
     ASSERT_EQ(sequence.back().code, API_OK);
+}
+
+// ============================================================================
+// SDK-XXXX (v10.21.0 RC2): an OWN-account tfs shortfall must not strand a WS upload.
+//
+// QA (MEGAsync 6.7.0 RC1 on SDK v10.21.0-rc.1): account 99% full (8 MiB = 8388608 B
+// free), a 10 MiB upload to the own root. ~100 ms after start the tfs reply shows
+// 8388608 available, wsQuotaEvaluateHolds holds the upload (t->size >
+// availableFor) and wsQuotaApplyHoldState surfaces only a temp
+// API_EOVERQUOTA(value 0, !foreign) with no EVENT_STORAGE (the account is ORANGE).
+// MEGAsync acts on neither (OverquotaAppContractRecorder.h), the hold has no timer
+// and every re-query repeats the shortfall: the upload sits at 0 bytes, no dialog.
+//
+// Contract pinned (fixed tree): an own-account shortfall fails OPEN; the upload
+// streams and the server plus the legacy account-RED path (EVENT_STORAGE RED)
+// decide. Foreign (inshare) shortfalls keep holding (T8, T25 and T20 cover them).
+//
+// The outcome checks are EXPECTs so a buggy tree prints every signature:
+//   O1 progress-aware completion: finishes API_OK (fails after 60 s without byte
+//      progress; 300 s absolute cap) — the QA hang;
+//   O2 no temp error an app cannot act on (the MEGAsync 6.7.0 rule);
+//   O3 no H3 hold transition for the tag;
+//   L1 bookkeeping sanity check (not a leak proof; leak evidence comes from the ASAN
+//      detect_leaks runs): once finished or cancelled, the client releases the upload.
+// Premises are ASSERTs (fail loudly, never pass vacuously): the cached storage state is
+// not RED/PAYWALL, the tfs was issued for the own root, the scripted shortfall reached
+// apply, and the LEDGER itself reports it (public queue-fit: STATE_SHORTFALL, own, 2 MiB)
+// while the upload is still running with bytes < total.
+// ============================================================================
+namespace
+{
+constexpr size_t kQaFileSize = 10 * 1024 * 1024; // QA: 10 MiB upload
+constexpr ::m_off_t kQaOwnAvailableBytes = 8388608; // QA: the tfs reply showed 8 MiB
+static_assert(kQaOwnAvailableBytes < static_cast<::m_off_t>(kQaFileSize),
+              "the QA upload must not fit the scripted own-account balance");
+// Queue-fit shortfall = outstanding (the whole file, also mid-upload) - available.
+constexpr long long kQaOwnShortfallBytes =
+    static_cast<long long>(kQaFileSize) - static_cast<long long>(kQaOwnAvailableBytes);
+static_assert(kQaOwnShortfallBytes == 2097152, "10 MiB outstanding - 8 MiB available");
+constexpr std::chrono::milliseconds kQueueFitPremiseTimeout{10000};
+constexpr std::chrono::seconds kOwnShortfallSettle{5};
+constexpr std::chrono::seconds kOwnNoProgressLimit{60};
+constexpr std::chrono::seconds kOwnCompletionCap{300};
+constexpr std::chrono::seconds kOwnMidUploadProgressTimeout{180};
+constexpr std::chrono::seconds kOwnCancelFinishTimeout{60};
+constexpr std::chrono::seconds kOwnLeakGuardTimeout{30};
+
+// The QA balance for the own root, forced to API_OK for EVERY generation: the account
+// does not change, so any re-query (enqueue, usl, sqac, deletion, engine start) must
+// keep reporting the shortfall.
+WsTfsResultScript::Plan qaOwnShortfallPlan(const ::mega::NodeHandle& rootH)
+{
+    return WsTfsResultScript::successfulWithGroups(oneGroup(kQaOwnAvailableBytes, {rootH}));
+}
+
+// Waits until an H2 observation at index >= fromIndex carries gen >= minGen (H2 fires
+// after the gen check, so a stale reply never reaches it).
+bool waitForScriptedResultAtLeastGen(const WsTfsResultScript& script,
+                                     std::size_t fromIndex,
+                                     std::uint64_t minGen,
+                                     std::chrono::seconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::size_t next = fromIndex;
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (!script.waitForResult(next + 1, std::chrono::seconds(1)))
+            continue;
+        if (script.observationAt(next).gen >= minGen)
+            return true;
+        ++next;
+    }
+    return false;
+}
+
+// L1 (bookkeeping sanity): true once no WS upload snapshot (MegaClient
+// multi_transfers[PUT] + transferlist, the set the WS engine is fed from) carries
+// `localName` (unique per cell). The snapshot lists unfinished Transfers only, so after
+// a finish this is expected to hold on both trees; it is not a leak proof.
+bool waitForUploadSnapshotGone(::mega::MegaApi& api,
+                               const std::string& localName,
+                               std::chrono::seconds timeout)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    do
+    {
+        std::vector<WsUploadTransferSnapshot> snapshots;
+        if (fetchWsUploadTransferSnapshots(api, snapshots, 5) &&
+            std::none_of(snapshots.begin(),
+                         snapshots.end(),
+                         [&](const WsUploadTransferSnapshot& s)
+                         {
+                             return s.fileName == localName;
+                         }))
+            return true;
+        ::WaitMillisec(250);
+    }
+    while (std::chrono::steady_clock::now() < deadline);
+    return false;
+}
+
+// PREMISE: the SDK's cached storage state is not RED/PAYWALL before the upload. A RED
+// left on the shared account by an earlier test would make the legacy path block the
+// upload (and the recorder never saw that RED event), faking the bug on a fixed tree.
+void assertCachedStorageNotFull(::mega::MegaApi& api)
+{
+    int status = ::mega::STORAGE_UNKNOWN;
+    ASSERT_TRUE(fetchSdkStorageStatusOnClientThread(api, status))
+        << "PREMISE: could not read the cached storage state";
+    ASSERT_FALSE(isFullStorageStatus(status))
+        << "PREMISE: the SDK already reports storage RED/PAYWALL (" << status
+        << ") before the upload (an earlier test left the shared account full?)";
+}
+
+// PREMISE (audit M1): the ledger itself holds the own-account shortfall while the upload
+// runs: the public queue-fit query (unchanged by the fix, so this holds on both arms)
+// reports STATE_SHORTFALL, not foreign, exactly kQaOwnShortfallBytes. Read first, then
+// "still unfinished with bytes < total" proves it was so while the upload ran.
+void assertLedgerHoldsOwnShortfallWhileRunning(::mega::MegaApi& api,
+                                               const TransferTracker& tracker,
+                                               int tag)
+{
+    const auto fit = waitForOwnQueueShortfall(api, kQaOwnShortfallBytes, kQueueFitPremiseTimeout);
+    ASSERT_EQ(fit.state, MegaWsUploadQuotaFit::STATE_SHORTFALL)
+        << "PREMISE: the ledger reports no queue shortfall while the upload runs (queue-fit "
+           "state="
+        << fit.state << ")";
+    ASSERT_FALSE(fit.foreign) << "PREMISE: the queue-fit shortfall is reported as foreign";
+    ASSERT_EQ(fit.shortfallBytes, kQaOwnShortfallBytes)
+        << "PREMISE: unexpected queue-fit shortfall bytes";
+    std::unique_ptr<MegaTransfer> t{api.getTransferByTag(tag)};
+    ASSERT_TRUE(t && !tracker.finished.load())
+        << "PREMISE: upload finished before the ledger shortfall was observed (vacuous run)";
+    ASSERT_LT(t->getTransferredBytes(), t->getTotalBytes())
+        << "PREMISE: all bytes were sent before the ledger shortfall was observed";
+}
+
+// Shared tail of both own-shortfall cells: settle, lift the throttle, O1/O2/O3, L1.
+// EXPECT-only so every signature is reported on a buggy tree.
+void expectOwnShortfallDoesNotStrand(::mega::MegaApi& api,
+                                     OverquotaAppContractRecorder& recorder,
+                                     const WsQuotaHoldChangedCapture& holdChanged,
+                                     std::optional<ScopedUploadSpeedLimit>& throttle,
+                                     int tag,
+                                     const std::string& localName)
+{
+    // Settle: a bounded wait (<= 5 s) that returns as soon as a base-tree hold engages;
+    // on a fixed tree it is a 5 s window in which a hold would have to appear.
+    (void)holdChanged.waitForHold(tag, kOwnShortfallSettle);
+    throttle.reset(); // setMaxUploadSpeed(-1): the rest of the file streams at full speed
+
+    // O1: progress-aware completion (no fixed wall-clock budget: slow CI / Windows Debug).
+    const auto o1 =
+        recorder.waitForFinishProgressAware(tag, kOwnNoProgressLimit, kOwnCompletionCap);
+    EXPECT_TRUE(o1.finished && o1.code == API_OK)
+        << "O1: upload stranded after an own-account tfs shortfall (the QA MEGAsync 6.7.0 "
+           "hang): "
+        << o1.reason << "; finished=" << o1.finished << " code=" << o1.code
+        << " bytes=" << o1.lastBytes << "/" << o1.total << " " << recorder.describe(tag);
+
+    // O2: nothing the app cannot act on.
+    const auto unactionable = recorder.unactionableOwnOverquota(tag);
+    EXPECT_TRUE(unactionable.empty())
+        << "O2: apps cannot act on EOVERQUOTA value 0, non-foreign, without EVENT_STORAGE "
+           "RED/PAYWALL (MEGAsync 6.7.0 shows nothing): unactionable="
+        << unactionable.size() << " " << recorder.describe(tag);
+
+    // O3: no predictive hold at all for an own-account shortfall.
+    EXPECT_EQ(holdChanged.countFor(tag), 0)
+        << "O3: own-account tfs shortfall produced a predictive hold transition (held events="
+        << holdChanged.heldCountFor(tag) << ")";
+
+    // L1 (both outcomes) — a bookkeeping sanity check, not a leak proof (leak evidence
+    // comes from the ASAN detect_leaks runs): cancel whatever is left; the upload must
+    // then report its finish (meaningful: a held transfer must stay cancellable) and
+    // leave the client's transfer lists. Green on both trees is expected: the
+    // indefinite hold itself is what O1 pins.
+    if (!o1.finished)
+        api.cancelTransferByTag(tag);
+    EXPECT_TRUE(recorder.waitForFinish(tag, kOwnCancelFinishTimeout))
+        << "L1 (bookkeeping sanity): upload never reported onTransferFinish ("
+        << kOwnCancelFinishTimeout.count() << "s after completion/cancel)";
+    EXPECT_TRUE(waitForUploadSnapshotGone(api, localName, kOwnLeakGuardTimeout))
+        << "L1 (bookkeeping sanity): client still lists WS upload " << localName << " "
+        << kOwnLeakGuardTimeout.count() << "s after its finish";
+}
+} // namespace
+
+// ============================================================================
+// QuotaOwnShortfallDoesNotStrandUpload — exact QA geometry: 10 MiB to the own root,
+// every tfs reply reports 8388608 B available.
+// ============================================================================
+TEST_F(SdkWsUploadTest, QuotaOwnShortfallDoesNotStrandUpload)
+{
+    LOG_info << "___TEST QuotaOwnShortfallDoesNotStrandUpload___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName = makeBinName("ws_quota_own_qa_");
+    ASSERT_TRUE(createFileWithSize(fileName, kQaFileSize, "Q")) << "Couldn't create " << fileName;
+
+    std::optional<ScopedUploadSpeedLimit> throttle;
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            throttle.reset();
+            megaApi[0]->setMaxUploadSpeed(-1);
+            if (std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()})
+                if (std::unique_ptr<MegaNode> n{
+                        megaApi[0]->getNodeByPathOfType(fileName.c_str(),
+                                                        root.get(),
+                                                        MegaNode::TYPE_FILE)})
+                    (void)synchronousRemove(0, n.get());
+            deleteFile(fileName);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
+    ASSERT_NO_FATAL_FAILURE(assertCachedStorageNotFull(*megaApi[0]));
+
+    // Hook captures + app-contract recorder: install BEFORE the upload.
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    OverquotaAppContractRecorder recorder(megaApi[0].get());
+    script.setDefaultPlan(qaOwnShortfallPlan(rootH));
+
+    // Throttled so the reply lands long before completion (10 MiB at 100 KB/s ~ 105 s).
+    throttle.emplace(*megaApi[0], kThrottleBps);
+
+    TransferTracker tracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker.mTag.load() >= 0;
+        },
+        30000))
+        << "transfer tag not captured";
+    const int tag = tracker.mTag.load();
+
+    // PREMISE 1: the enqueue issued a tfs covering the own root.
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
+        << "PREMISE: tfs never issued after enqueue (issuances=0)";
+    ASSERT_EQ(handleSet(tfsIssued.unionFoldersFrom(0)).count(rootH.as8byte()), 1u)
+        << "PREMISE: no tfs issuance queried the own-root folder";
+
+    // PREMISE 2: the scripted shortfall reached apply while the upload was running. H2
+    // fires before this check, so "unfinished with bytes < total now" held at apply.
+    ASSERT_TRUE(script.waitForResult(1, kIssueTimeout))
+        << "PREMISE: the scripted own-root shortfall reply never reached apply (H2 results=0)";
+    {
+        std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag)};
+        ASSERT_TRUE(t && !tracker.finished.load())
+            << "PREMISE: upload finished before the shortfall reply was applied (vacuous run)";
+        ASSERT_LT(t->getTransferredBytes(), t->getTotalBytes())
+            << "PREMISE: all bytes were sent before the shortfall reply was applied";
+    }
+    // PREMISE 3: the ledger holds the own shortfall while the upload runs.
+    ASSERT_NO_FATAL_FAILURE(assertLedgerHoldsOwnShortfallWhileRunning(*megaApi[0], tracker, tag));
+
+    expectOwnShortfallDoesNotStrand(*megaApi[0], recorder, holdChanged, throttle, tag, fileName);
+}
+
+// ============================================================================
+// QuotaOwnShortfallArisingMidUploadDoesNotStrand — the mid-stream axis: the upload
+// starts under a generous own-root balance, and once >= 25% of its bytes are sent a
+// usl-change re-query (M1) reports the QA shortfall.
+// ============================================================================
+TEST_F(SdkWsUploadTest, QuotaOwnShortfallArisingMidUploadDoesNotStrand)
+{
+    LOG_info << "___TEST QuotaOwnShortfallArisingMidUploadDoesNotStrand___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string fileName = makeBinName("ws_quota_own_mid_");
+    ASSERT_TRUE(createFileWithSize(fileName, kQaFileSize, "M")) << "Couldn't create " << fileName;
+
+    std::optional<ScopedUploadSpeedLimit> throttle;
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            throttle.reset();
+            megaApi[0]->setMaxUploadSpeed(-1);
+            if (std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()})
+                if (std::unique_ptr<MegaNode> n{
+                        megaApi[0]->getNodeByPathOfType(fileName.c_str(),
+                                                        root.get(),
+                                                        MegaNode::TYPE_FILE)})
+                    (void)synchronousRemove(0, n.get());
+            deleteFile(fileName);
+        });
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+    const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
+    ASSERT_NO_FATAL_FAILURE(assertCachedStorageNotFull(*megaApi[0]));
+
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    OverquotaAppContractRecorder recorder(megaApi[0].get());
+    script.setDefaultPlan(
+        WsTfsResultScript::successfulWithGroups(oneGroup(kGenerousBytes, {rootH})));
+
+    throttle.emplace(*megaApi[0], kThrottleBps);
+
+    TransferTracker tracker(megaApi[0].get());
+    auto uploadOptions = makeDefaultUploadOptions();
+    megaApi[0]->startUpload(fileName, rootnode.get(), nullptr, &uploadOptions, &tracker);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return tracker.mTag.load() >= 0;
+        },
+        30000))
+        << "transfer tag not captured";
+    const int tag = tracker.mTag.load();
+
+    // PREMISE 1: the enqueue tfs covered the own root and its generous reply applied.
+    ASSERT_TRUE(tfsIssued.waitForFire(kIssueTimeout))
+        << "PREMISE: tfs never issued after enqueue (issuances=0)";
+    ASSERT_EQ(handleSet(tfsIssued.unionFoldersFrom(0)).count(rootH.as8byte()), 1u)
+        << "PREMISE: no tfs issuance queried the own-root folder";
+    ASSERT_TRUE(script.waitForResult(1, kIssueTimeout))
+        << "PREMISE: the generous first reply never reached apply (H2 results=0)";
+
+    // PREMISE 2: >= 25% of the bytes streamed under the generous balance (throttled).
+    const long long quarter = static_cast<long long>(kQaFileSize) / 4;
+    ASSERT_TRUE(recorder.waitForBytesAtLeast(tag, quarter, kOwnMidUploadProgressTimeout))
+        << "PREMISE: upload never reached 25% under a generous balance within "
+        << kOwnMidUploadProgressTimeout.count() << "s " << recorder.describe(tag);
+    ASSERT_FALSE(tracker.finished.load()) << "PREMISE: upload finished before the shortfall arose";
+
+    // The shortfall arises mid-upload: re-arm the QA balance, then a usl change (M1).
+    const std::size_t issuedBefore = tfsIssued.issuanceCount();
+    const std::uint64_t genBefore = tfsIssued.genOfIssuance(issuedBefore - 1);
+    const std::size_t resultsBefore = script.resultCount();
+    script.setDefaultPlan(qaOwnShortfallPlan(rootH));
+    ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0]))
+        << "PREMISE: M1 dispatch failed";
+
+    // PREMISE 3: a NEW issuance with a higher generation, whose scripted shortfall
+    // reached apply while the upload was still running with bytes < total.
+    ASSERT_TRUE(tfsIssued.waitForIssuance(issuedBefore + 1, kIssueTimeout))
+        << "PREMISE: the usl change (M1) did not produce a fresh tfs";
+    const std::uint64_t genAfter = tfsIssued.genOfIssuance(issuedBefore);
+    ASSERT_GT(genAfter, genBefore) << "PREMISE: the re-query did not advance the generation";
+    ASSERT_TRUE(waitForScriptedResultAtLeastGen(script, resultsBefore, genAfter, kIssueTimeout))
+        << "PREMISE: the re-query's scripted shortfall never reached apply (gen>=" << genAfter
+        << ")";
+    {
+        std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag)};
+        ASSERT_TRUE(t && !tracker.finished.load())
+            << "PREMISE: upload finished before the mid-upload shortfall was applied (vacuous run)";
+        ASSERT_LT(t->getTransferredBytes(), t->getTotalBytes())
+            << "PREMISE: all bytes were sent before the mid-upload shortfall was applied";
+    }
+    // PREMISE 4: the ledger holds the own shortfall (the whole file is still outstanding).
+    ASSERT_NO_FATAL_FAILURE(assertLedgerHoldsOwnShortfallWhileRunning(*megaApi[0], tracker, tag));
+
+    expectOwnShortfallDoesNotStrand(*megaApi[0], recorder, holdChanged, throttle, tag, fileName);
 }
 
 } // namespace mega::test::wsupload

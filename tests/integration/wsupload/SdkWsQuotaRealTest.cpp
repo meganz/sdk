@@ -1,18 +1,25 @@
 /**
  * @file SdkWsQuotaRealTest.cpp
- * @brief SDK-6298 WS upload-quota REAL-PATH integration cells (T18, T19, T20).
+ * @brief SDK-6298 WS upload-quota REAL-PATH integration cells (T18, T20) and the
+ *        SDK-XXXX own-account shortfall cells (T19 successor + exact QA geometry).
  *
  * Unlike the hook-driven SdkWsUploadTest.Quota* cells (SdkWsQuotaTest.cpp), these
  * exercise the predictive WS upload-quota path end-to-end against the LIVE server:
  *  - T18 ProbeTfsCommandOwnRoot  — cheap deployment probe of the committed
  *    production `tfs` command + parser (PASSES today; the command/parser are
  *    committed and validated by unit cells + a live raw probe).
- *  - T19 RealFillOwnAccountHoldAndRelease — fills the OWN account to a controlled
- *    GREEN/ORANGE-but-insufficient state (kFreeToLeave free, deliberately OFF the
- *    near-full usl=RED band so the legacy account-RED machinery cannot satisfy
- *    the discriminator), then asserts a predictive own-pool hold on an
- *    oversized upload (temp EOVERQUOTA, non-foreign, BEFORE all bytes are sent)
- *    and release-on-free.
+ *  - RealFillOwnAccountShortfallIsNotHeld (replaces T19
+ *    RealFillOwnAccountHoldAndRelease) and RealFillOwnAccountQaGeometryIsNotHeld
+ *    (SDK-XXXX, v10.21.0 RC2) — fill the OWN account to a GREEN/ORANGE-but-
+ *    insufficient state (1.5 GiB free / 2.25 GiB upload; and the exact QA geometry,
+ *    8388608 B free / 10 MiB upload) and assert that the own-account shortfall is
+ *    NOT predictively held: no EOVERQUOTA before all bytes without EVENT_STORAGE
+ *    RED/PAYWALL, an app-actionable terminal state (finish OK/EOVERQUOTA, or the
+ *    legacy RETRYING with EVENT_STORAGE RED), a natural EVENT_STORAGE RED/PAYWALL, and
+ *    no temp error MEGAsync cannot act on (OverquotaAppContractRecorder.h). Premise:
+ *    the public queue-fit query reports the own shortfall while the upload runs.
+ *    The SDK-6298 own hold stranded exactly this upload at 0 bytes with no dialog
+ *    (QA, MEGAsync 6.7.0).
  *  - T20 RealFillInshareForeignHold — account B fills its own storage and shares a
  *    folder FULL to A; A's upload into the inshare is predictively held with the
  *    foreign flag; A's own-root control upload is untouched.
@@ -29,20 +36,27 @@
  *
  * Fail-first history: these cells predate the predictive ledger (P3) and landed
  * their first behavioural failures on the discriminator "no predictive hold
- * observed before upload sent all bytes" (foreign variant for T20). Post-P3 both
- * discriminators PASS; T19 additionally pins the RELEASE path — a hold must lift
- * when storage is freed by node deletion (the sc_deltree-driven re-query; the
- * usl band-transition packet is NOT guaranteed to arrive, per the linux_9684
- * Jenkins forensics where the release leg sat inert for 420s without it).
+ * observed before upload sent all bytes" (foreign variant for T20). Pre-P3 the
+ * legacy WS path streamed ALL bytes and surfaced the own-account overquota only at
+ * putnodes (transferred == total) — the behaviour the SDK-XXXX own-account cells
+ * now require again. The old T19 release leg (deletion-driven re-query) has no
+ * own-account hold left to release; T20 keeps the foreign discriminator.
  *
  * These cells run on the MR pipeline surface (user ruling 2026-07-30: no nightly
  * filter; the release path is deterministic via the deletion trigger).
  *
- * SHARED-ACCOUNT SAFETY: T19/T20 fill a shared test account. Every created cloud
- * resource is torn down through a body-scope RAII ScopedDestructor that runs on
- * EVERY exit path (pass / ASSERT-fail / GTEST_SKIP-after-import), mirroring
- * SdkTest.SdkTestUploadsOverquota. A leftover full account would break every
- * subsequent bench/test on this shared account.
+ * SHARED-ACCOUNT SAFETY: the real-fill cells fill a shared test account. Every
+ * created cloud resource is torn down through a body-scope RAII ScopedDestructor
+ * that runs on EVERY exit path (pass / ASSERT-fail / GTEST_SKIP-after-import),
+ * mirroring SdkTest.SdkTestUploadsOverquota. A leftover full account would break
+ * every subsequent bench/test on this shared account; the own-account cells also
+ * make sure the SDK leaves the cached RED state their overflow may cause.
+ *
+ * Waits on uploads are progress-aware (SDK-6470 followup1: a fixed 420 s budget
+ * timed out a healthy 2.25 GiB upload on a 3.95 MB/s macOS uplink): a wait fails
+ * only when the upload shows no activity for a bounded time (no change of the app
+ * byte count nor of the client-side WS progressCompleted, which, unlike the clamped
+ * app count, drops to 0 on a WS restart), under an absolute safety cap.
  *
  * `::mega::` prefixes in using-decls (C++20, feedback_cxx_standard_per_target.md).
  */
@@ -54,6 +68,9 @@
 #include "megaapi.h"
 #include "SdkTest_test.h"
 #include "test.h"
+#include "wsupload/headers/OverquotaAppContractRecorder.h"
+#include "wsupload/headers/ScopedUploadSpeedLimit.h"
+#include "wsupload/headers/WsQuotaClientThread.h"
 #include "wsupload/headers/WsQuotaHoldTracker.h"
 #include "wsupload/headers/WsTfsCommand.h"
 
@@ -66,6 +83,8 @@
 #include <map>
 #include <memory>
 #include <mutex>
+#include <optional>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -106,13 +125,40 @@ constexpr ::m_off_t kUploadSize = 16LL * 1024 * 1024; // 16 MiB control/probe up
 constexpr ::m_off_t kFreeToLeave = 1536LL * 1024 * 1024; // 1.5 GiB free after fill
 constexpr ::m_off_t kDiscriminatorSize = 2304LL * 1024 * 1024; // 2.25 GiB > kFreeToLeave
 constexpr int kDiscriminatorWaitS = 240; // upper bound: 2.25 GiB stream + putnodes (pre-P3 legacy)
-constexpr int kReleaseWaitS =
-    420; // T19 release: wait for the freed upload to (re-)stream + complete (completion-bound:
-         // the 2.25 GiB restream dominates; the release TRIGGER itself is pinned separately)
-constexpr int kReleaseObserveS =
-    90; // T19: byte progress past the held level must appear this soon after the free —
-        // isolates "release trigger never fired" from "network slow" (linux_9684 lesson)
+constexpr int kReleaseWaitS = 420; // T20 own-root 16 MiB control upload completion budget
 constexpr int kForeignReleaseWaitS = 120; // T20 SOFT release window (no foreign re-poll by ruling)
+
+// Exact QA geometry (MEGAsync 6.7.0 RC1 / SDK v10.21.0-rc.1): 8 MiB free, 10 MiB upload.
+constexpr ::m_off_t kQaFreeToLeave = 8388608;
+constexpr ::m_off_t kQaDiscriminatorSize = 10LL * 1024 * 1024;
+// The QA discriminator is throttled so the ledger's enqueue tfs (~one cs round-trip)
+// lands long before a fast CI uplink finishes 10 MiB — otherwise a buggy tree could
+// complete the upload before its hold engages and pass vacuously. 10 MiB ~ 40 s.
+constexpr int kQaThrottleBps = 256 * 1024;
+// The QA fill leaves kQaFreeToLeave + kQaFillMargin free by ACCOUNT DETAILS (a drift
+// between that figure and tfs can then never overflow the account), and the tfs-driven
+// top-up lands the rest exactly on kQaFreeToLeave (the figure the ledger holds on).
+constexpr ::m_off_t kQaFillMargin = 256LL * 1024 * 1024;
+constexpr ::m_off_t kMaxTopUpBytes = 1LL << 30; // bound: the top-up only corrects drift
+constexpr int kMaxTopUpRounds = 3;
+constexpr unsigned kTopUpReflectWaitMs = 60000; // tfs must reflect a top-up before the next
+// The queue-fit premise (audit M1): the ledger's own enqueue tfs lands ~0.1-1.4 s after
+// the upload starts; poll it for at most this long.
+constexpr std::chrono::milliseconds kQueueFitPremiseTimeout{10000};
+
+// Progress-aware upload waits (SDK-6470 followup1 §5): fail only when the upload shows
+// no activity (app bytes / WS progressCompleted) for this long (a wedge, e.g. an
+// indefinite hold), under an absolute cap.
+constexpr std::chrono::seconds kUploadNoProgressLimit{90};
+constexpr std::chrono::seconds kUploadSafetyCap{1200};
+// A natural EVENT_STORAGE RED/PAYWALL must reach the app this soon after the terminal
+// state of an own-account overflow (putnodes rejection, or the usl update after an
+// accepted overflow). No forced `uq` before it: that would manufacture the event.
+constexpr std::chrono::seconds kRedEventWindow{180};
+// Restoration: wait this long for a natural non-RED EVENT_STORAGE after freeing the
+// fill before refreshing the cached storage state with an account-details request.
+constexpr std::chrono::seconds kRestoreNaturalWait{120};
+constexpr unsigned kRestoreRefreshWaitMs = 30000;
 
 // Fill-conformance guards: the controlled fill only makes sense on a test-account
 // plan shaped like the FREE 25 GiB baseline. A plan too small cannot host the
@@ -236,11 +282,14 @@ protected:
         return "";
     }
 
-    // Fills apiIndex's storage to leave exactly kFreeToLeave free (GREEN/ORANGE —
-    // deliberately NOT near-full: usl must stay off RED so the legacy account-RED
-    // machinery cannot pre-block the discriminator upload), cloning the
-    // SdkTestUploadsOverquota mechanics (import gzlQ3DIY 1 GB link + doCopyNode +
-    // filler upload). Records the created fill-folder handle (set BEFORE the first
+    // Fills apiIndex's storage to leave exactly `freeToLeave` free (default
+    // kFreeToLeave: GREEN/ORANGE — deliberately NOT near-full, so usl stays off RED
+    // and the legacy account-RED machinery cannot pre-block the discriminator
+    // upload), cloning the SdkTestUploadsOverquota mechanics (import gzlQ3DIY 1 GB
+    // link + doCopyNode + filler upload). `discriminatorSize` only sizes the plan
+    // conformance guard. `fillMargin` (default 0: T20 unchanged) leaves that much MORE
+    // free by account details, for a caller that lands the exact target by tfs
+    // (topUpFillToTfsTarget). Records the created fill-folder handle (set BEFORE the first
     // fallible assert) and any local filler file into the caller's cleanup state.
     // Sets a non-empty skipReason and returns WITHOUT filling if the account
     // cannot reach the controlled state (already full, non-conforming plan, or a
@@ -250,9 +299,13 @@ protected:
                                         const std::string& fillFolderName,
                                         ::MegaHandle& fillFolderHandleOut,
                                         std::vector<std::string>& localFilesOut,
-                                        std::string& skipReason)
+                                        std::string& skipReason,
+                                        ::m_off_t freeToLeave = kFreeToLeave,
+                                        ::m_off_t discriminatorSize = kDiscriminatorSize,
+                                        ::m_off_t fillMargin = 0)
     {
         skipReason.clear();
+        const ::m_off_t fillTarget = freeToLeave + fillMargin; // free space the fill leaves
 
         std::unique_ptr<MegaNode> root{megaApi[apiIndex]->getRootNode()};
         ASSERT_TRUE(root) << "cannot resolve own root node";
@@ -264,14 +317,14 @@ protected:
         const long long storageMax = mApi[apiIndex].accountDetails->getStorageMax();
         const long long storageUsed = mApi[apiIndex].accountDetails->getStorageUsed();
         ASSERT_GT(storageMax, 0);
-        if (storageMax < kDiscriminatorSize + kFreeToLeave || storageMax > kMaxConformingPlanBytes)
+        if (storageMax < discriminatorSize + freeToLeave || storageMax > kMaxConformingPlanBytes)
         {
             skipReason = "non-conforming account plan (storageMax=" + std::to_string(storageMax) +
                          ") — controlled fill targets the FREE 25 GiB baseline";
             return;
         }
         // The seed import below consumes ~1 GiB on top of the fill headroom.
-        if (storageUsed + kFreeToLeave + (1LL << 30) >= storageMax)
+        if (storageUsed + fillTarget + (1LL << 30) >= storageMax)
         {
             skipReason =
                 "account too full for the controlled fill (used=" + std::to_string(storageUsed) +
@@ -294,13 +347,13 @@ protected:
         ASSERT_GT(copySize, 0);
         const std::string seedName = seedNode->getName() ? seedNode->getName() : "seed";
 
-        // Copy the seed until just over kFreeToLeave remains free (the filler
-        // below tops the state up to exactly kFreeToLeave). The seed import
+        // Copy the seed until just over fillTarget remains free (the filler
+        // below tops the state up to exactly fillTarget). The seed import
         // itself already consumed copySize — subtract it, or the fill overshoots
         // by exactly one copy (512 MiB free at 98% instead of 1.5 GiB at 94%;
         // the linux_9684 Jenkins forensics caught the original overshoot).
         const long long remaining = storageMax - storageUsed - copySize;
-        const long long copies = std::max<long long>(0, (remaining - kFreeToLeave) / copySize);
+        const long long copies = std::max<long long>(0, (remaining - fillTarget) / copySize);
         if (copies > kMaxFillCopies)
         {
             skipReason = "controlled fill would need " + std::to_string(copies) + " copies (cap " +
@@ -316,25 +369,207 @@ protected:
                 << "copying fill node failed (i=" << i << ")";
         }
 
-        // Top up with a filler upload so exactly kFreeToLeave bytes remain free.
+        // Top up with a filler upload so exactly fillTarget bytes remain free.
         const long long remainingAfterCopies = remaining - (copies * copySize);
-        if (remainingAfterCopies > kFreeToLeave)
+        if (remainingAfterCopies > fillTarget)
         {
-            const long long fillerSize = remainingAfterCopies - kFreeToLeave;
+            const long long fillerSize = remainingAfterCopies - fillTarget;
             const std::string fillerName = fillFolderName + "_filler.bin";
             localFilesOut.push_back(fillerName);
             ASSERT_TRUE(createFileWithSize(fillerName, static_cast<size_t>(fillerSize), "F"))
                 << "creating filler file failed";
-            TransferTracker fillTracker(megaApi[apiIndex].get());
-            MegaUploadOptions fillOptions;
-            fillOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
-            megaApi[apiIndex]->startUpload(fillerName,
-                                           fillNode.get(),
-                                           nullptr,
-                                           &fillOptions,
-                                           &fillTracker);
-            ASSERT_EQ(API_OK, fillTracker.waitForResult(kReleaseWaitS)) << "filler upload failed";
+            ASSERT_NO_FATAL_FAILURE(
+                uploadFillerProgressAware(apiIndex, fillerName, fillNode.get()));
             deleteFile(fillerName);
+        }
+    }
+
+    // Uploads a fill file and waits progress-aware (SDK-6470 followup1 latent sibling:
+    // the old fixed kReleaseWaitS budget needed >= 1.28 MB/s). The filler always fits
+    // the free space, so no quota logic may hold it. Uses ASSERT_* — invoke via
+    // ASSERT_NO_FATAL_FAILURE.
+    void uploadFillerProgressAware(unsigned apiIndex,
+                                   const std::string& localName,
+                                   MegaNode* parent)
+    {
+        ASSERT_TRUE(parent) << "fill parent folder missing";
+        OverquotaAppContractRecorder fillRecorder(megaApi[apiIndex].get());
+        TransferTracker fillTracker(megaApi[apiIndex].get());
+        MegaUploadOptions fillOptions;
+        fillOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+        megaApi[apiIndex]->startUpload(localName, parent, nullptr, &fillOptions, &fillTracker);
+        ASSERT_TRUE(WaitFor(
+            [&]
+            {
+                return fillTracker.mTag.load() >= 0;
+            },
+            30000))
+            << "filler transfer tag not captured";
+        const auto r = fillRecorder.waitForFinishProgressAware(fillTracker.mTag.load(),
+                                                               kUploadNoProgressLimit,
+                                                               kUploadSafetyCap);
+        ASSERT_TRUE(r.finished && r.code == API_OK)
+            << "filler upload failed: " << r.reason << "; code=" << r.code
+            << " bytes=" << r.lastBytes << "/" << r.total;
+    }
+
+    // Cached storage state (MegaClient::ststatus) of apiIndex, read on the client
+    // thread (WsQuotaClientThread.h; always compiled, no hooks).
+    bool fetchSdkStorageStatus(unsigned apiIndex, int& statusOut)
+    {
+        return fetchSdkStorageStatusOnClientThread(*megaApi[apiIndex], statusOut);
+    }
+
+    // Non-fatal variant for polling: true iff an API_OK reply carried the own root.
+    bool tryOwnRootTfsAvailable(unsigned apiIndex, ::m_off_t& availOut)
+    {
+        availOut = -1;
+        std::unique_ptr<MegaNode> root{megaApi[apiIndex]->getRootNode()};
+        if (!root)
+            return false;
+        const ::mega::NodeHandle rootH = toNodeHandle(root->getHandle());
+        ::mega::WsTfsGroupBalances groups;
+        ::mega::Error err(::mega::API_EINTERNAL);
+        if (!fetchTfsGroups(*megaApi[apiIndex], {rootH}, groups, err, std::chrono::seconds(60)) ||
+            err != ::mega::API_OK)
+            return false;
+        for (const auto& g: groups)
+            for (const auto& h: g.second)
+                if (h == rootH)
+                    availOut = g.first;
+        return availOut >= 0;
+    }
+
+    // Production `tfs` (hook-free) for apiIndex's own root: the balance the predictive
+    // ledger sees. Uses ASSERT_* — invoke via ASSERT_NO_FATAL_FAILURE.
+    void queryOwnRootTfsAvailable(unsigned apiIndex, ::m_off_t& availOut)
+    {
+        availOut = -1;
+        std::unique_ptr<MegaNode> root{megaApi[apiIndex]->getRootNode()};
+        ASSERT_TRUE(root) << "cannot resolve own root node";
+        const ::mega::NodeHandle rootH = toNodeHandle(root->getHandle());
+        ::mega::WsTfsGroupBalances groups;
+        ::mega::Error err(::mega::API_EINTERNAL);
+        ASSERT_TRUE(
+            fetchTfsGroups(*megaApi[apiIndex], {rootH}, groups, err, std::chrono::seconds(60)))
+            << "PREMISE: tfs query for the own root timed out / did not dispatch";
+        ASSERT_EQ(err, ::mega::API_OK)
+            << "PREMISE: tfs query for the own root failed (err=" << static_cast<int>(err) << ")";
+        for (const auto& g: groups)
+            for (const auto& h: g.second)
+                if (h == rootH)
+                    availOut = g.first;
+        ASSERT_GE(availOut, 0) << "PREMISE: own root absent from the tfs reply";
+    }
+
+    // The QA geometry needs the tfs figure (what the ledger holds on) exactly at
+    // `target`, not only the account-details figure the fill is computed from; the fill
+    // therefore leaves `target + kQaFillMargin` and this lands the rest by tfs. Both
+    // directions are handled: above the target, upload `avail - target` into the fill
+    // folder (< avail, so it always fits: the fill can never overflow into RED) and
+    // wait until tfs reflects it before any further round (a stale figure would
+    // double-count); below the target (drift beyond the margin), fail with PREMISE
+    // (nothing is deleted or guessed). Logs the final figure. Uses ASSERT_* — invoke
+    // via ASSERT_NO_FATAL_FAILURE.
+    void topUpFillToTfsTarget(unsigned apiIndex,
+                              ::MegaHandle fillFolderHandle,
+                              ::m_off_t target,
+                              const std::string& namePrefix,
+                              std::vector<std::string>& localFilesOut)
+    {
+        ::m_off_t avail = -1;
+        ASSERT_NO_FATAL_FAILURE(queryOwnRootTfsAvailable(apiIndex, avail));
+        for (int round = 1; round <= kMaxTopUpRounds && avail != target; ++round)
+        {
+            ASSERT_GT(avail, target)
+                << "PREMISE: the fill overshot the tfs target: tfs reports " << avail
+                << " B free, below the " << target << " B target despite the " << kQaFillMargin
+                << " B fill margin (account-details vs tfs drift)";
+            const ::m_off_t topUp = avail - target;
+            ASSERT_LE(topUp, kMaxTopUpBytes)
+                << "PREMISE: tfs reports " << avail << " B free, " << topUp
+                << " B above the target: beyond the top-up bound (account-details vs tfs drift)";
+            std::unique_ptr<MegaNode> fillNode{
+                megaApi[apiIndex]->getNodeByHandle(fillFolderHandle)};
+            ASSERT_TRUE(fillNode) << "fill folder vanished before the top-up";
+            const std::string name = namePrefix + "_topup" + std::to_string(round) + ".bin";
+            localFilesOut.push_back(name);
+            LOG_info << "[fill top-up] round " << round << ": tfs reports " << avail
+                     << " B free; uploading " << topUp << " B to reach " << target;
+            ASSERT_TRUE(createFileWithSize(name, static_cast<size_t>(topUp), "T"))
+                << "creating top-up file failed";
+            ASSERT_NO_FATAL_FAILURE(uploadFillerProgressAware(apiIndex, name, fillNode.get()));
+            deleteFile(name);
+
+            const ::m_off_t before = avail;
+            ::m_off_t now = -1;
+            ASSERT_TRUE(WaitFor(
+                [&]
+                {
+                    return tryOwnRootTfsAvailable(apiIndex, now) && now < before;
+                },
+                kTopUpReflectWaitMs))
+                << "PREMISE: tfs did not reflect the " << topUp << " B top-up within "
+                << kTopUpReflectWaitMs / 1000 << "s (still " << now
+                << " B free); refusing another round (double-count risk)";
+            avail = now;
+        }
+        if (avail == target)
+            LOG_info << "[fill top-up] tfs reports exactly " << avail << " B free (target)";
+        else
+            LOG_warn << "[fill top-up] tfs reports " << avail << " B free, not the " << target
+                     << " B target, after " << kMaxTopUpRounds << " rounds";
+    }
+
+    // Restoration after an own-account overflow: the putnodes rejection (or the usl
+    // update after an accepted overflow) leaves the SDK's cached storage state RED,
+    // which blocks every later upload on this shared account. After the fill is freed,
+    // wait for the natural non-RED EVENT_STORAGE; else refresh the cached state like
+    // SdkTestSyncOverquotaReason::TearDown; fail loudly only if it is still RED/PAYWALL.
+    void restoreStorageStateAfterOwnFill(unsigned apiIndex,
+                                         const OverquotaAppContractRecorder& recorder)
+    {
+        int status = ::mega::STORAGE_UNKNOWN;
+        if (!fetchSdkStorageStatus(apiIndex, status))
+            LOG_warn << "[restore] could not read the cached storage state of account " << apiIndex;
+        if (!isFullStorageStatus(status))
+            return;
+
+        LOG_info << "[restore] cached storage state " << status << " after cleanup; waiting up to "
+                 << kRestoreNaturalWait.count() << "s for a natural non-RED EVENT_STORAGE";
+        const auto since = OverquotaAppContractRecorder::Clock::now();
+        const auto natural = recorder.waitForStorageEvent(
+            {::mega::MegaApi::STORAGE_STATE_GREEN, ::mega::MegaApi::STORAGE_STATE_ORANGE},
+            kRestoreNaturalWait,
+            since);
+        for (int refresh = 0; refresh < 2; ++refresh)
+        {
+            if (fetchSdkStorageStatus(apiIndex, status) && !isFullStorageStatus(status))
+                break;
+            LOG_warn << "[restore] "
+                     << (natural ? "storage still RED/PAYWALL" : "no natural non-RED EVENT_STORAGE")
+                     << "; refreshing the cached state via account details (attempt " << refresh + 1
+                     << ")";
+            (void)synchronousGetSpecificAccountDetails(apiIndex, true, false, false);
+            (void)WaitFor(
+                [&]
+                {
+                    return fetchSdkStorageStatus(apiIndex, status) && !isFullStorageStatus(status);
+                },
+                kRestoreRefreshWaitMs);
+        }
+        if (fetchSdkStorageStatus(apiIndex, status) && isFullStorageStatus(status))
+        {
+            LOG_err << "[restore] account " << apiIndex << " storage state is still " << status
+                    << " (RED/PAYWALL) after cleanup + refresh: later tests on this shared "
+                       "account will be blocked; verify and free the account manually";
+            ADD_FAILURE() << "RESTORE: account " << apiIndex
+                          << " left in storage RED/PAYWALL after cleanup + account-details refresh "
+                             "(shared account; free it manually)";
+        }
+        else
+        {
+            LOG_info << "[restore] account " << apiIndex << " storage state back to " << status;
         }
     }
 
@@ -375,6 +610,21 @@ protected:
         ASSERT_FALSE(tracker.finished.load())
             << "held upload must not terminally finish before quota is released";
     }
+
+    // One own-account shortfall cell (RealFillOwnAccount*IsNotHeld).
+    struct OwnShortfallCell
+    {
+        const char* label; // file/folder name prefix + log tag
+        ::m_off_t freeToLeave; // free space the fill leaves
+        ::m_off_t discriminatorSize; // upload size (> freeToLeave)
+        int throttleBps; // 0 = unthrottled
+        bool topUpToTfsTarget; // fill to freeToLeave + kQaFillMargin, then land it by tfs
+    };
+
+    // Shared body of the own-account shortfall cells (defined below). Sets a non-empty
+    // skipReason instead of skipping (the caller GTEST_SKIPs). Uses ASSERT_* — invoke
+    // via ASSERT_NO_FATAL_FAILURE.
+    void runOwnShortfallIsNotHeld(const OwnShortfallCell& cell, std::string& skipReason);
 
     // Non-fatal shared-account hygiene check: warn if apiIndex's storage is still
     // above 50% of max after cleanup (best-effort; server usl update may lag).
@@ -457,36 +707,56 @@ TEST_F(SdkWsQuotaRealTest, ProbeTfsCommandOwnRoot)
 }
 
 // ============================================================================
-// T19 RealFillOwnAccountHoldAndRelease — real end-to-end, OWN pool. Hook-free.
-// Runs on the MR surface (user ruling 2026-07-30). Pins BOTH legs: the
-// predictive hold discriminator AND the deletion-driven release (freeing the
-// fill folder must re-query tfs via sc_deltree — no reliance on a usl packet).
+// SDK-XXXX (v10.21.0 RC2) own-account shortfall cells — real end-to-end, OWN pool.
+// Hook-free (run in hooks-OFF builds). Replace T19 RealFillOwnAccountHoldAndRelease:
+// an own-account `tfs` shortfall must NOT be predictively held any more; the upload
+// streams and the server plus the legacy account-RED path decide, so the app sees
+// EVENT_STORAGE RED ("Storage full") instead of a silent value-0 EOVERQUOTA.
+//   A1 no temp EOVERQUOTA while transferred < total without a RED/PAYWALL storage
+//      context (the buggy tree holds at ~0 bytes and never emits EVENT_STORAGE); one
+//      WITH RED/PAYWALL is a legacy server-side rejection, logged as [A1-server]
+//   A2 progress-aware wait (90 s without activity fails; 1200 s cap) for an
+//      app-actionable terminal state: onTransferFinish API_OK or API_EOVERQUOTA, or
+//      the legacy RETRYING with EVENT_STORAGE RED/PAYWALL (at any byte count)
+//   A3 a natural EVENT_STORAGE RED/PAYWALL within 180 s of that terminal state
+//   A4 no temp error MEGAsync 6.7.0 cannot act on (OverquotaAppContractRecorder rule)
+// Outcome checks are EXPECTs (every signature is reported); premises are ASSERTs.
 // ============================================================================
-TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
+void SdkWsQuotaRealTest::runOwnShortfallIsNotHeld(const OwnShortfallCell& cell,
+                                                  std::string& skipReason)
 {
-    LOG_info << "___TEST RealFillOwnAccountHoldAndRelease___";
-    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    using Clock = OverquotaAppContractRecorder::Clock;
+    skipReason.clear();
 
     // Guard 1: tfs availability (probe-style SKIP).
     {
         const std::string reason = tfsProbeSkipReason(0);
         if (!reason.empty())
-            GTEST_SKIP() << "tfs not available in this environment (" << reason << ")";
+        {
+            skipReason = "tfs not available in this environment (" + reason + ")";
+            return;
+        }
     }
 
     std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
     ASSERT_TRUE(rootnode);
+
+    // Installed before the fill (fill-time EVENT_STORAGE is on record) and declared
+    // before the cleanup so the restoration below can wait on it.
+    OverquotaAppContractRecorder recorder(megaApi[0].get());
 
     // ---- Cleanup state + RAII teardown (runs on EVERY exit path) ----
     ::MegaHandle fillFolderHandle = ::mega::UNDEF;
     ::MegaHandle uploadNodeHandle = ::mega::UNDEF;
     std::string uploadName;
     std::vector<std::string> localFiles;
+    std::optional<ScopedUploadSpeedLimit> throttle;
     auto cleanup = makeScopedDestructor(
         [&]()
         {
             (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
-            // Remove the uploaded 16 MiB node (by handle, else by name at root).
+            throttle.reset();
+            // Remove the discriminator node (by handle, else by name at root).
             std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()};
             if (uploadNodeHandle != ::mega::UNDEF)
                 if (std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(uploadNodeHandle)})
@@ -497,37 +767,79 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
                                                         root.get(),
                                                         MegaNode::TYPE_FILE)})
                     (void)synchronousRemove(0, n.get());
-            // Remove the fill folder (drops the imported seed + copies + filler).
+            // Remove the fill folder (drops the imported seed + copies + fillers). A
+            // failure leaves the shared account (near-)full for every later test: loud.
             if (fillFolderHandle != ::mega::UNDEF)
                 if (std::unique_ptr<MegaNode> f{megaApi[0]->getNodeByHandle(fillFolderHandle)})
-                    (void)synchronousRemove(0, f.get());
+                    if (const int r = synchronousRemove(0, f.get()); r != API_OK)
+                    {
+                        LOG_err << "[restore] removing the fill folder failed (err=" << r
+                                << "): the shared account stays (near-)full; free it manually";
+                        ADD_FAILURE() << "RESTORE: fill folder removal failed (err=" << r
+                                      << "); the shared account stays (near-)full";
+                    }
             for (const auto& nm: localFiles)
                 deleteFile(nm);
+            // Leave no cached RED behind for later tests on this shared account.
+            restoreStorageStateAfterOwnFill(0, recorder);
             warnIfStorageStillHigh(0);
         });
 
-    // Guard 2 + fill: SKIP on any non-conforming account state (already full,
-    // wrong plan shape, oversized fill), else fill to leave exactly kFreeToLeave.
-    std::string fillSkipReason;
-    ASSERT_NO_FATAL_FAILURE(fillStorageLeavingInsufficient(0,
-                                                           makeBinName("ws_quota_t19_fill_"),
-                                                           fillFolderHandle,
-                                                           localFiles,
-                                                           fillSkipReason));
-    if (!fillSkipReason.empty())
-        GTEST_SKIP() << fillSkipReason;
+    // Guard 2 + fill: SKIP on any non-conforming account state, else fill to leave
+    // exactly cell.freeToLeave free.
+    const std::string fillName = makeBinName((std::string(cell.label) + "_fill_").c_str());
+    ASSERT_NO_FATAL_FAILURE(
+        fillStorageLeavingInsufficient(0,
+                                       fillName,
+                                       fillFolderHandle,
+                                       localFiles,
+                                       skipReason,
+                                       cell.freeToLeave,
+                                       cell.discriminatorSize,
+                                       cell.topUpToTfsTarget ? kQaFillMargin : 0));
+    if (!skipReason.empty())
+        return;
+    if (cell.topUpToTfsTarget)
+    {
+        ASSERT_NO_FATAL_FAILURE(
+            topUpFillToTfsTarget(0, fillFolderHandle, cell.freeToLeave, fillName, localFiles));
+    }
 
-    // ---- discriminator upload to own root: larger than the free space ----
-    uploadName = makeBinName("ws_quota_t19_upload_");
+    // PREMISE A: the account really is short — the production tfs (what the
+    // predictive ledger holds on) reports less than the discriminator for the own root.
+    ::m_off_t ownAvail = -1;
+    ASSERT_NO_FATAL_FAILURE(queryOwnRootTfsAvailable(0, ownAvail));
+    LOG_info << "[" << cell.label << "] premise: own-root tfs available=" << ownAvail
+             << " B (target " << cell.freeToLeave << "), discriminator=" << cell.discriminatorSize
+             << " B";
+    ASSERT_LT(ownAvail, cell.discriminatorSize)
+        << "PREMISE: the account is not short: tfs reports " << ownAvail
+        << " B available for the own root, the discriminator is " << cell.discriminatorSize << " B";
+    // PREMISE B: GREEN/ORANGE, as QA's account (RED/PAYWALL is the legacy path).
+    {
+        int status = ::mega::STORAGE_UNKNOWN;
+        ASSERT_TRUE(fetchSdkStorageStatus(0, status))
+            << "PREMISE: could not read the cached storage state";
+        const auto lastEvent = recorder.lastStorageEventNumber();
+        LOG_info << "[" << cell.label << "] premise: cached storage state=" << status
+                 << " last EVENT_STORAGE=" << (lastEvent ? std::to_string(*lastEvent) : "none");
+        ASSERT_FALSE(isFullStorageStatus(status))
+            << "PREMISE: the SDK already reports storage RED/PAYWALL (" << status
+            << ") before the discriminator upload; QA's account was ORANGE";
+    }
+
+    // ---- discriminator upload to the own root: larger than the free space ----
+    uploadName = makeBinName((std::string(cell.label) + "_upload_").c_str());
     localFiles.push_back(uploadName);
-    ASSERT_TRUE(createFileWithSize(uploadName, static_cast<size_t>(kDiscriminatorSize), "U"))
+    ASSERT_TRUE(createFileWithSize(uploadName, static_cast<size_t>(cell.discriminatorSize), "U"))
         << "creating the discriminator upload file failed";
+    if (cell.throttleBps > 0)
+        throttle.emplace(*megaApi[0], cell.throttleBps);
 
-    WsQuotaHoldTracker holdTracker(megaApi[0].get());
-    OverquotaProgressLatch latch(megaApi[0].get());
     TransferTracker tracker(megaApi[0].get());
     MegaUploadOptions uploadOptions;
     uploadOptions.mtime = MegaUploadOptions::INVALID_CUSTOM_MOD_TIME;
+    const auto t0 = Clock::now();
     megaApi[0]->startUpload(uploadName, rootnode.get(), nullptr, &uploadOptions, &tracker);
     ASSERT_TRUE(WaitFor(
         [&]
@@ -537,46 +849,196 @@ TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountHoldAndRelease)
         30000))
         << "transfer tag not captured";
     const int tag = tracker.mTag.load();
+    const std::set<int> fullStates{::mega::MegaApi::STORAGE_STATE_RED,
+                                   ::mega::MegaApi::STORAGE_STATE_PAYWALL};
 
-    // DISCRIMINATOR (fail-first anchor pre-P3; PASSES post-P3): predictive
-    // own-pool hold before all bytes.
-    ASSERT_NO_FATAL_FAILURE(assertPredictiveHoldDiscriminator(holdTracker,
-                                                              latch,
-                                                              tracker,
-                                                              tag,
-                                                              /*expectForeign*/ false,
-                                                              kDiscriminatorWaitS));
-    const ::m_off_t heldAtBytes = latch.at(tag).transferred;
-
-    // ---- Release: free space → the held upload completes OK ----
-    if (std::unique_ptr<MegaNode> f{megaApi[0]->getNodeByHandle(fillFolderHandle)})
+    // PREMISE C (audit M1): the LEDGER holds the own-account shortfall while the upload
+    // runs. Public queue-fit (observational, unchanged by the fix: holds on both arms):
+    // STATE_SHORTFALL, not foreign, > 0 bytes; read first, then "still unfinished with
+    // bytes < total" proves the ledger's enqueue tfs landed while the upload ran.
     {
-        ASSERT_EQ(API_OK, synchronousRemove(0, f.get())) << "freeing fill space failed";
-        fillFolderHandle = ::mega::UNDEF; // freed; cleanup must not re-remove
+        const auto fit = waitForOwnQueueShortfall(*megaApi[0], 0, kQueueFitPremiseTimeout);
+        LOG_info << "[" << cell.label << "] premise: queue-fit state=" << fit.state
+                 << " shortfall=" << fit.shortfallBytes << " B foreign=" << fit.foreign;
+        ASSERT_EQ(fit.state, MegaWsUploadQuotaFit::STATE_SHORTFALL)
+            << "PREMISE: the ledger reports no queue shortfall while the upload runs (queue-fit "
+               "state="
+            << fit.state << ")";
+        ASSERT_FALSE(fit.foreign) << "PREMISE: the queue-fit shortfall is reported as foreign";
+        ASSERT_GT(fit.shortfallBytes, 0) << "PREMISE: queue-fit reports a zero shortfall";
+        std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag)};
+        ASSERT_TRUE(t && !tracker.finished.load())
+            << "PREMISE: upload finished before the ledger shortfall was observed (vacuous run)";
+        ASSERT_LT(t->getTransferredBytes(), t->getTotalBytes())
+            << "PREMISE: all bytes were sent before the ledger shortfall was observed";
     }
-    // Trigger observability (linux_9684 lesson): byte progress past the held level
-    // must appear within kReleaseObserveS of the free — a tight bound on the
-    // deletion-driven re-query itself, separating "trigger never fired" from
-    // "restream slow". A vanished transfer means it already reached a terminal
-    // state; the completion assert below adjudicates it.
-    ASSERT_TRUE(WaitFor(
-        [&]
-        {
-            std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag)};
-            return !t || t->getTransferredBytes() > heldAtBytes;
-        },
-        kReleaseObserveS * 1000))
-        << "no byte progress within " << kReleaseObserveS
-        << "s of freeing space — the deletion-driven release trigger did not fire";
-    ASSERT_EQ(tracker.waitForResult(kReleaseWaitS), API_OK)
-        << "held upload did not complete within " << kReleaseWaitS << "s after freeing space";
-    uploadNodeHandle = tracker.resultNodeHandle;
 
-    // HoldTracker sanity: EOVERQUOTA temp error(s) then a terminal Finish OK.
-    const auto seq = holdTracker.sequence(tag);
-    ASSERT_FALSE(seq.empty());
-    ASSERT_EQ(seq.back().kind, WsQuotaHoldTracker::Event::Kind::Finish);
-    ASSERT_EQ(seq.back().code, API_OK);
+    // A2 wait. The legacy path may park the upload RETRYING with EVENT_STORAGE
+    // RED/PAYWALL instead of finishing it (after all bytes at putnodes, or mid-stream
+    // when the upload server answers -17): stop waiting as soon as that is visible.
+    bool retryingWithRed = false;
+    long long retryingBytes = 0;
+    long long retryingTotal = 0;
+    auto legacyRetryingWithRed = [&]()
+    {
+        std::unique_ptr<MegaTransfer> t{megaApi[0]->getTransferByTag(tag)};
+        if (!t || t->getState() != MegaTransfer::STATE_RETRYING ||
+            !recorder.storageEventSince(fullStates, t0))
+            return false;
+        retryingWithRed = true;
+        retryingBytes = t->getTransferredBytes();
+        retryingTotal = t->getTotalBytes();
+        return true;
+    };
+    const auto a2 = recorder.waitForFinishProgressAware(tag,
+                                                        kUploadNoProgressLimit,
+                                                        kUploadSafetyCap,
+                                                        legacyRetryingWithRed);
+    const bool finishedActionably = a2.finished && (a2.code == API_OK || a2.code == API_EOVERQUOTA);
+    // Audit M4: RETRYING with RED/PAYWALL is app-actionable at ANY byte count (the
+    // "Storage full" dialog is up); only the log line tells the two apart.
+    const bool legacyTerminal = !a2.finished && retryingWithRed;
+    const bool legacyAfterAllBytes =
+        legacyTerminal && retryingTotal > 0 && retryingBytes >= retryingTotal;
+    const bool terminal = finishedActionably || legacyTerminal;
+    Clock::time_point terminalTs = Clock::now();
+    if (const auto fin = recorder.finishOf(tag))
+        terminalTs = fin->ts;
+    const auto sinceStartMs = [&](Clock::time_point t)
+    {
+        return std::chrono::duration_cast<std::chrono::milliseconds>(t - t0).count();
+    };
+
+    if (a2.finished)
+        LOG_info << "[" << cell.label
+                 << "] server verdict: terminal state = onTransferFinish code=" << a2.code
+                 << " bytes=" << a2.lastBytes << "/" << a2.total << " at +"
+                 << sinceStartMs(terminalTs) << "ms";
+    else if (legacyTerminal)
+        LOG_info << "[" << cell.label << "] server verdict: terminal state = legacy RETRYING "
+                 << "with EVENT_STORAGE RED/PAYWALL "
+                 << (legacyAfterAllBytes ? "after all bytes (putnodes rejection)" :
+                                           "BEFORE all bytes (server-side mid-stream rejection)")
+                 << ", bytes=" << retryingBytes << "/" << retryingTotal << " at +"
+                 << sinceStartMs(terminalTs) << "ms";
+    else
+        LOG_info << "[" << cell.label << "] server verdict: no terminal state: " << a2.reason;
+
+    // A1: no EOVERQUOTA before all bytes WITHOUT a RED/PAYWALL storage context (the
+    // predictive hold never emits EVENT_STORAGE). Audit M4: one with a RED/PAYWALL
+    // EVENT_STORAGE within ±5 s, or while the app state is RED/PAYWALL, is a legacy
+    // server-side rejection the app can act on: logged as [A1-server], not a failure.
+    {
+        std::vector<OverquotaAppContractRecorder::TempError> predictive;
+        for (const auto& te: recorder.overquotaTempErrorsBeforeAllBytes(tag))
+        {
+            if (recorder.isStorageContextActionable(te.ts))
+                LOG_info << "[A1-server] [" << cell.label << "] EOVERQUOTA before all bytes "
+                         << "with EVENT_STORAGE RED/PAYWALL (legacy server-side rejection, "
+                         << "app-actionable): bytes=" << te.transferred << "/" << te.total
+                         << " value=" << te.value << " at +" << sinceStartMs(te.ts) << "ms";
+            else
+                predictive.push_back(te);
+        }
+        std::string detail;
+        if (!predictive.empty())
+        {
+            const auto& early = predictive.front();
+            detail = "bytes=" + std::to_string(early.transferred) + "/" +
+                     std::to_string(early.total) + " value=" + std::to_string(early.value) +
+                     " foreign=" + std::to_string(early.foreign ? 1 : 0) +
+                     " RED/PAYWALL EVENT_STORAGE within 5s=" +
+                     std::to_string(recorder.fullStorageEventNear(early.ts) ? 1 : 0) +
+                     " count=" + std::to_string(predictive.size());
+        }
+        EXPECT_TRUE(predictive.empty())
+            << "[A1] EOVERQUOTA temporary error before all bytes were sent (own-account "
+               "predictive hold, the QA MEGAsync 6.7.0 hang): "
+            << detail << " " << recorder.describe(tag);
+    }
+
+    // A2: an app-actionable terminal state.
+    EXPECT_TRUE(terminal) << "[A2] no app-actionable terminal state for the own-account "
+                             "shortfall upload: "
+                          << a2.reason << "; finished=" << a2.finished << " code=" << a2.code
+                          << " bytes=" << a2.lastBytes << "/" << a2.total
+                          << " retryingWithRed=" << retryingWithRed << " "
+                          << recorder.describe(tag);
+
+    // A3: the natural EVENT_STORAGE RED/PAYWALL (no forced uq before this point).
+    if (terminal)
+    {
+        const auto deadline = terminalTs + kRedEventWindow;
+        const auto now = Clock::now();
+        const auto remaining =
+            deadline > now ? std::chrono::duration_cast<std::chrono::milliseconds>(deadline - now) :
+                             std::chrono::milliseconds(0);
+        const auto red = recorder.waitForStorageEvent(fullStates, remaining, t0);
+        if (red)
+            LOG_info << "[" << cell.label << "] EVENT_STORAGE " << red->number << " at +"
+                     << sinceStartMs(red->ts) << "ms (latency vs terminal state "
+                     << std::chrono::duration_cast<std::chrono::milliseconds>(red->ts - terminalTs)
+                            .count()
+                     << "ms)";
+        EXPECT_TRUE(red.has_value())
+            << "[A3] no natural EVENT_STORAGE RED/PAYWALL within " << kRedEventWindow.count()
+            << "s of the terminal state (finish code=" << a2.code << "): the app never learns the "
+            << "account is full " << recorder.describe(tag);
+    }
+    else
+    {
+        LOG_info << "[" << cell.label << "] A3 not evaluated: no terminal state (see A2)";
+    }
+
+    // A4: nothing MEGAsync 6.7.0 cannot act on.
+    const auto unactionable = recorder.unactionableOwnOverquota(tag);
+    EXPECT_TRUE(unactionable.empty())
+        << "[A4] apps cannot act on EOVERQUOTA value 0, non-foreign, without EVENT_STORAGE "
+           "RED/PAYWALL (MEGAsync 6.7.0 shows nothing): unactionable="
+        << unactionable.size() << " " << recorder.describe(tag);
+
+    // Read the node handle only after the tracker's future (no race with the SDK thread).
+    if (a2.finished && a2.code == API_OK && tracker.waitForResult(30) == API_OK)
+        uploadNodeHandle = tracker.resultNodeHandle;
+}
+
+// ============================================================================
+// RealFillOwnAccountShortfallIsNotHeld — T19 geometry (1.5 GiB free, 2.25 GiB upload).
+// ============================================================================
+TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountShortfallIsNotHeld)
+{
+    LOG_info << "___TEST RealFillOwnAccountShortfallIsNotHeld___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::string skipReason;
+    ASSERT_NO_FATAL_FAILURE(runOwnShortfallIsNotHeld(OwnShortfallCell{"ws_quota_own_big",
+                                                                      kFreeToLeave,
+                                                                      kDiscriminatorSize,
+                                                                      /*throttleBps*/ 0,
+                                                                      /*topUpToTfsTarget*/ false},
+                                                     skipReason));
+    if (!skipReason.empty())
+        GTEST_SKIP() << skipReason;
+}
+
+// ============================================================================
+// RealFillOwnAccountQaGeometryIsNotHeld — the exact QA reproduction: 8388608 B free
+// (by tfs), a 10 MiB upload to the own root (throttled, see kQaThrottleBps).
+// ============================================================================
+TEST_F(SdkWsQuotaRealTest, RealFillOwnAccountQaGeometryIsNotHeld)
+{
+    LOG_info << "___TEST RealFillOwnAccountQaGeometryIsNotHeld___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::string skipReason;
+    ASSERT_NO_FATAL_FAILURE(runOwnShortfallIsNotHeld(OwnShortfallCell{"ws_quota_own_qa",
+                                                                      kQaFreeToLeave,
+                                                                      kQaDiscriminatorSize,
+                                                                      kQaThrottleBps,
+                                                                      /*topUpToTfsTarget*/ true},
+                                                     skipReason));
+    if (!skipReason.empty())
+        GTEST_SKIP() << skipReason;
 }
 
 // ============================================================================
