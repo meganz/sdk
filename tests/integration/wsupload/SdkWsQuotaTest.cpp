@@ -14,6 +14,9 @@
  * globs cover them with zero filter changes — same-fixture-new-file precedent
  * SdkWsUploadCrashTest.cpp.
  *
+ * Only FOREIGN (inshare) shortfalls hold (SDK-6610), so the single-account hold
+ * cells classify their own pool as foreign via WsQuotaForceForeignClassification.
+ *
  * PRE-IMPLEMENTATION fail-first discipline: the product wiring does not exist yet
  * (nothing issues a `tfs`, nothing holds a transfer; wsQuotaInvalidateAndMarkDirty
  * is a null-safe no-op). Every cell is written to its POST-implementation contract
@@ -113,8 +116,8 @@ constexpr int kCompleteTimeoutS = 240; // TransferTracker::waitForResult takes i
 //     WS progress, proving enqueue/start never waits on quota state.
 //   Phase 2 (the hold): a shortfall is armed as the default plan and an
 //     M1-modelled usl change (wsQuotaInvalidateAndMarkDirty) forces a fresh tfs
-//     (gen 2) whose apply holds the running upload with a non-foreign, temporary
-//     EOVERQUOTA that never terminally fails it.
+//     (gen 2) whose apply holds the running upload (pool classified foreign) with
+//     a temporary EOVERQUOTA that never terminally fails it.
 // ============================================================================
 TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
 {
@@ -148,6 +151,9 @@ TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
     const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
 
     // Hook captures: install BEFORE the upload so H1/H3 issuance/hold fire is seen.
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -209,14 +215,16 @@ TEST_F(SdkWsUploadTest, QuotaPreflightShortfallHoldsUploadNotBlockingStart)
         WsTfsResultScript::singleGroup(static_cast<::m_off_t>(fileSize) - 1, {rootH}));
     ASSERT_TRUE(invokeWsQuotaInvalidateOnClientThread(*megaApi[0])) << "M1 dispatch failed";
 
-    // (c) H3 held=true, foreign=false.
+    // (c) H3 held=true, foreign=true (forced classification).
     ASSERT_TRUE(holdChanged.waitForHold(tag, kHoldTimeout))
         << "predictive hold never observed on preflight shortfall (holdEvents=0)";
     const auto hold = holdChanged.firstHold(tag);
     ASSERT_TRUE(hold.has_value());
-    ASSERT_FALSE(hold->foreign) << "own-account shortfall must not be flagged foreign";
+    ASSERT_TRUE(hold->foreign) << "a hold must come from a foreign-classified pool";
 
-    // (d) onTransferTemporaryError API_EOVERQUOTA + isForeignOverquota()==false.
+    // (d) onTransferTemporaryError API_EOVERQUOTA + isForeignOverquota()==false: that
+    // flag comes from the real (own) parent node, not the forced pool classification
+    // (real inshare semantics: T8/T25/T20).
     ASSERT_TRUE(holdTracker.waitForTemporaryError(tag, kHoldTimeout))
         << "no temporary error surfaced for held transfer";
     const auto seq = holdTracker.sequence(tag);
@@ -284,6 +292,9 @@ TEST_F(SdkWsUploadTest, QuotaShortfallArisingDuringRunningUploadHolds)
     std::unique_ptr<MegaNode> folder2{megaApi[0]->getNodeByHandle(folder2Handle)};
     ASSERT_TRUE(folder2);
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -407,6 +418,9 @@ TEST_F(SdkWsUploadTest, QuotaCrossPoolHoldDoesNotBlockOtherPool)
     std::unique_ptr<MegaNode> f2{megaApi[0]->getNodeByHandle(f2Handle)};
     ASSERT_TRUE(f1 && f2);
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -701,6 +715,9 @@ TEST_F(SdkWsUploadTest, QuotaCompletionDeductionHoldsSubsequentUpload)
     ASSERT_TRUE(createFileWithSize(file2, static_cast<size_t>(sizeS), "2"));
     localFiles = {file1, file2};
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsQuotaDeductedCapture deducted;
@@ -802,6 +819,9 @@ TEST_F(SdkWsUploadTest, QuotaUslChangeReleasesHold)
     ASSERT_TRUE(rootnode);
     const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -886,6 +906,9 @@ TEST_F(SdkWsUploadTest, QuotaUslChangeCreatesHold)
     ASSERT_TRUE(rootnode);
     const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -1189,6 +1212,9 @@ TEST_F(SdkWsUploadTest, QuotaStaleTfsReplyDiscardedOnUslRace)
     ASSERT_TRUE(rootnode);
     const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsStaleDiscardedCapture staleDiscarded;
@@ -1384,6 +1410,9 @@ TEST_F(SdkWsUploadTest, QuotaHoldInterplayWithUserPauseAndCancel)
     ASSERT_TRUE(createFileWithSize(file3, fileSize, "3"));
     localFiles = {file0, file1, file2, file3};
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -1568,6 +1597,9 @@ TEST_F(SdkWsUploadTest, QuotaEngineStopStartReevaluatesHolds)
     ASSERT_TRUE(rootnode);
     const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -1663,6 +1695,9 @@ TEST_F(SdkWsUploadTest, QuotaAccountRedOverquotaCoexistsWithPredictiveHolds)
     ASSERT_TRUE(createFileWithSize(fileY, ySize, "Y"));
     localFiles = {fileX, fileY};
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -2055,9 +2090,9 @@ TEST_F(SdkWsUploadTest, QuotaManyUploadsGenerousBalanceSoak)
 //   Phase C — a shortfall balance (< file size) re-scripted + an M1 usl bump holds
 //     the running upload; once the hold lands the query reports STATE_SHORTFALL
 //     with shortfallBytes == (outstanding sum − balance) == mainSize − mainSize/2
-//     for the single own pool, and foreign == false. Querying 5× in a loop here
-//     (the quiescent held point) asserts OBSERVATIONAL PURITY: zero new H1 (tfs
-//     issued) and zero new H3 (hold-changed) events beyond those already explained.
+//     for the single own pool, and foreign == true (forced classification).
+//     Querying 5× in a loop here (the quiescent held point) asserts OBSERVATIONAL PURITY: zero new
+//     H1 (tfs issued) and zero new H3 (hold-changed) events beyond those already explained.
 //   Phase D — a generous balance re-scripted + M1 releases the hold: STATE_FITS
 //     again, shortfall 0.
 // ============================================================================
@@ -2107,6 +2142,9 @@ TEST_F(SdkWsUploadTest, QuotaQueueFitsQueryReflectsLedger)
         ASSERT_FALSE(fit->isForeignShortfall());
     }
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -2174,7 +2212,7 @@ TEST_F(SdkWsUploadTest, QuotaQueueFitsQueryReflectsLedger)
             << "queue-fit must be SHORTFALL while the pool is under-balanced (iter " << i << ")";
         ASSERT_EQ(fit->getShortfallBytes(), static_cast<long long>(expectedShortfall))
             << "shortfall must equal outstanding sum minus balance";
-        ASSERT_FALSE(fit->isForeignShortfall()) << "own-account pool is never foreign";
+        ASSERT_TRUE(fit->isForeignShortfall()) << "the pool is classified foreign";
     }
     ASSERT_EQ(tfsIssued.issuanceCount(), issBefore)
         << "the observational query must issue no tfs (H1 fired: "
@@ -2251,6 +2289,9 @@ TEST_F(SdkWsUploadTest, QuotaNodeDeletionReleasesHold)
                 deleteFile(nm);
         });
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -2379,6 +2420,9 @@ TEST_F(SdkWsUploadTest, QuotaHeldFileDoesNotStarvePoolUnderCap)
     ASSERT_TRUE(rootnode);
     const ::mega::NodeHandle rootH = toNodeHandle(rootnode->getHandle());
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
@@ -2659,6 +2703,9 @@ TEST_F(SdkWsUploadTest, QuotaLateEqualContentTargetAttachmentRefreshesAndAccount
             deleteFile(fileName);
         });
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsQuotaDeductedCapture deducted;
@@ -2749,7 +2796,7 @@ TEST_F(SdkWsUploadTest, QuotaLateEqualContentTargetAttachmentRefreshesAndAccount
         ASSERT_TRUE(fit);
         ASSERT_EQ(fit->getState(), MegaWsUploadQuotaFit::STATE_SHORTFALL);
         ASSERT_EQ(fit->getShortfallBytes(), static_cast<long long>(fileSize) + 1);
-        ASSERT_FALSE(fit->isForeignShortfall());
+        ASSERT_TRUE(fit->isForeignShortfall());
     }
 
     script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(
@@ -2911,6 +2958,9 @@ TEST_F(SdkWsUploadTest, QuotaFailedRefreshReleasesExistingHold)
             deleteFile(fileName);
         });
 
+    // Own pool classified foreign: exercises the foreign-only hold machinery on one
+    // account (SDK-6610).
+    WsQuotaForceForeignClassification forceForeign;
     WsTfsIssuedCapture tfsIssued;
     WsQuotaHoldChangedCapture holdChanged;
     WsTfsResultScript script;
