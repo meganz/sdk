@@ -417,6 +417,22 @@ void MegaClient::wsQuotaEvaluateHolds()
             }
         }
 
+        if (shouldHold)
+        {
+            // Never hold a transfer that also feeds an own (or unclassified) target: the
+            // bytes are shared, so that target would be stuck with an error apps don't act
+            // on. The foreign target gets the server's verdict at putnodes, as before.
+            for (File* f: t->files)
+            {
+                if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h) ||
+                    !mWsQuota->isForeignGroup(f->h))
+                {
+                    shouldHold = false;
+                    break;
+                }
+            }
+        }
+
         // Outstanding grows only for unfinished WS uploads with known targets.
         mWsQuota->addOutstandingForTargets(targets, t->size);
 

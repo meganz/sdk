@@ -88,7 +88,7 @@ Do **not** attribute these to your fix without evidence.
 
 ## Quota cells (SDK-6298 predictive WS upload-quota)
 
-- **Hook cells** — `SdkWsUploadTest.Quota*` (27 cells, `tests/integration/wsupload/
+- **Hook cells** — `SdkWsUploadTest.Quota*` (28 cells, `tests/integration/wsupload/
   SdkWsQuotaTest.cpp`): exercise the tfs ledger through the H1–H4/H6 + M1 seams. They open with
   `WSUPLOAD_REQUIRE_TEST_HOOKS()`, so in hooks-OFF (Release) builds every one must emit a clean
   `[ SKIPPED ]` — a FAIL in a hooks-off run is real. No env knobs (HR58); cells self-configure.
