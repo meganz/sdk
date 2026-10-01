@@ -1,7 +1,8 @@
 /**
  * @file SdkWsQuotaTest.cpp
  * @brief SDK-6298 WS upload-quota hook-driven integration cells (T1–T17, T21–T25),
- *        plus the SDK-XXXX own-account-shortfall cells (Quota*OwnShortfall*) at the end.
+ *        plus the SDK-XXXX own-account-shortfall cells (Quota*OwnShortfall*) and the
+ *        SDK-6610 mixed own+inshare Transfer cell at the end.
  *
  * These cells exercise the predictive WS upload-quota ledger through the Q9 test
  * seams (analysis/DESIGN_IMPL_SDK6298.md): H1 onWsTfsIssued, H2 onWsTfsResult
@@ -3390,6 +3391,318 @@ TEST_F(SdkWsUploadTest, QuotaOwnShortfallArisingMidUploadDoesNotStrand)
     ASSERT_NO_FATAL_FAILURE(assertLedgerHoldsOwnShortfallWhileRunning(*megaApi[0], tracker, tag));
 
     expectOwnShortfallDoesNotStrand(*megaApi[0], recorder, holdChanged, throttle, tag, fileName);
+}
+
+// ============================================================================
+// SDK-6610: an OWN target that shares ONE Transfer with a short INSHARE target must
+// not be stranded.
+//
+// startxfer merges equal-content uploads (same fingerprint, photo/video/audio
+// extension, > 128 KiB) into ONE Transfer with one File per target ("two Files in one
+// Transfer", megaclient.cpp startxfer ~:19527). With an own-root File and an inshare
+// File whose owner lacks space, the foreign-only gate still held the whole Transfer
+// (hold-if-any-target-short), so the OWN-target MegaTransfer got
+// onTransferTemporaryError(API_EOVERQUOTA, value 0, !isForeignOverquota()) and no
+// EVENT_STORAGE: stranded exactly like the QA bug. Contract (fixed tree): a Transfer
+// that also feeds an own (or unclassified) target is never held; the foreign target
+// gets the server's verdict at putnodes, as before SDK-6298.
+//
+// Real 2-account inshare (T8 setup): account 1 shares a folder FULL to account 0, so
+// the inshare classifies foreign through REAL node ownership (no seam). Every tfs
+// reply is scripted: own root generous, inshare = the QA 8 MiB for a 10 MiB file.
+//
+// H3 tag: wsQuotaApplyHoldState reports Transfer::tag, which startxfer sets only when
+// it CREATES the Transfer (megaclient.cpp ~:19777, = the first File's tag = A's
+// MegaTransfer tag, the nextTag of megaapi_impl.cpp ~:21009); attaching File B to the
+// existing Transfer sets only f->tag (~:19561). The cell reads the Transfer's tag from
+// the WS snapshot and asserts it is A's tag before using it for H3.
+// Outcome checks are EXPECTs (O1/O2/O3 all print on a buggy tree); premises are ASSERTs.
+// ============================================================================
+namespace
+{
+// Waits until one H1 issuance queried every handle in `required`; returns its index.
+bool waitForIssuanceCovering(const WsTfsIssuedCapture& issued,
+                             const std::set<std::uint64_t>& required,
+                             std::chrono::seconds timeout,
+                             std::size_t& indexOut)
+{
+    const auto deadline = std::chrono::steady_clock::now() + timeout;
+    std::size_t next = 0;
+    while (std::chrono::steady_clock::now() < deadline)
+    {
+        if (!issued.waitForIssuance(next + 1, std::chrono::seconds(1)))
+            continue;
+        const auto folders = handleSet(issued.foldersOfIssuance(next));
+        if (std::includes(folders.begin(), folders.end(), required.begin(), required.end()))
+        {
+            indexOut = next;
+            return true;
+        }
+        ++next;
+    }
+    return false;
+}
+} // namespace
+
+TEST_F(SdkWsUploadTest, QuotaOwnTargetSharingAShortInshareTransferIsNotStranded)
+{
+    LOG_info << "___TEST QuotaOwnTargetSharingAShortInshareTransferIsNotStranded___";
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(2));
+
+    // --- B (account 1) creates the folder it will share (T8 setup) ---
+    std::unique_ptr<MegaNode> bRoot{megaApi[1]->getRootNode()};
+    ASSERT_TRUE(bRoot);
+    const ::MegaHandle bFolderHandle =
+        createFolder(1, makeBinName("ws_quota_mixed_inshare_").c_str(), bRoot.get());
+    ASSERT_NE(bFolderHandle, ::mega::UNDEF);
+
+    // ONE local file uploaded to both targets. A photo/video/audio extension and > 128 KiB
+    // are what let startxfer merge the two uploads into one Transfer.
+    const std::string fileName =
+        std::string{"ws_quota_mixed_"} +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".mp4";
+    ASSERT_TRUE(createFileWithSize(fileName, kQaFileSize, "S")) << "Couldn't create " << fileName;
+
+    std::optional<ScopedUploadSpeedLimit> throttle;
+    auto cleanup = makeScopedDestructor(
+        [&]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+            throttle.reset();
+            megaApi[0]->setMaxUploadSpeed(-1);
+            // B's folder: removes the inshare together with A's upload inside it.
+            if (std::unique_ptr<MegaNode> n{megaApi[1]->getNodeByHandle(bFolderHandle)})
+                (void)synchronousRemove(1, n.get());
+            if (std::unique_ptr<MegaNode> root{megaApi[0]->getRootNode()})
+                if (std::unique_ptr<MegaNode> n{
+                        megaApi[0]->getNodeByPathOfType(fileName.c_str(),
+                                                        root.get(),
+                                                        MegaNode::TYPE_FILE)})
+                    (void)synchronousRemove(0, n.get());
+            deleteFile(fileName);
+        });
+
+    // --- ensure A<->B contact (T8: tolerant of pre-existing state, left in place) ---
+    std::unique_ptr<MegaUser> bContactOfA{megaApi[0]->getContact(mApi[1].email.c_str())};
+    if (!bContactOfA || bContactOfA->getVisibility() != MegaUser::VISIBILITY_VISIBLE)
+    {
+        const std::string msg = "SDK-6610 mixed own+inshare transfer";
+        mApi[0].contactRequestUpdated = false;
+        ASSERT_NO_FATAL_FAILURE(
+            inviteContact(1, mApi[0].email, msg, MegaContactRequest::INVITE_ACTION_ADD));
+        ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated))
+            << "A did not receive B's contact request";
+        ASSERT_NO_FATAL_FAILURE(getContactRequest(0, false));
+        mApi[0].contactRequestUpdated = mApi[1].contactRequestUpdated = false;
+        ASSERT_NO_FATAL_FAILURE(
+            replyContact(mApi[0].cr.get(), MegaContactRequest::REPLY_ACTION_ACCEPT, 0));
+        ASSERT_TRUE(waitForResponse(&mApi[0].contactRequestUpdated));
+        ASSERT_TRUE(waitForResponse(&mApi[1].contactRequestUpdated));
+        mApi[0].cr.reset();
+    }
+
+    // --- B shares the folder FULL with A; A waits for the decrypted inshare ---
+    std::unique_ptr<MegaNode> bFolder{megaApi[1]->getNodeByHandle(bFolderHandle)};
+    ASSERT_TRUE(bFolder);
+    ASSERT_NO_FATAL_FAILURE(
+        shareFolder(bFolder.get(), mApi[0].email.c_str(), MegaShare::ACCESS_FULL, 1));
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            std::unique_ptr<MegaNode> n{megaApi[0]->getNodeByHandle(bFolderHandle)};
+            return n && n->isNodeKeyDecrypted();
+        },
+        60000))
+        << "inshare never became visible/decrypted to A";
+    std::unique_ptr<MegaNode> inshareNode{megaApi[0]->getNodeByHandle(bFolderHandle)};
+    ASSERT_TRUE(inshareNode) << "A cannot resolve the inshare folder node";
+    std::unique_ptr<MegaNode> aRoot{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(aRoot);
+    const ::mega::NodeHandle rootH = toNodeHandle(aRoot->getHandle());
+    const ::mega::NodeHandle inshareH = toNodeHandle(bFolderHandle);
+    ASSERT_NO_FATAL_FAILURE(assertCachedStorageNotFull(*megaApi[0]));
+
+    // Hook captures + app-contract recorder: install BEFORE the uploads. Every reply:
+    // own root generous, the inshare (foreign by REAL ownership) 8 MiB for 10 MiB.
+    WsTfsIssuedCapture tfsIssued;
+    WsQuotaHoldChangedCapture holdChanged;
+    WsTfsResultScript script;
+    OverquotaAppContractRecorder recorder(megaApi[0].get());
+    script.setDefaultPlan(WsTfsResultScript::successfulWithGroups(::mega::WsTfsGroupBalances{
+        {kGenerousBytes, {rootH}},
+        {kQaOwnAvailableBytes, {inshareH}},
+    }));
+
+    throttle.emplace(*megaApi[0], kThrottleBps);
+
+    auto uploadOptions = makeDefaultUploadOptions();
+    TransferTracker trackerA(megaApi[0].get()); // own root
+    TransferTracker trackerB(megaApi[0].get()); // inshare
+    megaApi[0]->startUpload(fileName, aRoot.get(), nullptr, &uploadOptions, &trackerA);
+    megaApi[0]->startUpload(fileName, inshareNode.get(), nullptr, &uploadOptions, &trackerB);
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            return trackerA.mTag.load() >= 0 && trackerB.mTag.load() >= 0;
+        },
+        30000))
+        << "PREMISE: transfer tags not captured";
+    const int tagA = trackerA.mTag.load();
+    const int tagB = trackerB.mTag.load();
+    auto bothRunningWithBytesLeft = [&](std::string& why)
+    {
+        std::unique_ptr<MegaTransfer> tA{megaApi[0]->getTransferByTag(tagA)};
+        std::unique_ptr<MegaTransfer> tB{megaApi[0]->getTransferByTag(tagB)};
+        if (!tA || !tB || trackerA.finished.load() || trackerB.finished.load())
+        {
+            why = "an upload finished or vanished (vacuous run)";
+            return false;
+        }
+        if (tA->getTransferredBytes() >= tA->getTotalBytes())
+        {
+            why = "all bytes were already sent";
+            return false;
+        }
+        return true;
+    };
+
+    // PREMISE 1: both MegaTransfers exist and neither has finished.
+    {
+        std::string why;
+        ASSERT_TRUE(bothRunningWithBytesLeft(why)) << "PREMISE: right after the start: " << why;
+    }
+
+    // PREMISE 2: they share ONE Transfer: exactly one WS snapshot carries the file
+    // name, targeting both folders; its Transfer::tag (what H3 reports) is A's tag.
+    WsUploadTransferSnapshot shared;
+    std::size_t sameName = 0;
+    ASSERT_TRUE(WaitFor(
+        [&]
+        {
+            std::vector<WsUploadTransferSnapshot> current;
+            if (!fetchWsUploadTransferSnapshots(*megaApi[0], current, 1))
+                return false;
+            sameName = 0;
+            for (const auto& snapshot: current)
+            {
+                if (snapshot.fileName != fileName)
+                    continue;
+                ++sameName;
+                shared = snapshot;
+            }
+            return sameName == 1 &&
+                   handleSet(shared.targetHandles) ==
+                       std::set<std::uint64_t>{rootH.as8byte(), inshareH.as8byte()};
+        },
+        30000))
+        << "PREMISE: the two equal-content uploads did not merge into ONE Transfer (snapshots "
+           "with this name="
+        << sameName << ")";
+    ASSERT_EQ(shared.tag, tagA)
+        << "PREMISE: the shared Transfer's tag (the one H3 reports) is not A's tag (B=" << tagB
+        << ")";
+    const int transferTag = shared.tag;
+
+    // PREMISE 3: a tfs issuance queried both the own root and the inshare.
+    std::size_t coveringIndex = 0;
+    ASSERT_TRUE(waitForIssuanceCovering(tfsIssued,
+                                        {rootH.as8byte(), inshareH.as8byte()},
+                                        kIssueTimeout,
+                                        coveringIndex))
+        << "PREMISE: no tfs issuance queried both the own root and the inshare";
+
+    // PREMISE 4: its scripted reply reached apply while both were still running.
+    ASSERT_TRUE(waitForScriptedResultAtLeastGen(script,
+                                                0,
+                                                tfsIssued.genOfIssuance(coveringIndex),
+                                                kIssueTimeout))
+        << "PREMISE: the scripted reply to the covering tfs never reached apply";
+    {
+        std::string why;
+        ASSERT_TRUE(bothRunningWithBytesLeft(why))
+            << "PREMISE: before the scripted reply was applied: " << why;
+    }
+
+    // PREMISE 5: the ledger holds the FOREIGN shortfall (the inshare classified foreign
+    // through real node ownership): queue-fit STATE_SHORTFALL, isForeignShortfall(),
+    // exactly 10 MiB - 8 MiB (the own pool is generous), while both still run.
+    {
+        const auto fit =
+            waitForQueueShortfall(*megaApi[0], kQaOwnShortfallBytes, true, kQueueFitPremiseTimeout);
+        ASSERT_EQ(fit.state, MegaWsUploadQuotaFit::STATE_SHORTFALL)
+            << "PREMISE: the ledger reports no queue shortfall while the uploads run (queue-fit "
+               "state="
+            << fit.state << ")";
+        ASSERT_TRUE(fit.foreign)
+            << "PREMISE: the queue-fit shortfall is not foreign: the inshare did not classify "
+               "foreign by node ownership";
+        ASSERT_EQ(fit.shortfallBytes, kQaOwnShortfallBytes)
+            << "PREMISE: unexpected queue-fit shortfall bytes (only the inshare pool may be short)";
+        std::string why;
+        ASSERT_TRUE(bothRunningWithBytesLeft(why))
+            << "PREMISE: before the ledger shortfall was observed: " << why;
+    }
+
+    // Settle on the H3 tag (returns at once if a base-tree hold engages), then lift.
+    (void)holdChanged.waitForHold(transferTag, kOwnShortfallSettle);
+    throttle.reset();
+
+    // O1: the own-target MegaTransfer completes (progress-aware).
+    const auto o1 =
+        recorder.waitForFinishProgressAware(tagA, kOwnNoProgressLimit, kOwnCompletionCap);
+    EXPECT_TRUE(o1.finished && o1.code == API_OK)
+        << "O1: own target stranded by a shared transfer held for an inshare shortfall (the QA "
+           "MEGAsync 6.7.0 hang on a mixed own+inshare transfer): "
+        << o1.reason << "; finished=" << o1.finished << " code=" << o1.code
+        << " bytes=" << o1.lastBytes << "/" << o1.total << " " << recorder.describe(tagA);
+
+    // O2: nothing the app cannot act on, for the own-target MegaTransfer.
+    const auto unactionable = recorder.unactionableOwnOverquota(tagA);
+    EXPECT_TRUE(unactionable.empty())
+        << "O2: apps cannot act on EOVERQUOTA value 0, non-foreign, without EVENT_STORAGE "
+           "RED/PAYWALL (the own-target MegaTransfer of the shared transfer): unactionable="
+        << unactionable.size() << " " << recorder.describe(tagA);
+
+    // O3: the shared transfer is never held.
+    EXPECT_EQ(holdChanged.countFor(transferTag), 0)
+        << "O3: the shared transfer feeding an own target was predictively held for the inshare "
+           "shortfall (held events="
+        << holdChanged.heldCountFor(transferTag) << ", hook events=" << holdChanged.totalEvents()
+        << ")";
+
+    // B, the inshare target: any terminal code (the real owner has space: OK expected).
+    bool bFinished = false;
+    if (o1.finished)
+    {
+        const auto b =
+            recorder.waitForFinishProgressAware(tagB, kOwnNoProgressLimit, kOwnCompletionCap);
+        bFinished = b.finished;
+        LOG_info << "[mixed own+inshare] inshare target B finished=" << b.finished
+                 << " code=" << b.code << " bytes=" << b.lastBytes << "/" << b.total;
+    }
+    else
+    {
+        LOG_info << "[mixed own+inshare] inshare target B not awaited: the shared transfer is "
+                    "stranded (see O1)";
+    }
+    EXPECT_TRUE(bFinished) << "B: the inshare-target upload of the shared transfer never finished "
+                           << recorder.describe(tagB);
+
+    // L1 (both outcomes) — bookkeeping sanity, not a leak proof: cancel whatever is left
+    // (each MegaTransfer separately: cancelling A only detaches its File), then both
+    // report a finish and the client no longer lists the shared Transfer.
+    for (const int tag: {tagA, tagB})
+        if (!recorder.finishOf(tag))
+            megaApi[0]->cancelTransferByTag(tag);
+    EXPECT_TRUE(recorder.waitForFinish(tagA, kOwnCancelFinishTimeout) &&
+                recorder.waitForFinish(tagB, kOwnCancelFinishTimeout))
+        << "L1 (bookkeeping sanity): an upload of the shared transfer never reported "
+           "onTransferFinish ("
+        << kOwnCancelFinishTimeout.count() << "s after completion/cancel)";
+    EXPECT_TRUE(waitForUploadSnapshotGone(*megaApi[0], fileName, kOwnLeakGuardTimeout))
+        << "L1 (bookkeeping sanity): client still lists WS upload " << fileName << " "
+        << kOwnLeakGuardTimeout.count() << "s after its finish";
 }
 
 } // namespace mega::test::wsupload

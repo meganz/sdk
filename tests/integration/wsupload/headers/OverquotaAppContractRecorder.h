@@ -34,9 +34,9 @@
  * Transfer::progresscompleted (which does drop to 0 on a restart), sampled about once
  * per second through the always-compiled fetchWsUploadTransferSnapshots.
  *
- * Also provides waitForOwnQueueShortfall(): the public MegaApi::getWsUploadQueueQuotaFit
- * query (observational, unchanged by the fix), used as the "the ledger really holds an
- * own-account shortfall" premise.
+ * Also provides waitForQueueShortfall() / waitForOwnQueueShortfall(): the public
+ * MegaApi::getWsUploadQueueQuotaFit query (observational, unchanged by the fix), used as
+ * the "the ledger really holds the (own or foreign) shortfall" premise.
  *
  * Registers itself as a GLOBAL MegaListener (addListener) on construction and removes
  * itself in the destructor. Callbacks run on the SDK thread and only take this
@@ -607,12 +607,13 @@ inline QueueQuotaFitSample sampleQueueQuotaFit(::mega::MegaApi& api)
     return out;
 }
 
-// Polls (every 100 ms, up to `timeout`) until the queue-fit query reports an OWN
-// shortfall: STATE_SHORTFALL, !isForeignShortfall() and, when expectedShortfallBytes >
-// 0, exactly that many bytes (otherwise any positive amount). Returns the last sample.
-inline QueueQuotaFitSample waitForOwnQueueShortfall(::mega::MegaApi& api,
-                                                    long long expectedShortfallBytes,
-                                                    std::chrono::milliseconds timeout)
+// Polls (every 100 ms, up to `timeout`) until the queue-fit query reports a shortfall:
+// STATE_SHORTFALL, isForeignShortfall() == expectForeign and, when expectedShortfallBytes
+// > 0, exactly that many bytes (otherwise any positive amount). Returns the last sample.
+inline QueueQuotaFitSample waitForQueueShortfall(::mega::MegaApi& api,
+                                                 long long expectedShortfallBytes,
+                                                 bool expectForeign,
+                                                 std::chrono::milliseconds timeout)
 {
     const auto deadline = std::chrono::steady_clock::now() + timeout;
     QueueQuotaFitSample s;
@@ -622,12 +623,21 @@ inline QueueQuotaFitSample waitForOwnQueueShortfall(::mega::MegaApi& api,
         const bool amountOk = expectedShortfallBytes > 0 ?
                                   s.shortfallBytes == expectedShortfallBytes :
                                   s.shortfallBytes > 0;
-        if (s.state == ::mega::MegaWsUploadQuotaFit::STATE_SHORTFALL && !s.foreign && amountOk)
+        if (s.state == ::mega::MegaWsUploadQuotaFit::STATE_SHORTFALL &&
+            s.foreign == expectForeign && amountOk)
             return s;
         if (std::chrono::steady_clock::now() >= deadline)
             return s;
         ::WaitMillisec(100);
     }
+}
+
+// The OWN-shortfall form (!isForeignShortfall()) of waitForQueueShortfall.
+inline QueueQuotaFitSample waitForOwnQueueShortfall(::mega::MegaApi& api,
+                                                    long long expectedShortfallBytes,
+                                                    std::chrono::milliseconds timeout)
+{
+    return waitForQueueShortfall(api, expectedShortfallBytes, false, timeout);
 }
 
 } // namespace mega::test::wsupload
