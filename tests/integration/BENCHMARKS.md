@@ -28,6 +28,13 @@ Tests whose failure/flake usually indicates a real bug, not infra noise.
 | `SdkWsUploadTest.RepeatedPauseResumeMixedPools` | Cross-pool fairness under pause/resume; sensitive to `nextEligible` rotation semantics and preflight retry timing | ~2 min | 4 files, two USC size classes |
 | `SdkWsUploadTest.ActivePoolUsesParallelConnections` | Pool/connection fan-out | ~12–15 s | 1 × 12 MB |
 
+- **Timing cell (HR43)** — `SdkWsUploadTest.GoodputGateEngagesRampsToKneeAndTrims` (~3.5 min):
+  judges a multi-second gate trajectory across three bounded `second_timer` poll loops, so run it
+  ×15 under `taskset -c 0 nice -n 19` and count `[ OK ]` lines per iteration (never the summary).
+  It drops server event=5 Distress for its duration — macos_9808 failed (settle 10 vs 11) because a
+  genuine Distress rotated the size-class URL mid-ramp, retired the observed pool and silenced the
+  gate (`ws_pool_mgr.cpp:390`/`:1174`).
+
 ## Throughput benchmarks
 
 Use for A/B comparison when changing scheduling, preflight, or transfer path.
