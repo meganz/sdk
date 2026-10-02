@@ -8,11 +8,13 @@
 # - almalinux:9
 # - centos:stream9 (or quay.io/centos/centos:stream9)
 # - opensuse/leap:16.0
+# - opensuse/leap:16.1
 # - opensuse/tumbleweed
 # - ubuntu:22.04
 # - ubuntu:24.04
 # - fedora:43
 # - fedora:44
+# - fedora:45
 #
 # Where <ARCH> is one of the following:
 # - x64 (default)
@@ -55,18 +57,18 @@ case "${DISTRO}" in
         zypper -n install shadow gcc gcc-c++ openssh which findutils rpm-build git
         zypper -n install -t pattern devel_C_C++
 
-        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
+        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/leap:16.1" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
             zypper -n remove zlib-ng-compat-devel || true
         fi
 
         PACKAGES="${PACKAGES} automake awk gcc-c++ cmake libtool make"
-        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
+        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/leap:16.1" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
             PACKAGES="${PACKAGES} python313"
         fi
 
         zypper install -y --force-resolution ${PACKAGES}
         
-        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
+        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/leap:16.1" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
             mkdir -p /mega/python313
             ln -sf /usr/bin/python3.13 /mega/python313/python3
             SDK_BUILD_PATH_PREFIX="/mega/python313"

@@ -25,9 +25,11 @@ pipeline {
                 'almalinux:9',
                 'centos:stream9',
                 'opensuse/leap:16.0',
+                'opensuse/leap:16.1',
                 'opensuse/tumbleweed',
                 'ubuntu:24.04',
-                'fedora:44'
+                'fedora:44',
+                'fedora:45'
             ],
             description: 'Distribution to build')
     }
