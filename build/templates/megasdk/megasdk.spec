@@ -34,6 +34,7 @@ BuildRequires: hicolor-icon-theme, zip, unzip, nasm, cmake, perl
 
 # OpenSuse Leap 15.6 -> python311
 # OpenSuse Leap 16.0 -> python313
+# OpenSuse Leap 16.1 -> python313
 # OpenSuse Tumbleweed -> python313
 %if 0%{?sle_version} && 0%{?suse_version} < 1600
     BuildRequires: python311

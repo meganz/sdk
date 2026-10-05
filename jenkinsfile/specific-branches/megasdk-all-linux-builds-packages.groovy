@@ -98,9 +98,9 @@ pipeline {
                                 'Debian_12','Debian_13','Debian_testing',
                                 'DEB_Arch_Extra',
                                 'Raspbian_12',
-                                'Fedora_44',
+                                'Fedora_44','Fedora_45',
                                 'AlmaLinux_9','CentOS_Stream_9',
-                                'openSUSE_Leap_16.0', 'openSUSE_Tumbleweed'
+                                'openSUSE_Leap_16.0', 'openSUSE_Leap_16.1', 'openSUSE_Tumbleweed'
                     }
                 }
                 excludes {
@@ -114,9 +114,9 @@ pipeline {
                             values  'xUbuntu_26.10','xUbuntu_26.04','xUbuntu_24.04','xUbuntu_22.04',
                                     'Debian_12','Debian_13','Debian_testing',
                                     'DEB_Arch_Extra',
-                                    'Fedora_44',
+                                    'Fedora_44','Fedora_45',
                                     'AlmaLinux_9','CentOS_Stream_9',
-                                    'openSUSE_Leap_16.0', 'openSUSE_Tumbleweed'
+                                    'openSUSE_Leap_16.0', 'openSUSE_Leap_16.1', 'openSUSE_Tumbleweed'
                         }
                     }
                     exclude {
@@ -138,8 +138,8 @@ pipeline {
                             name 'DISTRO'; 
                             values  'DEB_Arch_Extra','Debian_13',
                                     'xUbuntu_24.04','xUbuntu_22.04',
-                                    'Fedora_44',
-                                    'CentOS_Stream_9','openSUSE_Leap_16.0',
+                                    'Fedora_44','Fedora_45',
+                                    'CentOS_Stream_9','openSUSE_Leap_16.0','openSUSE_Leap_16.1',
                                     'Raspbian_12','openSUSE_Tumbleweed'
                         }
                     }
