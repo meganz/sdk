@@ -880,6 +880,9 @@ namespace mega {
         std::function<
             void(int /*transferTag*/, bool /*held*/, bool /*foreign*/, m_off_t /*availableBytes*/)>
             onWsQuotaHoldChanged;
+        // Lets single-account tests classify an own pool as foreign to exercise the
+        // foreign-only hold machinery (SDK-6610).
+        std::function<void(NodeHandle /*folder*/, bool& /*foreign*/)> onWsQuotaClassifyPool;
         // Fired when a stale "tfs" reply is discarded by the generation check.
         std::function<void(std::uint64_t /*staleGen*/, std::uint64_t /*currentGen*/)>
             onWsTfsStaleDiscarded;
@@ -971,6 +974,7 @@ namespace mega {
             onWsTfsIssued = std::move(other.onWsTfsIssued);
             onWsTfsResult = std::move(other.onWsTfsResult);
             onWsQuotaHoldChanged = std::move(other.onWsQuotaHoldChanged);
+            onWsQuotaClassifyPool = std::move(other.onWsQuotaClassifyPool);
             onWsChunkSent = std::move(other.onWsChunkSent);
             onWsTfsStaleDiscarded = std::move(other.onWsTfsStaleDiscarded);
             onWsQuotaDeducted = std::move(other.onWsQuotaDeducted);
@@ -1524,6 +1528,19 @@ namespace mega {
         } \
         while (0)
 
+#define DEBUG_TEST_HOOK_WS_QUOTA_CLASSIFY_POOL(H, FOREIGN) \
+        do \
+        { \
+            std::function<void(NodeHandle, bool&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsQuotaClassifyPool; \
+            } \
+            if (_fn) \
+                _fn((H), (FOREIGN)); \
+        } \
+        while (0)
+
 #define DEBUG_TEST_HOOK_WS_TFS_STALE_DISCARDED(STALE, CURRENT) \
         do \
         { \
@@ -1750,6 +1767,7 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN)
 #define DEBUG_TEST_HOOK_WS_TFS_RESULT(GEN, ERR, GROUPS, ACTION)
 #define DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(TAG, HELD, FOREIGN, AVAIL)
+#define DEBUG_TEST_HOOK_WS_QUOTA_CLASSIFY_POOL(H, FOREIGN)
 #define DEBUG_TEST_HOOK_WS_TFS_STALE_DISCARDED(STALE, CURRENT)
 #define DEBUG_TEST_HOOK_WS_QUOTA_DEDUCTED(H, SIZE, REMAINING)
 #define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP)
