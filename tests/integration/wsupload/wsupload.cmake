@@ -16,6 +16,7 @@ target_sources_conditional(test_integration
     wsupload/SdkWsUploadCrashTest.cpp
     wsupload/SdkWsQuotaTest.cpp
     wsupload/SdkWsQuotaRealTest.cpp
+    wsupload/headers/OverquotaAppContractRecorder.h
     wsupload/headers/ScopedUploadSpeedLimit.h
     wsupload/headers/SecondTimer.h
     wsupload/headers/TransferTempErrorTracker.h

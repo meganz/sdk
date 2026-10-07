@@ -360,7 +360,9 @@ void MegaClient::wsQuotaOnTfsReply(std::uint64_t gen,
                               groups,
                               [this](NodeHandle h)
                               {
-                                  return wsQuotaClassifyPool(h);
+                                  auto pool = wsQuotaClassifyPool(h);
+                                  DEBUG_TEST_HOOK_WS_QUOTA_CLASSIFY_POOL(h, pool.second);
+                                  return pool;
                               }))
     {
         wsQuotaEvaluateHolds();
@@ -402,11 +404,32 @@ void MegaClient::wsQuotaEvaluateHolds()
             targets.push_back(f->h);
             if (reprFolder.isUndef())
                 reprFolder = f->h; // first balance-bearing target (release reporting)
-            if (!shouldHold && t->size > mWsQuota->availableFor(f->h))
+            // Only a FOREIGN (inshare) shortfall holds: the app gets isForeignOverquota().
+            // An own-account shortfall fails open: apps learn of own storage exhaustion
+            // only via EVENT_STORAGE, which the legacy account-RED path fires if the
+            // server rejects or the account overflows (SDK-XXXX).
+            if (!shouldHold && t->size > mWsQuota->availableFor(f->h) &&
+                mWsQuota->isForeignGroup(f->h))
             {
                 // hold-if-ANY-target-short: pin the first shortfall folder for the hook.
                 shouldHold = true;
                 reprFolder = f->h;
+            }
+        }
+
+        if (shouldHold)
+        {
+            // Never hold a transfer that also feeds an own (or unclassified) target: the
+            // bytes are shared, so that target would be stuck with an error apps don't act
+            // on. The foreign target gets the server's verdict at putnodes, as before.
+            for (File* f: t->files)
+            {
+                if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h) ||
+                    !mWsQuota->isForeignGroup(f->h))
+                {
+                    shouldHold = false;
+                    break;
+                }
             }
         }
 
@@ -453,6 +476,10 @@ bool MegaClient::wsQuotaApplyHoldState(Transfer& t,
             ++performanceStats.transferTempErrors;
         }
 
+        LOG_debug << "WsQuota: hold transfer " << t.tag
+                  << " (foreign pool short, available=" << mWsQuota->availableFor(reprFolder)
+                  << ", size=" << t.size << ")";
+
         // Args inlined: in a hooks-off (Release) build the macro vanishes, so a
         // named foreign/avail here would be an unused-variable error (HR42).
         DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(t.tag,
@@ -477,6 +504,9 @@ bool MegaClient::wsQuotaApplyHoldState(Transfer& t,
         t.state = TRANSFERSTATE_QUEUED;
         app->transfer_update(&t);
     }
+
+    LOG_debug << "WsQuota: release transfer " << t.tag
+              << " (available=" << mWsQuota->availableFor(reprFolder) << ", size=" << t.size << ")";
 
     DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(t.tag,
                                           false,

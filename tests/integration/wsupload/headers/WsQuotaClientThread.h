@@ -1,6 +1,7 @@
 /**
  * @file WsQuotaClientThread.h
- * @brief Client-thread trigger for the SDK-6298 usl-change (M1) entry point.
+ * @brief Client-thread trigger for the SDK-6298 usl-change (M1) entry point, plus
+ *        client-thread storage-state helpers (setstoragestatus, cached ststatus read).
  *
  * Tests cannot write the server-managed `^!usl` attribute, so they model a usl
  * change by invoking `MegaClient::wsQuotaInvalidateAndMarkDirty()` (M1) directly
@@ -86,6 +87,29 @@ inline bool setStorageStatusOnClientThread(::mega::MegaApi& api,
             }
         });
     return dispatched && ran;
+}
+
+// Reads MegaClient::ststatus (the SDK's cached storage state: what EVENT_STORAGE last
+// reported) on the client thread. executeOnThreadForTesting is always compiled, so the
+// hook-free real cells use it too. Returns false on teardown races / timeout.
+inline bool fetchSdkStorageStatusOnClientThread(::mega::MegaApi& api,
+                                                int& statusOut,
+                                                int timeoutSeconds = 30)
+{
+    return runOnClientThreadWithResult<int>(
+        api,
+        statusOut,
+        timeoutSeconds,
+        [](::mega::MegaClient* client, std::shared_ptr<std::promise<int>> promise)
+        {
+            promise->set_value(
+                static_cast<int>(client ? client->ststatus : ::mega::STORAGE_UNKNOWN));
+        });
+}
+
+inline bool isFullStorageStatus(int status)
+{
+    return status == ::mega::STORAGE_RED || status == ::mega::STORAGE_PAYWALL;
 }
 
 } // namespace mega::test::wsupload

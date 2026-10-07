@@ -48,6 +48,7 @@ struct WsUploadTransferSnapshot
 {
     bool found = false;
     std::uint32_t transferId = 0;
+    int tag = -1; // Transfer::tag (the MegaTransfer tag of a single-file upload)
     std::string fileName;
     std::uint32_t wsFileno = 0;
     std::string serializedWsSessionUrl;
@@ -83,6 +84,7 @@ inline bool fetchWsUploadTransferSnapshots(::mega::MegaApi& api,
                     WsUploadTransferSnapshot snapshot;
                     snapshot.found = true;
                     snapshot.transferId = t->dbid;
+                    snapshot.tag = t->tag;
                     snapshot.fileName = t->localfilename.leafName().toPath(false);
                     snapshot.wsFileno = t->ws_fileno;
                     snapshot.serializedWsSessionUrl = t->ws_session_url;
@@ -152,6 +154,7 @@ inline bool fetchBestWsUploadTransferSnapshot(::mega::MegaApi& api,
                     WsUploadTransferSnapshot candidate;
                     candidate.found = true;
                     candidate.transferId = t->dbid;
+                    candidate.tag = t->tag;
                     candidate.fileName = t->localfilename.leafName().toPath(false);
                     candidate.wsFileno = t->ws_fileno;
                     candidate.serializedWsSessionUrl = t->ws_session_url;
