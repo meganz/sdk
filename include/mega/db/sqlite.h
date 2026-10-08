@@ -456,6 +456,11 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
                                   size_t numExcludes,
                                   FavouriteFilter_t favourite);
 
+/// SQL text of the groupAllNodesByDate query for @p numRoots roots. Parameter slots:
+/// optional ?1 mime (simple mime only), then the roots, then the excludes, then the tz
+/// offset. Internal-only (see note above).
+std::string buildDateSectionQuery(const DateSectionParams& params, size_t numRoots);
+
 } // namespace
 
 #endif

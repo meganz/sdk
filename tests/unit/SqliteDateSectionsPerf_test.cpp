@@ -1,28 +1,28 @@
 /**
  * @file SqliteDateSectionsPerf_test.cpp
- * @brief Performance tests for SDK-6171 date-section + timestamp-anchor work.
+ * @brief Performance tests for the date-section + timestamp-anchor queries (SDK-6171, SDK-6582).
  *
  * Separate from SqliteNodesPerf_test.cpp because that fixture packs every node
  * into one date bucket, so it can't exercise the date-granularity code paths.
  *
- * Dataset (built in SetUp): 3 roots (ROOT/VAULT/RUBBISH), 10 top + 100
- * sub-folders, 100,000 files with mtime spread across 730 days from 2023-11-14,
- * plus 10,000 rubbish files (same mime mix, to test the "index match but root
- * filter rejects" path). The spread yields 730 Day / 24 Month / 2-3 Year
- * buckets.
+ * Every dataset (DateSpreadDataset) uses pseudo-random handles and is committed
+ * after populating, as a real client is after fetchnodes.
  *
- * SetUp takes ~30s. All tests are DISABLED_*; CI skips them. Run with:
- *   ./build-sdk-dev-unix/tests/unit/test_unit \
- *       --gtest_also_run_disabled_tests \
- *       --gtest_filter='*SqliteDateSections*:*ListAllByAnchor*:*CacheEffects*'
+ * - Phases 1, 3, 5 and the tz sweep: 100K files over 730 days (SetUp ~30 s per test).
+ * - Phase 2 (SqliteNodesPerfGroupByDateTest): six 1M-2M shapes x 9 cells, one
+ *   dataset per shape. Takes about 2.5 hours with the per-candidate up-walk SQL and
+ *   about 20 minutes with the per-parent one, on a desktop Release build.
+ * - Phase 4 (cache effects): 5K files.
  *
- * Numbers are logged, not asserted — compare against
- * tests/unit/SqliteNodesPerf_baseline.md on the SAME machine; cross-machine
- * comparison is meaningless.
+ * All tests are DISABLED_*; CI skips them. Run a Release build with:
+ *   ./tests/unit/test_unit --gtest_also_run_disabled_tests \
+ *       --gtest_filter='*SqliteDateSections*:*GroupByDate*:*ListAllByAnchor*:*CacheEffects*'
  *
- * This file holds four suites sharing DateSpreadFixtureBase; the
- * one-suite-per-file rule (tests/README.md) is relaxed to avoid paying the
- * ~30s populate cost 4×.
+ * Numbers are logged, not asserted. Results, method and history:
+ * tests/unit/SqliteDateSectionsPerf_baseline.md. Compare only on the SAME machine.
+ *
+ * This file holds several suites sharing DateSpreadDataset; the one-suite-per-file
+ * rule (tests/README.md) is relaxed to avoid duplicating the dataset builder.
  */
 
 #include "utils.h"
@@ -33,6 +33,8 @@
 #include <mega/megaclient.h>
 #include <mega/nodemanager.h>
 
+#include <algorithm>
+#include <array>
 #include <chrono>
 #include <filesystem>
 #include <mega.h>
@@ -106,6 +108,9 @@ struct DateSpreadParams
     int numSubPerTop;
     int intraDaySeconds;
     int rubbishRatioDenom; // numFiles / rubbishRatioDenom rubbish files
+    int extraDepth = 0; // folders chained between the root and the top folders
+    int videoEvery = 0; // > 0: about one video every videoEvery files, the rest documents
+    int sensitiveSubFolderEvery = 0; // > 0: every Nth sub-folder is marked sensitive
 };
 
 constexpr DateSpreadParams kLargeParams{kLargeNumDays,
@@ -122,18 +127,16 @@ constexpr DateSpreadParams kSmallParams{kSmallNumDays,
                                         kSmallIntraDaySeconds,
                                         10};
 
-// ─── Common fixture base ────────────────────────────────────────────────────
-// Subclasses set up `kParams` to pick a dataset scale, then SetUp() handles
-// the boilerplate of opening the DB and populating it.
+// ─── Dataset ────────────────────────────────────────────────────────────────
+// One populated, committed date-spread DB and the handles the tests address. Not copyable (its
+// MegaClient keeps a reference to mApp): hold it by unique_ptr.
 
-class DateSpreadFixtureBase: public ::testing::Test
+struct DateSpreadDataset
 {
-protected:
     mega::MegaApp mApp;
     NodeManager::MissingParentNodes mMissingParentNodes;
+    fs::path mDir;
     std::shared_ptr<MegaClient> mClient;
-    fs::path mTestDir;
-
     uint64_t mNextHandle = 1;
 
     NodeHandle mRootHandle;
@@ -141,60 +144,81 @@ protected:
     std::vector<NodeHandle> mSubFolderHandles;
     std::vector<NodeHandle> mFileHandles;
 
-    // Bucket-bound tracking — populated during populateDB so anchor tests
-    // can pick "first bucket" / "mid bucket" / "last bucket" mtimes.
+    // Bucket-bound tracking, so anchor tests can pick "first" / "mid" / "last" bucket mtimes.
     int64_t mFirstBucketStartSec = 0;
     int64_t mLastBucketStartSec = 0;
     int64_t mMidBucketStartSec = 0;
 
-    virtual const DateSpreadParams& params() const = 0;
-    virtual const char* fixtureName() const = 0;
-
-    void SetUp() override
+    DateSpreadDataset(const DateSpreadParams& p, fs::path dir):
+        mDir(std::move(dir))
     {
-        mTestDir = fs::current_path() / fixtureName();
-        fs::remove_all(mTestDir);
-        fs::create_directories(mTestDir);
+        fs::remove_all(mDir);
+        fs::create_directories(mDir);
 
-        auto* dbAccess = new SqliteDbAccess(LocalPath::fromAbsolutePath(path_u8string(mTestDir)));
+        auto* dbAccess = new SqliteDbAccess(LocalPath::fromAbsolutePath(path_u8string(mDir)));
         mClient = mt::makeClient(mApp, dbAccess);
         mClient->sid =
             "AWA5YAbtb4JO-y2zWxmKZpSe5-6XM7CTEkA-3Nv7J4byQUpOazdfSC1ZUFlS-kah76gPKUEkTF9g7MeE";
         mClient->opensctable();
 
-        populateDB();
+        populate(p);
 
         if (auto* sa = dynamic_cast<SqliteAccountState*>(mClient->sctable.get()))
             sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
+
+        // opensctable() leaves a transaction open, and a real client commits it after
+        // fetchnodes (MegaClient::sc_purgeAndCommit). Without this, every query reads the
+        // uncommitted pages out of a multi-GB WAL (seen: 4 KB main file, 1.5 GB WAL).
+        mClient->sctable->commit();
+        mClient->sctable->begin();
+        logDbFileSizes();
     }
 
-    void TearDown() override
+    ~DateSpreadDataset()
     {
-        mClient.reset();
-        fs::remove_all(mTestDir);
+        mClient.reset(); // release the DB (and its WAL) before removing the dir
+        std::error_code ec;
+        fs::remove_all(mDir, ec);
     }
 
+    DateSpreadDataset(const DateSpreadDataset&) = delete;
+    DateSpreadDataset& operator=(const DateSpreadDataset&) = delete;
+
+    DBTableNodes* nodesTable() const
+    {
+        return dynamic_cast<DBTableNodes*>(mClient->sctable.get());
+    }
+
+private:
     // ── Node factory (trimmed copy of SqliteNodesPerfTest's; no fav/label) ──
     std::shared_ptr<Node> addNode(nodetype_t nodeType,
                                   std::shared_ptr<Node> parent,
                                   const std::string& name,
-                                  m_time_t mtime = 0)
+                                  m_time_t mtime = 0,
+                                  bool sensitive = false)
     {
-        NodeHandle handle = NodeHandle().set6byte(mNextHandle++);
+        // Real accounts have random handles; sequential ones would give the table a locality real
+        // DBs lack. An odd multiplier mod 2^48 is a bijection: handles stay unique, and never 0.
+        constexpr uint64_t kHandleMixer = 0x9E3779B97F4Bull;
+        const uint64_t seq = mNextHandle++;
+        const NodeHandle handle = NodeHandle().set6byte((seq * kHandleMixer) & 0xFFFFFFFFFFFFull);
+        assert(!handle.isUndef());
         auto node = mt::makeNode(*mClient, nodeType, handle, parent.get());
 
         static const nameid nameId = AttrMap::string2nameid("n");
         node->attrs.map[nameId] = name;
+        if (sensitive)
+            node->attrs.map[AttrMap::string2nameid("sen")] = "1";
 
         if (nodeType == FILENODE)
         {
-            node->size = static_cast<m_off_t>(mNextHandle * 512);
-            node->ctime = static_cast<m_time_t>(kBaseEpoch + static_cast<int64_t>(mNextHandle));
+            node->size = static_cast<m_off_t>(seq * 512);
+            node->ctime = static_cast<m_time_t>(kBaseEpoch + static_cast<int64_t>(seq));
             node->mtime = mtime;
-            node->crc[0] = static_cast<int32_t>(mNextHandle);
-            node->crc[1] = static_cast<int32_t>(mNextHandle >> 8u);
-            node->crc[2] = static_cast<int32_t>(mNextHandle >> 16u);
-            node->crc[3] = static_cast<int32_t>(mNextHandle >> 24u);
+            node->crc[0] = static_cast<int32_t>(seq);
+            node->crc[1] = static_cast<int32_t>(seq >> 8u);
+            node->crc[2] = static_cast<int32_t>(seq >> 16u);
+            node->crc[3] = static_cast<int32_t>(seq >> 24u);
             node->isvalid = true;
             node->serializefingerprint(&node->attrs.map['c']);
             node->setfingerprint();
@@ -213,29 +237,35 @@ protected:
         return node;
     }
 
-    void populateDB()
+    void populate(const DateSpreadParams& p)
     {
-        const auto& p = params();
-
         auto rootNode = addNode(ROOTNODE, nullptr, "ROOT");
         mRootHandle = rootNode->nodeHandle();
         addNode(VAULTNODE, nullptr, "VAULT");
         auto rubbishNode = addNode(RUBBISHNODE, nullptr, "RUBBISH");
+
+        std::shared_ptr<Node> topParent = rootNode;
+        for (int d = 0; d < p.extraDepth; ++d)
+            topParent = addNode(FOLDERNODE, topParent, "Chain_" + std::to_string(d));
 
         std::vector<std::shared_ptr<Node>> subFolders;
         subFolders.reserve(static_cast<size_t>(p.numTopFolders * p.numSubPerTop));
 
         for (int i = 0; i < p.numTopFolders; ++i)
         {
-            auto topFolder = addNode(FOLDERNODE, rootNode, "Folder_" + std::to_string(i));
+            auto topFolder = addNode(FOLDERNODE, topParent, "Folder_" + std::to_string(i));
             mTopFolderHandles.push_back(topFolder->nodeHandle());
 
             for (int j = 0; j < p.numSubPerTop; ++j)
             {
-                auto subFolder =
-                    addNode(FOLDERNODE,
-                            topFolder,
-                            "SubFolder_" + std::to_string(i) + "_" + std::to_string(j));
+                const bool sensitive =
+                    p.sensitiveSubFolderEvery > 0 &&
+                    subFolders.size() % static_cast<size_t>(p.sensitiveSubFolderEvery) == 0;
+                auto subFolder = addNode(FOLDERNODE,
+                                         topFolder,
+                                         "SubFolder_" + std::to_string(i) + "_" + std::to_string(j),
+                                         /*mtime=*/0,
+                                         sensitive);
                 mSubFolderHandles.push_back(subFolder->nodeHandle());
                 subFolders.push_back(subFolder);
             }
@@ -259,6 +289,14 @@ protected:
                 const char* ext = (globalFileIdx % 10 < 5)  ? ".jpg" :
                                   (globalFileIdx % 10 == 5) ? ".mp4" :
                                                               ".txt";
+                // Sparse shape: place videos by a hash of the index; a plain modulo put every
+                // video in one of the every-Nth sensitive sub-folders.
+                if (p.videoEvery > 0)
+                    ext = ((static_cast<uint64_t>(globalFileIdx) * 0x9E3779B97F4A7C15ull >> 32) %
+                               static_cast<uint64_t>(p.videoEvery) ==
+                           0) ?
+                              ".mp4" :
+                              ".txt";
                 std::string fname = "f_" + std::to_string(s) + "_" + std::to_string(k) + ext;
                 auto file = addNode(FILENODE, subFolders[s], fname, mtime);
                 mFileHandles.push_back(file->nodeHandle());
@@ -287,14 +325,77 @@ protected:
         }
     }
 
+    // Evidence for the commit above: after it, the data sits in the main file.
+    void logDbFileSizes() const
+    {
+        uintmax_t dbBytes = 0;
+        uintmax_t walBytes = 0;
+        std::error_code ec;
+        for (const auto& e: fs::directory_iterator(mDir, ec))
+        {
+            const std::string name = e.path().filename().string();
+            if (name.find("statecache") == std::string::npos ||
+                name.find("prefs") != std::string::npos)
+                continue;
+            if (name.size() > 3 && name.compare(name.size() - 3, 3, ".db") == 0)
+                dbBytes += e.file_size(ec);
+            else if (name.size() > 4 && name.compare(name.size() - 4, 4, "-wal") == 0)
+                walBytes += e.file_size(ec);
+        }
+        GTEST_LOG_(INFO) << "date-spread DB committed: db=" << (dbBytes >> 20)
+                         << " MB, wal=" << (walBytes >> 20) << " MB";
+    }
+};
+
+// ─── Common fixture base ────────────────────────────────────────────────────
+// Subclasses pick a dataset scale via params(); SetUp() builds a fresh dataset per test.
+
+class DateSpreadFixtureBase: public ::testing::Test
+{
+protected:
+    std::unique_ptr<DateSpreadDataset> mDataset;
+
+    // Copies of the dataset's client and handles, under the names the tests use.
+    std::shared_ptr<MegaClient> mClient;
+    NodeHandle mRootHandle;
+    std::vector<NodeHandle> mTopFolderHandles;
+    std::vector<NodeHandle> mSubFolderHandles;
+    std::vector<NodeHandle> mFileHandles;
+    int64_t mFirstBucketStartSec = 0;
+    int64_t mLastBucketStartSec = 0;
+    int64_t mMidBucketStartSec = 0;
+
+    virtual const DateSpreadParams& params() const = 0;
+    virtual const char* fixtureName() const = 0;
+
+    void SetUp() override
+    {
+        mDataset =
+            std::make_unique<DateSpreadDataset>(params(), fs::current_path() / fixtureName());
+        mClient = mDataset->mClient;
+        mRootHandle = mDataset->mRootHandle;
+        mTopFolderHandles = mDataset->mTopFolderHandles;
+        mSubFolderHandles = mDataset->mSubFolderHandles;
+        mFileHandles = mDataset->mFileHandles;
+        mFirstBucketStartSec = mDataset->mFirstBucketStartSec;
+        mLastBucketStartSec = mDataset->mLastBucketStartSec;
+        mMidBucketStartSec = mDataset->mMidBucketStartSec;
+    }
+
+    void TearDown() override
+    {
+        mClient.reset(); // drop our copy first, so the dataset really closes the DB
+        mDataset.reset();
+    }
+
     DBTableNodes* nodesTable()
     {
-        return dynamic_cast<DBTableNodes*>(mClient->sctable.get());
+        return mDataset->nodesTable();
     }
 };
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Large fixture (100K nodes / 730 days) — used by Phases 1, 2, 3
+//  Large fixture (100K nodes / 730 days) — used by Phases 1, 3, 5 and the tz sweep
 // ═══════════════════════════════════════════════════════════════════════════
 
 class SqliteDateSectionsPerfFixture: public DateSpreadFixtureBase
@@ -368,21 +469,12 @@ TEST_F(DISABLED_SqliteDateSectionsPerfTest, DateSpreadSanity)
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
-//  Phase 2: groupAllNodesByDate parametric perf
+//  Phase 2: groupAllNodesByDate at 1M–2M nodes
 // ═══════════════════════════════════════════════════════════════════════════
-
-struct GroupByDateParam
-{
-    MimeType_t mimeType;
-    DateSectionGranularity granularity;
-    int rootCount;
-    bool excludeSensitive;
-};
-
-class SqliteNodesPerfGroupByDateTest:
-    public SqliteDateSectionsPerfFixture,
-    public ::testing::WithParamInterface<GroupByDateParam>
-{};
+//
+// One dataset per shape, shared by its cells (a 2M populate takes ~70 s); params are grouped by
+// shape so only one dataset is alive at a time. Each cell logs its first run, the median of 3
+// more and a section checksum, which an SQL change must not alter.
 
 static const char* mimeName(MimeType_t m)
 {
@@ -413,80 +505,200 @@ static const char* granName(DateSectionGranularity g)
     return "?";
 }
 
-TEST_P(SqliteNodesPerfGroupByDateTest, DISABLED_Perf)
+constexpr int kShapeDays = 3653; // ~10 years; coprime with the 10-file mime period
+
+constexpr int intraDaySecondsFor(int numFiles)
 {
-    auto* table = nodesTable();
-    ASSERT_NE(table, nullptr);
-
-    const auto& p = GetParam();
-
-    DateSectionParams sp;
-    sp.mimeType = p.mimeType;
-    sp.order = OrderByClause::MTIME_DESC;
-    sp.granularity = p.granularity;
-    sp.excludeSensitive = p.excludeSensitive;
-
-    std::vector<NodeHandle> roots{mRootHandle};
-    for (int i = 1; i < p.rootCount && i < static_cast<int>(mTopFolderHandles.size()); ++i)
-        roots.push_back(mTopFolderHandles[static_cast<size_t>(i)]);
-
-    // Warm prepare; the timed loop measures execution only.
-    {
-        std::vector<DateSection> warm;
-        CancelToken ct;
-        table->groupAllNodesByDate(sp, roots, warm, ct);
-    }
-
-    size_t sectionCount = 0;
-    const long long us = measureUs(COMPLEX_ITERS,
-                                   [&]
-                                   {
-                                       std::vector<DateSection> sections;
-                                       CancelToken ct;
-                                       table->groupAllNodesByDate(sp, roots, sections, ct);
-                                       sectionCount = sections.size();
-                                   });
-
-    GTEST_LOG_(INFO) << "groupAllNodesByDate [mime=" << mimeName(p.mimeType)
-                     << ", gran=" << granName(p.granularity) << ", roots=" << roots.size()
-                     << ", excludeSens=" << (p.excludeSensitive ? "1" : "0")
-                     << ", sections=" << sectionCount << "]: " << COMPLEX_ITERS << " iters, total "
-                     << us << " us, avg " << us / COMPLEX_ITERS << " us/iter";
+    return std::max(1, 86400 / std::max(1, numFiles / kShapeDays));
 }
 
+struct GroupByDateShape
+{
+    const char* name;
+    DateSpreadParams params;
+};
+
 // clang-format off
-static const GroupByDateParam kGroupByDateParams[] = {
-    // 18 cells: 3 mime × 3 granularity × 2 root counts  (excludeSens=false)
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Day,   1, false},
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Day,   3, false},
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Month, 1, false},
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Month, 3, false},
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Year,  1, false},
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Year,  3, false},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Day,   1, false},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Day,   3, false},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Month, 1, false},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Month, 3, false},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Year,  1, false},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Year,  3, false},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Day,   1, false},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Day,   3, false},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Month, 1, false},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Month, 3, false},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Year,  1, false},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Year,  3, false},
-    // 4 spot checks with excludeSensitive=true — only on Day granularity
-    // (sens-pruning cost depends on tree walk, not on bucket count).
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Day,   1, true},
-    {MIME_TYPE_ALL_VISUAL_MEDIA,  DateSectionGranularity::Day,   1, true},
-    {MIME_TYPE_ALL_DOCS,          DateSectionGranularity::Day,   1, true},
-    {MIME_TYPE_VIDEO,             DateSectionGranularity::Day,   3, true},
+const GroupByDateShape kGroupByDateShapes[] = {
+    {"1M-5Kfolders",        {.numDays = kShapeDays, .numFiles = 1'000'000, .numTopFolders = 50,  .numSubPerTop = 100,  .intraDaySeconds = intraDaySecondsFor(1'000'000), .rubbishRatioDenom = 10, .sensitiveSubFolderEvery = 100}},
+    {"1M-200Kfolders",      {.numDays = kShapeDays, .numFiles = 1'000'000, .numTopFolders = 200, .numSubPerTop = 1000, .intraDaySeconds = intraDaySecondsFor(1'000'000), .rubbishRatioDenom = 10, .sensitiveSubFolderEvery = 100}},
+    {"2M-5Kfolders",        {.numDays = kShapeDays, .numFiles = 2'000'000, .numTopFolders = 50,  .numSubPerTop = 100,  .intraDaySeconds = intraDaySecondsFor(2'000'000), .rubbishRatioDenom = 10, .sensitiveSubFolderEvery = 100}},
+    {"2M-200Kfolders",      {.numDays = kShapeDays, .numFiles = 2'000'000, .numTopFolders = 200, .numSubPerTop = 1000, .intraDaySeconds = intraDaySecondsFor(2'000'000), .rubbishRatioDenom = 10, .sensitiveSubFolderEvery = 100}},
+    {"2M-200Kfolders-depth8", {.numDays = kShapeDays, .numFiles = 2'000'000, .numTopFolders = 200, .numSubPerTop = 1000, .intraDaySeconds = intraDaySecondsFor(2'000'000), .rubbishRatioDenom = 10, .extraDepth = 5, .sensitiveSubFolderEvery = 100}},
+    {"1M-200Kfolders-video0.1pct", {.numDays = kShapeDays, .numFiles = 1'000'000, .numTopFolders = 200, .numSubPerTop = 1000, .intraDaySeconds = intraDaySecondsFor(1'000'000), .rubbishRatioDenom = 10, .videoEvery = 1000, .sensitiveSubFolderEvery = 100}},
 };
 // clang-format on
 
+enum class GroupByDateScope
+{
+    Root,
+    SubFolderAncestor,
+    ExcludeTopFolderHideSensitive,
+};
+
+static const char* scopeName(GroupByDateScope s)
+{
+    switch (s)
+    {
+        case GroupByDateScope::Root:
+            return "root";
+        case GroupByDateScope::SubFolderAncestor:
+            return "sub-folder";
+        case GroupByDateScope::ExcludeTopFolderHideSensitive:
+            return "exclude+hide-sensitive";
+    }
+    return "?";
+}
+
+static const char* groupOrderName(int order)
+{
+    return order == OrderByClause::MEDIATS_DESC ? "MEDIATS_DESC" : "MTIME_DESC";
+}
+
+struct GroupByDateParam
+{
+    const GroupByDateShape* shape;
+    MimeType_t mimeType;
+    int order;
+    GroupByDateScope scope;
+    DateSectionGranularity granularity;
+};
+
+std::vector<GroupByDateParam> makeGroupByDateParams()
+{
+    std::vector<GroupByDateParam> params;
+    for (const auto& shape: kGroupByDateShapes)
+    {
+        for (const int order: {OrderByClause::MTIME_DESC, OrderByClause::MEDIATS_DESC})
+        {
+            params.push_back({&shape,
+                              MIME_TYPE_VIDEO,
+                              order,
+                              GroupByDateScope::Root,
+                              DateSectionGranularity::Month});
+            for (const auto scope: {GroupByDateScope::Root,
+                                    GroupByDateScope::SubFolderAncestor,
+                                    GroupByDateScope::ExcludeTopFolderHideSensitive})
+                params.push_back({&shape,
+                                  MIME_TYPE_ALL_VISUAL_MEDIA,
+                                  order,
+                                  scope,
+                                  DateSectionGranularity::Month});
+        }
+        // Day gives the most (parent, bucket) rows per parent, i.e. the largest `candidates`.
+        params.push_back({&shape,
+                          MIME_TYPE_ALL_VISUAL_MEDIA,
+                          OrderByClause::MEDIATS_DESC,
+                          GroupByDateScope::Root,
+                          DateSectionGranularity::Day});
+    }
+    return params;
+}
+
+// FNV-1a over every field of every section: equal checksums mean equal section lists.
+uint64_t sectionsChecksum(const std::vector<DateSection>& sections)
+{
+    uint64_t h = 1469598103934665603ull;
+    const auto mix = [&h](const void* data, size_t len)
+    {
+        const auto* bytes = static_cast<const unsigned char*>(data);
+        for (size_t i = 0; i < len; ++i)
+        {
+            h ^= bytes[i];
+            h *= 1099511628211ull;
+        }
+    };
+    for (const auto& s: sections)
+    {
+        mix(s.mGroupId.data(), s.mGroupId.size());
+        mix(&s.mStartDate, sizeof s.mStartDate);
+        mix(&s.mEndDate, sizeof s.mEndDate);
+        mix(&s.mCount, sizeof s.mCount);
+    }
+    return h;
+}
+
+class SqliteNodesPerfGroupByDateTest: public ::testing::TestWithParam<GroupByDateParam>
+{
+protected:
+    static inline std::unique_ptr<DateSpreadDataset> sDataset;
+    static inline const GroupByDateShape* sShape = nullptr;
+
+    void SetUp() override
+    {
+        const GroupByDateShape* shape = GetParam().shape;
+        if (sShape == shape)
+            return;
+        sDataset.reset(); // one dataset in memory at a time
+        sShape = nullptr;
+        sDataset =
+            std::make_unique<DateSpreadDataset>(shape->params,
+                                                fs::current_path() / "sqlite_group_by_date_perf");
+        sShape = shape;
+    }
+
+    static void TearDownTestSuite()
+    {
+        sDataset.reset();
+        sShape = nullptr;
+    }
+};
+
+TEST_P(SqliteNodesPerfGroupByDateTest, DISABLED_Perf)
+{
+    ASSERT_NE(sDataset, nullptr);
+    const auto& p = GetParam();
+    const DateSpreadDataset& d = *sDataset;
+
+    DateSectionParams sp;
+    sp.mimeType = p.mimeType;
+    sp.order = p.order;
+    sp.granularity = p.granularity;
+    std::vector<NodeHandle> roots{d.mRootHandle};
+    switch (p.scope)
+    {
+        case GroupByDateScope::Root:
+            break;
+        case GroupByDateScope::SubFolderAncestor:
+            roots = {d.mSubFolderHandles.front()};
+            break;
+        case GroupByDateScope::ExcludeTopFolderHideSensitive:
+            sp.excludeHandles = {d.mTopFolderHandles.at(1)};
+            sp.excludeSensitive = true;
+            break;
+    }
+
+    std::vector<DateSection> sections;
+    const auto run = [&]
+    {
+        sections.clear();
+        CancelToken ct;
+        ASSERT_TRUE(d.nodesTable()->groupAllNodesByDate(sp, roots, sections, ct));
+    };
+
+    const long long firstUs = measureUs(1, run);
+    std::array<long long, 3> us{};
+    for (auto& t: us)
+        t = measureUs(1, run);
+    std::sort(us.begin(), us.end());
+    if (HasFatalFailure())
+        return; // the ASSERT in `run` only left the lambda; don't log a bogus timing
+
+    int64_t matched = 0;
+    for (const auto& s: sections)
+        matched += s.mCount;
+
+    GTEST_LOG_(INFO) << "groupAllNodesByDate [shape=" << p.shape->name
+                     << ", mime=" << mimeName(p.mimeType) << ", order=" << groupOrderName(p.order)
+                     << ", scope=" << scopeName(p.scope) << ", gran=" << granName(p.granularity)
+                     << "]: first " << firstUs / 1000 << " ms, median " << us[1] / 1000
+                     << " ms, sections=" << sections.size() << ", matched=" << matched
+                     << ", checksum=0x" << std::hex << sectionsChecksum(sections) << std::dec;
+}
+
 INSTANTIATE_TEST_SUITE_P(All,
                          SqliteNodesPerfGroupByDateTest,
-                         ::testing::ValuesIn(kGroupByDateParams));
+                         ::testing::ValuesIn(makeGroupByDateParams()));
 
 // ═══════════════════════════════════════════════════════════════════════════
 //  Phase 3: listAllNodesByPage + byTimestampAnchor parametric perf
@@ -722,12 +934,7 @@ TEST_F(DISABLED_SqliteCacheEffectsPerfTest, GroupByDate_ColdPrepareViaRebuild)
 
     for (int iter = 0; iter < kColdIters; ++iter)
     {
-        // Reset everything from the base fixture and re-populate.
         TearDown();
-        mNextHandle = 1;
-        mTopFolderHandles.clear();
-        mSubFolderHandles.clear();
-        mFileHandles.clear();
         SetUp();
 
         auto* table = nodesTable();
