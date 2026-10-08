@@ -981,3 +981,141 @@ TEST_F(SdkTestTransfersResumedEvent, event_fired_for_remote_copy_on_resume)
     EXPECT_STREQ(copyKey.get(), sourceKey.get())
         << "Remote copy must reuse the source node key. A re-upload would get a fresh random key";
 }
+
+/**
+ * Auto-resume boot toggle (MegaApi::setAutoResumeTransfers).
+ *
+ * When auto-resume is disabled, a persisted transfer must NOT be resumed at
+ * boot, yet must stay persisted so a later boot with auto-resume enabled still
+ * resumes it (the "copy -> ls -> copy" scenario: the ls boot skips resume, the
+ * next copy boot picks the partial up).
+ */
+class SdkTestAutoResumeTransfers: public SdkTest
+{
+public:
+    void SetUp() override
+    {
+        SdkTest::SetUp();
+        ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    }
+
+    void TearDown() override
+    {
+        if (megaApi[0] && megaApi[0]->isLoggedIn())
+        {
+            megaApi[0]->setAutoResumeTransfers(true);
+            megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
+            synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        }
+        SdkTest::TearDown();
+    }
+};
+
+TEST_F(SdkTestAutoResumeTransfers, disabled_skips_boot_resume_but_keeps_records)
+{
+    auto rootNode = makeUniqueFrom(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode) << "Cannot get root node";
+
+    sdk_test::LocalTempFile localFile(fs::current_path() / (getFilePrefix() + "autoresume.bin"),
+                                      1024 * 1024);
+
+    auto uploadCount = [this]()
+    {
+        auto l = makeUniqueFrom(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+        return l ? l->size() : 0;
+    };
+
+    // Queue an upload while paused so it is persisted to the transfer DB but never dispatched.
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+    MegaUploadOptions opts;
+    opts.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto tracker = std::make_unique<TransferTracker>(megaApi[0].get());
+    megaApi[0]->startUpload(localFile.getPath().string().c_str(),
+                            rootNode.get(),
+                            nullptr,
+                            &opts,
+                            tracker.get());
+    ASSERT_TRUE(waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, 30000))
+        << "Upload did not appear in the queue";
+
+    // Restart 1: auto-resume DISABLED -> the persisted upload must NOT be resumed.
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_TRUE(session) << "Cannot dump session";
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    megaApi[0]->setAutoResumeTransfers(false); // must be set before fetchnodes
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    ASSERT_FALSE(waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, 5000))
+        << "Upload was resumed even though auto-resume was disabled";
+    ASSERT_EQ(0, uploadCount()) << "No transfer should be active when auto-resume is disabled";
+
+    // Restart 2: auto-resume ENABLED -> the record kept by restart 1 must resume.
+    session.reset(dumpSession());
+    ASSERT_TRUE(session) << "Cannot dump session";
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    megaApi[0]->setAutoResumeTransfers(true); // clear the flag left over from restart 1
+    // Pause before fetchnodes so the resumed upload stays queued rather than racing to completion.
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    ASSERT_TRUE(waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, 30000))
+        << "Upload was not resumed after re-enabling auto-resume; the record may have been purged";
+
+    megaApi[0]->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD);
+    ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
+}
+
+/**
+ * @brief The flag must also survive a fetchnodes that loads from the servers.
+ *
+ * The sibling test above restarts with a warm cache, so fetchnodes never issues
+ * CommandFetchNodes and never reaches MegaClient::init(). invalidateCache() forces the
+ * server path, which runs purgenodesusersabortsc() -> init() while the caller's choice
+ * is already set.
+ */
+TEST_F(SdkTestAutoResumeTransfers, disabled_survives_fetchnodes_from_servers)
+{
+    auto rootNode = makeUniqueFrom(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootNode) << "Cannot get root node";
+
+    sdk_test::LocalTempFile localFile(fs::current_path() / (getFilePrefix() + "autoresume_srv.bin"),
+                                      1024 * 1024);
+
+    auto uploadCount = [this]()
+    {
+        auto l = makeUniqueFrom(megaApi[0]->getTransfers(MegaTransfer::TYPE_UPLOAD));
+        return l ? l->size() : 0;
+    };
+
+    megaApi[0]->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD);
+    MegaUploadOptions opts;
+    opts.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    auto tracker = std::make_unique<TransferTracker>(megaApi[0].get());
+    megaApi[0]->startUpload(localFile.getPath().string().c_str(),
+                            rootNode.get(),
+                            nullptr,
+                            &opts,
+                            tracker.get());
+    ASSERT_TRUE(waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, 30000))
+        << "Upload did not appear in the queue";
+
+    std::unique_ptr<char[]> session(dumpSession());
+    ASSERT_TRUE(session) << "Cannot dump session";
+    ASSERT_NO_FATAL_FAILURE(locallogout());
+
+    ASSERT_NO_FATAL_FAILURE(resumeSession(session.get()));
+    megaApi[0]->setAutoResumeTransfers(false);
+    megaApi[0]->invalidateCache(); // force fetchnodes to load from the servers
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+
+    ASSERT_FALSE(waitForTransferCount(megaApi[0].get(), MegaTransfer::TYPE_UPLOAD, 1, 5000))
+        << "Upload was resumed even though auto-resume was disabled (server-side fetchnodes)";
+    ASSERT_EQ(0, uploadCount()) << "No transfer should be active when auto-resume is disabled";
+
+    megaApi[0]->setAutoResumeTransfers(true);
+    ASSERT_EQ(API_OK, synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD));
+}

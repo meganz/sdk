@@ -18691,6 +18691,23 @@ class MegaApi
         void resumeTransfersForNotLoggedInInstance();
 
         /**
+         * @brief Enable or disable auto-resumption of cached transfers at SDK start
+         *
+         * By default the SDK resumes any transfers persisted in its cache once nodes are fetched.
+         * When disabled, those transfers stay persisted but are not resumed on this run, so a
+         * later run with resumption enabled can still resume them. Useful for short-lived clients
+         * (e.g. one-shot CLI commands) that should not revive incomplete transfers left over from
+         * a previous run.
+         *
+         * Call this before fetchnodes: cached transfers are resumed as soon as nodes become
+         * available, so a later call cannot un-resume them. Once set, the value stays in effect
+         * for the lifetime of this MegaApi instance - fetchnodes and local logout do not reset it.
+         *
+         * @param enable True to auto-resume cached transfers at start (default), false to skip.
+         */
+        void setAutoResumeTransfers(bool enable);
+
+        /**
          * @deprecated This version of the function is deprecated. Please, use \c setMaxUploadSpeed.
          */
         MEGA_DEPRECATED
