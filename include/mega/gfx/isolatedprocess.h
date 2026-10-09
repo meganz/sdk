@@ -157,6 +157,8 @@ public:
                                             const LocalPath& localfilepath,
                                             const std::vector<GfxDimension>& dimensions) override;
 
+    virtual bool generateMediaInfo(LocalPath&, MediaProperties&) override;
+
     const char* supportedformats() override;
 
     const char* supportedvideoformats() override;

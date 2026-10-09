@@ -44,6 +44,13 @@ enum class GfxTaskProcessStatus
     ERR     = 1,
 };
 
+enum class MediaInfoProcessStatus
+{
+    SUCCESS = 0,
+    EXTRACTION_FAILED = 1,
+    NOT_SUPPORTED = 2, // the worker was built without MediaInfoLib
+};
+
 struct GfxTaskResult final
 {
     GfxTaskResult(std::vector<std::string>&& outputImages, const GfxTaskProcessStatus processStatus)

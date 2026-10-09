@@ -9,8 +9,11 @@
 using mega::CacheableReader;
 using mega::CacheableWriter;
 using mega::GfxDimension;
+using mega::MediaProperties;
 using mega::gfx::CommandHello;
 using mega::gfx::CommandHelloResponse;
+using mega::gfx::CommandMediaInfo;
+using mega::gfx::CommandMediaInfoResponse;
 using mega::gfx::CommandNewGfx;
 using mega::gfx::CommandNewGfxResponse;
 using mega::gfx::CommandSerializer;
@@ -69,6 +72,32 @@ namespace gfx
     bool operator==(const CommandSupportFormatsResponse& lhs, const CommandSupportFormatsResponse& rhs)
     {
         return lhs.formats == rhs.formats && lhs.videoformats == rhs.videoformats;
+    }
+
+    bool operator==(const CommandMediaInfo& lhs, const CommandMediaInfo& rhs)
+    {
+        return lhs.Path == rhs.Path;
+    }
+
+    bool operator==(const CommandMediaInfoResponse& lhs, const CommandMediaInfoResponse& rhs)
+    {
+        return lhs.ErrorCode == rhs.ErrorCode &&
+               lhs.MediaInfo.shortformat == rhs.MediaInfo.shortformat &&
+               lhs.MediaInfo.width == rhs.MediaInfo.width &&
+               lhs.MediaInfo.height == rhs.MediaInfo.height &&
+               lhs.MediaInfo.fps == rhs.MediaInfo.fps &&
+               lhs.MediaInfo.playtime == rhs.MediaInfo.playtime &&
+               lhs.MediaInfo.containerid == rhs.MediaInfo.containerid &&
+               lhs.MediaInfo.videocodecid == rhs.MediaInfo.videocodecid &&
+               lhs.MediaInfo.audiocodecid == rhs.MediaInfo.audiocodecid &&
+               lhs.MediaInfo.is_VFR == rhs.MediaInfo.is_VFR &&
+               lhs.MediaInfo.no_audio == rhs.MediaInfo.no_audio &&
+               lhs.MediaInfo.containerName == rhs.MediaInfo.containerName &&
+               lhs.MediaInfo.videocodecNames == rhs.MediaInfo.videocodecNames &&
+               lhs.MediaInfo.audiocodecNames == rhs.MediaInfo.audiocodecNames &&
+               lhs.MediaInfo.containerFormat == rhs.MediaInfo.containerFormat &&
+               lhs.MediaInfo.videocodecFormat == rhs.MediaInfo.videocodecFormat &&
+               lhs.MediaInfo.audiocodecFormat == rhs.MediaInfo.audiocodecFormat;
     }
 }
 }
@@ -314,4 +343,93 @@ TEST(GfxCommandSerializer, CommandSupportFormatsResponseSerializeAndUnserializeS
     auto targetCommand = dynamic_cast<CommandSupportFormatsResponse*>(command.get());
     ASSERT_NE(targetCommand, nullptr);
     ASSERT_EQ(sourceCommand, *targetCommand);
+}
+
+TEST(GfxCommandSerializer, CommandMediaInfoSerializeAndUnserializeSuccessfully)
+{
+    CommandMediaInfo sourceCommand;
+    sourceCommand.Path = "/some/where/clip.mp4";
+
+    auto data = CommandSerializer::serialize(&sourceCommand);
+    ASSERT_NE(data, nullptr);
+
+    StringReader reader(std::move(*data));
+    auto command = CommandSerializer::unserialize(reader, 5000ms);
+    ASSERT_NE(command, nullptr);
+    auto targetCommand = dynamic_cast<CommandMediaInfo*>(command.get());
+    ASSERT_NE(targetCommand, nullptr);
+    ASSERT_EQ(sourceCommand, *targetCommand);
+}
+
+TEST(GfxCommandSerializer, CommandMediaInfoResponseSerializeAndUnserializeSuccessfully)
+{
+    CommandMediaInfoResponse sourceCommand;
+    sourceCommand.MediaInfo.shortformat = 10;
+    sourceCommand.MediaInfo.width = 1920;
+    sourceCommand.MediaInfo.height = 1080;
+    sourceCommand.MediaInfo.fps = 30;
+    sourceCommand.MediaInfo.playtime = 120;
+    sourceCommand.MediaInfo.containerid = 15;
+    sourceCommand.MediaInfo.videocodecid = 16;
+    sourceCommand.MediaInfo.audiocodecid = 17;
+    sourceCommand.MediaInfo.is_VFR = true;
+    sourceCommand.MediaInfo.no_audio = false;
+    sourceCommand.MediaInfo.containerName = "MPEG-4";
+    sourceCommand.MediaInfo.videocodecNames = "AVC";
+    sourceCommand.MediaInfo.audiocodecNames = "AAC";
+    sourceCommand.MediaInfo.containerFormat = "mp42";
+    sourceCommand.MediaInfo.videocodecFormat = "avc1";
+    sourceCommand.MediaInfo.audiocodecFormat = "mp4a";
+
+    auto data = CommandSerializer::serialize(&sourceCommand);
+    ASSERT_NE(data, nullptr);
+
+    StringReader reader(std::move(*data));
+    auto command = CommandSerializer::unserialize(reader, 5000ms);
+    ASSERT_NE(command, nullptr);
+    auto targetCommand = dynamic_cast<CommandMediaInfoResponse*>(command.get());
+    ASSERT_NE(targetCommand, nullptr);
+    ASSERT_EQ(sourceCommand, *targetCommand);
+}
+
+// A worker that could not extract sends ErrorCode set and no properties. The response must
+// round-trip, so the client can tell extraction failure from a malformed payload.
+TEST(GfxCommandSerializer, CommandMediaInfoResponseCarriesTheExtractionFailure)
+{
+    CommandMediaInfoResponse sourceCommand;
+    sourceCommand.ErrorCode = 1;
+
+    auto data = CommandSerializer::serialize(&sourceCommand);
+    ASSERT_NE(data, nullptr);
+
+    StringReader reader(std::move(*data));
+    auto command = CommandSerializer::unserialize(reader, 5000ms);
+    ASSERT_NE(command, nullptr);
+    auto targetCommand = dynamic_cast<CommandMediaInfoResponse*>(command.get());
+    ASSERT_NE(targetCommand, nullptr);
+    EXPECT_EQ(1u, targetCommand->ErrorCode);
+    EXPECT_EQ(0u, targetCommand->MediaInfo.width) << "no properties should be reported";
+}
+
+TEST(GfxCommandSerializer, CommandMediaInfoResponseRejectsATruncatedPayload)
+{
+    MediaProperties properties;
+    properties.shortformat = 10;
+    properties.width = 1920;
+    properties.height = 1080;
+    properties.containerName = "MPEG-4";
+    properties.videocodecNames = "AVC";
+    const std::string serializedProperties = properties.serialize();
+
+    // Chop the last byte off the properties and re-wrap them at their new length, so the outer
+    // length-prefixed read succeeds and MediaProperties::deserialize is what has to reject the
+    // payload. Truncating the whole command instead would fail in that outer read first, and
+    // would pass whether or not the properties are checked at all.
+    std::string payload;
+    CacheableWriter writer(payload);
+    writer.serializeu32(0); // ErrorCode 0, so the properties are read rather than skipped
+    writer.serializestring_u32(serializedProperties.substr(0, serializedProperties.size() - 1));
+
+    CommandMediaInfoResponse response;
+    ASSERT_FALSE(response.unserialize(payload));
 }

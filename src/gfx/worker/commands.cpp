@@ -26,6 +26,10 @@ std::unique_ptr<ICommand> ICommand::factory(CommandType type)
         return std::make_unique<CommandSupportFormats>();
     case CommandType::SUPPORT_FORMATS_RESPONSE:
         return std::make_unique<CommandSupportFormatsResponse>();
+    case CommandType::MEDIA_INFO:
+        return std::make_unique<CommandMediaInfo>();
+    case CommandType::MEDIA_INFO_RESPONSE:
+        return std::make_unique<CommandMediaInfoResponse>();
     default:
         assert(false);
         return nullptr;
@@ -229,6 +233,59 @@ bool GfxSerializationHelper::unserialize(CacheableReader& reader, GfxDimension& 
 bool GfxSerializationHelper::unserialize(CacheableReader& reader, std::string& target)
 {
     return reader.unserializestring_u32(target);
+}
+
+std::string CommandMediaInfo::serialize() const
+{
+    std::string toret;
+    CacheableWriter writer(toret);
+    writer.serializestring_u32(Path);
+    return toret;
+}
+
+bool CommandMediaInfo::unserialize(const std::string& data)
+{
+    CacheableReader reader(data);
+    // path
+    if (!reader.unserializestring_u32(Path))
+    {
+        return false;
+    }
+    return true;
+}
+
+std::string CommandMediaInfoResponse::serialize() const
+{
+    std::string toret;
+    CacheableWriter writer(toret);
+    writer.serializeu32(ErrorCode);
+    writer.serializestring_u32(MediaInfo.serialize());
+    return toret;
+}
+
+bool CommandMediaInfoResponse::unserialize(const std::string& data)
+{
+    CacheableReader reader(data);
+    if (!reader.unserializeu32(ErrorCode))
+    {
+        return false;
+    }
+
+    std::string properties;
+    if (!reader.unserializestring_u32(properties))
+    {
+        return false;
+    }
+
+    // A worker that could not extract sends no properties; the caller checks ErrorCode.
+    if (ErrorCode)
+    {
+        return true;
+    }
+
+    // The payload comes from the worker process, whose job is parsing untrusted media, so a
+    // truncated or malformed response has to be rejected rather than passed on half-read.
+    return MediaProperties::deserialize(properties, MediaInfo);
 }
 }
 }

@@ -97,6 +97,9 @@ std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, millis
     }
     if (protoVer != static_cast<uint32_t>(CommandProtocolVersion::V_1))
     {
+        LOG_err << "Unsupported gfx command protocol version " << protoVer << ", expected "
+                << static_cast<uint32_t>(CommandProtocolVersion::V_1)
+                << ". The peer is built against a different protocol.";
         return nullptr;
     }
 
@@ -107,8 +110,16 @@ std::unique_ptr<ICommand> CommandSerializer::unserialize(IReader& reader, millis
         return nullptr;
     }
 
-    if (!isInOpenEndRange(type, static_cast<uint32_t>(CommandType::BEGIN), static_cast<uint32_t>(CommandType::END)))
+    if (!isInOpenEndRange(type,
+                          static_cast<uint32_t>(CommandType::BEGIN),
+                          static_cast<uint32_t>(CommandType::END)))
     {
+        // Reached when the peer was built with a longer command list, i.e. a version skew that
+        // the protocol version alone does not capture. Rejecting the command is the intended
+        // graceful degradation, but it needs to be visible.
+        LOG_err << "Unknown gfx command type " << type << ", this build accepts ["
+                << static_cast<uint32_t>(CommandType::BEGIN) << ", "
+                << static_cast<uint32_t>(CommandType::END) << ")";
         return nullptr;
     }
 

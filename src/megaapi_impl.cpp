@@ -1291,7 +1291,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const c
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess.get());
 
-        // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
+        // cause the codec IDs to be looked up before the attribute string is built
         uint32_t dummykey[4];
         mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
     }
