@@ -34,6 +34,25 @@ Tests whose failure/flake usually indicates a real bug, not infra noise.
   It drops server event=5 Distress for its duration — macos_9808 failed (settle 10 vs 11) because a
   genuine Distress rotated the size-class URL mid-ramp, retired the observed pool and silenced the
   gate (`ws_pool_mgr.cpp:390`/`:1174`).
+- **Timing cell (HR43)** — `SdkWsUploadTest.EscalationWindowNotPerpetuallyResetByNullCandidate`
+  (~4–6 min): judges the sustained-handshake-failure escalation gate across up to 6 gate
+  evaluations / 240 s of reconnect backoff, so run it ×15 under `taskset -c 0 nice -n 19` and
+  count `[ OK ]` lines per iteration. Like both gate cells it drops server event=5 Distress for
+  its duration (`configureSecondaryDrop(5)`) — a genuine Distress rotates the session URL and
+  leaves the observed pool `mRetiring` mid-trajectory, failing the cell for a reason unrelated to
+  the escalation window it guards.
+- **Timing cell (HR43)** — `SdkWsUploadTest.DistressRotationTrimsRetiringPoolToBase` (~4 min,
+  worst ~8 min): judges the same gate machinery across bounded `second_timer` poll loops, so run
+  it ×15 under `taskset -c 0 nice -n 19` and count `[ OK ]` lines per iteration. Unlike the gate
+  cell it **injects its own Distress** — `configureSecondaryDrop(5)` suppresses genuine server
+  Distress for the whole cell, then one `configure(Modify, 1 → 5, maxHits 1)` in PHASE 3 forces a
+  single admitted refresh (after the 30 s `WS_REFRESH_MIN_INTERVAL` window) and the cell asserts
+  the retiring-but-draining pool is clamped back to base within 5 s. Negative control: at a tree
+  without the distress-scoped clamp (`ws_pool_mgr.cpp:1252`) it FAILS on the trim assertion —
+  `activeThreads` stays above base until the pool drains. Bench-only knob
+  `MEGA_BENCH_DISTRESS_TRIM_COMPLETION_S` raises PHASE 6's shared completion budget for
+  loss-profile runs (e.g. `1800`); the default stays **600 s** and HR58 is unaffected because
+  `ci_tier1_gate.sh` scrubs every `MEGA_BENCH_*` variable, so CI always runs the default.
 
 ## Throughput benchmarks
 

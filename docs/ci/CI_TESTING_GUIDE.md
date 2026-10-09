@@ -117,16 +117,29 @@ uses a separate build dir with the flag ON.
 
 ## What does TSAN actually cover today?
 
-The `--tsan` stage runs a narrow **WS-upload surface filter** (the 4
-cells that exercise the WS pool / worker thread / session URL
-fallback / overquota signalling state machine):
+The `--tsan` stage runs a narrow **WS-upload surface filter** — the 8
+cells named by `TSAN_SURFACE_FILTER` in the MR Jenkinsfiles, covering the
+WS pool / worker threads / session URL fallback / overquota + quota-hold
+signalling / watchdog recovery state machine. The live Jenkinsfiles are
+the source of truth (`jenkinsfile/Jenkinsfile_MR_macOS_cmake`; the
+portable copy in
+`docs/methodology/portable_template/Jenkinsfile_snippets.md` must stay in
+sync):
 
 | Cell | Exercises |
 |---|---|
 | `SdkWsUploadTest.ActivePoolUsesParallelConnections` | Pool fan-out across 8 worker threads |
-| `SdkWsUploadTest.B9ClosedThrottleReconnectPacing` | Throttle reconnect pacing |
 | `SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession` | Session URL fallback |
 | `SdkWsUploadTest.OverquotaDuringTransfer` | Mid-transfer overquota signalling |
+| `SdkWsUploadTest.RepeatedPauseResumeMixedPools` | Cross-pool pause/resume fairness and `nextEligible` rotation |
+| `SdkWsUploadTest.AckStallForceReconnectsHungConnection` | Ack-stall watchdog force-reconnect + in-flight requeue |
+| `SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion` | Tail-completion watchdog recovery of a lost completion frame |
+| `SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool` | Cross-pool quota holds |
+| `SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds` | Account-red overquota alongside predictive holds |
+
+`SdkWsUploadTest.B9ClosedThrottleReconnectPacing` is no longer in the
+filter; run it as a standalone HR43 timing cell instead
+(`scripts/ci/example_triggers.md`).
 
 The stage **fails** if any race signature touches one of the watched
 WS-upload-surface fields (`mChunksInFlight`, `mNumChunksInFlight`,

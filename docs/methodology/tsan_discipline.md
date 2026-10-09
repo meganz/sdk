@@ -121,12 +121,18 @@ input. Lines unique to one input are flagged.
 
 ## Coverage today vs expansion ideas
 
-**What the surface filter actually exercises today.** The 4 cells
-(`ActivePoolUsesParallelConnections`, `B9ClosedThrottleReconnectPacing`,
-`InvalidPinnedSessionFallsBackToFreshSession`, `OverquotaDuringTransfer`)
-together cover the WS pool lifecycle, worker thread spin-up/tear-down,
-session URL fallback, and overquota signalling — i.e. the WS **upload**
-state machine. They do NOT exercise:
+**What the surface filter actually exercises today.** The 8 cells of
+`TSAN_SURFACE_FILTER` (`ActivePoolUsesParallelConnections`,
+`InvalidPinnedSessionFallsBackToFreshSession`, `OverquotaDuringTransfer`,
+`RepeatedPauseResumeMixedPools`, `AckStallForceReconnectsHungConnection`,
+`TailCompletionWatchdogRecoversDroppedCompletion`,
+`QuotaCrossPoolHoldDoesNotBlockOtherPool`,
+`QuotaAccountRedOverquotaCoexistsWithPredictiveHolds`; the live MR
+Jenkinsfiles are the source of truth) together cover the WS pool lifecycle,
+worker thread spin-up/tear-down, session URL fallback, pause/resume rotation,
+the ack-stall and tail-completion watchdogs, and overquota / quota-hold
+signalling — i.e. the WS **upload** state machine. `B9ClosedThrottleReconnectPacing`
+is no longer in the filter (standalone HR43 timing cell). They do NOT exercise:
 
 - Downloads (any code path through `DirectReadSlot` / `MegaFileGet`).
 - Sync engine (`SyncDownload_inClient`, `syncinternals/*`).

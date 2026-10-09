@@ -204,6 +204,13 @@ namespace mega {
             return action;
         }
 
+        // Fixture-level leak guard (SdkWsUploadTest::TearDown): true while any rule is armed.
+        bool isArmed() const
+        {
+            std::lock_guard<std::mutex> g(mMutex);
+            return action != WsUploadServerEventAction::None || secondaryDropEvent.has_value();
+        }
+
     private:
         mutable std::mutex mMutex;
         WsUploadServerEventAction action = WsUploadServerEventAction::None;

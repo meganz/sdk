@@ -930,8 +930,9 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     // (WsConn::onmessage, event 5); USC mints a fresh session token per reply, so
     // applyRefreshedUrls retires the busy pool behind a new-URL successor and `shouldScaleUp =
     // !pool->mRetiring` (ws_pool_mgr.cpp:390 -- the only guard under which runGoodputGateLocked
-    // runs) silences the gate on it for good, freezing conns one widen short of the knee. That is
-    // exactly how macos_9808 failed (settle 10 vs 11).
+    // runs) silences the gate on it for good -- its level freezes where the gate left it, exactly
+    // how macos_9808 failed (settle 10 vs 11); after a Distress refresh the distress-scoped clamp
+    // instead drops that pool to base, where the gate still never runs.
     constexpr int kDistressEvent = 5;
     globalMegaTestHooks.wsUploadServerEventHook.configureSecondaryDrop(kDistressEvent);
 
@@ -948,6 +949,7 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
     constexpr size_t kFileSize = 8u * 1024u * 1024u; // 8 MiB
     constexpr unsigned kDefaultPoolConnLimit = 8u;    // connections[PUT]
     constexpr unsigned kSyntheticKnee = 12u;          // where the synthetic curve goes flat
+    constexpr unsigned kGateChainStepCap = 8u; // mirrors ws_pool.cpp:1479
 
     const std::string namePrefix =
         "ws_gate_knee_" +
@@ -1167,10 +1169,15 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
         settleSample = lastObservedState.activeThreads;
         WaitMillisec(200);
     }
-    // +4 tolerance: a confirmed probe doubles the next chained step (amendment A2), so one
-    // judged geometric overshoot past the knee is legal before the failed probe retreats to
-    // the remembered best. The SETTLE assertions below are the true knee proof.
-    EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + 4)
+    // DERIVED ceiling, not a tuned tolerance (C2). A confirmed probe doubles the next chained
+    // step (amendment A2), so the ladder is 8 -> 9 -> 10 -> 12 -> 16 and lands on exactly
+    // knee+4 -- i.e. the literal 4 this replaces had ZERO headroom. The real bound: the flat
+    // synthetic curve above the knee means no level above it can ever CONFIRM
+    // (ws_pool.cpp:1452-1456), and a single widen is hard-capped at kGateChainStepCap
+    // (ws_pool.cpp:1477-1483), so the highest reachable level is knee + ONE capped widen.
+    // Assumes the default MEGA_WS_GATE_STEP=1 (HR58 default env) -- a larger step would raise
+    // the ladder but not this cap.
+    EXPECT_LE(maxActiveThreadsSeen, kSyntheticKnee + kGateChainStepCap)
         << "Gate climbed far past the synthetic knee (gain-judge failed to stop the ramp)"
         << poolDiag();
     // A rotated pool freezes wherever the gate left it (macos_9808: settle 10 vs 11), so the
@@ -1230,6 +1237,453 @@ TEST_F(SdkWsUploadTest, GoodputGateEngagesRampsToKneeAndTrims)
         ASSERT_EQ(API_OK, tracker->waitForResult(240))
             << "Upload did not complete after the gate ramp/trim cycle";
     }
+}
+
+/**
+ * @brief SDK-5360 / macos_9808 PRODUCT GAP: a pool left RETIRING while it still owns work must
+ *        return to the base connection level -- today it strands the level the goodput gate
+ *        earned on the very endpoint whose Distress asked us to leave it.
+ *
+ * WHY (mechanism; every anchor re-verified at c8b616f94c):
+ *  - a server event=5 Distress frame (ws_conn.cpp:937-943) calls refreshPools(); the USC reply
+ *    reaches applyRefreshedUrls (ws_pool_mgr.cpp:1159-1254), which marks every non-pinned pool
+ *    mRetiring=true by DIRECT WRITE (ws_pool_mgr.cpp:1174) and inserts a successor before the
+ *    old pool (:1244); the product fix's insertion point is :1252, just before bumpAllPools;
+ *  - `shouldScaleUp = !mRetiring && ...` (ws_pool_mgr.cpp:390) guards the ONLY
+ *    runGoodputGateLocked call site (:475), so a retiring pool leaves BOTH gate directions.
+ *    Unlike markPoolRetiring (:130-139, which pairs the flag with setPoolNumConn(0)) the direct
+ *    write never lowers the conn level, and the pool's bound files keep it alive
+ *    (wsupload_engine.cpp:1667-1676) until it drains: 10 conns plus ~22 fresh handshakes to the
+ *    distressed host for 27 s on macos_9808;
+ *  - F1 -- the rotation is UNCONDITIONAL: USC hands out `wss://<host>/ul/<86-char session
+ *    token>` and mints a FRESH token on every reply, so the exact-identity un-retire
+ *    (ws_pool_mgr.cpp:1188/:1199) can never match and the successor always carries a different
+ *    URL. That makes a plain Modify(1->5) a deterministic rotation trigger, and it lets the
+ *    FROZEN observed URL keep resolving the stranded pool (wsupload_engine.cpp:1204-1214,
+ *    first URL match in mPools);
+ *  - F2 -- the 30 s throttle: refreshPools (ws_pool_mgr.cpp:1064-1157) drops any trigger within
+ *    WS_REFRESH_MIN_INTERVAL = 30 s (ws_pool_mgr.h:81) of the last LAUNCHED refresh, and
+ *    Impl::start() already launched one (wsupload_engine.cpp:837). Hence PHASE 2's 32 s wait
+ *    before arming, and the refreshPoolsCount admission check (include/mega/wsupload.h:235)
+ *    with ONE re-arm retry.
+ *
+ * Negative control: at a tree without the distress-scoped clamp this cell FAILS on the trim
+ * check (activeThreads stays > base until drain) -- an EXPECT, so the uploads still run to
+ * completion and drain/completion cost stays comparable arm-to-arm.
+ *
+ * HR43 timing cell (bounded second_timer poll loops judging a multi-second control-loop
+ * trajectory): run --gtest_repeat=15 under `taskset -c 0 nice -n 19`.
+ *
+ * Bench knob MEGA_BENCH_DISTRESS_TRIM_COMPLETION_S overrides PHASE 6's shared completion
+ * budget only; the default stays 600 s and HR58 holds (ci_tier1_gate.sh scrubs MEGA_BENCH_*),
+ * so CI is unaffected and only loss-profile bench runs raise it.
+ */
+TEST_F(SdkWsUploadTest, DistressRotationTrimsRetiringPoolToBase)
+{
+    LOG_info << "___TEST SdkWsUploadDistressRotationTrimsRetiringPoolToBase___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    WSUPLOAD_REQUIRE_TEST_HOOKS();
+
+    // Drop GENUINE server Distress for the whole cell so the ONLY rotation is the one PHASE 3
+    // injects. evaluate() (testhooks.h:170-205) applies the secondary drop on the PRE-modify
+    // inbound id (:179-183), so the injected 1 -> 5 still passes; configure() and
+    // configureSecondaryDrop() do not clear each other.
+    auto& evHook = globalMegaTestHooks.wsUploadServerEventHook;
+    evHook.configureSecondaryDrop(5 /*Distress*/);
+    globalMegaTestHooks.wsBudgetProbeHook.setEnabled(true); // arms AND zeroes the counters
+
+    // Sizing identical to the gate cell: 8 x 8 MiB distinct-content files = one size
+    // class (arms the mDatasetSeen latch, wsupload_internal.h:785-786) living ~160 s at the
+    // 400 KB/s cap -- far longer than PHASES 0-5 combined. NO setMaxConnections: this cell needs
+    // the DEFAULT base of 8 (DistressRetiresPoolWithoutRestartingInFlightUpload pins 1, which is
+    // exactly why the same assertion would be vacuous there).
+    constexpr size_t kFileCount = 8;
+    constexpr size_t kFileSize = 8u * 1024u * 1024u; // 8 MiB
+    constexpr unsigned kDefaultPoolConnLimit = 8u; // connections[PUT]
+
+    const std::string namePrefix =
+        "ws_distress_trim_" +
+        std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_";
+
+    std::vector<std::string> fileNames;
+    fileNames.reserve(kFileCount);
+
+    auto cleanupFiles = makeScopedDestructor(
+        [this, &fileNames]()
+        {
+            for (const auto& fileName: fileNames)
+            {
+                deleteFile(fileName);
+            }
+        });
+    auto cleanupTransfers = makeScopedDestructor(
+        [this]()
+        {
+            (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
+        });
+    // RAII on EVERY exit path (assert failure included) so no synthetic signal and no armed
+    // event rule leaks into the next cell -- mirrors the gate cell's cleanupHooks.
+    auto cleanupHooks = makeScopedDestructor(
+        []()
+        {
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+            globalMegaTestHooks.onWsGateBackpressureSample = nullptr;
+            globalMegaTestHooks.onWsGateGoodputSample = nullptr;
+            globalMegaTestHooks.wsUploadServerEventHook.reset();
+            globalMegaTestHooks.wsBudgetProbeHook.setEnabled(false);
+        });
+
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        // DISTINCT fill byte per file => distinct fingerprints => real, independent uploads.
+        fileNames.emplace_back(namePrefix + std::to_string(i) + ".bin");
+        ASSERT_TRUE(createFileWithSize(fileNames.back(),
+                                       kFileSize,
+                                       std::string(1, static_cast<char>('A' + i))))
+            << "Couldn't create " << fileNames.back();
+    }
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(rootnode);
+
+    ScopedUploadSpeedLimit uploadThrottle{*megaApi[0], 400 * 1024}; // 400 KB/s
+
+    std::vector<std::unique_ptr<TransferTracker>> uploadTrackers;
+    uploadTrackers.reserve(kFileCount);
+    auto uploadOptions = makeDefaultUploadOptions();
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        uploadTrackers.emplace_back(std::make_unique<TransferTracker>(megaApi[0].get()));
+        megaApi[0]->startUpload(fileNames[i],
+                                rootnode.get(),
+                                nullptr /*cancelToken*/,
+                                &uploadOptions,
+                                uploadTrackers.back().get());
+    }
+
+    // PHASE 0 -- first active WS snapshot, then FREEZE the anchor. The gate cell freezes its
+    // anchor too, but there a retiring observed pool is a broken premise that fails the run;
+    // here the retirement is the event under test, so keep watching the retired pool (F1
+    // guarantees the successor carries a different URL).
+    WsUploadTransferSnapshot activeUpload{};
+    ASSERT_TRUE(waitForFirstUploadTransferSnapshot(
+        *megaApi[0],
+        activeUpload,
+        [](const WsUploadTransferSnapshot& snapshot)
+        {
+            return snapshot.found && snapshot.wsFileno > 0 && !snapshot.wsSessionUrl.empty() &&
+                   snapshot.state == TRANSFERSTATE_ACTIVE && snapshot.progressCompleted > 0;
+        },
+        60,
+        200))
+        << "Failed to observe an active WS upload snapshot";
+    const std::string observedPoolUrl = activeUpload.wsSessionUrl;
+    second_timer anchorTimer;
+
+    // Forged controller inputs, verbatim from the gate cell: a full backpressure
+    // quorum every tick plus a concave conns->goodput curve with a knee at 12. Deterministic
+    // widen in PHASE 1, and section G cannot trim the pool while PHASE 2 waits out F2.
+    {
+        std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
+        globalMegaTestHooks.onWsGateBackpressureSample =
+            [](const void* /*pool*/, unsigned open, unsigned& bp)
+        {
+            bp = open;
+        };
+        globalMegaTestHooks.onWsGateGoodputSample =
+            [](const void* /*pool*/, unsigned conns, double& bps)
+        {
+            const unsigned effective = std::min(conns, 12u); // knee
+            bps = 1.0e6 * (1.0 + 0.10 * (static_cast<double>(effective) - 8.0));
+        };
+    }
+
+    ws::UploadEngine::PoolStateForTesting state{};
+    ws::UploadEngine::PoolStateForTesting lastObservedState{};
+    std::uint64_t burnsBefore = 0;
+    std::uint64_t refreshPoolsCountSeen = 0;
+    std::string successorUrl;
+
+    const auto pollPoolState = [&]() -> bool
+    {
+        if (!fetchWsUploadPoolStateForTesting(*megaApi[0], observedPoolUrl, state, 1))
+        {
+            return false;
+        }
+        lastObservedState = state;
+        return state.found;
+    };
+
+    // Self-adjudicating failure suffix (the gate cell's poolDiag pattern): every number a
+    // reviewer needs to tell "the clamp did not fire" from "the pool drained" or "it never
+    // rotated", from the gtest line alone -- macos_9808 needed a 7.6k-line SDK log for that.
+    const auto poolDiag = [&]() -> std::string
+    {
+        std::ostringstream os;
+        os << " [retiring=" << lastObservedState.retiring
+           << "] [activeThreads=" << lastObservedState.activeThreads
+           << "] [exitingThreads=" << lastObservedState.exitingThreads
+           << "] [openConnections=" << lastObservedState.openConnections
+           << "] [connsWithInFlight=" << lastObservedState.connectionsWithInFlight
+           << "] [numPoolFiles=" << lastObservedState.numPoolFiles
+           << "] [queuedResends=" << lastObservedState.queuedResends << "] [burnsDelta="
+           << (globalMegaTestHooks.wsBudgetProbeHook.snapshot().burns - burnsBefore)
+           << "] [refreshPoolsCount=" << refreshPoolsCountSeen
+           << "] [injectHits=" << evHook.getHitCount()
+           << "] [distressDrops=" << evHook.getSecondaryDropHits()
+           << "] [observedPoolUrl=" << observedPoolUrl << "] [successorUrl=" << successorUrl << "]";
+        return os.str();
+    };
+
+    // PHASE 1 -- widen: the forged quorum must take the pool at least 2 conns above base
+    // (ladder 8 -> 9 -> 10 -> 12) so the level the rotation strands is unambiguous.
+    bool widened = false;
+    second_timer phaseTimer;
+    while (!widened && phaseTimer.elapsed() < 45)
+    {
+        widened = pollPoolState() && state.activeThreads >= kDefaultPoolConnLimit + 2;
+        WaitMillisec(200);
+    }
+    ASSERT_TRUE(widened) << "Gate never widened to base+2=" << (kDefaultPoolConnLimit + 2)
+                         << " under a forged full-backpressure quorum within 45 s" << poolDiag();
+
+    // PHASE 2 -- F2: nothing can be admitted until 30 s after the refresh Impl::start() already
+    // launched. Keep polling (and keep the quorum forged) while the window elapses.
+    while (anchorTimer.elapsed() < 32)
+    {
+        pollPoolState();
+        WaitMillisec(200);
+    }
+
+    // Premise: nothing may have retired the pool BEFORE the injection. An unrelated refresh
+    // (handshake-failure queueVersion path in WsPool::poolWorkerThread, or SERVERTIMEOUT) would
+    // both reset the F2 window AND retire the pool outside the Distress path the product fix is
+    // scoped to -- PHASE 5 would then fail for a reason that is not the product gap. Adjudicate
+    // it here instead of leaving a confusing trim failure.
+    ASSERT_FALSE(lastObservedState.retiring)
+        << "Observed pool was already retiring before the injection (unrelated refresh)"
+        << poolDiag();
+
+    // PHASE 3 -- inject exactly ONE Distress (Modify 1 -> 5, maxHits 1) and require the refresh
+    // to be ADMITTED (refreshPoolsCount +1, include/mega/wsupload.h:235). ONE re-arm retry
+    // covers a first attempt that still landed inside the engine's 30 s window.
+    ws::UploadEngine::WsUploadStatsForTesting stats{};
+    ASSERT_TRUE(fetchWsUploadStatsForTesting(*megaApi[0], stats, 10) && stats.found)
+        << "Could not read WS upload stats before the injection" << poolDiag();
+    const std::uint64_t refreshCountBefore = stats.refreshPoolsCount;
+    refreshPoolsCountSeen = refreshCountBefore;
+    burnsBefore = globalMegaTestHooks.wsBudgetProbeHook.snapshot().burns;
+
+    bool refreshAdmitted = false;
+    for (int attempt = 0; attempt < 2 && !refreshAdmitted; ++attempt)
+    {
+        evHook.configure(WsUploadServerEventAction::Modify,
+                         1, // ChunkIngested
+                         5, // Distress
+                         std::nullopt,
+                         std::nullopt,
+                         1 /*maxHits*/);
+        second_timer injectTimer;
+        while (injectTimer.elapsed() < 60 && evHook.getHitCount() == 0)
+        {
+            WaitMillisec(200);
+        }
+        ASSERT_GT(evHook.getHitCount(), 0)
+            << "Injected Distress never reached a pool worker (attempt " << attempt << ")"
+            << poolDiag();
+
+        injectTimer.reset();
+        while (!refreshAdmitted && injectTimer.elapsed() < 10)
+        {
+            refreshAdmitted = fetchWsUploadStatsForTesting(*megaApi[0], stats, 5) && stats.found &&
+                              stats.refreshPoolsCount > refreshCountBefore;
+            refreshPoolsCountSeen = stats.refreshPoolsCount;
+            WaitMillisec(200);
+        }
+    }
+    ASSERT_TRUE(refreshAdmitted)
+        << "Injected Distress was swallowed by the 30 s refresh throttle (F2)" << poolDiag();
+
+    // PHASE 4 -- the admitted refresh must retire the FROZEN pool, and that pool must still own
+    // work: a drained pool would make the trim assertion vacuous.
+    bool sawRetiring = false;
+    second_timer retireTimer;
+    while (!sawRetiring && retireTimer.elapsed() < 30)
+    {
+        sawRetiring = pollPoolState() && state.retiring;
+        WaitMillisec(200);
+    }
+    ASSERT_TRUE(sawRetiring) << "Admitted distress refresh did not retire the observed pool"
+                             << poolDiag();
+    ASSERT_GT(lastObservedState.numPoolFiles, 0)
+        << "Observed pool had already drained -- the trim assertion would be vacuous" << poolDiag();
+
+    // The successor (a different URL by F1) and the file with the most progress still bound to
+    // the retired pool -- the SHA-256 round-trip subject below, since the clamp tears its
+    // connections down mid-flight and requeues their un-acked chunks (ws_pool.cpp:583-648).
+    std::string boundFileName = fileNames.front();
+    {
+        std::vector<WsUploadTransferSnapshot> snapshots;
+        m_off_t bestProgress = -1;
+        (void)fetchWsUploadTransferSnapshots(*megaApi[0], snapshots, 5);
+        for (const auto& snapshot: snapshots)
+        {
+            if (!snapshot.found)
+            {
+                continue;
+            }
+            if (snapshot.wsSessionUrl == observedPoolUrl)
+            {
+                if (snapshot.progressCompleted > bestProgress)
+                {
+                    bestProgress = snapshot.progressCompleted;
+                    boundFileName = snapshot.fileName;
+                }
+            }
+            else if (successorUrl.empty() && !snapshot.wsSessionUrl.empty())
+            {
+                successorUrl = snapshot.wsSessionUrl; // a file already dispatched to the new pool
+            }
+        }
+    }
+
+    // PHASE 5 -- THE assertion. checkThreads() runs synchronously inside applyRefreshedUrls and
+    // activeThreads mirrors mActiveThreads.size() (wsupload_engine.cpp:1178), so a clamp is
+    // visible on the very FIRST poll. 5 s discriminates >5x: without the fix the strand lasts
+    // until drain (27 s on macos_9808), and bumpAllPools (:1252) has just reset mLastActive so
+    // POOLCONNKEEPALIVE's 60 s idle path cannot shed the surplus either.
+    bool trimmed = false;
+    second_timer trimTimer;
+    while (!trimmed && trimTimer.elapsed() < 5)
+    {
+        trimmed = pollPoolState() && state.retiring && state.numPoolFiles > 0 &&
+                  state.activeThreads <= kDefaultPoolConnLimit;
+        WaitMillisec(200);
+    }
+    const size_t timeToTrimS = trimTimer.elapsed();
+    // EXPECT, not ASSERT: on a tree without the clamp the cell must still run PHASE 6 to completion
+    // so the drain/completion cost can be compared arm-to-arm (loss-profile bench runs); the
+    // failure is recorded either way.
+    EXPECT_TRUE(trimmed) << "retiring-but-draining pool kept " << lastObservedState.activeThreads
+                         << " conns (base=" << kDefaultPoolConnLimit << ") for " << timeToTrimS
+                         << " s after the rotation" << poolDiag();
+    EXPECT_GT(lastObservedState.numPoolFiles, 0)
+        << "Trim sample owned no files -- the pool drained instead of being clamped" << poolDiag();
+    LOG_info << "[DistressRotationTrim] timeToTrimS=" << timeToTrimS
+             << " boundFile=" << boundFileName << poolDiag();
+
+    // PHASE 6's shared completion clock starts HERE, at the trim point -- the same anchor
+    // followup1 measured from -- so completionS stays comparable arm-to-arm no matter how long
+    // the diagnostic poll below takes (on a tree without the drain it runs its full 120 s; on a
+    // draining tree it ends within the drain budget). The poll time is charged against the
+    // budget on purpose.
+    second_timer completionTimer;
+
+    // DIAGNOSTIC ONLY -- LOG, never asserted. PHASE 5 judges the clamp on activeThreads (the
+    // bookkeeping checkThreads() moves synchronously); openConnections is a SEPARATE, slower
+    // quantity: a shed worker still owns its socket until it exits. Under the drain-aware fix
+    // (followup2) a clamp-shed worker deliberately keeps its conn OPEN until it owes neither an
+    // ack nor a completion, so this measures the DRAIN, not the clamp, and a large value is
+    // evidence about the drain window -- never a failure. A poll that stops resolving the frozen
+    // URL means the pool fully drained and was erased, which also counts as reaching base (the
+    // logged counters are then the last ones observed). Bounded at 120 s -- past the 45 s
+    // ackStallTimeoutDs drain budget -- so it can never dominate the cell's wall clock.
+    second_timer baseConnsTimer;
+    bool reachedBase = false;
+    while (baseConnsTimer.elapsed() < 120)
+    {
+        if (!pollPoolState())
+        {
+            reachedBase = true; // pool gone == drained
+            break;
+        }
+        if (lastObservedState.openConnections <= kDefaultPoolConnLimit)
+        {
+            reachedBase = true;
+            break;
+        }
+        WaitMillisec(200);
+    }
+    LOG_info << "[DistressRotationTrim] timeToOpenConnsAtBaseS=" << baseConnsTimer.elapsed()
+             << " openConnections=" << lastObservedState.openConnections
+             << " exitingThreads=" << lastObservedState.exitingThreads
+             << " reachedBase=" << (reachedBase ? 1 : 0);
+
+    // PHASE 6 -- the injected rotation and the shed connections must not corrupt real transfers.
+    // ONE shared deadline for all eight uploads: 64 MiB at 400 KB/s is ~160 s nominal; 600 s leaves
+    // headroom for loss-profile bench runs, where the byte-shortfall / first-ack watchdogs add 60 s
+    // recovery windows (a per-file 300 s budget was hit under loss5 while a watchdog was
+    // recovering). The clock is completionTimer, started at the trim point above, so the
+    // diagnostic poll's wall time is charged against this budget. BENCH-ONLY override:
+    // MEGA_BENCH_DISTRESS_TRIM_COMPLETION_S. The default is unchanged, and HR58 holds --
+    // ci_tier1_gate.sh scrubs MEGA_BENCH_*/MEGA_WS_*/MEGA_NET_*/MEGA_WSTEST_* so CI always runs
+    // the 600 s budget; only loss-profile bench units raise it.
+    int completionBudgetS = 600;
+    if (const char* e = std::getenv("MEGA_BENCH_DISTRESS_TRIM_COMPLETION_S"))
+    {
+        const long v = std::atol(e);
+        if (v > 0)
+        {
+            completionBudgetS = static_cast<int>(v);
+        }
+    }
+    // config==used provenance: the budget actually in force is echoed into the run log, so an
+    // audit never has to infer it from the launch environment.
+    LOG_info << "[DistressRotationTrim] completionBudgetS=" << completionBudgetS;
+    for (size_t i = 0; i < kFileCount; ++i)
+    {
+        const int remainingS =
+            std::max(1, completionBudgetS - static_cast<int>(completionTimer.elapsed()));
+        ASSERT_EQ(API_OK, uploadTrackers[i]->waitForResult(remainingS))
+            << "Upload " << i << " did not complete within the shared " << completionBudgetS
+            << " s budget after the distress rotation (elapsed " << completionTimer.elapsed()
+            << " s)" << poolDiag();
+    }
+    LOG_info << "[DistressRotationTrim] completionS=" << completionTimer.elapsed()
+             << " trimmed=" << trimmed << poolDiag();
+    const auto expectedHash = sdk_test::hashFileHex(fs::path(boundFileName));
+    rootnode.reset(megaApi[0]->getRootNode());
+    ASSERT_TRUE(rootnode);
+    std::unique_ptr<MegaNode> boundNode;
+    for (const auto& fileName: fileNames)
+    {
+        std::unique_ptr<MegaNode> node{
+            megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE)};
+        ASSERT_TRUE(node) << "Uploaded file not found in cloud: " << fileName;
+        EXPECT_EQ(node->getSize(), static_cast<int64_t>(kFileSize))
+            << "Cloud size differs from source: " << fileName;
+        std::unique_ptr<char[]> localFingerprint{megaApi[0]->getFingerprint(fileName.c_str())};
+        EXPECT_STREQ(localFingerprint.get(), node->getFingerprint())
+            << "Fingerprint differs from source: " << fileName;
+        if (fileName == boundFileName)
+        {
+            boundNode = std::move(node);
+        }
+    }
+
+    // SHA-256 round-trip of the file bound to the retired pool: its requeued chunks must land
+    // byte-exact after the clamp tore their connections down mid-flight.
+    ASSERT_TRUE(boundNode) << "Retired-pool file not found in cloud: " << boundFileName;
+    const fs::path downloadPath = fs::current_path() / (boundFileName + ".dl");
+    std::error_code ignore;
+    fs::remove(downloadPath, ignore);
+    TransferTracker dt(megaApi[0].get());
+    megaApi[0]->startDownload(boundNode.get(),
+                              downloadPath.string().c_str(),
+                              nullptr /*customName*/,
+                              nullptr /*appData*/,
+                              false /*startFirst*/,
+                              nullptr /*cancelToken*/,
+                              MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                              MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N,
+                              false /*undelete*/,
+                              &dt);
+    ASSERT_EQ(dt.waitForResult(300), API_OK)
+        << "Download of the retired-pool file failed (API_EKEY here = corrupted meta-MAC)";
+    EXPECT_EQ(sdk_test::hashFileHex(downloadPath), expectedHash)
+        << "Bytes differ after the distress rotation shed connections mid-flight";
+    fs::remove(downloadPath, ignore);
 }
 
 /**
@@ -5820,6 +6274,9 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
     auto clearWsHook = makeScopedDestructor(
         []()
         {
+            // ALL hook writes under the hooks mutex, like B9's clearWsHooks: the
+            // pool workers read this hook from evaluate() concurrently with the reset.
+            std::lock_guard<std::mutex> g(globalMegaTestHooks.mMutex);
             globalMegaTestHooks.wsUploadServerEventHook.reset();
         });
 
@@ -5878,9 +6335,15 @@ TEST_F(SdkWsUploadTest, DistressRetiresPoolWithoutRestartingInFlightUpload)
         120000))
         << "Timed out waiting for Distress injection via hook";
 
-    // Step 4: best-effort observe endpoint or pool switch after distress-triggered refresh.
-    // With synthetic event injection, USC may still return an equivalent host/size class and
-    // the pool can be reused, so this is informational (non-fatal).
+    // Step 4: observe the endpoint/pool switch after the distress-triggered refresh. The
+    // ROTATION ITSELF IS CERTAIN (F1): USC replies are `wss://<host>/ul/<86-char session
+    // token>` and the token is freshly minted on every reply, so the exact-identity un-retire
+    // in applyRefreshedUrls (ws_pool_mgr.cpp:1188/:1199) can never match and the observed pool
+    // is ALWAYS retired behind a new-URL successor (:1244) -- even when USC returns the same
+    // host and size class. This probe stays non-fatal only because what it samples is the
+    // TRANSFER's view (the file may still be draining on the retired pool when the sample is
+    // taken, and pool ids are addresses that can be recycled), not because reuse is possible;
+    // DistressRotationTrimsRetiringPoolToBase is the cell that asserts on the retirement.
     megaApi[0]->setMaxUploadSpeed(-1);
 
     std::uintptr_t observedPoolIdAfterDistress = initialPoolId;
@@ -6375,7 +6838,8 @@ TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
             (void)synchronousCancelTransfers(0, MegaTransfer::TYPE_UPLOAD);
         });
     // F10 discipline: ALL hook installs/clears take the hooks mutex (product-side reads
-    // are guarded and always-ticking).
+    // are guarded and always-ticking). Extended (SDK-5360 macos_9808 followup2) to clear the
+    // server-event rule armed just below on EVERY exit path, assert failure included.
     auto resetWsHooks = makeScopedDestructor(
         []()
         {
@@ -6383,7 +6847,16 @@ TEST_F(SdkWsUploadTest, EscalationWindowNotPerpetuallyResetByNullCandidate)
             globalMegaTestHooks.onWsHandshake = {};
             globalMegaTestHooks.onWsUploadSustainedHandshakeFailureWindowDs = {};
             globalMegaTestHooks.onWsHandshakeFailureCandidateVeto = {};
+            globalMegaTestHooks.wsUploadServerEventHook.reset();
         });
+
+    // Drop GENUINE server Distress for the whole cell (mirrors the arm in
+    // DistressRotationTrimsRetiringPoolToBase). F1: a USC reply mints a FRESH per-reply session
+    // token, so every admitted refresh rotates the URL and leaves every busy pool mRetiring --
+    // that would retire the observed pool mid-trajectory and fail this cell for a reason
+    // unrelated to the escalation window it guards. This cell arms no primary rule, so the
+    // secondary drop is the only server-event configuration in force.
+    globalMegaTestHooks.wsUploadServerEventHook.configureSecondaryDrop(5 /*Distress*/);
 
     RequestTracker ct(megaApi[0].get());
     megaApi[0]->setMaxConnections(1, &ct);

@@ -415,7 +415,7 @@ void WsConn::closeWS()
 #ifndef NDEBUG
     if (hadPartialFrame)
     {
-        ++mPartialFrameTornDownCount;
+        mPartialFrameTornDownCount.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
     resetBufferedSendState();
@@ -554,7 +554,7 @@ void WsConn::curlRecv()
             else
             {
                 // Count CURLE_AGAIN on recv (per-conn).
-                ++mCurlAgainRecvCount;
+                mCurlAgainRecvCount.fetch_add(1, std::memory_order_relaxed);
             }
 #endif
             WSUPLOAD_TRACE << "[WsConn::curlRecv] res(=" << res
@@ -671,6 +671,16 @@ struct ChunkResponse
     WsUploadFile* uf = mPool->findFile(response->fileno, *mPool->mImpl);
     if (!uf)
     {
+        // SDK-5360 (macos_9808 followup2) attribution instrumentation. The one-shot opcode-4
+        // completion frame is never re-requested by the client, so a completion that resolves
+        // to no bound file is silently and permanently lost -- the origin of the
+        // tail-completion wedge. Log it loudly so a wedge can be told apart from a completion
+        // the server never sent. LOG ONLY: the drop itself is unchanged.
+        if (event == WsApiServerEvent::UploadCompleted)
+        {
+            LOG_warn << "[WsConn::onmessage] completion frame DROPPED for unbound file [fileno="
+                     << response->fileno << "] [conn=" << this << "] [pool=" << mPool << "]";
+        }
         WSUPLOAD_TRACE << "[WsConn::onmessage] !uf -> return [this = " << this << "]";
         return; // file cancelled or moved
     }
@@ -761,19 +771,38 @@ struct ChunkResponse
         return;
     }
 
+    // SDK-5360 (macos_9808 followup2): mark this connection as owing owedFileno's one-shot
+    // opcode-4 completion frame. Idempotent; the vector holds at most one entry per file this
+    // connection finished, so the linear scan is over a handful of elements (hand-rolled rather
+    // than std::find so this TU needs no new include). The caller holds uploadMutex -- the only
+    // lock mCompletionOwed is ever touched under.
+    const auto noteCompletionOwed = [this](const std::uint32_t owedFileno)
+    {
+        for (const std::uint32_t owed: mCompletionOwed)
+        {
+            if (owed == owedFileno)
+            {
+                return;
+            }
+        }
+        mCompletionOwed.push_back(owedFileno);
+    };
+
     switch (event)
     {
         case WsApiServerEvent::ChunkIngested: // non-final
 #ifndef NDEBUG
             // Throttle-recovery latency = pause-start to first chunk-ack on this conn.
-            if (mPauseStartedAtMs)
+            // F07: relaxed atomics -- single writer (this conn's worker), telemetry only.
+            if (const dstime pauseStartedAtMs = mPauseStartedAtMs.load(std::memory_order_relaxed))
             {
-                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - mPauseStartedAtMs;
+                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - pauseStartedAtMs;
                 const auto deltaMs = static_cast<std::uint64_t>(dsToMs(deltaDs));
-                ++mThrottleRecoveryAckSamples;
-                mThrottleRecoveryAckTotalMs += deltaMs;
-                if (deltaMs > mThrottleRecoveryAckMaxMs) mThrottleRecoveryAckMaxMs = deltaMs;
-                mPauseStartedAtMs = 0;
+                mThrottleRecoveryAckSamples.fetch_add(1, std::memory_order_relaxed);
+                mThrottleRecoveryAckTotalMs.fetch_add(deltaMs, std::memory_order_relaxed);
+                if (deltaMs > mThrottleRecoveryAckMaxMs.load(std::memory_order_relaxed))
+                    mThrottleRecoveryAckMaxMs.store(deltaMs, std::memory_order_relaxed);
+                mPauseStartedAtMs.store(0, std::memory_order_relaxed);
             }
 #endif
             WSUPLOAD_TRACE
@@ -804,11 +833,24 @@ struct ChunkResponse
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
                 if (handleBytesConfirmedOverflow(uf))
                     break;
+                // SDK-5360 (macos_9808 followup2): a FINAL chunk can be acked with opcode 1,
+                // not only opcode 7. If this credit is what made the file completion-pending,
+                // this connection now owes its completion frame just as it would on opcode 7.
+                if (uf->completionWedgeCandidateLocked())
+                {
+                    noteCompletionOwed(response->fileno);
+                }
             }
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
         case WsApiServerEvent::FinalDataIngested:
+            // SDK-5360 (macos_9808 followup2) attribution instrumentation: record WHICH conn
+            // delivered a file's final data. The file completion is a SEPARATE, later, one-shot
+            // opcode-4 frame, so this line plus the opcode-4 arrival line below are what let a
+            // wedge be attributed to the conn that owed the completion. LOG ONLY.
+            LOG_debug << "[WsConn::onmessage] final-data-ingested [fileno=" << chunk.fileno
+                      << "] [pos=" << chunk.pos << "] [conn=" << this << "] [pool=" << mPool << "]";
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 7 final data ingested (server "
                          "knows file is complete) [chunk.len="
                       << chunk.len << "] [this = " << this << "]";
@@ -835,6 +877,13 @@ struct ChunkResponse
                 if (handleBytesConfirmedOverflow(uf))
                     break;
             }
+            // SDK-5360 (macos_9808 followup2): THIS connection delivered the file's final data.
+            // The server's one-shot opcode-4 completion follows on a SEPARATE frame, so record
+            // the debt: closing this connection before it arrives loses the completion with no
+            // client re-request. Recorded whether or not the final frame carried bytes -- the
+            // opcode is what makes the completion imminent. Cleared by applyInFlightLocked when
+            // the completion lands, or by purgeFileLocked if the file is unbound/failed first.
+            noteCompletionOwed(response->fileno);
             if (mPool->mImpl->mCb.onProgress)
                 mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
@@ -871,6 +920,13 @@ struct ChunkResponse
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 4 upload completed -> "
                          "mPool->applyInFlight(response->fileno) [this = "
                       << this << "]";
+            // SDK-5360 (macos_9808 followup2) attribution instrumentation: the one-shot
+            // completion frame actually arriving, and on which conn. Paired with the opcode-7
+            // line above it distinguishes "completion lost" from "completion never sent". LOG
+            // ONLY. Logged BEFORE applyInFlightLocked so the line is emitted even if the
+            // completion bookkeeping fails a validation check further down.
+            LOG_debug << "[WsConn::onmessage] upload-completed frame [fileno=" << response->fileno
+                      << "] [conn=" << this << "] [pool=" << mPool << "]";
             mPool->applyInFlightLocked(response->fileno);
             uf->maybeReportThroughput(mPool->mImpl->currentTime);
 
@@ -956,7 +1012,7 @@ struct ChunkResponse
                 << "[WsConn::onmessage] response->event == 5 distress -> server requested pool "
                    "refresh -> refresh pools -> mPool->mImpl->poolMgr.refreshPools() [this = "
                 << this << "]";
-            mPool->mImpl->poolMgr.refreshPools();
+            mPool->mImpl->poolMgr.refreshPools(/*fromDistress=*/true);
             break;
 
         case WsApiServerEvent::Throttle:
@@ -965,7 +1021,8 @@ struct ChunkResponse
 #ifndef NDEBUG
             // Tag opcode=6 in code-counts and anchor pause start for recovery latency.
             if (mPool) ++mPool->mThrottleEventCodeCounts[6];
-            mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
+            mPauseStartedAtMs.store(static_cast<dstime>(SteadyTime::ds()),
+                                    std::memory_order_relaxed);
 #endif
             // Release-safe bench-framework throttle counters. Relaxed memory
             // order — these are pure accumulators read at iter boundaries by
@@ -1127,7 +1184,8 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
             ws->mLastSendProgressDs.store(SteadyTime::ds(), std::memory_order_relaxed);
 #ifndef NDEBUG
         // E-3: accumulate the bytes curl_ws_send accepted on this conn.
-        ws->mTotalCurlWsSendAcceptedBytes += static_cast<std::uint64_t>(sent);
+        ws->mTotalCurlWsSendAcceptedBytes.fetch_add(static_cast<std::uint64_t>(sent),
+                                                    std::memory_order_relaxed);
 #endif
         if (mSendPos == mDataLen)
         {
@@ -1162,7 +1220,7 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     else
     {
         // Count CURLE_AGAIN on send (per-conn).
-        ++ws->mCurlAgainSendCount;
+        ws->mCurlAgainSendCount.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
     WSUPLOAD_TRACE << "[WsBuf::sendWS] res(=" << res << ") != CURLE_OK -> return false [this = " << this

@@ -94,6 +94,10 @@ struct WsPoolMgr
     // in refreshPools() (under uploadMutex via its callers); the throttle read there is
     // on the same thread, so no extra synchronisation is needed.
     dstime mLastRefreshStartedDs{0};
+    // One-shot: set only when an ADMITTED refresh was launched by a server Distress; consumed by
+    // applyRefreshedUrls, cleared on the refresh error path. Atomic because refreshPools() is
+    // reached from pool worker threads (ws_conn.cpp Distress handler) as well as the client thread.
+    std::atomic<bool> mPendingDistressClamp{false};
     unsigned mRefreshFailCount{0};
 
     // Cumulative refreshPools() invocations this engine-lifetime. Surfaced via
@@ -116,7 +120,9 @@ struct WsPoolMgr
 
     void curlIO(std::unique_lock<std::mutex>& lk);
     void checkPools(UploadEngine::Impl& impl);
-    void refreshPools();
+    // fromDistress: the trigger was a server event=5 Distress (ws_conn.cpp). Arms a one-shot
+    // clamp of retiring-but-draining pools to base in applyRefreshedUrls (SDK-5360 / macos_9808).
+    void refreshPools(bool fromDistress = false);
     void applyRefreshBackoff(Error e);
 
     // Shared tail for USC refresh responses (parsing can be done via string parsing or JSON).
