@@ -1280,7 +1280,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const c
     if (!api->client->mediaFileInfo.mediaCodecsReceived)
     {
         // the client app should already have requested these but just in case:
-        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, LocalPath());
+        api->client->mediaFileInfo.requestCodecMappingsOneTime(api->client, std::string());
         return false;
     }
 
@@ -3274,6 +3274,7 @@ MegaTransferPrivate::MegaTransferPrivate(const MegaTransferPrivate *transfer)
     this->setCollisionResolution(transfer->getCollisionResolution());
     this->setCollisionCheckResult(transfer->getCollisionCheckResult());
     this->setFileSystemType(transfer->getFileSystemType());
+    this->mDownloadItems = transfer->mDownloadItems;
 }
 
 MegaTransfer* MegaTransferPrivate::copy()
@@ -3533,6 +3534,11 @@ CollisionResolution MegaTransferPrivate::getCollisionResolution() const
 MegaNode* MegaTransferPrivate::getNodeToUndelete() const
 {
     return nodeToUndelete.get();
+}
+
+const MegaDownloadItemList* MegaTransferPrivate::getDownloadItems() const
+{
+    return mDownloadItems.get();
 }
 
 LocalPath MegaTransferPrivate::getLocalPath() const
@@ -3873,6 +3879,16 @@ void MegaTransferPrivate::setNodeToUndelete(MegaNode* toUndelete)
     nodeToUndelete.reset(toUndelete ? toUndelete->copy() : nullptr);
 }
 
+void MegaTransferPrivate::setDownloadItems(const MegaDownloadItemList* items)
+{
+    std::shared_ptr<const MegaDownloadItemList> copy(items ? items->copy() : nullptr);
+    if (!copy)
+    {
+        copy = std::make_shared<MegaDownloadItemListPrivate>();
+    }
+    mDownloadItems = std::move(copy);
+}
+
 void MegaTransferPrivate::setSyncTransfer(bool isSyncTransfer)
 {
     syncTransfer = isSyncTransfer;
@@ -4062,6 +4078,37 @@ void MegaTransferPrivate::setPath(const char* newPath)
     }
 
     setFileName(newPath);
+}
+
+// The current folder as a download destination: what a download with no parent path falls back
+// to. Absolute "." with a trailing separator.
+static LocalPath currentFolderAsDestination()
+{
+    LocalPath path = LocalPath::fromAbsolutePath(".");
+    path.appendWithSeparator(LocalPath::fromRelativePath(""), true);
+    return path;
+}
+
+// A dest ending in a separator is folder-only: no leaf name, so the node keeps its own. Otherwise
+// it names the destination itself and is split into folder and leaf.
+// An Android URI root path is folder-only too: it has no parentPath, so the current folder stands
+// in for one later and the leaf name comes from the node.
+static void splitDownloadDestination(const LocalPath& dest, LocalPath& folder, LocalPath& leaf)
+{
+    bool isFolderOnly = dest.endsInSeparator();
+#ifdef __ANDROID__
+    isFolderOnly = isFolderOnly || (dest.isURI() && dest.isRootPath());
+#endif
+
+    if (isFolderOnly)
+    {
+        folder = dest;
+        leaf.clear();
+        return;
+    }
+
+    folder = dest.parentPath();
+    leaf = dest.leafName();
 }
 
 void MegaTransferPrivate::setLocalPath(const LocalPath& newPath)
@@ -4346,7 +4393,9 @@ MegaRequestPrivate::MegaRequestPrivate(int type, MegaRequestListener *listener)
     this->number = 0;
     this->timeZoneDetails = NULL;
 
-    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS || type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN)
+    if (type == MegaRequest::TYPE_ACCOUNT_DETAILS ||
+        type == MegaRequest::TYPE_GET_RECOMMENDED_PRO_PLAN ||
+        type == MegaRequest::TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE)
     {
         this->accountDetails = std::make_shared<AccountDetails>();
     }
@@ -5297,6 +5346,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_CHAT_STATS: return "CHAT_STATS";
         case TYPE_DOWNLOAD_FILE: return "DOWNLOAD_FILE";
         case TYPE_QUERY_TRANSFER_QUOTA: return "QUERY_TRANSFER_QUOTA";
+        case TYPE_ESTIMATE_FREE_TRANSFER_QUOTA_STATE:
+            return "ESTIMATE_FREE_TRANSFER_QUOTA_STATE";
         case TYPE_PASSWORD_LINK: return "PASSWORD_LINK";
         case TYPE_RESTORE: return "RESTORE";
         case TYPE_GET_ACHIEVEMENTS: return "GET_ACHIEVEMENTS";
@@ -5358,6 +5409,8 @@ const char *MegaRequestPrivate::getRequestString() const
         case TYPE_GET_RECENT_ACTIONS: return "GET_RECENT_ACTIONS";
         case TYPE_GET_RECENT_ACTION_BY_ID:
             return "GET_RECENT_ACTION_BY_ID";
+        case TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE:
+            return "QUERY_PRO_TRANSFER_QUOTA_STATE_LITE";
         case TYPE_CHECK_RECOVERY_KEY: return "CHECK_RECOVERY_KEY";
         case TYPE_SET_MY_BACKUPS: return "SET_MY_BACKUPS";
         case TYPE_EXPORT_SET: return "EXPORT_SET";
@@ -6089,6 +6142,133 @@ void MegaNodeListPrivate::addNode(MegaNode *node)
     {
         delete [] copyList;
     }
+}
+
+static std::unique_ptr<MegaNode> copyNodeWithChildren(MegaNode* node, bool copyChildren)
+{
+    if (!node)
+    {
+        return nullptr;
+    }
+
+    auto copy = std::make_unique<MegaNodePrivate>(node);
+    if (!copyChildren)
+    {
+        return copy;
+    }
+
+    if (auto* children = dynamic_cast<MegaNodeListPrivate*>(node->getChildren()))
+    {
+        copy->setChildren(new MegaNodeListPrivate(children, true));
+    }
+
+    return copy;
+}
+
+MegaDownloadItemListPrivate::MegaDownloadItemListPrivate(const MegaDownloadItemListPrivate& other)
+{
+    mItems.reserve(other.mItems.size());
+    for (const Item& item: other.mItems)
+    {
+        mItems.push_back(Item{
+            item.mNode ? copyNodeWithChildren(item.mNode.get(), item.mNode->isForeign()) : nullptr,
+            item.mLocalPath,
+            item.mCustomName,
+            item.mAppData,
+            item.mStartFirst,
+            item.mUndelete,
+        });
+    }
+}
+
+MegaDownloadItemList* MegaDownloadItemListPrivate::copy() const
+{
+    return new MegaDownloadItemListPrivate(*this);
+}
+
+void MegaDownloadItemListPrivate::add(MegaNode* node,
+                                      const char* localPath,
+                                      const char* customName,
+                                      const char* appData,
+                                      bool startFirst,
+                                      bool undelete)
+{
+    // Empty is the same as none: no destination given, and the node keeps its own name.
+    std::optional<std::string> path;
+    if (localPath && *localPath)
+    {
+        path.emplace(localPath);
+    }
+
+    std::optional<std::string> name;
+    if (customName && *customName)
+    {
+        name.emplace(customName);
+    }
+
+    std::optional<std::string> customAppData;
+    if (appData && *appData)
+    {
+        customAppData.emplace(appData);
+    }
+
+    mItems.push_back(Item{node ? copyNodeWithChildren(node, node->isForeign()) : nullptr,
+                          std::move(path),
+                          std::move(name),
+                          std::move(customAppData),
+                          startFirst,
+                          undelete});
+}
+
+int MegaDownloadItemListPrivate::size() const
+{
+    return static_cast<int>(mItems.size());
+}
+
+const MegaDownloadItemListPrivate::Item* MegaDownloadItemListPrivate::at(int i) const
+{
+    if (i < 0 || static_cast<size_t>(i) >= mItems.size())
+    {
+        return nullptr;
+    }
+
+    return &mItems[static_cast<size_t>(i)];
+}
+
+MegaNode* MegaDownloadItemListPrivate::getNode(int i) const
+{
+    const Item* item = at(i);
+    return item ? item->mNode.get() : nullptr;
+}
+
+const char* MegaDownloadItemListPrivate::getLocalPath(int i) const
+{
+    const Item* item = at(i);
+    return item && item->mLocalPath ? item->mLocalPath->c_str() : nullptr;
+}
+
+const char* MegaDownloadItemListPrivate::getCustomName(int i) const
+{
+    const Item* item = at(i);
+    return item && item->mCustomName ? item->mCustomName->c_str() : nullptr;
+}
+
+const char* MegaDownloadItemListPrivate::getAppData(int i) const
+{
+    const Item* item = at(i);
+    return item && item->mAppData ? item->mAppData->c_str() : nullptr;
+}
+
+bool MegaDownloadItemListPrivate::getStartFirst(int i) const
+{
+    const Item* item = at(i);
+    return item && item->mStartFirst;
+}
+
+bool MegaDownloadItemListPrivate::getUndelete(int i) const
+{
+    const Item* item = at(i);
+    return item ? item->mUndelete : false;
 }
 
 MegaUserListPrivate::MegaUserListPrivate()
@@ -7347,11 +7527,13 @@ int MegaApiImpl::getBusinessStatus()
 
 int64_t MegaApiImpl::getOverquotaDeadlineTs()
 {
+    SdkMutexGuard g(sdkMutex);
     return client->mOverquotaDeadlineTs;
 }
 
 MegaIntegerList *MegaApiImpl::getOverquotaWarningsTs()
 {
+    SdkMutexGuard g(sdkMutex);
     return new MegaIntegerListPrivate(client->mOverquotaWarningTs);
 }
 
@@ -8314,6 +8496,40 @@ Error MegaApiImpl::createLocalFolder_unlocked(LocalPath& localPath,
         return API_EEXIST;
     }
     return API_OK;
+}
+
+Error MegaApiImpl::ensureLocalFolder_unlocked(const LocalPath& localPath,
+                                              FileSystemAccess& fsaccess)
+{
+    auto da = fsaccess.newfileaccess();
+
+    // Case-insensitive: a case-differing leaf still names this same folder, and treating it as
+    // absent here is what would put a second one beside it.
+    if (da->fopen(localPath, OPEN_RDONLY, FSLogging::logExceptFileNotFound, nullptr, false, true))
+    {
+        if (da->type == FILENODE)
+        {
+            LOG_err << "Local file detected where there should be a folder: " << localPath;
+            return API_EARGS;
+        }
+
+        return API_EEXIST;
+    }
+
+    if (fsaccess.mkdirlocal(localPath, false, false))
+    {
+        return API_OK;
+    }
+
+    if (!fsaccess.target_exists)
+    {
+        LOG_err << "Unable to create folder: " << localPath;
+        return API_EWRITE;
+    }
+
+    // Present but unopenable above: still the folder that was asked for, so the per-file checks
+    // decide what happens inside it.
+    return API_EEXIST;
 }
 
 void MegaApiImpl::moveNode(MegaNode *node, MegaNode *newParent, MegaRequestListener *listener)
@@ -9816,7 +10032,7 @@ bool MegaApiImpl::hasToForceUpload(const Node& node, const MegaTransferPrivate& 
     const auto hasPreview = (Node::hasfileattribute(&node.fileattrstring, GfxProc::PREVIEW) != 0);
     const auto hasThumbnail =
         (Node::hasfileattribute(&node.fileattrstring, GfxProc::THUMBNAIL) != 0);
-    const auto isMedia = gfxAccess && (gfxAccess->isgfx(lp) || gfxAccess->isvideo(lp));
+    const auto isMedia = gfxAccess && (gfxAccess->isgfx(name) || gfxAccess->isvideo(name));
     const auto canForceUpload = transfer.isForceNewUpload();
     const auto isPdf = name.find(".pdf") != string::npos;
 
@@ -10567,6 +10783,34 @@ void MegaApiImpl::startDownload (bool startFirst, MegaNode *node, const char* lo
     waiter->notify();
 }
 
+void MegaApiImpl::startDownloadBatch(const MegaDownloadItemList* items,
+                                     CancelToken cancelToken,
+                                     int collisionCheck,
+                                     int collisionResolution,
+                                     MegaTransferListener* listener)
+{
+    MegaTransferPrivate* transfer = new MegaTransferPrivate(MegaTransfer::TYPE_DOWNLOAD, listener);
+
+    // No parent path or filesystem of its own: each item names its own destination, and the
+    // controller resolves and probes them per root. The sub-transfers it creates carry theirs.
+    transfer->setMaxRetries(maxRetries);
+    transfer->setCancelToken(cancelToken);
+    transfer->setCollisionCheck(collisionCheck);
+    transfer->setCollisionResolution(collisionResolution);
+
+    // Copied here, on the caller's thread, while the caller still owns the list: only this
+    // transfer's own copy crosses to the worker thread.
+    transfer->setDownloadItems(items);
+
+    // A batch has no single destination: empty rather than unset, so an app reading getPath() in a
+    // callback gets a usable string. setPath() only fills parentPath when it finds a separator.
+    transfer->setPath("");
+    transfer->setParentPath("");
+
+    transferQueue.push(transfer);
+    waiter->notify();
+}
+
 MegaTransferPrivate* MegaApiImpl::createDownloadTransfer(bool startFirst,
                                                          MegaNode* node,
                                                          const LocalPath& localPath,
@@ -10705,24 +10949,36 @@ void MegaApiImpl::retryTransfer(MegaTransfer *transfer, MegaTransferListener *li
     int type = t->getType();
     if (type == MegaTransfer::TYPE_DOWNLOAD)
     {
-        MegaNode *node = t->getNodeToUndelete() ? t->getNodeToUndelete() : t->getPublicMegaNode();
-        if (!node)
+        if (const MegaDownloadItemList* items = t->getDownloadItems())
         {
-            node = getNodeByHandle(t->getNodeHandle());
+            this->startDownloadBatch(items,
+                                     CancelToken(),
+                                     static_cast<int>(t->getCollisionCheck()),
+                                     static_cast<int>(t->getCollisionResolution()),
+                                     listener);
         }
-        this->startDownload(true,
-                            node,
-                            t->getPath(),
-                            NULL,
-                            0,
-                            t->getAppData(),
-                            CancelToken(),
-                            static_cast<int>(t->getCollisionCheck()),
-                            static_cast<int>(t->getCollisionResolution()),
-                            t->getNodeToUndelete() != nullptr,
-                            listener);
+        else
+        {
+            MegaNode* node =
+                t->getNodeToUndelete() ? t->getNodeToUndelete() : t->getPublicMegaNode();
+            if (!node)
+            {
+                node = getNodeByHandle(t->getNodeHandle());
+            }
+            this->startDownload(true,
+                                node,
+                                t->getPath(),
+                                NULL,
+                                0,
+                                t->getAppData(),
+                                CancelToken(),
+                                static_cast<int>(t->getCollisionCheck()),
+                                static_cast<int>(t->getCollisionResolution()),
+                                t->getNodeToUndelete() != nullptr,
+                                listener);
 
-        delete node;
+            delete node;
+        }
     }
     else
     {
@@ -11352,7 +11608,7 @@ bool MegaApiImpl::ensureMediaInfo()
     else
     {
         SdkMutexGuard g(sdkMutex);
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
         return false;
     }
 #else
@@ -12760,16 +13016,9 @@ int MegaApiImpl::getAccess(const std::variant<MegaNode*, MegaHandle>& nodeOrNode
         n = n->parent.get();
     }
 
-    // Process nodes in Vault first.
-    // The Vault is read-only, except the Password Manager subtree.
+    // The Vault is read-only.
     if (!inInshare && root->type == VAULTNODE)
-    {
-        const NodeHandle pwmBase = client->getPasswordManagerBase();
-        if (pwmBase.isUndef() || !node->hasNHOrHasAncestorWithNH(pwmBase))
-        {
-            return MegaShare::ACCESS_READ;
-        }
-    }
+        return MegaShare::ACCESS_READ;
 
     // For a ROOTNODE or RUBBISHNODE the loop above leaves a == OWNER (no parent
     // and no inshare), so the switch returns OWNER here.
@@ -16255,6 +16504,13 @@ void MegaApiImpl::notify_stream_overquota(dstime timeleft)
     fireOnEvent(event);
 }
 
+void MegaApiImpl::notify_transfer_quota_state(int status)
+{
+    MegaEventPrivate* event = new MegaEventPrivate(MegaEvent::EVENT_TRANSFER_QUOTA_STATE);
+    event->setNumber(status);
+    fireOnEvent(event);
+}
+
 void MegaApiImpl::notify_confirmation(const char *email)
 {
     MegaEventPrivate *event = new MegaEventPrivate(MegaEvent::EVENT_ACCOUNT_CONFIRMATION);
@@ -16893,17 +17149,11 @@ void MegaApiImpl::account_details(AccountDetails*, error e)
     fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
 }
 
-void MegaApiImpl::querytransferquota_result(int code)
-{
-    if(requestMap.find(client->restag) == requestMap.end()) return;
-    MegaRequestPrivate* request = requestMap.at(client->restag);
-    if(!request || (request->getType() != MegaRequest::TYPE_QUERY_TRANSFER_QUOTA)) return;
-
-    // pre-warn about a possible overquota for codes 2 and 3, like in the webclient
-    request->setFlag((code == 2 || code == 3) ? true : false);
-
-    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
-}
+static_assert(MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN == static_cast<int>(TRANSFER_QUOTA_UNKNOWN) &&
+                  MegaApi::TRANSFER_QUOTA_STATE_GREEN == static_cast<int>(TRANSFER_QUOTA_GREEN) &&
+                  MegaApi::TRANSFER_QUOTA_STATE_ORANGE == static_cast<int>(TRANSFER_QUOTA_ORANGE) &&
+                  MegaApi::TRANSFER_QUOTA_STATE_RED == static_cast<int>(TRANSFER_QUOTA_RED),
+              "MegaApi::TRANSFER_QUOTA_STATE_* must mirror transferquotastatus_t");
 
 void MegaApiImpl::removecontact_result(error e)
 {
@@ -18496,6 +18746,52 @@ void MegaApiImpl::fireOnTransferTemporaryError(MegaTransferPrivate *transfer, un
 MegaClient *MegaApiImpl::getMegaClient()
 {
     return client;
+}
+
+void MegaApiImpl::fireOnTransferQuotaState(MegaTransferPrivate* transfer, int state)
+{
+    assert(threadId == std::this_thread::get_id());
+    transfer->setNotificationNumber(++notificationNumber);
+
+    // Only the listener for this transfer, as with onFolderTransferUpdate: it describes one
+    // download, not account-wide state.
+    MegaTransferListener* listener = transfer->getListener();
+    if (listener)
+    {
+        listener->onTransferQuotaState(api, transfer, state);
+    }
+}
+
+bool MegaApiImpl::reportTransferQuotaState(int tag, transferquotastatus_t state)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    // A slow answer can arrive after the transfer finished, and fireOnTransferFinish erases from
+    // transferMap just before deleting, so the lookup is the liveness test.
+    auto it = transferMap.find(tag);
+    if (it == transferMap.end() || !it->second)
+    {
+        return false;
+    }
+
+    fireOnTransferQuotaState(it->second, state);
+    return true;
+}
+
+void MegaApiImpl::queryTransferQuotaState(
+    std::vector<handle> ownNodes,
+    std::vector<handle> publicNodes,
+    std::function<void(transferquotastatus_t, Error)> completion)
+{
+    assert(threadId == std::this_thread::get_id());
+
+    // The checker decides how the state is arrived at, per account type.
+    if (!client->transferQuotaChecker().check(std::move(ownNodes),
+                                              std::move(publicNodes),
+                                              completion))
+    {
+        completion(TRANSFER_QUOTA_UNKNOWN, API_OK);
+    }
 }
 
 void MegaApiImpl::fireOnTransferUpdate(MegaTransferPrivate *transfer)
@@ -20314,7 +20610,8 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
             {
                 // shortcut in case we have a huge queue
                 // millions of listener callbacks, logging etc takes a while
-                LOG_debug << "Folder transfer is cancelled, skipping remaining subtransfers: " << auxQueue.size();
+                LOG_debug << "Folder/Batch transfer is cancelled, skipping remaining subtransfers: "
+                          << auxQueue.size();
                 recursiveTransfer->setTransfersTotalCount(
                     recursiveTransfer->getTransfersTotalCount() - auxQueue.size());
                 // Remove remaining transfers in recursiveTransfer's custom queue
@@ -20371,6 +20668,13 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
 
                 if (parent && parent->inshare && !client->checkaccess(parent.get(), RDWR))
                 {
+                    e = API_EACCESS;
+                    break;
+                }
+
+                if (client->isNodeInVaultTree(parent))
+                {
+                    LOG_err << "startUpload: Not allowed to upload into the vault tree";
                     e = API_EACCESS;
                     break;
                 }
@@ -20768,6 +21072,26 @@ unsigned MegaApiImpl::sendPendingTransfers(TransferQueue *queue, MegaRecursiveOp
             }
             case MegaTransfer::TYPE_DOWNLOAD:
             {
+                // A batch download carries its roots in the item list instead of the single node
+                // handle, which is what identifies it, and always runs through the recursive
+                // controller: one scan pass, one quota query, whatever mix of roots it holds.
+                if (const MegaDownloadItemList* items = transfer->getDownloadItems())
+                {
+                    if (!items->size())
+                    {
+                        e = API_EARGS;
+                        break;
+                    }
+
+                    transferMap[nextTag] = transfer;
+                    transfer->setTag(nextTag);
+
+                    transfer->startRecursiveOperation(
+                        std::make_shared<MegaFolderDownloadBatchController>(this, transfer),
+                        nullptr);
+                    break;
+                }
+
                 std::shared_ptr<Node> node;
                 MegaNode *publicNode = transfer->getPublicNode();
                 MegaNode *nodeToUndelete = transfer->getNodeToUndelete();
@@ -21871,6 +22195,12 @@ void MegaApiImpl::moveNode(MegaNode* node, MegaNode* newParent, const char* newN
                 return API_EARGS;
             }
 
+            if (client->isNodeInVaultTree(node) || client->isNodeInVaultTree(newParent))
+            {
+                LOG_err << "moveNode: Not allowed to move vault nodes into/out of the vault tree";
+                return API_EACCESS;
+            }
+
             // Move to the current parent: compare parent handles, not node->parent.
             // parentHandle() comes from the node record and stays valid even when
             // node->parent is null; newParent from nodebyhandle() may be another
@@ -22094,6 +22424,12 @@ error MegaApiImpl::performRequest_copy(MegaRequestPrivate* request)
                     || (target && target->type == FILENODE))
             {
                 return API_EARGS;
+            }
+
+            if (client->isNodeInVaultTree(target))
+            {
+                LOG_err << "copyNode: Not allowed to copy into the vault tree";
+                return API_EACCESS;
             }
 
             if (!megaNode->isForeign() && !megaNode->isPublic())
@@ -22879,15 +23215,147 @@ void MegaApiImpl::getAccountDetails(bool storage, bool transfer, bool pro, bool 
 
 void MegaApiImpl::queryTransferQuota(long long size, MegaRequestListener* listener)
 {
-    MegaRequestPrivate* request = new MegaRequestPrivate(MegaRequest::TYPE_QUERY_TRANSFER_QUOTA, listener);
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_QUERY_TRANSFER_QUOTA, listener);
     request->setNumber(size);
 
     request->performRequest = [this, request]()
+    {
+        // Deprecated: superseded by estimateFreeTransferQuotaState, whose traffic-light getNumber
+        // replaced this getFlag ("overquota expected") contract. No warning is lost by not
+        // querying: the codes that set the flag never reached it, as they parsed as an unexpected
+        // response.
+        request->setFlag(false);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::estimateFreeTransferQuotaState(MegaHandleList* own,
+                                                 MegaHandleList* pub,
+                                                 MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_ESTIMATE_FREE_TRANSFER_QUOTA_STATE, listener);
+
+    // The number defaults to 0, which is TRANSFER_QUOTA_STATE_GREEN. Only the reply may say green,
+    // so seed the state the request carries when it fails before reaching the API.
+    request->setNumber(MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN);
+
+    // Copied here, while the caller still owns the lists: only the handles reach the worker thread
+    const auto handlesOf = [](MegaHandleList* list)
+    {
+        vector<handle> handles;
+        for (unsigned i = 0; list && i < list->size(); ++i)
         {
-            m_off_t size = request->getNumber();
-            client->querytransferquota(size);
-            return API_OK;
-        };
+            handles.push_back(list->get(i));
+        }
+
+        return handles;
+    };
+
+    vector<handle> ownNodes = handlesOf(own);
+    vector<handle> publicNodes = handlesOf(pub);
+
+    request->performRequest =
+        [this, request, ownNodes = std::move(ownNodes), publicNodes = std::move(publicNodes)]()
+    {
+        if (ownNodes.empty() && publicNodes.empty())
+        {
+            return API_EARGS;
+        }
+
+        if (client->transferQuotaChecker().isProAccount())
+        {
+            return API_EACCESS;
+        }
+
+        // Whatever is already downloading or streaming is counted alongside these nodes, so the
+        // answer describes the account as it will be rather than the nodes in isolation. That is
+        // also what startDownloadBatch asks, so both agree about the same selection.
+        const int tag = request->getTag();
+        const bool asked = client->transferQuotaChecker().check(
+            ownNodes,
+            publicNodes,
+            [this, tag](transferquotastatus_t state, Error e)
+            {
+                // The request may have been finished and deleted meanwhile (logout), so resolve it
+                // by tag rather than holding the pointer.
+                auto it = requestMap.find(tag);
+                if (it == requestMap.end() || !it->second ||
+                    it->second->getType() != MegaRequest::TYPE_ESTIMATE_FREE_TRANSFER_QUOTA_STATE)
+                {
+                    return;
+                }
+
+                // The query's own error, so an app can tell a failed query from one that answered
+                // but could not determine the state: both carry TRANSFER_QUOTA_UNKNOWN.
+                it->second->setNumber(state);
+                fireOnRequestFinish(it->second, std::make_unique<MegaErrorPrivate>(e));
+            });
+
+        // Nothing was evaluated, which is still an answer the caller is owed
+        if (!asked)
+        {
+            request->setNumber(MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN);
+            fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+        }
+
+        return API_OK;
+    };
+
+    requestQueue.push(request);
+    waiter->notify();
+}
+
+void MegaApiImpl::queryProTransferQuotaStateLite(MegaRequestListener* listener)
+{
+    MegaRequestPrivate* request =
+        new MegaRequestPrivate(MegaRequest::TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE, listener);
+
+    request->performRequest = [this, request]()
+    {
+        TransferQuotaChecker& checker = client->transferQuotaChecker();
+
+        if (!checker.isProAccount())
+        {
+            return API_EACCESS;
+        }
+
+        const int tag = request->getTag();
+        checker.getProTransferState(
+            [this, tag](TransferQuotaChecker::ProTransferQuota quota, Error e)
+            {
+                // A cache miss puts a `uq` on the wire, and the request can be finished and deleted
+                // before it answers: the login and signup paths call abortPendingActions() without
+                // the locallogout() that would drop this completion. So resolve by tag, as
+                // estimateFreeTransferQuotaState does, rather than holding the pointer.
+                auto it = requestMap.find(tag);
+                if (it == requestMap.end() || !it->second ||
+                    it->second->getType() != MegaRequest::TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE)
+                {
+                    return;
+                }
+
+                MegaRequestPrivate* request = it->second;
+
+                // A MegaAccountDetails with only the transfer fields filled, like getAccountDetails
+                // but without a server round-trip. getTransferMax/Used/QuotaState read these back.
+                if (auto details = request->getAccountDetails())
+                {
+                    details->transfer_max = quota.max;
+                    details->transfer_own_used = quota.ownUsed;
+                    details->transfer_srv_used = quota.srvUsed;
+                    details->transfer_hist = quota.hist;
+                }
+
+                fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(e));
+            });
+        return API_OK;
+    };
 
     requestQueue.push(request);
     waiter->notify();
@@ -27711,7 +28179,14 @@ void MegaApiImpl::getRecentActionsAsyncInternal(unsigned days,
 
         MegaTimeStamp sinceClearHistory = getRecentClearTimestamp();
 
-        since = std::max(since, sinceClearHistory);
+        // clearRecentActionHistory(T) means clear every action with ctime up to and
+        // including T. The SQL query keeps rows with ctime >= since, so to drop the ones
+        // at exactly T we start the query at T + 1.
+        // When there is no clear timestamp, T is 0 and since is already the start of the
+        // requested day window, so T + 1 changes nothing.
+        //
+        // See MegaApi::clearRecentActionHistory() for the use cases.
+        since = std::max(since, sinceClearHistory + 1);
 
         recentactions_vector v;
         if (withExcludeSensitives)
@@ -28317,7 +28792,8 @@ void MegaApiImpl::addMount(const MegaMount* mount, MegaRequestListener* listener
     request->setFile(mount->getPath());
     request->setListener(listener);
 
-    auto execute = [this](const fuse::MountInfo& info, MegaRequestPrivate& request) {
+    auto execute = [this](const fuse::MountInfo& info, MegaRequestPrivate& request)
+    {
         auto result = client->mFuseService.add(info);
         auto error = std::make_unique<MegaErrorPrivate>(result);
 
@@ -28483,15 +28959,6 @@ void MegaApiImpl::onFuseEvent(const fuse::MountEvent& event)
 
     // Broadcast the event.
     fireOnFuseEvent(handlers[event.mType], event);
-}
-
-bool MegaApiImpl::isCached(const char* path)
-{
-    assert(path);
-
-    SdkMutexGuard guard(sdkMutex);
-
-    return client->mFuseService.cached(LocalPath::fromPlatformEncodedAbsolute(path));
 }
 
 bool MegaApiImpl::isFUSESupported()
@@ -30998,13 +31465,15 @@ long long MegaAccountDetailsPrivate::getTransferSrvUsed()
 
 long long MegaAccountDetailsPrivate::getTransferUsed()
 {
-    long long total = details.transfer_srv_used + details.transfer_own_used + getTemporalBandwidth();
-    // in case the total exceed the maximum allowance (due to the free IP-based quota)...
-    if (details.transfer_max && total > details.transfer_max) //do not limit for free user (no max allowance configured)
-    {
-        total = details.transfer_max;
-    }
-    return total;
+    return details.transferUsed();
+}
+
+int MegaAccountDetailsPrivate::getTransferQuotaState()
+{
+    // The same bands the engine reports during downloads, so both agree on what orange means. An
+    // account without an allowance (free) is answered UNKNOWN, as `qbq` is what knows its per-IP
+    // state.
+    return TransferQuotaChecker::statusForUsage(details);
 }
 
 int MegaAccountDetailsPrivate::getNumUsageItems()
@@ -31261,6 +31730,13 @@ MegaErrorPrivate::MegaErrorPrivate(const Error& err)
     , mLinkStatus(err.getLinkStatus())
 {
 }
+
+MegaErrorPrivate::MegaErrorPrivate(const Error& err, long long value):
+    MegaError(err),
+    mValue(value),
+    mUserStatus(err.getUserStatus()),
+    mLinkStatus(err.getLinkStatus())
+{}
 
 MegaErrorPrivate::MegaErrorPrivate(fuse::MountResult result)
   : MegaError(result == fuse::MOUNT_SUCCESS ? API_OK : API_EFAILED)
@@ -32528,8 +33004,7 @@ MegaAccountPlanPrivate::MegaAccountPlanPrivate(const AccountPlan& plan)
 
 bool MegaAccountPlanPrivate::isProPlan() const
 {
-    return (mPlan.level > MegaAccountDetails::ACCOUNT_TYPE_FREE &&
-            mPlan.level != MegaAccountDetails::ACCOUNT_TYPE_FEATURE);
+    return isProAccountType(static_cast<AccountType>(mPlan.level));
 }
 
 int32_t MegaAccountPlanPrivate::getAccountLevel() const
@@ -32855,7 +33330,7 @@ void MegaRecursiveOperation::onTransferFinish(MegaApi *, MegaTransfer *t, MegaEr
 
         // Cancelled or not, there is always an onTransferFinish callback for the folder transfer.
         // If subtransfers were started, completion is always by the last subtransfer completing
-        complete(mIncompleteTransfers ? API_EINCOMPLETE : API_OK);
+        complete(resolvedError());
     }
 }
 
@@ -33246,7 +33721,7 @@ void MegaRecursiveOperation::complete(Error e, bool cancelledByUser)
         setRootNodeHandleInTransfer();
     }
 
-    transfer->setState(cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED);
+    transfer->setState(resolvedState(e, cancelledByUser));
     megaApi->fireOnTransferFinish(transfer, std::make_unique<MegaErrorPrivate>(e));
 }
 
@@ -34395,6 +34870,123 @@ MegaFolderDownloadController::~MegaFolderDownloadController()
     ensureThreadStopped();
 }
 
+// Spawn the worker thread that turns the scanned mLocalTree into local folders and queued
+// transfers. Shared by the single-root and batch controllers, which differ only in how they scan.
+void MegaFolderDownloadController::launchTreeCreation(const LocalPath& diskSpacePath,
+                                                      unsigned fileAddedCount)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+
+    // start worker thread to create local folder tree
+    mWorkerThread = std::thread(
+        [this, diskSpacePath, fileAddedCount]()
+        {
+            // local folder creation runs on the download worker thread (and checks the
+            // cancelled flag).
+            // Nothing may escape this thread: an uncaught exception would call std::terminate,
+            // and skipping the completion queued below would leave the transfer hanging.
+            // API_EINTERNAL matches Error's default: fail closed if no path below assigns it.
+            Error e = API_EINTERNAL;
+            std::shared_ptr<TransferQueue> transferQueue;
+            try
+            {
+                transferQueue = createFolderGenDownloadTransfersForFiles(fileAddedCount, e);
+            }
+            catch (const std::exception& ex)
+            {
+                LOG_err << "MegaFolderDownloadController: folder tree creation failed: "
+                        << ex.what();
+                e = API_EINTERNAL;
+            }
+            catch (...)
+            {
+                LOG_err << "MegaFolderDownloadController: folder tree creation failed";
+                e = API_EINTERNAL;
+            }
+
+            // Collect the answer triggerTransferQuotaState() asked for. Here rather than on the
+            // MegaApiImpl thread, which is the thread that delivers it.
+            if (!e && transferQueue && !transferQueue->empty())
+            {
+                awaitTransferQuotaState();
+            }
+
+            // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
+            // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda
+            // starts executing
+            weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
+
+            // the thread always queues a function to execute on MegaApi thread for onFinish()
+            // we keep a pointer to it in case we need to cancel()
+            mCompletionForMegaApiThread.reset(new ExecuteOnce(
+                [this, e, transferQueue, diskSpacePath, weak_this]()
+                {
+                    // double check our object still exists when completion function starts
+                    // executing
+                    if (!weak_this.lock())
+                        return;
+                    assert(weak_this.lock().get() == this);
+
+                    // these next parts must run on MegaApiImpl's thread again, as
+                    // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ()
+                    // functions
+                    assert(mMainThreadId == std::this_thread::get_id());
+
+                    // make sure the thread is joined.  This lets us add error-catching asserts
+                    // elsewhere.
+                    if (mWorkerThread.joinable())
+                    {
+                        mWorkerThread.join();
+                    }
+
+                    if (e)
+                    {
+                        if (transferQueue)
+                        {
+                            transferQueue->clear();
+                        }
+                        complete(e);
+                    }
+                    else
+                    {
+                        // downloadFiles must run on the megaApi thread, as it may call
+                        // fireOnTransferXYZ()
+                        if (!transferQueue)
+                        {
+                            complete(API_EINCOMPLETE, true);
+                        }
+                        else if (transferQueue->empty())
+                        {
+                            complete(API_OK);
+                        }
+                        else
+                        {
+                            reportTransferQuotaState();
+
+                            // once we call sendPendingTransfers, we are guaranteed start/finish
+                            // callbacks for each file transfer.
+                            // the last callback of onFinish for one of these will also complete
+                            // and destroy this MegaFolderUploadController
+                            transfersTotalCount = transferQueue->size();
+
+                            megaApi->sendPendingTransfers(
+                                transferQueue.get(),
+                                this,
+                                megaapiThreadClient()->fsaccess->availableDiskSpace(diskSpacePath));
+                            // no further code can be added here, this object may now be deleted
+                            // (eg, due to cancel token activation)
+
+                            // complete() will finally be called when the last sub-transfer
+                            // finishes
+                        }
+                    }
+                }));
+
+            // Queue that function.
+            megaApi->executeOnThread(mCompletionForMegaApiThread);
+        });
+}
+
 void MegaFolderDownloadController::start(MegaNode *node)
 {
     assert(mMainThreadId == std::this_thread::get_id());
@@ -34415,16 +35007,9 @@ void MegaFolderDownloadController::start(MegaNode *node)
             return;
         }
     }
-    LocalPath path;
-    if (transfer->getParentPath())
-    {
-        path = LocalPath::fromAbsolutePath(transfer->getParentPath());
-    }
-    else
-    {
-        path = LocalPath::fromAbsolutePath(".");
-        path.appendWithSeparator(LocalPath::fromRelativePath(""), true);
-    }
+    LocalPath path = transfer->getParentPath() ?
+                         LocalPath::fromAbsolutePath(transfer->getParentPath()) :
+                         currentFolderAsDestination();
 
     FileSystemType fsType = megaapiThreadClient()->fsaccess->getlocalfstype(path);
     const LocalPath &name = (!transfer->getFileName() || !strlen(transfer->getFileName()))
@@ -34461,107 +35046,488 @@ void MegaFolderDownloadController::start(MegaNode *node)
     }
     else
     {
-        // start worker thread to create local folder tree
-        mWorkerThread = std::thread(
-            [this, fsType, path, fileAddedCount]()
-            {
-                // local folder creation runs on the download worker thread (and checks the
-                // cancelled flag).
-                // Nothing may escape this thread: an uncaught exception would call std::terminate,
-                // and skipping the completion queued below would leave the transfer hanging.
-                // API_EINTERNAL matches Error's default: fail closed if no path below assigns it.
-                Error e = API_EINTERNAL;
-                std::shared_ptr<TransferQueue> transferQueue;
-                try
-                {
-                    transferQueue =
-                        createFolderGenDownloadTransfersForFiles(fsType, fileAddedCount, e);
-                }
-                catch (const std::exception& ex)
-                {
-                    LOG_err << "MegaFolderDownloadController: folder tree creation failed: "
-                            << ex.what();
-                    e = API_EINTERNAL;
-                }
-                catch (...)
-                {
-                    LOG_err << "MegaFolderDownloadController: folder tree creation failed";
-                    e = API_EINTERNAL;
-                }
-
-                // mCompletionForMegaApiThread lambda will be executed on the MegaApiImpl's thread
-                // use a weak_ptr in case this 'this' object doesn't exist anymore when lambda
-                // starts executing
-                weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
-
-                // the thread always queues a function to execute on MegaApi thread for onFinish()
-                // we keep a pointer to it in case we need to cancel()
-                mCompletionForMegaApiThread.reset(new ExecuteOnce(
-                    [this, e, transferQueue, path, weak_this]()
-                    {
-                        // double check our object still exists when completion function starts
-                        // executing
-                        if (!weak_this.lock())
-                            return;
-                        assert(weak_this.lock().get() == this);
-
-                        // these next parts must run on MegaApiImpl's thread again, as
-                        // genUploadTransfersForFiles or checkCompletion may call the fireOnXYZ()
-                        // functions
-                        assert(mMainThreadId == std::this_thread::get_id());
-
-                        // make sure the thread is joined.  This lets us add error-catching asserts
-                        // elsewhere.
-                        if (mWorkerThread.joinable())
-                        {
-                            mWorkerThread.join();
-                        }
-
-                        if (e)
-                        {
-                            if (transferQueue)
-                            {
-                                transferQueue->clear();
-                            }
-                            complete(e);
-                        }
-                        else
-                        {
-                            // downloadFiles must run on the megaApi thread, as it may call
-                            // fireOnTransferXYZ()
-                            if (!transferQueue)
-                            {
-                                complete(API_EINCOMPLETE, true);
-                            }
-                            else if (transferQueue->empty())
-                            {
-                                complete(API_OK);
-                            }
-                            else
-                            {
-                                // once we call sendPendingTransfers, we are guaranteed start/finish
-                                // callbacks for each file transfer.
-                                // the last callback of onFinish for one of these will also complete
-                                // and destroy this MegaFolderUploadController
-                                transfersTotalCount = transferQueue->size();
-
-                                megaApi->sendPendingTransfers(
-                                    transferQueue.get(),
-                                    this,
-                                    megaapiThreadClient()->fsaccess->availableDiskSpace(path));
-                                // no further code can be added here, this object may now be deleted
-                                // (eg, due to cancel token activation)
-
-                                // complete() will finally be called when the last sub-transfer
-                                // finishes
-                            }
-                        }
-                    }));
-
-                // Queue that function.
-                megaApi->executeOnThread(mCompletionForMegaApiThread);
-            });
+        launchTreeCreation(path, fileAddedCount);
     }
+}
+
+LocalPath MegaFolderDownloadController::childLocalPath(const LocalTree& folder, size_t ci) const
+{
+    LocalPath path = folder.localPath;
+
+    if (ci < folder.childrenLocalNames.size() && !folder.childrenLocalNames[ci].empty())
+    {
+        path.appendWithSeparator(folder.childrenLocalNames[ci], true);
+        return path;
+    }
+
+    path.appendWithSeparator(
+        LocalPath::fromRelativeName(folder.childrenNodes[ci]->getName(), *fsaccess, folder.fsType),
+        true);
+    return path;
+}
+
+void MegaFolderDownloadBatchController::start(MegaNode*)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    transfer->setFolderTransferTag(-1);
+    transfer->setStartTime(Waiter::ds);
+    transfer->setState(MegaTransfer::STATE_QUEUED);
+
+    const MegaDownloadItemList* items = transfer->getDownloadItems();
+
+    // Raw count on purpose: a null-node item pairing with one file is not a single-file batch.
+    const MegaNode* onlyItem = items && items->size() == 1 ? items->getNode(0) : nullptr;
+    mSingleFileBatch = onlyItem && onlyItem->getType() == MegaNode::TYPE_FILE;
+
+    // A single-file batch carries its one item's app data, the way startDownload does. Set before
+    // the start callback, so every callback sees it and not just the ones after this point.
+    if (mSingleFileBatch)
+    {
+        transfer->setAppData(items->getAppData(0));
+    }
+
+    megaApi->fireOnTransferStart(transfer);
+
+    if (!items || !items->size())
+    {
+        LOG_debug << "Batch download failed. No item given";
+        complete(API_EARGS);
+        return;
+    }
+
+    LocalPath firstPath;
+    for (int i = 0; i < items->size(); ++i)
+    {
+        if (const char* itemPath = items->getLocalPath(i); itemPath && *itemPath)
+        {
+            LocalPath leaf;
+            splitDownloadDestination(LocalPath::fromAbsolutePath(itemPath), firstPath, leaf);
+            break;
+        }
+    }
+
+    if (firstPath.empty())
+    {
+        firstPath = currentFolderAsDestination();
+    }
+
+    notifyStage(MegaTransfer::STAGE_SCAN);
+
+    unsigned fileAddedCount = 0;
+    Error e = API_OK;
+    const scanFolder_result sr = scanItems(fileAddedCount, e);
+
+    if (sr != scanFolder_succeeded)
+    {
+        if (sr == scanFolder_cancelled)
+        {
+            complete(API_EINCOMPLETE, true);
+        }
+        else
+        {
+            complete(e);
+        }
+    }
+    else
+    {
+        launchTreeCreation(firstPath, fileAddedCount);
+    }
+}
+
+// Ceiling on how long a batch download's start is delayed while the quota answer is awaited.
+static constexpr std::chrono::seconds QUOTA_STATE_WAIT_TIMEOUT{3};
+
+// Split as `qbq` takes them: a node from a public link is charged as a link, the rest as nodes of
+// this account.
+static void splitByOwnership(MegaNode& node,
+                             std::vector<handle>& ownNodes,
+                             std::vector<handle>& publicNodes)
+{
+    (node.isPublic() ? publicNodes : ownNodes).push_back(node.getHandle());
+}
+
+void MegaFolderDownloadBatchController::triggerTransferQuotaState()
+{
+    assert(mMainThreadId != std::this_thread::get_id());
+
+    std::vector<handle> ownNodes;
+    std::vector<handle> publicNodes;
+
+    for (const LocalTree& folder: mLocalTree)
+    {
+        assert(folder.childrenCollisionDecisions.size() == folder.childrenNodes.size());
+
+        for (size_t ci = 0; ci < folder.childrenNodes.size(); ++ci)
+        {
+            // Only what is going to be fetched: a skipped or failing file costs no bandwidth.
+            if (folder.childrenCollisionDecisions[ci] != CollisionChecker::Result::Download)
+            {
+                continue;
+            }
+
+            splitByOwnership(*folder.childrenNodes[ci], ownNodes, publicNodes);
+        }
+    }
+
+    if (ownNodes.empty() && publicNodes.empty())
+    {
+        return;
+    }
+
+    std::weak_ptr<MegaFolderDownloadController> weak_this = shared_from_this();
+    MegaApiImpl* api = megaApi;
+    auto quotaState = mTransferQuotaCheckState;
+    mTransferQuotaCheckState->fut = mTransferQuotaCheckState->reported.get_future();
+    auto once = std::make_shared<ExecuteOnce>(
+        [weak_this,
+         api,
+         quotaState,
+         ownNodes = std::move(ownNodes),
+         publicNodes = std::move(publicNodes)]()
+        {
+            // Queued, so this may run after a logout deleted the transfer that owns us
+            if (!weak_this.lock())
+            {
+                quotaState->reported.set_value();
+                return;
+            }
+
+            // The completion runs exactly once, whatever the account type or the answer
+            api->queryTransferQuotaState(std::move(ownNodes),
+                                         std::move(publicNodes),
+                                         [quotaState](transferquotastatus_t state, Error)
+                                         {
+                                             const auto release = makeScopedDestructor(
+                                                 [quotaState]()
+                                                 {
+                                                     quotaState->reported.set_value();
+                                                 });
+
+                                             quotaState->state = state;
+                                         });
+        });
+    megaApi->executeOnThread(once);
+}
+
+void MegaFolderDownloadBatchController::awaitTransferQuotaState()
+{
+    assert(mMainThreadId != std::this_thread::get_id());
+
+    auto& qs = *mTransferQuotaCheckState;
+    if (!qs.fut.valid())
+    {
+        return;
+    }
+
+    // Bounded: ensureThreadStopped() joins this thread from the MegaApiImpl thread, which would
+    // then never run the task that fulfils the promise.
+    const auto deadline = std::chrono::steady_clock::now() + QUOTA_STATE_WAIT_TIMEOUT;
+    while (qs.fut.wait_for(std::chrono::milliseconds{50}) != std::future_status::ready)
+    {
+        if (isStoppedOrCancelled("MegaFolderDownloadBatchController::awaitTransferQuotaState"))
+        {
+            return;
+        }
+
+        if (std::chrono::steady_clock::now() >= deadline)
+        {
+            LOG_warn
+                << "[MegaFolderDownloadBatchController::awaitTransferQuotaState] transfer-quota "
+                   "query timed out, an undetermined state will be reported";
+            return;
+        }
+    }
+}
+
+void MegaFolderDownloadBatchController::reportTransferQuotaState()
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+
+    if (isStoppedOrCancelled("MegaFolderDownloadBatchController::reportTransferQuotaState"))
+    {
+        return;
+    }
+
+    if (!mTransferQuotaCheckState->fut.valid())
+    {
+        return;
+    }
+
+    megaApi->reportTransferQuotaState(tag, mTransferQuotaCheckState->state);
+}
+
+void MegaFolderDownloadBatchController::onTransferTemporaryError(MegaApi*,
+                                                                 MegaTransfer* t,
+                                                                 MegaError* e)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    assert(transfer);
+
+    // The global listeners already saw this on the sub-transfer. Only a single-file batch also
+    // fires on the parent, so its caller gets what a plain single-file download would report.
+    if (!transfer || !t || !e || !mSingleFileBatch)
+    {
+        return;
+    }
+
+    // What processTransferFailed set on the sub-transfer, mirrored so the parent handed to the
+    // listener answers the same questions. isForeignOverquota() in particular: the API_EOVERQUOTA
+    // contract has the app read it off the transfer it is given.
+    transfer->setLastError(e);
+    transfer->setForeignOverquota(t->isForeignOverquota());
+    transfer->setState(t->getState());
+
+    megaApi->fireOnTransferTemporaryError(transfer, std::make_unique<MegaErrorPrivate>(*e));
+}
+
+void MegaFolderDownloadBatchController::onTransferFinish(MegaApi* api,
+                                                         MegaTransfer* t,
+                                                         MegaError* e)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+    assert(transfer);
+
+    // Terminal sub-transfer failures arrive here, not at onTransferTemporaryError: the
+    // API_ETOOMANY branch of processTransferFailed, processTransferRemoved, and the
+    // sendPendingTransfers failures. Kept verbatim so ETD user/link status survives too.
+    if (transfer && t && e && e->getErrorCode() != API_OK && mSingleFileBatch)
+    {
+        mSingleFileError.setErrorCode(static_cast<error>(e->getErrorCode()));
+        mSingleFileError.setUserStatus(e->getUserStatus());
+        mSingleFileError.setLinkStatus(e->getLinkStatus());
+
+        transfer->setLastError(e);
+        transfer->setForeignOverquota(t->isForeignOverquota());
+    }
+
+    MegaRecursiveOperation::onTransferFinish(api, t, e);
+}
+
+Error MegaFolderDownloadBatchController::resolvedError() const
+{
+    // One file, so there is no ambiguity about whose error the batch reports: give the caller
+    // what a plain single-file download would, extra info included.
+    if (mSingleFileBatch)
+    {
+        return mSingleFileError;
+    }
+
+    return MegaRecursiveOperation::resolvedError();
+}
+
+int MegaFolderDownloadBatchController::resolvedState(const Error& e, bool cancelledByUser) const
+{
+    // The error actually being reported -- the sub-transfer's, or one from before it ever
+    // started -- so a failure during folder creation is labelled like any other.
+    if (!cancelledByUser && mSingleFileBatch && e != API_OK)
+    {
+        // processTransferRemoved reads API_EINCOMPLETE on a single-file download as a
+        // cancellation, not a failure.
+        return e == API_EINCOMPLETE ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_FAILED;
+    }
+
+    return MegaRecursiveOperation::resolvedState(e, cancelledByUser);
+}
+
+MegaFolderDownloadBatchController::scanFolder_result
+    MegaFolderDownloadBatchController::scanItems(unsigned& fileAddedCount, Error& e)
+{
+    assert(mMainThreadId == std::this_thread::get_id());
+
+    const MegaDownloadItemList* items = transfer->getDownloadItems();
+    assert(items);
+
+    // File items sharing a destination folder share its entry, so a selection of files into one
+    // folder makes one LocalTree rather than one per file. Keyed by the resolved folder path.
+    std::map<std::string, size_t> fileItemsByFolder;
+
+    // Items may target different volumes, and the filesystem decides how a name must be escaped,
+    // so each destination gets its own. Cached by path: probing is expensive on a network drive.
+    std::map<std::string, FileSystemType> fsTypeByFolder;
+    const auto fsTypeFor = [this, &fsTypeByFolder](const LocalPath& folder) -> FileSystemType
+    {
+        const auto [it, inserted] =
+            fsTypeByFolder.try_emplace(folder.toPath(false), FileSystemType::FS_UNKNOWN);
+        if (inserted)
+        {
+            it->second = megaapiThreadClient()->fsaccess->getlocalfstype(folder);
+        }
+
+        return it->second;
+    };
+
+    for (int i = 0; i < items->size(); ++i)
+    {
+        MegaNode* item = items->getNode(i);
+        if (!item)
+        {
+            LOG_debug << "Batch download: item " << i << " has no node, skipping";
+            continue;
+        }
+
+        // No destination given: the current folder, same fallback as a single-node download.
+        const char* itemLocalPath = items->getLocalPath(i);
+        const LocalPath itemPath = (itemLocalPath && *itemLocalPath) ?
+                                       LocalPath::fromAbsolutePath(itemLocalPath) :
+                                       currentFolderAsDestination();
+
+        // Same rule as MegaApi::startDownload: a trailing separator means "into this folder", so
+        // the node keeps its own name; without one the path names the destination itself, and its
+        // leaf is the name. An explicit custom name replaces the leaf either way.
+        LocalPath destLocalParentPath;
+        LocalPath leaf;
+        splitDownloadDestination(itemPath, destLocalParentPath, leaf);
+
+        // Normalised before it becomes a tree path or a dedup key: "/dest/" and "/dest" name one
+        // folder, and every other path here reaches createLocalFolder_unlocked without a trailing
+        // separator.
+        destLocalParentPath.trimNonDriveTrailingSeparator();
+
+        // No destination given at all falls back to the current folder, as above
+        if (destLocalParentPath.empty())
+        {
+            destLocalParentPath = currentFolderAsDestination();
+        }
+
+        // This item's own destination decides the escaping, not the batch's first one
+        const FileSystemType itemFsType = fsTypeFor(destLocalParentPath);
+
+        const char* customName = items->getCustomName(i);
+        const char* nodeName = item->getName() ? item->getName() : "";
+        const std::string nameToUse = (customName && *customName) ? customName :
+                                      !leaf.empty()               ? leaf.toPath(false) :
+                                                                    nodeName;
+        const LocalPath name = LocalPath::fromRelativeName(nameToUse, *fsaccess, itemFsType);
+
+        const char* appData = items->getAppData(i);
+        const bool startFirst = items->getStartFirst(i);
+        const bool undelete = items->getUndelete(i);
+
+        if (item->getType() == MegaNode::TYPE_FILE)
+        {
+            // A file item is not scanned: scanFolder only recurses folders. It is a leaf sitting
+            // directly in its destination folder, so record it as one.
+            const auto [it, inserted] =
+                fileItemsByFolder.try_emplace(destLocalParentPath.toPath(false), mLocalTree.size());
+            if (inserted)
+            {
+                mLocalTree.emplace_back(LocalTree(destLocalParentPath, itemFsType));
+
+                // Unlike every other entry, this path is the caller's own destination folder
+                // rather than one the download creates below it.
+                mLocalTree.back().preExistingDestination = true;
+            }
+
+            LocalTree& fileItems = mLocalTree.at(it->second);
+            fileItems.childrenNodes.emplace_back(item->copy());
+
+            // Kept in step with childrenNodes, so an entry exists for every child once any item
+            // sets one: the getters index these by the same ci.
+            fileItems.childrenLocalNames.resize(fileItems.childrenNodes.size());
+            fileItems.childrenLocalNames.back() = name;
+            fileItems.childrenUndelete.resize(fileItems.childrenNodes.size());
+            fileItems.childrenUndelete.back() = undelete;
+            fileItems.childrenAppData.resize(fileItems.childrenNodes.size());
+            fileItems.childrenAppData.back() = appData ? appData : "";
+            fileItems.childrenStartFirst.resize(fileItems.childrenNodes.size());
+            fileItems.childrenStartFirst.back() = startFirst;
+
+            fileAddedCount += 1;
+            continue;
+        }
+
+        // Only a file can be undeleted
+        if (undelete)
+        {
+            LOG_warn << "Batch download: item " << i << " is a folder, ignoring its undelete flag";
+        }
+
+        // Only a file can be startFirst of the download queue
+        if (startFirst)
+        {
+            LOG_warn << "Batch download: item " << i
+                     << " is a folder, ignoring its startFirst flag";
+        }
+
+        LocalPath path = destLocalParentPath;
+        path.appendWithSeparator(name, true);
+
+        // check we are not overwriting file with folder:
+        auto tmpfileaccess = fsaccess->newfileaccess();
+        if (tmpfileaccess->isfile(path))
+        {
+            // destination path could not be open or there's a node (TYPE_FILE) with the same name
+            // in the destination path
+            e = API_EEXIST;
+            return scanFolder_failed;
+        }
+
+        const size_t firstNew = mLocalTree.size();
+        const scanFolder_result sr = scanFolder(item, path, itemFsType, fileAddedCount);
+        if (sr != scanFolder_succeeded)
+        {
+            e = sr == scanFolder_cancelled ? API_EINCOMPLETE : API_EINTERNAL;
+            return sr;
+        }
+
+        if (appData && *appData)
+        {
+            for (size_t t = firstNew; t < mLocalTree.size(); ++t)
+            {
+                mLocalTree[t].itemAppData = appData;
+            }
+        }
+    }
+
+    if (mLocalTree.empty())
+    {
+        LOG_debug << "Batch download failed. No usable item";
+        e = API_EARGS;
+        return scanFolder_failed;
+    }
+
+    e = API_OK;
+    return scanFolder_succeeded;
+}
+
+bool MegaFolderDownloadController::childUndelete(const LocalTree& folder, size_t ci) const
+{
+    if (ci < folder.childrenUndelete.size())
+    {
+        return folder.childrenUndelete[ci];
+    }
+
+    // A single-node download carries one flag for the whole transfer; a batch never sets it.
+    return transfer->getNodeToUndelete() != nullptr;
+}
+
+const char* MegaFolderDownloadController::childAppData(const LocalTree& folder, size_t ci) const
+{
+    // A batch's file item carries its own, since one entry may hold several items
+    if (ci < folder.childrenAppData.size() && !folder.childrenAppData[ci].empty())
+    {
+        return folder.childrenAppData[ci].c_str();
+    }
+
+    // Everything a folder item scanned shares that item's value
+    if (!folder.itemAppData.empty())
+    {
+        return folder.itemAppData.c_str();
+    }
+
+    // A single-node download carries one value on the transfer; a batch carries none
+    return transfer->getAppData();
+}
+
+bool MegaFolderDownloadController::childStartFirst(const LocalTree& folder, size_t ci) const
+{
+    if (ci < folder.childrenStartFirst.size())
+    {
+        return folder.childrenStartFirst[ci];
+    }
+
+    // A folder's contents are queued normally, whatever startFirst the download itself carries.
+    return false;
 }
 
 MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::scanFolder(MegaNode *node, LocalPath& localpath, FileSystemType fsType, unsigned& fileAddedCount)
@@ -34578,7 +35544,7 @@ MegaFolderDownloadController::scanFolder_result MegaFolderDownloadController::sc
     if (node->getType() == FOLDERNODE || node->getType() == ROOTNODE)
     {
        // If node is a folder or root node, store it's localPath, along with a vector with it's children file nodes
-       mLocalTree.emplace_back(LocalTree(localpath));
+       mLocalTree.emplace_back(LocalTree(localpath, fsType));
        index = mLocalTree.size() - 1;
     }
 
@@ -34662,7 +35628,9 @@ bool MegaRecursiveOperation::isStoppedOrCancelled(const std::string& name) const
 
 // Create all local directories in one shot (on the download worker thread)
 // for performance and reducing UI waiting time, we combine createFolder and transferQueue generating in one loop
-std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error &e)
+std::unique_ptr<TransferQueue>
+    MegaFolderDownloadController::createFolderGenDownloadTransfersForFiles(uint32_t fileCount,
+                                                                           Error& e)
 {
     unsigned created = 0;
     assert(mMainThreadId != std::this_thread::get_id());
@@ -34678,7 +35646,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
     LOG_debug << "[MegaFolderDownloadController] collision check pre-pass starting, files: "
               << fileCount;
     auto collisionCheckStart = std::chrono::steady_clock::now();
-    if (!runCollisionCheckPrepass(fsType, e))
+    if (!runCollisionCheckPrepass(e))
     {
         return transferQueue;
     }
@@ -34687,6 +35655,10 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
                                 .count();
     LOG_debug << "[MegaFolderDownloadController] collision check pre-pass done, files: "
               << fileCount << ", elapsed: " << collisionCheckMs << " ms";
+
+    // What will actually be fetched is known now the collision decisions are in, so ask about it
+    // here and collect the answer once the tree is built. Batch downloads only.
+    triggerTransferQuotaState();
 
     // Collision check done, now entering transfer creation, notify need to be running on main
     // thread.
@@ -34715,7 +35687,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
             return transferQueue;
         }
 
-        if (!genDownloadTransfersForFiles(transferQueue.get(), *it, fsType))
+        if (!genDownloadTransfersForFiles(transferQueue.get(), *it))
         {
             e = API_EINCOMPLETE;
             return transferQueue;
@@ -34737,7 +35709,7 @@ std::unique_ptr<TransferQueue> MegaFolderDownloadController::createFolderGenDown
     return transferQueue;
 }
 
-bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsType, Error& e)
+bool MegaFolderDownloadController::runCollisionCheckPrepass(Error& e)
 {
     assert(mMainThreadId != std::this_thread::get_id());
     e = API_OK;
@@ -34801,9 +35773,11 @@ bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsTyp
         // Folder creation + folder collision process, note: the localPath of the folder may be
         // changed by collision process.
         auto collisionResolution = transfer->getCollisionResolution();
-        e = MegaApiImpl::createLocalFolder_unlocked(folder.localPath,
-                                                    *fsaccess,
-                                                    collisionResolution);
+        e = folder.preExistingDestination ?
+                MegaApiImpl::ensureLocalFolder_unlocked(folder.localPath, *fsaccess) :
+                MegaApiImpl::createLocalFolder_unlocked(folder.localPath,
+                                                        *fsaccess,
+                                                        collisionResolution);
         if (e && e != API_EEXIST)
         {
             mLocalTree.clear();
@@ -34873,10 +35847,7 @@ bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsTyp
 
                     // localPath was finalized by createLocalFolder_unlocked before any worker
                     // started
-                    LocalPath filePath = folder.localPath;
-                    filePath.appendWithSeparator(
-                        LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType),
-                        true);
+                    LocalPath filePath = childLocalPath(folder, w.fileIdx);
 
                     CollisionChecker::Result result = CollisionChecker::Result::Download;
                     auto fa = fsaccess->newfileaccess();
@@ -34958,8 +35929,7 @@ bool MegaFolderDownloadController::runCollisionCheckPrepass(FileSystemType fsTyp
 }
 
 bool MegaFolderDownloadController::genDownloadTransfersForFiles(TransferQueue* transferQueue,
-                                                                LocalTree& folder,
-                                                                FileSystemType fsType)
+                                                                LocalTree& folder)
 {
     assert(transferQueue);
     assert(folder.childrenCollisionDecisions.size() == folder.childrenNodes.size());
@@ -34974,28 +35944,24 @@ bool MegaFolderDownloadController::genDownloadTransfersForFiles(TransferQueue* t
         auto& fileNode = folder.childrenNodes[ci];
 
         // get file local path
-        auto fileLocalPath = folder.localPath;
-
-        fileLocalPath.appendWithSeparator(
-            LocalPath::fromRelativeName(fileNode->getName(), *fsaccess, fsType),
-            true);
+        auto fileLocalPath = childLocalPath(folder, ci);
 
         // decision computed in parallel during runCollisionCheckPrepass
         const auto decision = folder.childrenCollisionDecisions[ci];
 
         MegaTransferPrivate* transferDownload =
-            megaApi->createDownloadTransfer(false,
+            megaApi->createDownloadTransfer(childStartFirst(folder, ci),
                                             fileNode.get(),
                                             fileLocalPath,
                                             nullptr,
                                             tag,
-                                            transfer->getAppData(),
+                                            childAppData(folder, ci),
                                             transfer->accessCancelToken(),
                                             static_cast<int>(transfer->getCollisionCheck()),
                                             static_cast<int>(transfer->getCollisionResolution()),
-                                            transfer->getNodeToUndelete() != nullptr,
+                                            childUndelete(folder, ci),
                                             this,
-                                            fsType);
+                                            folder.fsType);
 
         transferDownload->setCollisionCheckResult(decision);
 
@@ -38351,9 +39317,11 @@ bool MegaHTTPServer::startStream(MegaHTTPContext* httpctx,
     }
     httpctx->mCacheFile.init(std::move(f), static_cast<m_off_t>(offset));
 
-    auto callback =
-        [logName = httpctx->getLogName(), ctx = httpctx->weak_from_this(), offset, length](
-            FileResultOr<FileStreamFDResult> result)
+    auto callback = [logName = httpctx->getLogName(),
+                     ctx = httpctx->weak_from_this(),
+                     offset,
+                     length,
+                     delivered = std::uint64_t(0)](FileResultOr<FileStreamFDResult> result) mutable
     {
         auto ctxPtr = ctx.lock();
         if (!ctxPtr)
@@ -38387,9 +39355,19 @@ bool MegaHTTPServer::startStream(MegaHTTPContext* httpctx,
         // All requested has been delivered
         if (receivedLength == 0)
         {
-            LOG_verbose << ctxPtr->logname << "[Streaming] callback: all delivered";
+            // Unless the stream delivered less than we asked for.
+            if (delivered < length)
+                LOG_debug << ctxPtr->logname
+                          << "[Streaming] callback: stream ended after delivering " << delivered
+                          << " of " << length << " requested bytes";
+            else
+                LOG_verbose << ctxPtr->logname << "[Streaming] callback: all delivered";
+
             return;
         }
+
+        // Keep track of how much data the stream has delivered so far.
+        delivered += receivedLength;
 
         // More data available in the cached file
         if (const auto newAvailableBytes =
@@ -39163,28 +40141,37 @@ string MegaFTPServer::getListingLineFromNode(MegaNode *child, string nameToShow)
     getPermissionsString(child->isFolder() ? 777 : 664, perms);
 
     char timebuff[80];
-    time_t rawtime = (child->isFolder()?child->getCreationTime():child->getModificationTime());
+    time_t rawtime = (child->isFolder() ? child->getCreationTime() : child->getModificationTime());
     struct tm time;
     m_localtime(rawtime, &time);
-    strftime(timebuff,80,"%b %d %H:%M",&time);
+    strftime(timebuff, 80, "%b %d %H:%M", &time);
+
+    const char* rawName = nameToShow.size() ? nameToShow.c_str() : child->getName();
+    if (!rawName)
+    {
+        LOG_err << "Skipping a node without a name in an FTP listing";
+        return {};
+    }
+
+    // A graphical client takes the name out of this line and sends it back in a
+    // later command, exactly as a scripted one does with an NLST entry.
+    const string safeName = sanitizeFtpResponseText(rawName, FtpTextEscaping::ReusableAsArgument);
 
     char toprint[3000];
-    snprintf(toprint, sizeof(toprint),
-            "%c%s %5d %4d %4d %8"
-            PRId64
-            " %s %s",
-            (child->isFolder())?'d':'-',
-            perms,
-            1,//number of contents for folders
-            1000, //uid
-            1000, //gid
-             (child->isFolder())?4:child->getSize(),
-            timebuff,
-            nameToShow.size()?nameToShow.c_str():child->getName());
+    snprintf(toprint,
+             sizeof(toprint),
+             "%c%s %5d %4d %4d %8" PRId64 " %s %s",
+             (child->isFolder()) ? 'd' : '-',
+             perms,
+             1, // number of contents for folders
+             1000, // uid
+             1000, // gid
+             (child->isFolder()) ? 4 : child->getSize(),
+             timebuff,
+             safeName.c_str());
 
     return toprint;
 }
-
 
 string MegaFTPServer::getFTPErrorString(int errorcode, string argument)
 {
@@ -39311,17 +40298,46 @@ void MegaFTPServer::returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, Meg
     return returnFtpCode(ftpctx, ftpreturncode, errorMessage);
 }
 
+void MegaFTPServer::enforceSingleLineResponse(string& response, const string& delimiter)
+{
+    if (isSingleLineFtpResponse(response, delimiter))
+    {
+        return;
+    }
+
+    // Log the escaped form, so that the very bytes being reported cannot split
+    // the log line as well.
+    LOG_err << "FTP reply is not a single terminated line: "
+            << sanitizeFtpResponseText(response, FtpTextEscaping::DisplayOnly);
+    assert(false && "FTP reply must be a single line ending with the delimiter");
+
+    // The client is waiting for exactly one reply, so hand it a refusal it can act
+    // on instead of a reply that would arrive as two and leave the channel out of
+    // step for everything that follows.
+    response = "550 Requested action not taken";
+    response.append(delimiter);
+}
+
 void MegaFTPServer::returnFtpCode(MegaFTPContext* ftpctx, int errorCode, string errorMessage)
 {
-    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer *>(ftpctx->server);
+    const string responseMessage =
+        sanitizeFtpResponseText(errorMessage.size() ? errorMessage : getFTPErrorString(errorCode),
+                                FtpTextEscaping::DisplayOnly);
 
     std::ostringstream response;
-    response << errorCode << " " << (errorMessage.size() ? errorMessage : getFTPErrorString(errorCode))
-             << ftpserver->crlfout;
+    response << errorCode << " " << responseMessage;
 
-    string resstr = response.str();
+    returnFtpResponse(ftpctx, response.str());
+}
+
+void MegaFTPServer::returnFtpResponse(MegaFTPContext* ftpctx, string line)
+{
+    MegaFTPServer* ftpserver = dynamic_cast<MegaFTPServer*>(ftpctx->server);
+    line.append(ftpserver->crlfout);
+    enforceSingleLineResponse(line, ftpserver->crlfout);
+
     uv_mutex_lock(&ftpctx->mutex_responses);
-    ftpctx->responses.push_back(resstr);
+    ftpctx->responses.push_back(line);
     uv_mutex_unlock(&ftpctx->mutex_responses);
     uv_async_send(&ftpctx->asynchandle);
 }
@@ -39411,7 +40427,7 @@ MegaNode *MegaFTPServer::getNodeByFullFtpPath(string path)
     return NULL;
 }
 
-MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
+string MegaFTPServer::toAbsoluteFtpPath(MegaFTPContext* ftpctx, string path)
 {
     if (ftpctx->atroot && path.size() && path.at(0) != '/')
     {
@@ -39430,6 +40446,13 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         path = ftpctx->cwdpath + "/" + path;
         path = shortenpath(path);
     }
+
+    return path;
+}
+
+MegaNode* MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
+{
+    path = toAbsoluteFtpPath(ftpctx, path);
 
     if (path.find("..") == 0)
     {
@@ -39473,13 +40496,24 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
             delete baseFolderNode;
             return NULL;
         }
+        // The served subtree root is the base folder identified by the first path segment.
+        // getNodeByFullFtpPath resolves the remainder with getNodeByPath, which honours "..",
+        // so an absolute path with embedded parent segments can resolve outside the served
+        // folder. Reject any resolved node that escapes the served subtree.
+        const MegaHandle servedHandle = baseFolderNode->getHandle();
         delete baseFolderNode;
 
-        return getNodeByFullFtpPath(path);
+        MegaNode* toret = getNodeByFullFtpPath(path);
+        if (isNodeOutsideServedSubtree(megaApi, toret, servedHandle))
+        {
+            delete toret;
+            return NULL;
+        }
+        return toret;
     }
-    else //it should only enter here if path == ""
+    else // it should only enter here if path == ""
     {
-        MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+        MegaNode* n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
         if (!n)
         {
             return NULL;
@@ -39488,6 +40522,25 @@ MegaNode * MegaFTPServer::getNodeByFtpPath(MegaFTPContext* ftpctx, string path)
         delete n;
         return toret;
     }
+}
+
+bool MegaFTPServer::isHandleWithinAllowedSubtree(handle h)
+{
+    // Commands that write to the current working directory (STOR, MKD) use
+    // ftpctx->cwd directly, without routing through getNodeByFtpPath, so they
+    // never reach the served subtree check there. PASS and "CWD /" set cwd to
+    // the account root regardless of which handle was served, so a bare name
+    // would otherwise be created at the Cloud Drive root. Authorize the target
+    // only when it or one of its ancestors is a served handle, matching the
+    // per mode semantics of isHandleAllowed and the walk done in cdup
+    auto n = makeUniqueFrom(megaApi->getNodeByHandle(h));
+    bool allowed = false;
+    while (n && !allowed)
+    {
+        allowed = isHandleAllowed(n->getHandle());
+        n = makeUniqueFrom(megaApi->getNodeByHandle(n->getParentHandle()));
+    }
+    return allowed;
 }
 
 std::string MegaFTPServer::shortenpath(std::string path)
@@ -39585,7 +40638,17 @@ std::string MegaFTPServer::cdup(handle parentHandle, MegaFTPContext* ftpctx)
             ptrdiff_t seps = std::count(ftpctx->cwdpath.begin(), ftpctx->cwdpath.end(), '/');
             if (seps < 2)
             {
-                ftpctx->cwdpath = string("/") + megaApi->handleToBase64(newcwd->getHandle()) + "/" + newcwd->getName();
+                std::unique_ptr<char[]> cwdHandle{megaApi->handleToBase64(newcwd->getHandle())};
+                ftpctx->cwdpath = string("/") + cwdHandle.get();
+                if (const char* newcwdName = newcwd->getName())
+                {
+                    ftpctx->cwdpath += string("/") + newcwdName;
+                }
+                else
+                {
+                    // The handle alone is a working directory the server understands.
+                    LOG_err << "Rebuilding the FTP working directory from a node without a name";
+                }
             }
             ftpctx->parentcwd = newcwd->getParentHandle();
 
@@ -40046,24 +41109,49 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
         {
             if (!ftpctx->ftpDataServer)
             {
-                if (pport > (dataPortEnd))
+                // Another process may be holding some of these ports, so try the
+                // whole range instead of giving up on the first one that is taken.
+                // A range handed over the wrong way round still gets the single
+                // attempt it used to get, since nothing validates it on the way in.
+                const int portsInRange = std::max(1, dataPortEnd - dataportBegin + 1);
+                for (int remaining = portsInRange; remaining > 0 && !ftpctx->ftpDataServer;
+                     remaining--)
                 {
-                    pport = dataportBegin;
-                }
-                ftpctx->pasiveport = pport++;
+                    if (pport > (dataPortEnd))
+                    {
+                        pport = dataportBegin;
+                    }
+                    ftpctx->pasiveport = pport++;
 
-                LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
+                    LOG_debug << "Creating new MegaFTPDataServer on port " << ftpctx->pasiveport;
 #ifdef ENABLE_EVT_TLS
-                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, certificatepath, keypath);
+                    MegaFTPDataServer* fds = new MegaFTPDataServer(megaApi,
+                                                                   basePath,
+                                                                   ftpctx,
+                                                                   useTLS,
+                                                                   certificatepath,
+                                                                   keypath);
 #else
-                MegaFTPDataServer *fds = new MegaFTPDataServer(megaApi, basePath, ftpctx, useTLS, string(), string());
+                    MegaFTPDataServer* fds = new MegaFTPDataServer(megaApi,
+                                                                   basePath,
+                                                                   ftpctx,
+                                                                   useTLS,
+                                                                   string(),
+                                                                   string());
 #endif
-                bool result = fds->start(ftpctx->pasiveport, localOnly);
-                if (result)
-                {
-                    ftpctx->ftpDataServer = fds;
+                    if (fds->start(ftpctx->pasiveport, localOnly))
+                    {
+                        ftpctx->ftpDataServer = fds;
+                    }
+                    else
+                    {
+                        LOG_warn << "Could not listen on port " << ftpctx->pasiveport
+                                 << ", trying the next one";
+                        delete fds;
+                    }
                 }
-                else
+
+                if (!ftpctx->ftpDataServer)
                 {
                     response = "421 Failed to initialize data channel";
                     break;
@@ -40115,7 +41203,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             }
             else
             {
-                response = "501 Unrecognized OPTS " + ftpctx->arg1 + " " + ftpctx->arg2;
+                // A command argument is echoed back here, and the parser lets a lone CR
+                // or LF through, so it has to be escaped like any other reply text.
+                response = "501 Unrecognized OPTS " +
+                           sanitizeFtpResponseText(ftpctx->arg1, FtpTextEscaping::DisplayOnly) +
+                           " " +
+                           sanitizeFtpResponseText(ftpctx->arg2, FtpTextEscaping::DisplayOnly);
             }
             break;
         }
@@ -40124,10 +41217,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             MegaNode *n = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
             if (n)
             {
+                // The client is expected to send this path back, for instance as a CWD
+                // argument, so it must stay usable as one.
                 response = "257 ";
-                response.append("\"");
-                response.append(ftpctx->cwdpath);
-                response.append("\"");
+                response.append(quoteFtpResponsePathname(
+                    sanitizeFtpResponseText(ftpctx->cwdpath, FtpTextEscaping::ReusableAsArgument)));
                 delete n;
             }
             else
@@ -40178,11 +41272,11 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     set<handle> handles = getAllowedHandles();
                     for (std::set<handle>::iterator it = handles.begin(); it != handles.end(); ++it)
                     {
-                        string name = megaApi->handleToBase64(*it);
+                        std::unique_ptr<char[]> nameHandle{megaApi->handleToBase64(*it)};
                         MegaNode *n = megaApi->getNodeByHandle(*it);
                         if (n)
                         {
-                            string toret = getListingLineFromNode(n, name);
+                            string toret = getListingLineFromNode(n, nameHandle.get());
                             toret.append(crlfout);
                             ftpctx->ftpDataServer->resultmsj.append(toret);
                             delete n;
@@ -40200,9 +41294,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     if (n)
                     {
                         string toret = getListingLineFromNode(n);
-                        toret.append(crlfout);
                         assert(!ftpctx->ftpDataServer->resultmsj.size());
-                        ftpctx->ftpDataServer->resultmsj.append(toret);
+
+                        // An empty entry would reach the client as a nameless file.
+                        if (toret.size())
+                        {
+                            toret.append(crlfout);
+                            ftpctx->ftpDataServer->resultmsj.append(toret);
+                        }
+
                         delete n;
                     }
                     ftpctx->ftpDataServer->resultmsj.append(crlfout);
@@ -40235,10 +41335,27 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                         {
                             toret = getListingLineFromNode(child);
                         }
-                        else //NLST
+                        else // NLST
                         {
-                            toret = child->getName();
+                            if (auto* name = child->getName())
+                            {
+                                // NLST names are meant to be reused as command arguments.
+                                toret =
+                                    sanitizeFtpResponseText(name,
+                                                            FtpTextEscaping::ReusableAsArgument);
+                            }
+                            else
+                            {
+                                LOG_err << "Skipping a node without a name in an FTP listing";
+                            }
                         }
+
+                        // An empty entry would reach the client as a nameless file.
+                        if (toret.empty())
+                        {
+                            continue;
+                        }
+
                         toret.append(crlfout);
                         ftpctx->ftpDataServer->resultmsj.append(toret);
                     }
@@ -40255,13 +41372,28 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     {
                         toret = getListingLineFromNode(node);
                     }
-                    else //NLST
+                    else // NLST
                     {
-                        toret = node->getName();
+                        if (auto* name = node->getName())
+                        {
+                            // NLST names are meant to be reused as command arguments.
+                            toret =
+                                sanitizeFtpResponseText(name, FtpTextEscaping::ReusableAsArgument);
+                        }
+                        else
+                        {
+                            LOG_err << "Skipping a node without a name in an FTP listing";
+                        }
                     }
-                    toret.append(crlfout);
+
                     assert(!ftpctx->ftpDataServer->resultmsj.size());
-                    ftpctx->ftpDataServer->resultmsj.append(toret);
+
+                    // An empty entry would reach the client as a nameless file.
+                    if (toret.size())
+                    {
+                        toret.append(crlfout);
+                        ftpctx->ftpDataServer->resultmsj.append(toret);
+                    }
                     response = "150 Here comes the file listing";
                 }
                 delete node;
@@ -40294,7 +41426,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                     uv_mutex_unlock(&ftpctx->mutex_nodeToDownload);
 
                     response = "150 Here comes the file: ";
-                    response.append(node->getName());
+                    if (auto* name = node->getName())
+                    {
+                        response.append(
+                            sanitizeFtpResponseText(name, FtpTextEscaping::DisplayOnly));
+                    }
+                    else
+                    {
+                        LOG_err << "Announcing a download of a node without a name";
+                    }
                 }
                 else
                 {
@@ -40323,7 +41463,15 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             ftpctx->ftpDataServer->newNameToUpload = ftpctx->arg1;
             if (seppos == string::npos)
             {
-                ftpctx->ftpDataServer->newParentNodeHandle = ftpctx->cwd;
+                if (isHandleWithinAllowedSubtree(ftpctx->cwd))
+                {
+                    ftpctx->ftpDataServer->newParentNodeHandle = ftpctx->cwd;
+                }
+                else
+                {
+                    ftpctx->ftpDataServer->newNameToUpload =
+                        ""; // cwd is outside the served subtree
+                }
             }
             else
             {
@@ -40354,7 +41502,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
             {
                 ftpctx->ftpDataServer->remotePathToUpload = ftpctx->arg1;
                 response = "150 Opening data connection for storing ";
-                response.append(ftpctx->arg1);
+                response.append(
+                    sanitizeFtpResponseText(ftpctx->arg1, FtpTextEscaping::DisplayOnly));
             }
             else
             {
@@ -40512,10 +41661,27 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
 
                 if (newNameFolder.size())
                 {
-                    MegaNode *nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
-                    ftpctx->megaApi->createFolder(newNameFolder.c_str(),newParentNode ? newParentNode : nodecwd, ftpctx);
+                    MegaNode* nodecwd = ftpctx->megaApi->getNodeByHandle(ftpctx->cwd);
+                    // newParentNode, when present, was validated by getNodeByFtpPath. The cwd
+                    // fallback bypasses that path, so authorize it against the served subtree.
+                    MegaNode* parentForCreate = newParentNode ? newParentNode : nodecwd;
+                    if (parentForCreate &&
+                        isHandleWithinAllowedSubtree(parentForCreate->getHandle()))
+                    {
+                        // The reply has to name the path the client can refer to the
+                        // new folder by, and it is built once the request completes.
+                        ftpctx->folderPathToCreate = toAbsoluteFtpPath(ftpctx, ftpctx->arg1);
+
+                        ftpctx->megaApi->createFolder(newNameFolder.c_str(),
+                                                      parentForCreate,
+                                                      ftpctx);
+                        delayresponse = true;
+                    }
+                    else
+                    {
+                        response = "550 Not Found";
+                    }
                     delete nodecwd;
-                    delayresponse = true;
                 }
                 else
                 {
@@ -40534,7 +41700,8 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
                 {
                     ftpctx->ftpDataServer->rangeStartREST = static_cast<m_off_t>(number);
                     response = "350 Restarting at: ";
-                    response.append(ftpctx->arg1);
+                    response.append(
+                        sanitizeFtpResponseText(ftpctx->arg1, FtpTextEscaping::DisplayOnly));
                 }
                 else
                 {
@@ -40614,6 +41781,12 @@ void MegaFTPServer::processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, c
     {
         if (!delayresponse)
         {
+            // FEAT is the one reply that spans several lines by design.
+            if (ftpctx->command != FTP_CMD_FEAT)
+            {
+                enforceSingleLineResponse(response, crlfout);
+            }
+
             LOG_verbose << " Processed: " << petition << ". command="<< ftpctx->command << ".\n   Responding: " << response << " tpctx=" << ftpctx;
             answer(ftpctx,response.c_str(),response.size());
         }
@@ -40819,7 +41992,13 @@ void MegaFTPContext::onRequestFinish(MegaApi *, MegaRequest *request, MegaError 
     {
         if (e->getErrorCode() == MegaError::API_OK)
         {
-            MegaFTPServer::returnFtpCodeAsync(this, 257, request->getName());
+            // RFC 959 Appendix II: the reply tells the client which string to use
+            // when it refers to the directory that was just created, quoted and
+            // with any quote inside it doubled.
+            const string quotedPath = quoteFtpResponsePathname(
+                sanitizeFtpResponseText(folderPathToCreate, FtpTextEscaping::ReusableAsArgument));
+
+            MegaFTPServer::returnFtpResponse(this, "257 " + quotedPath + " directory created");
         }
         else
         {
@@ -42343,6 +43522,8 @@ const char *MegaEventPrivate::getEventString(int type)
             return "LAST_PURGE";
         case MegaEvent::EVENT_STREAM_OVERQUOTA:
             return "STREAM_OVERQUOTA";
+        case MegaEvent::EVENT_TRANSFER_QUOTA_STATE:
+            return "TRANSFER_QUOTA_STATE";
     }
 
     return "UNKNOWN";

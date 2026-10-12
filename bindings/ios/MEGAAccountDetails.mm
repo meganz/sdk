@@ -77,6 +77,11 @@ using namespace mega;
     return self.accountDetails ? self.accountDetails->getTransferMax(): -1;
 }
 
+- (MEGATransferQuotaState)transferQuotaState {
+    if (!self.accountDetails) return MEGATransferQuotaStateUnknown;
+    return (MEGATransferQuotaState) self.accountDetails->getTransferQuotaState();
+}
+
 - (MEGAAccountType)type {
     return (MEGAAccountType) (self.accountDetails ? self.accountDetails->getProLevel(): 0);
 }

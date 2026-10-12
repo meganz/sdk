@@ -57,7 +57,7 @@ const char* GfxProviderCG::supportedvideoformats() {
     return NULL;
 }
 
-bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
+bool GfxProviderCG::readbitmap(const std::string& name, const LocalPath& path, int size) {
     // Convenience.
     using mega::detail::AdjustBasePathResult;
     using mega::detail::adjustBasePath;
@@ -82,7 +82,14 @@ bool GfxProviderCG::readbitmap(const LocalPath& path, int size) {
 
     w = h = 0;
 
-    NSString *fileExtension = [sourcePath pathExtension];
+    // Make name available to Cocoa.
+    auto* cloudName = [NSString stringWithCString: name.c_str() encoding:NSUTF8StringEncoding];
+
+    // Couldn't make name available to Cocoa.
+    if (cloudName == nil)
+        return false;
+
+    NSString *fileExtension = [cloudName pathExtension];
     if (fileExtension) {
         UTType *type = [UTType typeWithFilenameExtension:fileExtension];
         
@@ -177,7 +184,7 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* imageOut, Hint) {
 
     [QLThumbnailGenerator.sharedGenerator generateBestRepresentationForRequest:request completionHandler:^(QLThumbnailRepresentation * _Nullable thumbnail, NSError * _Nullable error) {
         if (error) {
-            LOG_err << "Error generating best representation for a request: " << error.localizedDescription;
+            LOG_err << "Error generating best representation for a request: " << error.localizedDescription.UTF8String;
 #if TARGET_OS_IPHONE
             NSString *path = ((__bridge NSURL *)sourceURL).path;
             if ([NSFileManager.defaultManager fileExistsAtPath:path]) {
@@ -195,13 +202,13 @@ bool GfxProviderCG::resizebitmap(int rw, int rh, string* imageOut, Hint) {
                     }
 
                     if (!data) {
-                        LOG_err << "Could not convert image to data for image for path: " << path;
+                        LOG_err << "Could not convert image to data for image for path: " << path.UTF8String;
                     }
                 } else {
-                    LOG_err << "Could not generate thumbnail for image at path: " << path;
+                    LOG_err << "Could not generate thumbnail for image at path: " << path.UTF8String;
                 }
             } else {
-                LOG_err << "Could not find the image at path: " << path;
+                LOG_err << "Could not find the image at path: " << path.UTF8String;
             }
 #endif
         } else {
@@ -256,7 +263,12 @@ void ios_statsid(std::string *statsid) {
     switch (status) {
         case errSecSuccess: {
             NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
-            statsid->append([uuidString UTF8String]);
+            const char *uuid = [uuidString UTF8String];
+            if (uuid) {
+                statsid->append(uuid);
+            } else {
+                LOG_err << "Could not decode the statsid read from the keychain item";
+            }
             break;
         }
 
@@ -273,7 +285,12 @@ void ios_statsid(std::string *statsid) {
 
             switch (status) {
                 case errSecSuccess: {
-                    statsid->append([uuidString UTF8String]);
+                    const char *uuid = [uuidString UTF8String];
+                    if (uuid) {
+                        statsid->append(uuid);
+                    } else {
+                        LOG_err << "Could not decode the newly generated statsid";
+                    }
                     break;
                 }
                 case errSecDuplicateItem: {
@@ -286,7 +303,12 @@ void ios_statsid(std::string *statsid) {
                     switch (status) {
                         case errSecSuccess: {
                             NSString *uuidString = [[NSString alloc] initWithData:(__bridge_transfer NSData *)result encoding:NSUTF8StringEncoding];
-                            statsid->append([uuidString UTF8String]);
+                            const char *uuid = [uuidString UTF8String];
+                            if (uuid) {
+                                statsid->append(uuid);
+                            } else {
+                                LOG_err << "Could not decode the statsid read from the duplicated keychain item";
+                            }
                             break;
                         }
                     }

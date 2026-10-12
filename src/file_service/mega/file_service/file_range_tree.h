@@ -122,6 +122,9 @@ public:
     using Iterator = IteratorAdapter<typename ByRangeBeginTree::Iterator>;
     using ReverseIterator = IteratorAdapter<typename ByRangeBeginTree::ReverseIterator>;
 
+    // So we fit in the STL a little better.
+    using value_type = ValueType;
+
     FileRangeTree() = default;
 
     template<typename Iterator>
@@ -176,19 +179,10 @@ public:
         // Get a reference to our node's range.
         auto& range = const_cast<FileRange&>(key(node->mValue));
 
-        // Some range ends after our range begins.
-        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin))
-        {
-            // Convenience.
-            auto& other = key(iterator->mValue);
-
-            // Other range contains the leading part of our range.
-            if (other.mBegin <= range.mBegin)
-                return std::make_pair<Iterator>(&*iterator, false);
-
-            // Our range may contain the leading part of the other range.
-            range.mEnd = std::min(range.mEnd, other.mBegin);
-        }
+        // Our range intersects with some other range.
+        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin);
+            iterator && key(iterator->mValue).mBegin < range.mEnd)
+            return std::make_pair<Iterator>(&*iterator, false);
 
         // Make sure the range is sane.
         assert(range.mEnd > range.mBegin);
@@ -363,17 +357,6 @@ public:
         return const_cast<FileRangeTree&>(*this).endsAtOrAfter(position);
     }
 
-    // Return an iterator to the last range in the tree.
-    Iterator last()
-    {
-        return rbegin();
-    }
-
-    ConstIterator last() const
-    {
-        return crbegin();
-    }
-
     // Find all ranges that overlap range.
     auto find(const FileRange& range) -> std::pair<Iterator, Iterator>
     {
@@ -398,6 +381,81 @@ public:
     auto find(const FileRange& range) const -> std::pair<ConstIterator, ConstIterator>
     {
         return const_cast<FileRangeTree&>(*this).find(range);
+    }
+
+    // Return an iterator to the last range in the tree.
+    Iterator last()
+    {
+        return rbegin();
+    }
+
+    ConstIterator last() const
+    {
+        return crbegin();
+    }
+
+    // Add a new range to the tree.
+    //
+    // range will replace all ranges that it touches.
+    Iterator merge(FileRange range)
+    {
+        // This call only makes sense for range sets.
+        static_assert(IsFileRangeV<ValueType>);
+
+        // So we can easily access range's bounds.
+        auto& [from, to] = range;
+
+        // Does range contain or touch any other range?
+        auto iterator = [from = from, this]() mutable -> Iterator
+        {
+            // Step from one unit to the left if possible.
+            from -= std::min<std::uint64_t>(from, 1);
+
+            // Does any range contain or touch any other range?
+            return mByRangeEnd.lower_bound(from).nodePointer();
+        }();
+
+        // Range doesn't contain or touch any other range.
+        if (!iterator || iterator->mBegin > to)
+            return add(range).first;
+
+        // Make sure range contains the range referenced by iterator.
+        range = combine(*iterator, range);
+
+        // Remove the range referenced by begin from the tree.
+        auto* node = mByRangeBegin.remove(iterator++);
+
+        mByRangeEnd.remove(node);
+
+        // Remove all remaining ranges contained or touched by range.
+        while (iterator)
+        {
+            // range doesn't contain or touch this range.
+            if (iterator->mBegin > to)
+                break;
+
+            // Extend range so that it contains this range.
+            range = combine(*iterator, range);
+
+            // Remove the node from our tree.
+            iterator = remove(iterator);
+        }
+
+        // Update the node's range.
+        const_cast<FileRange&>(node->mValue) = range;
+
+        // For sanity checking.
+        bool added = false;
+
+        // And add it back into the tree.
+        std::tie(iterator, added) = mByRangeBegin.add(*node);
+        added = added && mByRangeEnd.add(*node).second;
+
+        // Adding our extended range to the tree should never fail.
+        assert(added);
+
+        // Return an iterator to our extended range.
+        return iterator;
     }
 
     // Return a reverse iterator to the last node in the tree.
@@ -512,23 +570,16 @@ public:
     template<typename... Parameters>
     auto tryAdd(FileRange range, Parameters&&... arguments) -> std::pair<Iterator, bool>
     {
-        // Some range ends after our range begins.
-        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin))
-        {
-            // Convenience.
-            auto tempFunctor = KeyFunctionType();
-            auto& other = tempFunctor(iterator->mValue);
+        // Convenience.
+        KeyFunctionType key;
 
-            // The other range contains the leading part of our range.
-            if (other.mBegin <= range.mBegin)
-                return std::make_pair<Iterator>(&*iterator, false);
-
-            // Our range may contain the leading part of the other range.
-            range.mEnd = std::min(range.mEnd, other.mBegin);
-        }
-
-        // Make sure the range is sane.
+        // Sanity: a range should always end after it begins.
         assert(range.mEnd > range.mBegin);
+
+        // Check if any range ends after our range begins.
+        if (auto iterator = mByRangeEnd.upper_bound(range.mBegin);
+            iterator && key(iterator->mValue).mBegin < range.mEnd)
+            return std::make_pair<Iterator>(&*iterator, false);
 
         // Construct a node to represent our range in the tree.
         auto node = construct(range, std::forward<Parameters>(arguments)...);

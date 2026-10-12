@@ -850,6 +850,14 @@ typedef enum {
     STORAGE_PAYWALL = 4,    // storage is full and user didn't remedy despite of warnings
 } storagestatus_t;
 
+typedef enum
+{
+    TRANSFER_QUOTA_UNKNOWN = -9,
+    TRANSFER_QUOTA_GREEN = 0,
+    TRANSFER_QUOTA_ORANGE = 1,
+    TRANSFER_QUOTA_RED = 2,
+} transferquotastatus_t;
+
 enum SmsVerificationState {
     // These values (except unknown) are delivered from the servers
     SMS_STATE_UNKNOWN = -1,       // Flag was not received
@@ -925,6 +933,12 @@ typedef enum {
     ACCOUNT_TYPE_PRO_FLEXI = 101,
     ACCOUNT_TYPE_FEATURE = 99999
 } AccountType;
+
+// A paid plan with a fixed transfer allowance (excludes feature-only plans like VPN/PWM).
+inline bool isProAccountType(AccountType level)
+{
+    return level > ACCOUNT_TYPE_FREE && level != ACCOUNT_TYPE_FEATURE;
+}
 
 typedef enum
 {

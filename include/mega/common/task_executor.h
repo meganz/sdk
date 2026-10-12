@@ -63,13 +63,13 @@ public:
     virtual ~TaskExecutor();
 
     // Execute a task at some point in time.
-    Task execute(std::function<void(const Task&)> function,
+    Task execute(MoveOnlyFunction<void(const Task&)> function,
                  std::chrono::steady_clock::time_point when,
                  bool spawnWorker);
 
     // Execute a task at some point in the future.
     template<typename Rep, typename Period>
-    Task execute(std::function<void(const Task&)> function,
+    Task execute(MoveOnlyFunction<void(const Task&)> function,
                  std::chrono::duration<Rep, Period> when,
                  bool spawnWorker)
     {
@@ -79,8 +79,7 @@ public:
     }
 
     // Execute a task now.
-    Task execute(std::function<void(const Task&)> function,
-                 bool spawnWorker)
+    Task execute(MoveOnlyFunction<void(const Task&)> function, bool spawnWorker)
     {
         return execute(std::move(function),
                        std::chrono::steady_clock::now(),

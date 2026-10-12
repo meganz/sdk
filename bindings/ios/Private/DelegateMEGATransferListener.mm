@@ -87,6 +87,17 @@ void DelegateMEGATransferListener::onFolderTransferUpdate(MegaApi *api, mega::Me
     }
 }
 
+void DelegateMEGATransferListener::onTransferQuotaState(MegaApi *api, MegaTransfer *transfer, int state) {
+    if (listener != nil && [listener respondsToSelector:@selector(onTransferQuotaState:transfer:state:)]) {
+        MegaTransfer *tempTransfer = transfer->copy();
+        MEGASdk *tempMegaSDK = this->megaSDK;
+        id<MEGATransferDelegate> tempListener = this->listener;
+        dispatch(this->queueType, ^{
+            [tempListener onTransferQuotaState:tempMegaSDK transfer:[[MEGATransfer alloc] initWithMegaTransfer:tempTransfer cMemoryOwn:YES] state:(MEGATransferQuotaState)state];
+        });
+    }
+}
+
 void DelegateMEGATransferListener::onTransferTemporaryError(MegaApi *api, MegaTransfer *transfer, MegaError *e) {
     if (listener != nil && [listener respondsToSelector:@selector(onTransferTemporaryError:transfer:error:)]) {
         MegaTransfer *tempTransfer = transfer->copy();

@@ -8977,7 +8977,13 @@ bool Sync::syncItem_checkMoves(SyncRow& row, SyncRow& parentRow, SyncPath& fullP
                     LOG_debug << "Waiting for putnodes to complete, defer move checking: "
                               << logTriplet(row, fullPath);
 
-                    // Then come back later.
+                    // Nothing was resolved: the flag only keeps syncItem() off the row until
+                    // the putnodes finishes, and makes the caller set syncAgain so the row is
+                    // revisited. The unresolved monitor keeps the row counted as progressing,
+                    // mirroring resolve_upsync's own wait-for-putnodes branch.
+                    ProgressingMonitor monitor(*this, row, fullPath);
+                    row.itemProcessed = true;
+
                     return false;
                 }
                 else

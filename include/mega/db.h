@@ -24,6 +24,7 @@
 
 #include "filesystem.h"
 #include "logging.h"
+#include "mega/common/error_or_forward.h"
 #include "node.h"
 
 #include <filesystem>
@@ -225,6 +226,16 @@ public:
     // count of children nodes of by type
     virtual uint64_t getNumberOfChildrenByType(NodeHandle parentHandle, nodetype_t nodeType) = 0;
 
+    // Convenience.
+    using NodeHandleNodeBlobPair = std::pair<NodeHandle, NodeSerialized>;
+    using NodeHandleNodeBlobList = std::list<NodeHandleNodeBlobPair>;
+
+    // Which children of the specified node have the given name?
+    virtual auto
+        getChildrenWithName(CancelToken cancelToken,
+                            std::int64_t maxCount,
+                            const std::string& name,
+                            NodeHandle parentHandle) -> common::ErrorOr<NodeHandleNodeBlobList> = 0;
 
     // -- get node properties --
 

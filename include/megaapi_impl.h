@@ -31,12 +31,15 @@
 #include "mega/gfx/external.h"
 #include "mega/heartbeats.h"
 #include "mega/totp.h"
+#include "mega/types.h"
 #include "megaapi.h"
 
 #include <atomic>
 #include <cstdint>
+#include <future>
 #include <map>
 #include <memory>
+#include <optional>
 
 #define CRON_USE_LOCAL_TIME 1
 #include <ccronexpr/ccronexpr.h>
@@ -156,7 +159,13 @@ public:
      */
     MegaErrorPrivate(int errorCode, long long value);
 
+    /**
+     * @param err: API MegaError API_* value or internal ErrorCodes enum, with its extra info
+     */
+    MegaErrorPrivate(const Error& err, long long value);
+
     MegaErrorPrivate(const Error &err);
+
     MegaErrorPrivate(fuse::MountResult result);
     MegaErrorPrivate(const MegaError &megaError);
     ~MegaErrorPrivate() override;
@@ -346,6 +355,20 @@ protected:
 
     // called from onTransferFinish for the last sub-transfer
     void complete(Error e, bool cancelledByUser = false);
+
+    // Error the whole operation completes with once every sub-transfer has resolved. Sub-transfer
+    // errors are flattened, since there is no one error a mixed batch could report.
+    virtual Error resolvedError() const
+    {
+        return mIncompleteTransfers ? API_EINCOMPLETE : API_OK;
+    }
+
+    // State the transfer carries into its final callback. Reaching the end counts as completing
+    // however the sub-transfers fared, since a partial failure still ran to the end.
+    virtual int resolvedState(const Error& /*e*/, bool cancelledByUser) const
+    {
+        return cancelledByUser ? MegaTransfer::STATE_CANCELLED : MegaTransfer::STATE_COMPLETED;
+    }
 
     // return true if thread is stopped or canceled by transfer token
     bool isStoppedOrCancelled(const std::string& name) const;
@@ -609,38 +632,159 @@ protected:
 
     struct LocalTree
     {
-        LocalTree(LocalPath lp)
-        {
-            localPath = lp;
-        }
+        LocalTree(LocalPath lp, FileSystemType fs):
+            localPath(std::move(lp)),
+            fsType(fs)
+        {}
 
+        // Parent path for the children nodes.
         LocalPath localPath;
+
+        // Filesystem of localPath, which decides how a child's name must be escaped. Per entry
+        // because a batch's items may each target a different volume.
+        FileSystemType fsType = FileSystemType::FS_UNKNOWN;
 
         // Only store TYPE_FILE child node.
         vector<unique_ptr<MegaNode>> childrenNodes;
 
         // Collision check decision per entry in childrenNodes.
         vector<CollisionChecker::Result> childrenCollisionDecisions;
+
+        // Local name override per entry in childrenNodes, for a batch root downloaded under a
+        // custom name. Left empty by a folder scan, which always uses the node's own name.
+        vector<LocalPath> childrenLocalNames;
+
+        // Undelete flag per entry in childrenNodes, for a batch root being recovered. Left empty
+        // by a folder scan: only a root can be undeleted, as a deleted node has no subtree to
+        // scan, so nothing found inside one ever is.
+        vector<bool> childrenUndelete;
+
+        // App data per entry in childrenNodes, for the entry holding a batch's file items. Left
+        // empty by a folder scan, whose children share itemAppData instead.
+        vector<std::string> childrenAppData;
+
+        // App data of the folder item this entry was scanned for, shared by all its children.
+        std::string itemAppData;
+
+        // Start-first flag per entry in childrenNodes, for a batch's file items. Left empty by a
+        // folder scan: a folder's contents are always queued normally.
+        vector<bool> childrenStartFirst;
+
+        // localPath is a destination the caller picked, not a folder this download creates, so it
+        // is only created when missing: collision resolution would rename the user's own folder.
+        bool preExistingDestination = false;
     };
+
+    // Where a child of `folder` is stored locally: its name override when one was given for it,
+    // otherwise its node name. Shared so the collision pre-pass and the transfer creation cannot
+    // disagree about the destination.
+    LocalPath childLocalPath(const LocalTree& folder, size_t ci) const;
+
+    // App data of a child of `folder`: its own, else its folder item's, else the transfer-wide
+    // value a single-node download carries. NULL for a batch item that gave none.
+    const char* childAppData(const LocalTree& folder, size_t ci) const;
+
+    // Whether a child of `folder` is queued ahead of existing work: only a batch's file items are.
+    bool childStartFirst(const LocalTree& folder, size_t ci) const;
+
+    // Whether a child of `folder` is being undeleted: its own flag when it has one, otherwise the
+    // transfer-wide flag a single-node download carries.
+    bool childUndelete(const LocalTree& folder, size_t ci) const;
+
     vector<LocalTree> mLocalTree;
+
+    struct TransferQuotaCheckState
+    {
+        std::promise<void> reported;
+        std::future<void> fut;
+        transferquotastatus_t state{TRANSFER_QUOTA_UNKNOWN};
+    };
+
+    std::shared_ptr<TransferQuotaCheckState> mTransferQuotaCheckState =
+        std::make_shared<TransferQuotaCheckState>();
 
     // Scan entire tree recursively, and retrieve folder structure and files to be downloaded.
     enum scanFolder_result { scanFolder_succeeded, scanFolder_cancelled, scanFolder_failed };
     scanFolder_result scanFolder(MegaNode *node, LocalPath& path, FileSystemType fsType, unsigned& fileAddedCount);
 
     // Create all local directories in one shot. This happens on the worker thread.
-    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(FileSystemType fsType, uint32_t fileCount, Error& e);
+    std::unique_ptr<TransferQueue> createFolderGenDownloadTransfersForFiles(uint32_t fileCount,
+                                                                            Error& e);
 
     // Do file collision checks in parallel, reports STAGE_SCAN progress whose filecount is the
     // number of files processed.
-    bool runCollisionCheckPrepass(FileSystemType fsType, Error& e);
+    bool runCollisionCheckPrepass(Error& e);
 
     // Iterate through all pending files, and adds all download transfers
-    bool genDownloadTransfersForFiles(TransferQueue* transferQueue,
-                                      LocalTree& folder,
-                                      FileSystemType fsType);
+    bool genDownloadTransfersForFiles(TransferQueue* transferQueue, LocalTree& folder);
     // Calls notifyStage, need fire on main thread via executeOnThread.
     void notifyStageThreadSafe(uint8_t stage);
+
+    // Batch downloads only. Together they tell the app where this download leaves its quota
+    // before a single file starts.
+
+    // Ask for the predicted state of what is about to be downloaded. Worker thread.
+    virtual void triggerTransferQuotaState() {}
+
+    // Block until that answer lands, bounded by QUOTA_STATE_WAIT_TIMEOUT. Worker thread.
+    virtual void awaitTransferQuotaState() {}
+
+    // Hand the answer to the app. MegaApiImpl thread, as the fire requires.
+    virtual void reportTransferQuotaState() {}
+
+    // Spawn the worker thread that turns the scanned mLocalTree into local folders and queued
+    // transfers. Shared with the batch controller, which differs only in how it scans.
+    void launchTreeCreation(const LocalPath& diskSpacePath, unsigned fileAddedCount);
+};
+
+// A batch download: several root nodes, each with its own destination folder, custom name and
+// undelete flag, scanned in one pass so the whole selection is one transfer. Only the scanning
+// entry point differs from the single-root controller; folder creation, collision checking and
+// transfer generation are inherited unchanged, as they only ever walk mLocalTree.
+class MegaFolderDownloadBatchController: public MegaFolderDownloadController
+{
+public:
+    using MegaFolderDownloadController::MegaFolderDownloadController;
+
+    // The node argument is unused: the roots come from MegaTransferPrivate::getDownloadItems.
+    void start(MegaNode* node) override;
+
+private:
+    // Scan every item of the batch into mLocalTree. `e` carries the failure when it does not
+    // succeed.
+    scanFolder_result scanItems(unsigned& fileAddedCount, Error& e);
+
+    // Only files the collision pre-pass decided to download are counted, so this must run
+    // after that pass.
+    void triggerTransferQuotaState() override;
+
+    void awaitTransferQuotaState() override;
+
+    // A no-op when nothing was queried: a batch whose files were all skipped costs no quota.
+    void reportTransferQuotaState() override;
+
+    // Sub-transfer errors reach the global listeners on the sub-transfer itself; this forwards
+    // them to the parent as well, for a single-file batch only.
+    void onTransferTemporaryError(MegaApi*, MegaTransfer* t, MegaError* e) override;
+
+    // Terminal sub-transfer failures reach onTransferFinish, never onTransferTemporaryError.
+    // Captured here for resolvedError(), so a single-file batch reports the error it actually
+    // hit rather than flattening every one of them to API_EINCOMPLETE.
+    void onTransferFinish(MegaApi*, MegaTransfer* t, MegaError* e) override;
+
+    Error resolvedError() const override;
+
+    // A single-file batch is failed or cancelled if its one file is, the way a plain single-file
+    // download reports it. Anything else keeps the inherited answer.
+    int resolvedState(const Error& e, bool cancelledByUser) const override;
+
+    // A batch of exactly one file item reports sub-transfer errors on the parent the way a plain
+    // single-file download does. Fixed by start(): the error callbacks fire per sub-transfer, so
+    // this must not be recomputed in them.
+    bool mSingleFileBatch = false;
+
+    // Only meaningful when mSingleFileBatch; API_OK until that file fails.
+    Error mSingleFileError{API_OK};
 };
 
 namespace totp
@@ -1696,6 +1840,7 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
         void setUpdateTime(int64_t newUpdateTime);
         void setPublicNode(MegaNode* newPublicNode, bool copyChildren = false);
         void setNodeToUndelete(MegaNode* toUndelete);
+        void setDownloadItems(const MegaDownloadItemList* items);
         void setSyncTransfer(bool isSyncTransfer);
         void setSourceFileTemporary(bool temporary);
         void setStartFirst(bool beFirst);
@@ -1795,6 +1940,9 @@ class MegaTransferPrivate : public MegaTransfer, public Cacheable
 
         MegaNode* getNodeToUndelete() const;
 
+        // Null unless this transfer came from startDownloadBatch
+        const MegaDownloadItemList* getDownloadItems() const;
+
         LocalPath getLocalPath() const;
 
         /**
@@ -1861,6 +2009,8 @@ protected:
         char *lastBytes;
         MegaNode *publicNode;
         std::unique_ptr<MegaNode> nodeToUndelete;
+        std::shared_ptr<const MegaDownloadItemList> mDownloadItems;
+
         long long startPos;
         long long endPos;
         int retry;
@@ -2591,6 +2741,7 @@ class MegaAccountDetailsPrivate : public MegaAccountDetails
         long long getTransferOwnUsed() override;
         long long getTransferSrvUsed() override;
         long long getTransferUsed() override;
+        int getTransferQuotaState() override;
 
         int getNumUsageItems() override;
         long long getStorageUsed(MegaHandle handle) override;
@@ -3024,6 +3175,54 @@ class MegaNodeListPrivate : public MegaNodeList
 	protected:
 		MegaNode** list;
 		int s;
+};
+
+class MegaDownloadItemListPrivate: public MegaDownloadItemList
+{
+public:
+    MegaDownloadItemListPrivate() = default;
+    MegaDownloadItemListPrivate(const MegaDownloadItemListPrivate& other);
+
+    MegaDownloadItemList* copy() const override;
+
+    void add(MegaNode* node,
+             const char* localPath,
+             const char* customName,
+             const char* appData,
+             bool startFirst,
+             bool undelete) override;
+
+    int size() const override;
+    MegaNode* getNode(int i) const override;
+    const char* getLocalPath(int i) const override;
+    const char* getCustomName(int i) const override;
+    const char* getAppData(int i) const override;
+    bool getStartFirst(int i) const override;
+    bool getUndelete(int i) const override;
+
+private:
+    struct Item
+    {
+        std::unique_ptr<MegaNode> mNode;
+
+        // Destination folder for this item. Unset when the caller gave none.
+        std::optional<std::string> mLocalPath;
+
+        // Unset when the caller gave no custom name, so the node's own name is used
+        std::optional<std::string> mCustomName;
+
+        std::optional<std::string> mAppData;
+
+        bool mStartFirst = false;
+
+        bool mUndelete = false;
+    };
+
+    // Bounds-checked: every getter answers the neutral value past the end, so a caller iterating
+    // beyond size() never reads out of range.
+    const Item* at(int i) const;
+
+    std::vector<Item> mItems;
 };
 
 class MegaChildrenListsPrivate : public MegaChildrenLists
@@ -4277,6 +4476,10 @@ class MegaApiImpl : public MegaApp
         void getCloudStorageUsed(MegaRequestListener *listener = NULL);
         void getAccountDetails(bool storage, bool transfer, bool pro, bool sessions, bool purchases, bool transactions, int source = -1, MegaRequestListener *listener = NULL);
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
+        void estimateFreeTransferQuotaState(MegaHandleList* ownNodes,
+                                            MegaHandleList* publicNodes,
+                                            MegaRequestListener* listener = NULL);
+        void queryProTransferQuotaStateLite(MegaRequestListener* listener = NULL);
         void createAccount(const char* email, const char* password, const char* firstname, const char* lastname, MegaHandle lastPublicHandle, int lastPublicHandleType, int64_t lastAccessTimestamp, MegaRequestListener *listener = NULL);
         void createEphemeralAccountPlusPlus(const char* firstname, const char* lastname, MegaRequestListener *listener = NULL);
         void resumeCreateAccount(const char* sid, MegaRequestListener *listener = NULL);
@@ -4336,6 +4539,11 @@ class MegaApiImpl : public MegaApp
         static Error createLocalFolder_unlocked(LocalPath& localPath,
                                                 FileSystemAccess& fsaccess,
                                                 const CollisionResolution& collisionResolution);
+        // Create @p localPath only if it is missing. For a destination the caller chose rather
+        // than one a download produces: an existing folder is used as-is (API_EEXIST), never
+        // renamed or moved aside, so localPath is const where the above rewrites it.
+        static Error ensureLocalFolder_unlocked(const LocalPath& localPath,
+                                                FileSystemAccess& fsaccess);
         void moveNode(MegaNode* node, MegaNode* newParent, MegaRequestListener *listener = NULL);
         void moveNode(MegaNode* node, MegaNode* newParent, const char *newName, MegaRequestListener *listener = NULL);
         void copyNode(MegaNode* node, MegaNode *newParent, MegaRequestListener *listener = NULL);
@@ -4519,6 +4727,11 @@ class MegaApiImpl : public MegaApp
                                  MegaTransferListener* listener,
                                  const FileFingerprint* preFingerprintedFile = nullptr);
         void startDownload (bool startFirst, MegaNode *node, const char* localPath, const char *customName, int folderTransferTag, const char *appData, CancelToken cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener);
+        void startDownloadBatch(const MegaDownloadItemList* items,
+                                CancelToken cancelToken,
+                                int collisionCheck,
+                                int collisionResolution,
+                                MegaTransferListener* listener);
         MegaTransferPrivate* createDownloadTransfer(bool startFirst,
                                                     MegaNode* node,
                                                     const LocalPath& localPath,
@@ -4618,9 +4831,6 @@ class MegaApiImpl : public MegaApp
 
         // Called when FUSE wants to broadcast a mount event.
         void onFuseEvent(const fuse::MountEvent& event) override;
-
-        // Query whether a file is in FUSE's file cache.
-        bool isCached(const char* path);
 
         // Query whether FUSE is supported on this platform.
         bool isFUSESupported();
@@ -5259,6 +5469,17 @@ public:
         void fireOnTransferStart(MegaTransferPrivate *transfer);
         void fireOnTransferFinish(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e); // deletes `transfer` !!
         void fireOnTransferUpdate(MegaTransferPrivate *transfer);
+        void fireOnTransferQuotaState(MegaTransferPrivate* transfer, int state);
+
+        // Report a quota state on the transfer with this tag, if it is still alive. True if the
+        // app was told.
+        bool reportTransferQuotaState(int tag, transferquotastatus_t state);
+
+        // Ask the API for the predicted quota state of the given nodes. The completion runs
+        // exactly once, whatever the account type and whatever the answer.
+        void queryTransferQuotaState(std::vector<handle> ownNodes,
+                                     std::vector<handle> publicNodes,
+                                     std::function<void(transferquotastatus_t, Error)> completion);
         void fireOnFolderTransferUpdate(MegaTransferPrivate *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const LocalPath* currentFolder, const LocalPath* currentFileLeafname);
         void fireOnTransferTemporaryError(MegaTransferPrivate *transfer, unique_ptr<MegaErrorPrivate> e);
         map<int, MegaTransferPrivate *> transferMap;
@@ -5536,7 +5757,6 @@ public:
         // account credentials, properties and history
         void account_details(AccountDetails*,  bool, bool, bool, bool, bool, bool) override;
         void account_details(AccountDetails*, error) override;
-        void querytransferquota_result(int) override;
 
         void unlink_result(handle, error) override;
         void unlinkversions_result(error) override;
@@ -5747,6 +5967,7 @@ public:
 
         // notify about a streaming bandwidth overquota event
         void notify_stream_overquota(dstime) override;
+        void notify_transfer_quota_state(int) override;
 
         // notify about account confirmation
         void notify_confirmation(const char*) override;
@@ -5830,6 +6051,7 @@ public:
 
         friend class MegaBackgroundMediaUploadPrivate;
         friend class MegaFolderDownloadController;
+        friend class MegaFolderDownloadBatchController;
         friend class MegaFolderUploadController;
         friend class MegaRecursiveOperation;
 
@@ -6558,6 +6780,10 @@ public:
 
     std::string tmpFileName;
 
+    // Absolute path of the folder MKD is creating, kept because the reply is built
+    // when the request completes, by which time arg1 may hold the next command.
+    std::string folderPathToCreate;
+
     MegaNode *nodeToDeleteAfterMove;
 
     uv_mutex_t mutex_responses;
@@ -6636,16 +6862,28 @@ protected:
     int dataportBegin;
     int dataPortEnd;
 
-    std::string getListingLineFromNode(MegaNode *child, std::string nameToShow = string());
+    std::string getListingLineFromNode(MegaNode* child, std::string nameToShow = string());
 
-    MegaNode *getBaseFolderNode(std::string path);
-    MegaNode *getNodeByFullFtpPath(std::string path);
-    void getPermissionsString(int permissions, char *permsString);
+    // Backstop for the invariant every reply carrying a node name depends on: the
+    // reply must stay a single line, so that a name can never forge one of its own.
+    // Reaching the failure means a reply was built without sanitizing its text, and
+    // the reply is then replaced by a refusal. Sending nothing instead would leave
+    // the client waiting for an answer that never comes, and would make it read the
+    // next reply as the answer to this command.
+    static void enforceSingleLineResponse(std::string& response, const std::string& delimiter);
 
+    // Turns a path a command carried into the absolute form the server resolves,
+    // applying the same rules for a working directory at the root or at a handle.
+    std::string toAbsoluteFtpPath(MegaFTPContext* ftpctx, std::string path);
 
-    //virtual methods:
-    virtual void processReceivedData(MegaTCPContext *tcpctx, ssize_t nread, const uv_buf_t * buf);
-    virtual void processAsyncEvent(MegaTCPContext *tcpctx);
+    MegaNode* getBaseFolderNode(std::string path);
+    MegaNode* getNodeByFullFtpPath(std::string path);
+    bool isHandleWithinAllowedSubtree(handle h);
+    void getPermissionsString(int permissions, char* permsString);
+
+    // virtual methods:
+    virtual void processReceivedData(MegaTCPContext* tcpctx, ssize_t nread, const uv_buf_t* buf);
+    virtual void processAsyncEvent(MegaTCPContext* tcpctx);
     virtual MegaTCPContextPtr initializeContext(uv_stream_t* server_handle);
     virtual void processWriteFinished(MegaTCPContext* tcpctx, int status);
     virtual void processOnAsyncEventClose(MegaTCPContext* tcpctx);
@@ -6663,6 +6901,11 @@ public:
 
     static void returnFtpCodeBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCode(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());
+
+    // Queues one already formatted reply line, without the delimiter, for a caller
+    // that has to shape the text itself. returnFtpCode() is the way to send a plain
+    // code with a message.
+    static void returnFtpResponse(MegaFTPContext* ftpctx, std::string line);
 
     static void returnFtpCodeAsyncBasedOnRequestError(MegaFTPContext* ftpctx, MegaError *e);
     static void returnFtpCodeAsync(MegaFTPContext* ftpctx, int errorCode, std::string errorMessage = string());

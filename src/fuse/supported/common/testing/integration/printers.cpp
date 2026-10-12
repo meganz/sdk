@@ -19,20 +19,14 @@ static std::ostream& operator<<(std::ostream& ostream, accesslevel_t permissions
 
 static const std::string indent = std::string(6, ' ');
 
-template<typename T>
-auto operator<<(std::ostream& ostream, const T& value) ->
-    typename testing::EnableIfInfoLike<T, std::ostream>::type&
+std::ostream& operator<<(std::ostream& ostream, const InodeInfo& value)
 {
-    using testing::id;
-    using testing::parentID;
-    using testing::toString;
-
     return ostream << "\n"
-                   << indent << "mID: " << toString(id(value)) << "\n"
+                   << indent << "mID: " << toString(value.mID) << "\n"
                    << indent << "mIsDirectory: " << (value.mIsDirectory ? "TRUE" : "FALSE") << "\n"
                    << indent << "mModified: " << DateTime(value.mModified) << "\n"
                    << indent << "mName: " << value.mName << "\n"
-                   << indent << "mParentID: " << toString(parentID(value)) << "\n"
+                   << indent << "mParentID: " << toString(value.mParentID) << "\n"
                    << indent << "mPermissions: " << value.mPermissions << "\n"
                    << indent << "mSize: " << value.mSize;
 }
@@ -67,9 +61,6 @@ std::ostream& operator<<(std::ostream& ostream, accesslevel_t permissions)
 
     return ostream << "UNKNOWN";
 }
-
-template std::ostream& operator<<(std::ostream&, const InodeInfo&);
-template std::ostream& operator<<(std::ostream&, const NodeInfo&);
 
 } // fuse
 } // mega

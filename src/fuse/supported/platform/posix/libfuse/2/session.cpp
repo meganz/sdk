@@ -43,26 +43,27 @@ void Session::forget(fuse_req_t request, fuse_ino_t inode, unsigned long num)
     SessionBase::forget(request, inode, num);
 }
 
-std::string Session::nextRequest()
+size_t Session::nextRequest()
 {
     assert(mChannel);
     assert(mSession);
 
     auto channel = mChannel.get();
-    std::string buffer(fuse_chan_bufsize(channel), '\0');
+    if (mBuffer.size() != fuse_chan_bufsize(channel))
+    {
+        mBuffer.resize(fuse_chan_bufsize(channel));
+    }
 
     while (true)
     {
-        auto result = fuse_chan_recv(&channel, &buffer[0], buffer.size());
+        auto result = fuse_chan_recv(&channel, &mBuffer[0], mBuffer.size());
 
         if (!result)
-            return std::string();
+            return 0;
 
         if (result > 0)
         {
-            buffer.resize(static_cast<std::size_t>(result));
-
-            return buffer;
+            return static_cast<size_t>(result);
         }
 
         // We can hit this case when poll(...) tells us that our channel
@@ -70,7 +71,7 @@ std::string Session::nextRequest()
         //
         // Put differently, this is here to guard against spurious wakeups.
         if (result == -EAGAIN)
-            return std::string();
+            return 0;
 
         if (result == -EINTR)
             continue;
@@ -155,8 +156,8 @@ void Session::dispatch()
     assert(mSession);
 
     // Dispatch the request.
-    if (auto request = nextRequest(); !request.empty())
-        fuse_session_process(mSession.get(), request.data(), request.size(), mChannel.get());
+    if (auto n = nextRequest(); n)
+        fuse_session_process(mSession.get(), mBuffer.data(), n, mChannel.get());
 }
 
 void Session::invalidateData(MountInodeID id, off_t offset, off_t length)

@@ -21,28 +21,37 @@
 
 #include "mega.h"
 
+#include <limits>
 
-#ifdef USE_POLL
-    #include <poll.h> //poll
-#endif
-
-namespace mega {
+namespace mega
+{
 
 PosixWaiter::PosixWaiter()
 {
-    // pipe to be able to leave the select() call
+    // pipe to be able to leave the poll()/select() call
     if (pipe(m_pipe) < 0)
     {
         LOG_fatal << "Error creating pipe";
         throw std::runtime_error("Error creating pipe");
     }
 
+    // notify() only writes to m_pipe[1], so with m_pipe[0] unwatched nothing can
+    // ever wake wait() and an idle client blocks on NEVER forever. Dead code
+    // under poll(), which refuses only a negative fd -- ruled out just above.
+    if (!FdWatchSet::isWatchable(m_pipe[0]))
+    {
+        LOG_fatal << "Wakeup pipe descriptor " << m_pipe[0]
+                  << " cannot be watched by this build's waiter backend; rebuild with "
+                     "-DUSE_POLL=ON";
+        close(m_pipe[0]);
+        close(m_pipe[1]);
+        throw std::runtime_error("Wakeup pipe descriptor cannot be watched");
+    }
+
     if (fcntl(m_pipe[0], F_SETFL, O_NONBLOCK) < 0)
     {
         LOG_err << "fcntl error";
     }
-
-    maxfd = -1;
 }
 
 PosixWaiter::~PosixWaiter()
@@ -55,128 +64,86 @@ void PosixWaiter::init(dstime ds)
 {
     Waiter::init(ds);
 
-    maxfd = -1;
-
-    MEGA_FD_ZERO(&rfds);
-    MEGA_FD_ZERO(&wfds);
-    MEGA_FD_ZERO(&efds);
-    MEGA_FD_ZERO(&ignorefds);
+    mWatched.clear();
 }
 
-// update maxfd for select()
-void PosixWaiter::bumpmaxfd(int fd)
+void PosixWaiter::watchReadable(int fd, ExecOnReady e)
 {
-    if (fd > maxfd)
-    {
-        maxfd = fd;
-    }
+    mWatched.watchReadable(fd, e);
 }
 
-// checks if an unfiltered fd is set
-// FIXME: use bitwise & instead of scanning
-bool PosixWaiter::fd_filter(int nfds, mega_fd_set_t* fds, mega_fd_set_t* ignorefds) const
+void PosixWaiter::watchWritable(int fd, ExecOnReady e)
 {
-    while (nfds--)
-    {
-        if (MEGA_FD_ISSET(nfds, fds) && !MEGA_FD_ISSET(nfds, ignorefds)) return true;
-    }
-
-    return false;
+    mWatched.watchWritable(fd, e);
 }
 
-// wait for supplied events (sockets, filesystem changes), plus timeout + application events
-// maxds specifies the maximum amount of time to wait in deciseconds (or
-// NEVER if no timeout scheduled) returns application-specific bitmask.
-// bit 0 set indicates that exec() needs to be called.
-int PosixWaiter::wait()
+bool PosixWaiter::isReadable(int fd) const
 {
-    int numfd = 0;
-    timeval tv;
+    return mWatched.isReadable(fd);
+}
 
-    //Pipe added to rfds to be able to leave select() when needed
-    MEGA_FD_SET(m_pipe[0], &rfds);
+bool PosixWaiter::isWritable(int fd) const
+{
+    return mWatched.isWritable(fd);
+}
 
-    bumpmaxfd(m_pipe[0]);
-
-    if (EVER(maxds))
+int PosixWaiter::timeoutMsFor(dstime ds)
+{
+    // Takes ds by value: maxds is atomic, and reading it twice -- once for
+    // EVER(), once for the conversion -- let another thread change it between.
+    if (!EVER(ds))
     {
-        dstime us = 1000000 / 10 * maxds;
-
-        tv.tv_sec = us / 1000000;
-        tv.tv_usec = (suseconds_t)(us - tv.tv_sec * 1000000);
+        return -1; // wait forever
     }
 
-#ifdef USE_POLL
-    // wait infinite (-1) if maxds is max dstime OR it would overflow platform's int
-    int timeoutInMs = -1;
-    if (EVER(maxds) && maxds <= std::numeric_limits<int>::max() / 100)
+    if (ds <= 0)
     {
-        timeoutInMs = static_cast<int>(maxds) * 100;
-    }
-    auto total = rfds.size() + wfds.size() + efds.size();
-    struct pollfd fds[total];
-
-    int polli = 0;
-    for (auto & fd : rfds)
-    {
-        fds[polli].fd = fd;
-        fds[polli].events = POLLIN_SET;
-        polli++;
+        // The deadline has already passed. Returning a negative value would
+        // mean "wait forever" instead.
+        return 0;
     }
 
-    for (auto & fd : wfds)
-    {
-        fds[polli].fd = fd;
-        fds[polli].events = POLLOUT_SET;
-        polli++;
-    }
+    // dstime is int64_t. Clamp to int rather than degrading into an infinite
+    // wait: a large but finite ceiling means a long wait, not a permanent one.
+    constexpr dstime cap = std::numeric_limits<int>::max() / 100;
 
-    for (auto & fd : efds)
-    {
-        fds[polli].fd = fd;
-        fds[polli].events = POLLEX_SET;
-        polli++;
-    }
-    numfd = poll(fds, total, timeoutInMs);
-#else
-    numfd = select(maxfd + 1, &rfds, &wfds, &efds, EVER(maxds) ? &tv : NULL);
-#endif
+    return ds > cap ? std::numeric_limits<int>::max() : static_cast<int>(ds) * 100;
+}
 
-    // empty pipe
+bool PosixWaiter::drainPipe()
+{
     uint8_t buf;
     bool external = false;
 
+    std::lock_guard<std::mutex> g(mMutex);
+    while (read(m_pipe[0], &buf, sizeof buf) > 0)
     {
-        std::lock_guard<std::mutex> g(mMutex);
-        while (read(m_pipe[0], &buf, sizeof buf) > 0)
-        {
-            external = true;
-        }
-        alreadyNotified = false;
+        external = true;
     }
+    alreadyNotified = false;
 
-    // timeout or error
-    if (external || numfd <= 0)
+    return external;
+}
+
+// wait for supplied events (sockets, filesystem changes), plus timeout and
+// application events. Returns an application-specific bitmask; bit 0
+// (NEEDEXEC) set indicates that exec() needs to be called.
+int PosixWaiter::wait()
+{
+    // Pipe readiness is interpreted right here by drainPipe(), so it must not
+    // request NEEDEXEC on its own.
+    mWatched.watchReadable(m_pipe[0], ExecOnReady::No);
+
+    const int n = mWatched.wait(timeoutMsFor(maxds.load()));
+    const bool external = drainPipe();
+
+    // timeout, error, or an external wakeup
+    if (external || n <= 0)
     {
         return NEEDEXEC;
     }
 
-    // request exec() to be run only if a non-ignored fd was triggered
-#ifdef USE_POLL
-    for (unsigned int i = 0 ; i < total ; i++)
-    {
-        if  ((fds[i].revents & (POLLIN_SET | POLLOUT_SET | POLLEX_SET) )  && !MEGA_FD_ISSET(fds[i].fd, &ignorefds) )
-        {
-            return NEEDEXEC;
-        }
-    }
-    return 0;
-#else
-    return (fd_filter(maxfd + 1, &rfds, &ignorefds)
-         || fd_filter(maxfd + 1, &wfds, &ignorefds)
-         || fd_filter(maxfd + 1, &efds, &ignorefds)) ? NEEDEXEC : 0;
-
-#endif
+    return mWatched.anyReadyNeedsExec() ? NEEDEXEC : 0;
 }
 
 void PosixWaiter::notify()
@@ -192,4 +159,4 @@ void PosixWaiter::notify()
         alreadyNotified = true;
     }
 }
-} // namespace
+} // namespace mega

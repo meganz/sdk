@@ -17,6 +17,7 @@
 #include <chrono>
 #include <condition_variable>
 #include <functional>
+#include <map>
 #include <mutex>
 #include <optional>
 #include <string>
@@ -39,9 +40,6 @@ private:
 
     // Get our hands on the client's high level interface.
     virtual common::Client& client() const = 0;
-
-    // Retrieve the handle associated with the specified child.
-    common::ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const;
 
     using MakeDirectoryCallback = std::function<void(common::ErrorOr<NodeHandle>)>;
 
@@ -168,6 +166,7 @@ public:
     using ContactPtr = std::unique_ptr<Contact>;
     using Handle = ::mega::handle;
     using InvitePtr = std::unique_ptr<Invite>;
+    using NodeAttributes = std::map<std::string, std::string>;
 
     template<typename Rep, typename Period>
     using Duration = std::chrono::duration<Rep, Period>;
@@ -175,6 +174,11 @@ public:
     using TimePoint = Clock::time_point;
 
     virtual ~Client();
+
+    // Retrieve a node's attributes.
+    virtual auto attributes(NodeHandle handle) const -> common::ErrorOr<NodeAttributes> = 0;
+
+    auto attributes(common::testing::CloudPath path) const -> common::ErrorOr<NodeAttributes>;
 
     // Retrieve the names of this node's children.
     common::ErrorOr<std::set<std::string>> childNames(common::testing::CloudPath path) const;
@@ -210,6 +214,8 @@ public:
     auto getPublicLink(common::testing::CloudPath path) -> ErrorOr<PublicLink>;
 
     // Query what a child's node handle is.
+    common::ErrorOr<NodeHandle> handle(NodeHandle parent, const std::string& name) const;
+
     common::ErrorOr<NodeHandle> handle(common::testing::CloudPath parentPath,
                                        const std::string& name) const;
 
@@ -284,6 +290,11 @@ public:
 
     // Retrieve this user's session token.
     virtual auto sessionToken() const -> ErrorOr<SessionToken> = 0;
+
+    // Update a node's attributes.
+    virtual Error setAttributes(NodeHandle handle, const NodeAttributes& attributes) = 0;
+
+    Error setAttributes(common::testing::CloudPath path, const NodeAttributes& attributes);
 
     // Set the client's maximum download speed.
     virtual m_off_t setDownloadSpeed(m_off_t speed) = 0;

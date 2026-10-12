@@ -16,6 +16,7 @@ public:
     void set(attr_t at, const std::string& value, const std::string& version);
     bool setIfNewVersion(attr_t at, const std::string& value, const std::string& version);
     bool setExpired(attr_t at);
+    bool setValid(attr_t at); // an action packet confirmed the version we already hold
     const UserAttribute* get(attr_t at) const;
     bool erase(attr_t at);
     bool eraseUpdateVersion(attr_t at, const std::string& version);

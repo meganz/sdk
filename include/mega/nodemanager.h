@@ -26,6 +26,8 @@
 #include "node.h"
 #include "types.h"
 
+#include <mega/common/error_or_forward.h>
+
 #include <limits>
 #include <map>
 #include <set>
@@ -430,6 +432,12 @@ public:
     bool updateNode(Node* node);
     // removeNode() --> it's done through notifypurge()
 
+    // Which of node's children have the specified name?
+    auto getChildrenWithName(CancelToken cancelToken,
+                             const std::string& name,
+                             NodeHandle parentHandle,
+                             std::int64_t maxCount = -1) -> common::ErrorOr<sharedNode_list>;
+
     // if node is not available in memory, it's loaded from DB
     std::shared_ptr<Node> getNodeByHandle(NodeHandle handle);
 
@@ -820,6 +828,13 @@ private:
     void reset_internal();
     bool addNode_internal(std::shared_ptr<Node> node, bool notify, bool isFetching, MissingParentNodes& missingParentNodes);
     bool updateNode_internal(Node* node);
+
+    template<typename Lock>
+    auto getChildrenWithName(CancelToken cancelToken,
+                             Lock&& lock,
+                             std::int64_t maxCount,
+                             const std::string& name,
+                             NodeHandle parentHandle) -> common::ErrorOr<sharedNode_list>;
 
     /**
      * @brief Manages null root nodes error server event (just once in NodeManager lifetime)

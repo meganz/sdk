@@ -9,6 +9,8 @@ target_sources(SDKlib PRIVATE
                       path_adapter.h
                       process.h
                       process_forward.h
+                      read_directory_functions.h
+                      read_directory_functions_forward.h
                       request.h
                       request_forward.h
                       session_base.h

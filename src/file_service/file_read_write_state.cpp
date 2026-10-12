@@ -8,7 +8,7 @@ namespace mega
 namespace file_service
 {
 
-bool FileReadWriteState::read()
+bool FileReadWriteState::read(bool checkOnly)
 {
     std::lock_guard guard(mLock);
 
@@ -17,6 +17,9 @@ bool FileReadWriteState::read()
 
     // Check if we can perform the read.
     auto adjustment = static_cast<long>(mState <= 0 && mState > min);
+
+    if (checkOnly)
+        return adjustment;
 
     // Adjust state.
     mState -= adjustment;
@@ -36,12 +39,15 @@ void FileReadWriteState::readCompleted()
     ++mState;
 }
 
-bool FileReadWriteState::write()
+bool FileReadWriteState::write(bool checkOnly)
 {
     std::lock_guard guard(mLock);
 
     // Check if we can perform the write.
     auto adjustment = static_cast<long>(mState == 0);
+
+    if (checkOnly)
+        return adjustment;
 
     // Adjust state.
     mState += adjustment;

@@ -456,6 +456,23 @@ bool WinFileAccess::fwrite(const void* buffer,
     return true;
 }
 
+bool WinFileAccess::ftouch(m_time_t modified)
+{
+    // Can't set the modification time of a file if none is open.
+    if (hFile == INVALID_HANDLE_VALUE)
+        return false;
+
+    FILE_BASIC_INFO info;
+
+    std::memset(&info, 0, sizeof(info));
+
+    // Translate modification time from UNIX to file time.
+    info.LastWriteTime.QuadPart = (modified + 11644473600) * 10000000;
+
+    // Let our caller know if we could update the file's time attributes.
+    return SetFileInformationByHandle(hFile, FileBasicInfo, &info, sizeof(info)) != 0;
+}
+
 bool WinFileAccess::ftruncate(m_off_t newSize)
 {
     assert(newSize >= 0);

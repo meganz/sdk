@@ -18,9 +18,10 @@
 
 #pragma once
 
-#include <mega/db.h>
-
 #include "NotImplemented.h"
+
+#include <mega/common/error_or.h>
+#include <mega/db.h>
 
 namespace mt {
 
@@ -231,6 +232,12 @@ public:
     void remove() override
     {
         //throw NotImplemented{__func__};
+    }
+
+    auto getChildrenWithName(mega::CancelToken, std::int64_t, const std::string&, mega::NodeHandle)
+        -> mega::common::ErrorOr<NodeHandleNodeBlobList> override
+    {
+        return mega::common::unexpected(mega::API_EINTERNAL);
     }
 };
 

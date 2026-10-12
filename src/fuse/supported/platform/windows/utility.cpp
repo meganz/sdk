@@ -147,7 +147,7 @@ void translate(FSP_FSCTL_FILE_INFO& destination, const Mount& mount, const Inode
     destination.ChangeTime = DateTime(source.mModified);
     destination.CreationTime = destination.ChangeTime;
     destination.FileAttributes = attributes(source, mount);
-    destination.IndexNumber = source.mID.get();
+    destination.IndexNumber = source.mID.toU64();
     destination.LastAccessTime = destination.ChangeTime;
     destination.LastWriteTime = destination.ChangeTime;
 

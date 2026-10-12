@@ -20,6 +20,7 @@
  */
 
 #include "mega.h"
+#include "mega/backofftimer.h"
 #include "mega/common/badge.h"
 #include "mega/hashcash.h"
 #include "mega/heartbeats.h"
@@ -114,6 +115,9 @@ const int MegaClient::MAXQUEUEDFA = 30;
 
 // maximum number of concurrent putfa
 const int MegaClient::MAXPUTFA = 10;
+
+// stale-data timeout for an active putfa (ds) - same window as TransferSlot::XFERTIMEOUT
+const dstime MegaClient::PUTFATIMEOUT = 600;
 
 #ifdef ENABLE_SYNC
 // //bin/SyncDebris/yyyy-mm-dd base folder name
@@ -1716,7 +1720,7 @@ void MegaClient::activateoverquota(dstime timeleft, bool isPaywall)
     if (timeleft)
     {
         assert(!isPaywall);
-        LOG_warn << "Bandwidth overquota for " << timeleft << " seconds";
+        LOG_warn << "Bandwidth overquota for " << timeleft << " ds";
         overquotauntil = Waiter::ds + timeleft;
 
         for (auto& it : multi_transfers[GET])
@@ -2461,6 +2465,21 @@ void MegaClient::exec()
         if (activefa.size())
         {
             TransferDbCommitter committer(tctable);
+
+            // moves an active putfa back to the queue, to be retried after backoff
+            auto retryfa = [this](list<shared_ptr<HttpReqFA>>::iterator it)
+            {
+                app->notify_network_activity(NetworkActivityChannel::CS,
+                                             NetworkActivityType::REQUEST_ERROR,
+                                             API_EFAILED);
+                shared_ptr<HttpReqFA> fa = std::move(*it);
+                activefa.erase(it);
+                fa->status = REQ_READY;
+                queuedfa.push_back(std::move(fa));
+                btpfa.backoff();
+                faretrying = true;
+            };
+
             auto curfa = activefa.begin();
             while (curfa != activefa.end())
             {
@@ -2573,14 +2592,7 @@ void MegaClient::exec()
                     case REQ_FAILURE:
                         // repeat request with exponential backoff
                         LOG_warn << "Error setting file attribute. Will retry after backoff";
-                        app->notify_network_activity(NetworkActivityChannel::CS,
-                                                     NetworkActivityType::REQUEST_ERROR,
-                                                     API_EFAILED);
-                        activefa.erase(erasePos);
-                        fa->status = REQ_READY;
-                        queuedfa.push_back(fa);
-                        btpfa.backoff();
-                        faretrying = true;
+                        retryfa(erasePos);
                         break;
 
                     case REQ_INFLIGHT:
@@ -2595,13 +2607,28 @@ void MegaClient::exec()
                                     // this also removes it from slots and fileAttributesUploading
                                     activefa.erase(erasePos);
                                     uploadFAPtr->transfer->removeAndDeleteSelf(TRANSFERSTATE_CANCELLED);
+                                    break;
                                 }
                             }
                             else
                             {
                                 LOG_debug << "activefa for " << fa->th.uploadHandle() << " has been orphaned, discarding";
                                 activefa.erase(erasePos);
+                                break;
                             }
+                        }
+
+                        // stale-data watchdog: a request whose connection died silently (no curl
+                        // completion ever arrives) would otherwise stay here for ever, holding one
+                        // of the MAXPUTFA slots. Once every slot is stuck, queuedfa grows past
+                        // MAXQUEUEDFA and dispatchTransfers() stops all uploads for good.
+                        if (EVER(fa->lastdata) && Waiter::ds >= fa->lastdata + PUTFATIMEOUT)
+                        {
+                            LOG_warn << "Timeout setting file attribute: no data moved for "
+                                     << (PUTFATIMEOUT / 10) << " seconds - " << fa->th
+                                     << ". Will retry after backoff";
+                            fa->disconnect(); // frees the connection; retryfa frees the slot
+                            retryfa(erasePos);
                         }
                         break;
 
@@ -3719,21 +3746,7 @@ void MegaClient::exec()
             mReqStatCS->post(this);
         }
 
-        for (vector<TimerWithBackoff *>::iterator it = bttimers.begin(); it != bttimers.end(); )
-        {
-            TimerWithBackoff *bttimer = *it;
-            if (bttimer->armed())
-            {
-                restag = bttimer->tag;
-                app->timer_result(API_OK);
-                delete bttimer;
-                it = bttimers.erase(it);
-            }
-            else
-            {
-                ++it;
-            }
-        }
+        execTimers();
 
         httpio->updatedownloadspeed();
         httpio->updateuploadspeed();
@@ -3884,6 +3897,24 @@ int MegaClient::preparewait()
         if (faretrying)
         {
             btpfa.update(&nds);
+        }
+
+        // detect stuck file attribute puts
+        for (const auto& fa: activefa)
+        {
+            if (fa->status == REQ_INFLIGHT && EVER(fa->lastdata))
+            {
+                dstime timeout = fa->lastdata + PUTFATIMEOUT;
+
+                if (timeout > Waiter::ds && timeout < nds)
+                {
+                    nds = timeout;
+                }
+                else if (timeout <= Waiter::ds)
+                {
+                    nds = 0;
+                }
+            }
         }
 
         // retry failed file attribute gets
@@ -4763,10 +4794,16 @@ void MegaClient::dispatchTransfers()
                         {
                             nexttransfer->uploadhandle = mUploadHandle.next();
 
-                            if (!gfxdisabled && gfx && gfx->isgfx(nexttransfer->localfilename))
+                            // Add missing thumbnails if we're uploading a file.
+                            if (auto conceptualname = nexttransfer->thumbnailName())
                             {
                                 // we want all imagery to be safely tucked away before completing the upload, so we bump minfa
-                                int bitmask = gfx->gendimensionsputfa(nexttransfer->localfilename, NodeOrUploadHandle(nexttransfer->uploadhandle), nexttransfer->transfercipher(), -1);
+                                int bitmask = gfx->gendimensionsputfa(
+                                    *conceptualname,
+                                    nexttransfer->localfilename,
+                                    NodeOrUploadHandle(nexttransfer->uploadhandle),
+                                    nexttransfer->transfercipher(),
+                                    -1);
 
                                 if (bitmask & (1 << GfxProc::THUMBNAIL))
                                 {
@@ -5363,11 +5400,11 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     freeq(GET);  // freeq after closetc due to optimizations
     freeq(PUT);
 
-    // Deinitialize the File Service.
-    mFileService.deinitialize(removecaches, destructorRunning);
-
     // Deinitialize the FUSE Service.
     mFuseService.deinitialize();
+
+    // Deinitialize the File Service.
+    mFileService.deinitialize(removecaches, destructorRunning);
 
     purgenodesusersabortsc(false);
     userid = 0;
@@ -5404,6 +5441,8 @@ void MegaClient::locallogout(bool removecaches, [[maybe_unused]] bool keepSyncsC
     ststatus = STORAGE_UNKNOWN;
     overquotauntil = 0;
     mLastStreamOverquotaNotifyDs = 0;
+    // reqs.clear() above drops the commands without running completions, so reset the checker too
+    mTransferQuotaChecker.reset();
     mOverquotaDeadlineTs = 0;
     mOverquotaWarningTs.clear();
     mBizGracePeriodTs = 0;
@@ -5753,6 +5792,7 @@ void MegaClient::sc_procEoo(std::unique_lock<recursive_mutex>& nodeTreeIsChangin
         }
         statecurrent = true;
         app->nodes_current();
+        mFileService.current();
         mFuseService.current();
         LOG_debug << "Cloud node tree up to date";
 #ifdef ENABLE_SYNC
@@ -7757,6 +7797,13 @@ void MegaClient::sc_userattr(JSON& json)
                             else
                             {
                                 LOG_info << "User attribute already up to date: " << User::attr2string(type);
+                                // Equal version proves the cache is current, so clear a
+                                // pessimistic expiry from earlier replayed packets. An empty
+                                // version is the "unknown" marker: matching it proves nothing.
+                                if (!ituav->empty())
+                                {
+                                    u->setAttributeValid(type);
+                                }
                                 continue;
                             }
                         }
@@ -8904,6 +8951,7 @@ void MegaClient::sc_sqac(JSON& json)
                 }
 
                 // Invalidate cached storage info.
+                mClientAdapter.invalidateStorageInfo();
                 mLastKnownCapacity = -1;
 
 #ifdef MEGA_USE_WSUPLOAD
@@ -10430,6 +10478,16 @@ error MegaClient::rename(std::shared_ptr<Node> n, std::shared_ptr<Node> p, syncd
     return API_OK;
 }
 
+bool MegaClient::isNodeInVaultTree(const std::shared_ptr<Node>& node) const
+{
+    if (!node)
+    {
+        return false;
+    }
+
+    return node->firstancestor()->type == VAULTNODE;
+}
+
 error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, int rTag)
 {
     assert(parent);
@@ -10437,6 +10495,12 @@ error MegaClient::createFolder(std::shared_ptr<Node> parent, const char* name, i
 
     std::vector<NewNode> nn(1);
     bool canChangeVault = parent->isPasswordManagerNodeFolder();
+
+    if (!canChangeVault && isNodeInVaultTree(parent))
+    {
+        LOG_err << "createFolder: Not allowed to create folders in the vault tree";
+        return API_EACCESS;
+    }
     NewNode& newPasswordNode = nn.front();
     putnodes_prepareOneFolder(&newPasswordNode, name, canChangeVault);
     const char* cauth = nullptr;
@@ -10497,6 +10561,13 @@ error MegaClient::renameNode(NodeHandle nh, const char* newName, CommandSetAttr:
 
     const bool canChangeVault =
         node->isPasswordManagerNodeFolder() || node->isPasswordManagerNode();
+
+    if (!canChangeVault && isNodeInVaultTree(node))
+    {
+        LOG_err << "renameNode: Not allowed to rename vault nodes";
+        return API_EACCESS;
+    }
+
     string sname = newName;
     LocalPath::utf8_normalize(&sname);
     return setattr(node, attr_map('n', sname), std::move(cbRequest), canChangeVault);
@@ -10523,6 +10594,12 @@ error MegaClient::removeNode(NodeHandle nh, bool keepVersions, int rTag)
     }
     else if (node->type == ROOTNODE || node->type == VAULTNODE || node->type == RUBBISHNODE)  // rootnodes cannot be deleted
     {
+        return API_EACCESS;
+    }
+
+    if (!canChangeVault && isNodeInVaultTree(node))
+    {
+        LOG_err << "remove: Not allowed to remove vault nodes";
         return API_EACCESS;
     }
 
@@ -10601,7 +10678,7 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
         return;
     }
 
-    if (n->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
+    if (!isNodeInVaultTree(n))
     {
         // backup nodes are supposed to be in the vault - if not, something is wrong
         completion(API_EARGS);
@@ -10627,7 +10704,6 @@ void MegaClient::unlinkOrMoveBackupNodes(NodeHandle backupRootNode, NodeHandle d
     else
     {
         // moving to target node
-
         std::shared_ptr<Node> p = nodeByHandle(destination);
         if (!p || p->firstancestor()->nodeHandle() != mNodeManager.getRootNodeFiles())
         {
@@ -14853,9 +14929,16 @@ void MegaClient::getstorageinfo(std::function<void(const StorageInfo&, Error)> c
     completion(info, API_OK);
 }
 
-void MegaClient::querytransferquota(m_off_t size)
+void MegaClient::querytransferquota(const std::vector<handle>& ownNodes,
+                                    const std::vector<handle>& publicNodes,
+                                    m_off_t extraSize,
+                                    std::function<void(int)> completion)
 {
-    queueCommand(new CommandQueryTransferQuota(this, size));
+    queueCommand(new CommandQueryTransferQuota(this,
+                                               ownNodes,
+                                               publicNodes,
+                                               extraSize,
+                                               std::move(completion)));
 }
 
 // export node link
@@ -14868,6 +14951,15 @@ error MegaClient::exportnode(
     int tag,
     std::function<void(Error, handle, handle, string&& encryptionKey)> completion)
 {
+    // A writable link is backed by a share, and only folders get one. Requesting one for a file
+    // makes the API answer the 'l' command with an error in the 'w' field. Checked before the
+    // cached-link shortcut below, so a bad auth key stored by an older build is not replayed.
+    if (writable && n->type == FILENODE)
+    {
+        LOG_err << "Writable public links are only supported for folders";
+        return API_EARGS;
+    }
+
     if (n->plink && !del && !n->plink->takendown
             && (ets == n->plink->ets) && !n->plink->isExpired()
             && ( (writable && n->plink->mAuthKey.size()) || (!writable && !n->plink->mAuthKey.size()) )
@@ -15873,6 +15965,9 @@ void MegaClient::enabletransferresumption()
     Transfer* t;
     size_t cachedTransfersLoaded = 0;
     size_t cachedFilesLoaded = 0;
+#ifdef MEGA_USE_WSUPLOAD
+    std::uint32_t highestCachedWsFileNo = 0;
+#endif
 
     LOG_info << "Loading transfers from local cache";
     tctable->rewind();
@@ -15891,6 +15986,12 @@ void MegaClient::enabletransferresumption()
                         {
                             transferlist.currentpriority = t->priority;
                         }
+#ifdef MEGA_USE_WSUPLOAD
+                        if (t->type == PUT)
+                        {
+                            highestCachedWsFileNo = std::max(highestCachedWsFileNo, t->ws_fileno);
+                        }
+#endif
                         cachedTransfersLoaded += 1;
                     }
                     else
@@ -15907,6 +16008,14 @@ void MegaClient::enabletransferresumption()
             }
         }
     }
+#ifdef MEGA_USE_WSUPLOAD
+    // SDK-6600: new uploads can start before these are restored (at statecurrent). Keep their
+    // filenos above the cached ones, or a restored upload whose fileno was taken restarts at 0.
+    if (wsEngine())
+    {
+        wsEngine()->reserveFileNos(highestCachedWsFileNo);
+    }
+#endif
     LOG_debug << "Cached transfers loaded: " << cachedTransfersLoaded;
     LOG_debug << "Cached files loaded: " << cachedFilesLoaded;
 
@@ -18067,6 +18176,16 @@ void MegaClient::queueread(handle handle,
         }
         else
         {
+            // No need to pass node here. hdrns already have it.
+            mTransferQuotaChecker.check(
+                {},
+                {},
+                [this](transferquotastatus_t state, Error)
+                {
+                    app->notify_transfer_quota_state(state);
+                },
+                TransferQuotaChecker::CheckOrigin::Stream);
+
             it->second->dispatch();
         }
     }
@@ -18181,6 +18300,31 @@ error MegaClient::addtimer(TimerWithBackoff *twb)
 {
     bttimers.push_back(twb);
     return API_OK;
+}
+
+void MegaClient::execTimers()
+{
+    std::vector<std::unique_ptr<TimerWithBackoff>> expired;
+
+    size_t kept = 0;
+    for (TimerWithBackoff* timer: bttimers)
+    {
+        if (timer->armed())
+        {
+            expired.emplace_back(timer);
+        }
+        else
+        {
+            bttimers[kept++] = timer;
+        }
+    }
+    bttimers.resize(kept);
+
+    // Invoked outside bttimers: an invoke() may addtimer()
+    for (auto& timer: expired)
+    {
+        timer->invoke(*this);
+    }
 }
 
 #ifdef ENABLE_SYNC
@@ -18436,9 +18580,12 @@ SyncErrorInfo MegaClient::checkSyncConfig(const SyncConfig& syncConfig)
         return {API_EARGS, INVALID_SCAN_INTERVAL, NO_SYNC_WARNING};
     }
 
-    if (syncs.mBackupRestrictionsEnabled && syncConfig.isBackup() &&
-        remotenode->firstancestor()->nodeHandle() != mNodeManager.getRootNodeVault())
+    if (syncs.mBackupRestrictionsEnabled &&
+        (syncConfig.isBackup() != isNodeInVaultTree(remotenode)))
     {
+        LOG_warn << (syncConfig.isBackup() ? "Backups must sync to the Vault tree" :
+                                             "Only backups may sync to the Vault tree");
+
         return {API_EARGS, INVALID_REMOTE_TYPE, NO_SYNC_WARNING};
     }
 
@@ -19329,7 +19476,7 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
             }
 
 #ifdef USE_MEDIAINFO
-            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname());
+            mediaFileInfo.requestCodecMappingsOneTime(this, f->getLocalname().toPath(false));
 #endif
         }
         else
@@ -19969,7 +20116,7 @@ void MegaClient::applymaxconnections(const direction_t d, const uint8_t num)
 #ifdef MEGA_USE_WSUPLOAD
     wsApplyMaxConnections(d, num);
 #endif
- 
+
     for (transferslot_list::iterator it = tslots.begin(); it != tslots.end();)
     {
         TransferSlot* slot = *it++;
@@ -23680,37 +23827,38 @@ std::string MegaClient::generatePasswordChars(const bool useUpper,
     std::string pwd;
     pwd.reserve(length);
 
-    std::random_device rd;
-    std::mt19937 gen(rd()); // Mersenne Twister generator
-    const auto appendOneRandom = [&pwd, &gen](const std::string& src)
+    PrnGen rng;
+    std::string pool;
+    const auto useCharClass = [&pwd, &pool, &rng](const std::string& src)
     {
-        std::uniform_int_distribution<> dis(0, static_cast<int>(src.size() - 1));
-        pwd += src[static_cast<size_t>(dis(gen))];
+        pwd += src[rng.genuint32(src.size())]; // Make sure there is at least 1 of this char class.
+        pool += src;
     };
 
-    std::string pool = lowerCase;
-    appendOneRandom(lowerCase);
+    useCharClass(lowerCase);
     if (useUpper)
     {
-        appendOneRandom(upperCase); // Make sure there is at least 1
-        pool += upperCase;
+        useCharClass(upperCase);
     }
     if (useDigits)
     {
-        appendOneRandom(digits);
-        pool += digits;
+        useCharClass(digits);
     }
     if (useSymbols)
     {
-        appendOneRandom(symbols);
-        pool += symbols;
+        useCharClass(symbols);
     }
 
-    std::uniform_int_distribution<> dis(0, static_cast<int>(pool.size() - 1));
-    for (auto i = pwd.size(); i < length; ++i) pwd += pool[static_cast<size_t>(dis(gen))];
+    for (auto i = pwd.size(); i < length; ++i)
+    {
+        pwd += pool[rng.genuint32(pool.size())];
+    }
 
-    // We shuffle to avoid the first mandatory types
-    std::shuffle(std::begin(pwd), std::end(pwd), gen);
+    // We shuffle to avoid the first mandatory types, Fisher-Yates
+    for (size_t i = pwd.size(); i > 1; --i)
+    {
+        std::swap(pwd[i - 1], pwd[rng.genuint32(i)]);
+    }
 
     return pwd;
 }

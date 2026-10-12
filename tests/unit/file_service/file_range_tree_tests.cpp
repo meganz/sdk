@@ -437,47 +437,47 @@ void testAdd(AddFunction&& add)
 
     // Before: __AA____
     // Adding: _BB_____
-    //  After: _BAA____
+    //  After: __AA____
     std::tie(iterator, added) = std::invoke(add, set, FileRange(1, 3));
 
-    EXPECT_TRUE(added);
+    EXPECT_FALSE(added);
     ASSERT_NE(iterator, set.end());
-    EXPECT_EQ(iterator->mBegin, 1);
-    EXPECT_EQ(iterator->mEnd, 2);
-    EXPECT_EQ(set.size(), 2u);
+    EXPECT_EQ(iterator->mBegin, 2);
+    EXPECT_EQ(iterator->mEnd, 4);
+    EXPECT_EQ(set.size(), 1u);
 
-    // Before: _BAA____
+    // Before: __AA____
     // Adding: ___CC___
-    //  After: _BAA____
+    //  After: __AA____
     std::tie(iterator, added) = std::invoke(add, set, FileRange(3, 5));
 
     EXPECT_FALSE(added);
     ASSERT_NE(iterator, set.end());
     EXPECT_EQ(iterator->mBegin, 2);
     EXPECT_EQ(iterator->mEnd, 4);
-    EXPECT_EQ(set.size(), 2u);
+    EXPECT_EQ(set.size(), 1u);
 
-    // Before: _BAA____
+    // Before: __AA____
     // Adding: DDDDD___
-    //  After: DBAA____
+    //  After: __AA____
     std::tie(iterator, added) = std::invoke(add, set, FileRange(0, 5));
 
-    EXPECT_TRUE(added);
+    EXPECT_FALSE(added);
     ASSERT_NE(iterator, set.end());
-    EXPECT_EQ(iterator->mBegin, 0);
-    EXPECT_EQ(iterator->mEnd, 1);
-    EXPECT_EQ(set.size(), 3u);
+    EXPECT_EQ(iterator->mBegin, 2);
+    EXPECT_EQ(iterator->mEnd, 4);
+    EXPECT_EQ(set.size(), 1u);
 
-    // Before: DBAA____
+    // Before: __AA____
     // Adding: ____CC__
-    //  After: DBAACC__
+    //  After: __AACC__
     std::tie(iterator, added) = std::invoke(add, set, FileRange(4, 6));
 
     EXPECT_TRUE(added);
     ASSERT_NE(iterator, set.end());
     EXPECT_EQ(iterator->mBegin, 4);
     EXPECT_EQ(iterator->mEnd, 6);
-    EXPECT_EQ(set.size(), 4u);
+    EXPECT_EQ(set.size(), 2u);
 }
 
 struct FileRangeGapIteratorTests: ::testing::Test
@@ -529,6 +529,26 @@ TEST_F(FileRangeGapIteratorTests, all_gaps_within_larger_bounding_range)
 TEST_F(FileRangeGapIteratorTests, all_gaps_within_minimum_bounding_range)
 {
     EXPECT_THAT(gaps(16, 56), ElementsAre(FileRange(24, 32), FileRange(40, 48)));
+}
+
+TEST_F(FileRangeGapIteratorTests, change_during_iteration)
+{
+    // So we can modify the set during gap iteration.
+    auto ranges = mRanges;
+
+    // Fill each gap in ranges.
+    for (auto& gap: file_service::gaps(ranges, 8, 64))
+    {
+        // Fill the gap.
+        auto iterator = ranges.merge(gap);
+
+        // Make sure the gap was filled.
+        ASSERT_LE(iterator->mBegin, gap.mBegin);
+        ASSERT_GE(iterator->mEnd, gap.mEnd);
+    }
+
+    // We should now have a single large range.
+    ASSERT_THAT(ranges, ElementsAre(FileRange(8, 64)));
 }
 
 TEST_F(FileRangeGapIteratorTests, no_gaps)

@@ -44,6 +44,7 @@
 #include "sync.h"
 #include "testhooks.h"
 #include "transfer.h"
+#include "transfer_quota_checker.h"
 #include "transferstats.h"
 #include "treeproc.h"
 #include "user.h"
@@ -721,7 +722,8 @@ public:
     // pool (foreign=false); shares are keyed by their OWNER, so every inshare from
     // the same user merges into one pool (foreign=true), with a link/share whose
     // owner is unknown isolated under its own root handle; an unresolvable folder
-    // gets a unique, non-foreign key (isolated, never held).
+    // gets a unique, non-foreign key (isolated; never held, since only foreign
+    // pools hold).
     std::pair<std::uint64_t, bool> wsQuotaClassifyPool(NodeHandle h);
 
     // Observational, app-facing (SDK-6298 P5): compute FRESH whether the current WS
@@ -736,8 +738,13 @@ public:
     // Convenience: mutate a Transfer and issue app->transfer_update() on client thread.
     void wsPostTransferUpdate(Transfer* t,
                               std::function<void(Transfer&, TransferDbCommitter&)>&& f);
-    // Internal WS helper to performs HttpIO WS handshake on the client thread.
-    void* wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err);
+    // Internal WS helper: performs the HttpIO WS handshake on the calling thread (a pool worker
+    // for parallel handshakes, the client thread for the serial path). stopFlag, when given, is
+    // polled inside libcurl so the handshake aborts once the engine is stopping.
+    void* wsHandshakeForUpload(const std::string& url,
+                               long timeoutMs,
+                               std::string* err,
+                               const std::atomic<bool>* stopFlag);
 #endif
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
@@ -951,8 +958,13 @@ public:
     // Get user storage information.
     void getstorageinfo(std::function<void(const StorageInfo&, Error)> completion);
 
-    // check if the available bandwidth quota is enough to transfer an amount of bytes
-    void querytransferquota(m_off_t size);
+    // check if the available bandwidth quota is enough to transfer the given ownNodes, the given
+    // publicNodes, and the extra size additional bytes. With no completion the reply is delivered
+    // through MegaApp::querytransferquota_result; with one it is delivered to the callback instead.
+    void querytransferquota(const std::vector<handle>& ownNodes,
+                            const std::vector<handle>& publicNodes,
+                            m_off_t extraSize = 0,
+                            std::function<void(int /*code*/)> completion = {});
 
     static constexpr char NODE_ATTRIBUTE_DESCRIPTION[] = "des";
     static constexpr char NODE_ATTRIBUTE_TAGS[] = "t";
@@ -1260,6 +1272,7 @@ public:
     void updatepcr(handle, ipcactions_t, CommandUpdatePendingContact::Completion completion = nullptr);
 
     // export node link or remove existing exported link for this node
+    // (writable is only used by share so only available for folders)
     error exportnode(std::shared_ptr<Node>,
                      int,
                      m_time_t,
@@ -1275,8 +1288,11 @@ public:
                            int tag,
                            CommandSetPH::CompletionType completion); // auxiliar method to add req
 
-    // add timer
+    // Client thread only: bttimers is unlocked
     error addtimer(TimerWithBackoff *twb);
+
+    // Fire the expired bttimers
+    void execTimers();
 
 #ifdef ENABLE_SYNC
     /**
@@ -2068,6 +2084,10 @@ public:
 
     // maximum number of concurrent putfa
     static const int MAXPUTFA;
+
+    // an active putfa that has moved no data for this long (ds) is considered stuck: it is
+    // disconnected, so that its MAXPUTFA slot and connection are freed, and requeued for retry
+    static const dstime PUTFATIMEOUT;
 
     // update time at which next deferred transfer retry kicks in
     void nexttransferretry(direction_t d, dstime*);
@@ -3188,6 +3208,12 @@ public:
     // otherwise raise a new event. timeleft is the remaining overquota time in deciseconds.
     void notifyStreamOverquota(dstime timeleft);
 
+    // Evaluates the account's transfer-quota (download bandwidth).
+    TransferQuotaChecker& transferQuotaChecker()
+    {
+        return mTransferQuotaChecker;
+    }
+
     // achievements enabled for the account
     bool achievements_enabled;
 
@@ -3308,6 +3334,12 @@ struct MyAccountData
     void setProLevel(AccountType prolevel) { mProLevel = prolevel; }
     AccountType getProLevel() { return mProLevel; };
     void setProUntil(m_time_t prountil) { mProUntil = prountil; }
+
+    // A paid plan with a fixed transfer allowance (excludes feature-only plans like VPN/PWM).
+    bool isProPlan() const
+    {
+        return isProAccountType(mProLevel);
+    }
 
     // returns remaining time for the current pro-level plan
     // keep in mind that free plans do not have a remaining time; instead, the IP bandwidth is reset after a back off period
@@ -3675,6 +3707,9 @@ public:
     void createPasswordManagerBase(int rtag,
                                    CommandCreatePasswordManagerBase::Completion cbRequest);
 
+    // true if 'node' is within the Vault tree (backup roots / Password Manager base)
+    bool isNodeInVaultTree(const std::shared_ptr<Node>& node) const;
+
     /** @brief The same as updatePasswordNode but for updating a Credit Card Node */
     error updateCreditCardNode(const NodeHandle nh,
                                std::unique_ptr<AttrMap> newData,
@@ -3983,6 +4018,10 @@ private:
 
     // Last known capacity retrieved from the cloud.
     m_off_t mLastKnownCapacity = -1;
+
+    // Evaluates the account's transfer-quota traffic light from the downloads and streaming reads
+    // in flight. Reaches back into this client for that data and to queue the `uq`/`qbq` commands.
+    TransferQuotaChecker mTransferQuotaChecker{*this};
 };
 
 } // namespace

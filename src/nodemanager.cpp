@@ -22,6 +22,7 @@
 #include "mega/nodemanager.h"
 
 #include "mega/base64.h"
+#include "mega/common/error_or.h"
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/share.h"
@@ -29,6 +30,8 @@
 #include <algorithm>
 
 namespace mega {
+
+using common::ErrorOr;
 
 NodeManager::NoKeyLogger NodeManager::mNoKeyLogger{};
 
@@ -1825,11 +1828,11 @@ void NodeManager::notifyPurge()
             mClient.app->nodes_updated(&nodesToReport, static_cast<int>(nodesToReport.size()));
         }
 
-        LockGuard g(mMutex);
-
         // Let the client adapter know that nodes have been updated.
         mClient.mClientAdapter.updated(nodesToReport);
         mClient.mPublicClientAdapter.updated(nodesToReport);
+
+        LockGuard g(mMutex);
 
         TransferDbCommitter committer(mClient.tctable);
 
@@ -2691,6 +2694,107 @@ void NodeManager::Rootnodes::clear()
     files.setUndef();
     rubbish.setUndef();
     vault.setUndef();
+}
+
+auto NodeManager::getChildrenWithName(CancelToken cancelToken,
+                                      const std::string& name,
+                                      NodeHandle parentHandle,
+                                      std::int64_t maxCount) -> ErrorOr<sharedNode_list>
+{
+    // Convenience.
+    using common::unexpected;
+
+    // Caller's passed us a valid parent handle.
+    if (!parentHandle.isUndef())
+        return getChildrenWithName(cancelToken,
+                                   std::unique_lock(mMutex),
+                                   maxCount,
+                                   name,
+                                   parentHandle);
+
+    // Caller passed us a bogus parent handle.
+    return unexpected(API_ENOENT);
+}
+
+template<typename Lock>
+auto NodeManager::getChildrenWithName(CancelToken cancelToken,
+                                      [[maybe_unused]] Lock&& lock,
+                                      std::int64_t maxCount,
+                                      const std::string& name,
+                                      NodeHandle parentHandle) -> ErrorOr<sharedNode_list>
+{
+    // Convenience.
+    using common::unexpected;
+
+    // Sanity: mutex should be acquired.
+    assert(lock.mutex() == &mMutex);
+    assert(lock.owns_lock());
+
+    // Make sure our parent's in memory.
+    auto parent = getNodeByHandle_internal(parentHandle);
+
+    // Parent doesn't exist.
+    if (!parent)
+        return unexpected(API_ENOENT);
+
+    // Try and get a list of each child of parent with name.
+    auto pending = mTable->getChildrenWithName(cancelToken, maxCount, name, parentHandle);
+
+    // Couldn't get a list of children with name.
+    if (!pending)
+        return unexpected(pending.error());
+
+    // Simplifies the loop below.
+    auto getNodeInMemory = [&](NodeHandle handle) -> std::shared_ptr<Node>
+    {
+        // Check if the node's partially in memory.
+        auto i = mNodes.find(handle);
+
+        // Node's not in memory at all.
+        if (i == mNodes.end())
+            return nullptr;
+
+        // Return the node if it's in memory.
+        return i->second.getNodeInRam(false);
+    }; // getNodeInMemory
+
+    // Keeps track of the children we've loaded.
+    sharedNode_list children;
+
+    // Bring each child in memory as needed.
+    for (auto& [handle, blob]: *pending)
+    {
+        // Make sure we haven't been cancelled.
+        if (cancelToken.isCancelled())
+            return {};
+
+        // Child's in memory.
+        if (auto child = getNodeInMemory(handle))
+        {
+            // But is under another parent.
+            if (child->parentHandle() != parentHandle)
+                continue;
+
+            // Add the child to our list.
+            children.emplace_back(std::move(child));
+
+            // Process the next child.
+            continue;
+        }
+
+        // Try and deserialize the child.
+        auto child = getNodeFromNodeSerialized(blob);
+
+        // Couldn't deserialize the child.
+        if (!child)
+            return unexpected(API_EINTERNAL);
+
+        // Add the child to our list.
+        children.emplace_back(std::move(child));
+    }
+
+    // Return list of children to our caller.
+    return children;
 }
 
 } // namespace

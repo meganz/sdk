@@ -128,6 +128,20 @@ MountResult MountDB::check(const MountInfo& info)
         return MOUNT_REMOTE_FILE;
     }
 
+    // The Vault tree cannot be mounted.
+    auto inVault = client().inVault(handle);
+
+    // Couldn't determine whether the node's in the Vault.
+    if (!inVault)
+        return MOUNT_REMOTE_UNKNOWN;
+
+    if (*inVault)
+    {
+        FUSEErrorF("Cloud node is in the Vault: %s", toNodeHandle(handle).c_str());
+
+        return MOUNT_REMOTE_VAULT;
+    }
+
     // Make sure the target path isn't claimed by a sync.
     if (!client().mountable(info.mPath))
     {
@@ -146,7 +160,6 @@ void MountDB::enable()
 try
 {
     inodeDB().current();
-    fileCache().current();
 
     // What mounts should we try and enable?
     std::vector<std::string> mounts;
@@ -610,6 +623,16 @@ void MountDB::disable(NodeHandle handle)
     }
 }
 
+void MountDB::each(std::function<void(platform::Mount&)> function, const Mount& mount)
+{
+    each(
+        [function = std::move(function), id = mount.id()](auto& mount)
+        {
+            if (id != mount.id())
+                function(mount);
+        });
+}
+
 void MountDB::each(std::function<void(platform::Mount&)> function)
 {
     // Sanity.
@@ -752,9 +775,6 @@ try
     // Release lock.
     lock.unlock();
 
-    // Flush any files modified by this mount.
-    fileCache().flush(*mount, inodeDB().modified(mount->handle()));
-
     // Mount's enabled.
     return MOUNT_SUCCESS;
 }
@@ -809,11 +829,6 @@ void MountDB::fileExplorerView(FileExplorerView view)
 FileExplorerView MountDB::fileExplorerView() const
 {
     return mFileExplorerView;
-}
-
-FileCache& MountDB::fileCache()
-{
-    return mContext.mFileCache;
 }
 
 MountResult MountDB::flags(const std::string& currentName, const MountFlags& flags)

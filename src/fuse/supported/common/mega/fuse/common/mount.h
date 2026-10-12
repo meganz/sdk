@@ -12,6 +12,7 @@
 #include <mega/fuse/platform/context_forward.h>
 #include <mega/fuse/platform/mount_db_forward.h>
 
+#include <cstdint>
 #include <future>
 #include <mutex>
 
@@ -41,6 +42,9 @@ class Mount: public std::enable_shared_from_this<Mount>
     // Specifies how the mount should behave.
     MountFlags mFlags;
 
+    // What is this mount's ID?
+    std::uint64_t mID;
+
     // Protects access to this mount's flags.
     mutable std::mutex mLock;
 
@@ -60,12 +64,6 @@ protected:
 
     // Try and retrieve a reference to the specified inode.
     InodeRef get(MountInodeID id, bool memoryOnly = false) const;
-
-    // Pin an inode in memory.
-    void pin(InodeRef inode, const InodeInfo& info);
-
-    // Unpin a pinned inode.
-    void unpin(InodeRef inode, std::uint64_t num);
 
 public:
     // Add a context to our context set.
@@ -91,6 +89,9 @@ public:
 
     // Which cloud node is this mount mapping to?
     NodeHandle handle() const;
+
+    // What is this mount's ID?
+    std::uint64_t id() const;
 
     // Retrieve this mount's description.
     MountInfo info() const;
@@ -125,6 +126,12 @@ public:
 
     // What local path is this mount mapping from?
     virtual common::NormalizedPath path() const = 0;
+
+    // Pin an inode in memory.
+    void pin(InodeRef inode, const InodeInfo& info);
+
+    // Unpin a pinned inode.
+    void unpin(InodeRef inode, std::uint64_t num);
 
     // Is this mount writable?
     bool writable() const;

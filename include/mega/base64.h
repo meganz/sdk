@@ -37,10 +37,17 @@ public:
     static size_t btoa(const byte*, size_t, char*); // deprecated
     static int atob(const string&, string&);
     static string atob(const string&);
-    static int atob(const char*, byte*, int);   // deprecated
+    static int atob(const char*, byte*, int); // deprecated
 
-    static void itoa(int64_t, string *);
-    static int64_t atoi(string *);
+    // Upper bound (with NUL terminator) on what btoa(const byte*, size_t, char*) writes for a
+    // binlen-byte input.
+    static constexpr size_t btoaSize(size_t binlen)
+    {
+        return binlen * 4 / 3 + 4;
+    }
+
+    static void itoa(int64_t, string*);
+    static int64_t atoi(string*);
 
     // modify a base64 string to standard conversion:
     // 1. Trailing(s) '=' if needed to have a "correct" length (ex: from 32 to 44)

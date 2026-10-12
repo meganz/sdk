@@ -1,6 +1,5 @@
 #include <mega/fuse/common/directory_inode.h>
 #include <mega/fuse/common/inode.h>
-#include <mega/fuse/common/inode_info.h>
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/platform/directory_context.h>
 
@@ -48,38 +47,23 @@ DirectoryContext* DirectoryContext::directory()
     return this;
 }
 
-InodeInfo DirectoryContext::get(std::size_t index) const
+InodeRef DirectoryContext::get(std::size_t index) const
 {
     assert(index < size());
 
     // Populate entries if necessary.
     populate();
 
-    // Assume the caller's interested in this directory.
-    InodeRef child = mDirectory;
+    // Caller's interested in one of our children.
+    if (index > 1)
+        return mChildren[index - 2];
 
-    if (index >= 2)
-        child = mChildren[index - 2];
-    else if (index)
-        child = mParent;
+    // Caller's interested in our parent.
+    if (index > 0)
+        return mParent;
 
-    // Child no longer exists.
-    if (!child || child->removed())
-        return InodeInfo();
-
-    // Get our hands on the child's description.
-    auto info = child->info();
-
-    // Child's no longer below this directory.
-    if (index >= 2 && info.mParentID != mDirectory->id())
-        return InodeInfo();
-
-    // Tweak filename for symbolic links.
-    if (index < 2)
-        info.mName.assign(index + 1, '.');
-
-    // Return description to caller.
-    return info;
+    // Caller's interested in us.
+    return mDirectory;
 }
 
 InodeRef DirectoryContext::inode() const

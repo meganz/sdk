@@ -202,6 +202,17 @@ public:
      */
     static void userMatchFilter(sqlite3_context* context, int argc, sqlite3_value** argv);
 
+    // Convenience.
+    using NodeHandleNodeBlobPair = std::pair<NodeHandle, NodeSerialized>;
+    using NodeHandleNodeBlobList = std::list<NodeHandleNodeBlobPair>;
+
+    // Which children of the specified node have the given name?
+    auto getChildrenWithName(CancelToken cancelToken,
+                             std::int64_t maxCount,
+                             const std::string& name,
+                             NodeHandle parentHandle)
+        -> common::ErrorOr<NodeHandleNodeBlobList> override;
+
 private:
     // Iterate over a SQL query row by row and fill the map
     // Allow at least the following containers:
@@ -245,6 +256,7 @@ private:
     sqlite3_stmt* mStmtNumChild = nullptr;
     sqlite3_stmt* mStmtRecents = nullptr; // For getRecentNodes()
     sqlite3_stmt* mStmtFavourites = nullptr;
+    sqlite3_stmt* mStmtGetChildrenWithName = nullptr;
 
     // how many SQLite instructions will be executed between callbacks to the progress handler
     // (tests with a value of 1000 results on a callback every 1.2ms on a desktop PC)

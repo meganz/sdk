@@ -8,6 +8,7 @@
  *        Bodies hosted here (lifecycle / queue / pause / state / pools):
  *
  *          - Lifecycle: ~Impl, stop, start, kick, run.
+ *          - Fileno allocation: ClaimedFileNos, reserveFileNos.
  *          - Queue mutation: enqueue, reposition, remove, eraseFromFileListLocked.
  *          - Per-file commands: pause, unpause, setRetryUntil, markFailed.
  *          - Per-file queries: isUploading (Transfer&) / isUploading (const Transfer&),
@@ -66,13 +67,16 @@
 #include "mega/utils.h" // Utils::getenv (cross-platform env read for wsLossRecoveryEnvDefault)
 
 #include <algorithm>
+#include <cassert>
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib> // std::strtol (wsDatasetConnLimitOverrideEnvDefault)
+#include <iterator>
 #include <limits>
 #include <memory>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <utility>
 #include <vector>
@@ -895,6 +899,102 @@ void UploadEngine::Impl::run()
     mManagerThreadLive.store(false, std::memory_order_release);
 }
 
+// ========== Fileno allocation (SDK-6600) ==========
+
+namespace
+{
+// The fileno after `fileno` in allocation order: UINT32_MAX wraps to 1, never to 0.
+std::uint32_t fileNoAfter(const std::uint32_t fileno)
+{
+    return fileno == std::numeric_limits<std::uint32_t>::max() ? 1u : fileno + 1u;
+}
+
+// Raises `next` to the fileno after `fileno`; never lowers or wraps it (UINT32_MAX: no-op).
+void raiseNextFileNoPast(std::atomic<std::uint32_t>& next, const std::uint32_t fileno)
+{
+    if (fileNoAfter(fileno) > next)
+    {
+        next = fileNoAfter(fileno);
+    }
+}
+
+// "wss://host/ul/<token>" -> "wss://host": the path carries the upload token, which must
+// never reach the logs.
+std::string sessionUrlHost(const std::string& url)
+{
+    const auto scheme = url.find("://");
+    return url.substr(0, url.find('/', scheme == std::string::npos ? 0 : scheme + 3));
+}
+} // namespace
+
+ClaimedFileNos::Runs::const_iterator ClaimedFileNos::findRun(const std::uint32_t fileno) const
+{
+    // The last run starting at or before `fileno` holds it unless that run ends before it.
+    auto run = mRuns.upper_bound(fileno);
+    if (run == mRuns.begin())
+    {
+        return mRuns.end();
+    }
+    --run;
+    return run->second >= fileno ? run : mRuns.end();
+}
+
+bool ClaimedFileNos::contains(const std::uint32_t fileno) const
+{
+    return findRun(fileno) != mRuns.end();
+}
+
+void ClaimedFileNos::claim(const std::uint32_t fileno)
+{
+    assert(fileno);
+    if (contains(fileno))
+    {
+        return;
+    }
+
+    // Merge with the run that starts right after it and the one that ends right before it.
+    auto next = mRuns.upper_bound(fileno);
+    std::uint32_t last = fileno;
+    if (next != mRuns.end() && next->first - 1u == fileno)
+    {
+        last = next->second;
+        next = mRuns.erase(next);
+    }
+    if (next != mRuns.begin() && std::prev(next)->second + 1u == fileno)
+    {
+        std::prev(next)->second = last;
+        return;
+    }
+    mRuns.emplace_hint(next, fileno, last);
+}
+
+std::uint32_t ClaimedFileNos::firstUnclaimedFrom(const std::uint32_t from) const
+{
+    // Runs never touch, so the fileno after a run is unclaimed unless it wrapped to 1 and 1 is
+    // claimed as well: at most two jumps. A third one would need all 2^32-1 filenos claimed,
+    // i.e. that many uploads in one engine, which is not reachable.
+    std::uint32_t fileno = from ? from : 1u;
+    for (int jumps = 0; jumps < 2; ++jumps)
+    {
+        const auto run = findRun(fileno);
+        if (run == mRuns.end())
+        {
+            break;
+        }
+        fileno = fileNoAfter(run->second);
+    }
+    assert(!contains(fileno));
+    return fileno;
+}
+
+void UploadEngine::Impl::reserveFileNos(const std::uint32_t highestPersisted)
+{
+    // Raise only: several transfer-cache loads may reach the engine, in any order. Nothing is
+    // claimed: these filenos belong to the persisted transfers until they are restored.
+    std::lock_guard<std::mutex> g(uploadMutex);
+    raiseNextFileNoPast(nextFileNo, highestPersisted);
+}
+
 // ========== Queue mutation ==========
 
 void UploadEngine::Impl::enqueue(Transfer& t)
@@ -902,22 +1002,46 @@ void UploadEngine::Impl::enqueue(Transfer& t)
     WSUPLOAD_TRACE << "[UploadEngine::Impl::enqueue] t=" << t.localfilename
               << " files.size=" << files.size() << " [this = " << this << "]";
     std::lock_guard<std::mutex> g(uploadMutex);
-    if (!nextFileNo)
-        nextFileNo = 1;
 
-    // ws_fileno may come from transfer cache restore (Transfer::unserialize).
-    // Reuse it when possible so resumed WS state keeps the same file identity.
-    std::uint32_t fileno = t.ws_fileno;
-    if (!fileno || fileByNo.find(fileno) != fileByNo.end())
+    // ws_fileno may come from transfer cache restore (Transfer::unserialize), with the session
+    // URL it was fed on. A wss:// URL may receive each fileno for one file only, and a persisted
+    // URL outlives this engine (SDK-6600), so a fileno is kept only if it cannot have served
+    // another file of this engine:
+    //  - its own: this engine gave it to this transfer (a whole-file retry after remove());
+    //  - a cached one: non-zero and never claimed by this engine. reserveFileNos keeps fresh
+    //    filenos above the persisted ones, so a restored transfer normally keeps its fileno,
+    //    URL and resume point.
+    // Otherwise the transfer gets a fresh fileno. Its persisted URL may already have carried that
+    // fileno for another file, so the URL is dropped together with the resume state it holds.
+    const bool own = t.ws_fileno && t.ws_fileno_engine == mInstanceId;
+    const bool keep = own ? fileByNo.find(t.ws_fileno) == fileByNo.end() :
+                            t.ws_fileno && !mClaimedFileNos.contains(t.ws_fileno);
+    if (!keep)
     {
-        fileno = nextFileNo++;
-        t.ws_fileno = fileno;
+        const std::uint32_t fresh = mClaimedFileNos.firstUnclaimedFrom(nextFileNo);
+        nextFileNo = fileNoAfter(fresh);
+        if (!t.ws_session_url.empty())
+        {
+            LOG_warn << "WsUpload: persisted session URL " << sessionUrlHost(t.ws_session_url)
+                     << " dropped: fileno " << t.ws_fileno
+                     << " cannot be kept, restarting the upload from byte 0 as fileno " << fresh;
+            // Transfer::failed's PUT reset: the resume point only exists on that URL.
+            t.ws_session_url.clear();
+            t.chunkmacs.clear();
+            t.pos = 0;
+            t.setProgresscompleted(0);
+            t.ultoken.reset();
+        }
+        t.ws_fileno = fresh;
     }
-    else if (fileno >= nextFileNo)
+    else if (!own)
     {
         // Keep nextFileNo above any restored file numbers to avoid collisions.
-        nextFileNo = fileno + 1;
+        raiseNextFileNoPast(nextFileNo, t.ws_fileno);
     }
+    mClaimedFileNos.claim(t.ws_fileno); // no-op for its own fileno
+    t.ws_fileno_engine = mInstanceId;
+    const std::uint32_t fileno = t.ws_fileno;
 
     // ws_session_url may also come from transfer cache restore.
     // If present, create/keep a dedicated pinned pool for that exact endpoint.

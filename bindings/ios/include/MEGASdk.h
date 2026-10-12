@@ -26,11 +26,13 @@
 #import "MEGAContactRequest.h"
 #import "MEGAContactRequestList.h"
 #import "MEGADelegate.h"
+#import "MEGADownloadItemList.h"
 #import "MEGAError.h"
 #import "MEGAEvent.h"
 #import "MEGAFileServiceReclaimOptions.h"
 #import "MEGAFileServiceStorageInfo.h"
 #import "MEGAGlobalDelegate.h"
+#import "MEGAHandleList.h"
 #import "MEGANodeList.h"
 #import "MEGANode.h"
 #import "MEGALoggerDelegate.h"
@@ -5301,6 +5303,9 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
 /**
  * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
  *
+ * @deprecated Use [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:], which asks about the actual nodes to
+ * be transferred. This method no longer queries the API; it always reports NO.
+ *
  * The associated request type with this request is MEGARequestTypeQueryTransferQuota
  *
  * Valid data in the MEGARequest object received on callbacks:
@@ -5313,10 +5318,13 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param size Amount of bytes to be transferred
  * @param delegate MEGARequestDelegate to track this request
  */
-- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate;
+- (void)queryTransferQuotaWithSize:(long long)size delegate:(id<MEGARequestDelegate>)delegate __attribute__((deprecated("Use [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:]")));
 
 /**
  * @brief Check if the available bandwidth quota is enough to transfer an amount of bytes
+ *
+ * @deprecated Use [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:], which asks about the actual nodes to
+ * be transferred. This method no longer queries the API; it always reports NO.
  *
  * The associated request type with this request is MEGARequestTypeQueryTransferQuota
  *
@@ -5329,7 +5337,110 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  *
  * @param size Amount of bytes to be transferred
  */
-- (void)queryTransferQuotaWithSize:(long long)size;
+- (void)queryTransferQuotaWithSize:(long long)size __attribute__((deprecated("Use [MEGASdk estimateFreeTransferQuotaStateWithOwnNodes:publicNodes:]")));
+
+/**
+ * @brief Check if the available bandwidth quota is enough to transfer some nodes
+ *
+ * For accounts with no fixed transfer allowance (free accounts, and feature-only plans such as
+ * VPN/PWM), whose per-IP quota no usage ratio describes. A PRO account has an allowance instead,
+ * so it should read [MEGAAccountDetails transferQuotaState], from
+ * [MEGASdk queryProTransferQuotaStateLiteWithDelegate:], [MEGASdk getAccountDetails] or
+ * [MEGASdk getAccountDetailsWithDelegate:].
+ *
+ * The associated request type with this request is MEGARequestTypeEstimateFreeTransferQuotaState
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Transfer quota state for those nodes, as a traffic light:
+ *   MEGATransferQuotaStateGreen (enough transfer quota), MEGATransferQuotaStateOrange (they can be
+ *   transferred, but little quota would be left afterwards), MEGATransferQuotaStateRed (not enough
+ *   quota to transfer them all), MEGATransferQuotaStateUnknown (undetermined)
+ *
+ * The nodes are given already split by ownership, as the API takes them: a node obtained from a
+ * public link goes in publicNodes, one of this account in ownNodes. Only file nodes should be
+ * given; the API decides what to make of anything else.
+ *
+ * Whatever is already downloading or streaming is counted alongside the given nodes, less the bytes
+ * of it already transferred, so the state describes where the account lands once everything in
+ * progress and everything asked about has finished -- not the given nodes in isolation. Only for
+ * accounts without a fixed allowance: on a PRO account the request fails with
+ * MEGAErrorTypeApiEAccess, as these nodes say nothing about an allowance -- use
+ * [MEGASdk queryProTransferQuotaStateLiteWithDelegate:] there.
+ *
+ * The request fails with MEGAErrorTypeApiEArgs if both lists are empty or nil, and with
+ * MEGAErrorTypeApiEAccess on a PRO account. Handles are sent as given: the SDK sees only handles,
+ * so it cannot skip a folder or an invalid one on your behalf.
+ *
+ * @param ownNodes Handles of this account's file nodes to be transferred; may be nil
+ * @param publicNodes Handles of file nodes obtained from a public link; may be nil
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)estimateFreeTransferQuotaStateWithOwnNodes:(nullable MEGAHandleList *)ownNodes publicNodes:(nullable MEGAHandleList *)publicNodes delegate:(id<MEGARequestDelegate>)delegate;
+
+/**
+ * @brief Check if the available bandwidth quota is enough to transfer some nodes
+ *
+ * For accounts with no fixed transfer allowance (free accounts, and feature-only plans such as
+ * VPN/PWM), whose per-IP quota no usage ratio describes. A PRO account has an allowance instead,
+ * so it should read [MEGAAccountDetails transferQuotaState], from
+ * [MEGASdk queryProTransferQuotaStateLiteWithDelegate:], [MEGASdk getAccountDetails] or
+ * [MEGASdk getAccountDetailsWithDelegate:].
+ *
+ * The associated request type with this request is MEGARequestTypeEstimateFreeTransferQuotaState
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest number] - Transfer quota state for those nodes, as a traffic light:
+ *   MEGATransferQuotaStateGreen (enough transfer quota), MEGATransferQuotaStateOrange (they can be
+ *   transferred, but little quota would be left afterwards), MEGATransferQuotaStateRed (not enough
+ *   quota to transfer them all), MEGATransferQuotaStateUnknown (undetermined)
+ *
+ * The nodes are given already split by ownership, as the API takes them: a node obtained from a
+ * public link goes in publicNodes, one of this account in ownNodes. Only file nodes should be
+ * given; the API decides what to make of anything else.
+ *
+ * Whatever is already downloading or streaming is counted alongside the given nodes, less the bytes
+ * of it already transferred, so the state describes where the account lands once everything in
+ * progress and everything asked about has finished -- not the given nodes in isolation. Only for
+ * accounts without a fixed allowance: on a PRO account the request fails with
+ * MEGAErrorTypeApiEAccess, as these nodes say nothing about an allowance -- use
+ * [MEGASdk queryProTransferQuotaStateLiteWithDelegate:] there.
+ *
+ * The request fails with MEGAErrorTypeApiEArgs if both lists are empty or nil, and with
+ * MEGAErrorTypeApiEAccess on a PRO account. Handles are sent as given: the SDK sees only handles,
+ * so it cannot skip a folder or an invalid one on your behalf.
+ *
+ * @param ownNodes Handles of this account's file nodes to be transferred; may be nil
+ * @param publicNodes Handles of file nodes obtained from a public link; may be nil
+ */
+- (void)estimateFreeTransferQuotaStateWithOwnNodes:(nullable MEGAHandleList *)ownNodes publicNodes:(nullable MEGAHandleList *)publicNodes;
+
+/**
+ * @brief Get the transfer info of a PRO account, preferring the local cache
+ *
+ * A PRO account's transfer quota traffic light comes from its allowance, cached for 10 minutes
+ * after each time the allowance is fetched. This serves that cached state without contacting the
+ * servers; when nothing has been cached yet, or the cache has aged out, it queries the API first.
+ * So it is cheap only while the cache is warm: the first call after login always contacts the
+ * servers, as does any call more than 10 minutes after the last one.
+ *
+ * Unlike [MEGASdk getAccountDetails] and [MEGASdk getAccountDetailsWithDelegate:], which always
+ * request fresh data from the servers, this method serves the local cache when available.
+ *
+ * This method is only valid for PRO accounts. For any other account the request fails with
+ * MEGAErrorTypeApiEAccess.
+ *
+ * The associated request type with this request is MEGARequestTypeQueryProTransferQuotaStateLite
+ *
+ * Valid data in the MEGARequest object received in onRequestFinish when the error code
+ * is MEGAErrorTypeApiOk:
+ * - [MEGARequest megaAccountDetails] - A MEGAAccountDetails with only the transfer fields
+ *   populated (transferMax, transferUsed, transferOwnUsed, transferSrvUsed, transferQuotaState)
+ *
+ * @param delegate MEGARequestDelegate to track this request
+ */
+- (void)queryProTransferQuotaStateLiteWithDelegate:(id<MEGARequestDelegate>)delegate;
 
 /**
  * @brief Get the recommended PRO level. The smallest plan that is an upgrade (free -> lite -> proi -> proii -> proiii)
@@ -6783,6 +6894,45 @@ typedef NS_ENUM(NSInteger, PasswordManagerNodeType) {
  * @param delegate Delegate to track this transfer.
  */
 - (void)startDownloadNode:(MEGANode *)node localPath:(NSString *)localPath  fileName:(nullable NSString*)fileName appData:(nullable NSString *)appData startFirst:(BOOL) startFirst cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Download a selection of files and folders from MEGA as a single transfer
+ *
+ * Where [MEGASdk startDownloadNode:localPath:] is called once per root, this takes the whole
+ * selection at once: one MEGATransfer represents it, with a single
+ * [MEGATransferDelegate onTransferStart:transfer:], one cancel token and one
+ * [MEGATransferDelegate onTransferFinish:transfer:error:]. Individual files are reported as
+ * sub-transfers, exactly as a folder download already does.
+ *
+ * Each item carries its own destination, name and flags, so the batch may span several
+ * destinations. See [MEGADownloadItemList addNode:localPath:customName:appData:startFirst:undelete:].
+ *
+ * Because the SDK knows the whole selection up front, it predicts the transfer-quota state of the
+ * batch as a whole and reports it through
+ * [MEGATransferDelegate onTransferQuotaState:transfer:state:] before any file starts. That delays
+ * the start by a few seconds at most; a state that could not be determined is still reported.
+ *
+ * If items is nil or empty the transfer finishes with MEGAErrorTypeApiEArgs.
+ *
+ * @param items Roots to download, with their destinations and per-item options
+ * @param cancelToken MEGACancelToken to be able to cancel the whole batch, or nil
+ * @param collisionCheck Collision check to apply to every file of the batch
+ * @param collisionResolution Collision resolution to apply to every file of the batch
+ * @param delegate MEGATransferDelegate to track this transfer
+ */
+- (void)startDownloadBatchWithItems:(MEGADownloadItemList *)items cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution delegate:(id<MEGATransferDelegate>)delegate;
+
+/**
+ * @brief Download a selection of files and folders from MEGA as a single transfer
+ *
+ * See [MEGASdk startDownloadBatchWithItems:cancelToken:collisionCheck:collisionResolution:delegate:].
+ *
+ * @param items Roots to download, with their destinations and per-item options
+ * @param cancelToken MEGACancelToken to be able to cancel the whole batch, or nil
+ * @param collisionCheck Collision check to apply to every file of the batch
+ * @param collisionResolution Collision resolution to apply to every file of the batch
+ */
+- (void)startDownloadBatchWithItems:(MEGADownloadItemList *)items cancelToken:(nullable MEGACancelToken *)cancelToken collisionCheck:(CollisionCheck)collisionCheck collisionResolution:(CollisionResolution)collisionResolution;
 
 /**
  * @brief Start an streaming download for a file in MEGA

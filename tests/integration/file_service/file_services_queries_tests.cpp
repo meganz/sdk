@@ -58,8 +58,6 @@ protected:
         mQueries->mAddFile.param(":handle").set(nullptr);
         mQueries->mAddFile.param(":id").set(id);
         mQueries->mAddFile.param(":modified").set(0);
-        mQueries->mAddFile.param(":name").set(nullptr);
-        mQueries->mAddFile.param(":parent_handle").set(nullptr);
         mQueries->mAddFile.param(":removed").set(removed);
         mQueries->mAddFile.param(":reported_size").set(reportedSize);
         mQueries->mAddFile.param(":size").set(size);

@@ -87,6 +87,10 @@ HttpReqFA::HttpReqFA(NodeOrUploadHandle cth,
 
     binary = true;
 
+    // as for transfer chunks: have curl abort the request if it stalls (<30 B/s for 60s), in
+    // addition to the stale-data watchdog in MegaClient::exec (MegaClient::PUTFATIMEOUT)
+    minspeed = true;
+
     getURLForFACmd = [this, cth, ctype, ctag, getIP, client]()
     {
         std::weak_ptr<HttpReqFA> weakSelf(shared_from_this());
@@ -1993,7 +1997,8 @@ bool CommandLogin::procresult(Result r, JSON& json)
                     {
                         // decrypt and set private key
                         client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
-                        client->mSerializedPrivateRsaKey.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                        client->mSerializedPrivateRsaKey.resize(
+                            Base64::btoaSize(static_cast<size_t>(len_privk)));
                         client->mSerializedPrivateRsaKey.resize(
                             Base64::btoa(privkbuf,
                                          static_cast<size_t>(len_privk),
@@ -2057,7 +2062,7 @@ bool CommandLogin::procresult(Result r, JSON& json)
                 client->mFileService.initialize(client->mClientAdapter);
 
                 // Initialize FUSE subsystem.
-                client->mFuseService.initialize();
+                client->mFuseService.initialize(client->mFileService);
 
                 client->openStatusTable(true);
                 client->loadJourneyIdCacheValues();
@@ -5093,7 +5098,7 @@ bool CommandGetUserData::procresult(Result r, JSON& json)
             if (len_privk)
             {
                 client->key.ecb_decrypt(privkbuf, static_cast<size_t>(len_privk));
-                privk.resize(AsymmCipher::MAXKEYLENGTH * 2);
+                privk.resize(Base64::btoaSize(static_cast<size_t>(len_privk)));
                 privk.resize(
                     Base64::btoa(privkbuf, static_cast<size_t>(len_privk), (char*)privk.data()));
 
@@ -6191,6 +6196,10 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 {
                     LOG_err << "Failed to parse GetUserQuota response, enter `features` object";
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if (mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
 
@@ -6208,6 +6217,10 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 {
                     LOG_err << "Failed to parse GetUserQuota response, leave `features` object";
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if (mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
                 break;
@@ -6218,6 +6231,10 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 {
                     LOG_err << "Failed to parse `subs` array in GetUserQuota response";
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if (mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
             }
@@ -6229,6 +6246,10 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 {
                     LOG_err << "Failed to parse `plans` array in GetUserQuota response";
                     client->app->account_details(details.get(), API_EINTERNAL);
+                    if (mCompletion)
+                    {
+                        mCompletion(details, API_EINTERNAL);
+                    }
                     return false;
                 }
             }
@@ -6249,6 +6270,14 @@ bool CommandGetUserQuota::procresult(Result r, JSON& json)
                 if (mPro)
                 {
                     processPlans();
+                }
+
+                // A `uq` reply that fetched transfer figures refreshes the Pro-account
+                // traffic-light cache; cacheStatusFromDetails ignores non-Pro accounts so it can't
+                // clobber qbq.
+                if (mTransfer)
+                {
+                    client->transferQuotaChecker().cacheStatusFromDetails(*details);
                 }
 
                 client->app->account_details(details.get(), mStorage, mTransfer, mPro, false, false, false);
@@ -6538,29 +6567,74 @@ void CommandGetUserQuota::processPlans()
     }
 }
 
-CommandQueryTransferQuota::CommandQueryTransferQuota(MegaClient* client, m_off_t size)
+CommandQueryTransferQuota::CommandQueryTransferQuota(MegaClient* client,
+                                                     const std::vector<handle>& ownNodes,
+                                                     const std::vector<handle>& publicNodes,
+                                                     m_off_t extraSize,
+                                                     Completion&& completion):
+    mCompletion(std::move(completion))
 {
     cmd("qbq");
-    arg("s", size);
+
+    if (!ownNodes.empty())
+    {
+        beginarray("n");
+        for (const handle h: ownNodes)
+        {
+            element(h, MegaClient::NODEHANDLE);
+        }
+        endarray();
+    }
+
+    if (!publicNodes.empty())
+    {
+        beginarray("p");
+        for (const handle h: publicNodes)
+        {
+            element(h, MegaClient::NODEHANDLE);
+        }
+        endarray();
+    }
+
+    if (extraSize)
+    {
+        arg("s", extraSize);
+    }
 
     tag = client->reqtag;
+}
+
+void CommandQueryTransferQuota::reportCode(int code)
+{
+    if (mCompletion)
+    {
+        mCompletion(code);
+        return;
+    }
+
+    client->app->querytransferquota_result(code);
 }
 
 bool CommandQueryTransferQuota::procresult(Result r, JSON& json)
 {
     if (!r.wasErrorOrOK())
     {
+        // A positive code is a value, not an error: JSON::isNumericError only recognises 0 and
+        // negative numbers, so the pre-warning codes reach us as a plain JSON item.
+        if (r.hasJsonItem() && json.isnumeric())
+        {
+            reportCode(static_cast<int>(json.getint()));
+            return true;
+        }
+
         LOG_err << "Unexpected response: " << json.pos;
         json.storeobject();
 
-        // Returns 0 to not alarm apps and don't show overquota pre-warnings
-        // if something unexpected is received, following the same approach as
-        // in the webclient
-        client->app->querytransferquota_result(0);
+        reportCode(API_EINTERNAL);
         return false;
     }
 
-    client->app->querytransferquota_result(r.errorOrOK());
+    reportCode(r.errorOrOK());
     return true;
 }
 

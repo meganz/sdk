@@ -1,11 +1,11 @@
 #pragma once
 
+#include <mega/common/logger_forward.h>
+#include <mega/common/move_only_function.h>
+#include <mega/common/task_queue_forward.h>
+
 #include <chrono>
 #include <deque>
-#include <functional>
-
-#include <mega/common/logger_forward.h>
-#include <mega/common/task_queue_forward.h>
 
 namespace mega
 {
@@ -25,27 +25,22 @@ public:
     Task() = default;
 
     // Create a task that is to run at some point in time.
-    Task(std::function<void(const Task&)> function,
+    Task(MoveOnlyFunction<void(const Task&)> function,
          Logger& logger,
          std::chrono::steady_clock::time_point when);
 
     // Create a task that is to run at some point in the future.
     template<typename Rep, typename Period>
-    Task(std::function<void(const Task&)> function,
+    Task(MoveOnlyFunction<void(const Task&)> function,
          Logger& logger,
-         std::chrono::duration<Rep, Period> when)
-      : Task(std::move(function),
-             logger,
-             std::chrono::steady_clock::now() + when)
+         std::chrono::duration<Rep, Period> when):
+        Task(std::move(function), logger, std::chrono::steady_clock::now() + when)
     {
     }
 
     // Create a task that should run now.
-    Task(std::function<void(const Task&)> function,
-         Logger& logger)
-      : Task(std::move(function),
-             logger,
-             std::chrono::steady_clock::now())
+    Task(MoveOnlyFunction<void(const Task&)> function, Logger& logger):
+        Task(std::move(function), logger, std::chrono::steady_clock::now())
     {
     }
 
@@ -56,6 +51,10 @@ public:
     Task& operator=(const Task& rhs) = default;
 
     Task& operator=(Task&& rhs) = default;
+
+    bool operator==(const Task& rhs) const;
+
+    bool operator!=(const Task& rhs) const;
 
     // True if this instance references a task.
     operator bool() const;

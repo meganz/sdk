@@ -55,6 +55,10 @@ public:
         return operator==(DateTime(rhs));
     }
 
+    bool operator<(const DateTime& rhs) const;
+
+    bool operator>(const DateTime& rhs) const;
+
     bool operator!=(const DateTime& rhs) const;
 
     template<typename T,

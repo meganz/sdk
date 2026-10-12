@@ -42,6 +42,7 @@
 #include <fstream>
 #include <ios>
 #include <iostream>
+#include <numeric>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -3641,6 +3642,34 @@ void exec_getdiscountcodeinfo(autocomplete::ACState& ac)
         });
 }
 
+void exec_getprotransferstatelite(autocomplete::ACState&)
+{
+    TransferQuotaChecker& checker = client->transferQuotaChecker();
+
+    // Restricted to Pro accounts; others have no allowance-based status to serve.
+    if (!checker.isProAccount())
+    {
+        cout << "Not a Pro account" << endl;
+        return;
+    }
+
+    checker.getProTransferState(
+        [](TransferQuotaChecker::ProTransferQuota quota, Error e)
+        {
+            if (e != API_OK)
+            {
+                cout << "Error: " << e << endl;
+                return;
+            }
+
+            cout << "Cached user quota state: " << quota.status << " (max " << quota.max
+                 << ", own used " << quota.ownUsed << ", served " << quota.srvUsed
+                 << ", per-IP used "
+                 << std::accumulate(quota.hist.begin(), quota.hist.end(), m_off_t{0}) << ")"
+                 << endl;
+        });
+}
+
 void exec_getuserdata(autocomplete::ACState&)
 {
     if (client->loggedin()) client->getuserdata(client->reqtag);
@@ -3649,7 +3678,41 @@ void exec_getuserdata(autocomplete::ACState&)
 
 void exec_querytransferquota(autocomplete::ACState& ac)
 {
-    client->querytransferquota(atoll(ac.words[1].s.c_str()));
+    // Remote paths are queried as nodes of this account (`n`), exported links by the handle of the
+    // link itself (`p`); the byte size stays the `s` adjustment on top of them all.
+    std::vector<handle> ownNodes;
+    std::vector<handle> publicNodes;
+    for (size_t i = 2; i < ac.words.size(); ++i)
+    {
+        const string& word = ac.words[i].s;
+
+        handle ph = UNDEF;
+        byte key[FILENODEKEYLENGTH];
+        if (client->parsepubliclink(word.c_str(), ph, key, TypeOfLink::FILE) == API_OK)
+        {
+            publicNodes.push_back(ph);
+        }
+        else if (auto n = nodeFromRemotePath(word))
+        {
+            // Only file nodes are charged; a folder handle would just be dead weight in the query
+            if (n->type != FILENODE)
+            {
+                cout << word << ": not a file. Skipping" << endl;
+                continue;
+            }
+
+            ownNodes.push_back(n->nodehandle);
+        }
+    }
+
+    // `qbq` asks about nodes, so it needs at least one; `s` alone adjusts nothing.
+    if (ownNodes.empty() && publicNodes.empty())
+    {
+        cout << "Nothing to ask about: give at least one remote path or file link" << endl;
+        return;
+    }
+
+    client->querytransferquota(ownNodes, publicNodes, atoll(ac.words[1].s.c_str()));
 }
 
 void DemoApp::querytransferquota_result(int n)
@@ -5108,7 +5171,7 @@ static void exec_fileserviceinfo(autocomplete::ACState& state)
 
     // Print the description.
     conlock(std::cout) << "File " << toString(id) << ":\n"
-                       << "Allocated Size" << info->allocatedSize() << "\n"
+                       << "Allocated Size: " << info->allocatedSize() << "\n"
                        << "Handle: " << toNodeHandle(info->handle()) << "\n"
                        << "Modified: " << displayTime(info->modified()) << "\n"
                        << "Reported Size: " << info->reportedSize() << "\n"
@@ -5128,6 +5191,15 @@ static void exec_fileserviceread(autocomplete::ACState& state)
 
     // Try and open the file the user's specified.
     auto file = client->mFileService.open(id);
+
+    // Read using normal tag?
+    const auto readTag = [&state]() -> ReadTag
+    {
+        if (state.extractflag("-normal"))
+            return NormalReadTag{};
+        else
+            return StreamReadTag{true};
+    }();
 
     // Couldn't open the file.
     if (!file)
@@ -5165,10 +5237,10 @@ static void exec_fileserviceread(autocomplete::ACState& state)
     std::uint64_t length = file->info().size();
 
     // User wants to start reading from a particular offset.
-    if (state.words.size() > 2)
+    if (state.words.size() > 3)
     {
         // Try and translate the user's offset.
-        auto offset_ = translate(state.words[2].s);
+        auto offset_ = translate(state.words[3].s);
 
         // Couldn't translate the user's offset.
         if (!offset_)
@@ -5181,10 +5253,10 @@ static void exec_fileserviceread(autocomplete::ACState& state)
     }
 
     // User wants to read only so much of the file.
-    if (state.words.size() > 3)
+    if (state.words.size() > 4)
     {
         // Try and translate the user's length.
-        auto length_ = translate(state.words[3].s);
+        auto length_ = translate(state.words[4].s);
 
         // Couldn't translate the user's length.
         if (!length_)
@@ -5202,12 +5274,14 @@ static void exec_fileserviceread(autocomplete::ACState& state)
         File mFile;
         std::uint64_t mOffset;
         std::uint64_t mLength;
+        ReadTag mReadTag;
 
     public:
-        Reader(File file, std::uint64_t offset, std::uint64_t length):
+        Reader(File file, std::uint64_t offset, std::uint64_t length, ReadTag readTag):
             mFile(std::move(file)),
             mOffset(offset),
-            mLength(length)
+            mLength(length),
+            mReadTag(readTag)
         {}
 
         // Called when our read has completed.
@@ -5240,12 +5314,12 @@ static void exec_fileserviceread(autocomplete::ACState& state)
         // Kick off the read.
         void read()
         {
-            mFile.read(*this, mOffset, mLength - mOffset, true);
+            mFile.read(*this, mOffset, mLength - mOffset, mReadTag);
         }
     }; // Reader
 
     // Kick off the read.
-    Reader(std::move(*file), offset, length).read();
+    Reader(std::move(*file), offset, length, readTag).read();
 }
 
 static void exec_fileserviceReclaimOptions(autocomplete::ACState& state)
@@ -5715,9 +5789,13 @@ autocomplete::ACN autocompleteSyntax()
             sequence(flag("-filesize"), param("size")),
             sequence(flag("-nameprefix"), param("prefix")))), localFSFolder("localworkingfolder"), remoteFSFolder(client, &cwd, "remoteworkingfolder")));
 
-    p->Add(exec_querytransferquota, sequence(text("querytransferquota"), param("filesize")));
+    p->Add(exec_querytransferquota,
+           sequence(text("querytransferquota"),
+                    param("filesize"),
+                    repeat(either(remoteFSPath(client, &cwd), exportedLink(true, false)))));
     p->Add(exec_getcloudstorageused, sequence(text("getcloudstorageused")));
     p->Add(exec_getuserquota, sequence(text("getuserquota"), repeat(either(flag("-storage"), flag("-transfer"), flag("-pro")))));
+    p->Add(exec_getprotransferstatelite, sequence(text("getprotransferstatelite")));
     p->Add(exec_getuserdata, text("getuserdata"));
     p->Add(exec_getdiscountcodeinfo, sequence(text("getdiscountcodeinfo"), param("code")));
 
@@ -6004,6 +6082,7 @@ autocomplete::ACN autocompleteSyntax()
                     text("read"),
                     either(sequence(flag("-id"), param("id")),
                            sequence(flag("-path"), remoteFSFile(client, &cwd))),
+                    either(flag("-normal"), flag("-stream")),
                     opt(sequence(param("offset"), opt(param("length"))))));
 
     p->Add(exec_fileserviceReclaimOptions,
@@ -9558,7 +9637,7 @@ void exec_mediainfo(autocomplete::ACState& s)
     }
     else if (!client->mediaFileInfo.mediaCodecsReceived)
     {
-        client->mediaFileInfo.requestCodecMappingsOneTime(client, LocalPath());
+        client->mediaFileInfo.requestCodecMappingsOneTime(client, std::string());
         cout << "Mediainfo lookups requested" << endl;
     }
 

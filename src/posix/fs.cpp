@@ -686,6 +686,16 @@ bool PosixFileAccess::fstat(m_time_t& modified, m_off_t& size)
     return true;
 }
 
+bool PosixFileAccess::ftouch(m_time_t modified)
+{
+    struct timespec times[] = {/* accessed */ {0, UTIME_OMIT},
+                               /* modified */ {static_cast<time_t>(modified), 0}}; // times
+
+    retry = false;
+
+    return futimens(fd, times) == 0;
+}
+
 bool PosixFileAccess::ftruncate(m_off_t size)
 {
     retry = false;
@@ -1035,10 +1045,9 @@ void LinuxFileSystemAccess::addevents([[maybe_unused]] Waiter* waiter, int /*fla
 
     auto w = static_cast<PosixWaiter*>(waiter);
 
-    MEGA_FD_SET(mNotifyFd, &w->rfds);
-    MEGA_FD_SET(mNotifyFd, &w->ignorefds);
-
-    w->bumpmaxfd(mNotifyFd);
+    // checkevents() below interprets this descriptor's readiness itself, so
+    // readiness here must not request NEEDEXEC on its behalf.
+    w->watchReadable(mNotifyFd, ExecOnReady::No);
 
 #endif // ENABLE_SYNC
 }
@@ -1061,7 +1070,7 @@ int LinuxFileSystemAccess::checkevents([[maybe_unused]] Waiter* waiter)
 
     auto* w = static_cast<PosixWaiter*>(waiter);
 
-    if (!MEGA_FD_ISSET(mNotifyFd, &w->rfds))
+    if (!w->isReadable(mNotifyFd))
         return result;
 
     char buf[sizeof(struct inotify_event) + NAME_MAX + 1];

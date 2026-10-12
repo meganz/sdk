@@ -93,7 +93,7 @@ class DelegateMegaTransferListener extends MegaTransferListener {
             megaApi.runCallback(new Runnable() {
                 public void run() {
                     listener.onTransferFinish(megaApi, megaTransfer, megaError);
-                    
+
                     if (singleListener) {
                         megaApi.privateFreeTransferListener(DelegateMegaTransferListener.this);
                     }
@@ -218,6 +218,31 @@ class DelegateMegaTransferListener extends MegaTransferListener {
                 public void run() {
                     listener.onFolderTransferUpdate(megaApi, megaTransfer, stage, folderCount, createdFolderCount, fileCount, currentFolder, currentFileLeafName);
                 }
+            });
+        }
+    }
+
+    /**
+     * Predicted transfer-quota state for this transfer.
+     * <p>
+     * Called once the SDK knows every file the transfer will fetch and the API has answered for
+     * them, before any of those files starts, so an app can warn while the bandwidth is still
+     * unspent. Only reported for MegaApiJava::startDownloadBatch, and only to the listener passed
+     * to that call.
+     *
+     * @param api      MegaApi object that started the transfer
+     * @param transfer Information about the transfer
+     * @param state    Predicted transfer quota state, one of
+     *     MegaApiJava::TRANSFER_QUOTA_STATE_GREEN,
+     *                 MegaApiJava::TRANSFER_QUOTA_STATE_ORANGE,
+     * MegaApiJava::TRANSFER_QUOTA_STATE_RED or MegaApiJava::TRANSFER_QUOTA_STATE_UNKNOWN
+     */
+    @Override
+    public void onTransferQuotaState(MegaApi api, MegaTransfer transfer, int state) {
+        if (listener != null) {
+            final MegaTransfer megaTransfer = transfer.copy();
+            megaApi.runCallback(new Runnable() {
+                public void run() { listener.onTransferQuotaState(megaApi, megaTransfer, state); }
             });
         }
     }

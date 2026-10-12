@@ -17,6 +17,7 @@
  *  - WsQuotaHoldChangedCapture-> H3 onWsQuotaHoldChanged(tag, held, foreign, avail)
  *  - WsTfsStaleDiscardedCapture-> H4 onWsTfsStaleDiscarded(staleGen, currentGen)
  *  - WsQuotaDeductedCapture   -> H6 onWsQuotaDeducted(folder, size, remainingAfter)
+ *  - WsQuotaForceForeignClassification -> onWsQuotaClassifyPool(folder, bool& foreign)
  *
  * Header-only / fully inline so consumers may include from multiple TUs without
  * ODR concerns. `::mega::` prefixes are used throughout (C++20 std::mega
@@ -648,6 +649,34 @@ private:
     };
 
     std::shared_ptr<Shared> mShared;
+};
+
+// ----------------------------------------------------------------------------
+// onWsQuotaClassifyPool(NodeHandle folder, bool& foreign)
+// Classifies every pool as foreign (SDK-6610): only foreign shortfalls hold, so
+// single-account cells use this to exercise the hold machinery on own folders.
+// The pool key is untouched (own folders still merge into one pool).
+// ----------------------------------------------------------------------------
+class WsQuotaForceForeignClassification
+{
+public:
+    WsQuotaForceForeignClassification()
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsQuotaClassifyPool = [](::mega::NodeHandle, bool& foreign)
+        {
+            foreign = true;
+        };
+    }
+
+    ~WsQuotaForceForeignClassification()
+    {
+        std::lock_guard<std::mutex> g(::mega::globalMegaTestHooks.mMutex);
+        ::mega::globalMegaTestHooks.onWsQuotaClassifyPool = nullptr;
+    }
+
+    WsQuotaForceForeignClassification(const WsQuotaForceForeignClassification&) = delete;
+    WsQuotaForceForeignClassification& operator=(const WsQuotaForceForeignClassification&) = delete;
 };
 
 } // namespace mega::test::wsupload

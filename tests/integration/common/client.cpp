@@ -69,11 +69,6 @@ public:
     ErrorOr<NodeHandle> operator()(const std::string& name, NodeHandle parentHandle, Path path);
 }; // Uploader
 
-ErrorOr<NodeHandle> Client::handle(NodeHandle parent, const std::string& name) const
-{
-    return client().handle(parent, name);
-}
-
 void Client::makeDirectory(MakeDirectoryCallback callback,
                            const std::string& name,
                            NodeHandle parentHandle)
@@ -137,7 +132,14 @@ ErrorOr<NodeHandle> Client::uploadFile(const std::string& name,
             return notifier->set_value(unexpected(result.error()));
 
         // Bind the file.
-        (*result)(std::move(bound), handle.valueOr(NodeHandle()));
+        (*result)(
+            [&]()
+            {
+                BindContext context;
+                context.mCallback = std::move(bound);
+                context.mPreviousHandle = handle.valueOr(NodeHandle());
+                return context;
+            }());
     }; // uploaded
 
     // Try and upload the file.
@@ -168,6 +170,19 @@ void Client::nodesCurrent(bool nodesCurrent)
     // Notify waiters.
     if (nodesCurrent)
         mNodesCurrentCV.notify_all();
+}
+
+auto Client::attributes(CloudPath path) const -> ErrorOr<NodeAttributes>
+{
+    // Try and resolve the node's handle.
+    auto handle = path.resolve(*this);
+
+    // Node doesn't exist.
+    if (!handle)
+        return unexpected(handle.error());
+
+    // Try and retrieve the node's attributes.
+    return attributes(*handle);
 }
 
 ErrorOr<std::set<std::string>> Client::childNames(CloudPath path) const
@@ -266,6 +281,11 @@ auto Client::getPublicLink(CloudPath path) -> ErrorOr<PublicLink>
 
     // Return the link to our caller.
     return waitFor(notifier->get_future());
+}
+
+ErrorOr<NodeHandle> Client::handle(NodeHandle parent, const std::string& name) const
+{
+    return client().handle(parent, name);
 }
 
 ErrorOr<NodeHandle> Client::handle(CloudPath parentPath, const std::string& name) const
@@ -447,6 +467,19 @@ Error Client::replace(CloudPath source, CloudPath target)
 
     // Replace target with source.
     return client().replace(*sourceHandle, *targetHandle);
+}
+
+Error Client::setAttributes(CloudPath path, const NodeAttributes& attributes)
+{
+    // Try and resolve the node's handle.
+    auto handle = path.resolve(*this);
+
+    // Node doesn't exist.
+    if (!handle)
+        return handle.error();
+
+    // Try and update the node's attributes.
+    return setAttributes(*handle, attributes);
 }
 
 ErrorOr<StorageInfo> Client::storageInfo()

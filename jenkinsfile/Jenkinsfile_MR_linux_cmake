@@ -350,7 +350,7 @@ pipeline {
                             sh "echo Building SDK with TSAN"
                             sh "cmake -DUSE_LIBUV=ON -DENABLE_QT_BINDINGS=ON -DENABLE_JAVA_BINDINGS=ON -DENABLE_CHAT=ON -DENABLE_MEDIA_FILE_METADATA=ON -DWITH_FUSE=1 -DCMAKE_BUILD_TYPE=Debug -DENABLE_TSAN=ON -DVCPKG_ROOT=${VCPKGPATH} \
                             ${BUILD_OPTIONS} -DCMAKE_VERBOSE_MAKEFILE=ON -S ${linux_sources_workspace} -B ${linux_sources_workspace}/${TSAN_BUILD_DIR}"
-                            sh "cmake --build ${linux_sources_workspace}/${TSAN_BUILD_DIR} -j5 --target test_integration"
+                            sh "cmake --build ${linux_sources_workspace}/${TSAN_BUILD_DIR} -j5 --target test_integration test_unit"
                         }
                     }
                     post {
@@ -421,7 +421,7 @@ pipeline {
                                             csplit -z -s -b '%04d' -f bench_logs_${BUILD_ID}/_split_ bench_sweep.log '/\\[ RUN      \\]/' '{*}' || :
                                             for sf in bench_logs_${BUILD_ID}/_split_*; do
                                                 [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
-                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$4}' | tr '.' '_' || echo 'preamble')
                                                 [ -n "\$cellName" ] || cellName="preamble"
                                                 mv "\$sf" "bench_logs_${BUILD_ID}/\${cellName}.log" || :
                                             done
@@ -459,7 +459,11 @@ pipeline {
                         // NOT supply --gtest_filter= alongside --tsan. User filter wins below.
                         // SDK-5360 fu8 S12: + the two watchdog cells (CI TSAN previously never covered
                         // the watchdog/pause recovery paths; S11 carry-over ruled in by the user).
-                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion:SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool:SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds"
+                        TSAN_SURFACE_FILTER = "SdkWsUploadTest.ActivePoolUsesParallelConnections:SdkWsUploadTest.InvalidPinnedSessionFallsBackToFreshSession:SdkWsUploadTest.OverquotaDuringTransfer:SdkWsUploadTest.RepeatedPauseResumeMixedPools:SdkWsUploadTest.AckStallForceReconnectsHungConnection:SdkWsUploadTest.TailCompletionWatchdogRecoversDroppedCompletion:SdkWsUploadTest.QuotaCrossPoolHoldDoesNotBlockOtherPool:SdkWsUploadTest.QuotaAccountRedOverquotaCoexistsWithPredictiveHolds:SdkWsUploadTest.LocallogoutCancelsBlackholedHandshake"
+                        // SDK-6476: hermetic unit cells written for this sweep (the CurlHttpIO
+                        // proxy/DNS/user-agent config race is invisible to the regular test_unit run).
+                        // Any race report from them fails the stage.
+                        TSAN_UNIT_FILTER = "CurlHttpIoConfig.*"
                     }
                     steps {
                         timeout(time: 90, unit: 'MINUTES') {
@@ -478,6 +482,15 @@ pipeline {
                                         sh """#!/bin/bash
                                         set -x
                                         ulimit -c unlimited
+                                        # SDK-6476: TSAN-oracle unit cells first (hermetic, no accounts): any race fails the
+                                        # stage before the account-bound integration sweep starts. One log covers both binaries.
+                                        ${env.TSAN_BUILD_DIR}/tests/unit/test_unit \"--gtest_filter=${TSAN_UNIT_FILTER}\" 2>&1 | tee tsan_sweep.log || true
+                                        UNIT_RACES=\$(grep -c "WARNING: ThreadSanitizer" tsan_sweep.log || :)
+                                        echo "===TSAN UNIT CELLS (${TSAN_UNIT_FILTER})=== races: \${UNIT_RACES:-0}"
+                                        if [ \"\${UNIT_RACES:-0}\" != \"0\" ]; then
+                                            echo "[ERROR] TSAN race in the unit cells" >&2
+                                            exit 1
+                                        fi
                                         # SDK-5360 fu7-17 G6.S1: prefer user-supplied --gtest_filter= when present.
                                         # GTEST_FILTER already includes the --gtest_filter= prefix when set.
                                         if [ -n \"${GTEST_FILTER}\" ]; then
@@ -485,13 +498,13 @@ pipeline {
                                         else
                                             TSAN_FILTER_ARG=\"--gtest_filter=${TSAN_SURFACE_FILTER}\"
                                         fi
-                                        ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$TSAN_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee tsan_sweep.log || true
+                                        ${env.TSAN_BUILD_DIR}/tests/integration/test_integration --FREEACCOUNTS --CI --USERAGENT:${env.USER_AGENT_TESTS_SDK} --APIURL:${APIURL_TO_TEST} \"\$TSAN_FILTER_ARG\" ${GTEST_REPEAT} 2>&1 | tee -a tsan_sweep.log || true
                                         # Surface race summary: total reports + WS-upload surface field hits
                                         echo "===TSAN SUMMARY==="
-                                        grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || echo 0
+                                        grep -cE "WARNING: ThreadSanitizer: data race" tsan_sweep.log || :
                                         echo "===WS-UPLOAD SURFACE FIELDS==="
                                         for fld in mChunksInFlight mNumChunksInFlight mUploadingFile WsConn::mLastActive WsConn::mPausedByServerUntilDs WsConn::mReadyState WsUploadFile mWorkGeneration; do
-                                            cnt=\$(grep -cE "\$fld" tsan_sweep.log || echo 0)
+                                            cnt=\$(grep -cE "\$fld" tsan_sweep.log || :)
                                             echo "\$fld: \$cnt"
                                             if [ \"\$cnt\" != \"0\" ]; then
                                                 echo "[ERROR] new WS-upload surface race on \$fld" >&2
@@ -506,7 +519,7 @@ pipeline {
                                             csplit -z -s -b '%04d' -f tsan_logs_${BUILD_ID}/_split_ tsan_sweep.log '/\\[ RUN      \\]/' '{*}' || :
                                             for sf in tsan_logs_${BUILD_ID}/_split_*; do
                                                 [ -s "\$sf" ] || { rm -f "\$sf"; continue; }
-                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$3}' | tr '.' '_' || echo 'preamble')
+                                                cellName=\$(grep -m1 -oE '\\[ RUN      \\] [A-Za-z0-9_.]+' "\$sf" | awk '{print \$4}' | tr '.' '_' || echo 'preamble')
                                                 [ -n "\$cellName" ] || cellName="preamble"
                                                 mv "\$sf" "tsan_logs_${BUILD_ID}/\${cellName}.log" || :
                                             done

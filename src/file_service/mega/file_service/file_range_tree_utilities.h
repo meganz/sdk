@@ -25,8 +25,8 @@ class FileRangeGapIterator
     using ConstIterator = typename Container::ConstIterator;
     using KeyFunctionType = GetKeyFunctionTypeT<Container>;
 
-    // The range we're currently referencing.
-    ConstIterator mIterator{};
+    // The container we're iterating over.
+    const Container* mContainer{};
 
     // The last gap we detected.
     FileRange mGap{};
@@ -34,17 +34,22 @@ class FileRangeGapIterator
     // The range we're iterating over.
     FileRange mRange{};
 
+    std::uint64_t mLast{};
+
     // Detect the next gap.
     void detect()
     {
+        // Locate the next range in the container.
+        auto iterator = mContainer->endsAfter(mRange.mBegin);
+
         // There are no more ranges in our container.
-        if (!mIterator)
+        if (!iterator)
             return mGap = std::exchange(mRange, {}), void();
 
         KeyFunctionType key;
 
         // Range begins after mRange.
-        if (auto range = key(*mIterator); range.mBegin > mRange.mBegin)
+        if (auto range = key(*iterator); range.mBegin > mRange.mBegin)
         {
             // Populate gap.
             mGap.mBegin = mRange.mBegin;
@@ -60,18 +65,18 @@ class FileRangeGapIterator
         // Range begins before mRange.
 
         // Range ends after mRange.
-        if (key(*mIterator).mEnd >= mRange.mEnd)
+        if (key(*iterator).mEnd >= mRange.mEnd)
             return mGap = mRange = {}, void();
 
         // Populate gap assuming there are no further ranges.
-        mGap = {key(*mIterator).mEnd, mRange.mEnd};
+        mGap = {key(*iterator).mEnd, mRange.mEnd};
 
         // Move iterator to the next range in our container.
-        ++mIterator;
+        ++iterator;
 
         // Iterator moved to another range.
-        if (mIterator)
-            mGap.mEnd = std::min(mRange.mEnd, key(*mIterator).mBegin);
+        if (iterator)
+            mGap.mEnd = std::min(mRange.mEnd, key(*iterator).mBegin);
 
         // Bump mRange.
         mRange.mBegin = mGap.mEnd;
@@ -90,9 +95,10 @@ public:
     FileRangeGapIterator(const FileRangeGapIterator& other) = default;
 
     FileRangeGapIterator(const Container& container, const FileRange& range):
-        mIterator(container.endsAfter(range.mBegin)),
+        mContainer(&container),
         mGap(),
-        mRange(range)
+        mRange(range),
+        mLast(range.mBegin)
     {
         // Can't find any gaps in a range of zero length.
         if (mRange.mBegin >= mRange.mEnd)
@@ -121,17 +127,11 @@ public:
     bool operator==(const FileRangeGapIterator& rhs) const
     {
         // Iterators are equal if they're both beyond their range.
-        if (mGap.mBegin == mGap.mEnd && rhs.mGap.mBegin == rhs.mGap.mEnd)
+        if (mGap.empty() && rhs.mGap.empty())
             return true;
 
         // Iterators are equal if their components are equal.
-        if (mIterator != rhs.mIterator)
-            return false;
-
-        if (mGap != rhs.mGap)
-            return false;
-
-        return mRange == rhs.mRange;
+        return mGap == rhs.mGap && mRange == rhs.mRange;
     }
 
     bool operator!=(const FileRangeGapIterator& rhs) const

@@ -10,17 +10,21 @@ target_sources(test_unit
     FsNode.h
     NotImplemented.h
     utils.h
+    WsUploadFilenoHarness.h
 
     main.cpp
     Arguments_test.cpp
     AttrMap_test.cpp
+    Base64_test.cpp
     CacheLRU_test.cpp
     canceller_test.cpp
     ChildNodeLookup_test.cpp
     ChunkMacMap_test.cpp
     Commands_test.cpp
     Crypto_test.cpp
+    CurlHttpIoConfig_test.cpp
     cxx20_features_test.cpp
+    ExecTimers_test.cpp
     FileFingerprint_test.cpp
     FileFingerprint_CRC_test.cpp
     File_test.cpp
@@ -47,6 +51,7 @@ target_sources(test_unit
     Sync_test.cpp
     SyncUploadThrottling_test.cpp
     TextChat_test.cpp
+    TransferQuotaChecker_test.cpp
     Transfer_test.cpp
     Transferstats_test.cpp
     User_test.cpp
@@ -68,13 +73,19 @@ target_sources(test_unit
     DateSection_test.cpp
     SqliteNodesPerf_test.cpp
     SqliteDateSectionsPerf_test.cpp
+    async_mutex_tests.cpp
+    async_mutex_traits_test.cpp
     file_access_tests.cpp
     jsonsplitter_test.cpp
     megaclient_test.cpp
+    move_only_function_tests.cpp
     SharedMemoryZone_test.cpp
     sc_streaming_parser_test.cpp
     TestHooks_test.cpp
+    WsHandshakeCancel_test.cpp
     WsUpload_test.cpp
+    WsUploadFileno_test.cpp
+    WsUploadFilenoSeed_test.cpp
     WsQuota_test.cpp
     MediaTs_test.cpp
     MediaTs_db_test.cpp
@@ -93,6 +104,14 @@ target_sources_conditional(test_unit
     PRIVATE
     Isolatedprocess_test.cpp
     GfxCommands_test.cpp
+)
+
+target_sources_conditional(test_unit
+    FLAG UNIX
+    PRIVATE
+    FdWatchSet_test.cpp
+    PosixWaiter_test.cpp
+    PosixConsoleWaiter_test.cpp
 )
 
 # Load File Service test sources.

@@ -1382,6 +1382,8 @@ LocalPath FileNameGenerator::suffixWithOldN(FileAccess* fa, const LocalPath& loc
               false,
               &currentLeafName);
 
+    fa->fclose();
+
     LocalPath path = localname;
     if (!currentLeafName.empty() && !currentLeafName.isAbsolute() && !currentLeafName.isURI())
     {
@@ -1518,6 +1520,11 @@ bool FileDistributor::moveToForMethod_RenameExistingToOldN(const LocalPath& sour
             LOG_debug << "File move failed even after renaming the existing with .oldN to avoid a clash. renamed name: " << newName;
             transient_error = fsAccess.transient_error;
             name_too_long = fsAccess.target_name_too_long;
+            // Rollback the rename failure
+            if (!fsAccess.renamelocal(newName, target, false))
+            {
+                LOG_err << "Could not restore the existing file after a failed move: " << newName;
+            }
             return false;
         }
 }
@@ -1633,6 +1640,12 @@ bool FileDistributor::copyToForMethod_RenameExistingToOldN(const LocalPath& sour
             LOG_debug << "File copy failed even after renaming the existing with .oldN to avoid a clash. Updated name: " << newName;
             transient_error = fsAccess.transient_error;
             name_too_long = fsAccess.target_name_too_long;
+
+            // Rollback the rename failure
+            if (!fsAccess.renamelocal(newName, target, false))
+            {
+                LOG_err << "Could not restore the existing file after a failed copy: " << newName;
+            }
             return false;
         }
 }

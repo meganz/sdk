@@ -15,14 +15,14 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mAddFileKeyData(database.query()),
     mAddFileRange(database.query()),
     mGetFile(database.query()),
-    mGetFileByNameAndParentHandle(database.query()),
     mGetFileDuration(database.query()),
+    mGetFileIDByHandle(database.query()),
     mGetFileIDs(database.query()),
-    mGetFileIDsByParentHandle(database.query()),
     mGetFileKeyData(database.query()),
     mGetFileRanges(database.query()),
     mGetFreeFileID(database.query()),
     mGetNextFileID(database.query()),
+    mGetModifiedFiles(database.query()),
     mGetReclaimableFiles(database.query()),
     mGetStorageInfo(database.query()),
     mGetStorageUsed(database.query()),
@@ -33,10 +33,10 @@ FileServiceQueries::FileServiceQueries(Database& database):
     mRemoveFiles(database.query()),
     mSetFileAccessTime(database.query()),
     mSetFileHandle(database.query()),
-    mSetFileLocation(database.query()),
     mSetFileModificationTime(database.query()),
     mSetFileRemoved(database.query()),
     mSetFileSize(database.query()),
+    mSetFileSizeAndModificationTime(database.query()),
     mSetNextFileID(database.query())
 {
     mAddFile = "insert into files values ( "
@@ -46,8 +46,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "  :handle, "
                "  :id, "
                "  :modified, "
-               "  :name, "
-               "  :parent_handle, "
                "  :removed, "
                "  :reported_size, "
                "  :size "
@@ -81,36 +79,38 @@ FileServiceQueries::FileServiceQueries(Database& database):
                "        or (:id is not null and id = :id)) "
                "   and (:removed is null or removed = :removed)";
 
-    mGetFileByNameAndParentHandle = "select * "
-                                    "  from files "
-                                    " where name = :name and parent_handle = :parent_handle";
-
     mGetFileDuration = "select duration "
                        "  from file_durations "
                        " where id = :id";
+
+    mGetFileIDByHandle = "select id "
+                         "  from files "
+                         " where handle = :handle";
 
     mGetFileIDs = "select id "
                   "  from files "
                   " where (:dirty is null or dirty = :dirty) "
                   "   and (:removed is null or removed = :removed)";
 
-    mGetFileIDsByParentHandle = "select id "
-                                "  from files "
-                                " where parent_handle = :parent_handle "
-                                "   and (:removed is null or removed = :removed)";
-
     mGetFileKeyData = "select * from file_key_data where id = :id";
 
     mGetFileRanges = "select begin "
                      "     , end "
                      "  from file_ranges "
-                     " where id = :id";
+                     " where ((:position is null) "
+                     "        or (begin < :position and end >= :position)) "
+                     "   and id = :id";
 
     mGetFreeFileID = "select id "
                      "  from file_ids "
                      " limit 1";
 
     mGetNextFileID = "select next from file_id";
+
+    mGetModifiedFiles = "select id "
+                        "     , size "
+                        "  from files "
+                        " where dirty = 1";
 
     // Files marked for removal will be purged when closed.
     mGetReclaimableFiles = "select allocated_size "
@@ -181,13 +181,9 @@ FileServiceQueries::FileServiceQueries(Database& database):
                          " where id = :id";
 
     mSetFileHandle = "update files "
-                     "   set handle = :handle "
+                     "   set dirty = 0 "
+                     "     , handle = :handle "
                      " where id = :id";
-
-    mSetFileLocation = "update files "
-                       "   set name = :name "
-                       "     , parent_handle = :parent_handle "
-                       " where id = :id";
 
     mSetFileModificationTime = "update files "
                                "   set accessed = :accessed "
@@ -197,8 +193,6 @@ FileServiceQueries::FileServiceQueries(Database& database):
 
     mSetFileRemoved = "update files "
                       "   set handle = null "
-                      "     , name = null "
-                      "     , parent_handle = null "
                       "     , removed = 1 "
                       " where id = :id";
 
@@ -207,6 +201,15 @@ FileServiceQueries::FileServiceQueries(Database& database):
                    "     , reported_size = :reported_size "
                    "     , size = :size "
                    " where id = :id";
+
+    mSetFileSizeAndModificationTime = "update files "
+                                      "   set accessed = :accessed "
+                                      "     , allocated_size = :allocated_size "
+                                      "     , dirty = 1 "
+                                      "     , modified = :modified "
+                                      "     , reported_size = :reported_size "
+                                      "     , size = :size "
+                                      " where id = :id";
 
     mSetNextFileID = "update file_id "
                      "   set next = :next";

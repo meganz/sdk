@@ -50,9 +50,6 @@ class FileEventEmitter
     // Signalled when we want to wake up our worker.
     std::condition_variable mCV;
 
-    // Tracks file-specific observers.
-    std::map<FileID, FileEventObserverMap> mFileObservers;
-
     // Serializes access to mFileObservers and mServiceObservers.
     std::recursive_mutex mObserversLock;
 
@@ -83,23 +80,14 @@ public:
 
     FileEventEmitter& operator=(const FileEventEmitter& rhs) = delete;
 
-    // Add a file-specific observer.
-    FileEventObserverID addObserver(FileID id, FileEventObserver observer);
-
     // Add a service-wide observer.
     FileEventObserverID addObserver(FileEventObserver observer);
 
     // Transmit event to our observers.
     void notify(FileEvent event);
 
-    // Remove a file-specific observer.
-    void removeObserver(FileID id, FileEventObserverID observerID);
-
     // Remove a service-wide observer.
     void removeObserver(FileEventObserverID observerID);
-
-    // Remove all observers watching a particular file.
-    void removeObservers(FileID id);
 
     // Remove all service-wide observers.
     void removeObservers();

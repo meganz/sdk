@@ -2,6 +2,7 @@
 #include <mega/common/client_adapter.h>
 #include <mega/common/error_or.h>
 #include <mega/common/logging.h>
+#include <mega/common/move_only_function.h>
 #include <mega/common/node_event.h>
 #include <mega/common/node_event_observer.h>
 #include <mega/common/node_event_queue.h>
@@ -20,6 +21,7 @@
 #include <mega/megaclient.h>
 #include <mega/node.h>
 #include <mega/scoped_helpers.h>
+#include <mega/testhooks.h>
 
 #include <atomic>
 #include <cassert>
@@ -218,12 +220,11 @@ class ClientUpload
   : public ClientTransfer
 {
     // Bind our uploaded data to a name.
-    void bind(BoundCallback callback,
+    void bind(std::string& attributes,
+              BindContext context,
               FileNodeKey fileKey,
-              NodeHandle lastHandle,
               ClientUploadPtr self,
               UploadHandle uploadHandle,
-              std::string fileAttr,
               UploadToken uploadToken);
 
     // Called when our upload has been bound to a name.
@@ -328,6 +329,7 @@ ClientAdapter::ClientAdapter(MegaClient& client):
     mDeinitialized{false},
     mLock(),
     mPendingCallbacks(),
+    mStorageInfo(),
     mTaskQueue()
 {
 }
@@ -434,6 +436,9 @@ void ClientAdapter::deinitialize()
 
     // Wait for any calls to complete.
     mActivities.waitUntilIdle();
+
+    // Clear any cached storage info.
+    mStorageInfo = std::nullopt;
 
     // Cancel any pending callbacks.
     mPendingCallbacks.cancel();
@@ -590,7 +595,7 @@ void ClientAdapter::each(std::function<void(NodeInfo)> function,
     }
 }
 
-Task ClientAdapter::execute(std::function<void(const Task&)> function)
+Task ClientAdapter::execute(MoveOnlyFunction<void(const Task&)> function)
 {
     // Sanity.
     assert(function);
@@ -774,6 +779,16 @@ void ClientAdapter::initialize()
     mDeinitialized = false;
 }
 
+void ClientAdapter::invalidateStorageInfo()
+{
+    mStorageInfo = std::nullopt;
+}
+
+bool ClientAdapter::isClientThread() const
+{
+    return mOnClientThread;
+}
+
 ErrorOr<bool> ClientAdapter::isFile(NodeHandle handle) const
 {
     // Make sure deinitialize(...) waits for this call to complete.
@@ -850,6 +865,11 @@ ErrorOr<NodeKeyData> ClientAdapter::keyData(NodeHandle handle, bool authorize) c
     return keyData;
 }
 
+void ClientAdapter::lock() const
+{
+    mClient.nodeTreeMutex.lock();
+}
+
 void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
                                   const std::string& name,
                                   NodeHandle parent)
@@ -909,11 +929,55 @@ void ClientAdapter::makeDirectory(MakeDirectoryCallback callback,
 
     // Ask the client to make our new directory.
     execute(std::bind(std::move(make),
-                      wrap(std::move(callback)),
+                      makeCancellable(std::move(callback)),
                       std::ref(mClient),
                       name,
                       parent,
                       std::placeholders::_1));
+}
+
+void ClientAdapter::move(MoveCallback callback,
+                         const std::string& name,
+                         NodeHandle source,
+                         NodeHandle target)
+{
+    // Sanity.
+    assert(callback);
+    assert(!source.isUndef());
+    assert(!target.isUndef());
+
+    // Actually moves and renames the node.
+    auto move = [=](MoveCallback& callback, const Task& task)
+    {
+        // Client's being torn down.
+        if (task.cancelled())
+            return callback(API_EINCOMPLETE);
+
+        // Try and get our hands on the source and target nodes.
+        const auto source_ = mClient.nodeByHandle(source);
+        const auto target_ = mClient.nodeByHandle(target);
+
+        // Source or target node doesn't exist.
+        if (!source_ || !target_)
+            return callback(API_ENOENT);
+
+        // Ask the client to move the node.
+        auto result = mClient.rename(source_,
+                                     target_,
+                                     SYNCDEL_NONE,
+                                     source_->parentHandle(),
+                                     name.c_str(),
+                                     false,
+                                     std::bind(callback, std::placeholders::_2));
+
+        // Client detected an immediate error.
+        if (result != API_OK)
+            callback(result);
+    }; // move
+
+    // Perform the move and rename on the client thread.
+    execute(
+        std::bind(std::move(move), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 void ClientAdapter::move(MoveCallback callback,
@@ -955,14 +1019,8 @@ void ClientAdapter::move(MoveCallback callback,
             callback(result);
     }; // move
 
-    execute(std::bind(std::move(move),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
-}
-
-bool ClientAdapter::isClientThread() const
-{
-    return mOnClientThread;
+    execute(
+        std::bind(std::move(move), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 ErrorOr<NodeHandle> ClientAdapter::parentHandle(NodeHandle handle) const
@@ -1049,6 +1107,9 @@ auto ClientAdapter::partialDownload(PartialDownloadCallback& callback,
     if (keyData.mKeyAndIV.size() != FILENODEKEYLENGTH)
         return unexpected(API_EKEY);
 
+    // Record the partial downloads. Minimize the overhead when it is disabled on production
+    DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(handle, length, offset);
+
     // Return explicit partial download to caller.
     return std::make_shared<ClientPartialDownload>(callback,
                                                    *this,
@@ -1085,6 +1146,21 @@ ErrorOr<accesslevel_t> ClientAdapter::permissions(NodeHandle handle) const
     return RDONLY;
 }
 
+ErrorOr<bool> ClientAdapter::inVault(NodeHandle handle) const
+{
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return unexpected(LOCAL_LOGGED_OUT);
+
+    // Acquire RNT lock.
+    std::lock_guard<std::recursive_mutex> guard(mClient.nodeTreeMutex);
+
+    return mClient.isNodeInVaultTree(mClient.nodeByHandle(handle));
+}
+
 void ClientAdapter::remove(RemoveCallback callback, NodeHandle handle)
 {
     // Actually removes the node.
@@ -1114,9 +1190,8 @@ void ClientAdapter::remove(RemoveCallback callback, NodeHandle handle)
     }; // task
 
     // Ask the client to remove the node.
-    execute(std::bind(std::move(remove),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(remove), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 void ClientAdapter::rename(RenameCallback callback,
@@ -1159,9 +1234,8 @@ void ClientAdapter::rename(RenameCallback callback,
     }; // rename
 
     // Ask the client to rename the node.
-    execute(std::bind(std::move(rename),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(rename), makeCancellable(std::move(callback)), std::placeholders::_1));
 }
 
 std::string ClientAdapter::sessionID() const
@@ -1178,6 +1252,17 @@ std::string ClientAdapter::sessionID() const
 
 void ClientAdapter::storageInfo(StorageInfoCallback callback)
 {
+    // Make sure deinitialize(...) waits for this call to complete.
+    auto activity = mActivities.begin();
+
+    // Client's being torn down.
+    if (mDeinitialized)
+        return callback(unexpected(LOCAL_LOGGED_OUT));
+
+    // Have already retrieved the user's storage info.
+    if (auto storageInfo = mStorageInfo.get())
+        return callback(*storageInfo);
+
     // Actually retrieves the user's storage info.
     auto getStorageInfo = [=](StorageInfoCallback& callback,
                               const Task& task) {
@@ -1186,15 +1271,19 @@ void ClientAdapter::storageInfo(StorageInfoCallback callback)
             return callback(unexpected(API_EINCOMPLETE));
 
         // Forward result to user callback.
-        auto retrieved = [=](StorageInfoCallback& callback,
-                            const StorageInfo& info,
-                            Error result) {
+        auto retrieved =
+            [=](StorageInfoCallback& callback, const StorageInfo& storageInfo, Error result)
+        {
             if (result != API_OK)
                 return callback(unexpected(result));
 
-            callback(info);
+            // Update our cached storage info.
+            mStorageInfo.set(storageInfo);
+
+            // Pass the user's storage info to the caller.
+            callback(storageInfo);
         }; // retrieved
-        
+
         // Ask the client for our storage statistics.
         mClient.getstorageinfo(
           std::bind(std::move(retrieved),
@@ -1205,7 +1294,7 @@ void ClientAdapter::storageInfo(StorageInfoCallback callback)
 
     // Ask the client to retrieve our storage statistics.
     execute(std::bind(std::move(getStorageInfo),
-                      wrap(std::move(callback)),
+                      makeCancellable(std::move(callback)),
                       std::placeholders::_1));
 }
 
@@ -1269,9 +1358,18 @@ void ClientAdapter::touch(TouchCallback callback,
     }; // touch
 
     // Ask the client to update the node's modification time.
-    execute(std::bind(std::move(touch),
-                      wrap(std::move(callback)),
-                      std::placeholders::_1));
+    execute(
+        std::bind(std::move(touch), makeCancellable(std::move(callback)), std::placeholders::_1));
+}
+
+bool ClientAdapter::try_lock() const
+{
+    return mClient.nodeTreeMutex.try_lock();
+}
+
+void ClientAdapter::unlock() const
+{
+    mClient.nodeTreeMutex.unlock();
 }
 
 void ClientAdapter::updated(const sharedNode_vector& nodes)
@@ -1424,29 +1522,23 @@ auto child(MegaClient& client, NodeHandle parent, const std::string& name)
     if (parent_->type == FILENODE)
         return unexpected(API_FUSE_ENOTDIR);
 
-    std::shared_ptr<Node> candidate;
+    // Try and get the children associated with name.
+    auto children = client.mNodeManager.getChildrenWithName({}, name, parent, 2);
 
-    // Try and locate unique child.
-    for (auto child : client.getChildren(parent_.get()))
-    {
-        // Child's name isn't a match.
-        if (!child->hasName(name))
-            continue;
+    // Couldn't get children associated with name.
+    if (!children)
+        return unexpected(children.error());
 
-        // Already seen an instance of this name.
-        if (candidate)
-            return unexpected(API_FUSE_EDUPLICATE);
-
-        // Remember that we've seen this name.
-        candidate = child;
-    }
-
-    // Couldn't find the named child.
-    if (!candidate)
+    // Couldn't find any children with the specified name.
+    if (children->empty())
         return unexpected(API_FUSE_ENOTFOUND);
 
-    // Return child (if any) to caller.
-    return candidate;
+    // Parent has multiple children with this name.
+    if (children->size() > 1)
+        return unexpected(API_FUSE_EDUPLICATE);
+
+    // Pass child node to our caller.
+    return std::move(children->front());
 }
 
 void describe(NodeInfo& destination,
@@ -1955,60 +2047,85 @@ bool ClientPartialDownload::completed() const
     return (mStatus & SF_COMPLETED) > 0;
 }
 
-void ClientUpload::bind(BoundCallback callback,
+void ClientUpload::bind(std::string& attributes,
+                        BindContext context,
                         FileNodeKey fileKey,
-                        NodeHandle lastHandle,
                         ClientUploadPtr self,
                         UploadHandle uploadHandle,
-                        std::string fileAttr,
                         UploadToken uploadToken)
 {
     static NewNodeVector empty;
 
     // Sanity.
-    assert(callback);
+    assert(context.mCallback);
 
     StatusFlags expected = SF_CANCELLABLE;
 
     // The upload's been cancelled.
     if (!mStatus.compare_exchange_weak(expected, 0u))
-        return bound(std::move(callback),
-                     empty,
-                     false,
-                     mResult);
+        return bound(std::move(context.mCallback), empty, false, mResult);
 
     // Binds our data to a name.
-    auto bind = [this](BoundCallback& callback,
+    auto bind = [this](std::string& attributes,
+                       BindContext& context,
                        FileNodeKey& fileKey,
-                       NodeHandle lastHandle,
-                       const Task& task,
                        ClientUploadPtr self,
+                       const Task& task,
                        UploadHandle& uploadHandle,
-                       std::string& fileAttr,
                        UploadToken& uploadToken)
     {
         // Client's being torn down.
         if (task.cancelled())
-            return bound(std::move(callback),
-                         empty,
-                         false,
-                         API_EINCOMPLETE);
+            return bound(std::move(context.mCallback), empty, false, API_EINCOMPLETE);
+
+        // Update the file's name and parent handle.
+        name = context.mName.value_or(name);
+        h = context.mParentHandle.value_or(h);
+
+        // Caller gave us a bogus name or parent handle.
+        if (name.empty() || h.isUndef())
+            return bound(std::move(context.mCallback), empty, false, API_EARGS);
+
+        // Convenience.
+        auto& client = mClient.client();
+        auto callback = mClient.makeCancellable(std::move(context.mCallback));
+        auto modified = context.mModified ? &*context.mModified : nullptr;
+
+        // Which node, if any, is our upload going to replace?
+        //
+        // This is the node that will be sent as "ov" when we bind a name to
+        // our data (see File::sendPutnodesOfUpload) and we need to know
+        // about it so that the attributes a user expects to survive a change
+        // of content (favourite, label, sensitivity, description and tags)
+        // are carried over to the new node, as they are for any other upload.
+        //
+        // Our attributes are computed by sendPutnodesOfUpload(...) so we no
+        // longer need the node once that call returns. Release it here, on
+        // the client thread, even if that call throws: otherwise the node
+        // would be destroyed wherever this upload happens to be destroyed.
+        auto releasePreviousNode = makeScopedDestructor(
+            [this]()
+            {
+                previousNode.reset();
+            });
+
+        previousNode = client.getovnode(client.nodeByHandle(h).get(), &name);
 
         // Ask the client to bind a name to our data.
-        sendPutnodesOfUpload(&mClient.client(),
+        sendPutnodesOfUpload(&client,
                              std::move(uploadHandle),
-                             std::move(fileAttr),
+                             std::move(attributes),
                              std::move(uploadToken),
                              std::move(fileKey),
                              PUTNODES_APP,
-                             lastHandle,
+                             context.mPreviousHandle,
                              std::bind(&ClientUpload::bound,
                                        std::move(self),
-                                       mClient.wrap(std::move(callback)),
+                                       std::move(callback),
                                        std::placeholders::_3,
                                        std::placeholders::_4,
                                        std::placeholders::_1),
-                             nullptr,
+                             modified,
                              false,
                              getPitag());
     }; // bind
@@ -2024,19 +2141,17 @@ void ClientUpload::bind(BoundCallback callback,
     }; // bound
 
     // Wrap user callback.
-    callback = std::bind(std::move(bound),
-                         std::move(callback),
-                         std::placeholders::_1);
+    context.mCallback =
+        std::bind(std::move(bound), std::move(context.mCallback), std::placeholders::_1);
 
     // Ask the client to bind a name to our data.
     mClient.execute(std::bind(std::move(bind),
-                              std::move(callback),
+                              std::move(attributes),
+                              std::move(context),
                               std::move(fileKey),
-                              lastHandle,
-                              std::placeholders::_1,
                               std::move(self),
+                              std::placeholders::_1,
                               std::move(uploadHandle),
-                              std::move(fileAttr),
                               std::move(uploadToken)));
 }
 
@@ -2095,18 +2210,18 @@ void ClientUpload::completed(Transfer* upload, putsource_t)
     // Sanity.
     assert(upload);
 
-    std::string fileAttr;
-    mClient.client().pendingattrstring(upload->uploadhandle, &fileAttr);
+    std::string attributes;
+
+    mClient.client().pendingattrstring(upload->uploadhandle, &attributes);
 
     // Instantiate bind callback.
     BindCallback bind = std::bind(&ClientUpload::bind,
                                   this,
+                                  std::move(attributes),
                                   std::placeholders::_1,
                                   upload->filekey,
-                                  std::placeholders::_2,
                                   std::move(mSelf),
                                   upload->uploadhandle,
-                                  std::move(fileAttr),
                                   *upload->ultoken);
 
     // Latch callback.

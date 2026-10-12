@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mega/file_service/file_service_forward.h>
 #include <mega/fuse/common/service_context.h>
 #include <mega/fuse/common/service_flags_forward.h>
 
@@ -14,15 +15,12 @@ class ServiceContext
   : public fuse::ServiceContext
 {
 public:
-    ServiceContext(const ServiceFlags&, Service& service);
+    ServiceContext(file_service::FileService& fileService, const ServiceFlags&, Service& service);
 
     ~ServiceContext();
 
     // Add a mount to the database.
     MountResult add(const MountInfo& info) override;
-
-    // Check if a file exists in the cache.
-    bool cached(common::NormalizedPath path) const override;
 
     // Called by the client when its view of the cloud is current.
     void current() override;

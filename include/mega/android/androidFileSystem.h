@@ -254,6 +254,8 @@ public:
 
     bool fstat(m_time_t& modified, m_off_t& size) override;
 
+    bool ftouch(m_time_t modified) override;
+
     bool ftruncate(m_off_t size = 0) override;
 
     void updatelocalname(const LocalPath& name, bool force) override;

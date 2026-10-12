@@ -24,12 +24,14 @@ static void downgrade21(Query& query);
 static void downgrade32(Query& query);
 static void downgrade43(Query& query);
 static void downgrade54(Query& query);
+static void downgrade65(Query& query);
 
 static void upgrade01(Query& query);
 static void upgrade12(Query& query);
 static void upgrade23(Query& query);
 static void upgrade34(Query& query);
 static void upgrade45(Query& query);
+static void upgrade56(Query& query);
 
 const DatabaseVersionVector& DatabaseBuilder::versions() const
 {
@@ -39,6 +41,7 @@ const DatabaseVersionVector& DatabaseBuilder::versions() const
         {&downgrade32, &upgrade23},
         {&downgrade43, &upgrade34},
         {&downgrade54, &upgrade45},
+        {&downgrade65, &upgrade56},
     }; // versions
 
     return versions;
@@ -229,6 +232,50 @@ void downgrade54(Query& query)
     query.execute();
 }
 
+void downgrade65(Query& query)
+{
+    // Add a new inodes table with an extension column.
+    query = "create table inodes_new ( "
+            "  extension text, "
+            "  handle integer "
+            "  constraint uq_inodes_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_inodes_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_inodes_modified "
+            "             not null, "
+            "  name text, "
+            "  parent_handle integer, "
+            "  constraint pk_inodes "
+            "             primary key (id), "
+            "  constraint uq_inodes_name_parent_handle "
+            "             unique (name, parent_handle) "
+            ")";
+
+    query.execute();
+
+    // Migrate existing inodes to the new inodes table.
+    query = "insert into inodes_new "
+            "select null "
+            "     , handle "
+            "     , id "
+            "     , modified "
+            "     , name "
+            "     , parent_handle "
+            "  from inodes";
+
+    query.execute();
+
+    // Replace the old inodes table with our new one.
+    query = "drop table inodes";
+    query.execute();
+
+    query = "alter table inodes_new rename to inodes";
+    query.execute();
+}
+
 void upgrade01(Query& query)
 {
     // Tracks all inodes with local state.
@@ -266,7 +313,7 @@ void upgrade01(Query& query)
     // Initially, no IDs have been allocated.
     query = "insert into inode_id values (:value)";
 
-    query.param(":value").set(InodeID(0));
+    query.param(":value").set(InodeID::from(UINT64_C(0)));
     query.execute();
 
     // Tracks all mounts known by FUSE.
@@ -518,6 +565,48 @@ void upgrade45(Query& query)
             "     , handle "
             "     , id "
             "     , modified"
+            "     , name "
+            "     , parent_handle "
+            "  from inodes";
+
+    query.execute();
+
+    // Replace the old inodes table with our new one.
+    query = "drop table inodes";
+    query.execute();
+
+    query = "alter table inodes_new rename to inodes";
+    query.execute();
+}
+
+void upgrade56(Query& query)
+{
+    // Add a new inodes table without an extension column.
+    query = "create table inodes_new ( "
+            "  handle integer "
+            "  constraint uq_inodes_handle "
+            "             unique, "
+            "  id integer "
+            "  constraint nn_inodes_id "
+            "             not null, "
+            "  modified integer "
+            "  constraint nn_inodes_modified "
+            "             not null, "
+            "  name text, "
+            "  parent_handle integer, "
+            "  constraint pk_inodes "
+            "             primary key (id), "
+            "  constraint uq_inodes_name_parent_handle "
+            "             unique (name, parent_handle) "
+            ")";
+
+    query.execute();
+
+    // Migrate existing inodes to the new inodes table.
+    query = "insert into inodes_new "
+            "select handle "
+            "     , id "
+            "     , modified "
             "     , name "
             "     , parent_handle "
             "  from inodes";

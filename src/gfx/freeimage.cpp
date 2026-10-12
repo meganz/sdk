@@ -504,7 +504,9 @@ bool GfxProviderFreeImage::isFfmpegFile(const string& ext)
     return false;
 }
 
-bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*size*/)
+bool GfxProviderFreeImage::readbitmapFfmpeg(const std::string& conceptualName,
+                                            const LocalPath& imagePath,
+                                            int)
 {
 #ifndef DEBUG
     av_log_set_level(AV_LOG_PANIC);
@@ -649,10 +651,10 @@ bool GfxProviderFreeImage::readbitmapFfmpeg(const LocalPath& imagePath, int /*si
         seek_target = av_rescale_q(formatContext->duration / 5, av_get_time_base_q(), videoStream->time_base);
     }
 
-    string extension = imagePath.extension();
-    if (!extension.empty()
-            && strcmp(extension.c_str(),".mp3") && seek_target > 0
-            && av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
+    auto extension = extensionOf(conceptualName);
+
+    if (!extension.empty() && strcmp(extension.c_str(), ".mp3") && seek_target > 0 &&
+        av_seek_frame(formatContext, videoStreamIdx, seek_target, AVSEEK_FLAG_BACKWARD) < 0)
     {
         LOG_warn << "Error seeking video";
         return false;
@@ -936,11 +938,12 @@ const char *GfxProviderFreeImage::supportedvideoformats()
     return NULL;
 }
 
-bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
+bool GfxProviderFreeImage::readbitmap(const std::string& conceptualname,
+                                      const LocalPath& localname,
+                                      int size)
 {
-
     bool bitmapLoaded = false;
-    if (string extension = localname.extension(); !extension.empty())
+    if (auto extension = extensionOf(conceptualname); !extension.empty())
     {
 #ifdef USE_MEDIAINFO
         if (MediaProperties::isMediaFilenameExtAudio(extension))
@@ -952,7 +955,7 @@ bool GfxProviderFreeImage::readbitmap(const LocalPath& localname, int size)
         if (isFfmpegFile(extension))
         {
             bitmapLoaded = true;
-            if (!readbitmapFfmpeg(localname, size) )
+            if (!readbitmapFfmpeg(conceptualname, localname, size))
             {
                 return false;
             }

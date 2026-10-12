@@ -14,23 +14,25 @@ using namespace common;
 
 static constexpr const char* USER_STORAGE_VER = "_v1";
 
-FileAccessPtr FileStorage::openFile(const LocalPath& path, bool mustCreate)
+FileAccessPtr FileStorage::openFile(const LocalPath& path)
 {
     // So we can access the filesystem.
     auto file = mFilesystem->newfileaccess(false);
 
-    // Sanity.
+    // Sanity: We should always be able to create a file access instance.
     assert(file);
 
     // Should never happen but hey, just in case.
-    if (!file)
+    if (file == nullptr)
         throw FSError1("Couldn't create file access instance");
 
-    // Vulnerable to TOCTOU race.
-    if (file->isfile(path) != !mustCreate || !file->fopen(path, OPEN_RDWR, FSLogging::logOnError))
-        throw FSErrorF("Couldn't %s file: %s",
-                       mustCreate ? "create" : "open",
-                       path.toPath(false).c_str());
+    // Can't open the file for reading and writing.
+    if (!file->fopen(path, OPEN_RDWR, FSLogging::logOnError))
+        throw FSErrorF("Couldn't open file: %s", path.toPath(false).c_str());
+
+    // Couldn't get file information.
+    if (!file->fstat())
+        throw FSErrorF("Couldn't get file information: %s", path.toPath(false).c_str());
 
     // Mark the file as a sparse file if supported.
     file->setSparse();
@@ -64,11 +66,6 @@ FileStorage::FileStorage(const UserStoragePath& userStoragePath):
 
 FileStorage::~FileStorage() = default;
 
-FileAccessPtr FileStorage::addFile(FileID id)
-{
-    return openFile(userFilePath(id), true);
-}
-
 LocalPath FileStorage::databasePath() const
 {
     const auto name = LocalPath::fromRelativePath("metadata");
@@ -80,9 +77,34 @@ LocalPath FileStorage::databasePath() const
     return path;
 }
 
-FileAccessPtr FileStorage::getFile(FileID id)
+FileAccessPtr FileStorage::getFile(FileID id, std::uint64_t expectedSize, const bool force)
 {
-    return openFile(userFilePath(id), false);
+    // Compute the file's path.
+    const auto path = userFilePath(id);
+
+    // Open (or create) this file's cache file.
+    auto file = openFile(path);
+
+    // Convenience.
+    const auto currentSize = static_cast<std::uint64_t>(file->size);
+
+    // No need to truncate as the file's already of the expected size.
+    if (!force && currentSize == expectedSize)
+        return file;
+
+    // No need to truncate as the file's smaller than our expected size.
+    if (!force && currentSize < expectedSize)
+        return file;
+
+    // File's larger than our expected size.
+    if (!file->ftruncate(static_cast<m_off_t>(expectedSize)))
+        throw FSErrorF("Couldnt truncate file: %s", path.toPath(false).c_str());
+
+    // Update the file's cached size.
+    file->size = static_cast<m_off_t>(expectedSize);
+
+    // Return the file to our caller.
+    return file;
 }
 
 bool FileStorage::removeFile(FileID id, std::nothrow_t)
@@ -121,6 +143,11 @@ LocalPath FileStorage::userFilePath(FileID id) const
     path.appendWithSeparator(name, false);
 
     return path;
+}
+
+const LocalPath& FileStorage::userStoragePath() const
+{
+    return mUserStorageDirectory.path();
 }
 
 } // file_service

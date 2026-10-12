@@ -33,7 +33,7 @@ class MEGA_API GfxProviderCG : public mega::IGfxLocalProvider
 private: // mega::GfxProc implementations
     const char* supportedformats() override;
     const char* supportedvideoformats() override;
-    bool readbitmap(const mega::LocalPath&, int) override;
+    bool readbitmap(const std::string&, const mega::LocalPath&, int) override;
     bool resizebitmap(int, int, std::string*, Hint hint) override;
     void freebitmap() override;
 public:

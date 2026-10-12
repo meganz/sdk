@@ -6,12 +6,12 @@
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/query.h>
 #include <mega/common/task_executor_flags_forward.h>
-#include <mega/fuse/common/file_cache_forward.h>
 #include <mega/fuse/common/file_explorer_view.h>
 #include <mega/fuse/common/inode_db_forward.h>
 #include <mega/fuse/common/inode_id_forward.h>
 #include <mega/fuse/common/mount_db_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
+#include <mega/fuse/common/mount_forward.h>
 #include <mega/fuse/common/mount_info_forward.h>
 #include <mega/fuse/common/service_callbacks.h>
 #include <mega/fuse/platform/mount_forward.h>
@@ -167,6 +167,9 @@ public:
     // Disable all mounts associated with the specified node.
     void disable(NodeHandle handle);
 
+    // Execute a function on all mounts except mount.
+    void each(std::function<void(platform::Mount&)> function, const Mount& mount);
+
     // Execute a function on each enabled mount.
     void each(std::function<void(platform::Mount&)> function);
 
@@ -187,9 +190,6 @@ public:
 
     // Query file explorer view.
     FileExplorerView fileExplorerView() const;
-
-    // Retrieve a reference to the file cache.
-    FileCache& fileCache();
 
     // Update an existing mount's flags.
     MountResult flags(const std::string& name, const MountFlags& flags);

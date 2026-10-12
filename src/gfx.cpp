@@ -19,10 +19,13 @@
  * program.
  */
 
-#include "mega.h"
 #include "mega/gfx.h"
-#include "mega/logging.h"
+
+#include "mega.h"
 #include "mega/gfx/GfxProcCG.h"
+#include "mega/logging.h"
+#include "mega/utils.h"
+
 #include <numeric>
 #include <tuple>
 
@@ -49,74 +52,22 @@ std::unique_ptr<IGfxProvider> IGfxProvider::createInternalGfxProvider()
 #endif
 }
 
-bool GfxProc::isgfx(const LocalPath& localfilename)
+bool GfxProc::isgfx(const std::string& conceptualname) const
 {
-    const char* supported = nullptr;
+    // Clarity.
+    auto callback = std::bind(&IGfxProvider::supportedformats, mGfxProvider.get());
 
-    supported = mGfxProvider->supportedformats();
-    if (!supported)
-    {
-        // We don't have supported formats, so the build was without FREEIMAGE or other graphics processing libraries
-        // Therefore we cannot graphics process any file, so return false so that we don't try.
-        return false;
-    }
-
-    if (0 == strcmp(supported, "all"))
-    {
-        // special case for client app provided MegaGfxProcessor
-        // and for our Android app.  If they don't supply a list
-        // of extensions, then we don't filter.
-        return true;
-    }
-
-    string ext;
-    if (client->fsaccess->getextension(localfilename, ext))
-    {
-        const char* ptr;
-
-        // FIXME: use hash
-        ptr = strstr(supported, ext.c_str());
-        if (ptr && ptr[ext.size()] == '.')
-        {
-            return true;
-        }
-    }
-
-    return false;
+    // Let our caller know if localfilename is a supported format.
+    return isSupportedFormat(std::move(callback), conceptualname);
 }
 
-bool GfxProc::isvideo(const LocalPath& localfilename)
+bool GfxProc::isvideo(const std::string& conceptualname) const
 {
-    const char* supported = nullptr;
+    // Clarity.
+    auto callback = std::bind(&IGfxProvider::supportedvideoformats, mGfxProvider.get());
 
-    supported = mGfxProvider->supportedvideoformats();
-    if (!supported)
-    {
-        return false;
-    }
-
-    if (0 == strcmp(supported, "all"))
-    {
-        // special case for client app provided MegaGfxProcessor
-        // and for our Android app.  If they don't supply a list
-        // of extensions, then we don't filter.
-        return true;
-    }
-
-    string ext;
-    if (client->fsaccess->getextension(localfilename, ext))
-    {
-        const char* ptr;
-
-        // FIXME: use hash
-        ptr = strstr(supported, ext.c_str());
-        if (ptr && ptr[ext.size()] == '.')
-        {
-            return true;
-        }
-    }
-
-    return false;
+    // Let our caller know if localfilename is a supported format.
+    return isSupportedFormat(std::move(callback), conceptualname);
 }
 
 void *GfxProc::threadEntryPoint(void *param)
@@ -126,10 +77,11 @@ void *GfxProc::threadEntryPoint(void *param)
     return NULL;
 }
 
-std::vector<GfxDimension> GfxProc::getJobDimensions(GfxJob *job)
+std::vector<GfxDimension> GfxProc::getJobDimensions(const GfxJob& job) const
 {
     std::vector<GfxDimension> jobDimensions;
-    for (auto i : job->imagetypes)
+
+    for (auto i: job.imagetypes)
     {
         assert(i < DIMENSIONS.size());
         jobDimensions.push_back(DIMENSIONS[i]);
@@ -155,7 +107,7 @@ void GfxProc::loop()
 
             LOG_debug << "Processing media file: " << job->h;
 
-            auto images = generateImages(job->localfilename, getJobDimensions(job));
+            auto images = generateImages(*job);
             for (auto& image : images)
             {
                 job->images.push_back(image.empty() ? nullptr : new string(std::move(image)));
@@ -245,8 +197,10 @@ int GfxProc::checkevents(Waiter *)
     return needexec ? Waiter::NEEDEXEC : 0;
 }
 
-std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& localfilepath,
-                                                           const std::vector<GfxDimension>& dimensions)
+std::vector<std::string>
+    IGfxLocalProvider::generateImages(const std::string& conceptualname,
+                                      const LocalPath& localfilepath,
+                                      const std::vector<GfxDimension>& dimensions)
 {
     std::vector<std::string> images(dimensions.size());
 
@@ -256,7 +210,7 @@ std::vector<std::string> IGfxLocalProvider::generateImages(const LocalPath& loca
         0,
         [](int max, const GfxDimension& d) { return std::max(max, std::max(d.w(), d.h())); });
 
-    if (readbitmap(localfilepath, maxDimension))
+    if (readbitmap(conceptualname, localfilepath, maxDimension))
     {
         for (unsigned int i = 0; i < dimensions.size(); ++i)
         {
@@ -333,14 +287,19 @@ void IGfxLocalProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int
 }
 
 // load bitmap image, generate all designated sizes, attach to specified upload/node handle
-int GfxProc::gendimensionsputfa(const LocalPath& localfilename, NodeOrUploadHandle th, SymmCipher* key, int missing)
+int GfxProc::gendimensionsputfa(const std::string& conceptualname,
+                                const LocalPath& localfilename,
+                                NodeOrUploadHandle th,
+                                SymmCipher* key,
+                                int missing)
 {
-    LOG_debug << "Creating thumb/preview for " << localfilename;
+    LOG_debug << "Creating thumb/preview for " << localfilename << "(" << conceptualname << ")";
 
     GfxJob *job = new GfxJob();
     job->h = th;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = localfilename;
+    job->name = conceptualname;
 
     int generatingAttrs = 0;
     for (fatype i = static_cast<fatype>(DIMENSIONS.size()); i--; )
@@ -363,16 +322,25 @@ int GfxProc::gendimensionsputfa(const LocalPath& localfilename, NodeOrUploadHand
     return generatingAttrs;
 }
 
-std::vector<std::string> GfxProc::generateImages(const LocalPath& localfilepath, const std::vector<GfxDimension>& dimensions)
+std::vector<std::string> GfxProc::generateImages(const GfxJob& job)
 {
+    auto dimensions = getJobDimensions(job);
+
     std::lock_guard<std::mutex> g(mutex);
-    return mGfxProvider->generateImages(localfilepath, dimensions);
+
+    return mGfxProvider->generateImages(job.name, job.localfilename, dimensions);
 }
 
-std::string GfxProc::generateOneImage(const LocalPath& localfilepath, const GfxDimension& dimension)
+std::string GfxProc::generateOneImage(const std::string& conceptualname,
+                                      const LocalPath& localfilepath,
+                                      const GfxDimension& dimension)
 {
     std::lock_guard<std::mutex> g(mutex);
-    auto images = mGfxProvider->generateImages(localfilepath, std::vector<GfxDimension>{ dimension });
+
+    auto images = mGfxProvider->generateImages(conceptualname,
+                                               localfilepath,
+                                               std::vector<GfxDimension>{dimension});
+
     return images[0];
 }
 
@@ -380,12 +348,14 @@ bool GfxProc::savefa(const LocalPath& localfilepath,
                      const GfxDimension& dimension,
                      const LocalPath& localdstpath)
 {
-    if (!isgfx(localfilepath))
+    auto conceptualname = localfilepath.leafName().toName(*client->fsaccess);
+
+    if (!isgfx(conceptualname))
     {
         return false;
     }
 
-    string image = generateOneImage(localfilepath, dimension);
+    string image = generateOneImage(conceptualname, localfilepath, dimension);
 
     if (image.empty())
     {
@@ -458,6 +428,37 @@ GfxJob *GfxJobQueue::pop()
 GfxJob::GfxJob()
 {
 
+}
+
+bool isSupportedFormat(SupportedFormatsCallback callback, const std::string& name)
+{
+    // Can't be supported if we have no name.
+    if (name.empty())
+        return false;
+
+    // What formats do we support?
+    const auto* supported = callback();
+
+    // We don't support any formats.
+    if (!supported)
+        return false;
+
+    // Extract the name's extension.
+    auto extension = extensionOf(name);
+
+    // Can't be supported if we have no extension.
+    if (extension.empty())
+        return false;
+
+    // We support all formats.
+    if (std::strcmp(supported, "all") == 0)
+        return true;
+
+    // Check if name's extension is present in supported.
+    const auto* position = std::strstr(supported, extension.c_str());
+
+    // Let our caller know if name's extension is present in supported.
+    return position && position[extension.size()] == '.';
 }
 
 } // namespace

@@ -1,5 +1,6 @@
 #include <mega/common/error_or.h>
 #include <mega/common/node_info.h>
+#include <mega/file_service/file_structure_mutex.h>
 #include <mega/fuse/common/any_lock.h>
 #include <mega/fuse/common/any_lock_set.h>
 #include <mega/fuse/common/client.h>
@@ -12,44 +13,12 @@
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/common/ref.h>
 #include <mega/fuse/platform/mount.h>
+#include <mega/fuse/platform/path_adapter.h>
 
 #include <cassert>
 
 namespace mega
 {
-namespace common
-{
-
-using fuse::Inode;
-using fuse::toString;
-
-void LockableTraits<Inode>::acquiring(const Inode& inode)
-{
-    FUSEVerboseF("Acquiring lock on inode %s", toString(inode.id()).c_str());
-}
-
-void LockableTraits<Inode>::acquired(const Inode& inode)
-{
-    FUSEVerboseF("Acquired lock on inode %s", toString(inode.id()).c_str());
-}
-
-void LockableTraits<Inode>::couldntAcquire(const Inode& inode)
-{
-    FUSEVerboseF("Couldn't acquire lock on inode %s", toString(inode.id()).c_str());
-}
-
-void LockableTraits<Inode>::released(const Inode& inode)
-{
-    FUSEVerboseF("Releasing lock on inode %s", toString(inode.id()).c_str());
-}
-
-void LockableTraits<Inode>::tryAcquire(const Inode& inode)
-{
-    FUSEVerboseF("Trying to acquire lock on inode %s", toString(inode.id()).c_str());
-}
-
-} // common
-
 namespace fuse
 {
 
@@ -84,7 +53,6 @@ void Inode::moved([[maybe_unused]] InodeDBLock& lock,
 }
 
 Inode::Inode(InodeID id, const NodeInfo& info, InodeDB& inodeDB):
-    Lockable(),
     mReferences(0),
     mRemoved(false),
     mID(id),
@@ -98,6 +66,21 @@ Inode::Inode(InodeID id, const NodeInfo& info, InodeDB& inodeDB):
     mInodeDB.childAdded(*this, mName, mParentHandle);
 }
 
+void Inode::acquiring(const Inode& inode)
+{
+    FUSEVerboseF("Acquiring lock on inode %s", toString(inode.id()).c_str());
+}
+
+void Inode::acquired(const Inode& inode)
+{
+    FUSEVerboseF("Acquired lock on inode %s", toString(inode.id()).c_str());
+}
+
+void Inode::couldntAcquire(const Inode& inode)
+{
+    FUSEVerboseF("Couldn't acquire lock on inode %s", toString(inode.id()).c_str());
+}
+
 void Inode::info(const NodeInfo& info, InodeDBLock& lock)
 {
     // Inode's name or parent has changed.
@@ -107,6 +90,25 @@ void Inode::info(const NodeInfo& info, InodeDBLock& lock)
     // Latch modification time and permissions.
     mModified = info.mModified;
     mPermissions = info.mPermissions;
+}
+
+void Inode::lock() const
+{
+    acquiring(*this);
+
+    doLock();
+
+    acquired(*this);
+}
+
+void Inode::released(const Inode& inode)
+{
+    FUSEVerboseF("Releasing lock on inode %s", toString(inode.id()).c_str());
+}
+
+void Inode::tryAcquire(const Inode& inode)
+{
+    FUSEVerboseF("Trying to acquire lock on inode %s", toString(inode.id()).c_str());
 }
 
 Inode::~Inode() {}
@@ -136,49 +138,82 @@ InodeID Inode::id() const
     return mID;
 }
 
-Error Inode::move(const std::string& name, DirectoryInodeRef targetParent)
+template<typename Path>
+Error Inode::move(const Path& path, NodeHandle rootHandle, bool replace)
 {
-    // Sanity.
-    assert(!name.empty());
-    assert(targetParent);
+    // The name of the target inode at path, if any.
+    std::string name;
 
+    // Loop until we hit a steady state.
     while (true)
     {
-        DirectoryInodeRef sourceParent;
+        // Try and locate the target inode.
+        auto [target, found] = mInodeDB.lookup(path, rootHandle, &name);
 
-        // For easy management of multiple locks.
-        AnyLockSet locks;
+        // Couldn't locate target directory.
+        if (found != API_FUSE_ENOTFOUND && found != API_OK)
+            return found;
 
-        // Lock ourselves.
-        locks.emplace(*this);
-        locks.lock();
-
-        // Get a reference to our current parent.
-        sourceParent = parent();
-
-        // Release locks.
-        locks.unlock();
-
-        // Lock our parent.
-        if (sourceParent)
-            locks.emplace(*sourceParent);
-
-        // Lock the target parent.
-        locks.emplace(*targetParent);
-        locks.lock();
-
-        // Make sure our parent hasn't changed.
-        if (sourceParent != parent())
-            continue;
-
-        // Target already has a child with this name.
-        if (targetParent->get(name))
+        // Target exists and the caller doesn't want to replace it.
+        if (found == API_OK && !replace)
             return API_EEXIST;
 
-        // Try and move ourselves.
-        return move(InodeBadge(), name, std::move(targetParent));
+        // Convenience.
+        auto sourceParent = parent();
+        auto targetParent = target->parent();
+
+        AnyLockSet locks;
+
+        locks.emplace(*this);
+        locks.emplace(*sourceParent);
+        locks.emplace(*target);
+
+        // Target exists and will be replaced.
+        if (found == API_OK)
+            locks.emplace(*targetParent);
+
+        // Acquire necessary locks.
+        locks.lock();
+
+        // Make sure our move target hasn't changed.
+        auto [target2, found1] = mInodeDB.lookup(path, rootHandle, &name);
+
+        // Hierarchy has changed.
+        if (found != found1)
+            continue;
+
+        // Target has changed.
+        if (target != target2)
+            continue;
+
+        // Target parent has changed.
+        if (targetParent != target->parent())
+            continue;
+
+        // Target exists and needs to be replaced.
+        if (found == API_OK)
+        {
+            // Target's a file.
+            if (target->file())
+                return this->replace({}, target, name, targetParent);
+
+            // Source is a directory.
+            if (directory())
+                return API_EEXIST;
+
+            // Source is a file.
+            return API_FUSE_EISDIR;
+        }
+
+        // Sanity: Target isn't a file, it's where the source should be moved.
+        assert(target->directory());
+
+        // Move the source inode to its new location.
+        return move({}, name, target->directory());
     }
 }
+
+template Error Inode::move(const platform::PathAdapter&, NodeHandle, bool);
 
 void Inode::moved(const std::string& name, NodeHandle parentHandle)
 {
@@ -213,7 +248,7 @@ DirectoryInodeRef Inode::parent() const
         return DirectoryInodeRef();
 
     // Try and get a reference to our parent.
-    auto ref = mInodeDB.get(parentHandle);
+    auto ref = mInodeDB.get(InodeID::from(parentHandle));
 
     // Parent exists.
     if (ref)
@@ -232,7 +267,7 @@ NodeHandle Inode::parentHandle(CachedOnlyTag) const
 
 NodeHandle Inode::parentHandle() const
 {
-    return NodeHandle(info().mParentID);
+    return info().mParentID.toHandle();
 }
 
 accesslevel_t Inode::permissions() const
@@ -243,7 +278,7 @@ accesslevel_t Inode::permissions() const
 ErrorOr<LocalPath> Inode::path(NodeHandle parentHandle) const
 {
     // For convenience.
-    return path(static_cast<InodeID>(parentHandle));
+    return path(InodeID::from(parentHandle));
 }
 
 ErrorOr<LocalPath> Inode::path(InodeID parentID) const
@@ -315,7 +350,7 @@ void Inode::removed(bool removed) const
         FUSEDebugF("Setting removed flag on %s [%s] (%s)",
                    mName.c_str(),
                    toString(mID).c_str(),
-                   toString(InodeID(mParentHandle)).c_str());
+                   toString(InodeID::from(mParentHandle)).c_str());
 
         // Remove the inode from the cache.
         mInodeDB.cache().remove(*this);
@@ -328,7 +363,7 @@ void Inode::removed(bool removed) const
     FUSEDebugF("Clearing removed flag on %s [%s] (%s)",
                mName.c_str(),
                toString(mID).c_str(),
-               toString(InodeID(mParentHandle)).c_str());
+               toString(InodeID::from(mParentHandle)).c_str());
 
     // Add the inode to the cache.
     mInodeDB.cache().add(*this);
@@ -344,72 +379,16 @@ bool Inode::removed() const
     return mRemoved;
 }
 
-Error Inode::replace(InodeRef target, bool replaceDirectories)
+bool Inode::try_lock() const
 {
-    assert(target);
+    tryAcquire(*this);
 
-    // Is our target a directory?
-    auto targetDirectory = target->directory();
+    if (doTryLock())
+        return acquired(*this), true;
 
-    // Is it legal for us to replace target?
-    if (targetDirectory)
-    {
-        // We're a directory but the target's a file.
-        if (file())
-            return API_FUSE_EISDIR;
+    couldntAcquire(*this);
 
-        // Caller doesn't want to replace directories.
-        if (!replaceDirectories)
-            return API_EEXIST;
-    }
-    else if (directory())
-    {
-        // We're a directory but the target's a file.
-        return API_FUSE_ENOTDIR;
-    }
-
-    while (true)
-    {
-        auto sourceParent = parent();
-        auto targetParent = target->parent();
-
-        AnyLockSet locks;
-
-        // Lock the parents.
-        locks.emplace(*sourceParent);
-        locks.emplace(*targetParent);
-
-        // Lock ourselves and our target.
-        locks.emplace(*this);
-        locks.emplace(*target);
-
-        // Parent's have changed.
-        if (sourceParent != parent() || targetParent != target->parent())
-            continue;
-
-        locks.lock();
-
-        // Our target's a directory.
-        if (targetDirectory)
-        {
-            // And it must be empty.
-            auto hasChildren = targetDirectory->hasChildren();
-
-            // Target's been removed.
-            if (!hasChildren)
-                return API_ENOENT;
-
-            // Target's not empty.
-            if (*hasChildren)
-                return API_FUSE_ENOTEMPTY;
-        }
-
-        // Latch the target's name.
-        auto targetName = target->name();
-
-        // Try and replace the target.
-        return replace(InodeBadge(), target, std::move(targetName), targetParent);
-    }
+    return false;
 }
 
 Error Inode::unlink()
@@ -443,6 +422,13 @@ Error Inode::unlink()
         // Try and unlink ourselves.
         return unlink(InodeBadge());
     }
+}
+
+void Inode::unlock() const
+{
+    doUnlock();
+
+    released(*this);
 }
 
 void Inode::unref(RefBadge badge)

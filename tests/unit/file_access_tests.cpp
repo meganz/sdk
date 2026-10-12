@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
 #include <megafs.h>
 
 namespace mega
@@ -122,6 +123,46 @@ TEST_F(FileAccessTests, fread)
     EXPECT_EQ(computed, std::string("CD\0\0\0\0\0\0", 8));
 }
 
+TEST_F(FileAccessTests, ftouch)
+{
+    // Convenience.
+    using std::chrono::minutes;
+    using std::chrono::system_clock;
+
+    // Compute some time point in the near future.
+    auto after = system_clock::to_time_t(system_clock::now() + minutes(5));
+
+    // Try and update the file's modification time.
+    ASSERT_TRUE(mFileAccess->ftouch(after));
+
+    // Reload the file's modification time and size.
+    ASSERT_TRUE(mFileAccess->fstat());
+
+    // Make sure the file's modification time is what we set.
+    ASSERT_EQ(after, mFileAccess->mtime);
+}
+
+TEST_F(FileAccessTests, dupFileDescripttor)
+{
+    const auto fd = mFileAccess->dupFileDescriptor();
+    ASSERT_TRUE(fd.isSet());
+
+    // Data we want to write to disk.
+    static const std::string expected = "ABCD";
+
+    // Try and write the data to disk.
+    ASSERT_TRUE(mFileAccess->fwrite(expected.data(), expected.size(), 0));
+
+    // Where we'll store the data we've read from disk.
+    std::string computed(expected.size(), '\0');
+
+    // Read
+    sysread(fd.get(), computed.data(), computed.size(), 0, nullptr, nullptr);
+
+    // Make sure we've read what we expected.
+    EXPECT_EQ(computed, expected);
+}
+
 struct PlatformAvailableDiskSpaceGuard
 {
     const bool previous{FileSystemAccess::usePlatformAvailableDiskSpaceQuery()};
@@ -141,27 +182,6 @@ TEST(FileSystemAccessSwitch, DefaultsToDisabled)
 
     FileSystemAccess::setUsePlatformAvailableDiskSpaceQuery(true);
     EXPECT_TRUE(FileSystemAccess::usePlatformAvailableDiskSpaceQuery());
-}
-    
-TEST_F(FileAccessTests, dupFileDescritptor)
-{
-    const auto fd = mFileAccess->dupFileDescriptor();
-    ASSERT_TRUE(fd.isSet());
-
-    // Data we want to write to disk.
-    static const std::string expected = "ABCD";
-
-    // Try and write the data to disk.
-    ASSERT_TRUE(mFileAccess->fwrite(expected.data(), expected.size(), 0));
-
-    // Where we'll store the data we've read from disk.
-    std::string computed(expected.size(), '\0');
-
-    // Read
-    sysread(fd.get(), computed.data(), computed.size(), 0, nullptr, nullptr);
-
-    // Make sure we've read what we expected.
-    EXPECT_EQ(computed, expected);
 }
 
 TEST(FileSystemAccessAvailableDiskSpace, SwitchOffReturnsPositive)

@@ -4396,11 +4396,14 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     // create on existing node, no link yet
     ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
-    // create on existing node, with link already  (different command response)
+    // create on existing node, with link already: served from the cached link, no request sent
     ASSERT_EQ(API_OK, doExportNode(0, n2.get(), 0, false, false));
 
     // create on non existent node
     ASSERT_EQ(API_EARGS, doExportNode(0, nullptr, 0, false, false));
+
+    // writable link on a file: a writable link is backed by a share, so it is folder-only
+    ASSERT_EQ(API_EARGS, doExportNode(0, n2.get(), 0, true /*writable*/, false));
 }
 
 
@@ -4766,6 +4769,70 @@ TEST_F(SdkTestDownload, ConflictFileExistingName)
     ASSERT_EQ(transfer->getTotalBytes(), FILE_SIZE);
     // Check transferred bytes to confirm download is skipped
     ASSERT_EQ(transfer->getTransferredBytes(), 0);
+
+    CASE_info << "finished";
+}
+
+TEST_F(SdkTestDownload, ExistingToOldNSameCaseCollisionCompletes)
+{
+    CASE_info << "started";
+
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const std::string dirName("dest");
+    const std::string fileName("f.txt");
+    const std::string uploadedContents("uploaded contents");
+    const std::string localOnlyChanges(" plus a local change");
+    const fs::path basePath = fs::current_path();
+    const fs::path target = basePath / dirName / fileName;
+    const fs::path renamed = basePath / dirName / "f.old1.txt";
+
+    const auto readContents = [](const fs::path& p)
+    {
+        std::ifstream in{p, std::ios::binary};
+        return std::string{std::istreambuf_iterator<char>{in}, std::istreambuf_iterator<char>{}};
+    };
+
+    const sdk_test::LocalTempDir d{basePath / dirName};
+    const sdk_test::LocalTempFile f{target, uploadedContents};
+
+    // Upload dest/f.txt
+    const std::unique_ptr<MegaNode> rootNode{megaApi[0]->getRootNode()};
+    const auto newNode = sdk_test::uploadFile(megaApi[0].get(), f.getPath(), rootNode.get());
+    ASSERT_TRUE(newNode) << "Cannot create node in Cloud Drive";
+
+    // Modify local file so it no longer matches the node in the cloud.
+    f.appendData(localOnlyChanges);
+
+    // Download the node back onto the same local path and casing
+    std::shared_ptr<MegaTransfer> transfer;
+    auto onTransferFinish =
+        [&transfer](::mega::MegaApi*, ::mega::MegaTransfer* t, ::mega::MegaError*)
+    {
+        if (t)
+            transfer.reset(t->copy());
+    };
+
+    const auto errCode = sdk_test::downloadNode(megaApi[0].get(),
+                                                newNode.get(),
+                                                basePath / dirName,
+                                                true,
+                                                60s,
+                                                MegaTransfer::COLLISION_CHECK_FINGERPRINT,
+                                                MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN,
+                                                onTransferFinish,
+                                                nullptr,
+                                                nullptr,
+                                                false);
+
+    ASSERT_TRUE(errCode.has_value()) << "test_utils(downloadFile) has returned nullopt";
+    ASSERT_EQ(API_OK, *errCode);
+    ASSERT_THAT(transfer, ::testing::NotNull());
+    EXPECT_EQ(MegaTransfer::STATE_COMPLETED, transfer->getState());
+    ASSERT_TRUE(fs::exists(renamed));
+    EXPECT_EQ(uploadedContents + localOnlyChanges, readContents(renamed));
+    ASSERT_TRUE(fs::exists(target));
+    EXPECT_EQ(uploadedContents, readContents(target));
 
     CASE_info << "finished";
 }
@@ -5905,6 +5972,56 @@ TEST_F(SdkTest, LoginToWritableFolderThenCreateSubfolder)
     ASSERT_EQ(userAlerts->size(), 0);
 }
 
+/**
+ * @brief TEST_F SdkTest.SdkTestWritableLinkForFileIsRejected
+ *
+ * - Login 1 account and upload a file
+ * - Ask for a writable link on the file: must fail, and must leave no auth key behind
+ * - Ask for a plain link on the same file: must still work, and must have no auth key
+ *
+ * A writable link is backed by a share and only folders get one, so requesting one for a file
+ * made the API answer with an error code in the 'w' field, which was then stored and reported as
+ * if it were the auth key. The API sends that field for a plain file link as well ("w":"-11"),
+ * which is what the last assertion covers.
+ */
+TEST_F(SdkTest, SdkTestWritableLinkForFileIsRejected)
+{
+    LOG_info << "___TEST WritableLinkForFileIsRejected___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+    ASSERT_TRUE(createFile(PUBLICFILE.c_str(), false)) << "Couldn't create " << PUBLICFILE;
+
+    MegaHandle fileHandle = UNDEF;
+    ASSERT_EQ(API_OK,
+              doStartUpload(0,
+                            &fileHandle,
+                            PUBLICFILE.c_str(),
+                            rootnode.get(),
+                            nullptr /*fileName*/,
+                            ::mega::MegaApi::INVALID_CUSTOM_MOD_TIME,
+                            nullptr /*appData*/,
+                            false /*isSourceTemporary*/,
+                            false /*startFirst*/,
+                            nullptr /*cancelToken*/))
+        << "Cannot upload " << PUBLICFILE;
+
+    std::unique_ptr<MegaNode> fileNode{megaApi[0]->getNodeByHandle(fileHandle)};
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+
+    RequestTracker rt(megaApi[0].get());
+    megaApi[0]->exportNode(fileNode.get(), 0, true /*writable*/, false /*megaHosted*/, &rt);
+    ASSERT_EQ(API_EARGS, rt.waitForResult()) << "Writable link accepted for a file node";
+    ASSERT_EQ(nullptr, rt.request->getPrivateKey()) << "Auth key reported for a file node";
+
+    // a plain link on the same file still works, and carries no auth key
+    ASSERT_EQ(API_OK, doExportNode(0, fileNode.get(), 0, false, false));
+    fileNode.reset(megaApi[0]->getNodeByHandle(fileHandle));
+    ASSERT_THAT(fileNode, ::testing::NotNull());
+    ASSERT_TRUE(fileNode->isExported());
+    ASSERT_EQ(nullptr, fileNode->getWritableLinkAuthKey()) << "Auth key stored for a file node";
+}
+
 string localpathToUtf8Leaf(const LocalPath& itemlocalname)
 {
     return itemlocalname.leafName().toPath(false);
@@ -7035,6 +7152,9 @@ namespace mega
         static inline int countdownTo503{DEFAULT_COUNTDOWN};
         static inline int countdownTo200WithErrCode{DEFAULT_COUNTDOWN};
         static inline int countdownToTimeout{DEFAULT_COUNTDOWN};
+        static inline std::atomic<int> countdownToReadaheadAllocFailure{DEFAULT_COUNTDOWN};
+        static inline std::atomic<unsigned> readaheadAllocCount{0};
+        static inline std::atomic<unsigned> eagainDownloadFailures{0};
         static inline bool isRaid{DEFAULT_BOOL};
         static inline bool isRaidKnown{DEFAULT_BOOL};
         static inline m_off_t testProgressCompleted{DEFAULT_PROGRESS};
@@ -7050,6 +7170,9 @@ namespace mega
             countdownTo503 = DEFAULT_COUNTDOWN;
             countdownTo200WithErrCode = DEFAULT_COUNTDOWN;
             countdownToTimeout = DEFAULT_COUNTDOWN;
+            countdownToReadaheadAllocFailure = DEFAULT_COUNTDOWN;
+            readaheadAllocCount = 0;
+            eagainDownloadFailures = 0;
             isRaid = DEFAULT_BOOL;
             isRaidKnown = DEFAULT_BOOL;
             testProgressCompleted = DEFAULT_PROGRESS;
@@ -7066,6 +7189,27 @@ namespace mega
             tbm->raidLinesPerChunk = tbm->raidLinesPerChunk / divideBy;
             tbm->disableAvoidSmallLastRequest();
             LOG_info << "adjusted raidlinesPerChunk from " << oldvalue << " to " << tbm->raidLinesPerChunk << " and set AvoidSmallLastRequest flag to false";
+        }
+
+        // simulate an out of memory condition in RaidReq::procdata
+        static bool onRaidReadaheadAllocFailure(uint8_t part, m_off_t len)
+        {
+            ++readaheadAllocCount;
+            if (countdownToReadaheadAllocFailure-- != 0)
+                return false;
+
+            LOG_info << "SIMULATING a failed readahead allocation of " << len << " bytes for part "
+                     << static_cast<int>(part);
+            return true;
+        }
+
+        static void onDownloadFailure(error e)
+        {
+            LOG_info << "onDownloadFailure: error = " << e;
+            if (e == API_EAGAIN)
+            {
+                ++eagainDownloadFailures;
+            }
         }
 
         static void onHttpReqFinished(const int httpStatus,
@@ -7326,6 +7470,8 @@ TEST_F(SdkTest, SdkTestCloudraidTransfers)
     globalMegaTestHooks.onHookNumberOfConnections = ::mega::DebugTestHook::onHookNumberOfConnections;
     #endif
 
+    // cap the speed so the transfer lasts long enough to be paused several times
+    megaApi[0]->setMaxDownloadSpeed(10 * 1024 * 1024);
     ASSERT_EQ(API_OK, doSetMaxConnections(0, 2)) << "doSetMaxConnections failed or took more than 1 minute";
     LOG_debug << "For raidTests: client max connections set to 2";
 
@@ -7494,6 +7640,9 @@ struct CloudraidTestConfig
     unsigned baseRequestCount{0};
     bool hasExpectedFailures{false};
     std::string testName{};
+    // Set to false when the request count is not deterministic, e.g. a transfer that fails and
+    // is retried: only uploads reset pos in Transfer::failed(), so a download resumes instead.
+    bool checkRequestCount{true};
 };
 
 // Helper functions for cloudraid test analysis
@@ -7558,8 +7707,11 @@ inline void verifyCloudraidSuccessExpectations(const CloudraidFailureAnalysis& a
         EXPECT_EQ(analysis.seen403, 1u) << "Expected one HTTP 403 failure but none observed";
     }
 
-    EXPECT_EQ(transferStats.numTotalRequests,
-              config.baseRequestCount + config.maxExpectedFailedRequests);
+    if (config.checkRequestCount)
+    {
+        EXPECT_EQ(transferStats.numTotalRequests,
+                  config.baseRequestCount + config.maxExpectedFailedRequests);
+    }
     EXPECT_EQ(transferStats.numFailedRequests, config.maxExpectedFailedRequests);
     if (transferStats.numFailedRequests > 0)
     {
@@ -7651,8 +7803,11 @@ public:
 
                 EXPECT_GT(transferStats.failedRequestRatio, 0.0);
                 EXPECT_LE(transferStats.failedRequestRatio, 1.0);
-                EXPECT_EQ(transferStats.numTotalRequests,
-                          m_config.baseRequestCount + analysis.totalFailed);
+                if (m_config.checkRequestCount)
+                {
+                    EXPECT_EQ(transferStats.numTotalRequests,
+                              m_config.baseRequestCount + analysis.totalFailed);
+                }
 
                 const bool allUnexpectedAcceptable =
                     (analysis.acceptableUnexpected == analysis.unexpected);
@@ -7891,6 +8046,94 @@ TEST_F(SdkTest, SdkTestCloudraidTransferWithSingleChannelTimeouts)
         []()
         {
             ASSERT_LT(DebugTestHook::countdownToTimeout, 0);
+        });
+
+    CloudraidTestRunner runner{config, logPre};
+    const bool passed = runner.runTestWithRetries(resetAttempt,
+                                                  runDownloadAndWait,
+                                                  onTransferFinish_transferStats,
+                                                  onTransferUpdate_filesize,
+                                                  onTransferUpdate_progress);
+
+    EXPECT_TRUE(passed);
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+}
+
+/**
+ * @brief TEST_F SdkTestCloudraidTransferWithReadaheadAllocationFailure
+ *
+ * Download a cloudraid file forcing a readahead allocation to fail, which simulates an out of
+ * memory condition (SDK-6468). The raid request must be failed with API_EAGAIN and retried, and
+ * the download must still complete.
+ *
+ */
+TEST_F(SdkTest, SdkTestCloudraidTransferWithReadaheadAllocationFailure)
+{
+    static const auto logPre = getLogPrefix();
+    LOG_info << logPre << "___TEST Cloudraid transfer with a failing readahead allocation___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    // Make sure our clients are working with pro plans.
+    auto restorer0 = scopedToPro(*megaApi[0]);
+    ASSERT_EQ(result(restorer0), API_OK);
+
+    ASSERT_TRUE(DebugTestHook::resetForTests()) << "SDK test hooks are not enabled in release mode";
+
+    std::unique_ptr<MegaNode> rootnode{megaApi[0]->getRootNode()};
+
+    auto importHandle =
+        importPublicLink(0, MegaClient::getMegaURL() + PUBLIC_IMAGE_URL, rootnode.get());
+    std::unique_ptr<MegaNode> nimported{megaApi[0]->getNodeByHandle(importHandle)};
+
+    const std::string filename = DOTSLASH "cloudraid_downloaded_file.sdktest";
+
+    const CloudraidTestConfig config{
+        2, // maxRetries
+        5, // maxAcceptableUnexpectedPerRun
+        0, // maxExpectedFailedRequests - failing the raid request is not an http request failure
+        0, // baseRequestCount - not checked, see checkRequestCount below
+        false, // hasExpectedFailures - No expected failures like 404/403
+        "ReadaheadAllocationFailure", // testName
+        false // checkRequestCount - the request count of the retried download is timing dependent
+    };
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+    globalMegaTestHooks.onSetIsRaid = DebugTestHook::onSetIsRaid_morechunks;
+    globalMegaTestHooks.onLimitMaxReqSize = ::mega::DebugTestHook::onLimitMaxReqSize;
+    globalMegaTestHooks.onHookNumberOfConnections =
+        ::mega::DebugTestHook::onHookNumberOfConnections;
+    globalMegaTestHooks.onRaidReadaheadAllocFailure =
+        ::mega::DebugTestHook::onRaidReadaheadAllocFailure;
+    globalMegaTestHooks.onHttpReqFinish = DebugTestHook::onHttpReqFinished;
+    globalMegaTestHooks.onDownloadFailed = DebugTestHook::onDownloadFailure;
+#endif
+
+    ASSERT_EQ(API_OK, doSetMaxConnections(0, 2))
+        << "doSetMaxConnections failed or took more than 1 minute";
+    LOG_info << logPre << "For raidTests: client max connections set to 2";
+
+    auto resetAttempt = [this, &filename]()
+    {
+        DebugTestHook::resetValues();
+        // fail the first readahead allocation
+        DebugTestHook::countdownToReadaheadAllocFailure = 0;
+        deleteFile(filename.c_str());
+    };
+
+    auto runDownloadAndWait = CloudraidTestRunner::createDownloadFunction(
+        this,
+        nimported.get(),
+        filename,
+        logPre,
+        []()
+        {
+            ASSERT_GT(DebugTestHook::readaheadAllocCount.load(), 0u)
+                << "No readahead allocation took place, the target path was not covered";
+            ASSERT_LT(DebugTestHook::countdownToReadaheadAllocFailure.load(), 0)
+                << "The simulated readahead allocation failure never fired";
+
+            // must fail the request, not silently drop the data
+            ASSERT_GT(DebugTestHook::eagainDownloadFailures.load(), 0u)
+                << "The raid request was not failed with API_EAGAIN";
         });
 
     CloudraidTestRunner runner{config, logPre};
@@ -14123,6 +14366,217 @@ TEST_F(SdkTest, WritableFolderSessionResumption)
 
     // In case the last test exited without cleaning up (eg, debugging etc)
     Cleanup();
+}
+
+/**
+ * @brief TEST_F WritableFolderUpload
+ *
+ * Uploads a file into a writable folder link from a separate MegaApi instance
+ * logged into the folder link (loginToFolder with authKey). Such a session has
+ * no logged-in user, so with MEGA_USE_WSUPLOAD the WS upload engine never
+ * starts; the upload must be dispatched through the legacy HTTP path instead
+ * of being left queued forever.
+ */
+TEST_F(SdkTest, WritableFolderUpload)
+{
+    LOG_info << "___TEST WritableFolderUpload___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const string baseFolder = "WritableFolderUpload";
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
+
+    // create the folder to be exported as a writable link
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, baseFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folder";
+    MrProper remoteCleanup{[this, baseFolder]()
+                           {
+                               cleanUp(this->megaApi[0].get(), baseFolder);
+                           }};
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // get a writable link to the folder, and its auth key
+    string nodelink = createPublicLink(0,
+                                       remoteBaseNode.get(),
+                                       0,
+                                       maxTimeout,
+                                       false /*isFreeAccount*/,
+                                       true /*writable*/);
+    std::unique_ptr<MegaNode> nexported(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(nexported.get(), nullptr);
+    ASSERT_NE(nexported->getWritableLinkAuthKey(), nullptr);
+    string authKey(nexported->getWritableLinkAuthKey());
+    ASSERT_FALSE(authKey.empty());
+
+    // login to the folder link from a separate, not-logged-in instance
+    MegaApiTestPointer folderApi = newMegaApi(APP_KEY.c_str(),
+                                              megaApiCacheFolder(10).c_str(),
+                                              USER_AGENT.c_str(),
+                                              static_cast<unsigned>(THREADS_PER_MEGACLIENT));
+    ASSERT_EQ(API_OK,
+              asyncRequestLoginToFolder(folderApi.get(), nodelink.c_str(), authKey.c_str())
+                  ->waitForResult())
+        << " Failed to login to writable folder link";
+    ASSERT_EQ(API_OK, asyncRequestFetchnodes(folderApi.get())->waitForResult())
+        << " Failed to fetchnodes on the folder link session";
+
+    std::unique_ptr<MegaNode> linkRootNode(folderApi->getRootNode());
+    ASSERT_NE(linkRootNode.get(), nullptr);
+
+    // upload a small file into the folder link root
+    const fs::path localFilePath = fs::current_path() / "writable_folder_upload.txt";
+    const sdk_test::LocalTempFile localFile(localFilePath, "writable-folder-link-upload");
+
+    TransferTracker uploadTracker(folderApi.get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    folderApi->startUpload(path_u8string(localFilePath),
+                           linkRootNode.get(),
+                           nullptr /*cancelToken*/,
+                           &uploadOptions,
+                           &uploadTracker);
+
+    // bounded wait: a timeout means the upload was never dispatched
+    ASSERT_EQ(API_OK, uploadTracker.waitForResult())
+        << " Upload into the writable folder link did not finish";
+    ASSERT_NE(uploadTracker.resultNodeHandle, UNDEF);
+    std::unique_ptr<MegaNode> uploadedNode(
+        folderApi->getNodeByHandle(uploadTracker.resultNodeHandle));
+    ASSERT_NE(uploadedNode.get(), nullptr) << "Uploaded node not found in the folder link";
+    // the whole file must have made it, not just a node
+    ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(fs::file_size(localFilePath)));
+}
+
+/**
+ * @brief TEST_F WritableFolderUploadSessionResumption
+ *
+ * Queues an upload on a writable folder link session, restarts the session
+ * (dumpSession + local logout + fast login + fetchnodes) while the upload is
+ * still pending, and checks that the resumed upload completes. The resumed
+ * transfer is re-added through TransferList::addtransfer in a session where
+ * the WS upload engine never starts, so it must go through the legacy HTTP
+ * path.
+ */
+TEST_F(SdkTest, WritableFolderUploadSessionResumption)
+{
+    LOG_info << "___TEST WritableFolderUploadSessionResumption___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+
+    const string baseFolder = "WritableFolderUploadSessionResumption";
+
+    ASSERT_NO_FATAL_FAILURE(cleanUp(this->megaApi[0].get(), baseFolder));
+
+    // create the folder to be exported as a writable link
+    std::unique_ptr<MegaNode> remoteRootNode(megaApi[0]->getRootNode());
+    ASSERT_NE(remoteRootNode.get(), nullptr);
+    auto nh = createFolder(0, baseFolder.c_str(), remoteRootNode.get());
+    ASSERT_NE(nh, UNDEF) << "Error creating remote folder";
+    MrProper remoteCleanup{[this, baseFolder]()
+                           {
+                               cleanUp(this->megaApi[0].get(), baseFolder);
+                           }};
+    std::unique_ptr<MegaNode> remoteBaseNode(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(remoteBaseNode.get(), nullptr);
+
+    // get a writable link to the folder, and its auth key
+    string nodelink = createPublicLink(0,
+                                       remoteBaseNode.get(),
+                                       0,
+                                       maxTimeout,
+                                       false /*isFreeAccount*/,
+                                       true /*writable*/);
+    std::unique_ptr<MegaNode> nexported(megaApi[0]->getNodeByHandle(nh));
+    ASSERT_NE(nexported.get(), nullptr);
+    ASSERT_NE(nexported->getWritableLinkAuthKey(), nullptr);
+    string authKey(nexported->getWritableLinkAuthKey());
+    ASSERT_FALSE(authKey.empty());
+
+    // login to the folder link from a separate, not-logged-in instance
+    MegaApiTestPointer folderApi = newMegaApi(APP_KEY.c_str(),
+                                              megaApiCacheFolder(11).c_str(),
+                                              USER_AGENT.c_str(),
+                                              static_cast<unsigned>(THREADS_PER_MEGACLIENT));
+    ASSERT_EQ(API_OK,
+              asyncRequestLoginToFolder(folderApi.get(), nodelink.c_str(), authKey.c_str())
+                  ->waitForResult())
+        << " Failed to login to writable folder link";
+    ASSERT_EQ(API_OK, asyncRequestFetchnodes(folderApi.get())->waitForResult())
+        << " Failed to fetchnodes on the folder link session";
+
+    std::unique_ptr<MegaNode> linkRootNode(folderApi->getRootNode());
+    ASSERT_NE(linkRootNode.get(), nullptr);
+
+    // pause uploads so the transfer is deterministically still pending when
+    // the session restarts
+    RequestTracker pauseTracker(folderApi.get());
+    folderApi->pauseTransfers(true, MegaTransfer::TYPE_UPLOAD, &pauseTracker);
+    ASSERT_EQ(API_OK, pauseTracker.waitForResult());
+
+    const fs::path localFilePath = fs::current_path() / "writable_folder_upload_resume.txt";
+    const sdk_test::LocalTempFile localFile(localFilePath, "writable-folder-link-upload-resume");
+
+    TransferTracker uploadTracker(folderApi.get());
+    MegaUploadOptions uploadOptions;
+    uploadOptions.mtime = MegaApi::INVALID_CUSTOM_MOD_TIME;
+    folderApi->startUpload(path_u8string(localFilePath),
+                           linkRootNode.get(),
+                           nullptr /*cancelToken*/,
+                           &uploadOptions,
+                           &uploadTracker);
+
+    // wait until the upload is queued (and persisted to the transfer cache)
+    ASSERT_TRUE(WaitFor(
+        [&api = *folderApi]()
+        {
+            std::unique_ptr<MegaTransferList> transfers(
+                api.getTransfers(MegaTransfer::TYPE_UPLOAD));
+            return transfers && transfers->size() == 1;
+        },
+        defaultTimeoutMs))
+        << "Upload did not appear in the transfer queue";
+
+    // restart the folder link session while the upload is pending
+    std::unique_ptr<char[]> session(folderApi->dumpSession());
+    ASSERT_NE(session.get(), nullptr);
+    ASSERT_EQ(API_OK, asyncRequestLocalLogout(folderApi.get())->waitForResult())
+        << " Failed to local logout from the folder link session";
+    ASSERT_EQ(API_OK, asyncRequestFastLogin(folderApi.get(), session.get())->waitForResult())
+        << " Failed to resume the folder link session";
+    ASSERT_EQ(API_OK, asyncRequestFetchnodes(folderApi.get())->waitForResult())
+        << " Failed to fetchnodes on the resumed folder link session";
+
+    // the global transfer pause is not persisted (MegaClient::locallogout resets
+    // xferpaused), but make the precondition for completion explicit
+    RequestTracker unpauseTracker(folderApi.get());
+    folderApi->pauseTransfers(false, MegaTransfer::TYPE_UPLOAD, &unpauseTracker);
+    ASSERT_EQ(API_OK, unpauseTracker.waitForResult());
+
+    // the resumed upload must complete: wait for the uploaded node to appear.
+    // Note: the local logout above tears down the still-queued transfer, so an
+    // onTransferFinish carrying API_EACCESS for this file is expected before the
+    // resume (nothing was sent at that point - TransferSlot stats show 0 requests).
+    // The upload that matters is the one startxfer resumes from the transfer DB.
+    std::unique_ptr<MegaNode> linkRootAfter(folderApi->getRootNode());
+    ASSERT_NE(linkRootAfter.get(), nullptr);
+    const string fileName = path_u8string(localFilePath.filename());
+    std::unique_ptr<MegaNode> uploadedNode;
+    ASSERT_TRUE(WaitFor(
+        [&]()
+        {
+            uploadedNode.reset(folderApi->getChildNode(linkRootAfter.get(), fileName.c_str()));
+            return uploadedNode != nullptr;
+        },
+        defaultTimeoutMs))
+        << "Resumed upload did not finish on the folder link session";
+
+    // the whole file must have made it, and nothing may be left queued behind it
+    ASSERT_EQ(uploadedNode->getSize(), static_cast<int64_t>(fs::file_size(localFilePath)));
+    std::unique_ptr<MegaTransferList> remaining(folderApi->getTransfers(MegaTransfer::TYPE_UPLOAD));
+    ASSERT_TRUE(remaining);
+    ASSERT_EQ(remaining->size(), 0) << "Upload queue not drained after the resumed transfer";
 }
 
 /**

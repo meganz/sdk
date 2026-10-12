@@ -25,6 +25,7 @@ GfxProcessor::GfxProcessor()
 GfxTaskResult GfxProcessor::process(const GfxTask& task)
 {
     std::vector<std::string> outputImages(task.Dimensions.size());
+    auto name = task.Name;
     auto path = LocalPath::fromPlatformEncodedAbsolute(task.Path);
     if (task.Dimensions.empty())
     {
@@ -53,7 +54,7 @@ GfxTaskResult GfxProcessor::process(const GfxTask& task)
 
     // generate thumbnails
     LOG_info << "generate for, " << path;
-    auto images = mGfxProvider->generateImages(path, sortedDimensions);
+    auto images = mGfxProvider->generateImages(name, path, sortedDimensions);
 
     // assign back to original order
     for (decltype(images)::size_type i = 0; i < images.size(); ++i)

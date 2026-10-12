@@ -5,6 +5,7 @@
 #include <mega/fuse/platform/mount.h>
 
 #include <cassert>
+#include <limits>
 #include <stdexcept>
 #include <utility>
 
@@ -30,6 +31,7 @@ using namespace common;
 struct InodeInvalidator::Invalidation
 {
     Invalidation(ActivityMonitor& activities, MountInodeID id):
+        mData{std::numeric_limits<m_off_t>::max(), 0},
         mActivity(activities.begin()),
         mEntries(),
         mID(id),

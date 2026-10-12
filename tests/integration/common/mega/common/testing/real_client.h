@@ -95,6 +95,9 @@ protected:
              const char* privateAuth,
              const char* publicAuth) override;
 
+    // Deinitialize the client.
+    void deinitialize();
+
     // Get (or create) a public link for the specified node.
     void getPublicLink(GetPublicLinkCallback callback, NodeHandle handle) override;
 
@@ -131,6 +134,9 @@ public:
 
     virtual ~RealClient();
 
+    // Retrieve a node's attributes.
+    auto attributes(NodeHandle handle) const -> common::ErrorOr<NodeAttributes> override;
+
     // Is the specified user a contact?
     auto contact(const std::string& email) const -> ContactPtr override;
 
@@ -166,6 +172,9 @@ public:
 
     // Retrieve this user's session token.
     auto sessionToken() const -> ErrorOr<SessionToken> override;
+
+    // Update a node's attributes.
+    Error setAttributes(NodeHandle handle, const NodeAttributes& attributes) override;
 
     // Set the client's maximum download speed.
     m_off_t setDownloadSpeed(m_off_t speed) override;

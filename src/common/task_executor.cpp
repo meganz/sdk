@@ -1,17 +1,40 @@
+#include <mega/common/logging.h>
+#include <mega/common/move_only_function.h>
+#include <mega/common/task_executor.h>
+#include <mega/common/utility.h>
+#include <mega/types.h>
+
 #include <cassert>
 #include <chrono>
 #include <thread>
-
-#include <mega/common/logging.h>
-#include <mega/common/task_executor.h>
-#include <mega/common/utility.h>
-
-#include <mega/types.h>
 
 namespace mega
 {
 namespace common
 {
+
+namespace
+{
+
+// The executor tries to retain at least this many workers.
+constexpr std::size_t MinimumWorkers = 2;
+
+// Enforce the minimum-worker floor, but never require more than the maximum.
+TaskExecutorFlags withMinimumWorkers(TaskExecutorFlags flags)
+{
+    // If the caller capped the maximum below the floor, the maximum wins.
+    auto minimum = MinimumWorkers;
+
+    if (minimum > flags.mMaxWorkers)
+        minimum = flags.mMaxWorkers;
+
+    if (flags.mMinWorkers < minimum)
+        flags.mMinWorkers = minimum;
+
+    return flags;
+}
+
+} // namespace
 
 class TaskExecutor::Worker
 {
@@ -38,16 +61,15 @@ public:
     ~Worker();
 }; // Worker
 
-TaskExecutor::TaskExecutor(const TaskExecutorFlags& flags,
-                           Logger& logger)
-  : mAvailableWorkers(0u)
-  , mCV()
-  , mFlags(flags)
-  , mLock()
-  , mLogger(logger)
-  , mTaskQueue()
-  , mTerminating(false)
-  , mWorkers()
+TaskExecutor::TaskExecutor(const TaskExecutorFlags& flags, Logger& logger):
+    mAvailableWorkers(0u),
+    mCV(),
+    mFlags(withMinimumWorkers(flags)),
+    mLock(),
+    mLogger(logger),
+    mTaskQueue(),
+    mTerminating(false),
+    mWorkers()
 {
     LogDebug1(mLogger, "Executor constructed");
 }
@@ -85,7 +107,7 @@ TaskExecutor::~TaskExecutor()
     LogDebug1(mLogger, "Executor destroyed");
 }
 
-Task TaskExecutor::execute(std::function<void(const Task&)> function,
+Task TaskExecutor::execute(MoveOnlyFunction<void(const Task&)> function,
                            std::chrono::steady_clock::time_point when,
                            bool spawnWorker)
 {
@@ -153,7 +175,7 @@ void TaskExecutor::flags(const TaskExecutorFlags& flags)
 {
     std::lock_guard<std::mutex> guard(mLock);
 
-    mFlags = flags;
+    mFlags = withMinimumWorkers(flags);
 
     mCV.notify_all();
 }
@@ -179,13 +201,21 @@ void TaskExecutor::Worker::loop()
     auto& workers = mExecutor.mWorkers;
 
     // When should we wake up?
-    auto nextWakeup = [&]() {
+    auto nextWakeup = [&]()
+    {
+        // Convenience.
+        const auto now = std::chrono::steady_clock::now();
+
+        // Executor's being shut down.
+        if (terminating)
+            return now;
+
+        // At least a single task has been queued.
         if (!taskQueue.empty())
             return taskQueue.when();
 
-        using std::chrono::steady_clock;
-
-        return steady_clock::now() + flags.mIdleTime;
+        // Wait a little while for a task to be queued.
+        return now + flags.mIdleTime;
     }; // nextWakeup
 
     // Should we wake up?
@@ -223,7 +253,7 @@ void TaskExecutor::Worker::loop()
                 continue;
 
             // Keep at least a single worker alive if there tasks pending.
-            if (!taskQueue.empty() && workers.size() < 2)
+            if (!taskQueue.empty() && workers.size() < MinimumWorkers)
                 continue;
 
             // So we don't block on our own removal.

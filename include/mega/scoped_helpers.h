@@ -4,6 +4,7 @@
 
 #include <functional>
 #include <memory>
+#include <type_traits>
 #include <utility>
 
 namespace mega
@@ -81,6 +82,21 @@ auto makeScopedDestructor(Function function, Arguments&&... arguments)
     auto destructor = std::bind(std::move(function), std::forward<Arguments>(arguments)...);
 
     return makeScopedDestructor(std::move(destructor));
+}
+
+// Increment the value of place.
+//
+// Returns an object that will decrement place's value on destruction.
+template<typename T, std::enable_if_t<std::is_integral_v<T>>* = nullptr>
+auto makeScopedIncrementer(T& place)
+{
+    ++place;
+
+    return makeScopedDestructor(
+        [&place]()
+        {
+            --place;
+        });
 }
 
 // Changes the length (size) of a sequence and returns an object that will

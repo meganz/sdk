@@ -15,8 +15,6 @@
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_context_forward.h>
 #include <mega/file_service/file_context_pointer.h>
-#include <mega/file_service/file_event_observer.h>
-#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_fetch_request_forward.h>
 #include <mega/file_service/file_flush_request_forward.h>
 #include <mega/file_service/file_forward.h>
@@ -35,17 +33,23 @@
 #include <mega/file_service/file_request_traits.h>
 #include <mega/file_service/file_service_context_forward.h>
 #include <mega/file_service/file_service_options_forward.h>
+#include <mega/file_service/file_structure_mutex_forward.h>
 #include <mega/file_service/file_touch_request_forward.h>
 #include <mega/file_service/file_truncate_request.h>
 #include <mega/file_service/file_write_request_forward.h>
+#include <mega/file_service/read_tag.h>
+#include <mega/scoped_helpers.h>
 #include <mega/types.h>
 
+#include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <functional>
 #include <future>
 #include <list>
 #include <memory>
 #include <mutex>
+#include <optional>
 #include <type_traits>
 
 namespace mega
@@ -55,8 +59,31 @@ namespace file_service
 
 class FileContext final: public std::enable_shared_from_this<FileContext>
 {
+    // RAII helper that completes a request when it goes out of scope.
+    template<typename Request>
+    class DeferredCompletion;
+
     // Tracks state necessary for download.
     class DownloadContext;
+
+    // Convenience.
+    using DownloadContextPtr = std::shared_ptr<DownloadContext>;
+    using DownloadContextPtrList = std::list<DownloadContextPtr>;
+
+    // Bundles state related to a particular download category.
+    struct DownloadCategory
+    {
+        DownloadCategory(bool isStreaming, uint32_t alphaDown, uint32_t alphaUp);
+
+        // Computes the average bitrate of this download category.
+        common::AsymmetricEma mAverager;
+
+        // Tracks this category's active downloads.
+        FileRangeMap<DownloadContextPtr> mInProgress;
+
+        // True if this category represents a streaming transfer.
+        bool mIsStreaming;
+    }; // DownloadCategory
 
     // Tracks state necessary for fetch.
     class FetchContext;
@@ -68,19 +95,24 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     class ReclaimContext;
 
     // Convenience.
-    using DownloadContextPtr = std::shared_ptr<DownloadContext>;
     using FetchContextPtr = std::shared_ptr<FetchContext>;
     using FlushContextPtr = std::shared_ptr<FlushContext>;
     using FlushContextWeakPtr = std::weak_ptr<FlushContext>;
     using ReclaimContextPtr = std::shared_ptr<ReclaimContext>;
 
+    // Max depth of user callback in chain to avoid infinite stack growth
+    static constexpr unsigned short MAX_CALLBACK_DEPTH{5};
+
     // Add a range to the database.
     void addRange(const FileRange& range, common::Transaction& transaction);
 
-    // Cancel all downloads contained within the specified range.
-    auto cancel(const FileRangeMap<DownloadContextPtr>& downloading,
-                const FileRange& range) -> std::list<DownloadContextPtr>;
+    // Adds a new download for a given range to the specified category.
+    //
+    // Returns an object that will begin the download on destrution.
+    auto addScopedDownload(DownloadCategory& category, const FileRange& range) -> ScopedDestructor;
 
+    // Cancel all downloads contained within the specified range.
+    auto cancel(const DownloadCategory& category, const FileRange& range) -> DownloadContextPtrList;
     auto cancel(const FileRange& range) -> std::future<void>;
 
     // Cancel a pending request.
@@ -89,33 +121,53 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Cancel any downloads and pending requests.
     void cancel();
 
+    // Cancel any flush that's currently in progress.
+    //
+    // This function will not cancel any flushes that are queued to execute in the future.
+    void cancelFlushInProgress(bool dueToWrite);
+
     // Called when a file read request has been completed.
-    void completed(BufferPtr buffer, FileReadRequest&& request);
+    //
+    // When onCurrentThread is true the caller must have released every lock, as
+    // the user's callback is invoked synchronously on this thread.
+    void completed(BufferPtr buffer, FileReadRequest&& request, bool onCurrentThread);
 
     // Called when a file request has been completed.
+    //
+    // When onCurrentThread is true the completion (the user's callback)
+    // runs synchronously on the calling thread instead of being handed to a worker,
+    // the caller must hold no locks. When false the completion is queued on the executor.
     template<typename Request, typename Result, typename... Captures>
-    auto completed(Request&& request, Result result, Captures&&... captures)
+    auto completed(Request&& request, Result result, bool onCurrentThread, Captures&&... captures)
         -> std::enable_if_t<IsFileRequestV<Request>>;
 
     // Called to complete all file read requests within range.
-    void completed(const FileRange& range);
+    std::size_t completed(const FileRange& range);
 
-    // Called when a file write request has been completed.
-    void completed(FileWriteRequest&& request);
+    // Complete the request on disk if can and update request accordingly
+    // Return true if it is completed, otherwise false
+    //
+    // If onCurrentThread is true, the caller does inline completion. The lock is RELEASED first and
+    // the user's callback is invoked on the calling thread. When this function returns true with a
+    // true onCurrentThread, the lock is no longer held and the caller must return immediately
+    // without touching any lock-protected state.
+    bool completeReadIfOnDisk(std::unique_lock<std::recursive_mutex>& lock,
+                              FileReadRequest& request,
+                              bool onCurrentThread);
 
     // Dispatch all read requests within range.
     template<typename Dispatcher>
-    void dispatch(Dispatcher&& dispatcher, const FileRange& range);
+    std::size_t dispatch(Dispatcher&& dispatcher, const FileRange& range);
 
-    // Large download bitrate
-    std::uint64_t downloadBitrate() const;
+    // If the request is executable, acquire the appropriate read/write lock.
+    bool executable(std::unique_lock<std::mutex>& lock, const FileRequest& request);
+    // Check if a request can be executed or not.
+    bool executableCheck(std::unique_lock<std::mutex>& lock, const FileRequest& request);
 
-    // Check if a request can be executed.
-    bool executable(std::unique_lock<std::mutex>& lock, bool queuing, const FileRequest& request);
-
-    // Check if a particular class of request can be executed.
-    bool executable(std::unique_lock<std::mutex>& lock, bool queuing, FileReadRequestTag tag);
-    bool executable(std::unique_lock<std::mutex>& lock, bool queuing, FileWriteRequestTag tag);
+    // Check whether this class of request can be executed.
+    // If checkOnly is true, only validate without acquiring the read/write lock.
+    bool executable(bool checkOnly, std::unique_lock<std::mutex>& lock, FileReadRequestTag tag);
+    bool executable(bool checkOnly, std::unique_lock<std::mutex>& lock, FileWriteRequestTag tag);
 
     // Try and execute an append request.
     void execute(FileAppendRequest& request);
@@ -129,11 +181,14 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Try and execute a read request.
     void execute(FileReadRequest& request);
 
+    // Try and execute a normal read request.
+    void execute(FileReadRequest& request, const NormalReadTag&);
+
+    // Try and execute a stream read request.
+    void execute(FileReadRequest& request, const StreamReadTag&);
+
     // Try and execute a reclaim request.
     void execute(FileReclaimRequest& request);
-
-    // Try and execute a remove request.
-    void execute(FileRemoveRequest& request);
 
     // Try and execute a touch request.
     void execute(FileTouchRequest& request);
@@ -166,8 +221,17 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     void failed(const FileRange& range, FileResult result);
 
     // Increase this file's size.
-    auto grow(std::uint64_t newSize, std::uint64_t oldSize)
-        -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;
+    auto grow(const FileTruncateRequest& request)
+        -> std::pair<std::unique_lock<std::recursive_mutex>, std::int64_t>;
+
+    // Does this context have any pending requests?
+    bool hasPendingRequests() const;
+
+    // Return the last normal read activity time, used for cancel unused downloads for normal reads
+    std::chrono::steady_clock::time_point lastNormalReadActivityTime() const;
+
+    // Queue read request for later completion
+    void queueReadRequest(FileReadRequest&& request);
 
     // Queue a request for later execution.
     template<typename Request>
@@ -181,26 +245,54 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Remove zero or more ranges from the database.
     void removeRanges(const FileRange& range, common::Transaction& transaction);
 
+    // Returns a destructor that will schedule this file for flushing.
+    ScopedDestructor scopedScheduleFlush();
+
     // Mark the file as removed.
-    FileResult setRemoved(bool replaced);
+    FileResult setRemoved();
 
     // Decrease this file's size.
-    auto shrink(std::uint64_t newSize, std::uint64_t oldSize)
-        -> std::pair<common::UniqueLock<common::Database>, common::Transaction>;
+    auto shrink(const FileTruncateRequest& request)
+        -> std::pair<std::unique_lock<std::recursive_mutex>, std::int64_t>;
 
     // Update this file's access time in the database.
     void updateAccessTime(std::int64_t accessed, common::Transaction& transaction);
+
+    // Update this file's access time in the database if at least interval has elapsed.
+    void bumpAccessTime(std::chrono::seconds interval);
 
     // Update this file's access and modification time in the database.
     void updateAccessAndModificationTimes(std::int64_t accessed,
                                           std::int64_t modified,
                                           common::Transaction& transaction);
 
+    // Update last normal read activity time, used for cancel unused downloads for normal reads
+    void touchNormalReadActivity();
+
     // Called after a range has been written to disk.
-    FileRange updateRanges(FileRange range, common::Transaction& transaction);
+    //
+    // When modified is provided, the file's size and access/modification
+    // times are persisted with a single combined UPDATE rather than a
+    // separate updateSize() and updateAccessAndModificationTimes() pair.
+    FileRange updateRangeInDatabase(FileRange range,
+                                    common::Transaction& transaction,
+                                    std::optional<std::int64_t> modified = std::nullopt);
+
+    // Called after a range has been written to disk.
+    void updateRangeInMemory(const FileRange range);
 
     // Update the file's sizes in the database.
     void updateSize(std::uint64_t size, common::Transaction& transaction);
+
+    // Nonthrowing convenience specialization of the above.
+    FileResult updateSize(std::uint64_t size);
+
+    // Update the file's sizes and access/modification times in a single
+    // UPDATE (both touch the same files row).
+    void updateSizeAndTime(std::int64_t accessed,
+                           std::int64_t modified,
+                           std::uint64_t size,
+                           common::Transaction& transaction);
 
     // Logs instance lifetime.
     common::InstanceLogger<FileContext> mInstanceLogger;
@@ -208,18 +300,24 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Keep our service alive until we're dead.
     common::Activity mActivity;
 
-    // What's the average bitrate of our large downloads?
-    common::EmaInteger mAverageLargeDownloadBitrate;
-
     // Wraps mFile and unifies logic.
     FileBufferPtr mBuffer;
 
-    // What ranges are currently being downloaded?
+    // Count current user callback chained depth, each thread has one instance
+    static thread_local unsigned short mCallbackDepth;
+
+    // Tracks what ranges are currently being downloaded.
     struct
     {
-        FileRangeMap<DownloadContextPtr> mLarge;
-        FileRangeMap<DownloadContextPtr> mSmall;
-    } mDownloading;
+        // For large streaming transfers.
+        DownloadCategory mLarge;
+
+        // For nonstreaming transfers.
+        DownloadCategory mNormal;
+
+        // For small streaming transfers.
+        DownloadCategory mSmall;
+    } mDownloadCategories;
 
     // How we get and set our file's attributes.
     FileInfoContextPtr mInfo;
@@ -260,6 +358,10 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     // Tracks whether any reads or writes are in progress.
     FileReadWriteState mReadWriteState;
 
+    // Tracks normal reads activity time since epoch, used for cancel unused downloads for normal
+    // reads Practically, duration can be used as type of Atomic
+    std::atomic<std::chrono::steady_clock::duration> mLastNormalReadActivityTime;
+
     // Tracks any reclaim in progress.
     ReclaimContextPtr mReclaimContext;
 
@@ -270,7 +372,7 @@ class FileContext final: public std::enable_shared_from_this<FileContext>
     FileRequestList mRequests;
 
     // Serializes access to mRequests.
-    std::mutex mRequestsLock;
+    mutable std::mutex mRequestsLock;
 
     // The service that manages this context.
     FileServiceContext& mService;
@@ -290,9 +392,6 @@ public:
                 FileServiceContext& service);
 
     ~FileContext();
-
-    // Notify an observer when this file's information changes.
-    FileEventObserverID addObserver(FileEventObserver observer);
 
     // Append data to the end of this file.
     void append(FileContextPtr context, FileAppendRequest request);
@@ -338,10 +437,9 @@ public:
     void reclaim(FileReclaimCallback callback, FileContextPtr context);
 
     // Remove this file.
-    void remove(FileContextPtr context, FileRemoveRequest request);
+    void remove(FileContextPtr context, FileStructureUniqueLock& lock, FileRemoveRequest request);
 
-    // Remove a previously added observer.
-    void removeObserver(FileEventObserverID id);
+    void remove(FileContextPtr context, FileRemoveRequest request);
 
     // Check if this file has been removed.
     bool removed() const;

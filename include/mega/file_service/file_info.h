@@ -2,16 +2,17 @@
 
 #include <mega/common/instance_logger.h>
 #include <mega/file_service/file_context_badge_forward.h>
-#include <mega/file_service/file_event_observer.h>
-#include <mega/file_service/file_event_observer_id.h>
 #include <mega/file_service/file_id_forward.h>
 #include <mega/file_service/file_info_context_pointer.h>
 #include <mega/file_service/file_info_forward.h>
-#include <mega/file_service/file_location_forward.h>
 #include <mega/file_service/file_service_context_badge_forward.h>
+#include <mega/file_service/file_structure_mutex_forward.h>
 
 #include <cstdint>
 #include <optional>
+#include <shared_mutex>
+#include <type_traits>
+#include <utility>
 
 namespace mega
 {
@@ -23,11 +24,20 @@ namespace file_service
 
 class FileInfo
 {
+    // So shared_lock can call (un)?lock_shared.
+    friend class std::shared_lock<const FileInfo>;
+
     // Logs instance lifetime.
     common::InstanceLogger<FileInfo> mInstanceLogger;
 
     // What context does this instance wrap?
     FileInfoContextPtr mContext;
+
+    // Acquire a read lock on this file's info.
+    void lock_shared() const;
+
+    // Release a read lock on this file's info.
+    void unlock_shared() const;
 
 public:
     FileInfo(FileContextBadge badge, FileInfoContextPtr context);
@@ -56,9 +66,6 @@ public:
     // When was this file last accessed?
     std::int64_t accessed() const;
 
-    // Notify an observer when this file's information changes.
-    FileEventObserverID addObserver(FileEventObserver observer);
-
     // How much disk space has been allocated to this file?
     std::uint64_t allocatedSize() const;
 
@@ -81,14 +88,8 @@ public:
     // What node is this file associated with?
     FileID id() const;
 
-    // Where is this file located in the cloud?
-    std::optional<FileLocation> location() const;
-
     // When was this file last modified?
     std::int64_t modified() const;
-
-    // Remove a previously added observer.
-    void removeObserver(FileEventObserverID id);
 
     // Has this file been removed?
     bool removed() const;
@@ -98,6 +99,19 @@ public:
 
     // How large is this file conceptually?
     std::uint64_t size() const;
+
+    // Retrieve a reference to this file's structure mutex.
+    FileStructureMutex& structureMutex() const;
+
+    // Invoke function while holding a lock on this file's info.
+    template<typename Function,
+             std::enable_if_t<std::is_invocable_v<Function, const FileInfo&>>* = nullptr>
+    auto whileLocked(Function&& function) const
+    {
+        std::shared_lock guard(*this);
+
+        return std::invoke(std::forward<Function>(function), *this);
+    }
 }; // FileInfo
 
 } // file_service

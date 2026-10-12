@@ -26,7 +26,17 @@ RealClient::RealClient(const std::string& clientName,
     mClient->mFuseService.logLevel(logDebug);
 }
 
-RealClient::~RealClient() {}
+RealClient::~RealClient()
+{
+    // Explicitly deinitialize our base class so that the client doesn't
+    // call into this instance after it's been destroyed.
+    deinitialize();
+}
+
+file_service::FileService& RealClient::fileService() const
+{
+    return mClient->mFileService;
+}
 
 Service& RealClient::fuseService() const
 {

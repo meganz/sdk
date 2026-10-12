@@ -799,6 +799,18 @@ namespace mega {
         // Used by SdkWsUploadTest.OverquotaDuringTransfer to deterministically exercise
         // the WS-channel OVERQUOTA path without depending on staging quota state.
         std::function<bool(int /*transferTag*/)> onWsChunkSendOverquota;
+        // SDK-6600 wire observer: fires in WsPool::sendChunk right before a frame is handed to
+        // WsConn::sendChunkData, i.e. once per frame put on the wire (fresh chunks, resent
+        // chunks and the zero-length EOF frame alike). Carries the pool URL the connection is
+        // bound to, the frame's fileno/pos/len and the owning file's local path, which (unlike
+        // the transfer tag) is stable across sessions. Fires on a WS worker thread with the
+        // engine uploadMutex held: the callback must only record, never call engine APIs.
+        std::function<void(const std::string& /*url*/,
+                           std::uint32_t /*fileno*/,
+                           m_off_t /*pos*/,
+                           int /*len*/,
+                           const std::string& /*localPath*/)>
+            onWsChunkSent;
         // S15 FIX-T regression seam: fired once from wsLocallogoutCleanup after the
         // worker quiesce window with the engine's count of worker-loop iterations
         // executed while stopping() was already true. Post-fix invariant: <=1 per
@@ -808,6 +820,16 @@ namespace mega {
         // deterministically, no starvation timing needed. Asserted (<=64) by
         // SdkWsUploadTest.LocallogoutBoundedWithStuckReadIO.
         std::function<void(std::uint64_t /*itersWhileStopping*/)> onWsTeardownWorkerChurn;
+        // SDK-6476 seam: fired once from wsLocallogoutCleanup right after the bounded worker
+        // quiesce wait, BEFORE the branch it reports on: quiesced==true means every engine
+        // thread exited and the engine is destroyed normally; quiesced==false means the
+        // bounded containment path is taken and the engine is intentionally leaked.
+        // liveWorkers is the pool-worker count still alive at that moment and elapsedMs the
+        // locallogout phase time. Lets tests assert WHICH branch ran without scraping logs
+        // (LocallogoutCancelsBlackholedHandshake expects true, LocallogoutBoundedWithStuckReadIO
+        // expects false).
+        std::function<void(bool /*quiesced*/, int /*liveWorkers*/, std::int64_t /*elapsedMs*/)>
+            onWsEngineQuiesceOutcome;
         // Goodput-saturation gate v2 (SDK-5360 QCT-K) controller-input seams. Both fire on the
         // WS engine thread under uploadMutex, inside WsPool::runGoodputGateLocked, so a test can
         // drive the ramp controller with a deterministic synthetic signal while the REAL send
@@ -858,6 +880,9 @@ namespace mega {
         std::function<
             void(int /*transferTag*/, bool /*held*/, bool /*foreign*/, m_off_t /*availableBytes*/)>
             onWsQuotaHoldChanged;
+        // Lets single-account tests classify an own pool as foreign to exercise the
+        // foreign-only hold machinery (SDK-6610).
+        std::function<void(NodeHandle /*folder*/, bool& /*foreign*/)> onWsQuotaClassifyPool;
         // Fired when a stale "tfs" reply is discarded by the generation check.
         std::function<void(std::uint64_t /*staleGen*/, std::uint64_t /*currentGen*/)>
             onWsTfsStaleDiscarded;
@@ -888,7 +913,16 @@ namespace mega {
         // exercise the "created earlier but gone now" guard (e.g. deleted by another session).
         // Returns true to force the folder to be treated as not found.
         std::function<bool(const std::string& folderName)> onFolderUploadSimulateMissing;
-    
+
+        // Force a readahead allocation in RaidReq::procdata to fail, so that the raid request is
+        // failed with API_EAGAIN and retried. Returns true to fail the allocation.
+        std::function<bool(uint8_t part, m_off_t len)> onRaidReadaheadAllocFailure;
+
+        // Called when a partial download is about to be performed, with the target node
+        // and the requested length and offset.
+        std::function<void(NodeHandle handle, std::uint64_t length, std::uint64_t offset)>
+            onPartialDownload;
+
     private:
         // Helper used by the move ctor/op=; callers MUST already hold the relevant mutex(es).
         // Must mention EVERY field above — missing one leaks on reset.
@@ -933,9 +967,15 @@ namespace mega {
                 std::move(other.onWsUploadTailCompletionTimeoutDs);
             onWsSessionUrlTransition = std::move(other.onWsSessionUrlTransition);
             onWsChunkSendOverquota = std::move(other.onWsChunkSendOverquota);
+            onWsTeardownWorkerChurn = std::move(other.onWsTeardownWorkerChurn);
+            onWsEngineQuiesceOutcome = std::move(other.onWsEngineQuiesceOutcome);
+            onHeartbeatReceived = std::move(other.onHeartbeatReceived);
+            interceptCSRequest = std::move(other.interceptCSRequest);
             onWsTfsIssued = std::move(other.onWsTfsIssued);
             onWsTfsResult = std::move(other.onWsTfsResult);
             onWsQuotaHoldChanged = std::move(other.onWsQuotaHoldChanged);
+            onWsQuotaClassifyPool = std::move(other.onWsQuotaClassifyPool);
+            onWsChunkSent = std::move(other.onWsChunkSent);
             onWsTfsStaleDiscarded = std::move(other.onWsTfsStaleDiscarded);
             onWsQuotaDeducted = std::move(other.onWsQuotaDeducted);
             onWsGateBackpressureSample = std::move(other.onWsGateBackpressureSample);
@@ -956,6 +996,8 @@ namespace mega {
             onLocalFileNodeMacComparison = std::move(other.onLocalFileNodeMacComparison);
             onFolderUploadPutnodesResult = std::move(other.onFolderUploadPutnodesResult);
             onFolderUploadSimulateMissing = std::move(other.onFolderUploadSimulateMissing);
+            onRaidReadaheadAllocFailure = std::move(other.onRaidReadaheadAllocFailure);
+            onPartialDownload = std::move(other.onPartialDownload);
         }
     };
 
@@ -1401,6 +1443,19 @@ namespace mega {
         } \
         while (0)
 
+#define DEBUG_TEST_HOOK_WS_ENGINE_QUIESCE_OUTCOME(QUIESCED, LIVEWORKERS, ELAPSEDMS) \
+        do \
+        { \
+            std::function<void(bool, int, std::int64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsEngineQuiesceOutcome; \
+            } \
+            if (_fn) \
+                _fn((QUIESCED), (LIVEWORKERS), (ELAPSEDMS)); \
+        } \
+        while (0)
+
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA) \
         do \
         { \
@@ -1411,6 +1466,23 @@ namespace mega {
             } \
             if (_fn) \
                 (OUT_INJECT_OVERQUOTA) = _fn((TAG)); \
+        } \
+        while (0)
+
+    // SDK-6600 per-frame wire observer. LOCALPATH is only evaluated when a hook is installed,
+    // so the uninstalled path costs one lock and one empty-function copy per frame.
+#define DEBUG_TEST_HOOK_WS_CHUNK_SENT(URL, FILENO, POS, LEN, LOCALPATH) \
+        do \
+        { \
+            std::function< \
+                void(const std::string&, std::uint32_t, m_off_t, int, const std::string&)> \
+                _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsChunkSent; \
+            } \
+            if (_fn) \
+                _fn((URL), (FILENO), (POS), (LEN), (LOCALPATH)); \
         } \
         while (0)
 
@@ -1453,6 +1525,19 @@ namespace mega {
             } \
             if (_fn) \
                 _fn((TAG), (HELD), (FOREIGN), (AVAIL)); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_WS_QUOTA_CLASSIFY_POOL(H, FOREIGN) \
+        do \
+        { \
+            std::function<void(NodeHandle, bool&)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onWsQuotaClassifyPool; \
+            } \
+            if (_fn) \
+                _fn((H), (FOREIGN)); \
         } \
         while (0)
 
@@ -1609,6 +1694,32 @@ namespace mega {
             } \
         } \
         while (0)
+
+#define DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(PART, LEN, OUT_FAIL_ALLOC) \
+        do \
+        { \
+            std::function<bool(uint8_t, m_off_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onRaidReadaheadAllocFailure; \
+            } \
+            if (_fn) \
+                (OUT_FAIL_ALLOC) = _fn((PART), (LEN)); \
+        } \
+        while (0)
+
+#define DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(H, L, O) \
+        do \
+        { \
+            std::function<void(NodeHandle, std::uint64_t, std::uint64_t)> _fn; \
+            { \
+                std::lock_guard<std::mutex> _g(globalMegaTestHooks.mMutex); \
+                _fn = globalMegaTestHooks.onPartialDownload; \
+            } \
+            if (_fn) \
+                _fn((H), (L), (O)); \
+        } \
+        while (0)
 #else
     #define DEBUG_TEST_HOOK_HTTPREQ_POST(x)
     #define DEBUG_TEST_HOOK_RAIDBUFFERMANAGER_SETISRAID(x)
@@ -1650,10 +1761,13 @@ namespace mega {
 #define DEBUG_TEST_HOOK_WS_PURGE_INFLIGHT(FILENO, OUT_PURGE)
 #define DEBUG_TEST_HOOK_WS_SESSION_URL_TRANSITION(TAG, OLDURL, NEWURL, REASON)
 #define DEBUG_TEST_HOOK_WS_CHUNK_SEND_OVERQUOTA(TAG, OUT_INJECT_OVERQUOTA)
+#define DEBUG_TEST_HOOK_WS_CHUNK_SENT(URL, FILENO, POS, LEN, LOCALPATH)
 #define DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(COUNT)
+#define DEBUG_TEST_HOOK_WS_ENGINE_QUIESCE_OUTCOME(QUIESCED, LIVEWORKERS, ELAPSEDMS)
 #define DEBUG_TEST_HOOK_WS_TFS_ISSUED(FOLDERS, GEN)
 #define DEBUG_TEST_HOOK_WS_TFS_RESULT(GEN, ERR, GROUPS, ACTION)
 #define DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(TAG, HELD, FOREIGN, AVAIL)
+#define DEBUG_TEST_HOOK_WS_QUOTA_CLASSIFY_POOL(H, FOREIGN)
 #define DEBUG_TEST_HOOK_WS_TFS_STALE_DISCARDED(STALE, CURRENT)
 #define DEBUG_TEST_HOOK_WS_QUOTA_DEDUCTED(H, SIZE, REMAINING)
 #define DEBUG_TEST_HOOK_WS_GATE_BP_SAMPLE(POOLPTR, OPEN, BP)
@@ -1665,6 +1779,8 @@ namespace mega {
 #define DEBUG_TEST_HOOK_LOCAL_FILE_NODE_MAC_COMPARISON
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_PUTNODES_RESULT(NN)
 #define DEBUG_TEST_HOOK_FOLDER_UPLOAD_SIMULATE_MISSING(FOLDERNAME, MEGANODE, SENT)
+#define DEBUG_TEST_HOOK_RAID_READAHEAD_ALLOC_FAILURE(PART, LEN, OUT_FAIL_ALLOC)
+#define DEBUG_TEST_HOOK_PARTIAL_DOWNLOAD(H, L, O)
 #endif
 
 } // namespace

@@ -12,7 +12,7 @@ struct FileRemoveEvent
 {
     bool operator==(const FileRemoveEvent& rhs) const
     {
-        return mID == rhs.mID && mReplaced == rhs.mReplaced;
+        return mHandle == rhs.mHandle && mID == rhs.mID;
     }
 
     bool operator!=(const FileRemoveEvent& rhs) const
@@ -20,11 +20,11 @@ struct FileRemoveEvent
         return !(*this == rhs);
     }
 
+    // The handle of hte file that's been removed.
+    NodeHandle mHandle;
+
     // The ID of the file that's been removed.
     FileID mID;
-
-    // True if the file was removed because it was replaced.
-    bool mReplaced;
 }; // FileRemoveEvent
 
 } // file_service

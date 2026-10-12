@@ -1,6 +1,8 @@
 #pragma once
 
+#include <mega/common/badge_forward.h>
 #include <mega/common/error_or_forward.h>
+#include <mega/common/transaction_forward.h>
 #include <mega/fuse/common/directory_inode_forward.h>
 #include <mega/fuse/common/directory_inode_results.h>
 #include <mega/fuse/common/file_move_flag_forward.h>
@@ -10,6 +12,7 @@
 
 #include <cstdint>
 #include <functional>
+#include <mutex>
 #include <string>
 
 namespace mega
@@ -19,6 +22,15 @@ namespace fuse
 
 class DirectoryInode final: public Inode
 {
+    // Called to acquire a lock on this inode.
+    void doLock() const override;
+
+    // Called to try and acquire a lock on this inode.
+    bool doTryLock() const override;
+
+    // Called to release a lock on this inode.
+    void doUnlock() const override;
+
     // Make a new child.
     template<typename Maker>
     common::ErrorOr<MakeInodeResult> make(Maker&& maker, const std::string& name);
@@ -26,13 +38,13 @@ class DirectoryInode final: public Inode
     // Removes this directory from the inode database.
     void remove(RefBadge badge, InodeDBLock lock) override;
 
+    // Serializes access to this inode.
+    mutable std::recursive_mutex mMutex;
+
 public:
     DirectoryInode(InodeID id, const common::NodeInfo& info, InodeDB& inodeDB);
 
     ~DirectoryInode();
-
-    // Is this inode in the file cache?
-    bool cached() const override;
 
     // Retrieve a list of this directory's children.
     InodeRefVector children() const;
@@ -42,6 +54,13 @@ public:
 
     // Try and retrieve a reference to the specified child.
     InodeRef get(const std::string& name) const;
+
+    // Update what cloud node is associated with this inode.
+    void handle(common::Badge<InodeDB> badge,
+                NodeHandle handle,
+                common::Transaction& transaction) override;
+
+    void handle(NodeHandle handle) override;
 
     // What cloud node does this directory represent?
     NodeHandle handle() const override;

@@ -2,6 +2,7 @@
 #include <mega/file_service/file_result.h>
 #include <mega/file_service/file_result_or.h>
 #include <mega/file_service/file_stream_result.h>
+#include <mega/file_service/read_tag.h>
 #include <mega/file_service/source.h>
 #include <mega/file_service/utility.h>
 
@@ -164,7 +165,7 @@ void StreamContext::stream(StreamContextPtr context,
                          std::placeholders::_1),
                offset,
                length,
-               isJumpCandidate);
+               StreamReadTag{isJumpCandidate});
 }
 
 class StreamContextFD;
@@ -277,7 +278,7 @@ void StreamContextFD::stream(StreamContextFDPtr context,
                          std::placeholders::_1),
                offset,
                length,
-               isJumpCandidate);
+               StreamReadTag{isJumpCandidate});
 }
 } // file_service
 } // mega

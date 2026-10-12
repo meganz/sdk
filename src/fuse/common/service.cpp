@@ -1,8 +1,5 @@
-#include <cassert>
-#include <stdexcept>
-
 #include <mega/common/error_or.h>
-#include <mega/log_level.h>
+#include <mega/common/lock.h>
 #include <mega/common/normalized_path.h>
 #include <mega/common/task_queue.h>
 #include <mega/fuse/common/client.h>
@@ -14,6 +11,10 @@
 #include <mega/fuse/common/mount_result.h>
 #include <mega/fuse/common/service.h>
 #include <mega/fuse/platform/service_context.h>
+#include <mega/log_level.h>
+
+#include <cassert>
+#include <stdexcept>
 
 namespace mega
 {
@@ -21,6 +22,7 @@ namespace fuse
 {
 
 using namespace common;
+using namespace file_service;
 
 Service::Service(Client& client, const ServiceFlags& flags)
   : mClient(client)
@@ -55,11 +57,6 @@ MountResult Service::add(const MountInfo& info)
     emitEvent(mClient, event);
 
     return event.mResult;
-}
-
-bool Service::cached(NormalizedPath path) const
-{
-    return mContext && mContext->cached(path);
 }
 
 void Service::current()
@@ -198,10 +195,10 @@ MountInfoVector Service::get(bool onlyEnabled) const
     return MountInfoVector();
 }
 
-MountResult Service::initialize()
+MountResult Service::initialize(FileService& fileService)
 try
 {
-    mContext = std::make_unique<platform::ServiceContext>(ServiceFlags(), *this);
+    mContext = std::make_unique<platform::ServiceContext>(fileService, ServiceFlags(), *this);
 
     FUSEDebug1("Service initialized");
 
@@ -216,16 +213,26 @@ catch (std::runtime_error& exception)
 
 void Service::logLevel(LogLevel level)
 {
-    std::lock_guard<std::mutex> guard(mFlagsLock);
+    // Acquire flag write lock.
+    UniqueLock lockw(mFlagsLock);
 
+    // Update our logger's intended log-level.
     mFlags.mLogLevel = level;
 
+    // Downgrade our lock to a read-lock.
+    auto lockr = lockw.to_shared_lock();
+
+    // Update our logger's log-level.
     logger().logLevel(level);
 }
 
 LogLevel Service::logLevel() const
 {
-    return logger().logLevel();
+    // Acquire flag read lock.
+    SharedLock guard(mFlagsLock);
+
+    // Pass current log-level to our caller.
+    return mFlags.mLogLevel;
 }
 
 NormalizedPath Service::path(const std::string& name) const
@@ -254,20 +261,29 @@ MountResult Service::remove(const std::string& name)
 
 void Service::serviceFlags(const ServiceFlags& flags)
 {
-    std::lock_guard<std::mutex> guard(mFlagsLock);
+    // Acquire write lock on our service flags.
+    UniqueLock lockw(mFlagsLock);
 
+    // Update our service flags.
     mFlags = flags;
 
+    // Downgrade our lock to a read lock.
+    auto lockr = lockw.to_shared_lock();
+
+    // Update our logger's log-level.
     logger().logLevel(mFlags.mLogLevel);
 
+    // Let our context know the service's flags have been updated.
     if (mContext)
         mContext->serviceFlags(mFlags);
 }
 
 ServiceFlags Service::serviceFlags() const
 {
-    std::lock_guard<std::mutex> guard(mFlagsLock);
+    // Acquire flags read lock.
+    SharedLock guard(mFlagsLock);
 
+    // Pass a copy of our flags to our caller.
     return mFlags;
 }
 

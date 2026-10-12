@@ -33,6 +33,8 @@
 #include "mega/transfer.h"
 #include "mega/transfer/ws/ws_quota.h"
 
+#include <algorithm>
+#include <cstdint>
 #include <cstring>
 #include <functional>
 #include <memory>
@@ -71,6 +73,22 @@ void MegaClient::maybeStartWsUploadEngine()
     if (!m_wsEngine)
     {
         m_wsEngine.reset(new ws::UploadEngine(*this));
+        // SDK-6600: the transfer cache may have loaded before the engine existed (see
+        // enabletransferresumption): keep fresh filenos above the persisted ones.
+        std::uint32_t highestWsFileNo = 0;
+        for (const auto* transfers: {&multi_cachedtransfers[PUT], &multi_transfers[PUT]})
+        {
+            for (const auto& entry: *transfers)
+            {
+                highestWsFileNo = std::max(highestWsFileNo, entry.second->ws_fileno);
+            }
+        }
+        if (highestWsFileNo)
+        {
+            LOG_debug << "WsUpload: engine start reserves filenos up to " << highestWsFileNo
+                      << " (held by already loaded PUT transfers)";
+            m_wsEngine->reserveFileNos(highestWsFileNo);
+        }
     }
     if (!mWsQuota)
     {
@@ -342,7 +360,9 @@ void MegaClient::wsQuotaOnTfsReply(std::uint64_t gen,
                               groups,
                               [this](NodeHandle h)
                               {
-                                  return wsQuotaClassifyPool(h);
+                                  auto pool = wsQuotaClassifyPool(h);
+                                  DEBUG_TEST_HOOK_WS_QUOTA_CLASSIFY_POOL(h, pool.second);
+                                  return pool;
                               }))
     {
         wsQuotaEvaluateHolds();
@@ -384,11 +404,32 @@ void MegaClient::wsQuotaEvaluateHolds()
             targets.push_back(f->h);
             if (reprFolder.isUndef())
                 reprFolder = f->h; // first balance-bearing target (release reporting)
-            if (!shouldHold && t->size > mWsQuota->availableFor(f->h))
+            // Only a FOREIGN (inshare) shortfall holds: the app gets isForeignOverquota().
+            // An own-account shortfall fails open: apps learn of own storage exhaustion
+            // only via EVENT_STORAGE, which the legacy account-RED path fires if the
+            // server rejects or the account overflows (SDK-6610).
+            if (!shouldHold && t->size > mWsQuota->availableFor(f->h) &&
+                mWsQuota->isForeignGroup(f->h))
             {
                 // hold-if-ANY-target-short: pin the first shortfall folder for the hook.
                 shouldHold = true;
                 reprFolder = f->h;
+            }
+        }
+
+        if (shouldHold)
+        {
+            // Never hold a transfer that also feeds an own (or unclassified) target: the
+            // bytes are shared, so that target would be stuck with an error apps don't act
+            // on. The foreign target gets the server's verdict at putnodes, as before.
+            for (File* f: t->files)
+            {
+                if (f->h.isUndef() || !mWsQuota->hasBalanceFor(f->h) ||
+                    !mWsQuota->isForeignGroup(f->h))
+                {
+                    shouldHold = false;
+                    break;
+                }
             }
         }
 
@@ -435,6 +476,10 @@ bool MegaClient::wsQuotaApplyHoldState(Transfer& t,
             ++performanceStats.transferTempErrors;
         }
 
+        LOG_debug << "WsQuota: hold transfer " << t.tag
+                  << " (foreign pool short, available=" << mWsQuota->availableFor(reprFolder)
+                  << ", size=" << t.size << ")";
+
         // Args inlined: in a hooks-off (Release) build the macro vanishes, so a
         // named foreign/avail here would be an unused-variable error (HR42).
         DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(t.tag,
@@ -459,6 +504,9 @@ bool MegaClient::wsQuotaApplyHoldState(Transfer& t,
         t.state = TRANSFERSTATE_QUEUED;
         app->transfer_update(&t);
     }
+
+    LOG_debug << "WsQuota: release transfer " << t.tag
+              << " (available=" << mWsQuota->availableFor(reprFolder) << ", size=" << t.size << ")";
 
     DEBUG_TEST_HOOK_WS_QUOTA_HOLD_CHANGED(t.tag,
                                           false,
@@ -879,14 +927,17 @@ void MegaClient::wsPostTransferUpdate(Transfer* t,
         });
 }
 
-void* MegaClient::wsHandshakeForUpload(const std::string& url, long timeoutMs, std::string* err)
+void* MegaClient::wsHandshakeForUpload(const std::string& url,
+                                       long timeoutMs,
+                                       std::string* err,
+                                       const std::atomic<bool>* stopFlag)
 {
     auto* cio = dynamic_cast<CurlHttpIO*>(httpio);
     if (!cio)
     {
         return nullptr;
     }
-    return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err));
+    return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err, stopFlag));
 }
 
 void MegaClient::wsDrainClientActions(dstime maxExecTimeDs, bool loudPhases)
@@ -1026,8 +1077,8 @@ void MegaClient::wsFinalizeUploadCompletion(Transfer& t)
     // The single client-thread completion funnel (direct + verify-retry paths):
     // debit the quota pool(s) before the transfer is retired.
     wsQuotaOnUploadCompleted(t);
-    if (!gfxdisabled)
-        t.addAnyMissingMediaFileAttributes(nullptr, t.localfilename);
+    // prepare file attributes for video/audio files if the file is suitable
+    t.addMissingMediaAttributesOnUpload(t.localfilename);
     checkfacompletion(t.uploadhandle, &t, true);
 }
 
@@ -1483,14 +1534,15 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
                   << t.uploadhandle << " [t.localfilename = " << t.localfilename << "]";
 
         // 4) Enqueue thumbnail/preview FAs if applicable
-        if (!gfxdisabled && gfx && gfx->isgfx(t.localfilename))
+        if (auto conceptualname = t.thumbnailName())
         {
-            LOG_debug << "[MegaClient::prepareUploadForWs] !gfxdisabled && gfx && "
-                         "gfx->isgfx(t.localfilename) -> generate and mark pending attributes "
+            LOG_debug << "[MegaClient::prepareUploadForWs] t.thumbnailName() -> generate and mark "
+                         "pending attributes "
                          "[t.localfilename = "
                       << t.localfilename << "]";
             // Keep the behavior: generate and mark pending attributes
-            const int bitmask = gfx->gendimensionsputfa(t.localfilename,
+            const int bitmask = gfx->gendimensionsputfa(*conceptualname,
+                                                        t.localfilename,
                                                         NodeOrUploadHandle(t.uploadhandle),
                                                         t.transfercipher(),
                                                         -1);
@@ -1632,7 +1684,13 @@ void MegaClient::wsLocallogoutCleanup()
         // S15 FIX-T regression seam: report the teardown worker-churn count while the
         // engine is still alive on both branches below (the leak branch releases it).
         DEBUG_TEST_HOOK_WS_TEARDOWN_WORKER_CHURN(m_wsEngine->workerItersWhileStopping());
-        if (!m_wsEngine->workersQuiesced())
+        // SDK-6476 seam: report which teardown branch is taken (normal destruction vs the
+        // bounded leak fallback) so tests can assert it without scraping logs.
+        const bool quiesced = m_wsEngine->workersQuiesced();
+        DEBUG_TEST_HOOK_WS_ENGINE_QUIESCE_OUTCOME(quiesced,
+                                                  m_wsEngine->liveWorkerCount(),
+                                                  static_cast<std::int64_t>(phaseMs()));
+        if (!quiesced)
         {
             LOG_err << "WsUpload: engine workers did not quiesce at locallogout — "
                        "intentionally leaking the engine to avoid an unbounded thread "

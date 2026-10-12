@@ -19,9 +19,12 @@
  * program.
  */
 
-#include "mega/waiter.h"
 #include "mega/backofftimer.h"
+
 #include "mega/logging.h"
+#include "mega/megaapp.h"
+#include "mega/megaclient.h"
+#include "mega/waiter.h"
 
 namespace mega {
 // timer with capped exponential backoff
@@ -131,12 +134,17 @@ void BackoffTimer::update(dstime* waituntil)
     }
 }
 
-TimerWithBackoff::TimerWithBackoff(PrnGen &rng, int tag)
-    : BackoffTimer(rng)
+TimerWithBackoff::TimerWithBackoff(PrnGen& rng, int tag):
+    BackoffTimer(rng)
 {
     this->tag = tag;
 }
 
+void TimerWithBackoff::invoke(MegaClient& client)
+{
+    client.restag = tag;
+    client.app->timer_result(API_OK);
+}
 
 void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
 {
@@ -196,6 +204,19 @@ void BackoffTimerGroupTracker::update(dstime* waituntil, bool transfers)
             t->update(waituntil);
         }
 
+    }
+}
+
+CallbackTimer::CallbackTimer(PrnGen& rng, std::function<void()> callback):
+    TimerWithBackoff(rng, 0),
+    mCallback(std::move(callback))
+{}
+
+void CallbackTimer::invoke(MegaClient&)
+{
+    if (mCallback)
+    {
+        mCallback();
     }
 }
 

@@ -118,35 +118,6 @@ ErrorOr<NodeInfo> Client::makeDirectory(const std::string& name,
     return waitFor(notifier->get_future());
 }
 
-void Client::move(MoveCallback callback,
-                  const std::string& name,
-                  NodeHandle source,
-                  NodeHandle target)
-{
-    // Sanity.
-    assert(callback);
-    assert(!name.empty());
-    assert(!source.isUndef());
-    assert(!target.isUndef());
-
-    // Called when source has been renamed.
-    auto renamed = [=](MoveCallback& callback, Error result) {
-        // Couldn't rename source to name.
-        if (result != API_OK)
-            return callback(result);
-
-        // Ask the client to move source to target.
-        move(std::move(callback), source, target);
-    }; // renamed
-
-    // Ask the client to rename source to name.
-    rename(std::bind(std::move(renamed),
-                     std::move(callback),
-                     std::placeholders::_1),
-           name,
-           source);
-}
-
 Error Client::move(const std::string& name,
                    NodeHandle source,
                    NodeHandle target)

@@ -1,7 +1,9 @@
 #pragma once
 
+#include <mega/file_service/application_data.h>
 #include <mega/file_service/file_callbacks.h>
 #include <mega/file_service/file_request_tags.h>
+#include <mega/file_service/file_truncate_flags.h>
 #include <mega/file_service/file_truncate_request_forward.h>
 
 #include <cstdint>
@@ -22,8 +24,14 @@ struct FileTruncateRequest
         return "truncate";
     }
 
+    // Application-specific data associated with this request.
+    ApplicationData mApplicationData;
+
     // Who should we call when the file's been truncated?
     FileTruncateCallback mCallback;
+
+    // Flags controlling this truncate's behavior.
+    FileTruncateFlags mFlags;
 
     // What size should the file be truncated to?
     std::uint64_t mSize;

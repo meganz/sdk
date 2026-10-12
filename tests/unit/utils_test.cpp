@@ -631,6 +631,126 @@ TEST(URLCodec, UnescapeShortEscape)
     EXPECT_EQ(output, "a%a");
 }
 
+TEST(SanitizeFtpResponseText, leavesPrintableAsciiAndUtf8Unchanged)
+{
+    EXPECT_EQ(sanitizeFtpResponseText("hello world_é.txt", FtpTextEscaping::DisplayOnly),
+              "hello world_é.txt");
+    EXPECT_EQ(sanitizeFtpResponseText("hello world_é.txt", FtpTextEscaping::ReusableAsArgument),
+              "hello world_é.txt");
+}
+
+TEST(SanitizeFtpResponseText, escapesAsciiControlBytes)
+{
+    EXPECT_EQ(sanitizeFtpResponseText("a\r\nb", FtpTextEscaping::DisplayOnly), "a%0D%0Ab");
+    EXPECT_EQ(sanitizeFtpResponseText("\x7F", FtpTextEscaping::DisplayOnly), "%7F");
+    EXPECT_EQ(sanitizeFtpResponseText(std::string_view("\x00", 1), FtpTextEscaping::DisplayOnly),
+              "%00");
+    EXPECT_EQ(sanitizeFtpResponseText("\x1F", FtpTextEscaping::DisplayOnly), "%1F");
+    EXPECT_EQ(sanitizeFtpResponseText("a\tb", FtpTextEscaping::DisplayOnly), "a%09b");
+    EXPECT_EQ(sanitizeFtpResponseText("a\x1B[31mb", FtpTextEscaping::DisplayOnly), "a%1B[31mb");
+}
+
+TEST(SanitizeFtpResponseText, keepsOnlyTheTabWhenTextMustBeReusable)
+{
+    // A tab reaches the server intact inside a command argument and real names do
+    // carry one, so it is the byte this policy leaves alone.
+    EXPECT_EQ(sanitizeFtpResponseText("a\tb", FtpTextEscaping::ReusableAsArgument), "a\tb");
+
+    EXPECT_EQ(sanitizeFtpResponseText("a\r\nb", FtpTextEscaping::ReusableAsArgument), "a%0D%0Ab");
+    EXPECT_EQ(
+        sanitizeFtpResponseText(std::string_view("a\0b", 3), FtpTextEscaping::ReusableAsArgument),
+        "a%00b");
+
+    // A client listing a directory prints these entries to its terminal just like a
+    // LIST line, so an escape sequence is escaped here too. The cost is that such a
+    // name can no longer be reached through the listing.
+    EXPECT_EQ(sanitizeFtpResponseText("a\x1B[31mb", FtpTextEscaping::ReusableAsArgument),
+              "a%1B[31mb");
+    EXPECT_EQ(sanitizeFtpResponseText("\x7F", FtpTextEscaping::ReusableAsArgument), "%7F");
+    EXPECT_EQ(sanitizeFtpResponseText("\x1F", FtpTextEscaping::ReusableAsArgument), "%1F");
+}
+
+TEST(SanitizeFtpResponseText, escapedDelimitersSurviveTheLocalNameDecoderAsText)
+{
+    // A local file name is turned back into a node name by unescapefsincompatible(),
+    // so a listed name saved to disk and uploaded again passes through that decoder.
+    // The decoder only accepts a lowercase low nibble, which is why the escaping
+    // here is uppercase: an escaped CR or LF must not become a real one again.
+    ::mega::FSACCESS_CLASS fsa;
+
+    string escaped = sanitizeFtpResponseText("a\r\nb", FtpTextEscaping::DisplayOnly);
+    const string asWritten = escaped;
+
+    fsa.unescapefsincompatible(&escaped);
+    EXPECT_EQ(escaped, asWritten)
+        << "An escaped delimiter decoded back into the byte it stands for";
+
+    // Lowercasing the escaping would hand that byte back, which is the whole point.
+    string lowercased = "a%0d%0ab";
+    fsa.unescapefsincompatible(&lowercased);
+    EXPECT_EQ(lowercased, "a\r\nb");
+
+    // The protection reaches only the escapes whose low nibble is a letter. A digit
+    // has no case, so these come back as themselves either way.
+    string tabbed = sanitizeFtpResponseText("a\tb", FtpTextEscaping::DisplayOnly);
+    ASSERT_EQ(tabbed, "a%09b");
+
+    fsa.unescapefsincompatible(&tabbed);
+    EXPECT_EQ(tabbed, "a\tb");
+}
+
+TEST(SanitizeFtpResponseText, handlesEmptyInput)
+{
+    EXPECT_EQ(sanitizeFtpResponseText(std::string_view{}, FtpTextEscaping::DisplayOnly), "");
+    EXPECT_EQ(sanitizeFtpResponseText(std::string_view{}, FtpTextEscaping::ReusableAsArgument), "");
+}
+
+TEST(QuoteFtpResponsePathname, wrapsPathnameInDoubleQuotes)
+{
+    EXPECT_EQ(quoteFtpResponsePathname("/handle/cafe_é"), "\"/handle/cafe_é\"");
+    EXPECT_EQ(quoteFtpResponsePathname(std::string_view{}), "\"\"");
+}
+
+TEST(QuoteFtpResponsePathname, doublesEmbeddedDoubleQuotes)
+{
+    // RFC 959 Appendix II: MKD foo"bar answers 257 "/usr/dm/foo""bar" directory created.
+    EXPECT_EQ(quoteFtpResponsePathname("/usr/dm/foo\"bar"), "\"/usr/dm/foo\"\"bar\"");
+    EXPECT_EQ(quoteFtpResponsePathname("\""), "\"\"\"\"");
+    EXPECT_EQ(quoteFtpResponsePathname("a\"\"b"), "\"a\"\"\"\"b\"");
+    EXPECT_EQ(quoteFtpResponsePathname("\"lead and trail\""), "\"\"\"lead and trail\"\"\"");
+}
+
+TEST(IsSingleLineFtpResponse, acceptsOneTerminatedLine)
+{
+    EXPECT_TRUE(isSingleLineFtpResponse("257 \"/handle/cafe_é\"\r\n", "\r\n"));
+    EXPECT_TRUE(isSingleLineFtpResponse("550 Not Found\r\n", "\r\n"));
+    EXPECT_TRUE(isSingleLineFtpResponse("150 name%0D%0Aforged\r\n", "\r\n"));
+    EXPECT_TRUE(isSingleLineFtpResponse("\r\n", "\r\n"));
+
+    // The shape the FTP server falls back to when a reply fails this check.
+    EXPECT_TRUE(isSingleLineFtpResponse("550 Requested action not taken\r\n", "\r\n"));
+}
+
+TEST(IsSingleLineFtpResponse, rejectsAnythingThatSplitsTheReply)
+{
+    // An interior delimiter is what a name carrying CRLF would inject.
+    EXPECT_FALSE(isSingleLineFtpResponse("150 name\r\n227 forged\r\n", "\r\n"));
+
+    // A lone CR or LF splits the reply for most clients just as well.
+    EXPECT_FALSE(isSingleLineFtpResponse("150 name\nforged\r\n", "\r\n"));
+    EXPECT_FALSE(isSingleLineFtpResponse("150 name\rforged\r\n", "\r\n"));
+
+    // A multi-line reply, which only FEAT is, does not qualify either.
+    EXPECT_FALSE(isSingleLineFtpResponse("211-Features:\r\n SIZE\r\n211 End\r\n", "\r\n"));
+}
+
+TEST(IsSingleLineFtpResponse, rejectsTextThatIsNotTerminated)
+{
+    EXPECT_FALSE(isSingleLineFtpResponse("550 Not Found", "\r\n"));
+    EXPECT_FALSE(isSingleLineFtpResponse("550 Not Found\r", "\r\n"));
+    EXPECT_FALSE(isSingleLineFtpResponse(std::string_view{}, "\r\n"));
+    EXPECT_FALSE(isSingleLineFtpResponse("550 Not Found\r\n", std::string_view{}));
+}
 
 TEST(Filesystem, isContainingPathOf)
 {

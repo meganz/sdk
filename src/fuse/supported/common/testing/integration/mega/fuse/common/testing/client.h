@@ -3,6 +3,7 @@
 #include <mega/common/normalized_path_forward.h>
 #include <mega/common/testing/client.h>
 #include <mega/common/testing/path_forward.h>
+#include <mega/file_service/file_service_forward.h>
 #include <mega/fuse/common/inode_info_forward.h>
 #include <mega/fuse/common/mount_event_forward.h>
 #include <mega/fuse/common/mount_flags_forward.h>
@@ -59,11 +60,11 @@ public:
     // Enable a previously added mount.
     MountResult enableMount(const std::string& name, bool remember);
 
+    // Get our hands on the client's File Service interface.
+    virtual file_service::FileService& fileService() const = 0;
+
     // Get our hands on the client's FUSE interface.
     virtual Service& fuseService() const = 0;
-
-    // Check if a file is cached.
-    bool isCached(const common::testing::Path& path) const;
 
     // Return a reference to a new mount event observer.
     MountEventObserverPtr mountEventObserver();

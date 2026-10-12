@@ -449,13 +449,116 @@ extern m_time_t m_mktime_UTC(const struct tm *src);
  * Allowed input formats:
  *  + FORMAT_SCHEDULED_COPY  => 20221205123045   => output format: Unix timestamp in deciseconds
  *  + FORMAT_ISO8601         => 20221205T123045  => output format: Unix timestamp in seconds
-*/
+ */
 extern time_t stringToTimestamp(string stime, date_time_format_t format);
 
-std::string rfc1123_datetime( time_t time );
-std::string webdavurlescape(const std::string &value);
+std::string rfc1123_datetime(time_t time);
+std::string webdavurlescape(const std::string& value);
 std::string escapewebdavchar(const char c);
-std::string webdavnameescape(const std::string &value);
+std::string webdavnameescape(const std::string& value);
+
+/**
+ * @brief Selects which control bytes sanitizeFtpResponseText() escapes.
+ *
+ * Both values escape the ASCII control bytes, that is 0x00-0x1F and 0x7F, and
+ * leave every other byte alone, UTF-8 included. They differ in one byte only,
+ * the tab.
+ */
+enum class FtpTextEscaping
+{
+    /**
+     * Escape every control byte except the tab, so the text stays usable as an
+     * argument of a later command. Use it for text the client is expected to
+     * send back, that is a name in a listing, either form of it, and the PWD
+     * path. A graphical client takes the name out of the LIST line it parses,
+     * while a scripted one takes it from NLST, so both forms are sent back.
+     *
+     * The tab is kept because it reaches the server intact inside a command
+     * argument and real names do carry one, so escaping it would break a name
+     * that used to be reachable. The other control bytes are a different case.
+     * CR, LF and NUL cannot travel in an argument at all, and the rest are never
+     * in a real name, while a client listing a directory prints these entries
+     * straight to its terminal, where an escape sequence in a name would drive
+     * that terminal. A name holding one stops being reachable through the
+     * listing, and that is the price of not handing it over.
+     */
+    ReusableAsArgument,
+
+    /**
+     * Escape every control byte, the tab included. The result is display only,
+     * see the note below. Use it for text no client is expected to send back,
+     * such as a reply message or the text of an error.
+     */
+    DisplayOnly,
+};
+
+/**
+ * @brief Sanitizes text for inclusion in an FTP response.
+ *
+ * Escapes control bytes as percent-encoded uppercase hexadecimal values, for
+ * example 0x1B becomes "%1B". Which bytes are escaped is selected by the policy.
+ * All other bytes, including printable ASCII and UTF-8 bytes, are left
+ * unchanged.
+ *
+ * There is no decoder on the input side. A command argument is matched against
+ * node names byte for byte, so text escaped with DisplayOnly is for display
+ * only and must not be emitted where the client is expected to send the value
+ * back.
+ *
+ * The transform is deliberately not reversible. A percent sign is left as is, so
+ * a name that literally spells out an escape sequence renders exactly like the
+ * escaped form of the byte that sequence names. Escaping the percent sign would
+ * disfigure the common case in display text, and under ReusableAsArgument it
+ * would break the very reuse that policy exists for.
+ *
+ * The hexadecimal digits are uppercase on purpose. Do not lowercase them to match
+ * the escaping of names a local filesystem cannot hold, which looks similar but
+ * has a decoder, and that decoder runs on the way back from a local file name to
+ * a node name. It only accepts a lowercase low nibble, so an escape written here
+ * stays text if a listed name is ever saved to disk and uploaded again, instead
+ * of turning back into the byte it stands for. That covers the escapes whose low
+ * nibble is a letter, CR and LF among them. The ones ending in a digit, such as
+ * NUL and TAB, do decode back on that trip whatever case is used.
+ *
+ * @param value Text to sanitize.
+ * @param policy Which control bytes to escape.
+ * @return Sanitized text that cannot inject FTP response line delimiters.
+ */
+std::string sanitizeFtpResponseText(const std::string_view value, const FtpTextEscaping policy);
+
+/**
+ * @brief Formats a pathname for an FTP reply that carries one, that is a 257 reply.
+ *
+ * Wraps the pathname in double quotes and doubles every double quote inside it,
+ * as required by RFC 959 Appendix II. Without the doubling a name holding a
+ * double quote closes the quoted string early, so a client parsing the reply
+ * ends up with a truncated pathname and loses track of where it is.
+ *
+ * Unlike percent-escaping, this is understood by the client, which undoes the
+ * doubling and recovers the pathname byte for byte.
+ *
+ * @param path Pathname to format, already sanitized for the response.
+ * @return The pathname wrapped in double quotes, embedded ones doubled.
+ */
+std::string quoteFtpResponsePathname(const std::string_view path);
+
+/**
+ * @brief Tells whether text is a single, properly terminated FTP reply line.
+ *
+ * True when the text ends with the line delimiter and holds no CR or LF before
+ * it. The control channel frames one reply per line, so any earlier CR or LF
+ * splits one reply into several, which is what a name reflected into a reply
+ * must never be able to do. A lone LF counts, since most clients break lines on
+ * it alone.
+ *
+ * A reply that is multi-line by design, and FEAT is the only one, does not
+ * satisfy this and has to be excluded by the caller.
+ *
+ * @param response Reply text, delimiter included.
+ * @param delimiter Line delimiter the server appends, that is CRLF.
+ * @return True if the text holds exactly one terminated line.
+ */
+bool isSingleLineFtpResponse(const std::string_view response, const std::string_view delimiter);
 
 void tolower_string(std::string& str);
 

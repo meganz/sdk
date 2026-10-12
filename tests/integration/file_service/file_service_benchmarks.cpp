@@ -281,7 +281,7 @@ public:
                             std::placeholders::_1),
                   offset,
                   length,
-                  true);
+                  StreamReadTag{true});
     }
 }; // BenchmarkReadRequestContext
 

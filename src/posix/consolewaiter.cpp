@@ -27,15 +27,13 @@ int PosixConsoleWaiter::wait()
     int r;
 
     // application's own wakeup criteria: wake up upon user input
-    MEGA_FD_SET(STDIN_FILENO, &rfds);
-    MEGA_FD_SET(STDIN_FILENO, &ignorefds);
-    
-    bumpmaxfd(STDIN_FILENO);
+    // This override interprets stdin readiness itself, as HAVESTDIN.
+    watchReadable(STDIN_FILENO, ExecOnReady::No);
 
     r = PosixWaiter::wait();
 
     // application's own event processing: user interaction from stdin?
-    if (MEGA_FD_ISSET(STDIN_FILENO, &rfds))
+    if (isReadable(STDIN_FILENO))
     {
         r |= HAVESTDIN;
     }

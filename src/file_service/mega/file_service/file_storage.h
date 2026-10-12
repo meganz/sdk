@@ -18,15 +18,8 @@ struct UserStoragePath
 
 class FileStorage
 {
-    // This function exists solely to reduce duplication.
-    //
-    // It is called by both addFile(...) and getFile(...).
-    //
-    // mustCreate specifies whether we need to create a new file for id.
-    //
-    // It's an error if mustCreate is true and a file for id already exists.
-    // It's an error if mustCreate is false but no file for id exists.
-    FileAccessPtr openFile(const LocalPath& path, bool mustCreate);
+    // This function exists solely to simplify getFile(...).
+    FileAccessPtr openFile(const LocalPath& path);
 
     // How we interact with the host filesystem.
     FileSystemAccessPtr mFilesystem;
@@ -50,14 +43,14 @@ public:
 
     ~FileStorage();
 
-    // Add a new file to our storage area.
-    FileAccessPtr addFile(FileID id);
-
     // Where is the service storing this user's database?
     LocalPath databasePath() const;
 
     // Get a file from our storage area.
-    FileAccessPtr getFile(FileID id);
+    //
+    // If force is true, the file will always be resized to expectedSize
+    // regardless of its current size on disk.
+    FileAccessPtr getFile(FileID id, std::uint64_t expectedSize, const bool force);
 
     // Remove a file from our storage area.
     bool removeFile(FileID id, std::nothrow_t);
@@ -65,6 +58,9 @@ public:
 
     // Find out where the service is storing a particular file.
     LocalPath userFilePath(FileID id) const;
+
+    // Find out where the service is storing this user's data.
+    const LocalPath& userStoragePath() const;
 }; // FileStorage
 
 } // file_service

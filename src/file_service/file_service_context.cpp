@@ -9,6 +9,7 @@
 #include <mega/common/utility.h>
 #include <mega/file_service/database_builder.h>
 #include <mega/file_service/file.h>
+#include <mega/file_service/file_access.h>
 #include <mega/file_service/file_context.h>
 #include <mega/file_service/file_context_badge.h>
 #include <mega/file_service/file_event.h>
@@ -16,7 +17,7 @@
 #include <mega/file_service/file_info.h>
 #include <mega/file_service/file_info_context.h>
 #include <mega/file_service/file_info_context_badge.h>
-#include <mega/file_service/file_move_event.h>
+#include <mega/file_service/file_location.h>
 #include <mega/file_service/file_range.h>
 #include <mega/file_service/file_remove_event.h>
 #include <mega/file_service/file_result.h>
@@ -24,12 +25,15 @@
 #include <mega/file_service/file_service_context.h>
 #include <mega/file_service/file_service_result.h>
 #include <mega/file_service/file_service_result_or.h>
+#include <mega/file_service/flush_utilities.h>
 #include <mega/file_service/logging.h>
 #include <mega/filesystem.h>
 #include <mega/mediafileattribute.h>
 #include <mega/scoped_helpers.h>
+#include <mega/utils.h>
 
 #include <chrono>
+#include <exception>
 #include <stdexcept>
 
 namespace mega
@@ -43,17 +47,6 @@ using namespace std::chrono;
 
 class FileServiceContext::EventProcessor
 {
-    // Called when a new node has been added.
-    //
-    // If the event describes a node we added, ignore it.
-    //
-    // Otherwise, check if the node would "replace" a file we manage.
-    // If so, remove the file.
-    //
-    // Note that a directory with the same name and parent as some file that
-    // we manage will "replace" the file that we manage.
-    void added(const NodeEvent& event);
-
     // Called to dispatch an event.
     void dispatch(const NodeEvent& event);
 
@@ -63,21 +56,10 @@ class FileServiceContext::EventProcessor
     // Mark an in-memory file as removed.
     //
     // Returns true iff the file was in memory.
-    bool mark(FileID id, bool replaced);
-
-    // Called when a node has been moved or renamed.
-    //
-    // If the event describes a node that would "replace" a file we manage,
-    // remove the file.
-    //
-    // If the event describe a file that we manage and that file has been
-    // superseded by a new version in the cloud, remove it.
-    //
-    // Otherwise, update the file's location to match the cloud.
-    void moved(const NodeEvent& event);
+    bool mark(FileID id);
 
     // Remove a file from the database and from storage.
-    void remove(FileID id, bool replaced);
+    void remove(NodeHandle handle, FileID id);
 
     // Called when a node has been removed.
     //
@@ -86,14 +68,6 @@ class FileServiceContext::EventProcessor
     // If event describes a file we manage, remove it.
     // Otherwise, ignore the event.
     void removed(const NodeEvent& event);
-
-    // Called when a directory node has been removed.
-    //
-    // Remove any files associated with the directory described by event.
-    //
-    // This is necessary as the directory may conceptually contain one or
-    // more local files.
-    void removedDirectory(const NodeEvent& event);
 
     // The service we're processing events for.
     FileServiceContext& mService;
@@ -168,6 +142,53 @@ public:
     // Reclaim zero or more files.
     void reclaim(ReclaimContextPtr context, const ReclaimOptions& reclaimOptions);
 }; // ReclaimContext
+
+class RemoveFileOnException
+{
+    // Who owns the file we want to remove?
+    FileStorage& mStorage;
+
+    // What file do we want to remove?
+    const FileID mID;
+
+public:
+    RemoveFileOnException(FileID id, FileStorage& storage):
+        mStorage(storage),
+        mID(id)
+    {}
+
+    ~RemoveFileOnException()
+    {
+        // Unwinding due to an uncaught exception.
+        if (std::uncaught_exceptions() > 0)
+            mStorage.removeFile(mID, std::nothrow);
+    }
+}; // RemoveFileOnException
+
+template<typename Container>
+class RemoveKeyOnException
+{
+    using KeyType = typename Container::key_type;
+
+    // Which container contains our key?
+    Container& mContainer;
+
+    // What key do we want to remove?
+    const KeyType mKey;
+
+public:
+    RemoveKeyOnException(Container& container, const KeyType& key):
+        mContainer(container),
+        mKey(key)
+    {}
+
+    ~RemoveKeyOnException()
+    {
+        // Unwinding due to an uncaught exception.
+        if (std::uncaught_exceptions() > 0)
+            mContainer.erase(mKey);
+    }
+}; // RemoveKeyOnException
 
 static Database createDatabase(const LocalPath& databasePath);
 
@@ -253,9 +274,9 @@ try
 
     FSDebug1("Cache cleaned");
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to clean cache: %s", exception.what());
+    FSErrorF("Unable to clean cache: %s", exceptionMessage().c_str());
 }
 
 template<typename Lock>
@@ -274,10 +295,46 @@ void FileServiceContext::deallocateID(FileID id,
     query.execute();
 }
 
-auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<FileContextPtr>
+auto FileServiceContext::fileContextFromCloud(FileInfoContextPtr info)
+    -> FileServiceResultOr<FileContextPtr>
 {
-    // Synthetic IDs are never a valid node handle.
-    if (synthetic(id))
+    // Sanity: info should never be null.
+    assert(info);
+
+    // Convenience.
+    const auto id = info->id();
+
+    // Sanity: synthetic IDs should have been rejected at a higher level.
+    assert(!synthetic(id));
+
+    UniqueLock lockClient(mClient, std::defer_lock);
+    UniqueLock lockContexts(mLock, std::defer_lock);
+    UniqueLock lockDatabase(mDatabase, std::defer_lock);
+
+    // Acquire necessary locks.
+    //
+    // We're acquiring all three locks here to ensure that the client marks
+    // a file as removed strictly before or after the service has added this
+    // file to its context maps and database.
+    //
+    // If we don't acquire all three locks here, it would be possible for
+    // the client to process action packets and mark a node as removed right
+    // after we retrieved that node's information from the client but before
+    // we acquired the context and database locks.
+    //
+    // The result of this is that we'll add a file to the service that has
+    // been removed and return that file to the caller.
+    //
+    // The file will never be marked as removed because that file wasn't
+    // known by the service when the client was processing action packets.
+    std::lock(lockClient, lockContexts, lockDatabase);
+
+    // Another thread's opened (or removed) this file.
+    if (auto file = fileContextFromIndex(id, lockContexts); !file || *file)
+        return file;
+
+    // File's been marked as removed.
+    if (info->removed())
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
     // Check if a node exists in the cloud with this ID.
@@ -286,17 +343,12 @@ auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<
     // Couldn't get a reference to the node.
     if (!node)
     {
-        // Because it doesn't exist in the cloud.
-        if (node.error() == API_ENOENT)
-            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+        // Sanity: Missing nodes should've been considered removed.
+        assert(node.error() != API_ENOENT);
 
         // Because we hit some unexpected error.
         return unexpected(FILE_SERVICE_UNEXPECTED);
     }
-
-    // You can't open a directory as a file.
-    if (node->mIsDirectory)
-        return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
 
     // Try and retrieve the node's key data.
     auto keyData = mClient.keyData(node->mHandle, false);
@@ -315,19 +367,6 @@ auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<
     // Try and extract the node's duration.
     auto duration = extractDuration(*attributes, *keyData);
 
-    // Make sure no one's changing our indexes.
-    UniqueLock lockContexts(mLock);
-
-    // Make sure no one's changing the database.
-    UniqueLock lockDatabase(mDatabase);
-
-    // Check if another thread's opened (or removed) this file.
-    auto maybeFile = fileContextFromIndex(id, lockContexts);
-
-    // Another thread opened (or removed) this file.
-    if (!maybeFile || *maybeFile)
-        return maybeFile;
-
     // Compute the file's access time.
     auto accessed = now();
 
@@ -344,8 +383,6 @@ auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<
     query.param(":handle").set(node->mHandle);
     query.param(":id").set(id);
     query.param(":modified").set(node->mModified);
-    query.param(":name").set(node->mName);
-    query.param(":parent_handle").set(node->mParentHandle);
     query.param(":removed").set(false);
     query.param(":reported_size").set(0u);
     query.param(":size").set(size);
@@ -364,33 +401,19 @@ auto FileServiceContext::fileContextFromCloud(FileID id) -> FileServiceResultOr<
     }
 
     // Add the file to storage.
-    auto file = mStorage.addFile(id);
+    auto file = mStorage.getFile(id, size, true);
 
     // Persist our database changes.
-    transaction.commit();
+    {
+        // Remove the cache file if we can't update the database.
+        RemoveFileOnException remover(id, mStorage);
 
-    // Clarity.
-    auto allocatedSize = 0u;
-    auto dirty = false;
-    auto location = FileLocation{std::move(node->mName), node->mParentHandle};
-    auto reportedSize = 0u;
+        // Persist our database changes.
+        transaction.commit();
+    }
 
-    // Create a context to represent this file's information.
-    auto info = std::make_shared<FileInfoContext>(accessed,
-                                                  mContextMonitor.begin(),
-                                                  allocatedSize,
-                                                  dirty,
-                                                  duration,
-                                                  node->mHandle,
-                                                  id,
-                                                  location,
-                                                  node->mModified,
-                                                  reportedSize,
-                                                  *this,
-                                                  size);
-
-    // Make sure this file's info is in our index.
-    mInfoContexts.emplace(id, info);
+    // Mark the file as being managed by the service.
+    info->managed(true);
 
     // Create a context to represent the file itself.
     auto context = std::make_shared<FileContext>(mContextMonitor.begin(),
@@ -412,26 +435,32 @@ auto FileServiceContext::fileContextFromDatabase(FileID id) -> FileServiceResult
     // Try and get our hands on the file's information.
     auto maybeInfo = infoContext(id);
 
-    // File's been removed.
+    // File doesn't exist or has been removed.
     if (!maybeInfo)
         return unexpected(maybeInfo.error());
 
     // Clarity.
-    auto& info = *maybeInfo;
+    auto info = std::move(*maybeInfo);
 
-    // File isn't in storage so open it from the cloud.
-    if (!info)
-        return fileContextFromCloud(id);
+    // Sanity: info should never be null.
+    assert(info);
 
-    // Acquire lock.
-    UniqueLock lock(mLock);
+    // File isn't managed by the service so open it from the cloud.
+    if (!info->managed())
+        return fileContextFromCloud(std::move(info));
+
+    UniqueLock lockContexts(mLock, std::defer_lock);
+    UniqueLock lockDatabase(mDatabase, std::defer_lock);
+
+    // Acquire necessary locks.
+    std::lock(lockContexts, lockDatabase);
 
     // File's been removed.
     if (info->removed())
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
     // Check if another thread opened the file.
-    auto maybeFile = fileContextFromIndex(info->id(), lock);
+    auto maybeFile = fileContextFromIndex(info->id(), lockContexts);
 
     // File was opened (or removed) by another thread.
     if (!maybeFile || *maybeFile)
@@ -440,14 +469,21 @@ auto FileServiceContext::fileContextFromDatabase(FileID id) -> FileServiceResult
     // Make sure we're using the file's canonical ID.
     id = info->id();
 
+    // Open the file's cache file.
+    auto cacheFile = mStorage.getFile(id, info->size(), false);
+
+    // Make sure the cache file is correctly sized.
+    auto sanitized = sanitizeCacheFile(*cacheFile, *info);
+
+    // Cache file couldn't be sanitized.
+    if (sanitized != FILE_SERVICE_SUCCESS)
+        return unexpected(sanitized);
+
     // Retrieve this file's key data and ranges from the database.
     std::optional<NodeKeyData> keyData;
     FileRangeSet ranges;
 
     {
-        // Acquire database lock.
-        UniqueLock lockDatabase(mDatabase);
-
         // So we can safely access the database.
         auto transaction = mDatabase.transaction();
 
@@ -460,7 +496,7 @@ auto FileServiceContext::fileContextFromDatabase(FileID id) -> FileServiceResult
 
     // Instantiate a new file context.
     auto context = std::make_shared<FileContext>(mContextMonitor.begin(),
-                                                 mStorage.getFile(id),
+                                                 std::move(cacheFile),
                                                  std::move(info),
                                                  std::move(keyData),
                                                  ranges,
@@ -492,6 +528,46 @@ auto FileServiceContext::fileContextFromIndex(FileID id, Lock&& lock)
     return file;
 }
 
+void FileServiceContext::flushModified()
+try
+{
+    // Retrieve the current service options.
+    const auto options = serviceOptions();
+
+    // Acquire necessary locks.
+    UniqueLock lockContexts(mLock, std::defer_lock);
+    UniqueLock lockDatabase(mDatabase, std::defer_lock);
+
+    // Acquire necessary locks.
+    std::lock(lockContexts, lockDatabase);
+
+    // Figure out which files need to be flushed.
+    auto transaction = mDatabase.transaction();
+    auto query = transaction.query(mQueries.mGetModifiedFiles);
+
+    query.execute();
+
+    // Flush each modified file to the cloud.
+    for (; query; ++query)
+    {
+        // What file do we need to flush?
+        const auto id = query.field("id").get<FileID>();
+
+        // How large is the file?
+        const auto size = query.field("size").get<std::uint64_t>();
+
+        // Compute this file's flush delay.
+        const auto delay = computeFlushDelay(options, size);
+
+        // Schedule the file to be flushed to the cloud.
+        mFileFlusher.schedule(id, delay);
+    }
+}
+catch (...)
+{
+    FSErrorF("Unable to flush modified files: %s", exceptionMessage().c_str());
+}
+
 template<typename Lock, typename T>
 auto FileServiceContext::getFromIndex(FileID id,
                                       [[maybe_unused]] Lock&& lock,
@@ -518,20 +594,114 @@ auto FileServiceContext::getFromIndex(FileID id,
     return instance;
 }
 
-auto FileServiceContext::infoContextFromDatabase(FileID id) -> FileInfoContextPtr
+auto FileServiceContext::infoContextFromCloud(FileID id) -> FileServiceResultOr<FileInfoContextPtr>
 {
-    // Make sure no one is changing our indexes.
-    UniqueLock lockContexts(mLock);
+    UniqueLock lockClient(mClient, std::defer_lock);
+    UniqueLock lockContexts(mLock, std::defer_lock);
 
-    // Make sure no one is changing our database.
-    UniqueLock lockDatabase(mDatabase);
-
-    // Check if another thread loaded this file's info.
-    auto info = infoContextFromIndex(id, lockContexts);
+    // Acquire necessary locks.
+    //
+    // If you're curious as to why we're acquiring both locks here, see the
+    // comment in fileContextFromCloud(...).
+    std::lock(lockClient, lockContexts);
 
     // Info was loaded by another thread.
-    if (info)
+    if (auto info = infoContextFromIndex(id, lockContexts))
+    {
+        // But the file's been marked as removed.
+        if (info->removed())
+            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+        // Return the file's info to our caller.
         return info;
+    }
+
+    // A synthetic ID will never match any node in the cloud.
+    if (synthetic(id))
+        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+    // Try and locate the node associated with this ID.
+    auto node = mClient.get(id.toHandle());
+
+    // Couldn't find the node in the cloud.
+    if (!node)
+    {
+        // Because it's been removed.
+        if (node.error() == API_ENOENT)
+            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+        // Because of an unexpected error.
+        return unexpected(FILE_SERVICE_UNEXPECTED);
+    }
+
+    // Node doesn't describe a file.
+    if (node->mIsDirectory)
+        return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
+
+    // Try and retrieve the node's key data.
+    auto keyData = mClient.keyData(node->mHandle, false);
+
+    // Couldn't get our hands on the node's key data.
+    if (!keyData)
+        return unexpected(FILE_SERVICE_UNEXPECTED);
+
+    // Try and retrieve the node's file attributes.
+    auto attributes = mClient.fileAttributes(node->mHandle);
+
+    // Couldn't get our hands on the node's file attributes.
+    if (!attributes)
+        return unexpected(FILE_SERVICE_UNEXPECTED);
+
+    // Try and extract the node's duration.
+    auto duration = extractDuration(*attributes, *keyData);
+
+    // Clarity.
+    auto accessed = now();
+    auto allocatedSize = 0u;
+    auto dirty = false;
+    auto reportedSize = 0u;
+    auto size = static_cast<std::uint64_t>(node->mSize);
+
+    // Create a context to represent this file's information.
+    auto info = std::make_shared<FileInfoContext>(accessed,
+                                                  mContextMonitor.begin(),
+                                                  allocatedSize,
+                                                  dirty,
+                                                  duration,
+                                                  node->mHandle,
+                                                  id,
+                                                  false,
+                                                  node->mModified,
+                                                  reportedSize,
+                                                  *this,
+                                                  size);
+
+    // Make sure this file's info is in our index.
+    mInfoContexts.emplace(id, info);
+
+    // Return the file's info to our caller.
+    return info;
+}
+
+auto FileServiceContext::infoContextFromDatabase(FileID id)
+    -> FileServiceResultOr<FileInfoContextPtr>
+{
+    UniqueLock lockContexts(mLock, std::defer_lock);
+    UniqueLock lockDatabase(mDatabase, std::defer_lock);
+
+    // Acquire necessary locks.
+    std::lock(lockContexts, lockDatabase);
+
+    // Info was loaded by another thread.
+    if (auto info = infoContextFromIndex(id, lockContexts))
+    {
+        // But the file's been marked as removed.
+        if (info->removed())
+            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+
+        // Return the file's info to our caller.
+        return info;
+    }
 
     // Check if this file exists in the database.
     auto transaction = mDatabase.transaction();
@@ -557,8 +727,6 @@ auto FileServiceContext::infoContextFromDatabase(FileID id) -> FileInfoContextPt
     auto dirty = query.field("dirty").get<bool>();
     auto handle = NodeHandle();
     auto modified = query.field("modified").get<std::int64_t>();
-    auto name = query.field("name").get<std::optional<std::string>>();
-    auto parent = query.field("parent_handle").get<std::optional<NodeHandle>>();
     auto reportedSize = query.field("reported_size").get<std::uint64_t>();
     auto size = query.field("size").get<std::uint64_t>();
 
@@ -566,12 +734,6 @@ auto FileServiceContext::infoContextFromDatabase(FileID id) -> FileInfoContextPt
         handle = query.field("handle").get<NodeHandle>();
 
     id = query.field("id").get<FileID>();
-
-    std::optional<FileLocation> location;
-
-    // File only has a location if its name and parent are set.
-    if (name && parent)
-        location = FileLocation{std::move(*name), *parent};
 
     // Load the file's duration, if any.
     std::optional<std::uint32_t> duration;
@@ -585,18 +747,18 @@ auto FileServiceContext::infoContextFromDatabase(FileID id) -> FileInfoContextPt
         duration = query.field("duration").get<std::uint32_t>();
 
     // Instantiate a context to represent this file's information.
-    info = std::make_shared<FileInfoContext>(accessed,
-                                             mContextMonitor.begin(),
-                                             allocatedSize,
-                                             dirty,
-                                             duration,
-                                             handle,
-                                             id,
-                                             std::move(location),
-                                             modified,
-                                             reportedSize,
-                                             *this,
-                                             size);
+    auto info = std::make_shared<FileInfoContext>(accessed,
+                                                  mContextMonitor.begin(),
+                                                  allocatedSize,
+                                                  dirty,
+                                                  duration,
+                                                  handle,
+                                                  id,
+                                                  true,
+                                                  modified,
+                                                  reportedSize,
+                                                  *this,
+                                                  size);
 
     // Add the context to our index.
     mInfoContexts.emplace(id, info);
@@ -614,19 +776,30 @@ auto FileServiceContext::infoContextFromIndex(FileID id, Lock&& lock) -> FileInf
 
 auto FileServiceContext::infoContext(FileID id) -> FileServiceResultOr<FileInfoContextPtr>
 {
-    // Check if the file's in memory.
-    auto info = infoContextFromIndex(id, SharedLock(mLock));
+    // File's information is in memory.
+    if (auto info = infoContextFromIndex(id, SharedLock(mLock)))
+    {
+        // But the file has been marked as removed.
+        if (info->removed())
+            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
-    // File's not in memory.
-    if (!info)
-        return infoContextFromDatabase(id);
+        // Return the file's information to our caller.
+        return info;
+    }
+
+    // Try and load the file's information from the database.
+    auto info = infoContextFromDatabase(id);
 
     // File's been marked as removed.
-    if (info->removed())
-        return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+    if (!info)
+        return info;
 
-    // Return the file's information to our caller.
-    return info;
+    // File's information was loaded from the database.
+    if (*info)
+        return info;
+
+    // Try and load the file's information from the cloud.
+    return infoContextFromCloud(id);
 }
 
 template<typename Transaction>
@@ -808,9 +981,9 @@ try
     return ids;
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to determine which files can be reclaimed: %s", exception.what());
+    FSErrorF("Unable to determine which files can be reclaimed: %s", exceptionMessage().c_str());
 
     return FILE_SERVICE_UNEXPECTED;
 }
@@ -863,10 +1036,10 @@ try
     transaction.commit();
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
     // Leave a trail so we know something went wrong.
-    FSErrorF("Unable to purge removed files: %s", exception.what());
+    FSErrorF("Unable to purge removed files: %s", exceptionMessage().c_str());
 }
 
 template<typename ContextLock, typename DatabaseLock>
@@ -937,6 +1110,84 @@ template<typename T>
 bool FileServiceContext::removeFromIndex(FileID id, FromFileIDMap<T>& map)
 {
     return removeFromIndex(id, UniqueLock(mLock), map);
+}
+
+auto FileServiceContext::sanitizeCacheFile(FileAccess& file,
+                                           FileInfoContext& info) -> FileServiceResult
+{
+    // Convenience.
+    auto id = info.id();
+    auto newSize = static_cast<std::uint64_t>(file.size);
+    auto oldSize = info.size();
+
+    // File's correctly sized.
+    if (newSize == oldSize)
+        return FILE_SERVICE_SUCCESS;
+
+    // If we're here, the file must be smaller than expected.
+    assert(newSize < oldSize);
+
+    // Tracks beginning of adjusted range, if any.
+    auto from = newSize;
+
+    // So we can safely access the database.
+    auto transaction = mDatabase.transaction();
+
+    // Check if any range needs to be adjusted.
+    auto query = transaction.query(mQueries.mGetFileRanges);
+
+    query.param(":id").set(id);
+    query.param(":position").set(newSize);
+
+    // A range needs to be adjusted.
+    if (query.execute())
+        from = query.field("begin").get<std::uint64_t>();
+
+    // Sanity.
+    assert(from <= newSize);
+
+    // Remove affected ranges.
+    query = transaction.query(mQueries.mRemoveFileRanges);
+
+    query.param(":begin").set(from);
+    query.param(":end").set(oldSize);
+    query.param(":id").set(id);
+
+    query.execute();
+
+    // Re-add adjusted range if needed.
+    if (from != newSize)
+    {
+        query = transaction.query(mQueries.mAddFileRange);
+
+        query.param(":begin").set(from);
+        query.param(":end").set(newSize);
+        query.param(":id").set(id);
+
+        query.execute();
+    }
+
+    // Persist database changes.
+    transaction.commit();
+
+    // The file hasn't been modified locally so the cloud remains the
+    // authority on its size: leave the file's logical size as is and let
+    // anything beyond the cache file's current end be downloaded again on
+    // demand, as happens after the file's storage has been reclaimed.
+    if (!info.dirty())
+    {
+        FSDebugF("Cache file smaller than expected, forgot ranges beyond %" PRIu64 ": %s",
+                 newSize,
+                 toString(id).c_str());
+
+        return FILE_SERVICE_SUCCESS;
+    }
+
+    // Update the file's attributes.
+    info.truncated(ApplicationData{}, now(), newSize);
+
+    // Let our caller know the file's been sanitized.
+    return FILE_SERVICE_SUCCESS;
 }
 
 template<typename Lock, typename Transaction>
@@ -1016,15 +1267,21 @@ FileServiceContext::FileServiceContext(Client& client,
     mQueries(mDatabase),
     mCacheCleaner(),
     mFileContexts(),
-    mInfoContextRemoved(),
+    mFileFlusher(*this),
     mInfoContexts(),
+    mLocationProviders(),
+    mLocationProvidersLock(),
     mLock(),
+    mOnCurrent(&FileServiceContext::flushModified),
     mReclaimContext(),
     mReclaimContextLock(),
     mReclaimTask(),
     mReclaimTaskLock(),
     mEventEmitter(),
     mService(service),
+    mSpeed(1, // Extreme slow to decreasing,
+           220, // Extreme fast to increasing
+           service.serviceOptions().mEstimatedNormalDownloadBitrate),
     mExecutor(TaskExecutorFlags(), logger()),
     mContextMonitor(),
     mReclaimMonitor()
@@ -1146,8 +1403,6 @@ try
     query.param(":handle").set(handle);
     query.param(":id").set(id);
     query.param(":modified").set(accessed);
-    query.param(":name").set(nullptr);
-    query.param(":parent_handle").set(nullptr);
     query.param(":removed").set(false);
     query.param(":reported_size").set(0u);
     query.param(":size").set(size);
@@ -1167,7 +1422,7 @@ try
     query.execute();
 
     // Add the file to storage.
-    mStorage.addFile(id);
+    mStorage.getFile(id, size, true);
 
     // Persist database changes.
     transaction.commit();
@@ -1176,21 +1431,43 @@ try
     return id;
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to add foreign file to service: %s", exception.what());
+    FSErrorF("Unable to add foreign file to service: %s", exceptionMessage().c_str());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
+FileLocationProviderID FileServiceContext::addLocationProvider(FileLocationProvider provider)
+{
+    // Provides a unique ID for added registered location provider.
+    static std::atomic<std::uint64_t> id{0};
+
+    // Sanity: provider should never be null.
+    assert(provider);
+
+    // Acquire location provider map lock.
+    UniqueLock guard(mLocationProvidersLock);
+
+    // Add the location provider to our map.
+    auto [iterator, added] =
+        mLocationProviders.emplace(std::piecewise_construct,
+                                   std::make_tuple(FileLocationProviderID{id++}),
+                                   std::forward_as_tuple(std::move(provider)));
+
+    // Sanity: adding a provider to our map should never fail.
+    assert(added);
+
+    // Silence compiler.
+    static_cast<void>(added);
+
+    // Return the provider's ID to our caller.
+    return iterator->first;
 }
 
 FileEventObserverID FileServiceContext::addObserver(FileEventObserver observer)
 {
     return mEventEmitter.addObserver(std::move(observer));
-}
-
-FileEventObserverID FileServiceContext::addObserver(FileID id, FileEventObserver observer)
-{
-    return mEventEmitter.addObserver(id, std::move(observer));
 }
 
 void FileServiceContext::cleanCacheOnDestruction()
@@ -1206,52 +1483,27 @@ Client& FileServiceContext::client()
     return mClient;
 }
 
-auto FileServiceContext::create(NodeHandle parent, const std::string& name)
-    -> FileServiceResultOr<File>
+void FileServiceContext::current()
+{
+    // Execute "nodes current" handler, if any.
+    if (auto onCurrent = std::exchange(mOnCurrent, nullptr))
+        (this->*onCurrent)();
+}
+
+auto FileServiceContext::create() -> FileServiceResultOr<File>
 try
 {
-    // The caller's passed us an invalid name.
-    if (name.empty())
-        return unexpected(FILE_SERVICE_INVALID_NAME);
+    // Retrieve the current service options.
+    const auto options = serviceOptions();
 
-    // Check if the parent already contains a child with this name.
-    switch (auto node = mClient.get(parent, name); node.errorOr(API_OK))
-    {
-        case API_ENOENT:
-            // Parent doesn't exist.
-            return unexpected(FILE_SERVICE_PARENT_DOESNT_EXIST);
-        case API_FUSE_ENOTDIR:
-            // Parent isn't a directory.
-            return unexpected(FILE_SERVICE_PARENT_IS_A_FILE);
-        case API_FUSE_ENOTFOUND:
-            // Parent doesn't contain a child with this name.
-            break;
-        case API_OK:
-            // Parent already contains a child with this name.
-            return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
-        default:
-            // Encountered an unknown failure.
-            return unexpected(FILE_SERVICE_UNEXPECTED);
-    }
+    UniqueLock lockContexts(mLock, std::defer_lock);
+    UniqueLock lockDatabase(mDatabase, std::defer_lock);
 
     // Acquire context and database locks.
-    UniqueLock lockContexts(mLock);
-    UniqueLock lockDatabase(mDatabase);
+    std::lock(lockContexts, lockDatabase);
 
     // Initiate a transaction so we can safely modify the database.
     auto transaction = mDatabase.transaction();
-
-    // Check if parent already contains a local child with this name.
-    auto query = transaction.query(mQueries.mGetFileByNameAndParentHandle);
-
-    query.param(":parent_handle").set(parent);
-    query.param(":name").set(name);
-
-    query.execute();
-
-    // Parent already contains a local child with this name.
-    if (query)
-        return unexpected(FILE_SERVICE_FILE_ALREADY_EXISTS);
 
     // Try and allocate a new file ID.
     auto id = allocateID(lockDatabase, transaction);
@@ -1259,8 +1511,11 @@ try
     // Compute the new file's modification time.
     auto modified = now();
 
+    // Clarity.
+    auto size = 0ul;
+
     // Add a new file to the database.
-    query = transaction.query(mQueries.mAddFile);
+    auto query = transaction.query(mQueries.mAddFile);
 
     query.param(":accessed").set(modified);
     query.param(":allocated_size").set(0u);
@@ -1268,21 +1523,29 @@ try
     query.param(":handle").set(nullptr);
     query.param(":id").set(id);
     query.param(":modified").set(modified);
-    query.param(":name").set(name);
-    query.param(":parent_handle").set(parent);
     query.param(":removed").set(false);
     query.param(":reported_size").set(0u);
-    query.param(":size").set(0u);
+    query.param(":size").set(size);
 
     query.execute();
+
+    // Create a cache file for this file.
+    auto cacheFile = mStorage.getFile(id, size, true);
+
+    // Persist our database changes.
+    {
+        // Remove the file's cache file if we can't update the database.
+        RemoveFileOnException remover(id, mStorage);
+
+        // Persist databse changes.
+        transaction.commit();
+    }
 
     // Clarity.
     auto allocatedSize = 0u;
     auto dirty = true;
     auto duration = std::nullopt;
-    auto location = FileLocation{name, parent};
     auto reportedSize = 0u;
-    auto size = 0u;
 
     // Instantiate an info context to describe our new file.
     auto info = std::make_shared<FileInfoContext>(modified,
@@ -1292,7 +1555,7 @@ try
                                                   duration,
                                                   NodeHandle(),
                                                   id,
-                                                  location,
+                                                  true,
                                                   modified,
                                                   reportedSize,
                                                   *this,
@@ -1300,26 +1563,37 @@ try
 
     // Instantiate a file context to manipulate our new file.
     auto file = std::make_shared<FileContext>(mContextMonitor.begin(),
-                                              mStorage.addFile(id),
+                                              std::move(cacheFile),
                                               info,
                                               std::nullopt,
                                               FileRangeSet(),
                                               *this);
 
-    // Persist our changes.
-    transaction.commit();
-
-    // Add both contexts to our index.
+    // Index the file's file context.
     mFileContexts.emplace(id, file);
-    mInfoContexts.emplace(id, std::move(info));
+
+    // Index the file's info context.
+    {
+        // Remove file context if we can't index the file's info context.
+        RemoveKeyOnException remover(mFileContexts, id);
+
+        // Add the file's info context to our index.
+        mInfoContexts.emplace(id, std::move(info));
+    }
+
+    // Compute the file's flush delay.
+    const auto delay = computeFlushDelay(options, 0);
+
+    // Make sure the new file is flushed to the cloud.
+    mFileFlusher.schedule(id, steady_clock::now() + seconds(delay));
 
     // Return a file instance to our caller.
     return File(FileServiceContextBadge{}, std::move(file));
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to create a new file: %s", exception.what());
+    FSErrorF("Unable to create a new file: %s", exceptionMessage().c_str());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
@@ -1342,6 +1616,39 @@ bool FileServiceContext::deinitializing() const
 TaskExecutor& FileServiceContext::executor()
 {
     return mExecutor;
+}
+
+FileFlusher& FileServiceContext::flusher()
+{
+    return mFileFlusher;
+}
+
+auto FileServiceContext::id(NodeHandle handle) -> FileServiceResultOr<FileID>
+try
+{
+    // Acquire database lock.
+    UniqueLock lockDatabase(mDatabase);
+
+    // Begin a transaction so we can safely query the database.
+    auto transaction = mDatabase.transaction();
+
+    // Check whether a file is associated with the specified handle.
+    auto query = transaction.query(mQueries.mGetFileIDByHandle);
+
+    query.param(":handle").set(handle);
+
+    // A file's associated with the specified handle.
+    if (query.execute())
+        return query.field("id").get<FileID>();
+
+    // No file's associated with the specified handle.
+    return FileID::from(handle);
+}
+catch (std::exception& exception)
+{
+    FSErrorF("Unable to determine file ID: %s: %s", toNodeHandle(handle).c_str(), exception.what());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
 auto FileServiceContext::info(FileID id) -> FileServiceResultOr<FileInfo>
@@ -1371,9 +1678,50 @@ try
     // File isn't in storage.
     return unexpected(FILE_SERVICE_UNKNOWN_FILE);
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to get file information: %s: %s", toString(id).c_str(), exception.what());
+    FSErrorF("Unable to get file information: %s: %s",
+             toString(id).c_str(),
+             exceptionMessage().c_str());
+
+    return unexpected(FILE_SERVICE_UNEXPECTED);
+}
+
+auto FileServiceContext::location(FileID id) -> FileServiceResultOr<FileLocation>
+try
+{
+    // Try and get our hands on the file's info.
+    auto maybeInfo = infoContext(id);
+
+    // File's been removed.
+    if (!maybeInfo)
+        return unexpected(maybeInfo.error());
+
+    auto info = std::move(*maybeInfo);
+
+    // File isn't known to the service.
+    if (!info)
+        return unexpected(FILE_SERVICE_UNKNOWN_FILE);
+
+    // Acquire location provider map lock.
+    SharedLock guard(mLocationProvidersLock);
+
+    // Try and get the file's location from our location providers.
+    for (auto& [_, provider]: mLocationProviders)
+    {
+        // Provider knew where the file is located.
+        if (auto location = provider(id))
+            return std::move(*location);
+    }
+
+    // Assume the file's been removed if we couldn't get its location.
+    return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
+}
+catch (...)
+{
+    FSErrorF("Unable to get file location: %s: %s",
+             toString(id).c_str(),
+             exceptionMessage().c_str());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
@@ -1381,81 +1729,6 @@ catch (std::runtime_error& exception)
 void FileServiceContext::notify(const FileEvent& event)
 {
     mEventEmitter.notify(event);
-}
-
-auto FileServiceContext::open(NodeHandle parent, const std::string& name)
-    -> FileServiceResultOr<File>
-try
-{
-    // Caller's given us a bogus name.
-    if (name.empty())
-        return unexpected(FILE_SERVICE_INVALID_NAME);
-
-    // Check if the specified child exists in the cloud.
-    switch (auto node = mClient.get(parent, name); node.errorOr(API_OK))
-    {
-        case API_ENOENT:
-            // Parent doesn't exist.
-            return unexpected(FILE_SERVICE_PARENT_DOESNT_EXIST);
-        case API_FUSE_ENOTDIR:
-            // Parent isn't a directory.
-            return unexpected(FILE_SERVICE_PARENT_IS_A_FILE);
-        case API_FUSE_ENOTFOUND:
-            // Child doesn't exist in the cloud.
-            break;
-        case API_OK:
-            // Child exists but denotes a directory.
-            if (node->mIsDirectory)
-                return unexpected(FILE_SERVICE_FILE_IS_A_DIRECTORY);
-
-            // Open file by node handle.
-            return open(FileID::from(node->mHandle));
-        default:
-            // Encountered an unknown failure.
-            return unexpected(FILE_SERVICE_UNEXPECTED);
-    }
-
-    FileID id;
-
-    // Try and determine this child's file ID.
-    {
-        // Acquire context lock.
-        UniqueLock lockContexts(mLock);
-
-        // Acquire database lock.
-        UniqueLock lockDatabase(mDatabase);
-
-        // So we can safely access the database.
-        auto transaction = mDatabase.transaction();
-
-        // Check if this child exists in the database.
-        auto query = transaction.query(mQueries.mGetFileByNameAndParentHandle);
-
-        query.param(":name").set(name);
-        query.param(":parent_handle").set(parent);
-
-        // Child doesn't exist in the database.
-        if (!query.execute())
-            return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
-
-        // Latch the child's ID.
-        id = query.field("id").get<FileID>();
-    }
-
-    // Try and open the child.
-    return open(id);
-}
-
-catch (std::runtime_error& exception)
-{
-    // Leave a trail for debuggers.
-    FSErrorF("Unable to open file %s under %s: %s",
-             name.c_str(),
-             toNodeHandle(parent).c_str(),
-             exception.what());
-
-    // Let the caller know we couldn't open the file.
-    return unexpected(FILE_SERVICE_UNEXPECTED);
 }
 
 auto FileServiceContext::open(FileID id) -> FileServiceResultOr<File>
@@ -1479,9 +1752,9 @@ try
     // Return file to our caller.
     return File({}, std::move(*maybeFile));
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to open file: %s: %s", toString(id).c_str(), exception.what());
+    FSErrorF("Unable to open file: %s: %s", toString(id).c_str(), exceptionMessage().c_str());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
@@ -1489,64 +1762,6 @@ catch (std::runtime_error& exception)
 FileServiceQueries& FileServiceContext::queries()
 {
     return mQueries;
-}
-
-auto FileServiceContext::purge() -> FileServiceResult
-try
-{
-    // True when there are no info contexts in memory.
-    auto idle = [this]()
-    {
-        return mInfoContexts.empty();
-    }; // idle
-
-    // Make sure we have exclusive access to the context.
-    UniqueLock lockContexts(mLock);
-
-    // Wait until all info contexts have been removed from memory.
-    mInfoContextRemoved.wait(lockContexts, idle);
-
-    // Make sure we have exclusive access to the database.
-    UniqueLock lockDatabase(mDatabase);
-
-    // Retrieve the ID of each file in storage.
-    auto transaction = mDatabase.transaction();
-    auto query = transaction.query(mQueries.mGetFileIDs);
-
-    // Purge each file's data from storage.
-    for (query.execute(); query; ++query)
-        mStorage.removeFile(query.field("id").get<FileID>());
-
-    // Remove all the files from the database.
-    query = transaction.query(mQueries.mRemoveFiles);
-
-    query.execute();
-
-    // Remove any synthetic IDs saved for reuse.
-    query = transaction.query(mQueries.mRemoveFileIDs);
-
-    query.execute();
-
-    // Reset the ID generator to its initial state.
-    query = transaction.query(mQueries.mSetNextFileID);
-
-    query.param(":next").set(0u);
-    query.execute();
-
-    // Persist database changes.
-    transaction.commit();
-
-    // Let the caller know the service has been purged.
-    return FILE_SERVICE_SUCCESS;
-}
-
-catch (std::runtime_error& exception)
-{
-    // Leave a hint as to why we couldn't purge files from the service.
-    FSErrorF("Unable to purge files from storage: %s", exception.what());
-
-    // Let the caller know we couldn't purge files from storage.
-    return FILE_SERVICE_UNEXPECTED;
 }
 
 void FileServiceContext::reclaim(ReclaimCallback callback, const ReclaimOptions& reclaimOptions)
@@ -1574,14 +1789,18 @@ void FileServiceContext::reclaim(ReclaimCallback callback, const ReclaimOptions&
     mReclaimContext->reclaim(mReclaimContext, reclaimOptions);
 }
 
+void FileServiceContext::removeLocationProvider(FileLocationProviderID id)
+{
+    // Acquire location provider map lock.
+    std::lock_guard guard(mLocationProvidersLock);
+
+    // Remove the provider from our map.
+    mLocationProviders.erase(id);
+}
+
 void FileServiceContext::removeObserver(FileEventObserverID id)
 {
     mEventEmitter.removeObserver(id);
-}
-
-void FileServiceContext::removeObserver(FileID id, FileEventObserverID observerID)
-{
-    mEventEmitter.removeObserver(id, observerID);
 }
 
 ReclaimOptions FileServiceContext::reclaimOptions()
@@ -1641,18 +1860,19 @@ try
     // Latch the file's ID.
     auto id = context.id();
 
-    // Make sure we have exclusive access to mInfoContexts.
-    UniqueLock lockContexts(mLock);
+    UniqueLock lockContexts(mLock, std::defer_lock);
+    UniqueLock lockDatabase(mDatabase, std::defer_lock);
+
+    // Acquire necessary locks.
+    std::lock(lockContexts, lockDatabase);
 
     // mInfoContexts contains a distinct info instance for this file.
     if (!removeFromIndex(id, lockContexts, mInfoContexts))
         return;
 
-    // Remove all observers who were watching this file.
-    mEventEmitter.removeObservers(id);
-
-    // Make sure we have exclusive access to mDatabase.
-    UniqueLock lockDatabase(mDatabase);
+    // Context describes a file that isn't managed by the service.
+    if (!context.managed())
+        return;
 
     // So we can safely modify the database.
     auto transaction = mDatabase.transaction();
@@ -1671,7 +1891,7 @@ try
         transaction.commit();
 
         // Let waiters know the context's been removed.
-        return mInfoContextRemoved.notify_all();
+        return;
     }
 
     // Remove the file.
@@ -1679,21 +1899,28 @@ try
 
     // Persist our changes.
     transaction.commit();
-
-    // Let waiters know the context's been removed.
-    mInfoContextRemoved.notify_all();
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
     FSWarningF("Unable to purge %s from storage: %s",
                toString(context.id()).c_str(),
-               exception.what());
+               exceptionMessage().c_str());
 }
 
 ServiceOptions FileServiceContext::serviceOptions()
 {
     return mService.serviceOptions();
+}
+
+uint64_t FileServiceContext::speed() const
+{
+    return mSpeed.getValue();
+}
+
+void FileServiceContext::speed(uint64_t newSample)
+{
+    mSpeed.update(newSample);
 }
 
 auto FileServiceContext::storageInfo(const ReclaimOptions* options)
@@ -1712,9 +1939,9 @@ try
     else
         return storageInfo(lock, this->reclaimOptions(), transaction);
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to determine detailed storage size: %s", exception.what());
+    FSErrorF("Unable to determine detailed storage size: %s", exceptionMessage().c_str());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
@@ -1731,9 +1958,9 @@ try
     // Let the caller know how much storage space we're using.
     return storageUsed(lock, transaction);
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to determine storage footprint: %s", exception.what());
+    FSErrorF("Unable to determine storage footprint: %s", exceptionMessage().c_str());
 
     return unexpected(FILE_SERVICE_UNEXPECTED);
 }
@@ -1741,6 +1968,30 @@ catch (std::runtime_error& exception)
 LocalPath FileServiceContext::userFilePath(FileID id) const
 {
     return mStorage.userFilePath(id);
+}
+
+const LocalPath& FileServiceContext::userStoragePath() const
+{
+    return mStorage.userStoragePath();
+}
+
+FileServiceContext::Averager::Averager(uint32_t alphaDown, uint32_t alphaUp, uint64_t seed):
+    mAverager(alphaDown, alphaUp),
+    mMutex{}
+{
+    mAverager.update(seed);
+}
+
+void FileServiceContext::Averager::update(uint64_t newSample)
+{
+    const std::lock_guard g{mMutex};
+    mAverager.update(newSample);
+}
+
+uint64_t FileServiceContext::Averager::getValue() const
+{
+    const std::lock_guard g{mMutex};
+    return mAverager.getValue();
 }
 
 FileServiceContext::EventProcessor::EventProcessor(FileServiceContext& service):
@@ -1751,56 +2002,16 @@ FileServiceContext::EventProcessor::EventProcessor(FileServiceContext& service):
     mTransaction(service.mDatabase.transaction())
 {}
 
-void FileServiceContext::EventProcessor::added(const NodeEvent& event)
-{
-    // Does this node replace a file managed by the service?
-    auto query = mTransaction.query(mQueries.mGetFileByNameAndParentHandle);
-
-    query.param(":name").set(event.name());
-    query.param(":parent_handle").set(event.parentHandle());
-    query.execute();
-
-    // Node doesn't replace any file managed by the service.
-    if (!query)
-        return;
-
-    // Latch the file's handle, if any.
-    auto handle = query.field("handle").get<std::optional<NodeHandle>>();
-
-    // Node describes a file managed by the service.
-    if (handle && event.handle() == *handle)
-        return;
-
-    // Latch the file's ID.
-    auto id = query.field("id").get<FileID>();
-
-    // The file's not in memory so purge it from the service.
-    if (!mark(id, true))
-        remove(id, true);
-}
-
 void FileServiceContext::EventProcessor::dispatch(const NodeEvent& event)
 try
 {
-    switch (event.type())
-    {
-        case NODE_EVENT_ADDED:
-            added(event);
-            break;
-        case NODE_EVENT_MOVED:
-            moved(event);
-            break;
-        case NODE_EVENT_REMOVED:
-            removed(event);
-            break;
-        default:
-            break;
-    }
+    if (event.type() == NODE_EVENT_REMOVED)
+        removed(event);
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to dispatch node event: %s", exception.what());
+    FSErrorF("Unable to dispatch node event: %s", exceptionMessage().c_str());
 }
 
 FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
@@ -1816,8 +2027,11 @@ FileInfoContextPtr FileServiceContext::EventProcessor::info(FileID id)
     return info;
 }
 
-bool FileServiceContext::EventProcessor::mark(FileID id, bool replaced)
+bool FileServiceContext::EventProcessor::mark(FileID id)
 {
+    // Cancel this file's scheduled flush, if any.
+    mService.mFileFlusher.cancel(id);
+
     // Check if the file's in memory.
     auto info = this->info(id);
 
@@ -1832,105 +2046,34 @@ bool FileServiceContext::EventProcessor::mark(FileID id, bool replaced)
     query.execute();
 
     // Mark the file as removed in memory.
-    info->removed(replaced);
+    info->removed(std::true_type{});
 
     // Let our caller know we marked an in-memory file.
     return true;
 }
 
-void FileServiceContext::EventProcessor::moved(const NodeEvent& event)
-{
-    // Mark or remove a file managed by the service.
-    auto remove = [this](FileID id)
-    {
-        // File's not in memory so remove it immediately.
-        if (!mark(id, true))
-            this->remove(id, true);
-    }; // remove
-
-    // Convenience.
-    auto name = event.name();
-    auto parentHandle = event.parentHandle();
-
-    // Check if this node would replace a file managed by the service.
-    auto query = mTransaction.query(mQueries.mGetFileByNameAndParentHandle);
-
-    query.param(":name").set(name);
-    query.param(":parent_handle").set(parentHandle);
-
-    // Node may replace a file managed by the service.
-    if (query.execute())
-    {
-        // Latch the file's handle, if any.
-        auto handle = query.field("handle").get<std::optional<NodeHandle>>();
-
-        // File's location is already up to date.
-        if (handle && event.handle() == *handle)
-            return;
-
-        // Mark or remove the file.
-        remove(query.field("id").get<FileID>());
-    }
-
-    // Node's a directory so it can't be managed by the service.
-    if (event.isDirectory())
-        return;
-
-    // Check if this node *is* a file managed by the service.
-    query = mTransaction.query(mQueries.mGetFile);
-
-    query.param(":handle").set(event.handle());
-
-    // Node isn't a file managed by the service.
-    if (!query.execute())
-        return;
-
-    // Latch the file's ID and current location.
-    auto id = query.field("id").get<FileID>();
-    auto oldName = query.field("name").get<std::string>();
-    auto oldParentHandle = query.field("parent_handle").get<NodeHandle>();
-
-    // Node's been superseded by another version.
-    if (auto parent = mService.mClient.get(parentHandle); parent && !parent->mIsDirectory)
-        return remove(id);
-
-    // Update the file's location in the database.
-    query = mTransaction.query(mQueries.mSetFileLocation);
-
-    query.param(":id").set(id);
-    query.param(":name").set(name);
-    query.param(":parent_handle").set(parentHandle);
-    query.execute();
-
-    // File's in memory so update it's in-memory location.
-    if (auto info = this->info(id))
-        return info->location(FileLocation{name, parentHandle});
-
-    // Let observers know the file's been moved.
-    mService.notify(FileMoveEvent{FileLocation{std::move(oldName), oldParentHandle},
-                                  FileLocation{std::move(name), parentHandle},
-                                  id});
-}
-
-void FileServiceContext::EventProcessor::remove(FileID id, bool replaced)
+void FileServiceContext::EventProcessor::remove(NodeHandle handle, FileID id)
 {
     // Remove a file from the database and from storage.
     mService.remove(mServiceLock, mDatabaseLock, id, mTransaction);
 
     // Let observers know the file's been removed.
-    mService.notify(FileRemoveEvent{id, replaced});
+    mService.notify(FileRemoveEvent{handle, id});
 }
 
 void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
 {
     // Directories are not managed by the service.
     if (event.isDirectory())
-        return removedDirectory(event);
+        return;
+
+    // Convenience.
+    const auto handle = event.handle();
 
     // Is this node managed by the service?
     auto query = mTransaction.query(mQueries.mGetFile);
 
-    query.param(":handle").set(event.handle());
+    query.param(":handle").set(handle);
     query.param(":id").set(nullptr);
     query.param(":removed").set(false);
 
@@ -1942,62 +2085,8 @@ void FileServiceContext::EventProcessor::removed(const NodeEvent& event)
     auto id = query.field("id").get<FileID>();
 
     // File's not in memory so purge it from the service.
-    if (!mark(id, false))
-        remove(id, false);
-}
-
-void FileServiceContext::EventProcessor::removedDirectory(const NodeEvent& event)
-{
-    // IDs of children we should mark as removed.
-    FileIDVector pendingMark;
-
-    // IDs of children we should remove immediately.
-    FileIDVector pendingRemove;
-
-    // Retrieve the ID of each child under this directory.
-    auto query = mTransaction.query(mQueries.mGetFileIDsByParentHandle);
-
-    query.param(":parent_handle").set(event.handle());
-    query.param(":removed").set(false);
-
-    // Iterate over this directory's children.
-    for (query.execute(); query; ++query)
-    {
-        // Latch the child's ID.
-        auto id = query.field("id").get<FileID>();
-
-        // Check if the child's in memory.
-        auto info = this->info(id);
-
-        // Child's in memory.
-        if (info)
-        {
-            // Mark the file as removed in memory.
-            info->removed(false);
-
-            // Remember to mark this child in the database.
-            pendingMark.emplace_back(id);
-
-            // Move onto the next child.
-            continue;
-        }
-
-        // Child's not in memory: remember to remove it.
-        pendingRemove.emplace_back(id);
-    }
-
-    query = mTransaction.query(mQueries.mSetFileRemoved);
-
-    // Mark in-memory children as removed in the database.
-    for (auto id: pendingMark)
-    {
-        query.param(":id").set(id);
-        query.execute();
-    }
-
-    // Remove out-of-memory children from the service.
-    for (auto id: pendingRemove)
-        remove(id, false);
+    if (!mark(id))
+        remove(handle, id);
 }
 
 void FileServiceContext::EventProcessor::operator()(NodeEventQueue& events)
@@ -2011,9 +2100,9 @@ try
     mTransaction.commit();
 }
 
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to dispatch node events: %s", exception.what());
+    FSErrorF("Unable to dispatch node events: %s", exceptionMessage().c_str());
 }
 
 void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context, FileID id)
@@ -2030,12 +2119,13 @@ void FileServiceContext::ReclaimContext::reclaim(ReclaimContextPtr context, File
     if (!file)
         return reclaimed(std::move(context), FILE_FAILED);
 
-    // So we can use our reclaimed function as a callback.
-    auto reclaimed =
-        std::bind(&ReclaimContext::reclaimed, this, std::move(context), std::placeholders::_1);
-
-    // Try and reclaim the file.
-    file->reclaim(std::move(reclaimed));
+    // Try and reclaim the file. file is copied in the lambda object so that file is alive while
+    // reclaiming
+    file->reclaim(
+        [context = std::move(context), f = *file](FileResultOr<std::uint64_t> result)
+        {
+            context->reclaimed(context, result);
+        });
 }
 
 template<typename Lock>
@@ -2055,7 +2145,7 @@ void FileServiceContext::ReclaimContext::reclaimBatch(ReclaimContextPtr context,
             return completed(mReclaimed);
 
         // We encountered some kind of failure.
-        return completed(mResult);
+        return completed(unexpected(mResult));
     }
 
     // How many files should we reclaim at once?
@@ -2080,7 +2170,9 @@ void FileServiceContext::ReclaimContext::reclaimBatch(ReclaimContextPtr context,
 void FileServiceContext::ReclaimContext::reclaimed(ReclaimContextPtr context,
                                                    FileResultOr<std::uint64_t> result)
 {
-    FSInfoF("Reclaim file result: %d, %" PRIu64, result.errorOr(FILE_SUCCESS), result.valueOr(0));
+    FSInfoF("Reclaim file result: %s, %" PRIu64,
+            toString(result.errorOr(FILE_SUCCESS)),
+            result.valueOr(0));
 
     // Make sure no one else changes our members.
     std::unique_lock lock(mLock);

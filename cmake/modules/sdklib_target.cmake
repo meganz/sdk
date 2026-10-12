@@ -69,6 +69,7 @@ set(SDKLIB_HEADERS
     include/mega/utils_optional.h
     include/mega/account.h
     include/mega/transfer.h
+    include/mega/transfer_quota_checker.h
     include/mega/transferstats.h
     include/mega/totp.h
     include/mega/treeproc.h
@@ -159,6 +160,7 @@ set(SDKLIB_SOURCES
     src/heartbeats.cpp
     src/testhooks.cpp
     src/transfer.cpp
+    src/transfer_quota_checker.cpp
     src/transferslot.cpp
     src/transferstats.cpp
     src/treeproc.cpp
@@ -266,6 +268,7 @@ target_sources_conditional(SDKlib
     include/mega/posix/megaconsolewaiter.h
     include/mega/posix/meganet.h
     include/mega/posix/megasys.h
+    include/mega/posix/megafdwatchset.h
 
     src/posix/waiter.cpp
     src/thread/posixthread.cpp
@@ -273,6 +276,19 @@ target_sources_conditional(SDKlib
     src/posix/fs.cpp
     src/posix/consolewaiter.cpp
     src/posix/net.cpp
+    src/posix/fdwatchset.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG UNIX AND USE_POLL
+    PRIVATE
+    src/posix/fdwatchset_poll.cpp
+)
+
+target_sources_conditional(SDKlib
+    FLAG UNIX AND NOT USE_POLL
+    PRIVATE
+    src/posix/fdwatchset_select.cpp
 )
 
 target_sources_conditional(SDKlib
@@ -410,7 +426,8 @@ target_compile_definitions(SDKlib
     $<$<BOOL:${ENABLE_SYNC}>:ENABLE_SYNC>
     $<$<BOOL:${USE_LIBUV}>:HAVE_LIBUV>
     $<$<PLATFORM_ID:iOS>:USE_IOS>
-    $<$<PLATFORM_ID:Android>:USE_POLL>
+    # UNIX-gated as well, so this PUBLIC macro never reaches Windows consumers.
+    $<$<AND:$<BOOL:${UNIX}>,$<BOOL:${USE_POLL}>>:USE_POLL>
     $<$<PLATFORM_ID:Android>:USE_INOTIFY>
     $<$<PLATFORM_ID:Android>:HAVE_SDK_CONFIG_H>
 )

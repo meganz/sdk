@@ -1,3 +1,4 @@
+#include "mega/command.h"
 #include "mega/db.h"
 #include "mega/file.h"
 #include "mega/megaapp.h"
@@ -315,6 +316,46 @@ TEST(TransferListReentrancy, nexttransfers_UAF_when_getter_compacts_deque_in_cal
     {
         delete f;
     }
+}
+
+// a writable link is backed by a share, and only folders get one. Asking the API for a
+// writable link on a file makes it answer the 'l' command with an error code in the 'w' field,
+// which used to be stored as if it were the auth key.
+TEST_F(MegaClientTest, ExportNodeRejectsWritableLinkForFileNode)
+{
+    std::shared_ptr<Node> file = mt::makeNode(*client, FILENODE, NodeHandle().set6byte(42));
+
+    bool completionCalled = false;
+    auto completion = [&completionCalled](Error, handle, handle, std::string&&)
+    {
+        completionCalled = true;
+    };
+
+    EXPECT_EQ(API_EARGS, client->exportnode(file, 0, 0, true /*writable*/, false, 1, completion));
+    EXPECT_FALSE(completionCalled);
+
+    // the guard is limited to writable links: a plain export gets as far as the access check
+    EXPECT_EQ(API_EACCESS, client->exportnode(file, 0, 0, false, false, 1, completion));
+    EXPECT_FALSE(completionCalled);
+}
+
+// an auth key implies a writable link, so a file node must never keep one, no matter
+// where it comes from (action packet, fetchnodes or a local DB written by an older build).
+TEST_F(MegaClientTest, SetPublicLinkDiscardsAuthKeyOfFileNode)
+{
+    std::shared_ptr<Node> file = mt::makeNode(*client, FILENODE, NodeHandle().set6byte(43));
+    file->setpubliclink(1, 2, 3, false, "-11");
+    ASSERT_NE(nullptr, file->plink);
+    EXPECT_TRUE(file->plink->mAuthKey.empty());
+
+    // update of an existing link must not reintroduce it either
+    file->setpubliclink(1, 2, 3, false, "someAuthKey");
+    EXPECT_TRUE(file->plink->mAuthKey.empty());
+
+    std::shared_ptr<Node> folder = mt::makeNode(*client, FOLDERNODE, NodeHandle().set6byte(44));
+    folder->setpubliclink(1, 2, 3, false, "someAuthKey");
+    ASSERT_NE(nullptr, folder->plink);
+    EXPECT_EQ("someAuthKey", folder->plink->mAuthKey);
 }
 
 } // namespace

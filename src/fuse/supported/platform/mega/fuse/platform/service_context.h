@@ -2,8 +2,6 @@
 
 #include <mega/common/database.h>
 #include <mega/common/task_executor.h>
-#include <mega/fuse/common/file_cache.h>
-#include <mega/fuse/common/file_extension_db.h>
 #include <mega/fuse/common/inode_cache.h>
 #include <mega/fuse/common/inode_db.h>
 #include <mega/fuse/common/service_context.h>
@@ -25,15 +23,14 @@ class ServiceContext: public fuse::ServiceContext
 public:
     using fuse::ServiceContext::serviceFlags;
 
-    ServiceContext(const ServiceFlags& flags, Service& service);
+    ServiceContext(file_service::FileService& fileService,
+                   const ServiceFlags& flags,
+                   Service& service);
 
     ~ServiceContext();
 
     // Add a mount to the database.
     MountResult add(const MountInfo& info) override;
-
-    // Check if a file exists in the cache.
-    bool cached(common::NormalizedPath path) const override;
 
     // Called by the client when its view of the cloud is current.
     void current() override;
@@ -94,9 +91,7 @@ public:
 
     common::Database mDatabase;
     common::TaskExecutor mExecutor;
-    FileExtensionDB mFileExtensionDB;
     InodeDB mInodeDB;
-    FileCache mFileCache;
     InodeCache mInodeCache;
     Unmounter mUnmounter;
     MountDB mMountDB;

@@ -859,3 +859,232 @@ TEST(MegaApi, IsMediaMimeType_PartitionsMediaFromNonMedia)
     EXPECT_FALSE(isMediaMimeType(MIME_TYPE_ALL_DOCS));
     EXPECT_FALSE(isMediaMimeType(MIME_TYPE_OTHERS));
 }
+
+TEST(MegaApi, MegaAccountDetails_getTransferQuotaState)
+{
+    const auto stateFor = [](const m_off_t transferMax, const m_off_t used)
+    {
+        AccountDetails accDetails;
+        accDetails.transfer_max = transferMax;
+        accDetails.transfer_own_used = used;
+        unique_ptr<MegaAccountDetails> details(
+            MegaAccountDetailsPrivate::fromAccountDetails(&accDetails));
+        return details->getTransferQuotaState();
+    };
+
+    constexpr m_off_t allowance = 1000;
+
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_GREEN, stateFor(allowance, 0));
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_GREEN, stateFor(allowance, 899)); // 89.9%
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_ORANGE, stateFor(allowance, 900)); // 90%
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_ORANGE, stateFor(allowance, 990)); // 99% exactly
+    // Not floored, so any part of the last percent is already red
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_RED, stateFor(10 * allowance, 9901)); // 99.01%
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_RED, stateFor(allowance, 995)); // 99.5%
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_RED, stateFor(allowance, allowance));
+
+    // getTransferUsed caps the total at the allowance, so going over it is still red
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_RED, stateFor(allowance, 10 * allowance));
+
+    // free accounts have no allowance configured, so there is no ratio to report
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN, stateFor(0, 10 * allowance));
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN, stateFor(0, 0));
+
+    // served and own usage both count towards the allowance
+    AccountDetails accDetails;
+    accDetails.transfer_max = allowance;
+    accDetails.transfer_own_used = 500;
+    accDetails.transfer_srv_used = 400;
+    accDetails.transfer_hist = {50};
+    unique_ptr<MegaAccountDetails> details(
+        MegaAccountDetailsPrivate::fromAccountDetails(&accDetails));
+    EXPECT_EQ(950, details->getTransferUsed());
+    EXPECT_EQ(MegaApi::TRANSFER_QUOTA_STATE_ORANGE, details->getTransferQuotaState());
+}
+
+// A folder node with `childCount` file children, as a public folder link yields: the children are
+// carried on the node itself, since there is no local tree to look them up in.
+static std::unique_ptr<MegaNodePrivate> makeForeignFolder(const char* name, const int childCount)
+{
+    const std::string nodekey;
+    const std::string fileattrstring;
+
+    auto folder = std::make_unique<MegaNodePrivate>(name,
+                                                    MegaNode::TYPE_FOLDER,
+                                                    0,
+                                                    0,
+                                                    0,
+                                                    1,
+                                                    &nodekey,
+                                                    &fileattrstring,
+                                                    nullptr,
+                                                    nullptr,
+                                                    INVALID_HANDLE);
+
+    auto children = std::make_unique<MegaNodeListPrivate>();
+    for (int i = 0; i < childCount; ++i)
+    {
+        const std::string childName = "child" + std::to_string(i) + ".txt";
+        MegaNodePrivate child(childName.c_str(),
+                              MegaNode::TYPE_FILE,
+                              1024,
+                              0,
+                              0,
+                              static_cast<MegaHandle>(100 + i),
+                              &nodekey,
+                              &fileattrstring,
+                              nullptr,
+                              nullptr,
+                              INVALID_HANDLE);
+        children->addNode(&child);
+    }
+
+    folder->setChildren(children.release());
+
+    // The children are only carried on a foreign node: anything else is looked up in the local tree
+    folder->setForeign(true);
+    return folder;
+}
+
+static std::unique_ptr<MegaNodePrivate> makeFile(const char* name, const MegaHandle handle)
+{
+    const std::string nodekey;
+    const std::string fileattrstring;
+
+    return std::make_unique<MegaNodePrivate>(name,
+                                             MegaNode::TYPE_FILE,
+                                             1024,
+                                             0,
+                                             0,
+                                             handle,
+                                             &nodekey,
+                                             &fileattrstring,
+                                             nullptr,
+                                             nullptr,
+                                             INVALID_HANDLE);
+}
+
+TEST(MegaApi, MegaDownloadItemList_keepsAFolderItemsChildren)
+{
+    // MegaNode::copy() nulls the child list, but a batch download of a public folder link has
+    // nowhere else to read its children from: scanFolder walks getChildren() for a foreign node.
+    // Losing them made the whole batch fail API_EINTERNAL.
+    auto folder = makeForeignFolder("shared", 3);
+    ASSERT_NE(nullptr, folder->getChildren());
+    ASSERT_EQ(3, folder->getChildren()->size());
+
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(folder.get(), "/dest/", nullptr, nullptr, false, false);
+
+    ASSERT_EQ(1, items->size());
+    MegaNode* stored = items->getNode(0);
+    ASSERT_NE(nullptr, stored);
+    EXPECT_NE(folder.get(), stored) << "the list must hold its own copy";
+
+    ASSERT_NE(nullptr, stored->getChildren()) << "the folder item lost its children";
+    ASSERT_EQ(3, stored->getChildren()->size());
+    EXPECT_STREQ("child0.txt", stored->getChildren()->get(0)->getName());
+    EXPECT_STREQ("child2.txt", stored->getChildren()->get(2)->getName());
+
+    // The copy is independent: the caller may free what it added straight after.
+    folder.reset();
+    EXPECT_STREQ("child1.txt", stored->getChildren()->get(1)->getName());
+}
+
+TEST(MegaApi, MegaDownloadItemList_copyIsDeepIncludingChildren)
+{
+    // setDownloadItems() copies the list onto the transfer, so a batch relies on copy() carrying
+    // the children through a second time.
+    auto folder = makeForeignFolder("shared", 2);
+
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(folder.get(), "/dest/", "renamed", "batch-7", true, true);
+
+    std::unique_ptr<MegaDownloadItemList> copied{items->copy()};
+    items.reset();
+    folder.reset();
+
+    ASSERT_EQ(1, copied->size());
+    EXPECT_STREQ("/dest/", copied->getLocalPath(0));
+    EXPECT_STREQ("renamed", copied->getCustomName(0));
+    EXPECT_STREQ("batch-7", copied->getAppData(0));
+    EXPECT_TRUE(copied->getStartFirst(0));
+    EXPECT_TRUE(copied->getUndelete(0));
+
+    MegaNode* stored = copied->getNode(0);
+    ASSERT_NE(nullptr, stored);
+    ASSERT_NE(nullptr, stored->getChildren()) << "copy() dropped the folder item's children";
+    ASSERT_EQ(2, stored->getChildren()->size());
+    EXPECT_STREQ("child0.txt", stored->getChildren()->get(0)->getName());
+}
+
+TEST(MegaApi, MegaDownloadItemList_emptyStringsMeanUnset)
+{
+    // "" is how a binding passes "no value"; it must read back as none, not as a zero-length
+    // destination that would resolve to the filesystem root.
+    auto folder = makeForeignFolder("shared", 1);
+
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(folder.get(), "", "", "", false, false);
+    items->add(folder.get(), nullptr, nullptr, nullptr, false, false);
+
+    ASSERT_EQ(2, items->size());
+    for (int i = 0; i < 2; ++i)
+    {
+        EXPECT_EQ(nullptr, items->getLocalPath(i)) << "item " << i;
+        EXPECT_EQ(nullptr, items->getCustomName(i)) << "item " << i;
+        EXPECT_EQ(nullptr, items->getAppData(i)) << "item " << i;
+    }
+}
+
+TEST(MegaApi, MegaDownloadItemList_perItemOptionsAreIndependent)
+{
+    // appData and startFirst are per item rather than per batch, so one selection may mix values:
+    // every getter must answer for the index it was asked about.
+    auto first = makeFile("first.txt", 101u);
+    auto second = makeFile("second.txt", 102u);
+    auto third = makeFile("third.txt", 103u);
+
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    items->add(first.get(), "/a/", nullptr, "tag-a", true, false);
+    items->add(second.get(), "/b/");
+    items->add(third.get(), "/c/", nullptr, "tag-c", false, true);
+
+    ASSERT_EQ(3, items->size());
+
+    EXPECT_STREQ("tag-a", items->getAppData(0));
+    EXPECT_TRUE(items->getStartFirst(0));
+    EXPECT_FALSE(items->getUndelete(0));
+
+    EXPECT_EQ(nullptr, items->getAppData(1));
+    EXPECT_FALSE(items->getStartFirst(1));
+    EXPECT_FALSE(items->getUndelete(1));
+
+    EXPECT_STREQ("tag-c", items->getAppData(2));
+    EXPECT_FALSE(items->getStartFirst(2));
+    EXPECT_TRUE(items->getUndelete(2));
+}
+
+TEST(MegaApi, MegaDownloadItemList_gettersAreBoundsChecked)
+{
+    // A caller iterating past size() reads the neutral value rather than out of range.
+    std::unique_ptr<MegaDownloadItemList> items{MegaDownloadItemList::createInstance()};
+    EXPECT_EQ(0, items->size());
+
+    for (const int i: {-1, 0, 7})
+    {
+        EXPECT_EQ(nullptr, items->getNode(i)) << "index " << i;
+        EXPECT_EQ(nullptr, items->getLocalPath(i)) << "index " << i;
+        EXPECT_EQ(nullptr, items->getCustomName(i)) << "index " << i;
+        EXPECT_EQ(nullptr, items->getAppData(i)) << "index " << i;
+        EXPECT_FALSE(items->getStartFirst(i)) << "index " << i;
+        EXPECT_FALSE(items->getUndelete(i)) << "index " << i;
+    }
+
+    // A null node is kept as an item, so the indices the caller added still line up; scanItems
+    // skips it.
+    items->add(nullptr, "/dest/");
+    EXPECT_EQ(1, items->size());
+    EXPECT_EQ(nullptr, items->getNode(0));
+    EXPECT_STREQ("/dest/", items->getLocalPath(0));
+}

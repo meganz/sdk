@@ -18,6 +18,9 @@ namespace common
 
 std::chrono::minutes defaultTimeout();
 
+std::string exceptionMessage(const char* defaultMessage);
+std::string exceptionMessage();
+
 std::string format(const char* format, ...);
 
 std::string formatv(std::va_list arguments, const char* format);

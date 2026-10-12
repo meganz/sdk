@@ -444,6 +444,58 @@ TEST(Serialization, Node_forFile_withoutShares_withAuthKey)
     checkDeserializedNode(*dn, *n);
 }
 
+// an auth key belongs to a writable link, which only a folder can have. A file node whose
+// local DB row carries one (written by a build that stored the API error from the 'w' field)
+// must come back without it.
+TEST(Serialization, Node_forFile_publicLinkAuthKeyIsDiscardedWhenLoaded)
+{
+    MockClient client;
+    auto parent = mt::makeNode(*client.cli, mega::FOLDERNODE, ::mega::NodeHandle().set6byte(43));
+    auto n =
+        mt::makeNode(*client.cli, mega::FILENODE, ::mega::NodeHandle().set6byte(42), parent.get());
+    n->size = 12;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = std::map<mega::nameid, std::string>{
+        {101, "foo"},
+        {102, "bar"},
+    };
+    n->fileattrstring = "blah";
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false, "-11"});
+    std::string data;
+    ASSERT_TRUE(n->serialize(&data));
+
+    auto dn = client.cli->mNodeManager.getNodeFromBlob(&data);
+    ASSERT_NE(nullptr, dn->plink);
+    ASSERT_EQ(n->plink->ph, dn->plink->ph);
+    ASSERT_TRUE(dn->plink->mAuthKey.empty());
+}
+
+TEST(Serialization, Node_forFolder_publicLinkAuthKeyIsPreserved)
+{
+    MockClient client;
+    auto parent = mt::makeNode(*client.cli, mega::FOLDERNODE, ::mega::NodeHandle().set6byte(43));
+    auto n = mt::makeNode(*client.cli,
+                          mega::FOLDERNODE,
+                          ::mega::NodeHandle().set6byte(42),
+                          parent.get());
+    n->size = -1;
+    n->owner = 88;
+    n->ctime = 44;
+    n->attrs.map = std::map<mega::nameid, std::string>{
+        {101, "foo"},
+        {102, "bar"},
+    };
+    n->fileattrstring = "blah";
+    n->plink.reset(new mega::PublicLink{n->nodehandle, 1, 2, false, "someAuthKey"});
+    std::string data;
+    ASSERT_TRUE(n->serialize(&data));
+
+    auto dn = client.cli->mNodeManager.getNodeFromBlob(&data);
+    ASSERT_NE(nullptr, dn->plink);
+    ASSERT_EQ("someAuthKey", dn->plink->mAuthKey);
+}
+
 TEST(Serialization, Node_forFile_withoutShares_32bit)
 {
     MockClient client;

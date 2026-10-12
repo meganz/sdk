@@ -1,6 +1,8 @@
 #include <mega/fuse/common/logging.h>
 #include <mega/fuse/platform/request.h>
 
+#include <cstring>
+
 namespace mega
 {
 namespace fuse
@@ -11,6 +13,9 @@ namespace platform
 template<typename T>
 void Request::reply(T&& responder)
 {
+    // Sanity.
+    assert(mRequest);
+
     while (true)
     {
         auto result = responder(mRequest);
@@ -24,7 +29,7 @@ void Request::reply(T&& responder)
             return;
         }
 
-        throw FUSEErrorF("Unable to send response for request: %p", mRequest);
+        FUSEErrorF("Unable to send response for request: %p: %s", mRequest, std::strerror(-result));
     }
 }
 
@@ -32,35 +37,9 @@ Request::Request(fuse_req_t request):
     mRequest(request)
 {}
 
-bool Request::addDirEntry(const struct stat& attributes,
-                          std::string& buffer,
-                          const std::string& name,
-                          const std::size_t offset,
-                          const std::size_t size)
+fuse_req_t Request::get() const
 {
-    // How much have we written to the buffer?
-    auto current = buffer.size();
-
-    // How much space does this entry need?
-    auto required = fuse_add_direntry(mRequest, nullptr, 0, name.c_str(), nullptr, 0);
-
-    // Don't have enough space for this entry.
-    if (current + required > size)
-        return false;
-
-    // Expand the buffer.
-    buffer.resize(current + required);
-
-    // Add the entry to the buffer.
-    fuse_add_direntry(mRequest,
-                      &buffer[current],
-                      required,
-                      name.c_str(),
-                      &attributes,
-                      static_cast<off_t>(offset));
-
-    // Let the caller know the entry's been added.
-    return true;
+    return mRequest;
 }
 
 gid_t Request::group() const

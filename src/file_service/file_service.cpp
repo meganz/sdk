@@ -1,5 +1,6 @@
 #include <mega/common/client_adapter.h>
 #include <mega/common/lock.h>
+#include <mega/common/utility.h>
 #include <mega/file_service/file.h>
 #include <mega/file_service/file_id.h>
 #include <mega/file_service/file_info.h>
@@ -91,6 +92,17 @@ auto FileService::add(NodeHandle handle,
     return unexpected(FILE_SERVICE_UNINITIALIZED);
 }
 
+auto FileService::addLocationProvider(FileLocationProvider provider)
+    -> FileServiceResultOr<FileLocationProviderID>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->addLocationProvider(std::move(provider));
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
+}
+
 auto FileService::addObserver(FileEventObserver observer)
     -> FileServiceResultOr<FileEventObserverID>
 {
@@ -116,21 +128,29 @@ try
 
     return FILE_SERVICE_SUCCESS;
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
-    FSErrorF("Unable to construct File Service: %s", exception.what());
+    FSErrorF("Unable to construct File Service: %s", exceptionMessage().c_str());
 
     return FILE_SERVICE_UNEXPECTED;
 }
 
-auto FileService::create(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
+void FileService::current()
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        mContext->current();
+}
+
+auto FileService::create() -> FileServiceResultOr<File>
 {
     SharedLock guard(mContextLock);
 
     if (!mContext)
         return unexpected(FILE_SERVICE_UNINITIALIZED);
 
-    return mContext->create(parent, name);
+    return mContext->create();
 }
 
 auto FileService::databasePath() const -> FileServiceResultOr<LocalPath>
@@ -170,6 +190,16 @@ void FileService::deinitialize(bool cleanCache, bool isDestructing)
     mInitialized = false;
 }
 
+auto FileService::id(NodeHandle handle) -> FileServiceResultOr<FileID>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->id(handle);
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
+}
+
 auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
 {
     SharedLock guard(mContextLock);
@@ -181,16 +211,6 @@ auto FileService::info(FileID id) -> FileServiceResultOr<FileInfo>
         return unexpected(FILE_SERVICE_FILE_DOESNT_EXIST);
 
     return mContext->info(id);
-}
-
-auto FileService::open(NodeHandle parent, const std::string& name) -> FileServiceResultOr<File>
-{
-    SharedLock guard(mContextLock);
-
-    if (!mContext)
-        return unexpected(FILE_SERVICE_UNINITIALIZED);
-
-    return mContext->open(parent, name);
 }
 
 auto FileService::open(FileID id) -> FileServiceResultOr<File>
@@ -252,23 +272,13 @@ try
 
     return FILE_SERVICE_SUCCESS;
 }
-catch (std::runtime_error& exception)
+catch (...)
 {
     mInitialized = false;
 
-    FSErrorF("Unable to initialize File Service: %s", exception.what());
+    FSErrorF("Unable to initialize File Service: %s", exceptionMessage().c_str());
 
     return FILE_SERVICE_UNEXPECTED;
-}
-
-auto FileService::purge() -> FileServiceResult
-{
-    SharedLock guard(mContextLock);
-
-    if (!mContext)
-        return FILE_SERVICE_UNINITIALIZED;
-
-    return mContext->purge();
 }
 
 auto FileService::reclaim(ReclaimCallback callback,
@@ -322,6 +332,18 @@ auto FileService::reclaimOptions() -> ReclaimOptions
     return mReclaimOptions;
 }
 
+auto FileService::removeLocationProvider(FileLocationProviderID id) -> FileServiceResult
+{
+    SharedLock guard(mContextLock);
+
+    if (!mContext)
+        return FILE_SERVICE_UNINITIALIZED;
+
+    mContext->removeLocationProvider(id);
+
+    return FILE_SERVICE_SUCCESS;
+}
+
 auto FileService::removeObserver(FileEventObserverID id) -> FileServiceResult
 {
     SharedLock guard(mContextLock);
@@ -360,6 +382,16 @@ auto FileService::userFilePath(FileID id) const -> FileServiceResultOr<LocalPath
 
     if (mContext)
         return mContext->userFilePath(id);
+
+    return unexpected(FILE_SERVICE_UNINITIALIZED);
+}
+
+auto FileService::userStoragePath() const -> FileServiceResultOr<LocalPath>
+{
+    SharedLock guard(mContextLock);
+
+    if (mContext)
+        return mContext->userStoragePath();
 
     return unexpected(FILE_SERVICE_UNINITIALIZED);
 }

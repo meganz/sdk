@@ -163,11 +163,6 @@ MountResult Client::enableMount(const std::string& name, bool remember)
     return ret;
 }
 
-bool Client::isCached(const Path& path) const
-{
-    return fuseService().cached(path.localPath());
-}
-
 MountEventObserverPtr Client::mountEventObserver()
 {
     auto observer = MountEventObserver::create();

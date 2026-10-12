@@ -98,6 +98,7 @@ class MegaScheduledCopy;
 class MegaSync;
 class MegaStringList;
 class MegaNodeList;
+class MegaDownloadItemList;
 class MegaDateSection;
 class MegaDateSectionList;
 class MegaUserList;
@@ -154,7 +155,7 @@ class MegaFileServiceStorageInfo;
  * The implementation will receive callbacks from an internal worker thread.
  *
  * Images will be sequentially processed. At first, the SDK will call MegaGfxProcessor::readBitmap
- * with the path of the file. Then, it will call MegaGfxProcessor::getWidth and
+ * with the name and path of the file. Then, it will call MegaGfxProcessor::getWidth and
  * MegaGfxProcessor::getHeight to get the dimensions of the file (in pixels). After that, the SDK
  * will call MegaGfxProcessor::getBitmapDataSize and MegaGfxProcessor::getBitmapData in a loop to
  * get thumbnails/previews of different sizes. Finally, the SDK will call
@@ -167,7 +168,6 @@ class MegaFileServiceStorageInfo;
  * transformation based on the EXIF data.
  *
  * Generated images can be in JPG or PNG format.
- *
  */
 class MegaGfxProcessor
 {
@@ -184,17 +184,27 @@ public:
      * This is the first function that will be called to process an image. No other
      * functions of this interface will be called before this one.
      *
-     * The recommended implementation is to read the file, check if it's an image and
-     * get its dimensions. If everything is OK, the function should return true. If the
-     * file isn't an image or can't be processed, this function should return false.
+     * The recommended implementation is to read the file from path, check if it's an
+     * image and get its dimensions. If everything is OK, the function should return true.
+     * If the file isn't an image or can't be processed, this function should return
+     * false.
      *
      * The SDK will call this function with all files so it's probably a good idea to
-     * check the extension before trying to open them.
+     * check the extension of name before trying to open the file at path.
      *
-     * @param path Path of the file that is going to be processed
-     * @return True if the implementation is able to manage the file, false otherwise.
+     * @param name
+     * Name of the file that is going to be processed.
+     *
+     * Note that name may be different than the name of the file denoted by the path
+     * parameter below.
+     *
+     * @param path
+     * Path of the file that is going to be processed
+     *
+     * @return
+     * True if the implementation is able to manage the file, false otherwise.
      */
-    virtual bool readBitmap(const char* path);
+    virtual bool readBitmap(const char* name, const char* path);
 
     /**
      * @brief Returns the width of the image
@@ -1457,7 +1467,8 @@ class MegaNode
          * be valid until the MegaNode object is deleted.
          *
          * @return authentication key for a writable folder. If there is no authentication key,
-         * nullptr shall be returned.
+         * nullptr shall be returned. Always return nullptr for a file node, since a writable link
+         * requires a share.
          */
         virtual const char * getWritableLinkAuthKey();
 
@@ -4414,6 +4425,173 @@ class MegaNodeList
 };
 
 /**
+ * @brief A list of nodes to download, each with its own per-node download options
+ *
+ * Groups everything MegaApi::startDownloadBatch needs to know about one selected node: the node
+ * itself, where to store it, the local name to store it under, the app data to tag its
+ * transfers with, whether to queue it ahead of existing work, and whether it is being undeleted.
+ * Keeping them together avoids the positional alignment that separate parallel lists would
+ * require, and lets each item name its own destination.
+ *
+ * The list makes its own copy of every node, path and name added to it, so the caller keeps
+ * ownership of what it passes in.
+ */
+class MegaDownloadItemList
+{
+protected:
+    MegaDownloadItemList();
+
+public:
+    /**
+     * @brief Creates a new instance of MegaDownloadItemList
+     * @return A pointer to the superclass of the private object
+     */
+    static MegaDownloadItemList* createInstance();
+
+    virtual ~MegaDownloadItemList();
+
+    virtual MegaDownloadItemList* copy() const;
+
+    /**
+     * @brief Add a node to download, with its destination and per-node options
+     *
+     * @param node Node to download. The node inserted is a copy from 'node'
+     *
+     * @param localPath Destination for this node, following the same rule as
+     * MegaApi::startDownload:
+     *  + If this path ends with a '\' or '/' character it is a local folder, and the node is
+     *    stored inside it under its own name
+     *  + Otherwise the path names the destination itself: a file node is downloaded to exactly
+     *    that file path, and a folder node is created at exactly that path
+     *  + If you provide NULL as value the node is stored in the current folder, under its own
+     *    name
+     * Items may each name a different destination
+     *
+     * @param customName Custom local name to store this node under
+     * When given, it replaces the leaf of @p localPath, so the node is stored under this name
+     * inside the folder that path resolves to. This matches how MegaApi::startDownload
+     * resolves the two together
+     *  + If you don't need this param provide NULL as value, and the name comes from
+     *    @p localPath, or from the node itself when that path is a folder
+     *
+     * @param appData Custom app data to save in the MegaTransfer objects this item produces
+     * The data can be accessed using MegaTransfer::getAppData in the callbacks of every transfer
+     * that comes from this item: its own file transfer, or the transfer of every file found under
+     * it when the item is a folder
+     *  + If you don't need this param provide NULL as value
+     *
+     * @param startFirst Puts this item on top of the download queue, ahead of whatever was
+     * already queued, as MegaApi::startDownload does for a single file
+     *  + If you don't need this param provide false as value
+     *  + Only a file item honours it. The contents of a folder item are queued normally, also as
+     *    MegaApi::startDownload does
+     *
+     * @param undelete Indicates a special request for a node that has been completely deleted
+     * (even from Rubbish Bin); allowed only for accounts with PRO level. Only file nodes can
+     * be undeleted, since a deleted node has no subtree left to scan
+     *  + If you don't need this param provide false as value
+     *  + Only a file item honours it; it is ignored for a folder item
+     */
+    virtual void add(MegaNode* node,
+                     const char* localPath,
+                     const char* customName = NULL,
+                     const char* appData = NULL,
+                     bool startFirst = false,
+                     bool undelete = false);
+
+    /**
+     * @brief Returns the number of items in the list
+     * @return Number of items in the list
+     */
+    virtual int size() const;
+
+    /**
+     * @brief Returns the node of the item at the position i
+     *
+     * The MegaDownloadItemList retains the ownership of the returned MegaNode. It will be only
+     * valid until the MegaDownloadItemList is deleted.
+     *
+     * If the index is >= the size of the list, this function returns NULL.
+     *
+     * @param i Position of the item
+     * @return Node of the item at the position i in the list
+     */
+    virtual MegaNode* getNode(int i) const;
+
+    /**
+     * @brief Returns the destination of the item at the position i
+     *
+     * A path ending with a '\' or '/' character is the folder to store the node in;
+     * otherwise it is the exact path to store the node as.
+     *
+     * The MegaDownloadItemList retains the ownership of the returned string. It will be only
+     * valid until the MegaDownloadItemList is deleted.
+     *
+     * If the index is >= the size of the list, or no destination was given for that item,
+     * this function returns NULL, and the item is stored in the current folder.
+     *
+     * @param i Position of the item
+     * @return Destination of the item at the position i in the list, or NULL
+     */
+    virtual const char* getLocalPath(int i) const;
+
+    /**
+     * @brief Returns the custom local name of the item at the position i
+     *
+     * The MegaDownloadItemList retains the ownership of the returned string. It will be only
+     * valid until the MegaDownloadItemList is deleted.
+     *
+     * If the index is >= the size of the list, or no custom name was given for that item,
+     * this function returns NULL and the node's own name is used.
+     *
+     * @param i Position of the item
+     * @return Custom local name of the item at the position i in the list, or NULL
+     */
+    virtual const char* getCustomName(int i) const;
+
+    /**
+     * @brief Returns the custom app data of the item at the position i
+     *
+     * The MegaDownloadItemList retains the ownership of the returned string. It will be only
+     * valid until the MegaDownloadItemList is deleted.
+     *
+     * If the index is >= the size of the list, or no app data was given for that item,
+     * this function returns NULL.
+     *
+     * @param i Position of the item
+     * @return Custom app data of the item at the position i in the list, or NULL
+     *
+     * @note Unlike the start-first and undelete flags this applies to a folder item too: every
+     * file found under it carries the item's app data.
+     */
+    virtual const char* getAppData(int i) const;
+
+    /**
+     * @brief Returns whether the item at the position i is put on top of the download queue
+     *
+     * If the index is >= the size of the list, this function returns false.
+     *
+     * @param i Position of the item
+     * @return True if that node is queued ahead of whatever was already queued, otherwise false
+     *
+     * @note Only valid for a file item; it is ignored for a folder item.
+     */
+    virtual bool getStartFirst(int i) const;
+
+    /**
+     * @brief Returns whether the item at the position i is being undeleted
+     *
+     * If the index is >= the size of the list, this function returns false.
+     *
+     * @param i Position of the item
+     * @return True if that node is being undeleted, otherwise false
+     *
+     * @note Only valid for a file item; it is ignored for a folder item.
+     */
+    virtual bool getUndelete(int i) const;
+};
+
+/**
  * @brief Lists of file and folder children MegaNode objects
  *
  * @obsolete This method is unused by app
@@ -5478,7 +5656,9 @@ class MegaRequest
             TYPE_GET_DISCOUNT_CODE_INFORMATION = 210,
             TYPE_GET_RECENT_ACTION_BY_ID = 211,
             TYPE_FILE_SERVICE_RECLAIM = 212,
-            TOTAL_OF_REQUEST_TYPES = 213,
+            TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE = 213,
+            TYPE_ESTIMATE_FREE_TRANSFER_QUOTA_STATE = 214,
+            TOTAL_OF_REQUEST_TYPES = 215,
         };
 
         virtual ~MegaRequest();
@@ -5908,6 +6088,8 @@ class MegaRequest
          * - MegaApi::getRecentActions - Returns the number of days since nodes will be considerated
          * - MegaApi::getRecentActionsAsync - Returns the number of days since nodes will be
          * considered
+         * - MegaApi::estimateFreeTransferQuotaState - Returns the transfer quota state, as one
+         * of the MegaApi::TRANSFER_QUOTA_STATE_* values
          *
          * @return Number related to this request
          */
@@ -5951,11 +6133,6 @@ class MegaRequest
          * displayed
          * - MegaApi::getRecentActionsAsync - Returns true if exclude sensitives
          * - MegaApi::getRecentActionById - Returns true if exclude sensitives
-         *
-         * This value is valid for these request in onRequestFinish when the
-         * error code is MegaError::API_OK:
-         * - MegaApi::queryTransferQuota - True if it is expected to get an overquota error,
-         * otherwise false
          *
          * @return Flag related to the request
          */
@@ -6542,6 +6719,7 @@ public:
         EVENT_TRANSFERS_RESUMED = 23,
         EVENT_LAST_PURGE = 24,
         EVENT_STREAM_OVERQUOTA = 25,
+        EVENT_TRANSFER_QUOTA_STATE = 26,
     };
 
     enum
@@ -6702,6 +6880,22 @@ public:
      *   because media players tend to reconnect every few seconds while blocked.
      *   MegaApi::getBandwidthOverquotaDelay() reports the remaining time at any point.
      *
+     * - EVENT_TRANSFER_QUOTA_STATE (26):
+     *   The account's transfer-quota state, raised as a streaming read starts so an app can warn
+     *   before the bandwidth is spent. Use getNumber() for the state, as one of the
+     *   MegaApi::TRANSFER_QUOTA_STATE_* values.
+     *   Every state is reported, including MegaApi::TRANSFER_QUOTA_STATE_GREEN and
+     *   MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN, so an app waiting on this to release a blocked UI is
+     *   always released, and recovering from a warning is reported rather than left to be inferred.
+     *   What the state describes depends on the account. Without a fixed allowance (free accounts,
+     *   and feature-only plans such as VPN/PWM) it is a prediction: where the per-IP quota lands
+     *   once the node being streamed, and everything already downloading or streaming, has
+     *   finished. With an allowance (Pro) it is instead the account's current usage ratio, which
+     *   the node being streamed does not affect; that figure is cached for 10 minutes.
+     *   Raised once per node as its streaming starts, not per read. A streaming read is not backed
+     *   by a MegaTransfer, so this event is the only way to report it; a batch download reports
+     *   through MegaTransferListener::onTransferQuotaState instead.
+     *
      * @return Event type, from the MegaEvent::EventType enum.
      */
     virtual int getType() const;
@@ -6789,6 +6983,9 @@ public:
      *
      * - EVENT_STREAM_OVERQUOTA:
      *   Provides the number of seconds left in the transfer overquota state.
+     *
+     * - EVENT_TRANSFER_QUOTA_STATE:
+     *   Provides the transfer quota state, as a MegaApi::TRANSFER_QUOTA_STATE_* value.
      *
      * @return Number relative to this event.
      */
@@ -9604,6 +9801,41 @@ class MegaTransferListener
         virtual void onFolderTransferUpdate(MegaApi *api, MegaTransfer *transfer, int stage, uint32_t foldercount, uint32_t createdfoldercount, uint32_t filecount, const char* currentFolder, const char* currentFileLeafname);
 
         /**
+         * @brief Predicted transfer-quota state for this transfer
+         *
+         * Called once the SDK knows every file a transfer will fetch and the API has answered for
+         * them. It predicts what the account's transfer quota will look like once that transfer
+         * completes, so an app can warn before the bandwidth is spent rather than after.
+         *
+         * Currently only MegaApi::startDownloadBatch reports this; an ordinary download does not.
+         * Like MegaTransferListener::onFolderTransferUpdate, it reaches only the listener passed
+         * to that call -- listeners registered with MegaApi::addTransferListener do not get it.
+         * It arrives before any of the transfer's files starts, so an app can warn while the
+         * bandwidth is still unspent. A state that could not be determined is still reported, as
+         * MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN, and never stops the transfer.
+         *
+         * The download waits for this answer, so a slow reply delays the transfer starting by a few
+         * seconds; past that it is reported as MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN rather than
+         * withheld. It is reported at most once per transfer, and not at all when
+         * there was nothing to ask about or the transfer was cancelled while waiting, so an app
+         * waiting on the prediction must also treat MegaTransferListener::onTransferFinish as a
+         * release condition.
+         *
+         * The SDK retains the ownership of the transfer parameter. Don't use it after this
+         * function returns.
+         *
+         * @param api MegaApi object that started the transfer
+         * @param transfer Information about the transfer
+         * @param state Predicted transfer quota state, one of:
+         *  - MegaApi::TRANSFER_QUOTA_STATE_GREEN: there is enough transfer quota
+         *  - MegaApi::TRANSFER_QUOTA_STATE_ORANGE: the transfer completes, but little transfer
+         *    quota would be left afterwards
+         *  - MegaApi::TRANSFER_QUOTA_STATE_RED: there is not enough transfer quota for it
+         *  - MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN: the state could not be determined
+         */
+        virtual void onTransferQuotaState(MegaApi* api, MegaTransfer* transfer, int state);
+
+        /**
          * @brief This function is called when there is a temporary error processing a transfer
          *
          * The transfer continues after this callback, so expect more MegaTransferListener::onTransferTemporaryError or
@@ -11992,6 +12224,14 @@ class MegaApi
             STORAGE_STATE_RED = 2,
             STORAGE_STATE_CHANGE = 3, /** @deprecated not notified any more */
             STORAGE_STATE_PAYWALL = 4,
+        };
+
+        enum
+        {
+            TRANSFER_QUOTA_STATE_UNKNOWN = -9,
+            TRANSFER_QUOTA_STATE_GREEN = 0,
+            TRANSFER_QUOTA_STATE_ORANGE = 1,
+            TRANSFER_QUOTA_STATE_RED = 2,
         };
 
         enum {
@@ -16350,9 +16590,13 @@ class MegaApi
          * If the MEGA account is a business account and it's status is expired, onRequestFinish
          * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
          *
+         * If writable is true and the node is a file, onRequestFinish will be called with the
+         * error code MegaError::API_EARGS and no link is created: a writable link is backed by a
+         * share, so it is only available for folders.
+         *
          * @param node MegaNode to get the public link
          * @param expireTime Unix timestamp until the public link will be valid
-         * @param writable if the link should be writable.
+         * @param writable if the link should be writable. Only supported for folders
          * @param megaHosted if the share key should be shared with MEGA
          * @param listener MegaRequestListener to track this request
          */
@@ -16495,6 +16739,9 @@ class MegaApi
         /**
          * @brief Check if the available transfer quota is enough to transfer an amount of bytes
          *
+         * @deprecated Use MegaApi::estimateFreeTransferQuotaState, which asks about the actual
+         * nodes to be transferred. This method no longer queries the API; it always reports false.
+         *
          * The associated request type with this request is MegaRequest::TYPE_QUERY_TRANSFER_QUOTA
          *
          * Valid data in the MegaRequest object received on callbacks:
@@ -16502,12 +16749,95 @@ class MegaApi
          *
          * Valid data in the MegaRequest object received in onRequestFinish when the error code
          * is MegaError::API_OK:
-         * - MegaRequest::getFlag - True if it is expected to get an overquota error, otherwise false
+         * - MegaRequest::getFlag - True if it is expected to get an overquota error, otherwise
+         * false
          *
          * @param size Amount of bytes to be transferred
          * @param listener MegaRequestListener to track this request
          */
+        MEGA_DEPRECATED
         void queryTransferQuota(long long size, MegaRequestListener *listener = NULL);
+
+        /**
+         * @brief Estimate whether the transfer quota is enough to transfer some nodes
+         *
+         * Only for accounts with no fixed transfer allowance (free accounts, and feature-only
+         * plans such as VPN/PWM), whose per-IP quota no usage ratio describes. A Pro account has an
+         * allowance instead, which these nodes say nothing about, so on one the request fails with
+         * MegaError::API_EACCESS: read MegaAccountDetails::getTransferQuotaState there, from
+         * MegaApi::queryProTransferQuotaStateLite, MegaApi::getAccountDetails or
+         * MegaApi::getSpecificAccountDetails.
+         *
+         * The nodes are given already split by ownership, as the API takes them: a node obtained
+         * from a public link goes in @p publicNodes, one of this account in @p ownNodes. Only file
+         * nodes should be given; the API decides what to make of anything else.
+         *
+         * Whatever is already downloading or streaming is counted alongside the given nodes, less
+         * the bytes of it already transferred, so the state describes where the account lands once
+         * everything in progress and everything asked about has finished. It is not the state of
+         * the given nodes in isolation. MegaApi::startDownloadBatch asks the same question, so both
+         * agree about the same selection.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_ESTIMATE_FREE_TRANSFER_QUOTA_STATE
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getNumber - Returns the transfer quota state for those nodes,
+         *   as a traffic light:
+         *    - MegaApi::TRANSFER_QUOTA_STATE_GREEN: there is enough transfer quota
+         *    - MegaApi::TRANSFER_QUOTA_STATE_ORANGE: those nodes can be transferred, but little
+         *      transfer quota would be left afterwards
+         *    - MegaApi::TRANSFER_QUOTA_STATE_RED: there is not enough transfer quota to transfer
+         *      them all
+         *    - MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN: the state could not be determined
+         *
+         * The request will fail with MegaError::API_EARGS if both lists are empty or NULL, and with
+         * MegaError::API_EACCESS on a Pro account. Otherwise it succeeds, and
+         * MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN means the query could not determine the state.
+         *
+         * Handles are sent as given: the SDK sees only handles, so it cannot skip a folder or an
+         * invalid one on your behalf.
+         *
+         * @param ownNodes Handles of this account's file nodes to be transferred. May be NULL
+         * @param publicNodes Handles of file nodes obtained from a public link, to be transferred.
+         * May be NULL
+         * Neither list is taken ownership of
+         * @param listener MegaRequestListener to track this request
+         */
+        void estimateFreeTransferQuotaState(MegaHandleList* ownNodes,
+                                            MegaHandleList* publicNodes,
+                                            MegaRequestListener* listener = NULL);
+
+        /**
+         * @brief Query a Pro account's transfer quota state, preferring the local cache
+         *
+         * A Pro account's transfer-quota traffic light comes from its allowance, cached for 10
+         * minutes after each time the allowance is fetched. This method serves that cached state
+         * without contacting the servers; when nothing has been cached yet, or the cache has aged
+         * out, it queries the API first. So it is cheap only while the cache is warm -- the first
+         * call after login always contacts the servers, as does any call more than 10 minutes
+         * after the last one.
+         *
+         * Unlike MegaApi::getAccountDetails and MegaApi::getSpecificAccountDetails, which always
+         * request fresh data from the servers, this method serves the local cache when available.
+         *
+         * This method is only valid for Pro accounts (those with a fixed transfer allowance). For
+         * any other account the request fails with MegaError::API_EACCESS.
+         *
+         * The associated request type with this request is
+         * MegaRequest::TYPE_QUERY_PRO_TRANSFER_QUOTA_STATE_LITE
+         *
+         * Valid data in the MegaRequest object received in onRequestFinish when the error code
+         * is MegaError::API_OK:
+         * - MegaRequest::getMegaAccountDetails - A MegaAccountDetails with only the
+         * transfer-related fields populated (MegaAccountDetails::getTransferMax, getTransferUsed,
+         * getTransferOwnUsed, getTransferSrvUsed, getTransferQuotaState); the storage, pro and
+         * session fields are left empty. You take ownership of the returned object.
+         *
+         * @param listener MegaRequestListener to track this request
+         */
+        void queryProTransferQuotaStateLite(MegaRequestListener* listener = NULL);
 
         /**
          * @brief Get the available pricing plans to upgrade a MEGA account
@@ -17831,6 +18161,128 @@ class MegaApi
         void startDownload(MegaNode* node, const char* localPath, const char *customName, const char *appData, bool startFirst, MegaCancelToken *cancelToken, int collisionCheck, int collisionResolution, bool undelete, MegaTransferListener *listener = NULL);
 
         /**
+         * @brief Download a batch of files and/or folders from MEGA as a single operation
+         *
+         * Unlike MegaApi::startDownload, which takes one root node, this method takes every root
+         * node the user selected for one download action, each carrying its own destination,
+         * custom local name, app data, start-first and undelete flags. The SDK therefore knows the
+         * whole batch up front, and scans all the roots in one pass.
+         *
+         * The whole batch is one MegaTransfer: a single MegaTransferListener::onTransferStart, one
+         * cancel token, and one MegaTransferListener::onTransferFinish for the batch, with the
+         * individual files reported as sub-transfers exactly as for a folder download. App data is
+         * per item rather than per batch: MegaTransfer::getAppData carries the item's value on
+         * each sub-transfer, and is NULL on the batch itself -- except for a batch of one file
+         * item, which stands for that file and carries its app data as MegaApi::startDownload
+         * would.
+         *
+         * WHAT IS REPORTED, AND WHERE
+         *
+         * Every sub-transfer is always reported in full on the listeners registered with
+         * MegaApi::addListener or MegaApi::addTransferListener, whatever the shape of the batch:
+         * its start, its progress, its state, its temporary errors and its final error all arrive
+         * there, carried on the sub-transfer itself. The rest of this section concerns only what
+         * the batch transfer reports on its own listener, the one given to this method.
+         *
+         * A batch of exactly one file item stands for that file, and behaves as the equivalent
+         * MegaApi::startDownload would. That sub-transfer's errors are reported on the batch
+         * transfer as well: through MegaTransferListener::onTransferTemporaryError while it
+         * retries, and through MegaTransferListener::onTransferFinish with the file's own error
+         * code once it gives up. MegaTransfer::getLastErrorExtended on the batch then carries that
+         * error in full. In particular:
+         *  - If the status of the business account is expired, the error code is
+         *    MegaError::API_EBUSINESSPASTDUE. Apps should show a warning message similar to "Your
+         *    business account is overdue, please contact your administrator."
+         *  - If the node, or the account it belongs to, has been taken down or suspended, the
+         *    error code is MegaError::API_ETOOMANY, and MegaError::getUserStatus and
+         *    MegaError::getLinkStatus describe it. Apps should show a warning message similar to
+         *    "The file that you are downloading (or the account it belongs to) has been suspended
+         *    for violating our Terms of Service."
+         *
+         * Any other batch reports MegaError::API_EINCOMPLETE when one or more of its files failed,
+         * since no single error can stand for the whole selection. The per-file detail, including
+         * the two cases above, is then only on the listeners registered with MegaApi::addListener
+         * or MegaApi::addTransferListener.
+         *
+         * TRANSFER-QUOTA REPORTING
+         *
+         * Once every root has been scanned and the files to fetch are known, the query goes out
+         * and the batch waits for its answer, which is delivered through
+         * MegaTransferListener::onTransferQuotaState before any file transfer starts. So an app
+         * can warn while the bandwidth is still unspent -- at the cost of the download starting a
+         * few seconds later on a slow connection. A state that could not be determined is still
+         * reported, as MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN. Reporting it for the batch as a
+         * whole is what separate MegaApi::startDownload calls cannot do, as each would ask once
+         * per root.
+         *
+         * If the API does not answer within a few seconds the batch stops waiting and reports
+         * MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN, so a slow connection delays the download but does
+         * not withhold the notification. It is reported at most once per batch, and not at all when
+         * there is nothing to describe: a batch with no file to ask about (every one skipped by the
+         * collision check, or a failure while scanning), or a batch cancelled while the answer was
+         * awaited. An app waiting on the prediction must therefore also treat
+         * MegaTransferListener::onTransferFinish as a release condition.
+         *
+         * LOCKING AND CANCELLATION
+         *
+         * When the batch contains at least one folder, SDK mutex will be partially locked until:
+         *  - we have received onTransferStart for every file in the batch
+         *  - we have received onTransferUpdate with MegaTransfer::getStage ==
+         * MegaTransfer::STAGE_TRANSFERRING_FILES for every folder in the batch
+         *
+         * During this period, the only safe method (to avoid deadlocks) to cancel transfers is by
+         * calling CancelToken::cancel(true). This method will cancel all transfers(not finished
+         * yet).
+         *
+         * Important considerations:
+         *  - A cancel token instance can be shared by multiple transfers, and calling
+         * CancelToken::cancel(true) will affect all of those transfers.
+         *
+         *  - It's app responsibility, to keep cancel token instance alive until receive
+         *    MegaTransferListener::onTransferFinish for all MegaTransfers that shares the same
+         * cancel token instance.
+         *
+         * For more information about MegaTransfer stages please refer to onTransferUpdate
+         * documentation.
+         *
+         * @param items MegaDownloadItemList with the files and/or folders to download, each with
+         * its own destination, custom local name, app data, start-first and undelete flags. A
+         * destination may be a folder to store the node in, or the exact path to store it as, and
+         * defaults to the current folder; see MegaDownloadItemList::add. Items with a null node are
+         * ignored.
+         * The start-first and undelete flags apply to a file item only; they are ignored, with a
+         * warning in the log, for a folder item.
+         * The list is not taken ownership of; it is copied before this method returns.
+         * It MUST NOT be NULL. The request fails with MegaError::API_EARGS if it holds no usable
+         * node
+         *
+         * @param cancelToken MegaCancelToken to be able to cancel the download process.
+         * This param is required to be able to cancel transfers safely.
+         * App retains the ownership of this param.
+         *
+         * @param collisionCheck Indicates the collision check on same files, applied to every item
+         * of the batch rather than per item, valid values are:
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMESAME          = 1,
+         *      - MegaTransfer::COLLISION_CHECK_ALWAYSERROR         = 2,
+         *      - MegaTransfer::COLLISION_CHECK_FINGERPRINT         = 3,
+         *      - MegaTransfer::COLLISION_CHECK_METAMAC             = 4,
+         *      - MegaTransfer::COLLISION_CHECK_ASSUMEDIFFERENT     = 5,
+         *
+         * @param collisionResolution Indicates how to save same files, applied to every item of
+         * the batch rather than per item, valid values are:
+         *      - MegaTransfer::COLLISION_RESOLUTION_OVERWRITE                      = 1,
+         *      - MegaTransfer::COLLISION_RESOLUTION_NEW_WITH_N                     = 2,
+         *      - MegaTransfer::COLLISION_RESOLUTION_EXISTING_TO_OLDN               = 3,
+         *
+         * @param listener MegaTransferListener to track this transfer
+         */
+        void startDownloadBatch(const MegaDownloadItemList* items,
+                                MegaCancelToken* cancelToken,
+                                int collisionCheck,
+                                int collisionResolution,
+                                MegaTransferListener* listener = NULL);
+
+        /**
          * @brief Start an streaming download for a file in MEGA
          *
          * Streaming downloads don't save the downloaded data into a local file. It is provided
@@ -17891,15 +18343,21 @@ class MegaApi
          *
          * This function allows to start a transfer based on a MegaTransfer object. It can be used,
          * for example, to retry transfers that finished with an error. To do it, you can retain the
-         * MegaTransfer object in onTransferFinish (calling MegaTransfer::copy to take the ownership)
-         * and use it later with this function.
+         * MegaTransfer object in onTransferFinish (calling MegaTransfer::copy to take the
+         * ownership) and use it later with this function.
          *
          * If the transfer parameter is NULL or is not of type MegaTransfer::TYPE_DOWNLOAD or
-         * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload or
-         * MegaApi::startUpload) the function returns without doing anything.
+         * MegaTransfer::TYPE_UPLOAD (transfers started with MegaApi::startDownload,
+         * MegaApi::startDownloadBatch or MegaApi::startUpload) the function returns without doing
+         * anything.
+         *
+         * A transfer started with MegaApi::startDownloadBatch is retried as a batch: every item is
+         * restarted with the destination, custom name, app data and flags it was given, so the
+         * retry covers the whole selection rather than any single root.
          *
          * Note that retried transfers will always start first, so the user see them progressing
-         * immediately.
+         * immediately. A batch is the exception: start-first is per item there, so each item keeps
+         * the flag it was added with.
          *
          * @param transfer Transfer to be retried
          * @param listener MegaTransferListener to track this transfer
@@ -18499,6 +18957,10 @@ class MegaApi
          * completions and quota replies are inherent). The state is
          * MegaWsUploadQuotaFit::STATE_UNKNOWN until the first transfer-quota balance
          * arrives from the server, which apps should treat as "no data yet".
+         *
+         * Own-account shortfalls are reported here but never hold uploads. Only uploads into a
+         * foreign (inshare) target are predictively held, reported as a temporary API_EOVERQUOTA
+         * with MegaTransfer::isForeignOverquota() == true.
          *
          * You take the ownership of the returned value.
          *
@@ -21189,6 +21651,11 @@ class MegaApi
          * Each bucket contains files that were added/modified in a set, by a single user.
          * Buckets are grouped into fixed 6-hour windows in UTC: 0-6, 6-12, 12-18, 18-24.
          *
+         * Actions already cleared with clearRecentActionHistory are not returned. See
+         * that method for the use cases. getRecentActionById is not affected. If you
+         * still have a bucket id from before the clear, that call can still return the
+         * bucket.
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
          * - MegaRequest::getParamType - Returns the maximun number of nodes
@@ -21225,6 +21692,11 @@ class MegaApi
          * Each bucket contains files that were added/modified in a set, by a single user.
          * Buckets are grouped into fixed 6-hour windows in UTC: 0-6, 6-12, 12-18, 18-24.
          *
+         * Actions already cleared with clearRecentActionHistory are not returned. See
+         * that method for the use cases. getRecentActionById is not affected. If you
+         * still have a bucket id from before the clear, that call can still return the
+         * bucket.
+         *
          * Valid data in the MegaRequest object received on callbacks:
          * - MegaRequest::getNumber - Returns the number of days since nodes will be considerated
          * - MegaRequest::getParamType - Returns the maximun number of nodes
@@ -21252,6 +21724,10 @@ class MegaApi
 
         /**
          * @brief Get a recent action bucket by its identifier
+         *
+         * Unlike getRecentActionsAsync, this method is not affected by
+         * clearRecentActionHistory. If you still have a bucket id from before the user
+         * cleared recents, this call can still return that bucket.
          *
          * The identifier format is:
          * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
@@ -21291,7 +21767,8 @@ class MegaApi
          * @p excludeSensitives parameter takes precedence over the flag encoded in the bucket
          * identifier (token 8 of the pipe-delimited id string). This lets callers re-query a
          * bucket with a different sensitivity filter than the one that was used when the id was
-         * originally generated.
+         * originally generated. Like the other overload, this method is not affected by
+         * clearRecentActionHistory.
          *
          * The identifier format is:
          * dayStartTs|windowStartHour|windowEndHour|userHandle|parentHandle|isMedia|isUpdate|excludeSensitives
@@ -21328,9 +21805,31 @@ class MegaApi
         /**
          * @brief Clear the account’s recent actions history up to a given timestamp.
          *
-         * This method clears the recent actions history on the account by setting a
-         * “recent clear” timestamp. All actions that occurred at or before the given
-         * timestamp are considered cleared.
+         * Stores @p until as a user attribute (the value is not modified). Later calls
+         * to getRecentActionsAsync no longer return recent actions whose node creation
+         * time is at or before @p until. Do not add one second. The SDK already treats
+         * @p until as inclusive.
+         *
+         * @p until is compared with node creation times assigned by the server (whole
+         * seconds). It is not the clock on the user’s device.
+         *
+         * Use cases:
+         * - Clear all currently visible recents. Pass the creation time of the newest
+         *   listed node.
+         * - Pass the device clock (now) instead of a node creation time. If the device
+         *   is ahead of the server, the list still clears. If the device is behind, files
+         *   with a newer server creation time can remain visible. The inclusive bound
+         *   only covers files created in that same second, not a skew of a few seconds.
+         * - The user uploads a file and immediately taps Clear recent activity. The file
+         *   disappears from recents. That is intended.
+         * - The user clears, then a new upload finishes in the same second (camera upload
+         *   or sync). That new file is also cleared, even though it arrived after the tap.
+         * - Clear everything up to a calendar date. Files from that last second are
+         *   included. That is intended.
+         * - Clear one file only. Not possible. Every file created in that same second is
+         *   cleared together.
+         * - Open a recent-action bucket by id after a clear. getRecentActionById is not
+         *   affected by the clear, so an old id can still open.
          *
          * The associated request type for this operation is
          * MegaRequest::TYPE_SET_ATTR_USER.
@@ -21341,7 +21840,9 @@ class MegaApi
          * - MegaRequest::getNumber - Returns the epoch time (in seconds) used as the recent
          * actions history clear timestamp.
          *
-         * @param until     Epoch time (in seconds). Recent actions up to this time will be cleared.
+         * @param until     Epoch time in seconds, on the same scale as server-assigned
+         *                  node creation time (ctime). Recent actions with ctime at or
+         *                  before this time will be cleared.
          * @param listener  Optional MegaRequestListener to track this request.
          */
 
@@ -25417,18 +25918,6 @@ class MegaApi
 
         /**
          * @brief
-         * Check whether the specified file is in FUSE's cache.
-         *
-         * @param path
-         * Identifies the file we want to check.
-         *
-         * @return
-         * True if the file is in FUSE's cache.
-         */
-        bool isCachedByPath(const char* path);
-
-        /**
-         * @brief
          * Query whether FUSE is supported on this platform.
          *
          * @return
@@ -26660,6 +27149,31 @@ public:
      * @return Used bandwidth (in bytes)
      */
     virtual long long getTransferUsed();
+
+    /**
+     * @brief Get the transfer quota state, as a traffic light
+     *
+     * The state is the ratio between MegaAccountDetails::getTransferUsed and
+     * MegaAccountDetails::getTransferMax, so it describes the usage at the time these details
+     * were retrieved. It does not account for transfers in progress, unlike the state reported by
+     * MegaTransferListener::onTransferQuotaState.
+     *
+     * This function can return:
+     * - MegaApi::TRANSFER_QUOTA_STATE_GREEN: below 90% of the allowance is used
+     * - MegaApi::TRANSFER_QUOTA_STATE_ORANGE: from 90% of the allowance is used, up to and
+     *   including 99%
+     * - MegaApi::TRANSFER_QUOTA_STATE_RED: more than 99% of the allowance is used
+     * - MegaApi::TRANSFER_QUOTA_STATE_UNKNOWN: no allowance is configured, which is the case for
+     *   free accounts; use MegaApi::estimateFreeTransferQuotaState for those
+     *
+     * The light means the same either way — orange warns that little quota is left, red that there
+     * is none to spare — but it is derived differently: from the allowance ratio here, and from the
+     * API's verdict on a specific set of nodes in MegaApi::estimateFreeTransferQuotaState and
+     * MegaTransferListener::onTransferQuotaState.
+     *
+     * @return Transfer quota state
+     */
+    virtual int getTransferQuotaState();
 
     /**
      * @brief Returns the number of nodes with account usage info
@@ -28732,6 +29246,8 @@ public:
         UNEXPECTED,
         // No mount is associated with the specified handle or path.
         UNKNOWN,
+        // Mount source is a remote Vault node and cannot be mounted.
+        REMOTE_VAULT,
         // FUSE isn't supported on this platform.
         UNSUPPORTED
     }; // Result

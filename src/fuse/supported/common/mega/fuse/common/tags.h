@@ -8,6 +8,9 @@ namespace fuse
 struct CachedOnlyTag
 {};
 
+struct FUSETag
+{};
+
 struct MemoryOnlyTag
 {};
 
