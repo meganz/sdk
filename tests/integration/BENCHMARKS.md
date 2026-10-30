@@ -121,7 +121,7 @@ Do **not** attribute these to your fix without evidence.
 - **Real-path cells** — `SdkWsQuotaRealTest.{ProbeTfsCommandOwnRoot,
   RealFillOwnAccountShortfallIsNotHeld,RealFillOwnAccountQaGeometryIsNotHeld,
   RealFillInshareForeignHold}` (hook-FREE, run in any build): live-server probe + real-fill
-  cells. The two own-account cells (SDK-XXXX; they replace `RealFillOwnAccountHoldAndRelease`)
+  cells. The two own-account cells (SDK-6610; they replace `RealFillOwnAccountHoldAndRelease`)
   assert an own-account shortfall is NOT held (the upload streams; the server + legacy RED path
   decide; EVENT_STORAGE RED must reach the app); `RealFillInshareForeignHold` keeps the foreign
   hold discriminator. They run on the MR pipeline surface (user ruling 2026-07-30) and SKIP with

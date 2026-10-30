@@ -1,7 +1,7 @@
 /**
  * @file SdkWsQuotaRealTest.cpp
  * @brief SDK-6298 WS upload-quota REAL-PATH integration cells (T18, T20) and the
- *        SDK-XXXX own-account shortfall cells (T19 successor + exact QA geometry).
+ *        SDK-6610 own-account shortfall cells (T19 successor + exact QA geometry).
  *
  * Unlike the hook-driven SdkWsUploadTest.Quota* cells (SdkWsQuotaTest.cpp), these
  * exercise the predictive WS upload-quota path end-to-end against the LIVE server:
@@ -10,7 +10,7 @@
  *    committed and validated by unit cells + a live raw probe).
  *  - RealFillOwnAccountShortfallIsNotHeld (replaces T19
  *    RealFillOwnAccountHoldAndRelease) and RealFillOwnAccountQaGeometryIsNotHeld
- *    (SDK-XXXX, v10.21.0 RC2) — fill the OWN account to a GREEN/ORANGE-but-
+ *    (SDK-6610, v10.21.0 RC2) — fill the OWN account to a GREEN/ORANGE-but-
  *    insufficient state (1.5 GiB free / 2.25 GiB upload; and the exact QA geometry,
  *    8388608 B free / 10 MiB upload) and assert that the own-account shortfall is
  *    NOT predictively held: no EOVERQUOTA before all bytes without EVENT_STORAGE
@@ -38,7 +38,7 @@
  * their first behavioural failures on the discriminator "no predictive hold
  * observed before upload sent all bytes" (foreign variant for T20). Pre-P3 the
  * legacy WS path streamed ALL bytes and surfaced the own-account overquota only at
- * putnodes (transferred == total) — the behaviour the SDK-XXXX own-account cells
+ * putnodes (transferred == total) — the behaviour the SDK-6610 own-account cells
  * now require again. The old T19 release leg (deletion-driven re-query) has no
  * own-account hold left to release; T20 keeps the foreign discriminator.
  *
@@ -707,7 +707,7 @@ TEST_F(SdkWsQuotaRealTest, ProbeTfsCommandOwnRoot)
 }
 
 // ============================================================================
-// SDK-XXXX (v10.21.0 RC2) own-account shortfall cells — real end-to-end, OWN pool.
+// SDK-6610 (v10.21.0 RC2) own-account shortfall cells — real end-to-end, OWN pool.
 // Hook-free (run in hooks-OFF builds). Replace T19 RealFillOwnAccountHoldAndRelease:
 // an own-account `tfs` shortfall must NOT be predictively held any more; the upload
 // streams and the server plus the legacy account-RED path decide, so the app sees
