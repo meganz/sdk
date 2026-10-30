@@ -738,6 +738,166 @@ TEST_F(DateSectionTest, DateSection_AllVisualMedia_BoundsMatchSimpleMime)
     EXPECT_EQ(photosJul->mEndDate, groupedJul->mEndDate);
 }
 
+// ─── Per-parent scope split ─────────────────────────────────────────────────
+// Scope semantics the per-parent query splits in two: the candidate's own checks before
+// grouping, the ancestors' once per distinct parent.
+
+TEST_F(DateSectionTest, DateSection_ExcludeSensitive_HidesUnderSensitiveAncestor)
+{
+    // "2027-01" under the cloud root: clean, self_sensitive [sen], head (HEAD), and
+    // under_sens inside sens_folder [sen]. Hiding sensitive drops self_sensitive (own flag)
+    // and under_sens (ancestor flag, only visible to the walk).
+    const auto all = runSections(DateSectionGranularity::Month,
+                                 OrderByClause::MTIME_DESC,
+                                 MIME_TYPE_PHOTO,
+                                 /*excludeSensitive=*/false,
+                                 /*excludeHandles=*/{},
+                                 /*roots=*/{hFilesRoot});
+    const auto hidden = runSections(DateSectionGranularity::Month,
+                                    OrderByClause::MTIME_DESC,
+                                    MIME_TYPE_PHOTO,
+                                    /*excludeSensitive=*/true,
+                                    /*excludeHandles=*/{},
+                                    /*roots=*/{hFilesRoot});
+    ASSERT_NE(find(all, "2027-01"), nullptr);
+    EXPECT_EQ(find(all, "2027-01")->mCount, 4);
+    ASSERT_NE(find(hidden, "2027-01"), nullptr);
+    EXPECT_EQ(find(hidden, "2027-01")->mCount, 2);
+}
+
+TEST_F(DateSectionTest, DateSection_ExcludeHandles_DropsSingleFile)
+{
+    // Excluding the file itself, not its folder: only jul_subA leaves "2024-07".
+    const auto baseline = gidCounts(runSections(DateSectionGranularity::Month));
+    const auto v = gidCounts(runSections(DateSectionGranularity::Month,
+                                         OrderByClause::MTIME_DESC,
+                                         MIME_TYPE_PHOTO,
+                                         /*excludeSensitive=*/false,
+                                         /*excludeHandles=*/{mJulInSubA}));
+    auto expected = baseline;
+    for (auto& [gid, count]: expected)
+        if (gid == "2024-07")
+            --count;
+    EXPECT_EQ(v, expected);
+}
+
+TEST_F(DateSectionTest, DateSection_ExcludeHandles_ExcludedRootIsEmpty)
+{
+    const auto v = runSections(DateSectionGranularity::Month,
+                               OrderByClause::MTIME_DESC,
+                               MIME_TYPE_PHOTO,
+                               /*excludeSensitive=*/false,
+                               /*excludeHandles=*/{mDateSectionRoot});
+    EXPECT_TRUE(v.empty());
+}
+
+TEST_F(DateSectionTest, DateSection_MultipleRoots_CountEachFileOnce)
+{
+    // subA lies inside mDateSectionRoot: its file must still be counted once.
+    const auto single = gidCounts(runSections(DateSectionGranularity::Month));
+    const auto overlapping = gidCounts(runSections(DateSectionGranularity::Month,
+                                                   OrderByClause::MTIME_DESC,
+                                                   MIME_TYPE_PHOTO,
+                                                   /*excludeSensitive=*/false,
+                                                   /*excludeHandles=*/{},
+                                                   /*roots=*/{mDateSectionRoot, mSubFolderA}));
+    EXPECT_EQ(overlapping, single);
+}
+
+TEST_F(DateSectionTest, DateSection_GroupedMime_TzExcludeAndSensitive_Compose)
+{
+    // ALL_VISUAL_MEDIA, hide sensitive, exclude subA, +09:00. July (UTC) visual items:
+    // jul01, jul15, jul31, julSensitive, jul_subA, jul_vid1, jul_vid2. Sensitive and subA
+    // drop two; +09:00 moves jul31 (23:59:59Z) into August next to aug01.
+    const auto v = runSections(DateSectionGranularity::Month,
+                               OrderByClause::MTIME_DESC,
+                               MIME_TYPE_ALL_VISUAL_MEDIA,
+                               /*excludeSensitive=*/true,
+                               /*excludeHandles=*/{mSubFolderA},
+                               /*roots=*/{},
+                               /*tzOffsetSeconds=*/9 * 3600);
+    ASSERT_NE(find(v, "2024-07"), nullptr);
+    EXPECT_EQ(find(v, "2024-07")->mCount, 4);
+    ASSERT_NE(find(v, "2024-08"), nullptr);
+    EXPECT_EQ(find(v, "2024-08")->mCount, 2);
+}
+
+TEST_F(DateSectionTest, DateSection_ExcludeSensitive_SensitiveRootItselfIgnored)
+{
+    // sens_folder carries the SENS bit, but a root's own flag is ignored: under_sens counts.
+    const auto v = runSections(DateSectionGranularity::Month,
+                               OrderByClause::MTIME_DESC,
+                               MIME_TYPE_PHOTO,
+                               /*excludeSensitive=*/true,
+                               /*excludeHandles=*/{},
+                               /*roots=*/{hSensFolder});
+    EXPECT_EQ(gidCounts(v), (std::vector<std::pair<std::string, int64_t>>{{"2027-01", 1}}));
+}
+
+TEST_F(DateSectionTest, DateSection_ExcludeHandles_MiddleAncestorDropsDescendants)
+{
+    // Excluding date_section_subtree, jul_subA's grandparent, from a cloud-root scope drops the
+    // whole subtree: only the base fixture's "2027-01" photos remain.
+    const auto v = runSections(DateSectionGranularity::Month,
+                               OrderByClause::MTIME_DESC,
+                               MIME_TYPE_PHOTO,
+                               /*excludeSensitive=*/false,
+                               /*excludeHandles=*/{mDateSectionRoot},
+                               /*roots=*/{hFilesRoot});
+    EXPECT_EQ(gidCounts(v), (std::vector<std::pair<std::string, int64_t>>{{"2027-01", 4}}));
+}
+
+TEST_F(DateSectionTest, DateSection_NoCandidates_ReturnsEmpty)
+{
+    DateSectionParams p;
+    p.mimeType = MIME_TYPE_AUDIO; // the fixture has no audio files
+    p.order = OrderByClause::MTIME_DESC;
+    p.granularity = DateSectionGranularity::Month;
+    std::vector<DateSection> out;
+    EXPECT_TRUE(tableNodes()->groupAllNodesByDate(p, {mDateSectionRoot}, out, CancelToken{}));
+    EXPECT_TRUE(out.empty());
+}
+
+TEST_F(DateSectionTest, DateSection_MediaTs_ExcludesAndSensitiveMatchMtime)
+{
+    // ctime == mtime in this fixture, so mediats == mtime * 1000 and both orders bucket alike.
+    // Two excludes (a file and a folder) plus hide-sensitive leave July with jul01/15/31.
+    const std::vector<NodeHandle> excludes{mSubFolderA, mJulSensitive};
+    const auto byMediaTs = runSections(DateSectionGranularity::Month,
+                                       OrderByClause::MEDIATS_DESC,
+                                       MIME_TYPE_PHOTO,
+                                       /*excludeSensitive=*/true,
+                                       excludes);
+    const auto byMtime = runSections(DateSectionGranularity::Month,
+                                     OrderByClause::MTIME_DESC,
+                                     MIME_TYPE_PHOTO,
+                                     /*excludeSensitive=*/true,
+                                     excludes);
+    ASSERT_EQ(byMediaTs.size(), byMtime.size());
+    for (size_t i = 0; i < byMtime.size(); ++i)
+    {
+        EXPECT_EQ(byMediaTs[i].mGroupId, byMtime[i].mGroupId);
+        EXPECT_EQ(byMediaTs[i].mStartDate, byMtime[i].mStartDate);
+        EXPECT_EQ(byMediaTs[i].mEndDate, byMtime[i].mEndDate);
+        EXPECT_EQ(byMediaTs[i].mCount, byMtime[i].mCount);
+    }
+    ASSERT_NE(find(byMediaTs, "2024-07"), nullptr);
+    EXPECT_EQ(find(byMediaTs, "2024-07")->mCount, 3);
+}
+
+TEST_F(DateSectionTest, DateSection_OverlappingRoots_ExcludedInnerRootDropsSubtree)
+{
+    // The excluded inner root's photos, jul_subA included, must not come back through the outer
+    // cloud root: only the base fixture's "2027-01" photos remain.
+    const auto v = runSections(DateSectionGranularity::Month,
+                               OrderByClause::MTIME_DESC,
+                               MIME_TYPE_PHOTO,
+                               /*excludeSensitive=*/false,
+                               /*excludeHandles=*/{mDateSectionRoot},
+                               /*roots=*/{hFilesRoot, mDateSectionRoot});
+    EXPECT_EQ(gidCounts(v), (std::vector<std::pair<std::string, int64_t>>{{"2027-01", 4}}));
+}
+
 // ─── B6: byTimestampAnchor half-bounded clause on listAllNodesByPage ──────
 
 namespace

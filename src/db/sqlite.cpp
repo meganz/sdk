@@ -1368,13 +1368,25 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
                     << sqlite3_errmsg(db);
         }
 
-        // Index for ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC.
-        sql = "CREATE INDEX IF NOT EXISTS listallnodesmtimeidx on nodes "
-              "(mimetypeVirtual, mtime, name COLLATE NATURALNOCASE, nodehandle)";
+        // Index for ORDER_MODIFICATION_ASC / ORDER_MODIFICATION_DESC. parenthandle and flags let
+        // the date-section query read candidates without a row fetch (fav is left out: the
+        // favourite filter is rare there). Replaces listallnodesmtimeidx: dropping it on every
+        // open migrates existing DBs without a DB version bump.
+        sql = "DROP INDEX IF EXISTS listallnodesmtimeidx";
         result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
         if (result)
         {
-            LOG_err << "Data base error while creating index (listallnodesmtimeidx): "
+            LOG_err << "Data base error while dropping stale index (listallnodesmtimeidx): "
+                    << sqlite3_errmsg(db);
+        }
+
+        sql = "CREATE INDEX IF NOT EXISTS listallnodesmtimescopeidx on nodes "
+              "(mimetypeVirtual, mtime, name COLLATE NATURALNOCASE, nodehandle, parenthandle, "
+              "flags)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (listallnodesmtimescopeidx): "
                     << sqlite3_errmsg(db);
         }
 
@@ -1435,12 +1447,22 @@ void SqliteAccountState::createIndexes(bool enableIndexesForSearching,
         // A single ASC index suffices for both directions: SQLite can scan a
         // B-tree index in reverse when every ORDER BY column (mediats, name,
         // nodehandle) is uniformly DESC, so no dedicated DESC index is needed.
-        sql = "CREATE INDEX IF NOT EXISTS listallnodesmediatsidx on nodes "
-              "(mimetypeVirtual, mediats, name COLLATE NATURALNOCASE, nodehandle)";
+        // parenthandle, flags and the migration: as for listallnodesmtimescopeidx.
+        sql = "DROP INDEX IF EXISTS listallnodesmediatsidx";
         result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
         if (result)
         {
-            LOG_err << "Data base error while creating index (listallnodesmediatsidx): "
+            LOG_err << "Data base error while dropping stale index (listallnodesmediatsidx): "
+                    << sqlite3_errmsg(db);
+        }
+
+        sql = "CREATE INDEX IF NOT EXISTS listallnodesmediatsscopeidx on nodes "
+              "(mimetypeVirtual, mediats, name COLLATE NATURALNOCASE, nodehandle, parenthandle, "
+              "flags)";
+        result = sqlite3_exec(db, sql.c_str(), nullptr, nullptr, nullptr);
+        if (result)
+        {
+            LOG_err << "Data base error while creating index (listallnodesmediatsscopeidx): "
                     << sqlite3_errmsg(db);
         }
     }
@@ -1474,12 +1496,15 @@ void SqliteAccountState::dropSearchDBIndexes()
                    "favindex",
                    "ctimeindex",
                    "listallnodesdefaultidx",
-                   "listallnodesmtimeidx",
+                   "listallnodesmtimeidx", // narrower predecessor, may linger in older DBs
+                   "listallnodesmtimescopeidx",
                    "listallnodessizeidx",
                    "listallnodesfavidx",
                    "listallnodesfavdescidx",
                    "listallnodeslabelidx",
-                   "listallnodeslabeldescidx"});
+                   "listallnodeslabeldescidx",
+                   "listallnodesmediatsidx", // narrower predecessor, may linger in older DBs
+                   "listallnodesmediatsscopeidx"});
 }
 
 void SqliteAccountState::dropLexicographicDBIndexes()
@@ -3213,13 +3238,39 @@ static_assert(Node::FLAGS_IS_VERSION == 0,
 static_assert(Node::FLAGS_IS_MARKED_SENSITIVE == 2,
               "FLAGS_IS_MARKED_SENSITIVE changed; update listAllNodesByPage SQL literals");
 
-// EXISTS clause: walks the parent chain of the outer `nodes AS n` row and is true
-// iff it reaches any handle in slots ?<filesRootParam>..?<filesRootParam+numRoots-1>.
-// Outer FROM must alias nodes as `n`. Assumes no cycles. Caller guarantees no UNDEF
-// in the bound roots, so the post-rootnode `up.h = UNDEF` row fails IN(...) naturally.
+const std::string kSensitiveFlagMask{std::to_string(1ULL << Node::FLAGS_IS_MARKED_SENSITIVE)};
+
+// "?a, ?b, ..." for the `count` consecutive slots from `firstParam`.
+std::string buildSlotInList(int firstParam, size_t count)
+{
+    std::string inList;
+    for (size_t i = 0; i < count; ++i)
+    {
+        if (i > 0)
+            inList += ", ";
+        inList += "?";
+        inList += std::to_string(firstParam + static_cast<int>(i));
+    }
+    return inList;
+}
+
+// Where the up-walk starts.
+//   CandidateRow   — listAllNodesByPage: from the outer row `nodes AS n`. Its own sensitive
+//                    flag and handle seed sensSeen / excSeen.
+//   DistinctParent — groupAllNodesByDate: from `pa.ph`, a distinct parent handle, with clean
+//                    state; the candidate's own checks are in buildCandidateOwnScopeConditions.
+enum class UpWalkOrigin
+{
+    CandidateRow,
+    DistinctParent,
+};
+
+// EXISTS clause: walks a parent chain and is true iff it reaches any handle in slots
+// ?<filesRootParam>..?<filesRootParam+numRoots-1>. Assumes no cycles. Caller guarantees no
+// UNDEF in the bound roots, so the post-rootnode `up.h = UNDEF` row fails IN(...) naturally.
 //
-// excludeSensitive: walks `sensSeen` (OR of the sensitive bit) over n inclusive up to
-// the matched root EXCLUSIVE — the root's own flag is ignored, matching
+// excludeSensitive: walks `sensSeen` (OR of the sensitive bit) from the start of the walk (see
+// UpWalkOrigin) up to the matched root EXCLUSIVE — the root's own flag is ignored, matching
 // searchNodesByMimetype. Final SELECT requires sensSeen = 0.
 //
 // excludeHandles: when numExcludes > 0, walks `excSeen` and rejects rows whose chain
@@ -3234,23 +3285,19 @@ struct ExcludeSqlFragments
     std::string outerWhere; // outer SELECT filter rejecting matched roots
 };
 
-ExcludeSqlFragments buildExcludeFragment(int excludeHandleParam, size_t numExcludes)
+ExcludeSqlFragments buildExcludeFragment(int excludeHandleParam,
+                                         size_t numExcludes,
+                                         UpWalkOrigin origin)
 {
     if (numExcludes == 0)
         return {};
 
-    std::string inList;
-    for (size_t i = 0; i < numExcludes; ++i)
-    {
-        if (i > 0)
-            inList += ", ";
-        inList += "?";
-        inList += std::to_string(excludeHandleParam + static_cast<int>(i));
-    }
+    const std::string inList = buildSlotInList(excludeHandleParam, numExcludes);
 
     return {
         ", excSeen",
-        ", (n.nodehandle IN (" + inList + "))",
+        origin == UpWalkOrigin::CandidateRow ? ", (n.nodehandle IN (" + inList + "))" :
+                                               std::string(", 0"),
         ", up.excSeen OR (p.nodehandle IN (" + inList + "))",
         " AND up.excSeen = 0",
         " AND up.excSeen = 0 AND up.h NOT IN (" + inList + ")",
@@ -3287,23 +3334,24 @@ struct AnchorSql
     int order;
 };
 
-std::string buildUpWalkExists(const SubtreeScopeSql& scope)
+std::string buildUpWalkExists(const SubtreeScopeSql& scope, UpWalkOrigin origin)
 {
     const int filesRootParam = scope.filesRootParam;
     const size_t numRoots = scope.numRoots;
     const bool excludeSensitive = scope.excludeSensitive;
     const int excludeHandleParam = scope.excludeHandleParam;
     const size_t numExcludes = scope.numExcludes;
+    const bool fromCandidateRow = origin == UpWalkOrigin::CandidateRow;
 
     assert(numRoots >= 1);
     static const std::string undefStr{std::to_string(static_cast<sqlite3_int64>(UNDEF))};
-    static const std::string sensMask{std::to_string(1ULL << Node::FLAGS_IS_MARKED_SENSITIVE)};
 
-    const std::string sensInitial =
-        excludeSensitive ? ("((n.flags & " + sensMask + ") != 0)") : std::string("0");
-    const std::string sensStep = excludeSensitive ?
-                                     ("up.sensSeen OR ((p.flags & " + sensMask + ") != 0)") :
-                                     std::string("0");
+    const std::string sensInitial = (fromCandidateRow && excludeSensitive) ?
+                                        ("((n.flags & " + kSensitiveFlagMask + ") != 0)") :
+                                        std::string("0");
+    const std::string sensStep =
+        excludeSensitive ? ("up.sensSeen OR ((p.flags & " + kSensitiveFlagMask + ") != 0)") :
+                           std::string("0");
     const std::string sensWhere =
         excludeSensitive ? std::string(" AND up.sensSeen = 0") : std::string();
     // Prune subtrees below a sensitive ancestor: once sensSeen flips to 1 the outer
@@ -3312,23 +3360,16 @@ std::string buildUpWalkExists(const SubtreeScopeSql& scope)
     const std::string sensRecursiveCut =
         excludeSensitive ? std::string(" AND up.sensSeen = 0") : std::string();
 
-    std::string rootInList;
-    for (size_t i = 0; i < numRoots; ++i)
-    {
-        if (i > 0)
-            rootInList += ", ";
-        rootInList += "?";
-        rootInList += std::to_string(filesRootParam + static_cast<int>(i));
-    }
-
-    const ExcludeSqlFragments exc = buildExcludeFragment(excludeHandleParam, numExcludes);
+    const std::string rootInList = buildSlotInList(filesRootParam, numRoots);
+    const ExcludeSqlFragments exc = buildExcludeFragment(excludeHandleParam, numExcludes, origin);
 
     return "EXISTS ("
            "WITH RECURSIVE up(h, sensSeen" +
            exc.columnDecl +
            ") AS ("
-           "SELECT n.parenthandle, " +
-           sensInitial + exc.initial +
+           "SELECT " +
+           std::string(fromCandidateRow ? "n.parenthandle" : "pa.ph") + ", " + sensInitial +
+           exc.initial +
            " "
            "UNION ALL "
            "SELECT p.parenthandle, " +
@@ -3342,6 +3383,18 @@ std::string buildUpWalkExists(const SubtreeScopeSql& scope)
            rootInList + ")" + sensWhere + exc.outerWhere +
            " LIMIT 1"
            ")";
+}
+
+// Pairs with the DistinctParent up-walk, which checks only the ancestors.
+std::vector<std::string> buildCandidateOwnScopeConditions(const SubtreeScopeSql& scope)
+{
+    std::vector<std::string> conditions;
+    if (scope.excludeSensitive)
+        conditions.push_back("(n.flags & " + kSensitiveFlagMask + ") = 0");
+    if (scope.numExcludes > 0)
+        conditions.push_back("n.nodehandle NOT IN (" +
+                             buildSlotInList(scope.excludeHandleParam, scope.numExcludes) + ")");
+    return conditions;
 }
 
 // Builds a single-route SELECT for listAllNodesByPage given a mime filter condition
@@ -3369,7 +3422,7 @@ std::string buildListAllRouteSelect(const std::string& mimeFilterClause,
     std::vector<std::string> conditions;
     conditions.push_back(mimeFilterClause);
     conditions.push_back("(n.flags & " + std::to_string(1ULL << Node::FLAGS_IS_VERSION) + ") = 0");
-    conditions.push_back(buildUpWalkExists(scope));
+    conditions.push_back(buildUpWalkExists(scope, UpWalkOrigin::CandidateRow));
 
     if (anchor.has)
     {
@@ -3608,9 +3661,8 @@ int dateSectionTzSlot(int excludeHandleParam, size_t numExcludes)
     return excludeHandleParam + static_cast<int>(numExcludes);
 }
 
-// Per-route inner SELECT — same WHERE shape as buildListAllRouteSelect plus
-// the "<col> > invalidSentinel" guard, GROUP BY gid. Returns columns
-// (gid, cnt). Used as a CTE body by the simple-mime and grouped paths.
+// `candidates` of the date-section query: one row per (parent, bucket) with its count, so the
+// up-walk runs per parent instead of per file. The candidate's own checks are applied here.
 std::string buildDateSectionInnerSelect(const std::string& mimeFilterClause,
                                         const TimestampColumnDescriptor& col,
                                         DateSectionGranularity granularity,
@@ -3625,18 +3677,19 @@ std::string buildDateSectionInnerSelect(const std::string& mimeFilterClause,
     // `<col> > invalidSentinel` is the SDK's canonical "has timestamp" check
     // (mega_invalid_timestamp == 0); also prevents a spurious "1970-..." bucket.
     conditions.push_back(col.rawColumnExpr + " > " + std::to_string(col.invalidSentinel));
-    conditions.push_back(buildUpWalkExists(scope));
+    for (auto& own: buildCandidateOwnScopeConditions(scope))
+        conditions.push_back(std::move(own));
 
-    return "SELECT " + gidExpr +
+    return "SELECT n.parenthandle AS ph, \n"
+           "       " +
+           gidExpr +
            " AS gid, \n"
            "       COUNT(*) AS cnt \n"
            "FROM nodes AS n \n" +
-           buildWhereClauseForListAll(std::move(conditions)) + "GROUP BY gid";
+           buildWhereClauseForListAll(conditions) + "GROUP BY ph, gid";
 }
 
-// Simple-mime full section query: 2-tier CTE — inner does GROUP BY, outer
-// adds bucket_start / bucket_end computed from gid string. Result columns:
-// (gid TEXT, bucket_start INTEGER, bucket_end INTEGER, cnt INTEGER).
+// Full section query: candidates → scoped_parents → grouped, then bucket bounds per gid.
 //
 // See SqliteAccountState::groupAllNodesByDate for a rendered SQL example.
 std::string buildDateSectionRouteSelect(const std::string& mimeFilterClause,
@@ -3654,8 +3707,21 @@ std::string buildDateSectionRouteSelect(const std::string& mimeFilterClause,
     const int tzParamIndex = dateSectionTzSlot(scope.excludeHandleParam, scope.numExcludes);
     const auto bounds = buildDateSectionBoundExprs(granularity, tzParamIndex);
 
-    return "WITH grouped AS ( \n" + innerSelect +
+    // `candidates` is referenced twice; SQLite 3.35+ materialises it on its own. No
+    // MATERIALIZED hint: it is a syntax error on 3.31-3.34 (system SQLite on some distros).
+    return "WITH candidates AS ( \n" + innerSelect +
            " \n"
+           "), \n"
+           "scoped_parents AS ( \n"
+           "SELECT pa.ph FROM (SELECT DISTINCT ph FROM candidates) AS pa \n"
+           "WHERE " +
+           buildUpWalkExists(scope, UpWalkOrigin::DistinctParent) +
+           " \n"
+           "), \n"
+           "grouped AS ( \n"
+           "SELECT gid, SUM(cnt) AS cnt FROM candidates \n"
+           "WHERE ph IN (SELECT ph FROM scoped_parents) \n"
+           "GROUP BY gid \n"
            ") \n"
            "SELECT gid, \n"
            "       " +
@@ -3688,6 +3754,28 @@ std::string buildGroupedMimeInListClause(MimeType_t mimeType)
         inList += std::to_string(static_cast<int>(routeMimeTypes[i]));
     }
     return "mimetypeVirtual IN (" + inList + ")";
+}
+
+// Slots of buildDateSectionQuery (layout in its declaration in sqlite.h), used by both the SQL
+// text and the binder; the builders get the tz slot from the same dateSectionTzSlot.
+struct DateSectionSlots
+{
+    bool mimeNeedsParam;
+    int mimeFilterParam;
+    int filesRootParam;
+    int excludeHandleParam;
+    int tzOffsetParam;
+};
+
+DateSectionSlots dateSectionSlots(const DateSectionParams& params, size_t numRoots)
+{
+    DateSectionSlots slots{};
+    slots.mimeNeedsParam = !isGroupMimeTypeForListAll(params.mimeType);
+    slots.mimeFilterParam = 1;
+    slots.filesRootParam = slots.mimeFilterParam + (slots.mimeNeedsParam ? 1 : 0);
+    slots.excludeHandleParam = slots.filesRootParam + static_cast<int>(numRoots);
+    slots.tzOffsetParam = dateSectionTzSlot(slots.excludeHandleParam, params.excludeHandles.size());
+    return slots;
 }
 
 } // anonymous namespace (sqlite query + cache-key helpers)
@@ -3758,6 +3846,26 @@ size_t computeDateSectionsCacheId(MimeType_t mimeType,
         .append(numExcludes, kListAllMaxExcludes + 1)
         .append(static_cast<size_t>(favourite), kFavouriteFilterStride)
         .build();
+}
+
+std::string buildDateSectionQuery(const DateSectionParams& params, size_t numRoots)
+{
+    assert(numRoots > 0);
+    const DateSectionSlots slots = dateSectionSlots(params, numRoots);
+
+    // Grouped: literal `IN (X, Y, ...)`; simple: bound `= ?`.
+    const std::string mimeFilterClause =
+        (slots.mimeNeedsParam ? ("mimetypeVirtual = ?" + std::to_string(slots.mimeFilterParam)) :
+                                buildGroupedMimeInListClause(params.mimeType)) +
+        fileSubTypeResidualClause(params.fileSubType) +
+        favouriteFilterClause(params.favouriteFilter);
+
+    const SubtreeScopeSql scope{slots.filesRootParam,
+                                numRoots,
+                                params.excludeSensitive,
+                                slots.excludeHandleParam,
+                                params.excludeHandles.size()};
+    return buildDateSectionRouteSelect(mimeFilterClause, params.order, params.granularity, scope);
 }
 
 bool SqliteAccountState::validateListAllEntry(MimeType_t mimeType,
@@ -4073,29 +4181,38 @@ bool SqliteAccountState::listAllNodesByPage(
 }
 
 // Rendered SQL example for the query this method assembles and binds (regenerate from
-// buildDateSectionRouteSelect if it changes):
+// buildDateSectionQuery if it changes):
 //
 // ORDER_MODIFICATION_DESC, Month granularity, simple mime, 1 root, no excludes,
 // excludeSensitive=false. Slot layout: ?1=mimeFilter, ?2=filesRoots[0], ?3=tzOffsetSeconds.
 // No LIMIT, no cursor, no anchor — the section query always spans the whole scope.
 //
-//   WITH grouped AS (
-//     SELECT strftime('%Y-%m', (mtime) + ?3, 'unixepoch') AS gid,
+//   WITH candidates AS (
+//     SELECT n.parenthandle AS ph,
+//            strftime('%Y-%m', (mtime) + ?3, 'unixepoch') AS gid,
 //            COUNT(*) AS cnt
 //     FROM nodes AS n
 //     WHERE mimetypeVirtual = ?1
 //       AND (n.flags & 1) = 0
 //       AND mtime > 0
-//       AND EXISTS (
-//         WITH RECURSIVE up(h, sensSeen) AS (
-//           SELECT n.parenthandle, 0
-//           UNION ALL
-//           SELECT p.parenthandle, 0
-//           FROM nodes AS p JOIN up ON p.nodehandle = up.h
-//           WHERE up.h IS NOT NULL AND up.h != -1   -- UNDEF
-//         )
-//         SELECT 1 FROM up WHERE up.h IN (?2) LIMIT 1
+//     GROUP BY ph, gid
+//   ),
+//   scoped_parents AS (            -- one up-walk per DISTINCT parent, not per candidate
+//     SELECT pa.ph FROM (SELECT DISTINCT ph FROM candidates) AS pa
+//     WHERE EXISTS (
+//       WITH RECURSIVE up(h, sensSeen) AS (
+//         SELECT pa.ph, 0
+//         UNION ALL
+//         SELECT p.parenthandle, 0
+//         FROM nodes AS p JOIN up ON p.nodehandle = up.h
+//         WHERE up.h IS NOT NULL AND up.h != -1   -- UNDEF
 //       )
+//       SELECT 1 FROM up WHERE up.h IN (?2) LIMIT 1
+//     )
+//   ),
+//   grouped AS (
+//     SELECT gid, SUM(cnt) AS cnt FROM candidates
+//     WHERE ph IN (SELECT ph FROM scoped_parents)
 //     GROUP BY gid
 //   )
 //   SELECT gid,
@@ -4108,8 +4225,9 @@ bool SqliteAccountState::listAllNodesByPage(
 // Day/Year swap the strftime format and the bucket concat-tail/modifier (see
 // buildDateSectionGidExpr / buildDateSectionBoundExprs); a grouped mime replaces
 // `mimetypeVirtual = ?1` with a literal IN-list and drops the ?1 slot (tz then
-// shifts to ?2); excludeSensitive / excludes add sensSeen / excSeen columns to
-// the up-walk CTE and shift the tz slot further right.
+// shifts to ?2). excludeSensitive / excludes add the candidate's own checks to
+// `candidates` (`(n.flags & 4) = 0`, `n.nodehandle NOT IN (...)`) and sensSeen /
+// excSeen columns to the up-walk; excludes also shift the tz slot right.
 bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
                                              const std::vector<NodeHandle>& filesRoots,
                                              std::vector<DateSection>& out,
@@ -4145,9 +4263,6 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
     const size_t numRoots = filesRoots.size();
     const size_t numExcludes = params.excludeHandles.size();
 
-    const bool isGroupMimeType = isGroupMimeTypeForListAll(params.mimeType);
-    const bool mimeFilterNeedsParam = !isGroupMimeType;
-
     const size_t cacheId = computeDateSectionsCacheId(params.mimeType,
                                                       params.fileSubType,
                                                       params.order,
@@ -4160,31 +4275,12 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
     auto stmtIt = mStmtDateSections.find(cacheId);
     sqlite3_stmt* stmt = (stmtIt != mStmtDateSections.end()) ? stmtIt->second : nullptr;
 
-    // Slot layout: optional mimeFilter (?1 when set), numRoots contiguous filesRoot
-    // slots, numExcludes contiguous exclude-handle slots, then one tz-offset slot.
-    // No pageSize, no cursor.
-    const int mimeFilterParam = 1;
-    const int filesRootParam = mimeFilterParam + (mimeFilterNeedsParam ? 1 : 0);
-    const int excludeHandleParam = filesRootParam + static_cast<int>(numRoots);
+    const DateSectionSlots slots = dateSectionSlots(params, numRoots);
 
     int sqlResult = SQLITE_OK;
     if (!stmt)
     {
-        // Grouped: literal `IN (X, Y, ...)`; simple: bound `= ?`.
-        const std::string mimeFilterClause =
-            (isGroupMimeType ? buildGroupedMimeInListClause(params.mimeType) :
-                               ("mimetypeVirtual = ?" + std::to_string(mimeFilterParam))) +
-            fileSubTypeResidualClause(params.fileSubType) +
-            favouriteFilterClause(params.favouriteFilter);
-
-        const SubtreeScopeSql scope{filesRootParam,
-                                    numRoots,
-                                    params.excludeSensitive,
-                                    excludeHandleParam,
-                                    numExcludes};
-        const std::string query =
-            buildDateSectionRouteSelect(mimeFilterClause, params.order, params.granularity, scope);
-
+        const std::string query = buildDateSectionQuery(params, numRoots);
         sqlResult = sqlite3_prepare_v2(db, query.c_str(), -1, &stmt, nullptr);
         if (sqlResult != SQLITE_OK)
         {
@@ -4196,10 +4292,10 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
         mStmtDateSections[cacheId] = stmt; // cache only after a successful prepare
     }
 
-    if (mimeFilterNeedsParam)
+    if (slots.mimeNeedsParam)
         bindValue(sqlResult,
                   stmt,
-                  mimeFilterParam,
+                  slots.mimeFilterParam,
                   static_cast<int>(params.mimeType),
                   sqlite3_bind_int);
 
@@ -4207,7 +4303,7 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
     {
         bindValue(sqlResult,
                   stmt,
-                  filesRootParam + static_cast<int>(i),
+                  slots.filesRootParam + static_cast<int>(i),
                   static_cast<sqlite3_int64>(filesRoots[i].as8byte()),
                   sqlite3_bind_int64);
     }
@@ -4216,18 +4312,16 @@ bool SqliteAccountState::groupAllNodesByDate(const DateSectionParams& params,
     {
         bindValue(sqlResult,
                   stmt,
-                  excludeHandleParam + static_cast<int>(i),
+                  slots.excludeHandleParam + static_cast<int>(i),
                   static_cast<sqlite3_int64>(params.excludeHandles[i].as8byte()),
                   sqlite3_bind_int64);
     }
 
-    // tz offset occupies the slot immediately after the exclude-handle run
-    // (same source of truth as the SQL builders). Bound even when 0 (UTC) so
-    // the SQL text — and thus the prepared-statement cache key — is offset-independent.
-    const int tzOffsetParam = dateSectionTzSlot(excludeHandleParam, numExcludes);
+    // Bound even when 0 (UTC) so the SQL text — and thus the prepared-statement cache key —
+    // is offset-independent.
     bindValue(sqlResult,
               stmt,
-              tzOffsetParam,
+              slots.tzOffsetParam,
               static_cast<sqlite3_int64>(params.tzOffsetSeconds),
               sqlite3_bind_int64);
 

@@ -100,12 +100,17 @@ namespace
 // the curl handshake makes progress on the client thread.
 constexpr int WSUPLOAD_HANDSHAKE_CV_POLL_MS = 200;
 
-// The worker baton must OUTLIVE the handshake's own CURLOPT_TIMEOUT so a slow
-// handshake is terminated by curl (fast, definitive, frees the easy) rather than
-// abandoned by the baton (which leaves the easy running on the client thread).
-// Slack covers FIFO queueing + the 200ms CV poll granularity. Added to whichever
+// The worker baton must OUTLIVE the handshake's own bound (CURLOPT_TIMEOUT, and
+// wsHandshake's deadline of that timeout + ws::kWsCurlPollSliceMs for the upgrade leg
+// curl >= 8.17 leaves unbounded) so a slow handshake is terminated by wsHandshake (fast,
+// definitive, frees the easy) rather than abandoned by the baton (which leaves the easy
+// running on the client thread). Slack covers FIFO queueing + the 200ms CV poll
+// granularity and must stay larger than that grace plus one CV poll. Added to whichever
 // handshake timeout (baseline or loss) is in effect for this attempt.
 constexpr int WSUPLOAD_HANDSHAKE_BATON_SLACK_MS = 5000;
+static_assert(WSUPLOAD_HANDSHAKE_BATON_SLACK_MS >
+                  kWsCurlPollSliceMs + WSUPLOAD_HANDSHAKE_CV_POLL_MS,
+              "the baton must outlive wsHandshake's deadline grace plus one CV poll");
 
 // TU-local enum: server-event opcodes for the WS upload response stream.
 // Only used by WsConn::onmessage; moved together with the body.
@@ -166,10 +171,7 @@ WsConn::~WsConn()
         }
         mPool->mConns.erase(mConns_it);
     }
-    if (curl)
-    {
-        curl_easy_cleanup(curl);
-    }
+    destroyCurl();
 }
 
 bool WsConn::connectWS()
@@ -188,8 +190,7 @@ bool WsConn::connectWS()
         // must have run first (which clears mFrameInProgress via resetBufferedSendState).
         assert((!mBufs[0].mFrameInProgress && !mBufs[1].mFrameInProgress) &&
                "connectWS() reached with a partial frame staged; closeWS() must run first");
-        curl_easy_cleanup(curl);
-        curl = nullptr;
+        destroyCurl();
     }
     readyState.store(ReadyState::CONNECTING, std::memory_order_relaxed);
 
@@ -204,13 +205,17 @@ bool WsConn::connectWS()
     // carries lock callbacks (net.cpp) for the concurrent DNS/SSL-session cache writes; and
     // (c) the proxy/DNS/user-agent configuration wsHandshake consumes is published as one
     // coherent snapshot under CurlHttpIO::mNetConfigMutex (SDK-6476), so a concurrent
-    // setProxySettings()/disconnect() on the client thread cannot tear it. CURLOPT_TIMEOUT_MS
-    // inside wsHandshake bounds the blocking call, so no separate baton watchdog is needed.
-    // SDK-6476: the engine's mStopping flag is handed down as a stop token and polled inside
-    // libcurl, so a handshake stuck on a black-holed endpoint aborts within ~1 s of stop()
-    // instead of running to CURLOPT_TIMEOUT_MS (15/45 s) — otherwise locallogout's 3 s quiesce
-    // window is missed and the whole engine is intentionally leaked. Impl outlives this call on
-    // every path (~Impl joins the workers; the leak fallback never destroys it).
+    // setProxySettings()/disconnect() on the client thread cannot tear it. wsHandshake bounds
+    // the blocking call (CURLOPT_TIMEOUT_MS, plus its own deadline of that timeout + one poll
+    // slice for the upgrade leg), so no separate baton watchdog is needed.
+    // SDK-6476 / SDK-6565: the engine's mStopping flag is handed down as a stop token.
+    // wsHandshake drives the handshake with an SDK-owned curl_multi loop and reads the flag
+    // between libcurl calls, so a handshake stuck on a black-holed endpoint (any phase: DNS,
+    // TCP, proxy, TLS, upgrade; any libcurl version) returns within kWsCurlPollSliceMs of
+    // stop() instead of running to the handshake bound (15/45 s) — otherwise locallogout's 3 s
+    // quiesce window is missed and the whole engine is intentionally leaked. Impl outlives this
+    // call on every path (~Impl joins the workers; the leak fallback never destroys it). The
+    // returned pair (easy + the multi it stays added to) is adopted whole by adoptCurl().
     if (mPool->mImpl->mParallelHandshake)
     {
         const std::string url = mPool->mUrl;
@@ -233,21 +238,20 @@ bool WsConn::connectWS()
         }
 
         std::string err;
-        CURL* e =
-            static_cast<CURL*>(mPool->mImpl->client.wsHandshakeForUpload(url,
-                                                                         handshakeTimeoutMs,
-                                                                         &err,
-                                                                         &mPool->mImpl->mStopping));
-        if (!e)
+        WsCurlHandles handles = mPool->mImpl->client.wsHandshakeForUpload(url,
+                                                                          handshakeTimeoutMs,
+                                                                          &err,
+                                                                          &mPool->mImpl->mStopping);
+        if (!handles)
         {
-            WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) wsHandshakeForUpload -> nullptr"
+            WSUPLOAD_TRACE << "[WsConn::connectWS] (parallel) wsHandshakeForUpload -> empty"
                            << (err.empty() ? "" : (", err=" + err))
                            << " -> readyState=CLOSED, return false [this = " << this << "]";
             readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
             return false;
         }
 
-        curl = e; // this worker thread exclusively owns the handle now
+        adoptCurl(std::move(handles)); // this worker thread exclusively owns the pair now
         readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
         // Fix #6: a fresh handle must never inherit a stale partial frame; closeWS() runs
         // before any reconnect and resets the send cursor + mFrameInProgress.
@@ -260,12 +264,22 @@ bool WsConn::connectWS()
         return true;
     }
 
+    // Hand-over cell between the client thread (which performs the handshake) and this worker
+    // (which adopts the result). `handles` is written and read only under `m`. If the worker
+    // gives up first (engine stopping / baton deadline), the lambda still stores the pair here
+    // and the last shared_ptr owner destroys it, on whichever thread that is: the pair is
+    // never used by two threads and never leaks.
     struct Baton
     {
         std::mutex m;
         std::condition_variable cv;
-        std::unique_ptr<CURL, decltype(&curl_easy_cleanup)> easy{nullptr, &curl_easy_cleanup};
+        WsCurlHandles handles;
         bool done = false;
+
+        ~Baton()
+        {
+            destroyWsCurlHandles(handles);
+        }
     };
 
     auto baton = std::make_shared<Baton>();
@@ -291,7 +305,6 @@ bool WsConn::connectWS()
             if (auto* engine = client.wsEngine(); !engine || engine->isStopping())
             {
                 std::lock_guard<std::mutex> g(baton->m);
-                baton->easy.reset();
                 baton->done = true;
                 baton->cv.notify_one();
                 return;
@@ -300,35 +313,27 @@ bool WsConn::connectWS()
             // No stop token: this lambda runs on the client thread, i.e. the thread that calls
             // locallogout, so it can never overlap engine stop (and it already returned above
             // when the engine is stopping).
-            CURL* e = static_cast<CURL*>(
-                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err, nullptr));
+            WsCurlHandles handles =
+                client.wsHandshakeForUpload(url, handshakeTimeoutMs, &err, nullptr);
 
             {
                 std::lock_guard<std::mutex> g(baton->m);
-                baton->easy.reset(e);
+                baton->handles = std::move(handles);
                 baton->done = true;
-                if (e)
+                if (baton->handles)
                 {
-                    if (!err.empty())
-                    {
-                        WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                     "wsHandshakeForUpload failed, err="
-                                  << err << ", set baton.easy=" << (void*)baton->easy.get()
-                                  << " [this = " << self
-                                  << "]";
-                    }
-                    else
-                    {
-                        WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                     "wsHandshakeForUpload success, set baton.easy="
-                                  << (void*)baton->easy.get() << " [this = " << self << "]";
-                    }
+                    WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
+                                      "wsHandshakeForUpload success, set baton.handles.easy="
+                                   << (void*)baton->handles.easy
+                                   << " multi=" << (void*)baton->handles.multi
+                                   << " [this = " << self << "]";
                 }
                 else
                 {
                     WSUPLOAD_TRACE << "[WsConn::connectWS] [client.wsPostToClientThread] "
-                                 "wsHandshakeForUpload returned nullptr, set baton.easy=nullptr [this = "
-                              << self << "]";
+                                      "wsHandshakeForUpload returned empty"
+                                   << (err.empty() ? "" : (", err=" + err)) << " [this = " << self
+                                   << "]";
                 }
             }
             baton->cv.notify_one();
@@ -366,16 +371,16 @@ bool WsConn::connectWS()
                            });
     }
 
-    if (!baton->easy)
+    if (!baton->handles)
     {
         WSUPLOAD_TRACE
-            << "[WsConn::connectWS] !baton.easy -> readyState=CLOSED and return false [this = "
+            << "[WsConn::connectWS] !baton.handles -> readyState=CLOSED and return false [this = "
             << this << "]";
         readyState.store(ReadyState::CLOSED, std::memory_order_relaxed);
         return false;
     }
 
-    curl = baton->easy.release(); // worker thread exclusively owns the handle now
+    adoptCurl(std::move(baton->handles)); // still under baton->m: the worker owns the pair now
     readyState.store(ReadyState::OPEN, std::memory_order_relaxed);
     // Fix #6: a fresh handle must never inherit a stale partial frame; closeWS() runs
     // before any reconnect and resets the send cursor + mFrameInProgress.
@@ -410,7 +415,7 @@ void WsConn::closeWS()
 #ifndef NDEBUG
     if (hadPartialFrame)
     {
-        ++mPartialFrameTornDownCount;
+        mPartialFrameTornDownCount.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
     resetBufferedSendState();
@@ -549,7 +554,7 @@ void WsConn::curlRecv()
             else
             {
                 // Count CURLE_AGAIN on recv (per-conn).
-                ++mCurlAgainRecvCount;
+                mCurlAgainRecvCount.fetch_add(1, std::memory_order_relaxed);
             }
 #endif
             WSUPLOAD_TRACE << "[WsConn::curlRecv] res(=" << res
@@ -666,6 +671,16 @@ struct ChunkResponse
     WsUploadFile* uf = mPool->findFile(response->fileno, *mPool->mImpl);
     if (!uf)
     {
+        // SDK-5360 (macos_9808 followup2) attribution instrumentation. The one-shot opcode-4
+        // completion frame is never re-requested by the client, so a completion that resolves
+        // to no bound file is silently and permanently lost -- the origin of the
+        // tail-completion wedge. Log it loudly so a wedge can be told apart from a completion
+        // the server never sent. LOG ONLY: the drop itself is unchanged.
+        if (event == WsApiServerEvent::UploadCompleted)
+        {
+            LOG_warn << "[WsConn::onmessage] completion frame DROPPED for unbound file [fileno="
+                     << response->fileno << "] [conn=" << this << "] [pool=" << mPool << "]";
+        }
         WSUPLOAD_TRACE << "[WsConn::onmessage] !uf -> return [this = " << this << "]";
         return; // file cancelled or moved
     }
@@ -756,19 +771,38 @@ struct ChunkResponse
         return;
     }
 
+    // SDK-5360 (macos_9808 followup2): mark this connection as owing owedFileno's one-shot
+    // opcode-4 completion frame. Idempotent; the vector holds at most one entry per file this
+    // connection finished, so the linear scan is over a handful of elements (hand-rolled rather
+    // than std::find so this TU needs no new include). The caller holds uploadMutex -- the only
+    // lock mCompletionOwed is ever touched under.
+    const auto noteCompletionOwed = [this](const std::uint32_t owedFileno)
+    {
+        for (const std::uint32_t owed: mCompletionOwed)
+        {
+            if (owed == owedFileno)
+            {
+                return;
+            }
+        }
+        mCompletionOwed.push_back(owedFileno);
+    };
+
     switch (event)
     {
         case WsApiServerEvent::ChunkIngested: // non-final
 #ifndef NDEBUG
             // Throttle-recovery latency = pause-start to first chunk-ack on this conn.
-            if (mPauseStartedAtMs)
+            // F07: relaxed atomics -- single writer (this conn's worker), telemetry only.
+            if (const dstime pauseStartedAtMs = mPauseStartedAtMs.load(std::memory_order_relaxed))
             {
-                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - mPauseStartedAtMs;
+                const auto deltaDs = static_cast<dstime>(SteadyTime::ds()) - pauseStartedAtMs;
                 const auto deltaMs = static_cast<std::uint64_t>(dsToMs(deltaDs));
-                ++mThrottleRecoveryAckSamples;
-                mThrottleRecoveryAckTotalMs += deltaMs;
-                if (deltaMs > mThrottleRecoveryAckMaxMs) mThrottleRecoveryAckMaxMs = deltaMs;
-                mPauseStartedAtMs = 0;
+                mThrottleRecoveryAckSamples.fetch_add(1, std::memory_order_relaxed);
+                mThrottleRecoveryAckTotalMs.fetch_add(deltaMs, std::memory_order_relaxed);
+                if (deltaMs > mThrottleRecoveryAckMaxMs.load(std::memory_order_relaxed))
+                    mThrottleRecoveryAckMaxMs.store(deltaMs, std::memory_order_relaxed);
+                mPauseStartedAtMs.store(0, std::memory_order_relaxed);
             }
 #endif
             WSUPLOAD_TRACE
@@ -799,11 +833,24 @@ struct ChunkResponse
                     mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
                 if (handleBytesConfirmedOverflow(uf))
                     break;
+                // SDK-5360 (macos_9808 followup2): a FINAL chunk can be acked with opcode 1,
+                // not only opcode 7. If this credit is what made the file completion-pending,
+                // this connection now owes its completion frame just as it would on opcode 7.
+                if (uf->completionWedgeCandidateLocked())
+                {
+                    noteCompletionOwed(response->fileno);
+                }
             }
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
             break;
 
         case WsApiServerEvent::FinalDataIngested:
+            // SDK-5360 (macos_9808 followup2) attribution instrumentation: record WHICH conn
+            // delivered a file's final data. The file completion is a SEPARATE, later, one-shot
+            // opcode-4 frame, so this line plus the opcode-4 arrival line below are what let a
+            // wedge be attributed to the conn that owed the completion. LOG ONLY.
+            LOG_debug << "[WsConn::onmessage] final-data-ingested [fileno=" << chunk.fileno
+                      << "] [pos=" << chunk.pos << "] [conn=" << this << "] [pool=" << mPool << "]";
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 7 final data ingested (server "
                          "knows file is complete) [chunk.len="
                       << chunk.len << "] [this = " << this << "]";
@@ -830,6 +877,13 @@ struct ChunkResponse
                 if (handleBytesConfirmedOverflow(uf))
                     break;
             }
+            // SDK-5360 (macos_9808 followup2): THIS connection delivered the file's final data.
+            // The server's one-shot opcode-4 completion follows on a SEPARATE frame, so record
+            // the debt: closing this connection before it arrives loses the completion with no
+            // client re-request. Recorded whether or not the final frame carried bytes -- the
+            // opcode is what makes the completion imminent. Cleared by applyInFlightLocked when
+            // the completion lands, or by purgeFileLocked if the file is unbound/failed first.
+            noteCompletionOwed(response->fileno);
             if (mPool->mImpl->mCb.onProgress)
                 mPool->mImpl->mCb.onProgress(uf->transfer(), uf->bytesConfirmed());
             mPool->mImpl->poolMgr.mActiveFiles.insert(uf);
@@ -866,6 +920,13 @@ struct ChunkResponse
             WSUPLOAD_TRACE << "[WsConn::onmessage] response->event == 4 upload completed -> "
                          "mPool->applyInFlight(response->fileno) [this = "
                       << this << "]";
+            // SDK-5360 (macos_9808 followup2) attribution instrumentation: the one-shot
+            // completion frame actually arriving, and on which conn. Paired with the opcode-7
+            // line above it distinguishes "completion lost" from "completion never sent". LOG
+            // ONLY. Logged BEFORE applyInFlightLocked so the line is emitted even if the
+            // completion bookkeeping fails a validation check further down.
+            LOG_debug << "[WsConn::onmessage] upload-completed frame [fileno=" << response->fileno
+                      << "] [conn=" << this << "] [pool=" << mPool << "]";
             mPool->applyInFlightLocked(response->fileno);
             uf->maybeReportThroughput(mPool->mImpl->currentTime);
 
@@ -951,7 +1012,7 @@ struct ChunkResponse
                 << "[WsConn::onmessage] response->event == 5 distress -> server requested pool "
                    "refresh -> refresh pools -> mPool->mImpl->poolMgr.refreshPools() [this = "
                 << this << "]";
-            mPool->mImpl->poolMgr.refreshPools();
+            mPool->mImpl->poolMgr.refreshPools(/*fromDistress=*/true);
             break;
 
         case WsApiServerEvent::Throttle:
@@ -960,7 +1021,8 @@ struct ChunkResponse
 #ifndef NDEBUG
             // Tag opcode=6 in code-counts and anchor pause start for recovery latency.
             if (mPool) ++mPool->mThrottleEventCodeCounts[6];
-            mPauseStartedAtMs = static_cast<dstime>(SteadyTime::ds());
+            mPauseStartedAtMs.store(static_cast<dstime>(SteadyTime::ds()),
+                                    std::memory_order_relaxed);
 #endif
             // Release-safe bench-framework throttle counters. Relaxed memory
             // order — these are pure accumulators read at iter boundaries by
@@ -1122,7 +1184,8 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
             ws->mLastSendProgressDs.store(SteadyTime::ds(), std::memory_order_relaxed);
 #ifndef NDEBUG
         // E-3: accumulate the bytes curl_ws_send accepted on this conn.
-        ws->mTotalCurlWsSendAcceptedBytes += static_cast<std::uint64_t>(sent);
+        ws->mTotalCurlWsSendAcceptedBytes.fetch_add(static_cast<std::uint64_t>(sent),
+                                                    std::memory_order_relaxed);
 #endif
         if (mSendPos == mDataLen)
         {
@@ -1157,7 +1220,7 @@ bool WsBuf::sendWS(WsConn* ws, int& bufferedAmount)
     else
     {
         // Count CURLE_AGAIN on send (per-conn).
-        ++ws->mCurlAgainSendCount;
+        ws->mCurlAgainSendCount.fetch_add(1, std::memory_order_relaxed);
     }
 #endif
     WSUPLOAD_TRACE << "[WsBuf::sendWS] res(=" << res << ") != CURLE_OK -> return false [this = " << this

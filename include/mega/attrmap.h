@@ -82,6 +82,28 @@ struct MEGA_API AttrMap
         return makeNameid(n);
     }
 
+    /**
+     * @brief Tells whether a name can be stored in an AttrMap and serialized back unchanged
+     *
+     * Only printable ASCII is accepted, that is 1 to 8 bytes of 0x20 to 0x7E, minus '"' and
+     * '\\'. Attribute names are used verbatim, without escaping, as the JSON object keys produced
+     * by getjson() and getJsonObject(), and JSON::getnameid() reads them back without unescaping,
+     * so a name holding '"', '\\' or a control character would corrupt the JSON of every attribute
+     * in the map, not only its own.
+     *
+     * The rest of the range is turned down for reasons of its own. DEL would not break the JSON,
+     * it needs no escaping there, but the public API promises printable names. Above it, a name
+     * would not survive the conversion to a nameid and back, because string2nameid() sign extends
+     * those bytes and so borrows from the byte before, which can even turn an otherwise
+     * acceptable name into a key holding a '"' or a '\\'; and a key made of them would not be
+     * valid UTF-8, which a strict JSON parser expects of a string. Names longer than the 8 bytes
+     * a nameid holds do not survive that conversion either.
+     *
+     * @param name Attribute name, with the leading '_' of a custom attribute if it has one
+     * @return true when the name is safe to use, false when it must be rejected
+     */
+    static bool isValidJsonKey(const string& name);
+
     // export as JSON string
     void getjson(string*) const;
     std::string getjson() const;

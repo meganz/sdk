@@ -23,11 +23,17 @@
 
 #include <cryptopp/hex.h>
 
+#include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstring>
 #include <deque>
+#include <iomanip>
+#include <iostream>
 #include <math.h>
 #include <numeric>
+#include <random>
+#include <sstream>
 
 using namespace mega;
 
@@ -1390,3 +1396,438 @@ TEST(Crypto, PrnGenGenuint32Range)
     ScriptedPrnGen degenerate{{}};
     EXPECT_EQ(0u, degenerate.genuint32(1)) << "max == 1 should not consume a draw";
 }
+
+// Cross-implementation bit-exactness tests for SymmCipher::ctr_crypt.
+// Only compiled with USE_OPENSSL: no EVP impl to compare against otherwise.
+
+#if USE_OPENSSL
+
+namespace mega
+{
+namespace detail
+{
+void ctrCryptViaCryptopp(SymmCipher&,
+                         byte*,
+                         unsigned,
+                         m_off_t,
+                         SymmCipher::ctr_iv,
+                         byte*,
+                         bool,
+                         bool);
+void ctrCryptViaOpenssl(SymmCipher&,
+                        byte*,
+                        unsigned,
+                        m_off_t,
+                        SymmCipher::ctr_iv,
+                        byte*,
+                        bool,
+                        bool);
+}
+}
+
+namespace
+{
+
+using MacBlock = std::array<byte, SymmCipher::BLOCKSIZE>;
+
+// Compares data[0..len) and mac between the two impls. Bytes [len..paddedLen)
+// legitimately differ on decrypt (openssl zero-fills the slack; cryptopp leaves
+// CTR-decrypted slack) and no caller reads that region.
+void runAndCompareImpls(SymmCipher& cipher,
+                        const std::vector<byte>& inputData,
+                        unsigned len,
+                        m_off_t pos,
+                        SymmCipher::ctr_iv ctriv,
+                        const MacBlock& initialMac,
+                        bool useMac,
+                        bool encrypt,
+                        bool initmac,
+                        const std::string& tag)
+{
+    ASSERT_LE(len, inputData.size()) << tag;
+
+    std::vector<byte> dataCryptopp(inputData);
+    MacBlock macCryptopp = initialMac;
+    mega::detail::ctrCryptViaCryptopp(cipher,
+                                      dataCryptopp.data(),
+                                      len,
+                                      pos,
+                                      ctriv,
+                                      useMac ? macCryptopp.data() : nullptr,
+                                      encrypt,
+                                      initmac);
+
+    std::vector<byte> dataOpenssl(inputData);
+    MacBlock macOpenssl = initialMac;
+    mega::detail::ctrCryptViaOpenssl(cipher,
+                                     dataOpenssl.data(),
+                                     len,
+                                     pos,
+                                     ctriv,
+                                     useMac ? macOpenssl.data() : nullptr,
+                                     encrypt,
+                                     initmac);
+
+    EXPECT_TRUE(std::equal(dataCryptopp.begin(), dataCryptopp.begin() + len, dataOpenssl.begin()))
+        << tag << " (data[0..len) mismatch)";
+    if (useMac)
+    {
+        EXPECT_EQ(macCryptopp, macOpenssl) << tag << " (mac mismatch)";
+    }
+}
+
+// Rounds up to a 16-byte-aligned buffer, zero-padding the tail.
+std::vector<byte> makeNulPaddedBuffer(const std::vector<byte>& logical)
+{
+    const size_t paddedLen =
+        (logical.size() + SymmCipher::BLOCKSIZE - 1) & ~size_t{SymmCipher::BLOCKSIZE - 1};
+    std::vector<byte> buf(std::max(paddedLen, size_t{SymmCipher::BLOCKSIZE}), byte{0});
+    std::copy(logical.begin(), logical.end(), buf.begin());
+    return buf;
+}
+
+} // anonymous namespace
+
+TEST(Crypto, CtrCrypt_ImplementationsAgree_KnownVectors)
+{
+    constexpr byte key[SymmCipher::KEYLENGTH] = {0x0f,
+                                                 0x0e,
+                                                 0x0d,
+                                                 0x0c,
+                                                 0x0b,
+                                                 0x0a,
+                                                 0x09,
+                                                 0x08,
+                                                 0x07,
+                                                 0x06,
+                                                 0x05,
+                                                 0x04,
+                                                 0x03,
+                                                 0x02,
+                                                 0x01,
+                                                 0x00};
+    SymmCipher cipher;
+    cipher.setkey(key);
+
+    constexpr SymmCipher::ctr_iv ctriv = 0x0102030405060708ULL;
+    const MacBlock zeroMac = {};
+
+    // Aligned block, encrypt with MAC.
+    {
+        std::vector<byte> plaintext(SymmCipher::BLOCKSIZE);
+        std::iota(plaintext.begin(), plaintext.end(), byte{0x11});
+        runAndCompareImpls(cipher,
+                           plaintext,
+                           SymmCipher::BLOCKSIZE,
+                           /*pos*/ 0,
+                           ctriv,
+                           zeroMac,
+                           /*useMac*/ true,
+                           /*encrypt*/ true,
+                           /*initmac*/ true,
+                           "aligned16_encrypt");
+    }
+
+    // Partial block, encrypt with MAC.
+    {
+        auto plaintext = makeNulPaddedBuffer(std::vector<byte>(20, byte{0x55}));
+        runAndCompareImpls(cipher,
+                           plaintext,
+                           20,
+                           /*pos*/ 0,
+                           ctriv,
+                           zeroMac,
+                           /*useMac*/ true,
+                           /*encrypt*/ true,
+                           /*initmac*/ true,
+                           "partial20_encrypt");
+    }
+
+    // Partial block, decrypt with MAC (exercises the DP1 zero-fill).
+    {
+        auto ciphertext = makeNulPaddedBuffer(std::vector<byte>(20, byte{0x77}));
+        runAndCompareImpls(cipher,
+                           ciphertext,
+                           20,
+                           /*pos*/ 0,
+                           ctriv,
+                           zeroMac,
+                           /*useMac*/ true,
+                           /*encrypt*/ false,
+                           /*initmac*/ true,
+                           "partial20_decrypt");
+    }
+
+    // Non-zero position: guards the CTR counter derivation from pos.
+    {
+        std::vector<byte> plaintext(SymmCipher::BLOCKSIZE);
+        std::iota(plaintext.begin(), plaintext.end(), byte{0x33});
+        runAndCompareImpls(cipher,
+                           plaintext,
+                           SymmCipher::BLOCKSIZE,
+                           /*pos*/ 16 * 12345,
+                           ctriv,
+                           zeroMac,
+                           /*useMac*/ true,
+                           /*encrypt*/ true,
+                           /*initmac*/ true,
+                           "aligned16_encrypt_pos_nonzero");
+    }
+}
+
+TEST(Crypto, CtrCrypt_ImplementationsAgree_ParameterSweep)
+{
+    constexpr byte key[SymmCipher::KEYLENGTH] = {0x11,
+                                                 0x22,
+                                                 0x33,
+                                                 0x44,
+                                                 0x55,
+                                                 0x66,
+                                                 0x77,
+                                                 0x88,
+                                                 0x99,
+                                                 0xAA,
+                                                 0xBB,
+                                                 0xCC,
+                                                 0xDD,
+                                                 0xEE,
+                                                 0xFF,
+                                                 0x00};
+    SymmCipher cipher;
+    cipher.setkey(key);
+
+    constexpr unsigned kSizes[] = {0, 1, 15, 16, 17, 31, 32, 33, 4095, 4096, 4097, 65536};
+    // pos must be block-aligned (ctr_crypt asserts).
+    constexpr m_off_t kPositions[] = {0, 16, 65536, static_cast<m_off_t>(uint64_t{1} << 32)};
+    constexpr SymmCipher::ctr_iv kCtrIv = 0xDEADBEEFCAFEBABEULL;
+
+    MacBlock initialMac;
+    std::iota(initialMac.begin(), initialMac.end(), byte{0xA0});
+
+    for (unsigned size: kSizes)
+    {
+        std::vector<byte> logical(size);
+        for (unsigned i = 0; i < size; ++i)
+        {
+            logical[i] = static_cast<byte>((i * 31u + 7u) & 0xFF);
+        }
+        const auto inputData = makeNulPaddedBuffer(logical);
+
+        for (m_off_t pos: kPositions)
+        {
+            for (bool encrypt: {true, false})
+            {
+                for (bool useMac: {true, false})
+                {
+                    for (bool initmac: {true, false})
+                    {
+                        const std::string tag = "size=" + std::to_string(size) +
+                                                " pos=" + std::to_string(pos) +
+                                                " enc=" + std::to_string(encrypt) +
+                                                " useMac=" + std::to_string(useMac) +
+                                                " initmac=" + std::to_string(initmac);
+                        runAndCompareImpls(cipher,
+                                           inputData,
+                                           size,
+                                           pos,
+                                           kCtrIv,
+                                           initialMac,
+                                           useMac,
+                                           encrypt,
+                                           initmac,
+                                           tag);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Fuzz with fixed seed for reproducibility.
+TEST(Crypto, CtrCrypt_ImplementationsAgree_Fuzz)
+{
+    constexpr int kIterations = 10000;
+    std::mt19937_64 rng{0xC0FFEEDEADBEEFULL};
+
+    for (int iter = 0; iter < kIterations; ++iter)
+    {
+        byte key[SymmCipher::KEYLENGTH];
+        for (byte& b: key)
+            b = static_cast<byte>(rng() & 0xFF);
+        SymmCipher cipher;
+        cipher.setkey(key);
+
+        const unsigned len = static_cast<unsigned>(rng() % (65536u + 1u));
+
+        // pos block-aligned in [0, 2^40).
+        constexpr uint64_t kMaxPos = uint64_t{1} << 40;
+        const m_off_t pos = static_cast<m_off_t>((rng() % kMaxPos) & ~uint64_t{15});
+
+        const SymmCipher::ctr_iv ctriv = static_cast<SymmCipher::ctr_iv>(rng());
+        const bool encrypt = (rng() & 1u) != 0;
+        const bool useMac = (rng() & 1u) != 0;
+        const bool initmac = (rng() & 1u) != 0;
+
+        std::vector<byte> logical(len);
+        for (byte& b: logical)
+            b = static_cast<byte>(rng() & 0xFF);
+        const auto inputData = makeNulPaddedBuffer(logical);
+
+        MacBlock initialMac;
+        for (byte& b: initialMac)
+            b = static_cast<byte>(rng() & 0xFF);
+
+        const std::string tag = "iter=" + std::to_string(iter) + " len=" + std::to_string(len);
+        runAndCompareImpls(cipher,
+                           inputData,
+                           len,
+                           pos,
+                           ctriv,
+                           initialMac,
+                           useMac,
+                           encrypt,
+                           initmac,
+                           tag);
+    }
+}
+
+// Opt-in microbenchmark. Run with:
+//   test_unit --gtest_also_run_disabled_tests
+//             --gtest_filter="Crypto.DISABLED_CtrCrypt_Benchmark"
+//
+// For lower variance on hybrid CPUs (Intel P-cores + E-cores), pin to a P-core:
+//   taskset -c 0 test_unit --gtest_also_run_disabled_tests ...
+//
+// Reports best-of-5 (peak) and median across 5 runs per case. A "*" next to a
+// number means peak/worst diverge by more than 20% (noisy; retry with taskset
+// or on a quieter host).
+TEST(Crypto, DISABLED_CtrCrypt_Benchmark)
+{
+    constexpr byte key[SymmCipher::KEYLENGTH] = {0x0f,
+                                                 0x0e,
+                                                 0x0d,
+                                                 0x0c,
+                                                 0x0b,
+                                                 0x0a,
+                                                 0x09,
+                                                 0x08,
+                                                 0x07,
+                                                 0x06,
+                                                 0x05,
+                                                 0x04,
+                                                 0x03,
+                                                 0x02,
+                                                 0x01,
+                                                 0x00};
+    SymmCipher cipher;
+    cipher.setkey(key);
+
+    constexpr SymmCipher::ctr_iv ctriv = 0x123456789ABCDEF0ULL;
+
+    struct Case
+    {
+        unsigned bytes;
+        int iters;
+        const char* label;
+    };
+
+    const Case cases[] = {
+        {16, 100000, "16 B (metadata)"},
+        {4096, 50000, "4 KiB"},
+        {131072, 5000, "128 KiB"},
+        {1048576, 500, "1 MiB"},
+    };
+
+    struct Stats
+    {
+        double peak; // highest GB/s (min elapsed time)
+        double median;
+        double worst; // lowest GB/s (max elapsed time)
+
+        bool noisy() const
+        {
+            return (peak - worst) / peak > 0.20;
+        }
+    };
+
+    auto measure = [](auto&& fn, unsigned bytes, int iters) -> Stats
+    {
+        for (int i = 0; i < 10; ++i)
+            fn(); // warmup
+        std::array<double, 5> runs;
+        for (double& r: runs)
+        {
+            const auto t0 = std::chrono::steady_clock::now();
+            for (int i = 0; i < iters; ++i)
+                fn();
+            const double t =
+                std::chrono::duration<double>(std::chrono::steady_clock::now() - t0).count();
+            r = static_cast<double>(bytes) * iters / t / 1e9;
+        }
+        std::sort(runs.begin(), runs.end());
+        return {runs[4], runs[2], runs[0]};
+    };
+
+    auto fmt = [](const Stats& s)
+    {
+        std::ostringstream ss;
+        ss << std::fixed << std::setprecision(3) << s.peak;
+        if (s.noisy())
+            ss << "*";
+        ss << " (" << s.median << ")";
+        return ss.str();
+    };
+
+    std::cout << "\n"
+              << "ctr_crypt microbench (encrypt with MAC, initmac=true, pos=0)\n"
+              << "Best-of-5 per case; '*' = peak/worst diverge >20% (noisy).\n"
+              << "-------------------------------------------------------------------------------\n"
+              << std::left << std::setw(18) << "Size" << std::right << std::setw(22)
+              << "openssl peak (med)" << std::setw(22) << "cryptopp peak (med)" << std::setw(12)
+              << "speedup" << "\n";
+
+    for (const auto& c: cases)
+    {
+        std::vector<byte> data(c.bytes, byte{0x42});
+        MacBlock mac{};
+
+        const Stats openssl = measure(
+            [&]()
+            {
+                mac.fill(byte{0});
+                mega::detail::ctrCryptViaOpenssl(cipher,
+                                                 data.data(),
+                                                 c.bytes,
+                                                 0,
+                                                 ctriv,
+                                                 mac.data(),
+                                                 true,
+                                                 true);
+            },
+            c.bytes,
+            c.iters);
+
+        const Stats cryptopp = measure(
+            [&]()
+            {
+                mac.fill(byte{0});
+                mega::detail::ctrCryptViaCryptopp(cipher,
+                                                  data.data(),
+                                                  c.bytes,
+                                                  0,
+                                                  ctriv,
+                                                  mac.data(),
+                                                  true,
+                                                  true);
+            },
+            c.bytes,
+            c.iters);
+
+        std::cout << std::left << std::setw(18) << c.label << std::right << std::setw(22)
+                  << fmt(openssl) << std::setw(22) << fmt(cryptopp) << std::setw(11) << std::fixed
+                  << std::setprecision(2) << (openssl.peak / cryptopp.peak) << "x" << "\n";
+    }
+    std::cout << std::endl;
+}
+
+#endif // USE_OPENSSL

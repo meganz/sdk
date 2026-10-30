@@ -927,17 +927,19 @@ void MegaClient::wsPostTransferUpdate(Transfer* t,
         });
 }
 
-void* MegaClient::wsHandshakeForUpload(const std::string& url,
-                                       long timeoutMs,
-                                       std::string* err,
-                                       const std::atomic<bool>* stopFlag)
+ws::WsCurlHandles MegaClient::wsHandshakeForUpload(const std::string& url,
+                                                   long timeoutMs,
+                                                   std::string* err,
+                                                   const std::atomic<bool>* stopFlag)
 {
     auto* cio = dynamic_cast<CurlHttpIO*>(httpio);
     if (!cio)
     {
-        return nullptr;
+        if (err)
+            *err = "no CurlHttpIO";
+        return {};
     }
-    return static_cast<void*>(cio->wsHandshake(url, timeoutMs, err, stopFlag));
+    return cio->wsHandshake(url, timeoutMs, err, stopFlag);
 }
 
 void MegaClient::wsDrainClientActions(dstime maxExecTimeDs, bool loudPhases)

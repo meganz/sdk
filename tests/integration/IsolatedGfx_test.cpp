@@ -1,3 +1,4 @@
+#include "integration/integration_test_utils.h"
 #include "sdk_test_utils.h"
 #include "SdkTest_test.h"
 
@@ -82,6 +83,20 @@ protected:
     static constexpr const char* ORIENTATION_THUMBNAIL = "orientation_thumbnail.jpg";
 
     static constexpr const char* ORIENTATION_PREVIEW = "orientation_preview.jpg";
+
+    // Known-good video, reused from sdk_test_sync_upload_operations_test.cpp's
+    // MultimediaFileUpload so the expected properties below stay in sync with that test.
+    static constexpr const char* GOOD_VIDEO = "sample_video.mp4";
+    static constexpr int GOOD_VIDEO_DURATION_SECS = 5;
+    static constexpr int GOOD_VIDEO_HEIGHT_PX = 360;
+    static constexpr int GOOD_VIDEO_WIDTH_PX = 640;
+
+    // TODO: no known MediaInfoLib crash reproducer is checked into artifactory yet (unlike
+    // SOURCE above for FreeImage/TIFF). Source one - e.g. from whoever debugged the crashes
+    // discussed for this feature - and upload it as test-data/gfx-processing-crash/<name>, then
+    // point this at it. Until then MediaInfoContinueSuccessfullyAfterCrash below is written
+    // and structured, but its crash step cannot actually crash the worker.
+    static constexpr const char* CRASH_VIDEO = "test-data/gfx-processing-crash/CHANGEME.mp4";
 };
 
 void SdkTestIsolatedGfx::SetUp()
@@ -158,6 +173,140 @@ TEST_F(SdkTestIsolatedGfx, GfxProcessingContinueSuccessfullyAfterCrash)
     ASSERT_FALSE(api->createThumbnail(INVALID_IMAGE, INVALID_THUMBNAIL)) << "create invalid image's thumbnail should fail";
 
     LOG_info << "___TEST GfxProcessingContinueSuccessfullyAfterCrash end___";
+}
+
+/**
+ * @brief MediaInfoUnidentifiableFileIsMarkedNotIdentified
+ *          Upload a file with a media extension that mediainfo cannot identify, and check the
+ *          upload completes carrying the "not identified" marker rather than no attribute.
+ *
+ * Extraction gives up once it has read past its byte limit without having identified both a
+ * video stream and its duration (mediaInfoOpenFileWithLimits, "could not extract mediainfo data
+ * within reasonable limits"), so a file of that size holding no media satisfies it without
+ * needing a checked-in reproducer. The file is generated here rather than downloaded.
+ *
+ * The marker is the point: it records the build and library version that could not read the
+ * file, so timeToRetryMediaPropertyExtraction stops every later download from extracting again.
+ * A file uploaded with no fa_media at all never reaches that check.
+ *
+ * Unlike MediaInfoContinueSuccessfullyAfterCrash below, this covers a file the parser gives up
+ * on, not the worker crashing, so it needs no crash reproducer and can run.
+ */
+TEST_F(SdkTestIsolatedGfx, MediaInfoUnidentifiableFileIsMarkedNotIdentified)
+{
+    LOG_info << "___TEST MediaInfoUnidentifiableFileIsMarkedNotIdentified";
+
+    MegaApi* api = megaApi[0].get();
+
+    // Must exceed the 10 MB read limit that extractMediaPropertyFileAttributes passes to
+    // mediaInfoOpenFileWithLimits; the content is random so nothing is identified before then.
+    static constexpr size_t SIZE_BEYOND_EXTRACTION_LIMIT = 11 * 1024 * 1024;
+    const sdk_test::LocalTempFile mediaFile{fs::path{"extraction_failure.mp4"},
+                                            SIZE_BEYOND_EXTRACTION_LIMIT};
+
+    auto node = sdk_test::uploadFile(api, mediaFile.getPath());
+    ASSERT_TRUE(node) << "the upload must complete even though the file could not be identified";
+
+    // The marker cannot be seen through the media getters: MediaProperties::getMediaProperty
+    // discards any shortformat >= 254, and the marker is 255, so getShortformat() and friends
+    // report -1 for it exactly as they would for a file with no attribute at all. Assert on the
+    // raw attribute string instead - that a type 8 attribute exists is the whole point, and
+    // without it every later download of this file extracts again.
+    //
+    // It also arrives with the action packet that creates the node, which can still be in flight
+    // when onTransferFinish releases the upload, so re-read rather than trusting the first copy.
+    const MegaHandle nodeHandle = node->getHandle();
+    const std::string mediaAttribute = ":" + std::to_string(::mega::fa_media) + "*";
+    std::unique_ptr<char[]> attributes;
+    ASSERT_TRUE(WaitFor(
+        [&api, &node, &attributes, nodeHandle, &mediaAttribute]()
+        {
+            node.reset(api->getNodeByHandle(nodeHandle));
+            if (!node)
+                return false;
+            attributes.reset(node->getFileAttrString());
+            return attributes &&
+                   std::string{attributes.get()}.find(mediaAttribute) != std::string::npos;
+        },
+        60000))
+        << "an unidentifiable file must still carry a media attribute, but none arrived";
+
+    // And nothing bogus must surface from it. These alone are what the test used to assert, and
+    // they pass just as happily when no attribute was attached at all.
+    EXPECT_EQ(node->getShortformat(), -1) << "the marker must not be reported as a real format";
+    EXPECT_EQ(node->getHeight(), -1) << "no real media properties should be reported";
+    EXPECT_EQ(node->getWidth(), -1) << "no real media properties should be reported";
+}
+
+/**
+ * @brief MediaInfoContinueSuccessfullyAfterCrash
+ *          1. upload a media file and check its media properties are correctly extracted
+ *          2. upload a media file which causes a gfx process crash during extraction
+ *             (the upload itself must still complete - see GfxMediaJob::complete,
+ *             which drops the pending fa_media requirement rather than leaving the transfer
+ *             waiting on an attribute that will never arrive)
+ *          3. upload a media file and check its properties are still correctly extracted,
+ *             proving the worker recovered
+ *
+ * @note Mirrors GfxProcessingContinueSuccessfullyAfterCrash above, which does the equivalent
+ * for thumbnails. See that test's comment for why a single crash can also drop a second,
+ * unrelated in-flight call.
+ *
+ * @note Unlike thumbnails, there is no createThumbnail-equivalent direct entry point for media
+ * info - extraction is only reachable through Transfer::addAnyMissingMediaFileAttributes, so
+ * this test drives it through a real upload rather than calling the gfx pipeline directly.
+ *
+ * @todo DISABLED because CRASH_VIDEO does not exist in artifactory yet. Unlike SOURCE above (a
+ * known TIFF that crashes FreeImage), no MediaInfoLib crash reproducer is currently checked in.
+ * Racing the image-crash path against a real upload was tried as a workaround and rejected: gfx
+ * jobs run one at a time off a single client-side queue (GfxProc::loop), so a crash loop on
+ * another thread does not keep the worker down for the media job's turn - it just adds more
+ * turns to the same queue, and the media job can land in a healthy gap between them. Source a
+ * real reproducer - e.g. from whoever debugged the media info crashes - and upload it to
+ * test-data/gfx-processing-crash/, then point CRASH_VIDEO at it and remove DISABLED_.
+ */
+TEST_F(SdkTestIsolatedGfx, DISABLED_MediaInfoContinueSuccessfullyAfterCrash)
+{
+    LOG_info << "___TEST MediaInfoContinueSuccessfullyAfterCrash";
+
+    MegaApi* api = megaApi[0].get();
+
+    const auto checkVideoProperties = [](MegaNode* node)
+    {
+        ASSERT_TRUE(node);
+        EXPECT_EQ(node->getDuration(), GOOD_VIDEO_DURATION_SECS)
+            << "Duration is not correct or unavailable.";
+        EXPECT_EQ(node->getHeight(), GOOD_VIDEO_HEIGHT_PX)
+            << "Height is not correct or unavailable.";
+        EXPECT_EQ(node->getWidth(), GOOD_VIDEO_WIDTH_PX) << "Width is not correct or unavailable.";
+    };
+
+    // 1. Upload a media file and check its properties are correctly extracted
+    ASSERT_TRUE(getFileFromArtifactory(std::string{"test-data/"} + GOOD_VIDEO, GOOD_VIDEO));
+    auto goodNode = sdk_test::uploadFile(api, fs::path{GOOD_VIDEO});
+    ASSERT_NO_FATAL_FAILURE(checkVideoProperties(goodNode.get()));
+
+    // 2. Upload a media file which crashes the gfx process during extraction. The upload must
+    // still complete - only the media properties are missing - because GfxMediaJob::complete
+    // drops the pending fa_media requirement on failure instead of leaving putnodes waiting.
+    fs::path crashDestination{"crash.mp4"};
+    ASSERT_TRUE(getFileFromArtifactory(CRASH_VIDEO, crashDestination));
+    auto crashNode = sdk_test::uploadFile(api, crashDestination);
+    ASSERT_TRUE(crashNode) << "upload should still complete after a media info crash";
+    EXPECT_EQ(crashNode->getDuration(), -1) << "media properties should not be set after a crash";
+    EXPECT_EQ(crashNode->getWidth(), -1) << "media properties should not be set after a crash";
+    EXPECT_EQ(crashNode->getHeight(), -1) << "media properties should not be set after a crash";
+
+    // Don't make a call too quickly. Workaround: see note in
+    // GfxProcessingContinueSuccessfullyAfterCrash.
+    std::this_thread::sleep_for(std::chrono::milliseconds{200});
+
+    // 3. Upload a media file and check its properties are still correctly extracted, i.e. the
+    // worker recovered from the crash above.
+    auto recoveredNode = sdk_test::uploadFile(api, fs::path{GOOD_VIDEO}, nullptr, "recovered.mp4");
+    ASSERT_NO_FATAL_FAILURE(checkVideoProperties(recoveredNode.get()));
+
+    LOG_info << "___TEST MediaInfoContinueSuccessfullyAfterCrash end___";
 }
 
 TEST_F(SdkTestIsolatedGfx, ThumbnailSupportTransparency)

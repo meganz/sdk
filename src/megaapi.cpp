@@ -3662,6 +3662,11 @@ void MegaApi::resumeTransfersForNotLoggedInInstance()
     pImpl->resumeTransfersForNotLoggedInInstance();
 }
 
+void MegaApi::setAutoResumeTransfers(bool enable)
+{
+    pImpl->setAutoResumeTransfers(enable);
+}
+
 bool MegaApi::areTransfersPaused(int direction)
 {
     return pImpl->areTransfersPaused(direction);

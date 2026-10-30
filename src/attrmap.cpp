@@ -21,9 +21,73 @@
 
 #include "mega/attrmap.h"
 
+#include "mega/logging.h"
+
 #include <mega/json.h>
 
+#include <cstdio>
+
 namespace mega {
+
+namespace
+{
+
+// Renders an attribute name for a log line, writing every byte that is not printable ASCII as
+// \xNN. A name that gets logged here is a broken one by definition, so it can hold anything,
+// including the newlines it would take to forge log lines of its own
+string describeName(const string& name)
+{
+    string described;
+    for (const char c: name)
+    {
+        const auto byte = static_cast<unsigned char>(c);
+        if (byte >= ' ' && byte < 0x7F)
+        {
+            described += c;
+            continue;
+        }
+
+        char buf[5];
+        snprintf(buf, sizeof(buf), "\\x%02x", byte);
+        described += buf;
+    }
+    return described;
+}
+
+// Tells whether an attribute can be written to JSON, and reports the ones that cannot
+//
+// A key is written verbatim, and JSON::getnameid() reads it back without unescaping, so a key
+// that would need escaping corrupts the JSON of every attribute of the object, not only of its
+// own. Names accepted through MegaApi are checked when they arrive (see
+// MegaApiImpl::performRequest_setAttrNode), but names parsed from the API are not, and an older
+// or a different client may have stored a broken one: fromjson() hands it back unchanged and
+// this is where it would go out again. Drop that one attribute rather than let it take the rest
+// of the node's attributes with it
+//
+// Deliberately no assert: this name comes off the wire, so asserting would abort every debug
+// build that so much as renames a node that is already broken
+bool isWritableName(const nameid id)
+{
+    if (!id)
+    {
+        // string2nameid("") is 0, which is also EOO: an attribute with no name to write
+        LOG_err << "AttrMap: skipping an attribute whose name is empty";
+        return false;
+    }
+
+    const string name = AttrMap::nameid2string(id);
+    if (!AttrMap::isValidJsonKey(name))
+    {
+        LOG_err << "AttrMap: skipping the attribute '" << describeName(name)
+                << "', its name cannot be used as a JSON key";
+        return false;
+    }
+
+    return true;
+}
+
+} // namespace
+
 // approximate raw storage size of serialized AttrMap, not taking JSON escaping
 // or name length into account
 unsigned AttrMap::storagesize(int perrecord) const
@@ -94,6 +158,35 @@ nameid AttrMap::string2nameid(const char* n)
     }
 
     return makeNameid(n);
+}
+
+bool AttrMap::isValidJsonKey(const string& name)
+{
+    // The size is checked first, because string2nameid() asserts on longer names
+    if (name.empty() || name.size() > 8)
+    {
+        return false;
+    }
+
+    for (const char c: name)
+    {
+        // Everything from DEL up is turned down too. JSON does not ask for DEL to be escaped, so
+        // it alone would not break the serialization, but the public API promises printable
+        // names and DEL is not printable. Above it there are only the bytes of a multi-byte
+        // UTF-8 sequence, which a key cannot hold: string2nameid() sign extends them, so they
+        // do not survive the conversion (see the round trip below), and a key made of some of
+        // them would not be valid UTF-8, which is what a strict JSON parser expects of a string
+        const auto byte = static_cast<unsigned char>(c);
+        if (byte == '"' || byte == '\\' || byte < ' ' || byte >= 0x7F)
+        {
+            return false;
+        }
+    }
+
+    // Belt and braces: every name that gets here is printable ASCII and so round trips as it is.
+    // This keeps the guarantee that the key written for a name is the name itself, whatever
+    // string2nameid() and nameid2string() are changed into later
+    return nameid2string(string2nameid(name)) == name;
 }
 
 // generate binary serialize of attr_map name-value pairs
@@ -196,102 +289,53 @@ void AttrMap::applyUpdates(const attr_map& updates)
 // generate JSON object containing attr_map
 void AttrMap::getjson(string* s) const
 {
-    nameid id;
     char buf[8];
-    const char* ptr;
-    const char* pptr;
 
     // reserve estimated size of final string
     s->erase();
     s->reserve(storagesize(20));
 
-    for (attr_map::const_iterator it = map.begin(); it != map.end(); it++)
+    for (const auto& [name_id, value]: map)
     {
+        // The key goes in verbatim, so a name that cannot be one is dropped here instead of
+        // corrupting the JSON of every other attribute of this map
+        if (!isWritableName(name_id))
+        {
+            continue;
+        }
+
         s->append(s->size() ? ",\"" : "\"");
 
-        id = it->first;
-        if (id)
-        {
-            // no JSON escaping here, as no escape characters are allowed in
-            // attribute names
-            s->append(buf, static_cast<size_t>(nameid2string(id, buf)));
-            s->append("\":\"");
+        s->append(buf, static_cast<size_t>(nameid2string(name_id, buf)));
+        s->append("\":\"");
 
-            // JSON-escape value
-            pptr = it->second.c_str();
-            ptr = it->second.c_str();
-
-            for (int i = static_cast<int>(it->second.size()); i-- >= 0; ptr++)
-            {
-                if ((i < 0) || ((*(const signed char*)ptr >= 0) && (*ptr < ' ')) || (*ptr == '"') || (*ptr == '\\'))
-                {
-                    if (ptr > pptr)
-                    {
-                        s->append(pptr, static_cast<size_t>(ptr - pptr));
-                    }
-
-                    if (i >= 0)
-                    {
-                        s->append("\\");
-
-                        switch (*ptr)
-                        {
-                            case '"':
-                                s->append("\"");
-                                break;
-
-                            case '\\':
-                                s->append("\\");
-                                break;
-
-                            case '\n':
-                                s->append("n");
-                                break;
-
-                            case '\r':
-                                s->append("r");
-                                break;
-
-                            case '\b':
-                                s->append("b");
-                                break;
-
-                            case '\f':
-                                s->append("f");
-                                break;
-
-                            case '\t':
-                                s->append("t");
-                                break;
-
-                            default:
-                                s->append("u00");
-                                snprintf(buf, sizeof(buf), "%02x", (unsigned char)*ptr);
-                                s->append(buf);
-                        }
-
-                        pptr = ptr + 1;
-                    }
-                }
-            }
-
-            s->append("\"");
-        }
+        // The value is free text supplied by the caller and must be JSON-escaped.
+        s->append(JSON::escape(value.data(), value.size()));
+        s->append("\"");
     }
 }
 
 std::string AttrMap::getJsonObject() const
 {
-    std::string result{"{"};
-    for (auto [k, v]: map)
+    std::string result;
+    for (const auto& [k, v]: map)
     {
-        result += "\"" + nameid2string(k) + "\":\"" + v + "\",";
+        // See AttrMap::getjson() for why the key is written as it is, and why one that cannot be
+        // a key is dropped
+        if (!isWritableName(k))
+        {
+            continue;
+        }
+
+        result += result.empty() ? "{\"" : ",\"";
+        result += nameid2string(k) + "\":\"" + JSON::escape(v.data(), v.size()) + "\"";
     }
 
-    result.pop_back();
-    if (!map.empty())
+    // Nothing written means nothing to close. An empty map has always produced an empty string
+    // here rather than "{}", and a map whose names are all unusable now does the same
+    if (!result.empty())
     {
-        result.append("}");
+        result += "}";
     }
     return result;
 }
@@ -317,11 +361,13 @@ void AttrMap::fromjsonObject(const std::string& buf)
     nameid name;
     while ((name = json.getnameid()) != EOO)
     {
-        if (!json.storeobject(&map[name]))
+        string* value = &map[name];
+        if (!json.storeobject(value))
         {
             map.clear();
             return;
         }
+        JSON::unescape(value);
     }
 
     if (!json.leaveobject())

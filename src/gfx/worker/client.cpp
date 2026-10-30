@@ -107,6 +107,39 @@ bool GfxClient::runGfxTask(const std::string& conceptualname,
     }
 }
 
+bool GfxClient::runMediaInfoTask(const std::string& localpath, MediaProperties& properties)
+{
+    // 3 seconds at most
+    auto endpoint = connectWithRetry(milliseconds(100), 30);
+    if (!endpoint)
+    {
+        LOG_err << "runMediaInfoTask Couldn't connect";
+        return false;
+    }
+
+    CommandMediaInfo command;
+    command.Path = LocalPath::fromAbsolutePath(localpath).platformEncoded();
+
+    auto addReponse = sendAndReceive<CommandMediaInfoResponse>(endpoint.get(), command);
+    if (!addReponse)
+    {
+        LOG_err << "GfxClient couldn't get runMediaInfoTask response, " << localpath;
+        return false;
+    }
+
+    if (addReponse->ErrorCode)
+    {
+        LOG_warn << "GfxClient: the worker could not extract media info, error "
+                 << addReponse->ErrorCode << ", " << localpath;
+        return false;
+    }
+
+    LOG_verbose << "GfxClient gets runMediaInfoTask response successfully, " << localpath;
+
+    properties = std::move(addReponse->MediaInfo);
+    return true;
+}
+
 bool GfxClient::runSupportFormats(std::string& formats, std::string& videoformats)
 {
     auto endpoint = connectWithRetry(milliseconds(100), 30); // 3 seconds at most

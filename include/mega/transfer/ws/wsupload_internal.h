@@ -28,9 +28,12 @@
 #ifdef MEGA_USE_WSUPLOAD
 
 #include "mega/logging.h"
+#include "mega/transfer/ws/ws_curl_handles.h" // WsCurlHandles, destroyWsCurlHandles, kWsCurlPollSliceMs
 #include "mega/transfer/ws/ws_pool_mgr.h"
 #include "mega/types.h" // chunkmac_map, dstime, m_off_t
 #include "mega/wsupload.h" // UploadEngine, InboundFrameValidationResult, etc.
+
+#include <curl/curl.h>
 
 #include <atomic>
 #include <cassert>
@@ -45,9 +48,6 @@
 #include <unordered_set>
 #include <utility>
 #include <vector>
-
-#include <curl/curl.h>
-
 #include <zlib.h>
 
 namespace mega
@@ -120,7 +120,9 @@ struct SteadyTime
 // Block timeout for curl_multi_poll() in the WsPoolMgr IO loop. Caps the time
 // the manager thread waits for socket activity per iteration; bounded so that
 // stop signals (mStopping) and refresh-timer expiries are honoured promptly.
-constexpr int WSUPLOAD_CURL_MULTI_POLL_MS = 500;
+// One value for every SDK-driven curl_multi_poll in the engine (the WS handshake
+// loop uses the same constant, see ws_curl_handles.h).
+constexpr int WSUPLOAD_CURL_MULTI_POLL_MS = kWsCurlPollSliceMs;
 
 // Mebibyte (2^20). Used for chunk-size constants and the per-chunk send buffer.
 constexpr int kMiB = 1048576;
@@ -247,28 +249,66 @@ struct ChunkFingerprintMacUpdate
 // ---------- WebSocket connection (per thread) ----------
 struct WsConn
 {
+    // The connection's libcurl handles (ws_curl_handles.h). `curl` is the easy handle the
+    // send/receive path uses; `curlm` is the multi handle that drove its handshake and that it
+    // must stay added to. Both are written only by adoptCurl()/destroyCurl(): nothing else in
+    // the engine reads `curlm`.
     CURL* curl{nullptr};
+    CURLM* curlm{nullptr};
     int bufferedAmount{0};
 
+    // Take ownership of a completed handshake's handle pair. The caller has already
+    // synchronised the hand-over (a return value on the parallel path, the Baton mutex on the
+    // serial path), so from here on this worker thread is the pair's only user.
+    void adoptCurl(WsCurlHandles&& h) noexcept
+    {
+        assert(!curl && !curlm && "WsConn::adoptCurl: destroyCurl() must run before a reconnect");
+        curl = h.easy;
+        curlm = h.multi;
+        h = WsCurlHandles{};
+    }
+
+    // The only place a WsConn releases its libcurl handles (~WsConn and the reconnect path in
+    // connectWS). Order and non-blocking guarantees: destroyWsCurlHandles().
+    void destroyCurl() noexcept
+    {
+        WsCurlHandles h{curl, curlm};
+        curl = nullptr;
+        curlm = nullptr;
+        destroyWsCurlHandles(h);
+    }
+
 #ifndef NDEBUG
+    // SDK-5360 followup1 TSAN family F07. Every counter below is written by the OWNING pool
+    // worker from curlRecv()/curlSend()/WsBuf::sendWS -- i.e. with uploadMutex RELEASED
+    // (ScopedUnlock around the blocking cURL calls) -- while
+    // WsPool::addWsUploadStatsForTesting reads them from the engine run thread UNDER
+    // uploadMutex. The lock orders nothing here, so every plain read/write was a data race.
+    // Made std::atomic with RELAXED ordering throughout: these are pure telemetry values,
+    // never synchronisation signals, so relaxed adds no barrier on x86/ARM64 -- the same
+    // discipline already applied to readyState / mForceReconnect / mLastInboundFrameDs /
+    // mLastSendProgressDs / mBackpressured. Each counter has exactly ONE writer thread (the
+    // conn's own worker), so a plain load/compare/store high-water update is race-free even
+    // though it is not a single atomic read-modify-write.
+    //
     // Send-side counters (per-connection). Aggregated to the pool
     // by WsPool::addWsUploadStatsForTesting.
-    std::uint64_t mCurlAgainSendCount{0};
-    std::uint64_t mCurlAgainRecvCount{0};
+    std::atomic<std::uint64_t> mCurlAgainSendCount{0};
+    std::atomic<std::uint64_t> mCurlAgainRecvCount{0};
     // E-3: Σ bytes curl_ws_send accepted on this connection (incremented in
     // WsBuf::sendWS on the CURLE_OK branch). Surfaced via WsUploadStatsForTesting
     // so a deterministic force-close test can measure whole-chunk re-send waste.
-    std::uint64_t mTotalCurlWsSendAcceptedBytes{0};
+    std::atomic<std::uint64_t> mTotalCurlWsSendAcceptedBytes{0};
     // # closeWS() calls that ran while a buffer held a live partial frame (fix #6).
-    std::uint64_t mPartialFrameTornDownCount{0};
-    int mBufferedAmountHighWater{0};
-    unsigned mChunksInFlightHighWater{0};
+    std::atomic<std::uint64_t> mPartialFrameTornDownCount{0};
+    std::atomic<int> mBufferedAmountHighWater{0};
+    std::atomic<unsigned> mChunksInFlightHighWater{0};
     // Throttle-recovery telemetry (per-connection). Set on event=6 receipt,
     // sampled on event=1 chunk-ack to compute pause-to-first-ack latency.
-    dstime mPauseStartedAtMs{0};
-    std::uint64_t mThrottleRecoveryAckSamples{0};
-    std::uint64_t mThrottleRecoveryAckTotalMs{0};
-    std::uint64_t mThrottleRecoveryAckMaxMs{0};
+    std::atomic<dstime> mPauseStartedAtMs{0};
+    std::atomic<std::uint64_t> mThrottleRecoveryAckSamples{0};
+    std::atomic<std::uint64_t> mThrottleRecoveryAckTotalMs{0};
+    std::atomic<std::uint64_t> mThrottleRecoveryAckMaxMs{0};
 #endif
 
     enum class ReadyState : std::uint8_t
@@ -343,6 +383,17 @@ struct WsConn
     // in-flight chunk log (for resends on drop)
     std::vector<std::pair<WsChunk, ChunkFingerprintMacUpdate>> mChunksInFlight;
 
+    // SDK-5360 (macos_9808 followup2): filenos whose FINAL data THIS connection delivered
+    // (opcode-7 FinalDataIngested, or an opcode-1 ack that brought bytesConfirmed up to size)
+    // and whose one-shot opcode-4 completion frame has NOT arrived yet. A chunk leaves
+    // mChunksInFlight on its ack, but the completion is a separate, later frame, so
+    // mChunksInFlight.empty() alone is not a safe-to-close predicate for a connection.
+    // Maintained under uploadMutex only: appended in WsConn::onmessage, cleared per-file by
+    // WsPool::applyInFlightLocked / purgeFileLocked, cleared wholesale by
+    // retryChunksOnTheWireLocked (the connection is closing). Consumed by the
+    // drain-before-exit phase in WsPool::poolWorkerThread.
+    std::vector<std::uint32_t> mCompletionOwed;
+
     explicit WsConn(WsPool* pool);
     ~WsConn();
 
@@ -391,9 +442,10 @@ struct WsConn
         mBufs[buf].add(data, len);
         bufferedAmount += len;
 #ifndef NDEBUG
-        // Track per-conn buffered-bytes high-water.
-        if (bufferedAmount > mBufferedAmountHighWater)
-            mBufferedAmountHighWater = bufferedAmount;
+        // Track per-conn buffered-bytes high-water. Single writer (this conn's worker), so the
+        // load/compare/store pair needs no RMW; relaxed because it is a value, not a signal.
+        if (bufferedAmount > mBufferedAmountHighWater.load(std::memory_order_relaxed))
+            mBufferedAmountHighWater.store(bufferedAmount, std::memory_order_relaxed);
 #endif
         WSUPLOAD_TRACE << "[WsConn::senddata] END [bufferedAmount=" << bufferedAmount
                   << "] [this = " << this << "]";
@@ -410,6 +462,11 @@ struct WsPoolThread
     // (caught by the S12 TSAN battery — WsPool::checkThreads vs poolWorkerThread).
     std::atomic<bool> terminate{false};
     bool terminated{false};
+    // SDK-5360 (macos_9808 followup2): set by WsPool::checkThreads under uploadMutex when the
+    // shed was requested by the Distress clamp, and read by the OWNING worker under uploadMutex
+    // once its main loop has ended. A plain bool is correct here -- unlike `terminate`, which
+    // the sliced backoff sleep polls with the lock released, this flag has no lock-free reader.
+    bool drainBeforeExit{false};
 
     explicit WsPoolThread(WsPool* pool); // defined after WsPool
 
@@ -806,12 +863,15 @@ struct WsPool
     }
 
     void poolWorkerThread(WsPoolThread* th);
-    void checkThreads();
+    // drainShed (SDK-5360 macos_9808 followup2): stamp WsPoolThread::drainBeforeExit on every
+    // worker this call sheds, so each one drains its own connection before the exit close. The
+    // default keeps every pre-existing caller byte-identical.
+    void checkThreads(bool drainShed = false);
 
-    void setPoolNumConn(const unsigned char n)
+    void setPoolNumConn(const unsigned char n, const bool drainShed = false)
     {
         mNumberOfConnections = n;
-        checkThreads();
+        checkThreads(drainShed);
     }
 
     // Release-safe twin of countOpenConnectionsLocked() (which is #ifndef NDEBUG and

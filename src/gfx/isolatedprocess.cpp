@@ -126,6 +126,12 @@ std::vector<std::string>
     return images;
 }
 
+bool GfxProviderIsolatedProcess::generateMediaInfo(LocalPath& lp, MediaProperties& mediaInfo)
+{
+    auto gfxclient = GfxClient::create(mEndpointName);
+    return gfxclient.runMediaInfoTask(lp.toPath(false), mediaInfo);
+}
+
 const char* GfxProviderIsolatedProcess::supportedformats()
 {
     return getformats(&Formats::formats);

@@ -38,7 +38,9 @@ enum class CommandType
     HELLO_RESPONSE              = 7,
     SUPPORT_FORMATS             = 8,
     SUPPORT_FORMATS_RESPONSE    = 9,
-    END                         = 10  // 1 more than the last valid one
+    MEDIA_INFO = 10,
+    MEDIA_INFO_RESPONSE = 11,
+    END = 12 // 1 more than the last valid one
 };
 
 class ICommand
@@ -226,6 +228,46 @@ public:
         }
         return true;
     }
+};
+
+struct CommandMediaInfo: public ICommand
+{
+    std::string Path;
+
+    CommandType type() const override
+    {
+        return CommandType::MEDIA_INFO;
+    }
+
+    std::string typeStr() const override
+    {
+        return "MEDIA_INFO";
+    };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
+};
+
+struct CommandMediaInfoResponse: public ICommand
+{
+    uint32_t ErrorCode{};
+
+    MediaProperties MediaInfo;
+
+    CommandType type() const override
+    {
+        return CommandType::MEDIA_INFO_RESPONSE;
+    }
+
+    std::string typeStr() const override
+    {
+        return "MEDIA_INFO_RESPONSE";
+    };
+
+    std::string serialize() const override;
+
+    bool unserialize(const std::string& data) override;
 };
 
 } //namespace gfx

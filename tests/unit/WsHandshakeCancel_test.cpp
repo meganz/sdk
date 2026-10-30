@@ -3,12 +3,14 @@
  *
  * This file is part of the MEGA SDK - Client Access Engine.
  *
- * SDK-6476: a parallel WS upload handshake blocked inside curl_easy_perform (black-holed
- * endpoint or proxy) must be cancellable when the upload engine stops, so locallogout can
- * destroy the engine instead of leaking it. These cells drive CurlHttpIO::wsHandshake against
- * a real loopback black hole (TCP accepts, TLS / HTTP upgrade never answered) and cancel it
- * through the stop flag. No test hooks are used, so they also run in Release/hooks-off builds
- * and exercise the platform TLS backend on Linux, Windows and macOS.
+ * SDK-6476 / SDK-6565: a parallel WS upload handshake blocked on a black-holed endpoint or
+ * proxy must be cancellable when the upload engine stops, so locallogout can destroy the
+ * engine instead of leaking it. These cells drive CurlHttpIO::wsHandshake against a real
+ * loopback black hole (TCP accepts, TLS / HTTP upgrade never answered) and cancel it through
+ * the stop flag. They assert behaviour, not mechanism: the handshake is driven by an SDK-owned
+ * curl_multi loop (SDK-6565), so the bounds below must hold on every libcurl version. No test
+ * hooks are used, so they also run in Release/hooks-off builds and exercise the platform TLS
+ * backend on Linux, Windows and macOS.
  */
 
 #include "mega.h"
@@ -39,13 +41,13 @@ public:
         mThread(
             [this, &io, url = std::move(url), timeoutMs, stopFlag]
             {
-                CURL* easy = io.wsHandshake(url, timeoutMs, &mErr, stopFlag);
+                mega::ws::WsCurlHandles handles = io.wsHandshake(url, timeoutMs, &mErr, stopFlag);
                 mEndedAt = steady_clock::now();
-                mSucceeded = easy != nullptr;
-                if (easy)
-                {
-                    curl_easy_cleanup(easy);
-                }
+                mSucceeded = static_cast<bool>(handles);
+                // Paired invariant (ws_curl_handles.h): a failed or cancelled handshake hands
+                // back nothing at all, a successful one hands back both handles.
+                mPaired = (handles.easy == nullptr) == (handles.multi == nullptr);
+                mega::ws::destroyWsCurlHandles(handles);
             })
     {}
 
@@ -68,6 +70,11 @@ public:
         return mSucceeded;
     }
 
+    bool paired() const
+    {
+        return mPaired;
+    }
+
     const std::string& err() const
     {
         return mErr;
@@ -81,6 +88,7 @@ public:
 private:
     std::string mErr;
     bool mSucceeded{false};
+    bool mPaired{false};
     steady_clock::time_point mEndedAt{};
     std::thread mThread;
 };
@@ -132,16 +140,22 @@ TEST_F(WsHandshakeCancelTest, StopFlagAbortsBlackholedTlsHandshake)
 
     const auto cancelMs = msSince(stopRequestedAt, run.endedAt());
     EXPECT_FALSE(run.succeeded()) << "a black-holed handshake cannot succeed";
+    EXPECT_TRUE(run.paired());
     EXPECT_EQ(run.err(), mega::CurlHttpIO::kWsHandshakeCancelledErr)
         << "expected the cancellation sentinel, got: " << run.err();
     EXPECT_LT(cancelMs, 3000)
         << "cancellation took " << cancelMs
         << " ms; the locallogout quiesce budget is 3000 ms (SDK-6476 leak fallback)";
+    // The SDK-owned loop notices the flag at the latest when its current poll slice ends; the
+    // extra slices are headroom for sanitizer builds and loaded CI hosts.
+    EXPECT_LT(cancelMs, 3 * mega::ws::kWsCurlPollSliceMs)
+        << "cancellation took " << cancelMs << " ms; poll slice is " << mega::ws::kWsCurlPollSliceMs
+        << " ms";
 }
 
-// The flag is already set before the call: the very first progress-callback invocation must
-// abort. This is the regression net for CURLOPT_NOPROGRESS: libcurl hides progress by default,
-// and a callback installed without NOPROGRESS=0 is silently never invoked.
+// The flag is already set before the call: the loop checks it before its first libcurl call,
+// so no network operation is started at all and the handshake returns at once with both
+// handles destroyed.
 TEST_F(WsHandshakeCancelTest, PresetStopFlagAbortsImmediately)
 {
     std::atomic<bool> stop{true};
@@ -151,12 +165,17 @@ TEST_F(WsHandshakeCancelTest, PresetStopFlagAbortsImmediately)
 
     const auto elapsedMs = msSince(startedAt, run.endedAt());
     EXPECT_FALSE(run.succeeded());
+    EXPECT_TRUE(run.paired());
     EXPECT_EQ(run.err(), mega::CurlHttpIO::kWsHandshakeCancelledErr) << run.err();
-    EXPECT_LT(elapsedMs, 1500) << "preset stop flag not honoured promptly: " << elapsedMs << " ms";
+    EXPECT_LT(elapsedMs, mega::ws::kWsCurlPollSliceMs)
+        << "preset stop flag not honoured before the first libcurl call: " << elapsedMs << " ms";
+    EXPECT_FALSE(mBlackhole.waitForAccept(milliseconds(200)))
+        << "a handshake cancelled before its first libcurl call must not open a TCP connection";
 }
 
-// Control: without a stop flag the handshake is byte-identical to before and still ends by the
-// libcurl timeout with the generic error text (the serial/baton path passes nullptr).
+// Control: without a stop flag the handshake still ends by the libcurl timeout with the generic
+// error text (the serial/baton path passes nullptr). The SDK-owned loop adds at most one poll
+// slice of latency to CURLOPT_TIMEOUT_MS.
 TEST_F(WsHandshakeCancelTest, NoStopFlagStillTimesOut)
 {
     constexpr long kShortTimeoutMs = 1500;
@@ -166,10 +185,12 @@ TEST_F(WsHandshakeCancelTest, NoStopFlagStillTimesOut)
 
     const auto elapsedMs = msSince(startedAt, run.endedAt());
     EXPECT_FALSE(run.succeeded());
+    EXPECT_TRUE(run.paired());
     EXPECT_NE(run.err(), mega::CurlHttpIO::kWsHandshakeCancelledErr);
     EXPECT_NE(run.err().find("handshake failed"), std::string::npos) << run.err();
     EXPECT_GE(elapsedMs, 1000) << "timed out too early: " << elapsedMs << " ms";
-    EXPECT_LT(elapsedMs, 8000) << "CURLOPT_TIMEOUT_MS not honoured: " << elapsedMs << " ms";
+    EXPECT_LT(elapsedMs, kShortTimeoutMs + 2 * mega::ws::kWsCurlPollSliceMs)
+        << "CURLOPT_TIMEOUT_MS not honoured within one poll slice: " << elapsedMs << " ms";
 }
 
 // Plaintext ws://: TCP connects, libcurl sends the HTTP/1.1 Upgrade and waits for the 101 that
@@ -189,8 +210,49 @@ TEST_F(WsHandshakeCancelTest, StopFlagAbortsDuringWsUpgrade)
 
     const auto cancelMs = msSince(stopRequestedAt, run.endedAt());
     EXPECT_FALSE(run.succeeded());
+    EXPECT_TRUE(run.paired());
     EXPECT_EQ(run.err(), mega::CurlHttpIO::kWsHandshakeCancelledErr) << run.err();
     EXPECT_LT(cancelMs, 3000) << "cancellation took " << cancelMs << " ms";
+    EXPECT_LT(cancelMs, 3 * mega::ws::kWsCurlPollSliceMs)
+        << "cancellation took " << cancelMs << " ms; poll slice is " << mega::ws::kWsCurlPollSliceMs
+        << " ms";
+}
+
+// Teardown sequence of the handle pair (ws_curl_handles.h): destroying a pair is idempotent and
+// tolerates a half-initialised pair, so every failure branch in wsHandshake and every WsConn
+// teardown path can call it unconditionally.
+TEST(WsCurlHandlesTest, DestroyIsIdempotentAndTolerantOfPartialPairs)
+{
+    mega::ws::WsCurlHandles empty;
+    EXPECT_FALSE(static_cast<bool>(empty));
+    mega::ws::destroyWsCurlHandles(empty); // no-op
+    mega::ws::destroyWsCurlHandles(empty); // still a no-op
+
+    mega::ws::WsCurlHandles easyOnly;
+    easyOnly.easy = curl_easy_init();
+    ASSERT_NE(easyOnly.easy, nullptr);
+    mega::ws::destroyWsCurlHandles(easyOnly);
+    EXPECT_EQ(easyOnly.easy, nullptr);
+    EXPECT_EQ(easyOnly.multi, nullptr);
+
+    mega::ws::WsCurlHandles multiOnly;
+    multiOnly.multi = curl_multi_init();
+    ASSERT_NE(multiOnly.multi, nullptr);
+    mega::ws::destroyWsCurlHandles(multiOnly);
+    EXPECT_EQ(multiOnly.easy, nullptr);
+    EXPECT_EQ(multiOnly.multi, nullptr);
+
+    mega::ws::WsCurlHandles pair;
+    pair.easy = curl_easy_init();
+    pair.multi = curl_multi_init();
+    ASSERT_NE(pair.easy, nullptr);
+    ASSERT_NE(pair.multi, nullptr);
+    ASSERT_EQ(curl_multi_add_handle(pair.multi, pair.easy), CURLM_OK);
+    EXPECT_TRUE(static_cast<bool>(pair));
+    mega::ws::destroyWsCurlHandles(pair);
+    EXPECT_EQ(pair.easy, nullptr);
+    EXPECT_EQ(pair.multi, nullptr);
+    mega::ws::destroyWsCurlHandles(pair); // idempotent
 }
 
 #else

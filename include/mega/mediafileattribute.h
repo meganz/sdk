@@ -137,8 +137,11 @@ struct MEGA_API MediaProperties
     static bool isMediaFilenameExtAudio(const std::string& ext);
     static bool isMediaFilenameExt(const std::string& ext);
 
-    // Open the specified local file with mediainfoLib and get its video parameters.  This function fills in the names but not the IDs
-    void extractMediaPropertyFileAttributes(const LocalPath& localFilename, FileSystemAccess* fa);
+    // Open the specified local file with mediainfoLib and get its video parameters.  This function
+    // fills in the names but not the IDs.
+    // Returns false if the file could not be read or the parser threw; the properties are then
+    // left unset and no attribute should be attached.
+    bool extractMediaPropertyFileAttributes(const LocalPath& localFilename, FileSystemAccess* fa);
 
     // Look up the IDs of the codecs and container, and encode and encrypt all the info into a string with file attribute 8, and possibly file attribute 9.
     std::string convertMediaPropertyFileAttributes(uint32_t attributekey[4], MediaFileInfo& mediaInfo);
@@ -148,8 +151,13 @@ struct MEGA_API MediaProperties
     static StringPair getCoverFromId3v2(const T& file);
 #endif
 
-    std::string serialize();
+    std::string serialize() const;
     MediaProperties(const std::string& deserialize);
+
+    // Checked counterpart of the deserializing constructor: returns false on a truncated or
+    // malformed payload, leaving mp default-constructed rather than partly filled. Use this
+    // for data that crossed a process or version boundary.
+    static bool deserialize(const std::string& data, MediaProperties& mp);
 };
 
 #ifdef USE_MEDIAINFO

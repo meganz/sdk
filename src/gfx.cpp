@@ -31,6 +31,153 @@
 
 namespace mega {
 
+void GfxImageJob::execute(GfxProc& gfxProc)
+{
+    LOG_debug << "Processing thumbnail/preview for: " << h;
+
+    for (auto& image: gfxProc.generateImages(*this))
+    {
+        images.push_back(image.empty() ? nullptr : new string(std::move(image)));
+    }
+}
+
+void GfxImageJob::cleanup()
+{
+    for (auto& image: images)
+    {
+        delete image;
+    }
+}
+
+bool GfxImageJob::complete(GfxProc& gfxProc)
+{
+    bool needexec = false;
+    for (unsigned i = 0; i < images.size(); i++)
+    {
+        if (images[i])
+        {
+            LOG_debug << "Thumbnail/preview correctly processed. Attaching file attribute: " << h;
+
+            // thumbnail/preview has been extracted from the main image.
+            // Now we upload those to the file attribute servers
+            // The file attribute will either be added to an existing node
+            // or added to the eventual putnodes if this was started as part of an upload transfer
+            gfxProc.mCheckEventsKey.setkey(key);
+            if (gfxProc.client->putfa(h,
+                                      imagetypes[i],
+                                      &gfxProc.mCheckEventsKey,
+                                      0,
+                                      std::unique_ptr<string>(images[i])) != API_OK)
+            {
+                continue; // no needexec for this one
+            }
+        }
+        else
+        {
+            LOG_debug << "Unable to process thumbnail/preview: " << h;
+
+            if (h.isNodeHandle())
+            {
+                // This case is for the automatic "Restoring missing attributes" case (from syncup()
+                // or from download completion). It doesn't matter much if we can't do it App
+                // requests don't come by this route (they supply already generated
+                // preview/thumnnail) so no need to make any callbacks
+                LOG_warn << "Thumbnail/preview processing failed for existing Node";
+            }
+            else
+            {
+                if (auto it =
+                        gfxProc.client->fileAttributesUploading.lookupExisting(h.uploadHandle()))
+                {
+                    // reduce the number of required attributes to let the upload continue
+                    it->pendingfa.erase(imagetypes[i]);
+                    gfxProc.client->checkfacompletion(h.uploadHandle());
+                }
+                else
+                {
+                    LOG_debug << "Transfer related to thumbnail/preview not found: " << h;
+                }
+            }
+        }
+        needexec = true;
+    }
+    return needexec;
+}
+
+void GfxMediaJob::execute(GfxProc& gfxProc)
+{
+    extracted = gfxProc.mGfxProvider->generateMediaInfo(localfilename, mediaInfo);
+}
+
+bool GfxMediaJob::dropPendingAttribute(GfxProc& gfxProc)
+{
+    if (h.isNodeHandle())
+    {
+        // Nothing waits on an existing file's attribute.
+        return false;
+    }
+
+    const UploadHandle uh = h.uploadHandle();
+    if (auto it = gfxProc.client->fileAttributesUploading.lookupExisting(uh))
+    {
+        it->pendingfa.erase(fatype(fa_media));
+        gfxProc.client->checkfacompletion(uh);
+        return true;
+    }
+
+    LOG_debug << "Transfer related to media file not found: " << h;
+    return false;
+}
+
+bool GfxMediaJob::complete(GfxProc& gfxProc)
+{
+    if (!extracted)
+    {
+        LOG_debug << "Media info extraction failed, not attaching the attribute: " << h;
+        return dropPendingAttribute(gfxProc);
+    }
+
+#ifdef USE_MEDIAINFO
+    if (!h.isNodeHandle())
+    {
+        UploadHandle uh{h.uploadHandle()};
+        UploadWaitingForFileAttributes* uploadFAPtr =
+            gfxProc.client->fileAttributesUploading.lookupExisting(uh);
+        if (uploadFAPtr == nullptr)
+        {
+            // The transfer is gone - cancelled, failed, or already resolved - so nothing is
+            // waiting on this attribute.
+            LOG_debug << "No attributes found for handle " << uh;
+            return false;
+        }
+        if (!gfxProc.client->mediaFileInfo.queueMediaPropertiesFileAttributesForUpload(
+                mediaInfo,
+                fakey,
+                gfxProc.client,
+                uh,
+                uploadFAPtr->transfer))
+        {
+            // The codec mappings request failed after the upload registered this attribute as
+            // pending. mediaCodecsFailed is never cleared, so nothing will ever be queued for
+            // it. Release the upload.
+            LOG_debug << "Media attribute cannot be encoded, not attaching it: " << h;
+            return dropPendingAttribute(gfxProc);
+        }
+    }
+    else
+    {
+        gfxProc.client->mediaFileInfo.sendOrQueueMediaPropertiesFileAttributesForExistingFile(
+            mediaInfo,
+            fakey,
+            gfxProc.client,
+            h.nodeHandle());
+    }
+#endif // USE_MEDIAINFO
+    return true;
+}
+
+void GfxMediaJob::cleanup() {}
+
 // from low resolution to high resolution. gendimensionsputfa relies on this order.
 const std::vector<GfxDimension> GfxProc::DIMENSIONS = {
     { 200, 0 },     // THUMBNAIL: square thumbnail, cropped from near center
@@ -77,7 +224,7 @@ void *GfxProc::threadEntryPoint(void *param)
     return NULL;
 }
 
-std::vector<GfxDimension> GfxProc::getJobDimensions(const GfxJob& job) const
+std::vector<GfxDimension> GfxProc::getJobDimensions(const GfxImageJob& job) const
 {
     std::vector<GfxDimension> jobDimensions;
 
@@ -105,13 +252,7 @@ void GfxProc::loop()
                 break;
             }
 
-            LOG_debug << "Processing media file: " << job->h;
-
-            auto images = generateImages(*job);
-            for (auto& image : images)
-            {
-                job->images.push_back(image.empty() ? nullptr : new string(std::move(image)));
-            }
+            job->execute(*this);
 
             responses.push(job);
             client->waiter->notify();
@@ -125,10 +266,7 @@ void GfxProc::loop()
 
     while ((job = responses.pop()) != nullptr)
     {
-        for (unsigned i = 0; i < job->imagetypes.size(); i++)
-        {
-            delete job->images[i];
-        }
+        job->cleanup();
         delete job;
     }
 }
@@ -144,53 +282,7 @@ int GfxProc::checkevents(Waiter *)
     bool needexec = false;
     while ((job = responses.pop()) != nullptr)
     {
-        for (unsigned i = 0; i < job->images.size(); i++)
-        {
-            if (job->images[i])
-            {
-                LOG_debug << "Media file correctly processed. Attaching file attribute: " << job->h;
-
-                // thumbnail/preview has been extracted from the main image.
-                // Now we upload those to the file attribute servers
-                // The file attribute will either be added to an existing node
-                // or added to the eventual putnodes if this was started as part of an upload transfer
-                mCheckEventsKey.setkey(job->key);
-                if (client->putfa(job->h,
-                                  job->imagetypes[i],
-                                  &mCheckEventsKey,
-                                  0,
-                                  std::unique_ptr<string>(job->images[i])) != API_OK)
-                {
-                    continue; // no needexec for this one
-                }
-            }
-            else
-            {
-                LOG_debug << "Unable to process media file: " << job->h;
-
-                if (job->h.isNodeHandle())
-                {
-                    // This case is for the automatic "Restoring missing attributes" case (from syncup() or from download completion).
-                    // It doesn't matter much if we can't do it
-                    // App requests don't come by this route (they supply already generated preview/thumnnail) so no need to make any callbacks
-                    LOG_warn << "Media file processing failed for existing Node";
-                }
-                else
-                {
-                    if (auto it = client->fileAttributesUploading.lookupExisting(job->h.uploadHandle()))
-                    {
-                        // reduce the number of required attributes to let the upload continue
-                        it->pendingfa.erase(job->imagetypes[i]);
-                        client->checkfacompletion(job->h.uploadHandle());
-                    }
-                    else
-                    {
-                        LOG_debug << "Transfer related to media file not found: " << job->h;
-                    }
-                }
-            }
-            needexec = true;
-        }
+        needexec |= job->complete(*this);
         delete job;
     }
 
@@ -241,6 +333,17 @@ std::vector<std::string>
     }
 
     return images;
+}
+
+bool IGfxLocalProvider::generateMediaInfo([[maybe_unused]] LocalPath& path,
+                                          [[maybe_unused]] MediaProperties& properties)
+{
+#ifdef USE_MEDIAINFO
+    mega::FSACCESS_CLASS fs;
+    return properties.extractMediaPropertyFileAttributes(path, &fs);
+#else
+    return false;
+#endif
 }
 
 void IGfxLocalProvider::transform(int& w, int& h, int& rw, int& rh, int& px, int& py)
@@ -295,7 +398,7 @@ int GfxProc::gendimensionsputfa(const std::string& conceptualname,
 {
     LOG_debug << "Creating thumb/preview for " << localfilename << "(" << conceptualname << ")";
 
-    GfxJob *job = new GfxJob();
+    GfxImageJob* job = new GfxImageJob();
     job->h = th;
     memcpy(job->key, key->key, SymmCipher::KEYLENGTH);
     job->localfilename = localfilename;
@@ -322,7 +425,20 @@ int GfxProc::gendimensionsputfa(const std::string& conceptualname,
     return generatingAttrs;
 }
 
-std::vector<std::string> GfxProc::generateImages(const GfxJob& job)
+int GfxProc::genmediainfoputfa(const LocalPath& path, NodeOrUploadHandle nh, const uint32_t* fakey)
+{
+    LOG_debug << "Creating mediainfo for " << path;
+
+    GfxMediaJob* job = new GfxMediaJob();
+    job->h = nh;
+    memcpy(job->fakey, fakey, sizeof(job->fakey));
+    job->localfilename = path;
+    requests.push(job);
+    waiter.notify();
+    return 0;
+}
+
+std::vector<std::string> GfxProc::generateImages(const GfxImageJob& job)
 {
     auto dimensions = getJobDimensions(job);
 
@@ -423,11 +539,6 @@ GfxJob *GfxJobQueue::pop()
     jobs.pop_front();
     mutex.unlock();
     return job;
-}
-
-GfxJob::GfxJob()
-{
-
 }
 
 bool isSupportedFormat(SupportedFormatsCallback callback, const std::string& name)

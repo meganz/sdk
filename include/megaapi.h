@@ -16146,16 +16146,24 @@ class MegaApi
          * - MegaRequest::getText - Returns the text for the attribute
          * - MegaRequest::getFlag - Returns false (not official attribute)
          *
-         * The attribute name must be an UTF8 string with between 1 and 7 bytes
+         * The attribute name must be 1 to 7 printable ASCII characters, that is 0x20 to 0x7E,
+         * and it can't contain '"' or '\'. The name is used verbatim as a JSON object key when
+         * the node's attributes are serialized internally, and that serialization neither
+         * escapes the key nor preserves bytes outside that range, so any other name would
+         * corrupt every attribute of the node, not only this one.
          * If the attribute already has a value, it will be replaced
          * If value is NULL, the attribute will be removed from the node
          *
-         * If the MEGA account is a business account and it's status is expired, onRequestFinish will
-         * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         * If the MEGA account is a business account and it's status is expired, onRequestFinish
+         * will be called with the error code MegaError::API_EBUSINESSPASTDUE.
+         *
+         * If attrName is invalid (wrong length, or contains a disallowed character), this
+         * request will fail with MegaError::API_EARGS.
          *
          * @param node Node that will receive the attribute
          * @param attrName Name of the custom attribute.
-         * The length of this parameter must be between 1 and 7 UTF8 bytes
+         * This parameter must be 1 to 7 printable ASCII characters (0x20 to 0x7E), and it
+         * can't contain '"' or '\'
          * @param value Value for the attribute
          * @param listener MegaRequestListener to track this request
          */
@@ -18681,6 +18689,23 @@ class MegaApi
          * Please avoid calling this method when logged in.
          */
         void resumeTransfersForNotLoggedInInstance();
+
+        /**
+         * @brief Enable or disable auto-resumption of cached transfers at SDK start
+         *
+         * By default the SDK resumes any transfers persisted in its cache once nodes are fetched.
+         * When disabled, those transfers stay persisted but are not resumed on this run, so a
+         * later run with resumption enabled can still resume them. Useful for short-lived clients
+         * (e.g. one-shot CLI commands) that should not revive incomplete transfers left over from
+         * a previous run.
+         *
+         * Call this before fetchnodes: cached transfers are resumed as soon as nodes become
+         * available, so a later call cannot un-resume them. Once set, the value stays in effect
+         * for the lifetime of this MegaApi instance - fetchnodes and local logout do not reset it.
+         *
+         * @param enable True to auto-resume cached transfers at start (default), false to skip.
+         */
+        void setAutoResumeTransfers(bool enable);
 
         /**
          * @deprecated This version of the function is deprecated. Please, use \c setMaxUploadSpeed.
@@ -24382,13 +24407,18 @@ class MegaApi
          */
         void getMegaAchievements(MegaRequestListener *listener = NULL);
 
-       /**
+        /**
          * @brief Catch up with API for pending actionpackets
          *
          * The associated request type with this request is MegaRequest::TYPE_CATCHUP
          *
          * When onRequestFinish is called with MegaError::API_OK, the SDK is guaranteed to be
          * up to date (as for the time this function is called).
+         *
+         * This request requires a session: it is answered on the server-client channel, so
+         * calling it before login finishes it with MegaError::API_EACCESS. Note the channel only
+         * starts once MegaApi::fetchNodes has succeeded, so a catchup issued between login and
+         * fetchnodes stays pending until then.
          *
          * @param listener MegaRequestListener to track this request
          */

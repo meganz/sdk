@@ -18,7 +18,6 @@ pipeline {
         choice(name: 'DISTRO',
             choices: [
                 'ubuntu:24.04', // Default value
-                'debian:11',
                 'debian:12',
                 'debian:13',
                 'debian:testing',
@@ -26,11 +25,11 @@ pipeline {
                 'almalinux:9',
                 'centos:stream9',
                 'opensuse/leap:16.0',
+                'opensuse/leap:16.1',
                 'opensuse/tumbleweed',
                 'ubuntu:24.04',
-                'ubuntu:25.10',
-                'fedora:43',
-                'fedora:44'
+                'fedora:44',
+                'fedora:45'
             ],
             description: 'Distribution to build')
     }

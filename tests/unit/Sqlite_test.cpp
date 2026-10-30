@@ -9,7 +9,9 @@
 #include <mega/db/sqlite.h>
 #include <mega/localpath.h>
 
+#include <algorithm>
 #include <array>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <mega.h>
@@ -477,6 +479,84 @@ std::set<std::string> readNodesIndexSet(const std::string& dbPath)
     }
     sqlite3_finalize(stmt);
     return idx;
+}
+
+// Stand-ins for the SDK's SQL functions and collation, so a raw connection can compile
+// statements over the nodes table's generated columns and create indexes on them.
+// Values never matter here: the tests only EXPLAIN, or build indexes the code under test drops.
+void registerNodeTableStubs(sqlite3* db)
+{
+    const auto stub = [](sqlite3_context* ctx, int, sqlite3_value**)
+    {
+        sqlite3_result_int(ctx, 0);
+    };
+    for (const char* name: {"getmimetype",
+                            "getfilesubtype",
+                            "getFingerprintExcludingMtime",
+                            "getSizeFromNodeCounter"})
+    {
+        sqlite3_create_function(db,
+                                name,
+                                1,
+                                SQLITE_UTF8 | SQLITE_DETERMINISTIC,
+                                nullptr,
+                                stub,
+                                nullptr,
+                                nullptr);
+    }
+    sqlite3_create_collation(db,
+                             "NATURALNOCASE",
+                             SQLITE_UTF8,
+                             nullptr,
+                             [](void*, int l1, const void* a, int l2, const void* b) -> int
+                             {
+                                 const int c =
+                                     std::memcmp(a, b, static_cast<size_t>(std::min(l1, l2)));
+                                 return c != 0 ? c : l1 - l2;
+                             });
+}
+
+// Column names of `index`, in key order.
+std::vector<std::string> readIndexColumns(const std::string& dbPath, const std::string& index)
+{
+    std::vector<std::string> cols;
+    auto [dbGuard, openRc] = openSqliteRaw(dbPath);
+    if (openRc != SQLITE_OK)
+        return cols;
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(dbGuard.get(),
+                           "SELECT name FROM pragma_index_info(?) ORDER BY seqno",
+                           -1,
+                           &stmt,
+                           nullptr) == SQLITE_OK)
+    {
+        sqlite3_bind_text(stmt, 1, index.c_str(), -1, SQLITE_TRANSIENT);
+        while (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            if (const auto* name = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 0)))
+                cols.emplace_back(name);
+        }
+    }
+    sqlite3_finalize(stmt);
+    return cols;
+}
+
+// The `detail` column of EXPLAIN QUERY PLAN, one entry per plan row.
+std::vector<std::string> explainQueryPlan(sqlite3* db, const std::string& sql)
+{
+    std::vector<std::string> rows;
+    sqlite3_stmt* stmt = nullptr;
+    if (sqlite3_prepare_v2(db, ("EXPLAIN QUERY PLAN " + sql).c_str(), -1, &stmt, nullptr) ==
+        SQLITE_OK)
+    {
+        while (sqlite3_step(stmt) == SQLITE_ROW)
+        {
+            if (const auto* detail = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 3)))
+                rows.emplace_back(detail);
+        }
+    }
+    sqlite3_finalize(stmt);
+    return rows;
 }
 
 // Path of the node statecache DB under `dir`. A MegaClient creates several ".db" files (nodes
@@ -2923,6 +3003,22 @@ struct IndexTestClient
     {
         return findNodesDbFile(dir);
     }
+
+    // Builds every index and commits, as a DB written by the current SDK. Returns the node DB
+    // path, or empty if there is none; a non-SQLite sctable also records a test failure.
+    std::string createAllIndexesAndCommit()
+    {
+        auto* sa = dynamic_cast<SqliteAccountState*>(client->sctable.get());
+        if (!sa)
+        {
+            ADD_FAILURE() << "sctable is not a SqliteAccountState";
+            return {};
+        }
+        sa->createIndexes(/*enableIndexesForSearching=*/true,
+                          /*enableIndexesForLexicographicalList=*/true);
+        commit();
+        return dbFile();
+    }
 };
 
 TEST(Sqlite, ResumeCreatesMissingIndexesOnExistingDb)
@@ -2932,13 +3028,9 @@ TEST(Sqlite, ResumeCreatesMissingIndexesOnExistingDb)
     // first createIndexes() is persisted by commit() (also required so dropSearchDBIndexes() finds
     // no open transaction); the drop and the resume loadNodes() then run in auto-commit.
     IndexTestClient c("resume_creates_indexes_test", /*search=*/true, /*lexi=*/true);
-    auto* sa = dynamic_cast<SqliteAccountState*>(c.client->sctable.get());
-    ASSERT_TRUE(sa) << "sctable is not a SqliteAccountState";
 
     // A DB written by the current SDK has every index.
-    sa->createIndexes(/*enableSearch=*/true, /*enableLexi=*/true);
-    c.commit();
-    const std::string dbFile = c.dbFile();
+    const std::string dbFile = c.createAllIndexesAndCommit();
     ASSERT_FALSE(dbFile.empty()) << "node DB file not found under " << c.dir;
 
     // Simulate a DB written by an older SDK that lacked the search indexes.
@@ -3017,6 +3109,148 @@ TEST(Sqlite, ResumeRespectsIndexEnableFlags)
         EXPECT_EQ(1u, set.count("listallnodesdefaultidx"))
             << "search index missing despite search=on";
         EXPECT_EQ(1u, set.count("lexicographics3keyindex")) << "lexi index missing despite lexi=on";
+    }
+}
+
+namespace
+{
+const std::vector<std::string> kNarrowTimestampIndexDdl{
+    "CREATE INDEX IF NOT EXISTS listallnodesmtimeidx on nodes "
+    "(mimetypeVirtual, mtime, name COLLATE NATURALNOCASE, nodehandle)",
+    "CREATE INDEX IF NOT EXISTS listallnodesmediatsidx on nodes "
+    "(mimetypeVirtual, mediats, name COLLATE NATURALNOCASE, nodehandle)",
+};
+} // namespace
+
+TEST(Sqlite, ResumeReplacesNarrowListAllTimestampIndexes)
+{
+    IndexTestClient c("resume_replaces_timestamp_indexes_test",
+                      /*enableSearch=*/true,
+                      /*enableLexi=*/true);
+    const std::string dbFile = c.createAllIndexesAndCommit();
+    ASSERT_FALSE(dbFile.empty()) << "node DB file not found under " << c.dir;
+
+    // Recreate a DB written by an older SDK: the narrow indexes, not the scope ones.
+    {
+        auto [raw, rc] = openSqliteRaw(dbFile);
+        ASSERT_EQ(rc, SQLITE_OK);
+        registerNodeTableStubs(raw.get());
+        for (const char* drop: {"DROP INDEX IF EXISTS listallnodesmtimescopeidx",
+                                "DROP INDEX IF EXISTS listallnodesmediatsscopeidx"})
+            ASSERT_EQ(sqlite3_exec(raw.get(), drop, nullptr, nullptr, nullptr), SQLITE_OK) << drop;
+        for (const auto& ddl: kNarrowTimestampIndexDdl)
+            ASSERT_EQ(sqlite3_exec(raw.get(), ddl.c_str(), nullptr, nullptr, nullptr), SQLITE_OK)
+                << ddl;
+    }
+
+    ASSERT_TRUE(c.client->mNodeManager.loadNodes());
+
+    const auto idx = readNodesIndexSet(dbFile);
+    EXPECT_EQ(0u, idx.count("listallnodesmtimeidx"));
+    EXPECT_EQ(0u, idx.count("listallnodesmediatsidx"));
+    EXPECT_EQ(readIndexColumns(dbFile, "listallnodesmtimescopeidx"),
+              (std::vector<std::string>{"mimetypeVirtual",
+                                        "mtime",
+                                        "name",
+                                        "nodehandle",
+                                        "parenthandle",
+                                        "flags"}));
+    EXPECT_EQ(readIndexColumns(dbFile, "listallnodesmediatsscopeidx"),
+              (std::vector<std::string>{"mimetypeVirtual",
+                                        "mediats",
+                                        "name",
+                                        "nodehandle",
+                                        "parenthandle",
+                                        "flags"}));
+}
+
+TEST(Sqlite, DropSearchIndexesRemovesOldAndNewTimestampIndexes)
+{
+    IndexTestClient c("drop_search_timestamp_indexes_test",
+                      /*enableSearch=*/true,
+                      /*enableLexi=*/true);
+    const std::string dbFile = c.createAllIndexesAndCommit();
+    ASSERT_FALSE(dbFile.empty()) << "node DB file not found under " << c.dir;
+
+    // Leftover narrow indexes from an older SDK, next to the current ones.
+    {
+        auto [raw, rc] = openSqliteRaw(dbFile);
+        ASSERT_EQ(rc, SQLITE_OK);
+        registerNodeTableStubs(raw.get());
+        for (const auto& ddl: kNarrowTimestampIndexDdl)
+            ASSERT_EQ(sqlite3_exec(raw.get(), ddl.c_str(), nullptr, nullptr, nullptr), SQLITE_OK)
+                << ddl;
+    }
+
+    c.client->mNodeManager.dropSearchDBIndexes();
+
+    const auto idx = readNodesIndexSet(dbFile);
+    for (const char* name: {"listallnodesmtimeidx",
+                            "listallnodesmediatsidx",
+                            "listallnodesmtimescopeidx",
+                            "listallnodesmediatsscopeidx"})
+        EXPECT_EQ(0u, idx.count(name)) << name;
+}
+
+TEST(Sqlite, DateSectionQueryUsesScopeIndexOnce)
+{
+    // Older SQLite neither materialises a twice-used CTE on its own nor accepts the
+    // MATERIALIZED hint, so the plan asserted below exists only from 3.35 on.
+    if (sqlite3_libversion_number() < 3035000)
+        GTEST_SKIP() << "needs SQLite 3.35+, have " << sqlite3_libversion();
+
+    IndexTestClient c("date_section_plan_test", /*enableSearch=*/true, /*enableLexi=*/true);
+    const std::string dbFile = c.createAllIndexesAndCommit();
+    ASSERT_FALSE(dbFile.empty()) << "node DB file not found under " << c.dir;
+    auto [raw, rc] = openSqliteRaw(dbFile);
+    ASSERT_EQ(rc, SQLITE_OK);
+    registerNodeTableStubs(raw.get());
+
+    // Both orders × simple and grouped mime × hide-sensitive and excludes, each on or off.
+    struct ScopeCase
+    {
+        bool excludeSensitive;
+        size_t numExcludes;
+    };
+
+    for (const int order: {OrderByClause::MTIME_DESC, OrderByClause::MEDIATS_DESC})
+    {
+        const std::string index = order == OrderByClause::MTIME_DESC ?
+                                      "listallnodesmtimescopeidx" :
+                                      "listallnodesmediatsscopeidx";
+        for (const MimeType_t mime: {MIME_TYPE_PHOTO, MIME_TYPE_ALL_VISUAL_MEDIA})
+        {
+            for (const ScopeCase sc:
+                 {ScopeCase{false, 0}, ScopeCase{true, 0}, ScopeCase{false, 1}, ScopeCase{true, 1}})
+            {
+                DateSectionParams p;
+                p.mimeType = mime;
+                p.order = order;
+                p.granularity = DateSectionGranularity::Month;
+                p.excludeSensitive = sc.excludeSensitive;
+                p.excludeHandles.assign(sc.numExcludes, NodeHandle().set6byte(1));
+
+                const auto plan = explainQueryPlan(raw.get(), buildDateSectionQuery(p, 1));
+                const auto where = ::testing::Message()
+                                   << "order " << order << ", mime " << mime << ", hide sensitive "
+                                   << sc.excludeSensitive << ", excludes " << sc.numExcludes;
+                ASSERT_FALSE(plan.empty()) << "EXPLAIN failed: " << where;
+
+                size_t candidateScans = 0;
+                size_t onScopeIndex = 0;
+                bool materialized = false;
+                for (const auto& row: plan)
+                {
+                    candidateScans += row.rfind("SEARCH n ", 0) == 0 || row.rfind("SCAN n", 0) == 0;
+                    // "INDEX <name>" also matches a future "USING COVERING INDEX <name>".
+                    onScopeIndex += row.find("INDEX " + index) != std::string::npos;
+                    materialized |= row == "MATERIALIZE candidates";
+                }
+                EXPECT_EQ(candidateScans, 1u) << where;
+                EXPECT_EQ(onScopeIndex, 1u) << where;
+                EXPECT_TRUE(materialized) << where;
+            }
+        }
     }
 }
 

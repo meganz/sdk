@@ -69,6 +69,12 @@ namespace mega {
 class ClientPrefsStore;
 class Logger;
 struct NetworkConnectivityTestResults;
+#ifdef MEGA_USE_WSUPLOAD
+namespace ws
+{
+struct WsCurlHandles; // mega/transfer/ws/ws_curl_handles.h (keeps curl headers out of here)
+}
+#endif
 
 class MEGA_API FetchNodesStats
 {
@@ -739,12 +745,14 @@ public:
     void wsPostTransferUpdate(Transfer* t,
                               std::function<void(Transfer&, TransferDbCommitter&)>&& f);
     // Internal WS helper: performs the HttpIO WS handshake on the calling thread (a pool worker
-    // for parallel handshakes, the client thread for the serial path). stopFlag, when given, is
-    // polled inside libcurl so the handshake aborts once the engine is stopping.
-    void* wsHandshakeForUpload(const std::string& url,
-                               long timeoutMs,
-                               std::string* err,
-                               const std::atomic<bool>* stopFlag);
+    // for parallel handshakes, the client thread for the serial path) and returns the
+    // connection's libcurl handle pair (ws_curl_handles.h; empty on failure). stopFlag, when
+    // given, is checked between libcurl calls so the handshake returns promptly once the
+    // engine is stopping.
+    ws::WsCurlHandles wsHandshakeForUpload(const std::string& url,
+                                           long timeoutMs,
+                                           std::string* err,
+                                           const std::atomic<bool>* stopFlag);
 #endif
     Error sendABTestActive(const char* flag, CommandABTestActive::Completion completion);
 
@@ -1610,6 +1618,12 @@ public:
 
     // close server-client HTTP connection
     void catchup();
+
+    // true while the engine still owes a catchup_result
+    bool hasPendingCatchUps() const
+    {
+        return mPendingCatchUps > 0;
+    }
     // abort lock request
     void abortlockrequest();
 
@@ -2276,6 +2290,9 @@ public:
 
     void resumeTransfersForNotLoggedInInstance();
     void resumeTransferFromDB();
+
+    // When false, cached transfers are kept persisted but not auto-resumed at boot
+    bool mAutoResumeTransfers = true;
 
     // application callbacks
     struct MegaApp* app;

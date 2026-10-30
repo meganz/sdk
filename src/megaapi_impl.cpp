@@ -1291,7 +1291,7 @@ bool MegaBackgroundMediaUploadPrivate::analyseMediaInfo([[maybe_unused]] const c
     {
         mediaproperties.extractMediaPropertyFileAttributes(localfilename, api->fsAccess.get());
 
-        // cause the codec IDs to be looked up before serialization. Codec names are not serialized, just the codec IDs
+        // cause the codec IDs to be looked up before the attribute string is built
         uint32_t dummykey[4];
         mediaproperties.convertMediaPropertyFileAttributes(dummykey, api->client->mediaFileInfo);
     }
@@ -2325,16 +2325,29 @@ MegaNode::PasswordNodeData* MegaNodePrivate::getPasswordData() const
 {
     if (isPasswordNode())
     {
+        const char* const pwmAttr = getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER);
+        assert(pwmAttr); // guaranteed by isPasswordNode(), and dereferenced unconditionally below
+
         AttrMap aux;
-        aux.fromjson(getOfficialAttr(MegaClient::NODE_ATTR_PASSWORD_MANAGER));
-        constexpr auto totpNameid = AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP);
+        aux.fromjson(pwmAttr);
+
+        // Every other value of this object is a string that was escaped when it was serialized,
+        // so the fromjson() above unescapes it back. The totp value is a nested JSON object that
+        // preparePasswordManagerNodeData() appends verbatim instead, so that unescaping is one
+        // too many for it and would eat the escapes of the values it holds. Take it from the
+        // parent attribute again, which is what getComplexNestedJsonObject() is for.
+        AttrMap pwmAttrMap;
+        pwmAttrMap.map[AttrMap::string2nameid(MegaClient::NODE_ATTR_PASSWORD_MANAGER)] = pwmAttr;
+        const auto totpData =
+            pwmAttrMap.getComplexNestedJsonObject(MegaClient::NODE_ATTR_PASSWORD_MANAGER,
+                                                  MegaClient::PWM_ATTR_PASSWORD_TOTP);
 
         std::optional<PNDataPrivate::TotpDataPrivate> totp{};
-        if (aux.map.contains(totpNameid))
+        if (totpData)
         {
             AttrMap auxTotp;
             auxTotp.fromjsonObject(
-                aux.map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
+                totpData->map.at(AttrMap::string2nameid(MegaClient::PWM_ATTR_PASSWORD_TOTP)));
             totp = PNDataPrivate::TotpDataPrivate::fromMap(auxTotp);
         }
 
@@ -9954,6 +9967,27 @@ bool MegaApiImpl::isScheduleNotifiable(MegaPushNotificationSettingsPrivate* push
     }
 }
 
+void MegaApiImpl::abortScRequests(const error e)
+{
+    // bounded, so that a listener re-queuing a catchup from its callback cannot feed the loop
+    for (size_t remaining = scRequestQueue.size(); remaining; --remaining)
+    {
+        MegaRequestPrivate* scRequest = scRequestQueue.pop();
+        if (!scRequest)
+        {
+            break;
+        }
+
+        // keep it reachable for removeRequestListener while its callbacks run
+        const auto scopedRetaining = scRequestQueue.scopedRetainingRequest(scRequest);
+        if (!scRequest->getTag()) // never dispatched, so it was never started either
+        {
+            fireOnRequestStart(scRequest);
+        }
+        fireOnRequestFinish(scRequest, std::make_unique<MegaErrorPrivate>(e));
+    }
+}
+
 // clears backups/requests/transfers notifying failure with EACCESS (and resets total up/down bytes)
 void MegaApiImpl::abortPendingActions(error preverror)
 {
@@ -9987,6 +10021,8 @@ void MegaApiImpl::abortPendingActions(error preverror)
         fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(preverror));
     }
     requestMap.clear();
+
+    abortScRequests(preverror);
 
     // -- Transfers in progress --
     {
@@ -17830,12 +17866,16 @@ void MegaApiImpl::checkLastPurgeNotification()
 
 void MegaApiImpl::catchup_result()
 {
-    // sc requests are sent sequentially, it must be the one at front and already started (tag == 1)
+    // sc requests are sent sequentially, it must be the one at front and already started (tag
+    // assigned)
     MegaRequestPrivate *request = scRequestQueue.front();
     if (!request || (request->getType() != MegaRequest::TYPE_CATCHUP) || !request->getTag()) return;
     request = scRequestQueue.pop();
 
-    fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+    {
+        const auto scopedRetaining = scRequestQueue.scopedRetainingRequest(request);
+        fireOnRequestFinish(request, std::make_unique<MegaErrorPrivate>(API_OK));
+    }
 
     // if there are more sc requests in the queue, send the next one
     if (scRequestQueue.front())
@@ -18418,6 +18458,7 @@ bool MegaApiImpl::removeRequestListener(MegaRequestListener* listener)
     }
 
     requestQueue.removeListener(listener);
+    scRequestQueue.removeListener(listener);
 
     return removed;
 }
@@ -21558,16 +21599,34 @@ static error updateAttributesMapWithCoordinates(attr_map& attrUpdates, int latit
 
 void MegaApiImpl::sendPendingScRequest()
 {
-    MegaRequestPrivate *request = scRequestQueue.front();
-    if (!request || request->getTag())
-    {
+    if (!scRequestQueue.front()) // lock free fast path, the queue has its own mutex
         return;
-    }
+
+    SdkMutexGuard g(sdkMutex);
+    MegaRequestPrivate *request = scRequestQueue.front();
+    if (!request)
+        return;
     assert(request->getType() == MegaRequest::TYPE_CATCHUP);
 
-    SdkMutexGuard g(sdkMutex);;
+    // catchup completes off the sc channel, which no session will ever bring up, so none of the
+    // queued requests can make progress either
+    if (client->loggedin() == NOTLOGGEDIN && !client->loggedIntoFolder())
+    {
+        abortScRequests(API_EACCESS);
+        return;
+    }
 
-    request->setTag(1);
+    if (request->getTag())
+    {
+        // The engine dropped our registration, so re-register here
+        if (!client->hasPendingCatchUps())
+        {
+            client->catchup();
+        }
+        return;
+    }
+
+    request->setTag(client->nextreqtag());
     fireOnRequestStart(request);
     client->catchup();
 }
@@ -24189,7 +24248,29 @@ error MegaApiImpl::performRequest_setAttrNode(MegaRequestPrivate* request)
 
         string sname = attrName;
         LocalPath::utf8_normalize(&sname);
+
+        // utf8_normalize() empties the whole string when the name is not valid UTF-8. Without
+        // this check the name would quietly become a bare "_", so every invalid name would be
+        // stored as the same attribute and overwrite the one stored before it.
+        if (sname.empty())
+        {
+            LOG_err << logPre << "attrName is not valid UTF-8: " << attrName;
+            return API_EARGS;
+        }
+
         sname.insert(0, "_");
+
+        // attrName becomes a raw (unescaped) JSON object key when the node's AttrMap is
+        // serialized for the encrypted "at" node attribute, so a name that cannot be used as
+        // such a key would corrupt the JSON of all of this node's attributes, not just of this
+        // one. The check runs on the normalized name, because that is what ends up in the JSON:
+        // normalization can both make the name longer and give it bytes it did not have before.
+        if (!AttrMap::isValidJsonKey(sname))
+        {
+            LOG_err << logPre << "attrName cannot be used as a JSON key: " << attrName;
+            return API_EARGS;
+        }
+
         nameid attr = AttrMap::string2nameid(sname.c_str());
 
         if (attrValue)
@@ -25038,6 +25119,12 @@ void MegaApiImpl::resumeTransfersForNotLoggedInInstance()
 {
     SdkMutexGuard g(sdkMutex);
     client->resumeTransfersForNotLoggedInInstance();
+}
+
+void MegaApiImpl::setAutoResumeTransfers(bool enable)
+{
+    SdkMutexGuard g(sdkMutex);
+    client->mAutoResumeTransfers = enable;
 }
 
 error MegaApiImpl::performTransferRequest_moveTransfer(MegaRequestPrivate* request, TransferDbCommitter& committer)
@@ -31261,6 +31348,12 @@ MegaRequestPrivate *RequestQueue::pop()
     return request;
 }
 
+size_t RequestQueue::size()
+{
+    std::lock_guard<std::mutex> g(mutex);
+    return requests.size();
+}
+
 MegaRequestPrivate *RequestQueue::front()
 {
     std::lock_guard<std::mutex> g(mutex);
@@ -36403,8 +36496,6 @@ MegaTCPServer::MegaTCPServer(MegaApiImpl* megaApi,
 #ifdef ENABLE_EVT_TLS
     this->certificatepath = certificatepath;
     this->keypath = keypath;
-    this->closing = false;
-    this->remainingcloseevents = 0;
     this->evtrequirescleaning = false;
 #endif
     fsAccess = mega::createFSA();
@@ -36906,25 +36997,21 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         return;
     }
 
-    // Create an object to save context information
-    auto tcpctx = ((MegaTCPServer*)server_handle->data)->initializeContext(server_handle);
-
-    LOG_debug << "Connection received at port " << tcpctx->server->port << " ! " << tcpctx->server->connections.size();
-
-    // Async handle to perform writes
-    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
-
-    // Accept the connection
-    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
-    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
+    auto tcpctx = ((MegaTCPServer*)server_handle->data)->acceptIncomingConnection(server_handle);
+    if (!tcpctx)
     {
-        LOG_err << "uv_accept failed";
-        onClose((uv_handle_t*)&tcpctx->tcphandle);
         return;
     }
 
     tcpctx->evt_tls = evt_ctx_get_tls(&tcpctx->server->evtctx);
-    assert(tcpctx->evt_tls != NULL);
+    if (!tcpctx->evt_tls)
+    {
+        // Out of memory, or the SSL object or its BIO pair could not be created
+        LOG_err << "Could not create the TLS session for the new connection";
+        closeTCPConnection(tcpctx.get());
+        return;
+    }
+
     tcpctx->evt_tls->data = tcpctx.get();
     if (evt_tls_accept(tcpctx->evt_tls, on_hd_complete))
     {
@@ -36932,8 +37019,6 @@ void MegaTCPServer::onNewClient_tls(uv_stream_t *server_handle, int status)
         evt_tls_close(tcpctx->evt_tls, on_evt_tls_close);
         return;
     }
-
-    tcpctx->server->connections.add(tcpctx);
 
     tcpctx->server->readData(tcpctx.get());
 }
@@ -36955,6 +37040,57 @@ void MegaTCPServer::readData(MegaTCPContext* tcpctx)
 #endif
 }
 
+MegaTCPContextPtr MegaTCPServer::acceptIncomingConnection(uv_stream_t* server_handle)
+{
+    // Create an object to save context information
+    auto tcpctx = initializeContext(server_handle);
+
+    LOG_debug << "Connection received at port " << tcpctx->server->port << "! "
+              << tcpctx->server->connections.size() << " tcpctx = " << tcpctx.get();
+
+    // Take ownership before registering any libuv handle, so the asynchronous
+    // close callbacks can always find and keep the context alive on teardown
+    if (!tcpctx->server->connections.add(tcpctx))
+    {
+        assert(false);
+        LOG_err << "Adding tcpctx to connections failed";
+        return nullptr;
+    }
+
+    // These initialisations cannot fail on an already running loop. The loop
+    // async watcher was created at server start up so uv_async_init does not
+    // allocate anything here, and a tcp handle created with AF_UNSPEC does not
+    // allocate a socket. Tearing down a handle that was never initialised would
+    // be undefined behaviour, so assert rather than run the close machinery
+    [[maybe_unused]] const int asyncInitResult =
+        uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
+    assert(asyncInitResult == 0);
+
+    [[maybe_unused]] const int tcpInitResult =
+        uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
+    assert(tcpInitResult == 0);
+
+    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
+    {
+        LOG_err << "uv_accept failed";
+        closeTCPConnection(tcpctx.get());
+        return nullptr;
+    }
+
+    // The hook runs after uv_accept so that the pending socket is consumed and then closed
+    // like on a real failure, instead of leaving the listening socket unable to accept more
+    bool simulateAcceptFailure = false;
+    DEBUG_TEST_HOOK_TCP_SERVER_SIMULATE_ACCEPT_FAILURE(simulateAcceptFailure);
+    if (simulateAcceptFailure)
+    {
+        LOG_err << "Simulating a failure right after accepting the connection";
+        closeTCPConnection(tcpctx.get());
+        return nullptr;
+    }
+
+    return tcpctx;
+}
+
 void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
 {
     if (status < 0)
@@ -36962,29 +37098,9 @@ void MegaTCPServer::onNewClient(uv_stream_t* server_handle, int status)
         return;
     }
 
-    // Create an object to save context information
-    auto tcpctx = ((MegaTCPServer*)server_handle->data)->initializeContext(server_handle);
-
-    LOG_debug << "Connection received at port " << tcpctx->server->port << "! "
-              << tcpctx->server->connections.size() << " tcpctx = " << tcpctx.get();
-
-    // Async handle to perform writes
-    uv_async_init(&tcpctx->server->uv_loop, &tcpctx->asynchandle, onAsyncEvent);
-
-    // Accept the connection
-    uv_tcp_init(&tcpctx->server->uv_loop, &tcpctx->tcphandle);
-    if (uv_accept(server_handle, (uv_stream_t*)&tcpctx->tcphandle))
+    auto tcpctx = ((MegaTCPServer*)server_handle->data)->acceptIncomingConnection(server_handle);
+    if (!tcpctx)
     {
-        LOG_err << "uv_accept failed";
-        onClose((uv_handle_t*)&tcpctx->tcphandle);
-        return;
-    }
-
-    if (!tcpctx->server->connections.add(tcpctx))
-    {
-        assert(false); // Shouldn't happen. It is usually a bug.
-        LOG_err << "Adding tcpctx to connections failed";
-        onClose((uv_handle_t*)&tcpctx->tcphandle);
         return;
     }
 
@@ -37044,7 +37160,9 @@ void MegaTCPServer::on_tcp_read(uv_stream_t *tcp, ssize_t nrd, const uv_buf_t *d
 
 void MegaTCPServer::onClose(uv_handle_t* handle)
 {
-    MegaTCPContext* tcpctx = (MegaTCPContext*) handle->data;
+    assert(uv_is_closing(handle));
+
+    MegaTCPContext* tcpctx = (MegaTCPContext*)handle->data;
 
     // streaming transfers are automatically stopped when their listener is removed
     tcpctx->megaApi->removeTransferListener(tcpctx);
@@ -37079,9 +37197,15 @@ void MegaTCPServer::onAsyncEventClose(uv_handle_t *handle)
     }
 
     // Now it's safe to release the shared_ptr - this will destroy tcpctx if it's the last reference
-    tcpctx->server->closingConnections.erase(tcpctx);
+    // The server owns every connection from the moment it is accepted, so it must still own this
+    // one here. Otherwise the context was already freed and everything above read freed memory
+    [[maybe_unused]] const bool wasOwnedByServer =
+        tcpctx->server->closingConnections.erase(tcpctx) == 1;
+    assert(wasOwnedByServer);
 
     LOG_debug << "Connection cleanup completed, port = " << port;
+
+    DEBUG_TEST_HOOK_TCP_SERVER_CONNECTION_CLOSED(wasOwnedByServer);
 }
 
 #ifdef ENABLE_EVT_TLS
@@ -42211,22 +42335,27 @@ void MegaFTPDataServer::sendData()
     if (tcpctx)
     {
         LOG_verbose << "MegaFTPDataServer::sendData. triggering asyncsend for tcpctx=" << tcpctx;
+
+        // The last connection may already be closing, for instance when it could not be set up
+        // after it was accepted. Such a connection can no longer answer, so do not wake it up
+        if (tcpctx->finished)
+        {
+            LOG_verbose << "MegaFTPDataServer::sendData. tcpctx->finished";
+            this->notifyNewConnectionRequired = false;
+            return;
+        }
+
 #ifdef ENABLE_EVT_TLS
         if (tcpctx->evt_tls == NULL)
         {
             LOG_warn << "MegaFTPDataServer::sendData, evt_tls is NULL";
         }
 
-        if (useTLS && (!tcpctx->evt_tls || tcpctx->finished || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
+        if (useTLS && (!tcpctx->evt_tls || !evt_tls_is_handshake_over(tcpctx->evt_tls)))
         {
             if (!tcpctx->evt_tls)
             {
                 LOG_verbose << "MegaFTPDataServer::sendData. no evt_tls";
-            }
-            else if (tcpctx->finished)
-            {
-                LOG_verbose << "MegaFTPDataServer::sendData. tcpctx->finished";
-                this->notifyNewConnectionRequired = false;
             }
             else
             {

@@ -1957,11 +1957,17 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
         purgeVaultTree(nApi, std::unique_ptr<MegaNode>{megaApi[nApi]->getVaultNode()}.get());
 #endif
 
+        // Listener-based on purpose: the shared mApi[nApi].lastError is also written by
+        // onTransferFinish, so a transfer that ends while this request is in flight (for
+        // example one restored from the transfer cache by the test that just finished) would
+        // be misreported as a folder-info failure.
         auto getFolderInfo =
             [this, prefix, &localCleanupSuccess](unsigned nApi, MegaNode* n, uint64_t& nodesIn)
         {
-            if (auto res = synchronousFolderInfo(nApi, n);
-                res != MegaError::API_OK && res != MegaError::API_ENOENT)
+            RequestTracker rt(megaApi[nApi].get());
+            megaApi[nApi]->getFolderInfo(n, &rt);
+            const int res = rt.waitForResult();
+            if (res != MegaError::API_OK && res != MegaError::API_ENOENT)
             {
                 const string errDetails = "Cannot get Folder Info for rootnode";
                 localCleanupSuccess = false;
@@ -1971,11 +1977,11 @@ void SdkTest::cleanupNodes(const unsigned int nApi)
                                    res,
                                    localCleanupSuccess);
             }
-            else
+            else if (const MegaFolderInfo* info =
+                         rt.request ? rt.request->getMegaFolderInfo() : nullptr)
             {
-                nodesIn = static_cast<uint64_t>(mApi[nApi].mFolderInfo->getNumFiles() +
-                                                mApi[nApi].mFolderInfo->getNumFolders() +
-                                                mApi[nApi].mFolderInfo->getNumVersions());
+                nodesIn = static_cast<uint64_t>(info->getNumFiles() + info->getNumFolders() +
+                                                info->getNumVersions());
             }
         };
 
@@ -4228,6 +4234,51 @@ TEST_F(SdkTest, SdkTestNodeAttributes)
     ASSERT_STREQ("value23", n1->getCustomAttr("custom2"));
     ASSERT_STREQ("value33", n1->getCustomAttr("custom3"));
 
+    // ___ Reject custom attribute names that would corrupt the serialized JSON ___
+    // An attribute name is used verbatim as a JSON object key when the node's attributes are
+    // serialized, and that key is neither escaped when written nor unescaped when read back, so
+    // a name that cannot be a key must be rejected with API_EARGS instead of corrupting the
+    // whole attribute string. Beside the characters that are plainly not allowed, this covers
+    // the names that only become unusable on the way to the key: the conversion to a nameid sign
+    // extends every byte above 0x7F and so borrows from the byte before it, which turns '#' into
+    // '"' and ']' into '\\', normalization can push a name past the 7 bytes that fit, and a name
+    // that is not valid UTF-8 is emptied by normalization and would be stored as a bare '_'.
+    for (const char* invalidName: {"a\"b",
+                                   "a\\b",
+                                   "a\tb",
+                                   "a\x7f"
+                                   "b",
+                                   "#\xc3\xa9",
+                                   "]\xc3\xa9",
+                                   "\xc3\xa9",
+                                   "ab\xcd\x84\xcd\x84x",
+                                   "\xff\xfe",
+                                   "ab\xed\xa0\x80"})
+    {
+        RequestTracker rejectTracker(megaApi[0].get());
+        megaApi[0]->setCustomNodeAttribute(n1.get(), invalidName, "value", &rejectTracker);
+        ASSERT_EQ(API_EARGS, rejectTracker.waitForResult())
+            << "Custom attribute name that cannot be a JSON key was not rejected: " << invalidName;
+    }
+
+    // The previously stored attributes must survive the rejected attempts. Re-reading the cached
+    // node would prove nothing, because a rejected name never reaches setattr(), so store one
+    // more valid attribute, which re-serializes the whole attribute map of the node, and then
+    // read everything back from the server, which is where a corrupted attribute string would
+    // actually surface.
+    RequestTracker afterRejectsTracker(megaApi[0].get());
+    megaApi[0]->setCustomNodeAttribute(n1.get(), "custom4", "value41", &afterRejectsTracker);
+    ASSERT_EQ(API_OK, afterRejectsTracker.waitForResult());
+
+    ASSERT_NO_FATAL_FAILURE(fetchnodes(0));
+    n1.reset(megaApi[0]->getNodeByHandle(uploadedNode));
+    ASSERT_TRUE(!!n1) << "The node was lost after re-fetching the account";
+    ASSERT_STREQ("value13", n1->getCustomAttr("custom1"));
+    ASSERT_STREQ("value23", n1->getCustomAttr("custom2"));
+    ASSERT_STREQ("value33", n1->getCustomAttr("custom3"));
+    ASSERT_STREQ("value41", n1->getCustomAttr("custom4"));
+    // The name lives in the same attribute string, so it is the first casualty of a corrupted one
+    ASSERT_STREQ(filename1.c_str(), n1->getName());
 
     // ___ Set invalid coordinates of a node (out of range) ___
 

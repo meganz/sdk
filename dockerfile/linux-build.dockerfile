@@ -1,7 +1,6 @@
 # docker build --build-arg DISTRO=<DISTRO> --build-arg ARCH=<ARCH> --build-arg CMAKE_PRESET=<CMAKE_PRESET> -f /path/to/linux-build.dockerfile -t sdk-linux-build .
 #
 # Where <DISTRO> is one of the following:
-# - debian:11
 # - debian:12
 # - debian:13
 # - debian:testing
@@ -9,12 +8,13 @@
 # - almalinux:9
 # - centos:stream9 (or quay.io/centos/centos:stream9)
 # - opensuse/leap:16.0
+# - opensuse/leap:16.1
 # - opensuse/tumbleweed
 # - ubuntu:22.04
 # - ubuntu:24.04
-# - ubuntu:25.10
 # - fedora:43
 # - fedora:44
+# - fedora:45
 #
 # Where <ARCH> is one of the following:
 # - x64 (default)
@@ -57,18 +57,18 @@ case "${DISTRO}" in
         zypper -n install shadow gcc gcc-c++ openssh which findutils rpm-build git
         zypper -n install -t pattern devel_C_C++
 
-        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
+        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/leap:16.1" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
             zypper -n remove zlib-ng-compat-devel || true
         fi
 
         PACKAGES="${PACKAGES} automake awk gcc-c++ cmake libtool make"
-        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
+        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/leap:16.1" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
             PACKAGES="${PACKAGES} python313"
         fi
 
         zypper install -y --force-resolution ${PACKAGES}
         
-        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
+        if [ "$DISTRO" = "opensuse/leap:16.0" ] || [ "$DISTRO" = "opensuse/leap:16.1" ] || [ "$DISTRO" = "opensuse/tumbleweed" ]; then
             mkdir -p /mega/python313
             ln -sf /usr/bin/python3.13 /mega/python313/python3
             SDK_BUILD_PATH_PREFIX="/mega/python313"
@@ -83,18 +83,6 @@ case "${DISTRO}" in
         apt-get update
         apt-get install -y ${PACKAGES}
 
-        if [ "$DISTRO" = "debian:11" ]; then
-            CMAKE_VERSION=3.20.2
-            EXPECTED_CMAKE_INSTALLER_SHA256="ea497b4658816010e5850a3ed53845e430654640aabbe10d93fe67def9503e4d"
-            CMAKE_INSTALLER=cmake-${CMAKE_VERSION}-linux-x86_64.sh
-            curl -fsSL https://github.com/Kitware/CMake/releases/download/v${CMAKE_VERSION}/${CMAKE_INSTALLER} -o cmake.sh
-            echo "${EXPECTED_CMAKE_INSTALLER_SHA256}  cmake.sh" | sha256sum -c || {
-                echo "unexpected checksum for ${CMAKE_INSTALLER}!"
-                exit 1
-            }
-            chmod u+x cmake.sh
-            ./cmake.sh --prefix=/usr --exclude-subdir --skip-license
-        fi
     ;;
     'archlinux'*)
         PACKAGES="${PACKAGES} base-devel cmake"

@@ -54,6 +54,8 @@ public:
                     const std::vector<GfxDimension>& dimensions,
                     std::vector<std::string>& images);
 
+    bool runMediaInfoTask(const std::string& localpath, MediaProperties& properties);
+
     bool runSupportFormats(std::string& formats, std::string& videoformats);
 
     static GfxClient create(const std::string& endpointName);

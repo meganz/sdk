@@ -21,6 +21,10 @@
 
 #include "mega.h"
 
+#if USE_OPENSSL
+#include <openssl/evp.h>
+#endif
+
 namespace mega {
 #ifndef htobe64
 #define htobe64(x) (((uint64_t)htonl((uint32_t)((x) >> 32))) | (((uint64_t)htonl((uint32_t)x)) << 32))
@@ -740,17 +744,203 @@ SymmCipher& SymmCipher::operator=(const SymmCipher& ref)
     return *this;
 }
 
-// encryption: data must be NUL-padded to BLOCKSIZE
-// decryption: data must be padded to BLOCKSIZE
-// len must be < 2^31
-void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, byte* mac, bool encrypt, bool initmac)
+namespace detail
 {
-    assert(!(pos & (KEYLENGTH - 1)));
 
-    byte ctr[BLOCKSIZE];
+#if USE_OPENSSL
+
+namespace
+{
+
+struct EvpCipherCtxDeleter
+{
+    void operator()(EVP_CIPHER_CTX* c) const noexcept
+    {
+        EVP_CIPHER_CTX_free(c);
+    }
+};
+
+using EvpCipherCtxPtr = std::unique_ptr<EVP_CIPHER_CTX, EvpCipherCtxDeleter>;
+
+// EVP_aes_128_*() are legacy static ciphers; on OpenSSL 3 each
+// EVP_EncryptInit_ex with one re-runs a provider fetch (~200 ns). Fetch once.
+// BoringSSL has no EVP_CIPHER_fetch and reports OPENSSL_VERSION_NUMBER as
+// 1.1.1, so it takes the legacy branch.
+#if !defined(OPENSSL_IS_BORINGSSL) && OPENSSL_VERSION_NUMBER >= 0x30000000L
+
+// Never freed on purpose: releasing after OPENSSL_cleanup() would touch a
+// torn-down provider.
+const EVP_CIPHER* aes128Cbc()
+{
+    static EVP_CIPHER* const c = EVP_CIPHER_fetch(nullptr, "AES-128-CBC", nullptr);
+    return c;
+}
+
+const EVP_CIPHER* aes128Ctr()
+{
+    static EVP_CIPHER* const c = EVP_CIPHER_fetch(nullptr, "AES-128-CTR", nullptr);
+    return c;
+}
+
+#else
+
+const EVP_CIPHER* aes128Cbc()
+{
+    return EVP_aes_128_cbc();
+}
+
+const EVP_CIPHER* aes128Ctr()
+{
+    return EVP_aes_128_ctr();
+}
+
+#endif
+
+// CBC-MAC via one AES-CBC call. `mac` is IV in and MAC out.
+// The chaining state lives in the EVP_CIPHER_CTX, not in the output buffer,
+// so we can overwrite a small block-aligned output slice in a loop and keep
+// only the last block as the MAC. Sizing out[] as SLICE + BLOCKSIZE also
+// satisfies EVP_EncryptUpdate's documented `inl + block_size - 1` contract.
+void cbcMacViaEvp(const byte* key, const byte* input, unsigned paddedLen, byte* mac)
+{
+    EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
+    if (!ctx)
+    {
+        LOG_err << "cbcMacViaEvp: EVP_CIPHER_CTX_new returned nullptr";
+        assert(false);
+        return;
+    }
+
+    if (EVP_EncryptInit_ex(ctx.get(), aes128Cbc(), nullptr, key, mac) != 1)
+    {
+        LOG_err << "cbcMacViaEvp: EVP_EncryptInit_ex failed";
+        assert(false);
+        return;
+    }
+
+    EVP_CIPHER_CTX_set_padding(ctx.get(), 0);
+
+    constexpr unsigned SLICE = 4096;
+    static_assert(SLICE % SymmCipher::BLOCKSIZE == 0, "slice must be block-aligned");
+    byte out[SLICE + SymmCipher::BLOCKSIZE];
+
+    int outlen = 0;
+    for (unsigned done = 0; done < paddedLen;)
+    {
+        const unsigned n = std::min(SLICE, paddedLen - done);
+        if (EVP_EncryptUpdate(ctx.get(), out, &outlen, input + done, static_cast<int>(n)) != 1)
+        {
+            LOG_err << "cbcMacViaEvp: EVP_EncryptUpdate failed";
+            assert(false);
+            return;
+        }
+        done += n;
+    }
+
+    memcpy(mac, out + outlen - SymmCipher::BLOCKSIZE, SymmCipher::BLOCKSIZE);
+}
+
+void ctrCryptViaEvp(const byte* key,
+                    const byte ctrIv[SymmCipher::BLOCKSIZE],
+                    byte* data,
+                    unsigned paddedLen)
+{
+    EvpCipherCtxPtr ctx(EVP_CIPHER_CTX_new());
+    if (!ctx)
+    {
+        LOG_err << "ctrCryptViaEvp: EVP_CIPHER_CTX_new returned nullptr";
+        assert(false);
+        return;
+    }
+
+    if (EVP_EncryptInit_ex(ctx.get(), aes128Ctr(), nullptr, key, ctrIv) != 1)
+    {
+        LOG_err << "ctrCryptViaEvp: EVP_EncryptInit_ex failed";
+        assert(false);
+        return;
+    }
+
+    int outlen = 0;
+    if (EVP_EncryptUpdate(ctx.get(), data, &outlen, data, static_cast<int>(paddedLen)) != 1)
+    {
+        LOG_err << "ctrCryptViaEvp: EVP_EncryptUpdate failed";
+        assert(false);
+        return;
+    }
+}
+
+} // anonymous namespace
+
+// Bit-exact with ctrCryptViaCryptopp (cross-checked in Crypto_test).
+void ctrCryptViaOpenssl(SymmCipher& self,
+                        byte* data,
+                        unsigned len,
+                        m_off_t pos,
+                        SymmCipher::ctr_iv ctriv,
+                        byte* mac,
+                        bool encrypt,
+                        bool initmac)
+{
+    assert(!(pos & (SymmCipher::KEYLENGTH - 1)));
+
+    byte ctr[SymmCipher::BLOCKSIZE];
 
     MemAccess::set<int64_t>(ctr, static_cast<int64_t>(ctriv));
-    setint64(pos / BLOCKSIZE, ctr + sizeof ctriv);
+    SymmCipher::setint64(pos / SymmCipher::BLOCKSIZE, ctr + sizeof ctriv);
+
+    if (mac && initmac)
+    {
+        memcpy(mac, ctr, sizeof ctriv);
+        memcpy(mac + sizeof ctriv, ctr, sizeof ctriv);
+    }
+
+    const unsigned paddedLen =
+        (len + SymmCipher::BLOCKSIZE - 1) & ~static_cast<unsigned>(SymmCipher::BLOCKSIZE - 1);
+    if (paddedLen == 0)
+    {
+        return;
+    }
+
+    if (encrypt)
+    {
+        // Encrypt contract: data[len..paddedLen) is zero-padded by the caller.
+        if (mac)
+            cbcMacViaEvp(self.key, data, paddedLen, mac);
+        ctrCryptViaEvp(self.key, ctr, data, paddedLen);
+    }
+    else
+    {
+        ctrCryptViaEvp(self.key, ctr, data, paddedLen);
+        if (mac)
+        {
+            // Reference impl only mixes `remaining` bytes of the last partial
+            // block into the MAC; zero-fill the CTR-decrypted slack to match.
+            if (paddedLen > len)
+                memset(data + len, 0, paddedLen - len);
+            cbcMacViaEvp(self.key, data, paddedLen, mac);
+        }
+    }
+}
+
+#endif // USE_OPENSSL
+
+// Reference impl. Always compiled: fallback when USE_OPENSSL=OFF,
+// cross-validation target for ctrCryptViaOpenssl otherwise.
+void ctrCryptViaCryptopp(SymmCipher& self,
+                         byte* data,
+                         unsigned len,
+                         m_off_t pos,
+                         SymmCipher::ctr_iv ctriv,
+                         byte* mac,
+                         bool encrypt,
+                         bool initmac)
+{
+    assert(!(pos & (SymmCipher::KEYLENGTH - 1)));
+
+    byte ctr[SymmCipher::BLOCKSIZE];
+
+    MemAccess::set<int64_t>(ctr, static_cast<int64_t>(ctriv));
+    SymmCipher::setint64(pos / SymmCipher::BLOCKSIZE, ctr + sizeof ctriv);
 
     if (mac && initmac)
     {
@@ -762,7 +952,8 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
     // CryptoPP's CTR mode pipelines multiple AES blocks via AES-NI, giving
     // significantly higher throughput than the per-block ecb_encrypt loop.
 
-    const unsigned paddedLen = (len + BLOCKSIZE - 1) & ~static_cast<unsigned>(BLOCKSIZE - 1);
+    const unsigned paddedLen =
+        (len + SymmCipher::BLOCKSIZE - 1) & ~static_cast<unsigned>(SymmCipher::BLOCKSIZE - 1);
 
     if (encrypt)
     {
@@ -773,23 +964,23 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
             long remaining = len;
             while (remaining > 0)
             {
-                xorblock(p, mac);
-                ecb_encrypt(mac);
-                p += BLOCKSIZE;
-                remaining -= BLOCKSIZE;
+                SymmCipher::xorblock(p, mac);
+                self.ecb_encrypt(mac);
+                p += SymmCipher::BLOCKSIZE;
+                remaining -= SymmCipher::BLOCKSIZE;
             }
         }
 
         // Phase 2: Bulk CTR encryption via CryptoPP's pipelined CTR mode
         CTR_Mode<AES>::Encryption ctrMode;
-        ctrMode.SetKeyWithIV(key, KEYLENGTH, ctr, BLOCKSIZE);
+        ctrMode.SetKeyWithIV(self.key, SymmCipher::KEYLENGTH, ctr, SymmCipher::BLOCKSIZE);
         ctrMode.ProcessData(data, data, paddedLen);
     }
     else
     {
         // Phase 1: Bulk CTR decryption (produces plaintext)
         CTR_Mode<AES>::Encryption ctrMode;
-        ctrMode.SetKeyWithIV(key, KEYLENGTH, ctr, BLOCKSIZE);
+        ctrMode.SetKeyWithIV(self.key, SymmCipher::KEYLENGTH, ctr, SymmCipher::BLOCKSIZE);
         ctrMode.ProcessData(data, data, paddedLen);
 
         // Phase 2: CBC-MAC on decrypted plaintext
@@ -797,20 +988,40 @@ void SymmCipher::ctr_crypt(byte* data, unsigned len, m_off_t pos, ctr_iv ctriv, 
         {
             byte* p = data;
             unsigned remaining = len;
-            while (remaining >= static_cast<unsigned>(BLOCKSIZE))
+            while (remaining >= static_cast<unsigned>(SymmCipher::BLOCKSIZE))
             {
-                xorblock(p, mac);
-                ecb_encrypt(mac);
-                p += BLOCKSIZE;
-                remaining -= BLOCKSIZE;
+                SymmCipher::xorblock(p, mac);
+                self.ecb_encrypt(mac);
+                p += SymmCipher::BLOCKSIZE;
+                remaining -= SymmCipher::BLOCKSIZE;
             }
             if (remaining > 0)
             {
-                xorblock(p, mac, static_cast<int>(remaining));
-                ecb_encrypt(mac);
+                SymmCipher::xorblock(p, mac, static_cast<int>(remaining));
+                self.ecb_encrypt(mac);
             }
         }
     }
+}
+
+} // namespace detail
+
+// encryption: data must be NUL-padded to BLOCKSIZE
+// decryption: data must be padded to BLOCKSIZE
+// len must be < 2^31
+void SymmCipher::ctr_crypt(byte* data,
+                           unsigned len,
+                           m_off_t pos,
+                           ctr_iv ctriv,
+                           byte* mac,
+                           bool encrypt,
+                           bool initmac)
+{
+#if USE_OPENSSL
+    detail::ctrCryptViaOpenssl(*this, data, len, pos, ctriv, mac, encrypt, initmac);
+#else
+    detail::ctrCryptViaCryptopp(*this, data, len, pos, ctriv, mac, encrypt, initmac);
+#endif
 }
 
 static void rsaencrypt(const Integer* key, Integer* m)

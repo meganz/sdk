@@ -31,15 +31,35 @@
 #else
 #include "megawaiter.h"
 #endif
-#include "mega/thread/posixthread.h"
+#include "mega/mediafileattribute.h"
 #include "mega/thread/cppthread.h"
+#include "mega/thread/posixthread.h"
 
 namespace mega {
+
+class MEGA_API GfxProc;
 
 class MEGA_API GfxJob
 {
 public:
-    GfxJob();
+    // Runs on the GFX thread.
+    virtual void execute(GfxProc& gfxProc) = 0;
+
+    // Runs on the client thread. Returns true if client state changed and another exec pass is
+    // needed. Not a success flag - a job that failed still returns true when it altered state,
+    // e.g. by dropping a pending file attribute so the upload can proceed.
+    virtual bool complete(GfxProc& gfxProc) = 0;
+
+    virtual void cleanup() {};
+    virtual ~GfxJob() = default;
+};
+
+class MEGA_API GfxImageJob: public GfxJob
+{
+public:
+    virtual void execute(GfxProc& gfxProc) override;
+    virtual bool complete(GfxProc& gfxProc) override;
+    virtual void cleanup() override;
 
     // locally encoded path of the image
     LocalPath localfilename;
@@ -58,6 +78,28 @@ public:
 
     // conceptual name of the image.
     std::string name;
+};
+
+class MEGA_API GfxMediaJob: public GfxJob
+{
+public:
+    virtual void execute(GfxProc& gfxProc) override;
+    virtual bool complete(GfxProc& gfxProc) override;
+    virtual void cleanup() override;
+
+    // locally encoded path of the media
+    LocalPath localfilename;
+    // handle related to the image
+    NodeOrUploadHandle h;
+    // the key to use for XXTEA encryption
+    uint32_t fakey[4] = {};
+    // resulting mediainfo
+    MediaProperties mediaInfo;
+    // false if extraction never produced a result, so mediaInfo must not be attached
+    bool extracted = false;
+
+private:
+    bool dropPendingAttribute(GfxProc& gfxProc);
 };
 
 class MEGA_API GfxJobQueue
@@ -116,6 +158,11 @@ public:
     // list of supported video extensions (NULL if no pre-filtering is needed)
     virtual const char* supportedvideoformats() = 0;
 
+    // Returns false when extraction did not run at all, e.g. the isolated process could not be
+    // reached. A file that ran but could not be interpreted is still a success: the resulting
+    // properties say so, and the API relies on receiving them.
+    virtual bool generateMediaInfo(LocalPath&, MediaProperties&) = 0;
+
     static std::unique_ptr<IGfxProvider> createInternalGfxProvider();
 };
 
@@ -137,6 +184,7 @@ public: // read and store bitmap
         NONE = 0,
         FORMAT_PNG = 1, // Format can be in PNG
     };
+    virtual bool generateMediaInfo(LocalPath&, MediaProperties&) override;
 
 private:
     virtual bool readbitmap(const std::string& conceptualname,
@@ -181,10 +229,13 @@ class MEGA_API GfxProc
     static void *threadEntryPoint(void *param);
     void loop();
 
-    std::vector<GfxDimension> getJobDimensions(const GfxJob& job) const;
+    friend GfxImageJob;
+    friend GfxMediaJob;
+
+    std::vector<GfxDimension> getJobDimensions(const GfxImageJob& job) const;
 
     // Caller should give dimensions from high resolution to low resolution
-    std::vector<std::string> generateImages(const GfxJob& job);
+    std::vector<std::string> generateImages(const GfxImageJob& job);
 
     std::string generateOneImage(const std::string& conceptualname,
                                  const LocalPath& localfilepath,
@@ -212,6 +263,8 @@ public:
                            NodeOrUploadHandle th,
                            SymmCipher* key,
                            int missing);
+
+    int genmediainfoputfa(const LocalPath&, NodeOrUploadHandle, const uint32_t* fakey);
 
     // FIXME: read dynamically from API server
     typedef enum { THUMBNAIL, PREVIEW } meta_t;

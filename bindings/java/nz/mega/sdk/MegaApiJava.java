@@ -4578,16 +4578,24 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the text for the attribute
      * - MegaRequest::getFlag - Returns false (not official attribute)
      * <p>
-     * The attribute name must be an UTF8 string with between 1 and 7 bytes
+     * The attribute name must be 1 to 7 printable ASCII characters, that is 0x20 to 0x7E, and
+     * it can't contain '"' or '\'. The name is used verbatim as a JSON object key when the
+     * node's attributes are serialized internally, and that serialization neither escapes the
+     * key nor preserves bytes outside that range, so any other name would corrupt every
+     * attribute of the node, not only this one.
      * If the attribute already has a value, it will be replaced
      * If value is NULL, the attribute will be removed from the node
      * <p>
      * If the MEGA account is a business account and it's status is expired, onRequestFinish will
      * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     * <p>
+     * If attrName is invalid (wrong length, or contains a disallowed character), this request
+     * will fail with MegaError::API_EARGS.
      *
      * @param node     Node that will receive the attribute
      * @param attrName Name of the custom attribute.
-     *                 The length of this parameter must be between 1 and 7 UTF8 bytes
+     *                 This parameter must be 1 to 7 printable ASCII characters (0x20 to 0x7E),
+     *                 and it can't contain '"' or '\'
      * @param value    Value for the attribute
      * @param listener MegaRequestListener to track this request
      */
@@ -4605,16 +4613,24 @@ public class MegaApiJava {
      * - MegaRequest::getText - Returns the text for the attribute
      * - MegaRequest::getFlag - Returns false (not official attribute)
      * <p>
-     * The attribute name must be an UTF8 string with between 1 and 7 bytes
+     * The attribute name must be 1 to 7 printable ASCII characters, that is 0x20 to 0x7E, and
+     * it can't contain '"' or '\'. The name is used verbatim as a JSON object key when the
+     * node's attributes are serialized internally, and that serialization neither escapes the
+     * key nor preserves bytes outside that range, so any other name would corrupt every
+     * attribute of the node, not only this one.
      * If the attribute already has a value, it will be replaced
      * If value is NULL, the attribute will be removed from the node
      * <p>
      * If the MEGA account is a business account and it's status is expired, onRequestFinish will
      * be called with the error code MegaError::API_EBUSINESSPASTDUE.
+     * <p>
+     * If attrName is invalid (wrong length, or contains a disallowed character), this request
+     * will fail with MegaError::API_EARGS.
      *
      * @param node     Node that will receive the attribute
      * @param attrName Name of the custom attribute.
-     *                 The length of this parameter must be between 1 and 7 UTF8 bytes
+     *                 This parameter must be 1 to 7 printable ASCII characters (0x20 to 0x7E),
+     *                 and it can't contain '"' or '\'
      * @param value    Value for the attribute
      */
     public void setCustomNodeAttribute(MegaNode node, String attrName, String value) {

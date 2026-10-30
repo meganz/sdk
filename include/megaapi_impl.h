@@ -3518,6 +3518,7 @@ class RequestQueue
         void push_front(MegaRequestPrivate *request);
         MegaRequestPrivate * pop();
         MegaRequestPrivate * front();
+        size_t size();
         void removeListener(MegaRequestListener *listener);
         void removeListener(MegaScheduledCopyListener *listener);
         std::unique_ptr<ScopedRetainingRequest> scopedRetainingRequest(MegaRequestPrivate* request);
@@ -4759,6 +4760,7 @@ class MegaApiImpl : public MegaApp
         void moveTransferBefore(int transferTag, int prevTransferTag, MegaRequestListener *listener = NULL);
         bool areTransfersPaused(int direction);
         void resumeTransfersForNotLoggedInInstance();
+        void setAutoResumeTransfers(bool enable);
         void setMaxConnections(int direction,
                                int connections,
                                MegaRequestListener* listener = NULL);
@@ -6038,6 +6040,8 @@ public:
 
         // deletes backups, requests and transfers. Reset total stats for down/uploads
         void abortPendingActions(error preverror = API_OK);
+        // fails every queued catchup; runs on the MegaApiImpl thread, with sdkMutex held
+        void abortScRequests(error e);
 
         bool hasToForceUpload(const Node &node, const MegaTransferPrivate &transfer) const;
 
@@ -6411,6 +6415,10 @@ protected:
 #endif
     static void closeConnection(MegaTCPContext *tcpctx);
     static void closeTCPConnection(MegaTCPContext *tcpctx);
+
+    // Accepts a new client connection, registers it in the pool and wires up its
+    // libuv handles. Returns nullptr when the connection could not be set up
+    MegaTCPContextPtr acceptIncomingConnection(uv_stream_t* server_handle);
 
     void run();
 
