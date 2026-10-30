@@ -888,7 +888,7 @@ namespace mega {
             void(int /*transferTag*/, bool /*held*/, bool /*foreign*/, m_off_t /*availableBytes*/)>
             onWsQuotaHoldChanged;
         // Lets single-account tests classify an own pool as foreign to exercise the
-        // foreign-only hold machinery (SDK-XXXX).
+        // foreign-only hold machinery (SDK-6610).
         std::function<void(NodeHandle /*folder*/, bool& /*foreign*/)> onWsQuotaClassifyPool;
         // Fired when a stale "tfs" reply is discarded by the generation check.
         std::function<void(std::uint64_t /*staleGen*/, std::uint64_t /*currentGen*/)>

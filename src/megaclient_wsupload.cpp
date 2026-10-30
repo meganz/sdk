@@ -407,7 +407,7 @@ void MegaClient::wsQuotaEvaluateHolds()
             // Only a FOREIGN (inshare) shortfall holds: the app gets isForeignOverquota().
             // An own-account shortfall fails open: apps learn of own storage exhaustion
             // only via EVENT_STORAGE, which the legacy account-RED path fires if the
-            // server rejects or the account overflows (SDK-XXXX).
+            // server rejects or the account overflows (SDK-6610).
             if (!shouldHold && t->size > mWsQuota->availableFor(f->h) &&
                 mWsQuota->isForeignGroup(f->h))
             {

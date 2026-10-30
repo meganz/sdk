@@ -653,7 +653,7 @@ private:
 
 // ----------------------------------------------------------------------------
 // onWsQuotaClassifyPool(NodeHandle folder, bool& foreign)
-// Classifies every pool as foreign (SDK-XXXX): only foreign shortfalls hold, so
+// Classifies every pool as foreign (SDK-6610): only foreign shortfalls hold, so
 // single-account cells use this to exercise the hold machinery on own folders.
 // The pool key is untouched (own folders still merge into one pool).
 // ----------------------------------------------------------------------------
