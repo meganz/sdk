@@ -38,7 +38,7 @@ else()
     include(CheckSymbolExists)
     check_symbol_exists(glob glob.h HAVE_GLOB_H)
 
-    check_function_exists(aio_write, HAVE_AIO_RT)
+    check_function_exists(aio_write HAVE_AIO_RT)
 
     # Check if our toolchain supports TI emulation mode.
     try_compile(SUPPORTS_TI_EMULATION_MODE
