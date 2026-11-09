@@ -794,8 +794,13 @@ Sync::Sync(UnifiedSync& us, const std::string& logname, SyncError& e):
                                                              {
                                                                  syncs.mClient.handleDbError(error);
                                                              });
-    if (us.mConfig.mDatabaseExists)
+    // An existing database can fail to open. Preserve mDatabaseExists so that the
+    // sync can be suspended with its cache intact, but only load an open table.
+    // startSync_inThread reports UNABLE_TO_OPEN_DATABASE if opening failed.
+    if (statecachetable)
+    {
         readstatecache();
+    }
 
     us.mConfig.mRunState = SyncRunState::Run;
 

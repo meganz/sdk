@@ -403,9 +403,10 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
-#ifdef _WIN32
-    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200);
-#endif
+    // Bound both cached connections and connections awaiting TLS shutdown. The
+    // latter are outside MAXCONNECTS and can otherwise exhaust file descriptors.
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200L);
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAX_TOTAL_CONNECTIONS, 200L);
     curltimeoutreset[GET] = -1;
     arerequestspaused[GET] = false;
 
@@ -413,9 +414,8 @@ CurlHttpIO::CurlHttpIO()
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
-#ifdef _WIN32
-    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200);
-#endif
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200L);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAX_TOTAL_CONNECTIONS, 200L);
 
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
@@ -673,9 +673,9 @@ void CurlHttpIO::disconnect()
     curl_multi_setopt(curlm[GET], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERFUNCTION, download_timer_callback);
     curl_multi_setopt(curlm[GET], CURLMOPT_TIMERDATA, this);
-#ifdef _WIN32
-    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200);
-#endif
+    // Reapply both limits when recreating the multi handles.
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAXCONNECTS, 200L);
+    curl_multi_setopt(curlm[GET], CURLMOPT_MAX_TOTAL_CONNECTIONS, 200L);
     curltimeoutreset[GET] = -1;
     arerequestspaused[GET] = false;
 
@@ -684,9 +684,8 @@ void CurlHttpIO::disconnect()
     curl_multi_setopt(curlm[PUT], CURLMOPT_SOCKETDATA, this);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERFUNCTION, upload_timer_callback);
     curl_multi_setopt(curlm[PUT], CURLMOPT_TIMERDATA, this);
-#ifdef _WIN32
-    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200);
-#endif
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAXCONNECTS, 200L);
+    curl_multi_setopt(curlm[PUT], CURLMOPT_MAX_TOTAL_CONNECTIONS, 200L);
     curltimeoutreset[PUT] = -1;
     arerequestspaused[PUT] = false;
 
