@@ -852,7 +852,7 @@ void MegaClient::installWsEngineCallbacks()
 
 #ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
                     const bool stillTrackedAfterDetach = c.wsIsTransferTrackedForTesting(tt);
-                    DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED("incomplete chunk MACs",
+                    DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED("missing chunk MACs",
                                                               stillTrackedAfterDetach);
 #endif
 

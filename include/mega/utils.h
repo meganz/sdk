@@ -610,7 +610,17 @@ public:
         size_t chunks = 0; // chunks in [0, fileSize)
         size_t missing = 0; // chunks without a finished MAC
         m_off_t firstMissing = -1; // start of the first such chunk, -1 if none
+        // Missing chunks grouped into runs: (index of the first chunk, number of chunks).
+        std::vector<std::pair<size_t, size_t>> missingRuns;
     };
+
+    // "start+len,start+len,..." for event payloads; at most maxRuns runs, then ",...(+N)".
+    static std::string formatChunkRuns(const std::vector<std::pair<size_t, size_t>>& runs,
+                                       size_t maxRuns = 8);
+
+    // The chunks that macsmac_gaps(g1, g2, g3, g4) leaves out, as runs of chunk indexes
+    // (the gap bounds count map entries, so they are not chunk indexes themselves).
+    std::vector<std::pair<size_t, size_t>> gapChunkRuns(size_t g1, size_t g2, size_t g3, size_t g4);
 
     Coverage coverage(m_off_t fileSize) const;
 

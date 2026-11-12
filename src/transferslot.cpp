@@ -481,6 +481,11 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
             if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, end, end))
             {
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
+                transfer->client->reportDownloadMacGapMatch(*transfer,
+                                                            start1,
+                                                            start1 + len1,
+                                                            end,
+                                                            end);
                 auto correctMac = macsmac(&transfer->chunkmacs);
                 transfer->metamac = correctMac;
                 // TODO: update the Node's key to be correct (needs some API additions before enabling)
@@ -504,6 +509,11 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                     if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, start2, start2 + len2))
                     {
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
+                        transfer->client->reportDownloadMacGapMatch(*transfer,
+                                                                    start1,
+                                                                    start1 + len1,
+                                                                    start2,
+                                                                    start2 + len2);
                         auto correctMac = macsmac(&transfer->chunkmacs);
                         transfer->metamac = correctMac;
                         // TODO: update the Node's key to be correct (needs some API additions before enabling)

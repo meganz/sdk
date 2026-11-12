@@ -20496,15 +20496,32 @@ void MegaClient::reportIncompleteUploadMacs(const char* channelName,
                                             const Transfer& t,
                                             const chunkmac_map::Coverage& coverage)
 {
+    LOG_warn << "Upload token gate details: size=" << t.size
+             << " firstMissing=" << coverage.firstMissing << " failcount=" << t.failcount
+             << " fileno=" << t.ws_fileno;
+
     std::ostringstream message;
-    message << "Upload token with incomplete chunk MACs: path=" << channelName << " size=" << t.size
+    message << "Upload token with missing chunk MACs: path=" << channelName
             << " chunks=" << coverage.chunks << " missing=" << coverage.missing
-            << " firstMissing=" << coverage.firstMissing << " failcount=" << t.failcount;
-    if (t.channel == Transfer::Channel::WebSocket)
-    {
-        message << " fileno=" << t.ws_fileno;
-    }
-    LOG_err << message.str() << ". Not building the node key; uploading again";
+            << " runs=" << chunkmac_map::formatChunkRuns(coverage.missingRuns)
+            << " retry=" << t.uploadRestarts << " resume=" << (t.restoredFromCache ? 1 : 0)
+            << " speedLimit=" << (getmaxuploadspeed() > 0 ? 1 : 0);
+    sendMacGapEvent(EVENT_ID_UPLOAD_TOKEN_MISSING_MACS, message.str());
+}
+
+void MegaClient::reportDownloadMacGapMatch(Transfer& t, size_t g1, size_t g2, size_t g3, size_t g4)
+{
+    std::ostringstream message;
+    message << "Download MAC matched with missing chunk MACs: chunks="
+            << t.chunkmacs.coverage(t.size).chunks
+            << " runs=" << chunkmac_map::formatChunkRuns(t.chunkmacs.gapChunkRuns(g1, g2, g3, g4));
+    sendMacGapEvent(EVENT_ID_DOWNLOAD_MAC_GAP_MATCH, message.str());
+}
+
+void MegaClient::sendMacGapEvent(int eventId, const std::string& message)
+{
+    LOG_err << message;
+    sendevent(eventId, message.c_str());
 }
 
 void MegaClient::supportticket(const char *message, int type)

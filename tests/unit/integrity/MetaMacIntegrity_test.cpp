@@ -742,4 +742,90 @@ TEST(MetaMacIntegrity, CompletenessCheckWithCondensedPrefix)
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// Events 800042/800043 report where the gaps are, as runs of chunk indexes.
+// ---------------------------------------------------------------------------------------------
+
+namespace
+{
+
+std::string runsOf(const std::set<size_t>& chunks)
+{
+    std::vector<std::pair<size_t, size_t>> runs;
+    for (const auto c: chunks)
+    {
+        if (!runs.empty() && runs.back().first + runs.back().second == c)
+        {
+            ++runs.back().second;
+        }
+        else
+        {
+            runs.emplace_back(c, 1);
+        }
+    }
+    return chunkmac_map::formatChunkRuns(runs, runs.size());
+}
+
+} // namespace
+
+TEST(MetaMacIntegrity, UploadEventReportsTheMissingRuns)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    EXPECT_EQ(runsOf({0, 12}), "0+1,12+1");
+    EXPECT_EQ(runsOf(unite({3, 5}, chunkRange(10, 13))), "3+1,5+1,10+3");
+    for (const auto& shape: knownGapShapes())
+    {
+        chunkmac_map cm;
+        addChunkMacs(cm, cipher, shape.fileSize, shape.missing);
+        const auto coverage = cm.coverage(shape.fileSize);
+        EXPECT_EQ(chunkmac_map::formatChunkRuns(coverage.missingRuns, coverage.missingRuns.size()),
+                  runsOf(shape.missing))
+            << shape.name;
+    }
+    chunkmac_map complete;
+    addChunkMacs(complete, cipher, kFieldFile);
+    EXPECT_TRUE(complete.coverage(kFieldFile).missingRuns.empty());
+}
+
+TEST(MetaMacIntegrity, EventRunListIsCapped)
+{
+    std::vector<std::pair<size_t, size_t>> runs;
+    EXPECT_EQ(chunkmac_map::formatChunkRuns(runs), "");
+    for (size_t i = 0; i < 10; ++i)
+    {
+        runs.emplace_back(i * 3, 1);
+    }
+    EXPECT_EQ(chunkmac_map::formatChunkRuns(runs), "0+1,3+1,6+1,9+1,12+1,15+1,18+1,21+1,...(+2)");
+    EXPECT_EQ(chunkmac_map::formatChunkRuns(runs, 2), "0+1,3+1,...(+8)");
+}
+
+// The download event names exactly the chunks macsmac_gaps() left out: the MAC with those gaps
+// equals the full MAC of a map without them. Without a condensed prefix the tolerance's gap bounds
+// are chunk indexes; after one they count the folded chunks plus one per entry.
+TEST(MetaMacIntegrity, DownloadEventNamesTheSkippedChunks)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+
+    chunkmac_map small;
+    addChunkMacs(small, cipher, kFieldFile);
+    EXPECT_EQ(chunkmac_map::formatChunkRuns(small.gapChunkRuns(3, 5, 10, 13)), "3+2,10+3");
+    EXPECT_EQ(small.macsmac_gaps(&cipher, 3, 5, 10, 13),
+              metaMacBuiltLikeBeforeTheFix(cipher, kFieldFile, {3, 4, 10, 11, 12}));
+    EXPECT_NE(small.macsmac_gaps(&cipher, 4, 6, 10, 13),
+              metaMacBuiltLikeBeforeTheFix(cipher, kFieldFile, {3, 4, 10, 11, 12}));
+
+    chunkmac_map big;
+    addChunkMacs(big, cipher, k110Chunks);
+    condensePrefix(big, cipher, k110Chunks);
+    const size_t folded = 110 - (big.size() - 1); // chunks in the condensed prefix
+    ASSERT_GT(folded, 1u) << "the prefix was not condensed";
+    const size_t g1 = folded + 1 + 5; // the entries of chunks folded+5 and folded+6
+    EXPECT_EQ(chunkmac_map::formatChunkRuns(big.gapChunkRuns(g1, g1 + 2, 0, 0)),
+              std::to_string(folded + 5) + "+2");
+    EXPECT_EQ(big.macsmac_gaps(&cipher, g1, g1 + 2, 0, 0),
+              metaMacBuiltLikeBeforeTheFix(cipher, k110Chunks, {folded + 5, folded + 6}));
+}
+
 } // namespace mega

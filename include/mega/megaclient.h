@@ -1700,11 +1700,19 @@ public:
     void sendevent(int, const char *, const char* viewId = nullptr, bool addJourneyId = false);
     void sendevent(int, const char *, int tag, const char* viewId = nullptr, bool addJourneyId = false);
 
+    // SDK-6795 gap-key events. The message is also logged at error level.
+    static constexpr int EVENT_ID_UPLOAD_TOKEN_MISSING_MACS = 800042;
+    static constexpr int EVENT_ID_DOWNLOAD_MAC_GAP_MATCH = 800043;
+    void sendMacGapEvent(int eventId, const std::string& message);
+
     // SDK-6795: an upload token arrived while the chunk MACs do not cover the whole file, so
     // the node key is not built and the upload starts again.
     void reportIncompleteUploadMacs(const char* channelName,
                                     const Transfer& t,
                                     const chunkmac_map::Coverage& coverage);
+    // SDK-6795: a download's MAC matched only with the chunks between the gap bounds left out
+    // (bounds as passed to chunkmac_map::macsmac_gaps).
+    void reportDownloadMacGapMatch(Transfer& t, size_t g1, size_t g2, size_t g3, size_t g4);
     void processHashcashSendevent();
 
     // create support ticket

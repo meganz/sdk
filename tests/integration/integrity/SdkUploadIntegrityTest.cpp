@@ -47,10 +47,12 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <cstddef>
 #include <cstdlib>
+#include <cstring>
 #include <future>
 #include <memory>
 #include <mutex>
@@ -285,6 +287,14 @@ void runInjectedGap(SdkTest& t,
     const auto gate = watch.uploadGateLines();
     EXPECT_FALSE(gate.empty())
         << "the injected gap reached the node key without the upload noticing";
+    const std::string expectedRuns = std::string{" runs="} + shape + " ";
+    EXPECT_TRUE(std::any_of(gate.begin(),
+                            gate.end(),
+                            [&expectedRuns](const std::string& line)
+                            {
+                                return line.find(expectedRuns) != std::string::npos;
+                            }))
+        << "event 800042 did not report the injected runs" << expectedRuns << joinLines(gate);
 
     std::ostringstream summary;
     summary << "cell=InjectedGap shape=" << shape << " size=" << fileSize
@@ -1026,5 +1036,103 @@ TEST_F(SdkUploadIntegrityTest, DISABLED_StorageRedMidUploadThenRecovered)
     }
 }
 #endif // MEGA_USE_WSUPLOAD
+
+// ---------------------------------------------------------------------------------------------
+// Testing the tests: a real gap-key node
+// ---------------------------------------------------------------------------------------------
+
+// Builds the node the S4 report describes: the S4 field file stored with a key whose meta-MAC
+// folds every chunk MAC except those of chunks 0 and 12. MEGAproxy's completeUpload takes the key
+// from the caller, so the SDK cannot check it and creates the node as given. The strict check must
+// reject that node; the download passes only through the gap tolerance, which must report event
+// 800043 with the skipped chunks.
+TEST_F(SdkUploadIntegrityTest, GapKeyNodeIsRejectedByTheStrictCheck)
+{
+    LOG_info << "___TEST SdkUploadIntegrityTest.GapKeyNodeIsRejectedByTheStrictCheck___";
+    ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ScopedMacGapLogWatch watch;
+    MegaApi& api = *megaApi[0];
+    LocalUploadFile file("integrity_gapkey_", kFieldFileSize);
+    const std::string path = path_u8string(file.path());
+    const auto fileSize = static_cast<int64_t>(kFieldFileSize);
+
+    std::unique_ptr<MegaBackgroundMediaUpload> state(
+        MegaBackgroundMediaUpload::createInstance(&api));
+    ASSERT_EQ(API_OK, synchronousMediaUploadRequestURL(0, fileSize, state.get(), nullptr));
+    std::unique_ptr<char[]> url(state->getUploadURL());
+    ASSERT_TRUE(url && url[0]) << "no media upload URL";
+
+    const fs::path encrypted = fs::absolute(u8path_compat(file.name() + ".enc"));
+    auto removeEncrypted = makeScopedDestructor(
+        [&encrypted]()
+        {
+            std::error_code ignore;
+            fs::remove(encrypted, ignore);
+        });
+    int64_t length = -1;
+    std::unique_ptr<char[]> suffix(
+        state->encryptFile(path.c_str(), 0, &length, path_u8string(encrypted).c_str(), false));
+    ASSERT_TRUE(suffix) << "cannot encrypt the file";
+    std::string token;
+    synchronousHttpPOSTFile(std::string{url.get()} + suffix.get(), path_u8string(encrypted), token);
+    ASSERT_EQ(token.size(), 36u) << "no upload token";
+
+    // The gap key: the state's key with the meta-MAC folded without chunks 0 and 12.
+    auto& full = *static_cast<MegaBackgroundMediaUploadPrivate*>(state.get());
+    chunkmac_map partial = full.chunkmacs;
+    size_t index = 0;
+    for (m_off_t pos = 0; pos < fileSize; pos = ChunkedHash::chunkceil(pos, fileSize), ++index)
+    {
+        if (index == 0 || index == 12)
+        {
+            ASSERT_TRUE(partial.dropChunkMacForTesting(pos)) << "chunk " << index;
+        }
+    }
+    SymmCipher cipher;
+    cipher.setkey(full.filekey);
+    const int64_t gapMac = partial.macsmac(&cipher);
+    ASSERT_NE(gapMac, full.chunkmacs.macsmac(&cipher));
+    std::string gapKey(reinterpret_cast<const char*>(full.filekey), FILENODEKEYLENGTH);
+    std::memcpy(&gapKey[FILENODEKEYLENGTH - sizeof gapMac], &gapMac, sizeof gapMac);
+
+    std::unique_ptr<char[]> token64(api.binaryToBase64(token.data(), token.size()));
+    std::unique_ptr<char[]> key64(api.binaryToBase64(gapKey.data(), gapKey.size()));
+    std::unique_ptr<char[]> fingerprint(api.getFingerprint(path.c_str()));
+    std::unique_ptr<MegaNode> root(api.getRootNode());
+    ASSERT_TRUE(root);
+    RequestTracker completion(&api);
+    api.completeUpload(file.name().c_str(),
+                       root.get(),
+                       fingerprint.get(),
+                       nullptr,
+                       token64.get(),
+                       key64.get(),
+                       &completion);
+    ASSERT_EQ(completion.waitForResult(120), API_OK) << "the gap-key node was not created";
+    ASSERT_TRUE(completion.request);
+    std::unique_ptr<MegaNode> node(api.getNodeByHandle(completion.request->getNodeHandle()));
+    ASSERT_TRUE(node) << "the gap-key node is not in the tree";
+
+    const auto strict = strictMetaMacMatches(node.get(), file.path());
+    const auto [dlRes, dlHash] = downloadAndHash(api, node.get(), file.name());
+    const auto gaps = watch.foundMacGaps();
+    const std::string expectedEvent =
+        "Download MAC matched with missing chunk MACs: chunks=13 runs=0+1,12+1";
+    const bool reported = std::any_of(gaps.begin(),
+                                      gaps.end(),
+                                      [&expectedEvent](const std::string& line)
+                                      {
+                                          return line.find(expectedEvent) != std::string::npos;
+                                      });
+    LOG_warn << "[INTEGRITY] cell=GapKeyNode strictMac=" << static_cast<bool>(strict)
+             << " download=" << dlRes << " hashEqual=" << (dlHash == file.hash())
+             << " foundMacGaps=" << gaps.size() << " event800043=" << reported;
+    EXPECT_FALSE(strict) << "the strict check accepted a gap key";
+    EXPECT_NE(std::string{strict.message()}.find("GAP KEY"), std::string::npos) << strict.message();
+    EXPECT_EQ(dlRes, API_OK) << "the download tolerance no longer matches the S4 field shape";
+    EXPECT_EQ(dlHash, file.hash()) << "downloaded bytes differ from the source";
+    EXPECT_TRUE(reported) << "event 800043 did not name chunks 0 and 12" << joinLines(gaps);
+    removeNode(api, node.get());
+}
 
 } // namespace mega::test::integrity

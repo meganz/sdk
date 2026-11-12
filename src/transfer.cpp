@@ -344,6 +344,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     }
 
     unique_ptr<Transfer> t(new Transfer(client, type));
+    t->restoredFromCache = true;
 
     int8_t hasUltoken;  // value 1 was for OLDUPLOADTOKENLEN, but that was from 2016
 
@@ -608,6 +609,7 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         setProgresscompleted(0);
         ultoken.reset();
         pos = 0;
+        ++uploadRestarts;
 
 #ifdef MEGA_USE_WSUPLOAD
         // SDK-6795: the chunk MACs and the WS server slot (session URL + fileno) are one unit.
