@@ -602,6 +602,23 @@ class chunkmac_map
     m_off_t progresscontiguous{0};
 
 public:
+    // Chunk-MAC coverage of [0, fileSize): the condensed prefix plus one finished entry per
+    // remaining chunk. macsmac() folds whatever entries exist, so a node key must only be built
+    // from full coverage (SDK-6795).
+    struct Coverage
+    {
+        size_t chunks = 0; // chunks in [0, fileSize)
+        size_t missing = 0; // chunks without a finished MAC
+        m_off_t firstMissing = -1; // start of the first such chunk, -1 if none
+    };
+
+    Coverage coverage(m_off_t fileSize) const;
+
+    bool coversWholeFile(m_off_t fileSize) const
+    {
+        return !coverage(fileSize).missing;
+    }
+
     int64_t macsmac(SymmCipher *cipher);
     int64_t macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4);
     void serialize(string& d) const;

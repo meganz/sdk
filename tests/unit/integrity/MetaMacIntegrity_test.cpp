@@ -363,4 +363,383 @@ TEST(MetaMacIntegrity, AppToleranceAcceptsGapKeysTheStrictCheckRejects)
     }
 }
 
+// ---------------------------------------------------------------------------------------------
+// The completeness check (SDK-6795 fix): an upload must refuse to build a node key unless the
+// chunk MACs cover the whole file. It must refuse every shape above and accept every complete map.
+// ---------------------------------------------------------------------------------------------
+
+namespace
+{
+
+m_off_t chunkStartOf(m_off_t fileSize, size_t index)
+{
+    m_off_t pos = 0;
+    for (size_t i = 0; i < index; ++i)
+    {
+        pos = ChunkedHash::chunkceil(pos, fileSize);
+    }
+    return pos;
+}
+
+// Adds an entry for chunk `index` whose MAC is not confirmed yet (not finished).
+void addUnconfirmedChunkMac(chunkmac_map& cm, SymmCipher& cipher, m_off_t fileSize, size_t index)
+{
+    byte buf[SymmCipher::BLOCKSIZE] = {};
+    const m_off_t pos = chunkStartOf(fileSize, index);
+    cm.ctr_encrypt(pos, &cipher, buf, sizeof(buf), pos, 0, false);
+}
+
+void expectRefused(const chunkmac_map& cm, m_off_t fileSize, const std::set<size_t>& missing)
+{
+    const auto coverage = cm.coverage(fileSize);
+    EXPECT_FALSE(cm.coversWholeFile(fileSize))
+        << "size " << fileSize << " missing " << describe(missing);
+    EXPECT_EQ(coverage.chunks, chunkCountOf(fileSize));
+    EXPECT_EQ(coverage.missing, missing.size()) << describe(missing);
+    EXPECT_EQ(coverage.firstMissing, chunkStartOf(fileSize, *missing.begin())) << describe(missing);
+}
+
+// A copy of a complete map with the MACs of `missing` dropped, as the gap injector does.
+chunkmac_map withDroppedMacs(const chunkmac_map& complete,
+                             m_off_t fileSize,
+                             const std::set<size_t>& missing)
+{
+    chunkmac_map cm = complete;
+    for (const auto index: missing)
+    {
+        EXPECT_TRUE(cm.dropChunkMacForTesting(chunkStartOf(fileSize, index)))
+            << "size " << fileSize << " chunk " << index;
+    }
+    return cm;
+}
+
+} // namespace
+
+TEST(MetaMacIntegrity, CompletenessCheckRefusesEveryKnownShape)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    for (const auto& shape: knownGapShapes())
+    {
+        chunkmac_map cm;
+        addChunkMacs(cm, cipher, shape.fileSize, shape.missing);
+        SCOPED_TRACE(shape.name);
+        expectRefused(cm, shape.fileSize, shape.missing);
+    }
+}
+
+// Every non-empty set of missing chunks for files of 1 to 13 chunks (57,298 shapes), dropped from a
+// complete map as the gap injector does, and every single chunk left unconfirmed: the check refuses
+// each one and reports the exact missing count and first missing chunk.
+TEST(MetaMacIntegrity, CompletenessCheckRefusesEveryGapOfSmallFiles)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    for (const m_off_t fileSize: smallFileSizes())
+    {
+        const size_t chunks = chunkCountOf(fileSize);
+        chunkmac_map complete;
+        addChunkMacs(complete, cipher, fileSize);
+        ASSERT_TRUE(complete.coversWholeFile(fileSize)) << "size " << fileSize;
+        for (unsigned mask = 1; mask < (1u << chunks); ++mask)
+        {
+            const auto missing = chunksOfMask(mask, chunks);
+            expectRefused(withDroppedMacs(complete, fileSize, missing), fileSize, missing);
+        }
+        for (size_t index = 0; index < chunks; ++index)
+        {
+            chunkmac_map unconfirmed;
+            addChunkMacs(unconfirmed, cipher, fileSize, {index});
+            addUnconfirmedChunkMac(unconfirmed, cipher, fileSize, index);
+            expectRefused(unconfirmed, fileSize, {index});
+        }
+    }
+}
+
+TEST(MetaMacIntegrity, CompletenessCheckRefusesRandomShapes)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    for (const auto& shape: randomGapShapes())
+    {
+        chunkmac_map cm;
+        addChunkMacs(cm, cipher, shape.fileSize, shape.missing);
+        expectRefused(cm, shape.fileSize, shape.missing);
+    }
+}
+
+// Structured families on large files: every single missing chunk, every adjacent pair, every
+// missing tail ("first k sent"), and "first k minus one hole" (all of them on 68 chunks, a sample
+// on 110/204/300). Then holes and unconfirmed entries near the end of maps whose prefix is
+// condensed.
+TEST(MetaMacIntegrity, CompletenessCheckRefusesStructuredFamiliesOnLargeFiles)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    for (const m_off_t fileSize: {k64MiB, k110Chunks, k200MiB, k300Chunks})
+    {
+        const size_t chunks = chunkCountOf(fileSize);
+        const size_t kStep = chunks <= 68 ? 1 : 7;
+        const size_t holeStep = chunks <= 68 ? 1 : 5;
+        chunkmac_map complete;
+        addChunkMacs(complete, cipher, fileSize);
+        std::vector<std::set<size_t>> family;
+        for (size_t i = 0; i < chunks; ++i)
+        {
+            family.push_back({i});
+            if (i + 1 < chunks)
+            {
+                family.push_back({i, i + 1});
+            }
+            family.push_back(chunkRange(i, chunks));
+        }
+        for (size_t k = 1; k < chunks; k += kStep)
+        {
+            for (size_t hole = 0; hole < k; hole += holeStep)
+            {
+                family.push_back(unite({hole}, chunkRange(k, chunks)));
+            }
+        }
+        for (const auto& missing: family)
+        {
+            expectRefused(withDroppedMacs(complete, fileSize, missing), fileSize, missing);
+        }
+    }
+
+    for (const m_off_t fileSize: {k110Chunks, k200MiB})
+    {
+        const size_t chunks = chunkCountOf(fileSize);
+        for (size_t index = chunks - 20; index < chunks; ++index)
+        {
+            chunkmac_map holed;
+            addChunkMacs(holed, cipher, fileSize, {index});
+            condensePrefix(holed, cipher, fileSize);
+            ASSERT_LT(holed.size(), chunks - 1) << "the prefix was not condensed";
+            expectRefused(holed, fileSize, {index});
+
+            chunkmac_map unconfirmed;
+            addChunkMacs(unconfirmed, cipher, fileSize, {index});
+            addUnconfirmedChunkMac(unconfirmed, cipher, fileSize, index);
+            condensePrefix(unconfirmed, cipher, fileSize);
+            expectRefused(unconfirmed, fileSize, {index});
+        }
+    }
+}
+
+// Testing the tests. Plausible but wrong completeness checks must each disagree with the truth on
+// at least one case of the catalogue; coverage() and an independent correct check (contiguous
+// progress reaching the end of the file) must agree with it on every case.
+TEST(MetaMacIntegrity, ShapeCatalogueExposesWrongCompletenessChecks)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+
+    struct Case
+    {
+        m_off_t fileSize;
+        chunkmac_map macs;
+        bool complete;
+        bool condensed;
+    };
+
+    std::vector<Case> cases;
+    auto add = [&](m_off_t fileSize, const std::set<size_t>& missing, bool condensed)
+    {
+        chunkmac_map cm;
+        addChunkMacs(cm, cipher, fileSize, missing);
+        if (condensed)
+        {
+            condensePrefix(cm, cipher, fileSize);
+        }
+        cases.push_back({fileSize, std::move(cm), missing.empty(), condensed});
+    };
+    for (const m_off_t fileSize: {m_off_t{1},
+                                  m_off_t{131072},
+                                  m_off_t{131073},
+                                  m_off_t{4718593},
+                                  kFieldFile,
+                                  k64MiB,
+                                  k200MiB})
+    {
+        add(fileSize, {}, false);
+    }
+    add(k110Chunks, {}, true);
+    add(k200MiB, {}, true);
+    for (const auto& shape: knownGapShapes())
+    {
+        add(shape.fileSize, shape.missing, false);
+    }
+    for (unsigned mask = 1; mask < (1u << 13); ++mask)
+    {
+        add(kFieldFile, chunksOfMask(mask, 13), false);
+    }
+    for (const m_off_t fileSize: {k110Chunks, k200MiB})
+    {
+        const size_t last = chunkCountOf(fileSize) - 1;
+        add(fileSize, {last - 4}, true);
+        add(fileSize, {last - 9, last - 8}, true);
+    }
+    for (const size_t index: {size_t{0}, size_t{6}, size_t{12}})
+    {
+        chunkmac_map cm;
+        addChunkMacs(cm, cipher, kFieldFile, {index});
+        addUnconfirmedChunkMac(cm, cipher, kFieldFile, index);
+        cases.push_back({kFieldFile, std::move(cm), false, false});
+    }
+
+    using Check = std::function<bool(chunkmac_map&, m_off_t)>;
+    auto confirmedFrom = [](chunkmac_map& cm, m_off_t fileSize, size_t firstIndex)
+    {
+        for (size_t i = firstIndex; i < chunkCountOf(fileSize); ++i)
+        {
+            if (!cm.finishedAt(chunkStartOf(fileSize, i)))
+            {
+                return false;
+            }
+        }
+        return true;
+    };
+
+    struct Candidate
+    {
+        const char* name;
+        Check check;
+        bool plainMapsOnly; // uses finishedAt(), which a condensed prefix does not support
+    };
+
+    const Candidate wrongChecks[] = {
+        {"accept every key (before SDK-6795)",
+         [](chunkmac_map&, m_off_t)
+         {
+             return true;
+         },
+         false},
+        {"one entry per chunk",
+         [](chunkmac_map& cm, m_off_t fileSize)
+         {
+             return cm.size() == chunkCountOf(fileSize);
+         },
+         false},
+        {"last chunk confirmed",
+         [&](chunkmac_map& cm, m_off_t fileSize)
+         {
+             return confirmedFrom(cm, fileSize, chunkCountOf(fileSize) - 1);
+         },
+         true},
+        {"first and last chunks confirmed",
+         [&](chunkmac_map& cm, m_off_t fileSize)
+         {
+             return cm.finishedAt(0) && confirmedFrom(cm, fileSize, chunkCountOf(fileSize) - 1);
+         },
+         true},
+        {"no gap in the last 40 chunks (the download tolerance's window)",
+         [&](chunkmac_map& cm, m_off_t fileSize)
+         {
+             const size_t chunks = chunkCountOf(fileSize);
+             return confirmedFrom(cm, fileSize, chunks > 40 ? chunks - 40 : 0);
+         },
+         true},
+    };
+    for (const auto& candidate: wrongChecks)
+    {
+        size_t disagreements = 0;
+        for (auto& c: cases)
+        {
+            if (candidate.plainMapsOnly && c.condensed)
+            {
+                continue;
+            }
+            chunkmac_map copy = c.macs;
+            disagreements += candidate.check(copy, c.fileSize) != c.complete;
+        }
+        EXPECT_GT(disagreements, 0u) << "the catalogue does not expose: " << candidate.name;
+    }
+
+    size_t coverageDisagreements = 0;
+    size_t contiguousDisagreements = 0;
+    for (auto& c: cases)
+    {
+        coverageDisagreements += c.macs.coversWholeFile(c.fileSize) != c.complete;
+        chunkmac_map copy = c.macs;
+        contiguousDisagreements +=
+            (copy.updateContiguousProgress(c.fileSize) == c.fileSize) != c.complete;
+    }
+    EXPECT_EQ(coverageDisagreements, 0u);
+    EXPECT_EQ(contiguousDisagreements, 0u);
+    EXPECT_GT(cases.size(), 8200u);
+}
+
+// A complete map passes at every chunk-lattice edge, a statecache round trip keeps it complete,
+// and an entry that is not confirmed yet does not count.
+TEST(MetaMacIntegrity, CompletenessCheckAcceptsCompleteMapsOnly)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+
+    chunkmac_map empty;
+    EXPECT_TRUE(empty.coversWholeFile(0)) << "an empty file needs no MAC";
+    EXPECT_EQ(empty.coverage(0).chunks, 0u);
+    EXPECT_FALSE(empty.coversWholeFile(1));
+    EXPECT_EQ(empty.coverage(5242880).missing, chunkCountOf(5242880));
+    EXPECT_EQ(empty.coverage(5242880).firstMissing, 0);
+
+    const m_off_t sizes[] =
+        {1, 16, 131072, 131073, 393216, 393217, 4718592, 4718593, kFieldFile, k64MiB, k110Chunks};
+    for (const m_off_t size: sizes)
+    {
+        chunkmac_map cm;
+        addChunkMacs(cm, cipher, size);
+        EXPECT_TRUE(cm.coversWholeFile(size)) << "size " << size;
+        EXPECT_EQ(cm.coverage(size).chunks, chunkCountOf(size)) << "size " << size;
+        EXPECT_EQ(cm.coverage(size).firstMissing, -1) << "size " << size;
+
+        std::string blob;
+        cm.serialize(blob);
+        chunkmac_map restored;
+        const char* ptr = blob.data();
+        ASSERT_TRUE(restored.unserialize(ptr, blob.data() + blob.size())) << "size " << size;
+        EXPECT_TRUE(restored.coversWholeFile(size)) << "size " << size;
+    }
+
+    chunkmac_map unconfirmed;
+    addChunkMacs(unconfirmed, cipher, kFieldFile, {7});
+    addUnconfirmedChunkMac(unconfirmed, cipher, kFieldFile, 7);
+    expectRefused(unconfirmed, kFieldFile, {7});
+}
+
+// The condensed prefix counts as covered (it is gap-free by construction), it survives a
+// statecache round trip, and holes after it are still refused.
+TEST(MetaMacIntegrity, CompletenessCheckWithCondensedPrefix)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    for (const m_off_t fileSize: {k110Chunks, k200MiB})
+    {
+        chunkmac_map complete;
+        addChunkMacs(complete, cipher, fileSize);
+        condensePrefix(complete, cipher, fileSize);
+        ASSERT_LT(complete.size(), chunkCountOf(fileSize)) << "the prefix was not condensed";
+        EXPECT_TRUE(complete.coversWholeFile(fileSize));
+        EXPECT_EQ(complete.coverage(fileSize).chunks, chunkCountOf(fileSize));
+
+        std::string blob;
+        complete.serialize(blob);
+        chunkmac_map restored;
+        const char* ptr = blob.data();
+        ASSERT_TRUE(restored.unserialize(ptr, blob.data() + blob.size()));
+        EXPECT_TRUE(restored.coversWholeFile(fileSize));
+
+        const size_t last = chunkCountOf(fileSize) - 1;
+        for (const auto& missing: {std::set<size_t>{last - 4},
+                                   std::set<size_t>{last - 9, last - 8},
+                                   chunkRange(last - 13, last + 1)})
+        {
+            chunkmac_map holed;
+            addChunkMacs(holed, cipher, fileSize, missing);
+            condensePrefix(holed, cipher, fileSize);
+            expectRefused(holed, fileSize, missing);
+        }
+    }
+}
+
 } // namespace mega

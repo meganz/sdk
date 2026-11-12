@@ -845,6 +845,19 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             }
 #endif
                             LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
+
+                            // SDK-6795: never build a node key from an incomplete set of chunk
+                            // MACs (e.g. a connection still reading a chunk the server already
+                            // holds from an earlier attempt). Upload again to a fresh URL instead.
+                            // Checked before the progress assert: a chunk without its MAC is not
+                            // counted there either.
+                            if (const auto coverage = transfer->chunkmacs.coverage(transfer->size);
+                                coverage.missing)
+                            {
+                                client->reportIncompleteUploadMacs("HTTP", *transfer, coverage);
+                                return transfer->failed(API_EAGAIN, committer);
+                            }
+
                             assert(transfer->progresscompleted == transfer->size);
 
                             updatecontiguousprogress();

@@ -20492,6 +20492,21 @@ void MegaClient::sendevent(int event, const char *message, int tag, const char *
     reqtag = creqtag;
 }
 
+void MegaClient::reportIncompleteUploadMacs(const char* channelName,
+                                            const Transfer& t,
+                                            const chunkmac_map::Coverage& coverage)
+{
+    std::ostringstream message;
+    message << "Upload token with incomplete chunk MACs: path=" << channelName << " size=" << t.size
+            << " chunks=" << coverage.chunks << " missing=" << coverage.missing
+            << " firstMissing=" << coverage.firstMissing << " failcount=" << t.failcount;
+    if (t.channel == Transfer::Channel::WebSocket)
+    {
+        message << " fileno=" << t.ws_fileno;
+    }
+    LOG_err << message.str() << ". Not building the node key; uploading again";
+}
+
 void MegaClient::supportticket(const char *message, int type)
 {
     queueCommand(new CommandSupportTicket(this, message, type));

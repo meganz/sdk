@@ -711,6 +711,28 @@ bool chunkmac_map::finishedAt(m_off_t pos)
         && pcit->second.finished;
 }
 
+chunkmac_map::Coverage chunkmac_map::coverage(m_off_t fileSize) const
+{
+    Coverage result;
+    for (m_off_t pos = 0; pos < fileSize; pos = ChunkedHash::chunkceil(pos, fileSize))
+    {
+        ++result.chunks;
+        if (pos <= macsmacSoFarPos)
+        {
+            continue; // folded into the condensed prefix, which never has gaps
+        }
+        if (const auto it = mMacMap.find(pos); it != mMacMap.end() && it->second.finished)
+        {
+            continue;
+        }
+        if (!result.missing++)
+        {
+            result.firstMissing = pos;
+        }
+    }
+    return result;
+}
+
 m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
 {
     assert(progresscontiguous > macsmacSoFarPos);

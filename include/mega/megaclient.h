@@ -1699,6 +1699,12 @@ public:
     // send event
     void sendevent(int, const char *, const char* viewId = nullptr, bool addJourneyId = false);
     void sendevent(int, const char *, int tag, const char* viewId = nullptr, bool addJourneyId = false);
+
+    // SDK-6795: an upload token arrived while the chunk MACs do not cover the whole file, so
+    // the node key is not built and the upload starts again.
+    void reportIncompleteUploadMacs(const char* channelName,
+                                    const Transfer& t,
+                                    const chunkmac_map::Coverage& coverage);
     void processHashcashSendevent();
 
     // create support ticket
