@@ -654,8 +654,9 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
     // 5s test knob fired only because it beat the first refresh). The per-file clock survives
     // pool retirement and rebinding; a bound pool must merely be quiescent (no in-flight, no
     // resend, not server-throttled) for the wedge to accumulate. Recovery is unchanged: purge
-    // + markFailedForRetry + onFail(API_EAGAIN, Retryable); the retry re-uploads and
-    // re-fetches a completion. Gated by mAckStallWatchdog so watchdog-off A/B arms
+    // + markFailedForRetry + onFail(API_EAGAIN, Retryable); the retry re-uploads the whole
+    // file to a fresh server slot (Transfer::failed retires the old one, SDK-6795) and
+    // fetches a completion there. Gated by mAckStallWatchdog so watchdog-off A/B arms
     // (MEGA_WS_ACKSTALL_WATCHDOG=0, e.g. the K32 comparability arm) stay byte-identical.
     // Runs under uploadMutex (checkPools contract). Two-phase (scan, then recover) because
     // the recovery path mutates engine bookkeeping while fileByNo is being iterated.
@@ -838,9 +839,10 @@ void WsPoolMgr::checkPools(UploadEngine::Impl& impl)
             if (requeued == 0)
             {
                 // Nothing to mine from mAckedIntervals (MEGA_WS_ACKED_REWIND=0, or an
-                // inconsistent set): fall back to the proven clean full restart (re-upload from
-                // scratch rebuilds all MAC state and re-fetches a completion) so the wedge always
-                // clears — same recovery the tail-completion watchdog uses.
+                // inconsistent set): fall back to the clean full restart (the whole file is
+                // uploaded again to a fresh server slot, since Transfer::failed retires the old
+                // one with its MACs, SDK-6795) so the wedge always clears — same recovery the
+                // tail-completion watchdog uses.
                 if (fpool)
                 {
                     fpool->purgeFileLocked(fileno);

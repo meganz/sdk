@@ -285,9 +285,10 @@ TEST(WsUploadFileno, RestoredTransferAtAFinishedTransfersAddressIsNotItsRetry)
     EXPECT_FALSE(engine->isTrackedForTesting(restored));
 }
 
-// GUARD, not a fail-first cell (GREEN on base; must stay GREEN on the fix): a whole-file retry
-// (Transfer::failed resets the head, the transfer is removed and re-enqueued) keeps the fileno
-// this engine gave it, and its URL when it had one. Retry semantics are out of the SDK-6600 scope.
+// GUARD, not a fail-first cell (GREEN on base; must stay GREEN on the fix): an engine-level
+// re-enqueue of a transfer that still carries the fileno this engine gave it (and its URL, when it
+// had one) keeps them. Since SDK-6795 a real whole-file retry does not reach this state:
+// Transfer::failed retires both before the retry (SdkWsUploadTest.RetryAfterHandshakeFailure...).
 TEST(WsUploadFileno, RetryReenqueueKeepsOwnFilenoAndUrl)
 {
     mega::MegaApp app;
@@ -321,9 +322,10 @@ TEST(WsUploadFileno, RetryReenqueueKeepsOwnFilenoAndUrl)
     engine->remove(started.transfer());
 }
 
-// GUARD, not a fail-first cell (GREEN on base; must stay GREEN on the fix): the retry of a
-// RESTORED transfer whose cached (fileno, URL) was kept is still its own retry. An engine that
-// only recognises the filenos it allocated fresh would renumber it and drop its URL.
+// GUARD, not a fail-first cell (GREEN on base; must stay GREEN on the fix): the re-enqueue of a
+// RESTORED transfer whose cached (fileno, URL) was kept is still its own. An engine that only
+// recognises the filenos it allocated fresh would renumber it and drop its URL. (A retry after
+// Transfer::failed arrives with fileno 0 since SDK-6795 and takes a fresh slot.)
 TEST(WsUploadFileno, RetryOfARestoredTransferKeepsItsFilenoAndUrl)
 {
     constexpr std::uint32_t kPersisted = 5;

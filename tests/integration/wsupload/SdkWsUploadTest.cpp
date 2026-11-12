@@ -2205,8 +2205,10 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
 
     ASSERT_TRUE(gotRecoveredSession)
         << "Could not observe WS upload transfer snapshot after recovery";
-    ASSERT_EQ(recoveredSession.wsFileno, activeSession.wsFileno)
-        << "WS upload file number changed across a retry";
+    // SDK-6795: a failed WS upload retires its server slot together with its chunk MACs, so
+    // the retry runs under a fresh file number (a fresh slot) instead of re-feeding the old one.
+    ASSERT_NE(recoveredSession.wsFileno, activeSession.wsFileno)
+        << "the retry re-used the failed attempt's WS file number (server slot)";
 
     // Step 4: finish upload and verify cloud node presence.
     megaApi[0]->setMaxUploadSpeed(-1);

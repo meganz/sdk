@@ -167,6 +167,9 @@ public:
     // status
     bool isUploading(Transfer& t) const;
 
+    // True while the engine holds this transfer's file (with its fileno and server slot).
+    bool isTracked(const Transfer& t) const;
+
     // Drain any server-confirmed chunk MAC updates accumulated on the WS worker threads.
     //
     // The legacy HTTP PUT path updates Transfer::chunkmacs and persists them via
