@@ -20499,12 +20499,19 @@ void MegaClient::reportIncompleteUploadMacs(const char* channelName,
     LOG_warn << "Upload token gate details: size=" << t.size
              << " firstMissing=" << coverage.firstMissing << " failcount=" << t.failcount
              << " fileno=" << t.ws_fileno;
+    reportIncompleteUploadMacs(channelName, coverage, t.uploadRestarts, t.restoredFromCache);
+}
 
+void MegaClient::reportIncompleteUploadMacs(const char* channelName,
+                                            const chunkmac_map::Coverage& coverage,
+                                            std::uint32_t restarts,
+                                            bool resumed)
+{
     std::ostringstream message;
     message << "Upload token with missing chunk MACs: path=" << channelName
             << " chunks=" << coverage.chunks << " missing=" << coverage.missing
             << " runs=" << chunkmac_map::formatChunkRuns(coverage.missingRuns)
-            << " retry=" << t.uploadRestarts << " resume=" << (t.restoredFromCache ? 1 : 0)
+            << " retry=" << restarts << " resume=" << (resumed ? 1 : 0)
             << " speedLimit=" << (getmaxuploadspeed() > 0 ? 1 : 0);
     sendMacGapEvent(EVENT_ID_UPLOAD_TOKEN_MISSING_MACS, message.str());
 }

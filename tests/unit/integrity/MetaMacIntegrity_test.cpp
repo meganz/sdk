@@ -14,6 +14,7 @@
  */
 
 #include <gtest/gtest.h>
+#include <mega/http.h>
 #include <mega/utils.h>
 
 #include <cstddef>
@@ -826,6 +827,48 @@ TEST(MetaMacIntegrity, DownloadEventNamesTheSkippedChunks)
               std::to_string(folded + 5) + "+2");
     EXPECT_EQ(big.macsmac_gaps(&cipher, g1, g1 + 2, 0, 0),
               metaMacBuiltLikeBeforeTheFix(cipher, k110Chunks, {folded + 5, folded + 6}));
+}
+
+// A background media upload's state holds the MACs computed when the app encrypted its portions
+// (EncryptBufferByChunks, the same code as encryptFile), which are never marked finished. They
+// count for MacsNeeded::Computed and never for an upload's Confirmed coverage. The documented
+// space-saving mode encrypts the last portion first, so the state is incomplete until the rest is
+// encrypted.
+TEST(MetaMacIntegrity, BackgroundStateCoverageCountsComputedMacs)
+{
+    auto cipherPtr = integrityCipher();
+    SymmCipher& cipher = *cipherPtr;
+    using Needed = chunkmac_map::MacsNeeded;
+    for (const m_off_t fileSize: {m_off_t{100000}, m_off_t{4718593}, kFieldFile})
+    {
+        SCOPED_TRACE("size " + std::to_string(fileSize));
+        std::vector<byte> data(static_cast<size_t>(fileSize));
+        for (size_t i = 0; i < data.size(); ++i)
+        {
+            data[i] = static_cast<byte>(i * 7 + 3);
+        }
+        const size_t chunks = chunkCountOf(fileSize);
+        const m_off_t lastStart = chunkStartOf(fileSize, chunks - 1);
+        chunkmac_map state;
+        std::string urlSuffix;
+
+        EncryptBufferByChunks lastPortion(data.data() + lastStart, &cipher, &state, 0x1234);
+        ASSERT_TRUE(lastPortion.encrypt(lastStart, fileSize, urlSuffix));
+        const auto partial = state.coverage(fileSize, Needed::Computed);
+        EXPECT_EQ(partial.missing, chunks - 1);
+        EXPECT_EQ(partial.firstMissing, chunks > 1 ? 0 : -1);
+        EXPECT_EQ(state.coverage(fileSize).missing, chunks) << "computed MACs are not confirmed";
+
+        if (lastStart > 0)
+        {
+            EncryptBufferByChunks rest(data.data(), &cipher, &state, 0x1234);
+            ASSERT_TRUE(rest.encrypt(0, lastStart, urlSuffix));
+        }
+        const auto full = state.coverage(fileSize, Needed::Computed);
+        EXPECT_EQ(full.chunks, chunks);
+        EXPECT_EQ(full.missing, 0u);
+        EXPECT_EQ(state.coverage(fileSize).missing, chunks);
+    }
 }
 
 } // namespace mega

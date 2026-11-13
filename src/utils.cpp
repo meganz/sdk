@@ -726,7 +726,7 @@ void addToRuns(std::vector<std::pair<size_t, size_t>>& runs, size_t chunkIndex)
 }
 } // namespace
 
-chunkmac_map::Coverage chunkmac_map::coverage(m_off_t fileSize) const
+chunkmac_map::Coverage chunkmac_map::coverage(m_off_t fileSize, MacsNeeded needed) const
 {
     Coverage result;
     for (m_off_t pos = 0; pos < fileSize; pos = ChunkedHash::chunkceil(pos, fileSize))
@@ -736,7 +736,9 @@ chunkmac_map::Coverage chunkmac_map::coverage(m_off_t fileSize) const
         {
             continue; // folded into the condensed prefix, which never has gaps
         }
-        if (const auto it = mMacMap.find(pos); it != mMacMap.end() && it->second.finished)
+        if (const auto it = mMacMap.find(pos);
+            it != mMacMap.end() &&
+            (it->second.finished || (needed == MacsNeeded::Computed && !it->second.offset)))
         {
             continue;
         }

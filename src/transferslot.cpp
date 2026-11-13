@@ -657,6 +657,20 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                 }
             }
 
+            // SDK-6795: a PUT restored from the transfer cache with its upload token comes with the
+            // node key built when the token arrived. A key built before SDK-6795 may miss chunk
+            // MACs: upload again instead of creating the node with it. Keys built since then
+            // passed the same check, so their MACs cover the file.
+            if (transfer->type == PUT)
+            {
+                if (const auto coverage = transfer->chunkmacs.coverage(transfer->size);
+                    coverage.missing)
+                {
+                    client->reportIncompleteUploadMacs("RESTORED", *transfer, coverage);
+                    return transfer->failed(API_EAGAIN, committer);
+                }
+            }
+
             // this is a pending completion, retry every 200 ms by default
             retrybt.backoff(2);
             retrying = true;

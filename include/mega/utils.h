@@ -622,7 +622,16 @@ public:
     // (the gap bounds count map entries, so they are not chunk indexes themselves).
     std::vector<std::pair<size_t, size_t>> gapChunkRuns(size_t g1, size_t g2, size_t g3, size_t g4);
 
-    Coverage coverage(m_off_t fileSize) const;
+    // Which entries count. An upload needs the storage server's confirmation of each chunk
+    // (finished). A background media upload only has the MACs computed when the app encrypted its
+    // portions: encryption works on whole chunks, which are never marked finished there.
+    enum class MacsNeeded
+    {
+        Confirmed,
+        Computed,
+    };
+
+    Coverage coverage(m_off_t fileSize, MacsNeeded needed = MacsNeeded::Confirmed) const;
 
     bool coversWholeFile(m_off_t fileSize) const
     {

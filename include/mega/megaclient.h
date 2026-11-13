@@ -1710,6 +1710,11 @@ public:
     void reportIncompleteUploadMacs(const char* channelName,
                                     const Transfer& t,
                                     const chunkmac_map::Coverage& coverage);
+    // The same report without a Transfer (background media uploads).
+    void reportIncompleteUploadMacs(const char* channelName,
+                                    const chunkmac_map::Coverage& coverage,
+                                    std::uint32_t restarts,
+                                    bool resumed);
     // SDK-6795: a download's MAC matched only with the chunks between the gap bounds left out
     // (bounds as passed to chunkmac_map::macsmac_gaps).
     void reportDownloadMacGapMatch(Transfer& t, size_t g1, size_t g2, size_t g3, size_t g4);
