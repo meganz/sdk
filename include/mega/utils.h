@@ -617,6 +617,9 @@ public:
     void copyEntriesTo(chunkmac_map& other);
     m_off_t copyEntriesToUntilRaidlineBeforePos(m_off_t maxPos, chunkmac_map& other);
     void copyEntryTo(m_off_t pos, chunkmac_map& other);
+    // SDK-6795 integrity tests only: removes the MAC of the chunk starting at pos, as an incomplete
+    // merge would. False for a position inside the condensed prefix or without a MAC.
+    bool dropChunkMacForTesting(m_off_t pos);
     void debugLogOuputMacs();
 
     void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);

@@ -613,6 +613,23 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     {
         if (transfer->type == GET || transfer->ultoken)
         {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            // SDK-6795 integrity tests: an upload with its token, waiting to create the node (e.g.
+            // restored from the transfer cache). A test can turn it into the one an older SDK
+            // would have cached: chunk MACs missing and the node key built without them.
+            if (transfer->type == PUT)
+            {
+                std::function<void(Transfer&)> hook;
+                {
+                    std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+                    hook = globalMegaTestHooks.onPendingUploadCompletion;
+                }
+                if (hook)
+                {
+                    hook(*transfer);
+                }
+            }
+#endif
             if (fa && transfer->type == GET)
             {
                 LOG_debug << "Verifying cached download";
@@ -811,6 +828,22 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                             transfer->setProgresscompleted(static_cast<m_off_t>(reqs[i]->size),
                                                            true /*append*/);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                            // SDK-6795 integrity tests: fault injection (dropped chunk MACs)
+                            // before the key.
+                            {
+                                std::function<void(m_off_t, chunkmac_map&)> hook;
+                                {
+                                    std::lock_guard<std::mutex> hookGuard(
+                                        globalMegaTestHooks.mMutex);
+                                    hook = globalMegaTestHooks.onUploadTokenChunkMacs;
+                                }
+                                if (hook)
+                                {
+                                    hook(transfer->size, transfer->chunkmacs);
+                                }
+                            }
+#endif
                             LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
                             assert(transfer->progresscompleted == transfer->size);
 

@@ -826,6 +826,11 @@ void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
     mMacMap[pos] = other.mMacMap[pos];
 }
 
+bool chunkmac_map::dropChunkMacForTesting(m_off_t pos)
+{
+    return pos > macsmacSoFarPos && mMacMap.erase(pos) > 0;
+}
+
 void chunkmac_map::debugLogOuputMacs()
 {
     for (auto& it : mMacMap)

@@ -58,6 +58,7 @@ namespace mega {
     class DebugTestHook;
     struct Transfer;
     class TransferDbCommitter;
+    class chunkmac_map;
 
     namespace ws
     {
@@ -744,6 +745,14 @@ namespace mega {
             onWsUploadFailureDetached;
         std::function<bool(std::uint32_t /*fileno*/, std::string& /*payload*/)>
             onWsUploadCorruptToken;
+        // SDK-6795 integrity tests: fault injection at the upload token (WS and HTTP), after the
+        // chunk MACs are merged and before the node key is built. A test can drop chunk MACs
+        // here (chunkmac_map::dropChunkMacForTesting) to make the gaps an incomplete merge would.
+        std::function<void(m_off_t /*fileSize*/, chunkmac_map& /*macs*/)> onUploadTokenChunkMacs;
+        // SDK-6795 integrity tests: an upload that holds its token and waits to create the node
+        // (TransferSlot::doio), before any check. Lets a test emulate a transfer cached by an
+        // older SDK.
+        std::function<void(Transfer& /*transfer*/)> onPendingUploadCompletion;
         std::function<void(int /*tag*/)> onUploadPutnodesStarted;
         // B9 regression hooks. Read/written only from the pool worker thread + test
         // thread; assignment to either field must go through globalMegaTestHooks like
@@ -970,6 +979,8 @@ namespace mega {
                 std::move(other.onWsConfirmedMacsQueuedForTesting);
             onWsUploadFailureDetached = std::move(other.onWsUploadFailureDetached);
             onWsUploadCorruptToken = std::move(other.onWsUploadCorruptToken);
+            onUploadTokenChunkMacs = std::move(other.onUploadTokenChunkMacs);
+            onPendingUploadCompletion = std::move(other.onPendingUploadCompletion);
             onUploadPutnodesStarted = std::move(other.onUploadPutnodesStarted);
             onWsConnForceCloseNow = std::move(other.onWsConnForceCloseNow);
             onWsPoolReconnectAttempt = std::move(other.onWsPoolReconnectAttempt);

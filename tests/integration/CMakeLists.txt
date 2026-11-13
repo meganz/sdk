@@ -113,6 +113,9 @@ include(benchmark/benchmark.cmake)
 # Load WS-upload integration-test module (gated by MEGA_USE_WSUPLOAD).
 include(wsupload/wsupload.cmake)
 
+# Load the upload integrity module (SDK-6795; WS and HTTP uploads).
+include(integrity/integrity.cmake)
+
 # Link with SDKlib
 target_link_libraries(test_integration PRIVATE MEGA::SDKlib)
 

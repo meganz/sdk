@@ -825,6 +825,20 @@ void MegaClient::installWsEngineCallbacks()
 
                 // Apply any confirmed chunk MAC updates before computing the final macsmac.
                 c.wsMergeDrainedChunkMacs(tt);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                // SDK-6795 integrity tests: fault injection (dropped chunk MACs) before the key.
+                {
+                    std::function<void(m_off_t, chunkmac_map&)> hook;
+                    {
+                        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+                        hook = globalMegaTestHooks.onUploadTokenChunkMacs;
+                    }
+                    if (hook)
+                    {
+                        hook(tt.size, tt.chunkmacs);
+                    }
+                }
+#endif
 
                 memcpy(&tt.filekey.key, tt.transferkey.data(), SymmCipher::KEYLENGTH);
                 tt.filekey.iv_u64 = static_cast<uint64_t>(tt.ctriv);
