@@ -809,12 +809,12 @@ TEST(MetaMacIntegrity, DownloadEventNamesTheSkippedChunks)
     auto cipherPtr = integrityCipher();
     SymmCipher& cipher = *cipherPtr;
 
-    chunkmac_map small;
-    addChunkMacs(small, cipher, kFieldFile);
-    EXPECT_EQ(chunkmac_map::formatChunkRuns(small.gapChunkRuns(3, 5, 10, 13)), "3+2,10+3");
-    EXPECT_EQ(small.macsmac_gaps(&cipher, 3, 5, 10, 13),
+    chunkmac_map smallMap;
+    addChunkMacs(smallMap, cipher, kFieldFile);
+    EXPECT_EQ(chunkmac_map::formatChunkRuns(smallMap.gapChunkRuns(3, 5, 10, 13)), "3+2,10+3");
+    EXPECT_EQ(smallMap.macsmac_gaps(&cipher, 3, 5, 10, 13),
               metaMacBuiltLikeBeforeTheFix(cipher, kFieldFile, {3, 4, 10, 11, 12}));
-    EXPECT_NE(small.macsmac_gaps(&cipher, 4, 6, 10, 13),
+    EXPECT_NE(smallMap.macsmac_gaps(&cipher, 4, 6, 10, 13),
               metaMacBuiltLikeBeforeTheFix(cipher, kFieldFile, {3, 4, 10, 11, 12}));
 
     chunkmac_map big;
