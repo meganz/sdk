@@ -445,6 +445,11 @@ public:
 // Let us log even during post-test shutdown
 TestMegaLogger megaLogger;
 
+::mega::Logger& testOutputLogger()
+{
+    return megaLogger;
+}
+
 #ifdef ENABLE_SYNC
 // destroy g_clientManager while the logging is still active
 ClientManager* g_clientManager = nullptr;

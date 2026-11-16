@@ -711,6 +711,94 @@ bool chunkmac_map::finishedAt(m_off_t pos)
         && pcit->second.finished;
 }
 
+namespace
+{
+void addToRuns(std::vector<std::pair<size_t, size_t>>& runs, size_t chunkIndex)
+{
+    if (!runs.empty() && runs.back().first + runs.back().second == chunkIndex)
+    {
+        ++runs.back().second;
+    }
+    else
+    {
+        runs.emplace_back(chunkIndex, 1);
+    }
+}
+} // namespace
+
+chunkmac_map::Coverage chunkmac_map::coverage(m_off_t fileSize, MacsNeeded needed) const
+{
+    Coverage result;
+    for (m_off_t pos = 0; pos < fileSize; pos = ChunkedHash::chunkceil(pos, fileSize))
+    {
+        const size_t chunkIndex = result.chunks++;
+        if (pos <= macsmacSoFarPos)
+        {
+            continue; // folded into the condensed prefix, which never has gaps
+        }
+        if (const auto it = mMacMap.find(pos);
+            it != mMacMap.end() &&
+            (it->second.finished || (needed == MacsNeeded::Computed && !it->second.offset)))
+        {
+            continue;
+        }
+        if (!result.missing++)
+        {
+            result.firstMissing = pos;
+        }
+        addToRuns(result.missingRuns, chunkIndex);
+    }
+    return result;
+}
+
+std::string chunkmac_map::formatChunkRuns(const std::vector<std::pair<size_t, size_t>>& runs,
+                                          size_t maxRuns)
+{
+    std::string result;
+    for (size_t i = 0; i < runs.size() && i < maxRuns; ++i)
+    {
+        if (i)
+        {
+            result += ',';
+        }
+        result += std::to_string(runs[i].first) + '+' + std::to_string(runs[i].second);
+    }
+    if (runs.size() > maxRuns)
+    {
+        result += ",...(+" + std::to_string(runs.size() - maxRuns) + ')';
+    }
+    return result;
+}
+
+std::vector<std::pair<size_t, size_t>>
+    chunkmac_map::gapChunkRuns(size_t g1, size_t g2, size_t g3, size_t g4)
+{
+    // Same entry counting as macsmac_gaps(); chunk indexes come from the entry offsets.
+    std::vector<std::pair<size_t, size_t>> runs;
+    m_off_t chunkPos = 0;
+    size_t chunkIndex = 0;
+    size_t n = 0;
+    for (auto it = mMacMap.begin(); it != mMacMap.end(); it++, n++)
+    {
+        if (it->second.isMacsmacSoFar())
+        {
+            for (m_off_t pos = 0; pos <= it->first; pos = ChunkedHash::chunkceil(pos))
+            {
+                ++n;
+            }
+        }
+        else if ((n >= g1 && n < g2) || (n >= g3 && n < g4))
+        {
+            for (; chunkPos < it->first; chunkPos = ChunkedHash::chunkceil(chunkPos))
+            {
+                ++chunkIndex;
+            }
+            addToRuns(runs, chunkIndex);
+        }
+    }
+    return runs;
+}
+
 m_off_t chunkmac_map::updateContiguousProgress(m_off_t fileSize)
 {
     assert(progresscontiguous > macsmacSoFarPos);
@@ -824,6 +912,11 @@ void chunkmac_map::copyEntryTo(m_off_t pos, chunkmac_map& other)
 {
     assert(pos > macsmacSoFarPos);
     mMacMap[pos] = other.mMacMap[pos];
+}
+
+bool chunkmac_map::dropChunkMacForTesting(m_off_t pos)
+{
+    return pos > macsmacSoFarPos && mMacMap.erase(pos) > 0;
 }
 
 void chunkmac_map::debugLogOuputMacs()

@@ -20,6 +20,7 @@ target_sources(test_unit
     canceller_test.cpp
     ChildNodeLookup_test.cpp
     ChunkMacMap_test.cpp
+    integrity/MetaMacIntegrity_test.cpp
     Commands_test.cpp
     Crypto_test.cpp
     CurlHttpIoConfig_test.cpp

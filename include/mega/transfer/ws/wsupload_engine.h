@@ -289,7 +289,7 @@ public:
     // Release-safe bench-framework hook — see UploadEngine::getAndResetBenchThrottleStats.
     UploadEngine::BenchThrottleSnapshot getAndResetBenchThrottleStats();
 
-    bool isTrackedForTesting(const Transfer& t) const;
+    bool isTracked(const Transfer& t) const;
 
     std::uintptr_t getFilePoolIdForTesting(Transfer& t) const;
 

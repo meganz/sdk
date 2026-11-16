@@ -12,10 +12,10 @@
  *          - Queue mutation: enqueue, reposition, remove, eraseFromFileListLocked.
  *          - Per-file commands: pause, unpause, setRetryUntil, markFailed.
  *          - Per-file queries: isUploading (Transfer&) / isUploading (const Transfer&),
- *            getTransferStats, drainConfirmedChunkMacs, getSessionUrl.
+ *            isTracked, getTransferStats, drainConfirmedChunkMacs, getSessionUrl.
  *          - Test-only queries (always-compile signatures, gated bodies):
  *            getPoolStateForTesting, getWsUploadStatsForTesting,
- *            isTrackedForTesting, getFilePoolIdForTesting.
+ *            getFilePoolIdForTesting.
  *          - URL invalidation: invalidatePinnedSessionUrl.
  *          - Notifications / connection limits: notifyWorkers,
  *            notifyNetworkDisconnect, setMaxConnections, setMaxUploadSpeed,
@@ -1401,7 +1401,7 @@ UploadEngine::BenchThrottleSnapshot UploadEngine::Impl::getAndResetBenchThrottle
     return out;
 }
 
-bool UploadEngine::Impl::isTrackedForTesting(const Transfer& t) const
+bool UploadEngine::Impl::isTracked(const Transfer& t) const
 {
     std::lock_guard<std::mutex> g(uploadMutex);
     return files.find(const_cast<Transfer*>(&t)) != files.end();

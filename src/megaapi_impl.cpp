@@ -27573,11 +27573,32 @@ error MegaApiImpl::performRequest_completeBackgroundUpload(MegaRequestPrivate* r
                 return API_ENOENT;
             }
 
-            const string megafingerprint = MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint);
+            m_off_t fileSize = 0;
+            const string megafingerprint =
+                MegaNodePrivate::removeAppPrefixFromFingerprint(fingerprint, &fileSize);
             if (megafingerprint.empty())
             {
                 LOG_err << "Bad fingerprint";
                 return API_EARGS;
+            }
+
+            // SDK-6795: never create a node whose key misses chunk MACs. With the SDK's state, the
+            // meta-MAC folds the MACs of the portions encrypted through it (encryptFile), so every
+            // chunk of the file must have been encrypted there. A state saved before the last
+            // portions were encrypted would give the node a key with gaps. Those MACs are computed
+            // at encryption and never confirmed (the app uploads the portions itself).
+            if (bgMediaUpload)
+            {
+                if (const auto coverage =
+                        bgMediaUpload->chunkmacs.coverage(fileSize,
+                                                          chunkmac_map::MacsNeeded::Computed);
+                    coverage.missing)
+                {
+                    LOG_err << "Background media upload state misses chunk MACs: size=" << fileSize
+                            << " firstMissing=" << coverage.firstMissing;
+                    client->reportIncompleteUploadMacs("BACKGROUND", coverage, 0, false);
+                    return API_EINCOMPLETE;
+                }
             }
 
             std::function<error(string&)> addFileAttrsFunc;

@@ -7,7 +7,8 @@
  * `#ifdef MEGA_USE_WSUPLOAD && MEGASDK_DEBUG_TEST_HOOKS_ENABLED`. Header-only inline.
  *
  * Since the hook-ABI redesign (Option a — always-compile hook ABI), the file is
- * UNGATED at the file scope. The 5 inline free functions are odr-used
+ * gated by MEGA_USE_WSUPLOAD only (the helpers reach the WS engine), not by the
+ * test hooks. The 5 inline free functions are odr-used
  * only from hooks-ON tests; the test fixtures runtime-gate their
  * invocation behind WSUPLOAD_REQUIRE_TEST_HOOKS() which expands to
  * GTEST_SKIP() in Release. Release builds carry ~150 LOC of dead inline-
@@ -34,6 +35,7 @@
 #include <string>
 #include <utility>
 
+#ifdef MEGA_USE_WSUPLOAD
 namespace mega::test::wsupload
 {
 
@@ -174,3 +176,4 @@ inline bool fetchAndResetWsUploadBenchThrottleStats(
 }
 
 } // namespace mega::test::wsupload
+#endif // MEGA_USE_WSUPLOAD

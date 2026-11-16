@@ -83,6 +83,9 @@ extern bool gScanOnly;
 extern bool gManualVerification;
 extern bool gFreeAccounts;
 
+// Logger the SDK's output class is set to by the test runner
+::mega::Logger& testOutputLogger();
+
 LogStream out();
 
 enum { THREADS_PER_MEGACLIENT = 3 };

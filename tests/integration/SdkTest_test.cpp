@@ -79,7 +79,9 @@ using ::mega::gfx::SocketUtils;
 
 using namespace std;
 
+#ifdef MEGA_USE_WSUPLOAD
 using ::mega::test::wsupload::fetchUscSizeClasses;
+#endif
 using ::mega::test::wsupload::second_timer;
 using ::mega::test::wsupload::TransferTempErrorTracker;
 
@@ -19500,6 +19502,8 @@ TEST_F(SdkTest, SdkTestMultipleUploads)
     deleteFile(file2);
 }
 
+#ifdef MEGA_USE_WSUPLOAD
+// Needs the usc size classes of the WS upload.
 TEST_F(SdkTest, SdkTestMultipleUploadsExpanded)
 {
     LOG_info << "___TEST Multiple Uploads Expanded___";
@@ -19644,6 +19648,7 @@ TEST_F(SdkTest, SdkTestMultipleUploadsExpanded)
         deleteFile(file);
     }
 }
+#endif // MEGA_USE_WSUPLOAD
 auto makeScopedDefaultPermissions(MegaApi& api, int directory, int file)
 {
     auto previousDirectory = api.getDefaultFolderPermissions();

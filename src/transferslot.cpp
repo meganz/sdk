@@ -481,6 +481,11 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
             if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, end, end))
             {
                 LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " from " << end;
+                transfer->client->reportDownloadMacGapMatch(*transfer,
+                                                            start1,
+                                                            start1 + len1,
+                                                            end,
+                                                            end);
                 auto correctMac = macsmac(&transfer->chunkmacs);
                 transfer->metamac = correctMac;
                 // TODO: update the Node's key to be correct (needs some API additions before enabling)
@@ -504,6 +509,11 @@ bool TransferSlot::checkMetaMacWithMissingLateEntries()
                     if (transfer->metamac == macsmac_gaps(&transfer->chunkmacs, start1, start1 + len1, start2, start2 + len2))
                     {
                         LOG_warn << "Found mac gaps were at " << start1 << " " << len1 << " " << start2 << " " << len2 << " from " << end;
+                        transfer->client->reportDownloadMacGapMatch(*transfer,
+                                                                    start1,
+                                                                    start1 + len1,
+                                                                    start2,
+                                                                    start2 + len2);
                         auto correctMac = macsmac(&transfer->chunkmacs);
                         transfer->metamac = correctMac;
                         // TODO: update the Node's key to be correct (needs some API additions before enabling)
@@ -613,6 +623,23 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
     {
         if (transfer->type == GET || transfer->ultoken)
         {
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+            // SDK-6795 integrity tests: an upload with its token, waiting to create the node (e.g.
+            // restored from the transfer cache). A test can turn it into the one an older SDK
+            // would have cached: chunk MACs missing and the node key built without them.
+            if (transfer->type == PUT)
+            {
+                std::function<void(Transfer&)> hook;
+                {
+                    std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+                    hook = globalMegaTestHooks.onPendingUploadCompletion;
+                }
+                if (hook)
+                {
+                    hook(*transfer);
+                }
+            }
+#endif
             if (fa && transfer->type == GET)
             {
                 LOG_debug << "Verifying cached download";
@@ -627,6 +654,20 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
 
                     transfer->chunkmacs.clear();
                     return transfer->failed(API_EKEY, committer);
+                }
+            }
+
+            // SDK-6795: a PUT restored from the transfer cache with its upload token comes with the
+            // node key built when the token arrived. A key built before SDK-6795 may miss chunk
+            // MACs: upload again instead of creating the node with it. Keys built since then
+            // passed the same check, so their MACs cover the file.
+            if (transfer->type == PUT)
+            {
+                if (const auto coverage = transfer->chunkmacs.coverage(transfer->size);
+                    coverage.missing)
+                {
+                    client->reportIncompleteUploadMacs("RESTORED", *transfer, coverage);
+                    return transfer->failed(API_EAGAIN, committer);
                 }
             }
 
@@ -811,7 +852,36 @@ void TransferSlot::doio(MegaClient* client, TransferDbCommitter& committer)
                             transfer->chunkmacs.finishedUploadChunks(static_cast<HttpReqUL*>(reqs[i].get())->mChunkmacs);
                             transfer->setProgresscompleted(static_cast<m_off_t>(reqs[i]->size),
                                                            true /*append*/);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                            // SDK-6795 integrity tests: fault injection (dropped chunk MACs)
+                            // before the key.
+                            {
+                                std::function<void(m_off_t, chunkmac_map&)> hook;
+                                {
+                                    std::lock_guard<std::mutex> hookGuard(
+                                        globalMegaTestHooks.mMutex);
+                                    hook = globalMegaTestHooks.onUploadTokenChunkMacs;
+                                }
+                                if (hook)
+                                {
+                                    hook(transfer->size, transfer->chunkmacs);
+                                }
+                            }
+#endif
                             LOG_debug << "Conn " << i << " : Progress completed: " << transfer->progresscompleted << "/" << transfer->size;
+
+                            // SDK-6795: never build a node key from an incomplete set of chunk
+                            // MACs (e.g. a connection still reading a chunk the server already
+                            // holds from an earlier attempt). Upload again to a fresh URL instead.
+                            // Checked before the progress assert: a chunk without its MAC is not
+                            // counted there either.
+                            if (const auto coverage = transfer->chunkmacs.coverage(transfer->size);
+                                coverage.missing)
+                            {
+                                client->reportIncompleteUploadMacs("HTTP", *transfer, coverage);
+                                return transfer->failed(API_EAGAIN, committer);
+                            }
+
                             assert(transfer->progresscompleted == transfer->size);
 
                             updatecontiguousprogress();

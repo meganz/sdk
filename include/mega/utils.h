@@ -602,6 +602,42 @@ class chunkmac_map
     m_off_t progresscontiguous{0};
 
 public:
+    // Chunk-MAC coverage of [0, fileSize): the condensed prefix plus one finished entry per
+    // remaining chunk. macsmac() folds whatever entries exist, so a node key must only be built
+    // from full coverage (SDK-6795).
+    struct Coverage
+    {
+        size_t chunks = 0; // chunks in [0, fileSize)
+        size_t missing = 0; // chunks without a finished MAC
+        m_off_t firstMissing = -1; // start of the first such chunk, -1 if none
+        // Missing chunks grouped into runs: (index of the first chunk, number of chunks).
+        std::vector<std::pair<size_t, size_t>> missingRuns;
+    };
+
+    // "start+len,start+len,..." for event payloads; at most maxRuns runs, then ",...(+N)".
+    static std::string formatChunkRuns(const std::vector<std::pair<size_t, size_t>>& runs,
+                                       size_t maxRuns = 8);
+
+    // The chunks that macsmac_gaps(g1, g2, g3, g4) leaves out, as runs of chunk indexes
+    // (the gap bounds count map entries, so they are not chunk indexes themselves).
+    std::vector<std::pair<size_t, size_t>> gapChunkRuns(size_t g1, size_t g2, size_t g3, size_t g4);
+
+    // Which entries count. An upload needs the storage server's confirmation of each chunk
+    // (finished). A background media upload only has the MACs computed when the app encrypted its
+    // portions: encryption works on whole chunks, which are never marked finished there.
+    enum class MacsNeeded
+    {
+        Confirmed,
+        Computed,
+    };
+
+    Coverage coverage(m_off_t fileSize, MacsNeeded needed = MacsNeeded::Confirmed) const;
+
+    bool coversWholeFile(m_off_t fileSize) const
+    {
+        return !coverage(fileSize).missing;
+    }
+
     int64_t macsmac(SymmCipher *cipher);
     int64_t macsmac_gaps(SymmCipher *cipher, size_t g1, size_t g2, size_t g3, size_t g4);
     void serialize(string& d) const;
@@ -617,6 +653,9 @@ public:
     void copyEntriesTo(chunkmac_map& other);
     m_off_t copyEntriesToUntilRaidlineBeforePos(m_off_t maxPos, chunkmac_map& other);
     void copyEntryTo(m_off_t pos, chunkmac_map& other);
+    // SDK-6795 integrity tests only: removes the MAC of the chunk starting at pos, as an incomplete
+    // merge would. False for a position inside the condensed prefix or without a MAC.
+    bool dropChunkMacForTesting(m_off_t pos);
     void debugLogOuputMacs();
 
     void ctr_encrypt(m_off_t chunkid, SymmCipher *cipher, byte *chunkstart, unsigned chunksize, m_off_t startpos, int64_t ctriv, bool finishesChunk);

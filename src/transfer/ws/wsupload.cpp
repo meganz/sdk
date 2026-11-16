@@ -329,6 +329,11 @@ bool UploadEngine::isUploading(Transfer& t) const
     return pImpl->isUploading(t);
 }
 
+bool UploadEngine::isTracked(const Transfer& t) const
+{
+    return pImpl->isTracked(t);
+}
+
 bool UploadEngine::drainConfirmedChunkMacs(Transfer& t, std::vector<chunkmac_map>& out)
 {
     return pImpl->drainConfirmedChunkMacs(t, out);
@@ -368,7 +373,7 @@ UploadEngine::BenchThrottleSnapshot UploadEngine::getAndResetBenchThrottleStats(
 
 bool UploadEngine::isTrackedForTesting(const Transfer& t) const
 {
-    return pImpl->isTrackedForTesting(t);
+    return pImpl->isTracked(t);
 }
 
 std::uintptr_t UploadEngine::getFilePoolIdForTesting(Transfer& t) const

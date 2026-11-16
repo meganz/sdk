@@ -17,6 +17,7 @@
 #include "wsupload/headers/SdkWsUploadTest.h"
 
 #include "../stdfs.h"
+#include "integrity/headers/MetaMacCheck.h"
 #include "mega/scoped_helpers.h"
 #include "mega/testhooks.h"
 #include "mega/types.h"
@@ -60,6 +61,11 @@ using namespace std;
 bool fileexists(const std::string& fn);
 
 namespace mega::test::wsupload {
+
+// SDK-6795 strict meta-MAC checks (tests/integration/integrity/headers/MetaMacCheck.h).
+using ::mega::test::integrity::joinLines;
+using ::mega::test::integrity::ScopedMacGapLogWatch;
+using ::mega::test::integrity::strictMetaMacMatches;
 
 TEST_F(SdkWsUploadTest, SampledByteCorrectness)
 {
@@ -301,6 +307,9 @@ TEST_F(SdkWsUploadTest, ResumeKeepsSerializedWsMetadata)
             megaApi[0]->getNodeByPathOfType(UPFILE.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     }
     ASSERT_TRUE(cloudNode) << "Upload did not finish after resume";
+
+    // SDK-6795: the resumed upload must not build a node key with missing chunk MACs.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(UPFILE))));
 }
 
 /**
@@ -439,6 +448,9 @@ TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession)
     }
     ASSERT_TRUE(cloudNode) << "Upload did not finish after resuming with a changed local file";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(changedFileSize));
+
+    // SDK-6795: the fresh session must build the key of the changed file, with every chunk MAC.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(UPFILE))));
 }
 
 /**
@@ -571,6 +583,9 @@ TEST_F(SdkWsUploadTest, ModifiedCachedFileStartsFreshSession2)
     }
     ASSERT_TRUE(cloudNode) << "Upload did not finish after resuming with a changed local file";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(changedFileSize));
+
+    // SDK-6795: the fresh session must build the key of the changed file, with every chunk MAC.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(UPFILE))));
 }
 
 /**
@@ -2190,8 +2205,10 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
 
     ASSERT_TRUE(gotRecoveredSession)
         << "Could not observe WS upload transfer snapshot after recovery";
-    ASSERT_EQ(recoveredSession.wsFileno, activeSession.wsFileno)
-        << "WS upload file number changed across a retry";
+    // SDK-6795: a failed WS upload retires its server slot together with its chunk MACs, so
+    // the retry runs under a fresh file number (a fresh slot) instead of re-feeding the old one.
+    ASSERT_NE(recoveredSession.wsFileno, activeSession.wsFileno)
+        << "the retry re-used the failed attempt's WS file number (server slot)";
 
     // Step 4: finish upload and verify cloud node presence.
     megaApi[0]->setMaxUploadSpeed(-1);
@@ -2213,6 +2230,9 @@ TEST_F(SdkWsUploadTest, RetryAfterHandshakeFailureRestartsTransferStart)
 
     ASSERT_TRUE(uploadedNode)
         << "Upload completed locally but the uploaded node was not visible in the cloud";
+
+    // SDK-6795: the handshake retry must not build a node key with missing chunk MACs.
+    EXPECT_TRUE(strictMetaMacMatches(uploadedNode.get(), fs::absolute(u8path_compat(fileName))));
 }
 
 /**
@@ -2484,6 +2504,9 @@ TEST_F(SdkWsUploadTest, InvalidPinnedSessionDetachedTransferCompletesOnFreshPool
 
     ASSERT_TRUE(cloudNode)
         << "Transfer switched URL but did not complete upload on a fresh pool in time";
+
+    // SDK-6795: the upload completed on a fresh pool must have every chunk MAC.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(fileName))));
 
     deleteFile(fileName);
 }
@@ -3198,6 +3221,9 @@ TEST_F(SdkWsUploadTest, MultiplePauseResumeCycles)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+
+    // SDK-6795: pause/resume cycles must not lose chunk MACs.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(fileName))));
 }
 
 /**
@@ -3422,6 +3448,14 @@ TEST_F(SdkWsUploadTest, PauseOneTransferNotBlockOthersInSamePool)
     const auto resultB = trackerB.waitForResult(420);
     ASSERT_EQ(resultB, API_OK)
         << "Transfer B did not complete. " << transferDiagnostics(idB, fileB);
+
+    // SDK-6795: pausing one transfer must not lose chunk MACs of either.
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerA.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileA))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerB.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileB))));
 }
 
 /**
@@ -4030,6 +4064,20 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPools)
     const auto resultB2 = trackerB2.waitForResult(300);
     ASSERT_EQ(resultB2, API_OK)
         << "Transfer B2 did not complete. " << transferDiagnostics(idB2, fileB2);
+
+    // SDK-6795: repeated pause/resume across pools must not lose chunk MACs.
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerA1.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileA1))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerA2.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileA2))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerB1.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileB1))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerB2.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileB2))));
 }
 
 /**
@@ -4310,6 +4358,20 @@ TEST_F(SdkWsUploadTest, RepeatedPauseResumeMixedPoolsStress)
     ASSERT_EQ(trackerA2.waitForResult(300), API_OK) << "A2 did not complete";
     ASSERT_EQ(trackerB1.waitForResult(300), API_OK) << "B1 did not complete";
     ASSERT_EQ(trackerB2.waitForResult(300), API_OK) << "B2 did not complete";
+
+    // SDK-6795: repeated pause/resume across pools must not lose chunk MACs.
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerA1.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileA1))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerA2.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileA2))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerB1.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileB1))));
+    EXPECT_TRUE(strictMetaMacMatches(*megaApi[0],
+                                     trackerB2.resultNodeHandle,
+                                     fs::absolute(u8path_compat(fileB2))));
 }
 
 /**
@@ -4812,6 +4874,9 @@ TEST_F(SdkWsUploadTest, PauseHandlesLateInFlightAck)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+
+    // SDK-6795: a late in-flight ack across a pause must not lose its chunk MAC.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(fileName))));
 }
 
 /**
@@ -5071,6 +5136,19 @@ TEST_F(SdkWsUploadTest, IndividualAndGlobalPauseReasonsComposeAcrossResume)
         },
         defaultTimeoutMs));
 
+    // SDK-6795: every upload completed across the pause/resume must have every chunk MAC.
+    for (const auto& name: fileNames)
+    {
+        auto folder = makeUniqueFrom(megaApi[0]->getNodeByHandle(folderHandle));
+        auto child =
+            folder ? makeUniqueFrom(megaApi[0]->getChildNode(folder.get(), name.c_str())) : nullptr;
+        if (child)
+        {
+            EXPECT_TRUE(strictMetaMacMatches(child.get(), fs::absolute(u8path_compat(name))))
+                << name;
+        }
+    }
+
     deleteFolder(folderName);
 }
 
@@ -5299,6 +5377,9 @@ TEST_F(SdkWsUploadTest, InvalidCompletionTokenTriggersRetry)
         megaApi[0]->getNodeByPathOfType(fileName.c_str(), rootnode.get(), MegaNode::TYPE_FILE));
     ASSERT_TRUE(cloudNode) << "Uploaded file not found in cloud";
     ASSERT_EQ(cloudNode->getSize(), static_cast<int64_t>(fileSize));
+
+    // SDK-6795: the invalid-token retry must not build a node key with missing chunk MACs.
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(fileName))));
 }
 
 /**
@@ -7392,6 +7473,10 @@ TEST_F(SdkWsUploadTest, TailCompletionWatchdogRecoversDroppedCompletion)
            "tail-completion watchdog (onWsTailCompletionRecovery) in the common case, or the "
            "silent-byte-shortfall watchdog (onWsSilentByteShortfallRecovery) when a chunk-ack was "
            "also lost organically";
+
+    // SDK-6795: the watchdog retry must not build a node key with missing chunk MACs.
+    std::unique_ptr<MegaNode> uploadedNode(megaApi[0]->getNodeByHandle(ut.resultNodeHandle));
+    EXPECT_TRUE(strictMetaMacMatches(uploadedNode.get(), fs::absolute(u8path_compat(fileName))));
 }
 
 /**
@@ -7543,6 +7628,10 @@ TEST_F(SdkWsUploadTest, SilentByteShortfallWedgeRecovers)
     // tailRecoveries is logged, not asserted: whether the tail watchdog finishes the recovery (the
     // gap re-send left the file completionless) or the gap re-send itself drew a fresh completion
     // is server-timing dependent — res==API_OK above is the end-to-end gate.
+
+    // SDK-6795: the shortfall recovery must not build a node key with missing chunk MACs.
+    std::unique_ptr<MegaNode> uploadedNode(megaApi[0]->getNodeByHandle(ut.resultNodeHandle));
+    EXPECT_TRUE(strictMetaMacMatches(uploadedNode.get(), fs::absolute(u8path_compat(fileName))));
 }
 
 /**
@@ -7756,6 +7845,7 @@ TEST_F(SdkWsUploadTest, StatecacheMidTransferPendingMacsRoundTrip)
     LOG_info << "___TEST SdkWsUploadStatecacheMidTransferPendingMacsRoundTrip___";
     WSUPLOAD_REQUIRE_TEST_HOOKS();
     ASSERT_NO_FATAL_FAILURE(getAccountsForTest(1));
+    ScopedMacGapLogWatch macGapWatch;
 
     constexpr size_t kFileSize = 5242880;
     ASSERT_TRUE(createFileWithSize(UPFILE, kFileSize, "R")) << "Couldn't create " << UPFILE;
@@ -7834,6 +7924,12 @@ TEST_F(SdkWsUploadTest, StatecacheMidTransferPendingMacsRoundTrip)
     const fs::path downloadPath = fs::current_path() / "ws_statecache_roundtrip_download.bin";
     std::error_code ignore;
     fs::remove(downloadPath, ignore);
+
+    // SDK-6795: the download above also passes for a key with missing chunk MACs (gap tolerance).
+    EXPECT_TRUE(strictMetaMacMatches(cloudNode.get(), fs::absolute(u8path_compat(UPFILE))));
+    EXPECT_TRUE(macGapWatch.foundMacGaps().empty())
+        << "the download only verified through the MAC-gap tolerance:"
+        << joinLines(macGapWatch.foundMacGaps());
     TransferTracker dt(megaApi[0].get());
     megaApi[0]->startDownload(cloudNode.get(),
                               downloadPath.string().c_str(),

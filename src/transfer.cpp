@@ -344,6 +344,7 @@ Transfer *Transfer::unserialize(MegaClient *client, string *d, transfer_multimap
     }
 
     unique_ptr<Transfer> t(new Transfer(client, type));
+    t->restoredFromCache = true;
 
     int8_t hasUltoken;  // value 1 was for OLDUPLOADTOKENLEN, but that was from 2016
 
@@ -608,6 +609,25 @@ void Transfer::failed(const Error& e, TransferDbCommitter& committer, dstime tim
         setProgresscompleted(0);
         ultoken.reset();
         pos = 0;
+        ++uploadRestarts;
+
+#ifdef MEGA_USE_WSUPLOAD
+        // SDK-6795: the chunk MACs and the WS server slot (session URL + fileno) are one unit.
+        // A slot that already holds every byte answers the next re-sent frame with a
+        // completion, so a retry on it would build the node key from the few chunks re-sent
+        // before that. Retire the slot with the MACs: with fileno 0, enqueue claims a fresh
+        // fileno, which is a fresh server slot. Dropping only the URL is not enough, because
+        // an unpinned pool would take the file again under the same fileno. A file the engine
+        // still holds (in-place retry after overquota) keeps its slot; the completeness check
+        // in onComplete covers that case.
+        if (channel == Transfer::Channel::WebSocket &&
+            !(client->wsEngine() && client->wsEngine()->isTracked(*this)))
+        {
+            ws_session_url.clear();
+            ws_fileno = 0;
+            ws_fileno_engine = 0;
+        }
+#endif
 
         if (slot && slot->fa)
         {

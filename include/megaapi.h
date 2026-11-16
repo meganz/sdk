@@ -22614,8 +22614,9 @@ class MegaApi
          * The node representing the file will be created in the cloud, with all the suitable
          * attributes and file attributes attached.
          *
-         * The associated request type with this request is MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD
-         * Valid data in the MegaRequest object received on callbacks:
+         * The associated request type with this request is
+         * MegaRequest::TYPE_COMPLETE_BACKGROUND_UPLOAD Valid data in the MegaRequest object
+         * received on callbacks:
          * - MegaRequest::getMegaBackgroundMediaUploadPtr() - Returns the provided state
          * - MegaRequest::getPassword - Returns the original fingerprint
          * - MegaRequest::getNewPassword - Returns the fingerprint
@@ -22628,14 +22629,21 @@ class MegaApi
          * - MegaRequest::getNodeHandle - Returns the handle of the uploaded node
          * - MegaRequest::getFlag - True if target folder (\c parent) was overriden
          *
+         * The request fails with MegaError::API_EINCOMPLETE, and no node is created, if \c state
+         * does not hold the MAC of every chunk of the file: every portion of the file must have
+         * been encrypted with MegaBackgroundMediaUpload::encryptFile through this state (or a
+         * state serialized after the last portion was encrypted).
+         *
          * @param state The MegaBackgroundMediaUpload object tracking this upload
          * @param utf8Name The leaf name of the file, utf-8 encoded
          * @param parent The folder node under which this new file should appear
-         * @param fingerprint The fingerprint for the uploaded file (use MegaApi::getFingerprint to generate this)
+         * @param fingerprint The fingerprint for the uploaded file (use MegaApi::getFingerprint to
+         * generate this)
          * @param fingerprintoriginal If the file uploaded is modified from the original,
          *        pass the fingerprint of the original file here, otherwise NULL.
-         * @param string64UploadToken The token returned from the upload of the last portion of the file,
-         *        which is exactly 36 binary bytes, converted to a base 64 string with MegaApi::binaryToString64.
+         * @param string64UploadToken The token returned from the upload of the last portion of the
+         * file, which is exactly 36 binary bytes, converted to a base 64 string with
+         * MegaApi::binaryToString64.
          * @param listener MegaRequestListener to track this request
          */
         void backgroundMediaUploadComplete(MegaBackgroundMediaUpload* state, const char *utf8Name, MegaNode *parent,

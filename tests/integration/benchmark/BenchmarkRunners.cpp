@@ -61,7 +61,7 @@
 #include <sys/resource.h>
 #endif
 
-#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+#if defined(MEGA_USE_WSUPLOAD) && defined(MEGASDK_DEBUG_TEST_HOOKS_ENABLED)
 using ::mega::test::wsupload::fetchWsUploadStatsForTesting;
 #endif
 

@@ -825,6 +825,45 @@ void MegaClient::installWsEngineCallbacks()
 
                 // Apply any confirmed chunk MAC updates before computing the final macsmac.
                 c.wsMergeDrainedChunkMacs(tt);
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                // SDK-6795 integrity tests: fault injection (dropped chunk MACs) before the key.
+                {
+                    std::function<void(m_off_t, chunkmac_map&)> hook;
+                    {
+                        std::lock_guard<std::mutex> hookGuard(globalMegaTestHooks.mMutex);
+                        hook = globalMegaTestHooks.onUploadTokenChunkMacs;
+                    }
+                    if (hook)
+                    {
+                        hook(tt.size, tt.chunkmacs);
+                    }
+                }
+#endif
+
+                // SDK-6795: never build a node key from an incomplete set of chunk MACs. A slot
+                // that already holds every byte completes on the first re-sent frame of a retry
+                // or resume, before the other re-sent chunks are confirmed. Fail this attempt
+                // instead: Transfer::failed retires the slot, so the whole file goes to a fresh
+                // one.
+                if (const auto coverage = tt.chunkmacs.coverage(tt.size); coverage.missing)
+                {
+                    c.reportIncompleteUploadMacs("WS", tt, coverage);
+                    const auto wsPosition = c.wsDetachTransferBeforeFailure(tt);
+
+#ifdef MEGASDK_DEBUG_TEST_HOOKS_ENABLED
+                    const bool stillTrackedAfterDetach = c.wsIsTransferTrackedForTesting(tt);
+                    DEBUG_TEST_HOOK_WSUPLOAD_FAILURE_DETACHED("missing chunk MACs",
+                                                              stillTrackedAfterDetach);
+#endif
+
+                    tt.failed(API_EAGAIN, committer);
+
+                    if (c.wsIsTransferAlive(type, tPtr) && (tPtr->uploadhandle == th))
+                    {
+                        c.wsReenqueueTransferAfterFailure(*tPtr, wsPosition);
+                    }
+                    return;
+                }
 
                 memcpy(&tt.filekey.key, tt.transferkey.data(), SymmCipher::KEYLENGTH);
                 tt.filekey.iv_u64 = static_cast<uint64_t>(tt.ctriv);
