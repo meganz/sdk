@@ -13,6 +13,7 @@
  */
 
 #include "mega/crypto/cryptopp.h"
+#include "mega/file.h"
 #include "mega/megaapp.h"
 #include "mega/megaclient.h"
 #include "mega/transfer.h"
@@ -23,8 +24,13 @@
 #include <algorithm>
 #include <array>
 #include <cstring>
+#include <filesystem>
+#include <fstream>
+#include <functional>
 #include <memory>
 #include <new>
+#include <string>
+#include <system_error>
 
 namespace
 {
@@ -99,6 +105,110 @@ bool isPoisonKey(const mega::Transfer& t)
                        });
 }
 
+using TransferKeyBytes = std::array<mega::byte, mega::SymmCipher::KEYLENGTH>;
+
+// A small local file for the cells that go through MegaClient::startxfer.
+class ScopedLocalFile
+{
+public:
+    explicit ScopedLocalFile(const std::string& name):
+        mPath(std::filesystem::temp_directory_path() / name)
+    {
+        std::ofstream out(mPath, std::ios::binary | std::ios::trunc);
+        out << std::string(1024, 'x');
+    }
+
+    ~ScopedLocalFile()
+    {
+        std::error_code ec;
+        std::filesystem::remove(mPath, ec);
+    }
+
+    ScopedLocalFile(const ScopedLocalFile&) = delete;
+    ScopedLocalFile& operator=(const ScopedLocalFile&) = delete;
+
+    // Replaces the file's content, as an edit made while the app was closed.
+    void rewrite(const std::string& content) const
+    {
+        std::ofstream out(mPath, std::ios::binary | std::ios::trunc);
+        out << content;
+    }
+
+    mega::LocalPath localPath() const
+    {
+        return mega::LocalPath::fromAbsolutePath(mPath.string());
+    }
+
+private:
+    std::filesystem::path mPath;
+};
+
+// Puts a prepared, partly uploaded PUT transfer for `file` into the client's cached transfers,
+// as Transfer::unserialize restores it, and resumes it through startxfer. `beforeResume`, if
+// given, runs after the transfer is cached and before startxfer. Returns the transfer `file` ends
+// up attached to (the client owns it; destroying `file` removes it).
+mega::Transfer* resumeCachedPreparedUpload(mega::MegaClient& client,
+                                           mega::File& file,
+                                           const mega::LocalPath& localPath,
+                                           const TransferKeyBytes& key,
+                                           const int64_t iv,
+                                           const std::function<void()>& beforeResume = {})
+{
+    file.setLocalname(localPath);
+    file.name = "transferkey_test_upload.bin";
+    file.targetuser = mega::MegaClient::SUPPORT_USER_HANDLE; // needs no target node
+    {
+        auto fa = client.fsaccess->newfileaccess();
+        if (!fa->fopen(localPath, mega::OPEN_RDONLY, mega::FSLogging::logOnError))
+        {
+            ADD_FAILURE() << "harness: cannot open the local file";
+            return nullptr;
+        }
+        file.genfingerprint(fa.get());
+    }
+
+    auto* cached = new mega::Transfer(&client, mega::PUT);
+    *static_cast<mega::FileFingerprint*>(cached) = static_cast<const mega::FileFingerprint&>(file);
+    cached->localfilename = localPath;
+    cached->transferkey = key;
+    cached->ctriv = iv;
+    cached->ws_fileno = 7;
+    cached->ws_session_url = "wss://transferkey.test.invalid/session";
+    cached->ultoken = std::make_unique<mega::UploadToken>();
+    cached->pos = mega::SymmCipher::BLOCKSIZE;
+    {
+        // One confirmed chunk MAC.
+        TransferKeyBytes macKey{};
+        mega::SymmCipher cipher(macKey.data());
+        std::array<mega::byte, mega::SymmCipher::BLOCKSIZE> block{};
+        cached->chunkmacs
+            .ctr_encrypt(0, &cipher, block.data(), static_cast<unsigned>(block.size()), 0, 0, true);
+    }
+    cached->lastaccesstime = mega::m_time();
+    cached->priority = mega::TransferList::PRIORITY_START + mega::TransferList::PRIORITY_STEP;
+    client.multi_cachedtransfers[mega::PUT].insert({cached, cached});
+
+    if (beforeResume)
+    {
+        beforeResume();
+    }
+
+    mega::error e = mega::API_OK;
+    mega::TransferDbCommitter committer(client.tctable);
+    const bool started = client.startxfer(mega::PUT,
+                                          &file,
+                                          committer,
+                                          false,
+                                          false,
+                                          true,
+                                          mega::NoVersioning,
+                                          &e,
+                                          client.nextreqtag());
+    EXPECT_TRUE(started) << "harness: startxfer failed with " << e;
+    EXPECT_EQ(file.transfer, cached) << "harness: startxfer must adopt the cached transfer";
+    return file.transfer;
+}
+
 } // namespace
 
 TEST(TransferKey, NewTransferOverRecycledStorageHasZeroKeyAndIv)
@@ -111,6 +221,90 @@ TEST(TransferKey, NewTransferOverRecycledStorageHasZeroKeyAndIv)
 
     EXPECT_TRUE(isZeroKey(t)) << "transferkey is not zero-initialised";
     EXPECT_EQ(t.ctriv, 0);
+}
+
+// A prepared upload always carries the random CTR IV generated together with its key, so a
+// cached prepared upload with IV 0 never had a key generated (a remote-copy transfer, for
+// example, is persisted prepared but keyless). Resuming it must keep nothing sent under that
+// key and must leave the transfer unprepared, so that it gets a fresh key and IV like any new
+// upload.
+TEST(TransferKey, ResumeRestartsACachedPreparedUploadWhoseKeyWasNeverGenerated)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+    const ScopedLocalFile localFile("transferkey_test_resume_nokey.bin");
+    mega::File file;
+
+    TransferKeyBytes persistedKey{};
+    persistedKey.fill(kPoison);
+    const mega::Transfer* t =
+        resumeCachedPreparedUpload(*client, file, localFile.localPath(), persistedKey, 0);
+    ASSERT_NE(t, nullptr);
+
+    EXPECT_TRUE(t->localfilename.empty()) << "the upload is still marked as prepared";
+    EXPECT_FALSE(isPoisonKey(*t)) << "the upload kept a key that was never generated";
+    EXPECT_EQ(t->chunkmacs.size(), 0u);
+    EXPECT_EQ(t->pos, 0);
+    EXPECT_EQ(t->ultoken, nullptr);
+    EXPECT_EQ(t->ws_fileno, 0u);
+    EXPECT_TRUE(t->ws_session_url.empty());
+}
+
+// The restart above still checks the local file first: when the file changed while the app was
+// closed, the restarted upload takes the file's current fingerprint, so it is not failed as
+// modified when it starts.
+TEST(TransferKey, ResumeRestartUsesTheCurrentFingerprintOfAModifiedFile)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+    const ScopedLocalFile localFile("transferkey_test_resume_modified.bin");
+    mega::File file;
+
+    TransferKeyBytes persistedKey{};
+    persistedKey.fill(kPoison);
+    const std::string newContent(2048, 'y');
+    const mega::Transfer* t = resumeCachedPreparedUpload(*client,
+                                                         file,
+                                                         localFile.localPath(),
+                                                         persistedKey,
+                                                         0,
+                                                         [&localFile, &newContent]
+                                                         {
+                                                             localFile.rewrite(newContent);
+                                                         });
+    ASSERT_NE(t, nullptr);
+
+    EXPECT_TRUE(t->localfilename.empty()) << "the upload is still marked as prepared";
+    EXPECT_EQ(t->size, static_cast<int64_t>(newContent.size()))
+        << "the restarted upload kept the fingerprint of the previous file content";
+}
+
+// GUARD (passes before and after the fix): a cached prepared upload with a generated key and
+// IV resumes with its key, IV and progress.
+TEST(TransferKey, ResumeKeepsACachedPreparedUploadWithAGeneratedKeyAndIv)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+    const ScopedLocalFile localFile("transferkey_test_resume_key.bin");
+    mega::File file;
+
+    TransferKeyBytes persistedKey{};
+    for (std::size_t i = 0; i < persistedKey.size(); ++i)
+    {
+        persistedKey[i] = static_cast<mega::byte>(i + 1);
+    }
+    constexpr int64_t persistedIv = 0x0102030405060708;
+    const mega::Transfer* t =
+        resumeCachedPreparedUpload(*client, file, localFile.localPath(), persistedKey, persistedIv);
+    ASSERT_NE(t, nullptr);
+
+    EXPECT_FALSE(t->localfilename.empty());
+    EXPECT_EQ(t->transferkey, persistedKey);
+    EXPECT_EQ(t->ctriv, persistedIv);
+    EXPECT_EQ(t->chunkmacs.size(), 1u);
+    EXPECT_NE(t->ultoken, nullptr);
+    EXPECT_EQ(t->ws_fileno, 7u);
+    EXPECT_FALSE(t->ws_session_url.empty());
 }
 
 #ifdef MEGA_USE_WSUPLOAD
@@ -170,6 +364,25 @@ TEST(TransferKey, WsPreflightReplacesAKeyPersistedBeforePreparation)
     EXPECT_FALSE(client->prepareUploadForWs(t));
 
     EXPECT_FALSE(isPoisonKey(t)) << "WS preflight kept a key persisted before preparation";
+    EXPECT_NE(t.ctriv, 0) << "WS preflight left the CTR IV at 0";
+}
+
+// A transfer can be prepared without a key: a remote-copy transfer gets its localfilename from
+// File::prepare and is persisted like that. If it is later uploaded for real, the zero-key test
+// is the only thing that gives it a key.
+TEST(TransferKey, WsPreflightGeneratesKeyAndIvForAPreparedTransferWithoutKey)
+{
+    mega::MegaApp app;
+    auto client = mt::makeClient(app);
+    RecycledTransferStorage storage;
+
+    mega::Transfer& t = storage.constructPoisoned(*client);
+    t.localfilename = mega::LocalPath::fromAbsolutePath("transferkey_test_missing_file.bin");
+    ASSERT_TRUE(isZeroKey(t)) << "a new transfer does not start with a zero key";
+
+    EXPECT_FALSE(client->prepareUploadForWs(t));
+
+    EXPECT_FALSE(isZeroKey(t)) << "WS preflight left a prepared transfer without a key";
     EXPECT_NE(t.ctriv, 0) << "WS preflight left the CTR IV at 0";
 }
 
