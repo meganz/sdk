@@ -1415,7 +1415,10 @@ bool MegaClient::prepareUploadForWs(Transfer& t)
     // at openfinished, without TransferSlot/HttpReq:
     //
     // 0) Ensure transfer key/CTR IV exist (WS preflight can run before dispatchTransfers()).
-    if (SymmCipher::isZeroKey(t.transferkey.data(), SymmCipher::KEYLENGTH))
+    //    Same rule as dispatchTransfers(): a transfer without localfilename was never prepared,
+    //    so nothing was uploaded under its key yet and it gets a fresh key and IV.
+    if (t.localfilename.empty() ||
+        SymmCipher::isZeroKey(t.transferkey.data(), SymmCipher::KEYLENGTH))
     {
         byte keyctriv[SymmCipher::KEYLENGTH + sizeof(int64_t)];
         rng.genblock(keyctriv, sizeof keyctriv);
