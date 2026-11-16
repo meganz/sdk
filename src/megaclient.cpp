@@ -19742,6 +19742,30 @@ bool MegaClient::startxfer(direction_t d, File* f, TransferDbCommitter& committe
                         }
                     }
                 }
+
+                if (d == PUT && !t->localfilename.empty() && t->ctriv == 0)
+                {
+                    // A prepared upload always carries the random CTR IV generated together
+                    // with its key. IV 0 means no key was ever generated: restart as a fresh
+                    // upload, which gets its own key and IV. Remote-copy transfers, for
+                    // example, are persisted prepared but keyless. This runs after the
+                    // fingerprint check above, so a local file modified meanwhile restarts
+                    // with its current fingerprint.
+                    LOG_warn << "Cached upload has no generated key (CTR IV 0). Restarting upload "
+                                "from scratch: "
+                             << t->localfilename;
+                    t->tempurls.clear();
+                    t->discardedTempUrlsSize = 0;
+                    t->chunkmacs.clear();
+                    t->setProgresscompleted(0);
+                    t->ultoken.reset();
+                    t->pos = 0;
+                    t->ws_fileno = 0;
+                    t->ws_session_url.clear();
+                    t->transferkey.fill(0);
+                    t->localfilename.clear();
+                    transfercacheadd(t, &committer);
+                }
                 LOG_debug << "Transfer resumed";
             }
 

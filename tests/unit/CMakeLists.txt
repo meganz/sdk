@@ -53,6 +53,7 @@ target_sources(test_unit
     TextChat_test.cpp
     TransferQuotaChecker_test.cpp
     Transfer_test.cpp
+    TransferKey_test.cpp
     Transferstats_test.cpp
     User_test.cpp
     user_attributes_test.cpp
